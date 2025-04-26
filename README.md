@@ -1,4 +1,6 @@
-<img src="assets/sifika.jpg" alt="Sifaka - A lemur species from Madagascar" width="500"/>
+<p align="center">
+  <img src="assets/sifika.jpg" alt="Sifaka - A lemur species from Madagascar" width="100%" max-width="800px"/>
+</p>
 
 ## What is Sifaka?
 
