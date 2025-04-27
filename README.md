@@ -117,7 +117,7 @@ Here's a complete example showing different ways to use API keys:
 from sifaka import Reflector
 from sifaka.models import OpenAIProvider, AnthropicProvider
 from sifaka.rules import ProhibitedContentRule
-from sifaka.critique import PromptCritique
+from sifaka.critics import PromptCritique
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -174,7 +174,7 @@ from sifaka import Reflector
 from sifaka.models import AnthropicProvider
 from sifaka.rules import ProhibitedContentRule, FormatRule, SentimentRule, ToxicityRule, LengthRule
 from sifaka.rules.legal import LegalCitationRule
-from sifaka.critique import PromptCritique
+from sifaka.critics import PromptCritique
 from sifaka.utils.logging import get_logger
 import logging
 from dotenv import load_dotenv
@@ -546,7 +546,7 @@ Let's walk through an example:
 from sifaka import Reflector
 from sifaka.models import AnthropicProvider
 from sifaka.rules import LengthRule
-from sifaka.critique import PromptCritique
+from sifaka.critics import PromptCritique
 import logging
 
 # Configure logging
