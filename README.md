@@ -307,6 +307,7 @@ from sifaka.rules import SymmetryRule, RepetitionRule
 from sifaka.rules.base import RuleConfig, RulePriority
 from sifaka.critics import PromptCritic
 from sifaka.critics.prompt import PromptCriticConfig
+from sifaka.chain import Chain
 
 # Load environment variables
 load_dotenv()
@@ -356,16 +357,27 @@ critic = PromptCritic(
         temperature=0.7,
         max_tokens=2000
     ),
-    model=model,  # Pass the model instance here
-    rules=[symmetry_rule, repetition_rule]
+    model=model  # Pass the model instance here
+)
+
+# Create a chain with rules and critic
+chain = Chain(
+    model=model,
+    rules=[symmetry_rule, repetition_rule],
+    critic=critic,
+    max_attempts=3
 )
 
 # Analyze text
 text = "The quick brown fox jumps over the lazy dog."
 try:
-    result = critic.validate(text)
-    print(f"Validation result: {result.passed}")
-    print(f"Message: {result.message}")
+    result = chain.run(text)
+    print(f"Final text: {result.output}")
+    print(f"Validation passed: {result.passed}")
+    print(f"Attempts made: {result.attempts}")
+    if result.critique_details:
+        print(f"Critique score: {result.critique_details.get('score', 0)}")
+        print(f"Feedback: {result.critique_details.get('feedback', '')}")
 except Exception as e:
     print(f"Error during validation: {str(e)}")
 ```
@@ -385,8 +397,9 @@ Common issues and solutions:
 2. Missing name/description: All components (rules AND critics) require `name` and `description` parameters
 3. API Key: Set your Anthropic API key in the environment variables
 4. Model Configuration: The API key goes in the ModelConfig, not PromptCriticConfig
-5. Dependencies: Install required packages using pip
-6. Error Handling: Always wrap validation calls in try-except blocks to handle potential errors
+5. Chain Usage: Use the Chain class to combine rules and critics
+6. Dependencies: Install required packages using pip
+7. Error Handling: Always wrap chain calls in try-except blocks to handle potential errors
 
 ## 🔑 API Keys and Configuration
 
