@@ -77,12 +77,13 @@ class AnthropicProvider(ModelProvider):
                 "Anthropic package not found. Please install it with `pip install anthropic`"
             )
 
-    def generate(self, prompt: str, **kwargs) -> str:
+    def generate(self, prompt: str, system_prompt: Optional[str] = None, **kwargs) -> str:
         """
         Generate text using the Anthropic API.
 
         Args:
             prompt (str): The prompt to send to the LLM
+            system_prompt (Optional[str]): The system prompt to use
             **kwargs: Additional arguments to pass to the Anthropic API
 
         Returns:
@@ -99,9 +100,11 @@ class AnthropicProvider(ModelProvider):
 
         try:
             client = self._anthropic.Anthropic(api_key=self.api_key)
-            response = client.messages.create(
-                messages=[{"role": "user", "content": prompt}], **params
-            )
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
+            response = client.messages.create(messages=messages, **params)
             return response.content[0].text
         except Exception as e:
             raise RuntimeError(f"Error generating text with Anthropic: {e}")

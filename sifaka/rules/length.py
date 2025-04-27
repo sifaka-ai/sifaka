@@ -1,5 +1,6 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 from sifaka.rules.base import Rule, RuleResult
+from pydantic import Field
 
 
 class LengthRule(Rule):
@@ -27,22 +28,32 @@ class LengthRule(Rule):
     5. RuleResult is returned to the caller
     """
 
+    min_length: Optional[int] = Field(
+        default=None, description="Minimum allowed length (inclusive)"
+    )
+    max_length: Optional[int] = Field(
+        default=None, description="Maximum allowed length (inclusive)"
+    )
+    exact_length: Optional[int] = Field(default=None, description="Exact required length")
+
     def __init__(
         self,
-        min_length: Optional[int] = None,
-        max_length: Optional[int] = None,
-        exact_length: Optional[int] = None,
-    ):
+        name: str,
+        description: str,
+        config: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> None:
         """
         Initialize the rule with length constraints.
 
         Args:
-            min_length: Minimum allowed length (inclusive).
-                       If None, no minimum length is enforced.
-            max_length: Maximum allowed length (inclusive).
-                       If None, no maximum length is enforced.
-            exact_length: Exact required length.
-                        If specified, overrides min_length and max_length.
+            name: The name of the rule
+            description: Description of the rule
+            config: Configuration dictionary containing:
+                   - min_length: Minimum allowed length (inclusive)
+                   - max_length: Maximum allowed length (inclusive)
+                   - exact_length: Exact required length
+            **kwargs: Additional arguments
 
         Raises:
             ValueError: If length constraints are invalid, specifically:
@@ -51,6 +62,16 @@ class LengthRule(Rule):
                        - min_length is greater than max_length
                        - min_length or max_length is negative
         """
+        # First initialize the base class
+        super().__init__(name=name, description=description, config=config or {}, **kwargs)
+
+        # Extract length constraints from config
+        config = config or {}
+        min_length = config.get("min_length")
+        max_length = config.get("max_length")
+        exact_length = config.get("exact_length")
+
+        # Validate constraints
         if exact_length is not None:
             if exact_length < 0:
                 raise ValueError("exact_length must be non-negative")
@@ -64,14 +85,10 @@ class LengthRule(Rule):
             if max_length is not None and max_length < 0:
                 raise ValueError("max_length must be non-negative")
 
-        # Initialize the base Rule class with name and description
-        super().__init__(
-            name="length_rule",
-            description=self._generate_description(min_length, max_length, exact_length),
-        )
-        self.min_length = min_length
-        self.max_length = max_length
-        self.exact_length = exact_length
+        # Set the values using object.__setattr__ to bypass Pydantic validation
+        object.__setattr__(self, "min_length", min_length)
+        object.__setattr__(self, "max_length", max_length)
+        object.__setattr__(self, "exact_length", exact_length)
 
     def validate(self, output: str) -> RuleResult:
         """
@@ -118,34 +135,6 @@ class LengthRule(Rule):
                     "exact_length": self.exact_length,
                 },
             )
-
-    def _generate_description(
-        self,
-        min_length: Optional[int],
-        max_length: Optional[int],
-        exact_length: Optional[int],
-    ) -> str:
-        """
-        Generate a human-readable description of the length constraints.
-
-        Args:
-            min_length: Minimum allowed length
-            max_length: Maximum allowed length
-            exact_length: Exact required length
-
-        Returns:
-            str: A description of the length constraints
-        """
-        if exact_length is not None:
-            return f"Checks if output length is exactly {exact_length} characters"
-
-        constraints = []
-        if min_length is not None:
-            constraints.append(f"at least {min_length}")
-        if max_length is not None:
-            constraints.append(f"at most {max_length}")
-
-        return f"Checks if output length is {' and '.join(constraints)} characters"
 
     def _check_length(self, length: int) -> Tuple[bool, str]:
         """

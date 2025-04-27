@@ -159,12 +159,13 @@ class Reflector(BaseModel):
         if self.has_tracer:
             self.tracer.add_event("reflector", event_type, data)
 
-    def reflect(self, prompt: str, **kwargs) -> str:
+    def reflect(self, prompt: str, max_attempts: int = 3, **kwargs) -> str:
         """
         Reflect on a prompt and generate an improved output.
 
         Args:
             prompt: The prompt to reflect on
+            max_attempts: Maximum number of attempts to fix violations
             **kwargs: Additional arguments for the model
 
         Returns:
@@ -172,6 +173,7 @@ class Reflector(BaseModel):
 
         Raises:
             ValueError: If the output fails validation and critique is disabled
+            RuntimeError: If max attempts reached and output still has violations
         """
         # Start tracing if configured
         if self.has_tracer:
@@ -182,16 +184,35 @@ class Reflector(BaseModel):
         output = self.model.generate(prompt, **kwargs)
         self._trace_event("end", {"output": output})
 
-        # Validate the output
+        # Validate and improve the output
+        attempt = 1
         passed, violations = self._validate_output(output)
-        if not passed:
-            if self.critique:
-                # Improve the output using the critique system
-                self._trace_event("critique_start", {"violations": violations})
-                output = self._improve_output(output, violations)
-                self._trace_event("critique_end", {"output": output})
-            else:
+
+        while not passed and attempt <= max_attempts:
+            if not self.critique:
                 raise ValueError(f"Output failed validation: {violations}")
+
+            # Log attempt number and violations
+            logger.info(f"Attempt {attempt}/{max_attempts} to fix violations:")
+            for v in violations:
+                logger.info(f"- {v['rule']}: {v['message']}")
+
+            # Improve the output using the critique system
+            self._trace_event("critique_start", {"attempt": attempt, "violations": violations})
+            output = self._improve_output(output, violations)
+            self._trace_event("critique_end", {"attempt": attempt, "output": output})
+
+            # Check if violations are fixed
+            passed, violations = self._validate_output(output)
+            attempt += 1
+
+        if not passed:
+            logger.warning(
+                f"Failed to fix all violations after {max_attempts} attempts. Remaining violations:"
+            )
+            for v in violations:
+                logger.warning(f"- {v['rule']}: {v['message']}")
+            raise RuntimeError(f"Failed to fix all violations after {max_attempts} attempts")
 
         return output
 

@@ -34,9 +34,12 @@ class PromptCritique(Critique):
         ),
         description="The template for the user prompt",
     )
+    model: ModelProvider
 
     def __init__(
         self,
+        name: str,
+        description: str,
         model: ModelProvider,
         system_prompt: Optional[str] = None,
         user_prompt_template: Optional[str] = None,
@@ -46,6 +49,8 @@ class PromptCritique(Critique):
         Initialize a prompt critique.
 
         Args:
+            name: The name of the critique
+            description: Description of the critique
             model: The model provider to use for critique
             system_prompt: The system prompt to use for critique
             user_prompt_template: The template for the user prompt
@@ -56,7 +61,8 @@ class PromptCritique(Critique):
         if user_prompt_template is not None:
             kwargs["user_prompt_template"] = user_prompt_template
 
-        super().__init__(model=model, **kwargs)
+        kwargs["model"] = model
+        super().__init__(name=name, description=description, **kwargs)
 
     def _format_feedback(self, rule_violations: List[Dict[str, Any]]) -> str:
         """
@@ -79,6 +85,24 @@ class PromptCritique(Critique):
 
         return "\n".join(feedback)
 
+    def critique(self, prompt: str) -> str:
+        """
+        Critique a prompt using the model.
+
+        Args:
+            prompt: The prompt containing the output and violations to critique
+
+        Returns:
+            The improved output
+        """
+        try:
+            response = self.model.generate(prompt=prompt, system_prompt=self.system_prompt)
+            return response.strip()
+        except Exception as e:
+            # If system_prompt fails, try without it
+            response = self.model.generate(prompt=prompt)
+            return response.strip()
+
     def improve(
         self, output: str, prompt: str, rule_violations: List[Dict[str, Any]], **kwargs
     ) -> str:
@@ -96,9 +120,4 @@ class PromptCritique(Critique):
         """
         feedback = self._format_feedback(rule_violations)
         user_prompt = self.user_prompt_template.format(output=output, feedback=feedback)
-
-        improved_output = self.model.generate(
-            user_prompt, system_prompt=self.system_prompt, **kwargs
-        )
-
-        return improved_output.strip()
+        return self.critique(user_prompt)

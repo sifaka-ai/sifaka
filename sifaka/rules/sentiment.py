@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict, Any
 from textblob import TextBlob
 from sifaka.rules.base import Rule, RuleResult
 
@@ -25,29 +25,50 @@ class SentimentRule(Rule):
     4. Score is compared against threshold
     5. Result is wrapped in RuleResult with relevant metadata
     6. RuleResult is returned to the caller
+
+    Usage Example:
+        rule = SentimentRule(
+            name="sentiment_rule",
+            description="Ensures positive sentiment",
+            config={"min_sentiment": 0.0}
+        )
     """
 
-    def __init__(self, min_sentiment: float = 0.0):
+    min_sentiment: float = 0.0
+
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        config: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> None:
         """
         Initialize the rule with a minimum sentiment threshold.
 
         Args:
-            min_sentiment: Minimum allowed sentiment score (inclusive).
-                          Must be between -1.0 (very negative) and 1.0 (very positive).
-                          Defaults to 0.0 (neutral).
+            name: The name of the rule
+            description: Description of the rule
+            config: Configuration dictionary containing:
+                   - min_sentiment: Minimum allowed sentiment score (inclusive).
+                                  Must be between -1.0 (very negative) and 1.0 (very positive).
+                                  Defaults to 0.0 (neutral).
+            **kwargs: Additional arguments
 
         Raises:
             ValueError: If min_sentiment is not between -1.0 and 1.0
         """
+        super().__init__(name=name, description=description, config=config or {}, **kwargs)
+
+        # Extract sentiment threshold from config
+        config = config or {}
+        min_sentiment = config.get("min_sentiment", 0.0)
+
         if not -1.0 <= min_sentiment <= 1.0:
             raise ValueError("min_sentiment must be between -1.0 and 1.0")
 
-        # Initialize the base Rule class with name and description
-        super().__init__(
-            name="sentiment_rule",
-            description=f"Checks if output sentiment is at least {min_sentiment}",
-        )
-        self.min_sentiment = min_sentiment
+        # Set the value using object.__setattr__ to bypass Pydantic validation
+        object.__setattr__(self, "min_sentiment", min_sentiment)
 
     def validate(self, output: str) -> RuleResult:
         """

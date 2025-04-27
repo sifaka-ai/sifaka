@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict, Any
 from sifaka.rules.base import Rule, RuleResult
 
 
@@ -24,28 +24,50 @@ class ToxicityRule(Rule):
     4. Score is compared against threshold
     5. Result is wrapped in RuleResult with relevant metadata
     6. RuleResult is returned to the caller
+
+    Usage Example:
+        rule = ToxicityRule(
+            name="toxicity_rule",
+            description="Checks for toxic content",
+            config={"max_toxicity": 0.5}
+        )
     """
 
-    def __init__(self, max_toxicity: float = 0.5):
+    max_toxicity: float = 0.5
+
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        config: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> None:
         """
         Initialize the rule with a maximum toxicity threshold.
 
         Args:
-            max_toxicity: Maximum allowed toxicity score (inclusive).
-                         Must be between 0.0 (no toxicity) and 1.0 (highly toxic).
-                         Defaults to 0.5 (moderate tolerance).
+            name: The name of the rule
+            description: Description of the rule
+            config: Configuration dictionary containing:
+                   - max_toxicity: Maximum allowed toxicity score (inclusive).
+                                 Must be between 0.0 (no toxicity) and 1.0 (highly toxic).
+                                 Defaults to 0.5 (moderate tolerance).
+            **kwargs: Additional arguments
 
         Raises:
             ValueError: If max_toxicity is not between 0.0 and 1.0
         """
+        super().__init__(name=name, description=description, config=config or {}, **kwargs)
+
+        # Extract toxicity threshold from config
+        config = config or {}
+        max_toxicity = config.get("max_toxicity", 0.5)
+
         if not 0.0 <= max_toxicity <= 1.0:
             raise ValueError("max_toxicity must be between 0.0 and 1.0")
 
-        # Initialize the base Rule class with name and description
-        super().__init__(
-            name="toxicity_rule", description=f"Checks if output toxicity is below {max_toxicity}"
-        )
-        self.max_toxicity = max_toxicity
+        # Set the value using object.__setattr__ to bypass Pydantic validation
+        object.__setattr__(self, "max_toxicity", max_toxicity)
 
     def validate(self, output: str) -> RuleResult:
         """

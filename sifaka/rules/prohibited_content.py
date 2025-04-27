@@ -1,4 +1,5 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+from pydantic import Field
 from sifaka.rules.base import Rule, RuleResult
 
 
@@ -24,32 +25,51 @@ class ProhibitedContentRule(Rule):
     5. RuleResult is returned to the caller
 
     Usage Example:
-        rule = ProhibitedContentRule(["bad", "inappropriate", "forbidden"])
+        rule = ProhibitedContentRule(
+            name="content_rule",
+            description="Checks for prohibited terms",
+            config={"prohibited_terms": ["bad", "inappropriate", "forbidden"]}
+        )
         result = rule.validate("This is a bad example")
         # result.passed will be False
         # result.message will indicate which terms were found
     """
 
-    def __init__(self, prohibited_terms: List[str]):
+    prohibited_terms: List[str] = Field(
+        default=[], description="List of terms that should not appear in the output"
+    )
+
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        config: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> None:
         """
         Initialize the rule with a list of prohibited terms.
 
         Args:
-            prohibited_terms: List of terms that should not appear in the output.
-                            Terms are matched case-insensitively.
+            name: The name of the rule
+            description: Description of the rule
+            config: Configuration dictionary containing:
+                   - prohibited_terms: List of terms that should not appear in the output
+            **kwargs: Additional arguments
 
         Raises:
             ValueError: If prohibited_terms list is empty
         """
+        super().__init__(name=name, description=description, config=config or {}, **kwargs)
+
+        # Extract prohibited terms from config
+        config = config or {}
+        prohibited_terms = config.get("prohibited_terms", [])
+
         if not prohibited_terms:
             raise ValueError("prohibited_terms list cannot be empty")
 
-        # Initialize the base Rule class with name and description
-        super().__init__(
-            name="prohibited_content_rule",
-            description=f"Checks for prohibited terms: {', '.join(prohibited_terms)}",
-        )
-        self.prohibited_terms = prohibited_terms
+        # Set the values using object.__setattr__ to bypass Pydantic validation
+        object.__setattr__(self, "prohibited_terms", prohibited_terms)
 
     def validate(self, output: str) -> RuleResult:
         """
