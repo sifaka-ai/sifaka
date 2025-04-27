@@ -36,6 +36,9 @@ Whether you're building AI-powered tools for legal research, customer support, o
 # Basic installation
 pip install sifaka
 
+# Install with sentiment analysis support
+pip install sifaka[sentiment]
+
 # With OpenAI support
 pip install sifaka[openai]
 

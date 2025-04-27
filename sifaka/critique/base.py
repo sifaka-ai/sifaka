@@ -1,59 +1,41 @@
 """
-Base critique class.
+Base class for critique functionality.
 """
 
-from typing import Any, Dict, Optional
-
+from typing import Dict, Any
 from pydantic import BaseModel, ConfigDict
 
 
 class Critique(BaseModel):
-    """
-    Base class for critique systems.
-
-    Attributes:
-        name: The name of the critique system
-        description: Description of the critique system
-        config: Configuration for the critique system
-    """
+    """Base class for critiquing and validating prompts."""
 
     name: str
     description: str
     config: Dict[str, Any] = {}
+    min_confidence: float = 0.7
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def __init__(
-        self,
-        name: str,
-        description: str,
-        config: Optional[Dict[str, Any]] = None,
-        **kwargs,
-    ) -> None:
+    def validate(self, prompt: str) -> bool:
         """
-        Initialize a critique system.
+        Validate if a prompt meets quality standards.
 
         Args:
-            name: The name of the critique system
-            description: Description of the critique system
-            config: Configuration for the critique system
-            **kwargs: Additional arguments
-        """
-        super().__init__(
-            name=name,
-            description=description,
-            config=config or {},
-            **kwargs,
-        )
+            prompt: The prompt to validate
 
-    def critique(self, prompt: str) -> str:
+        Returns:
+            True if prompt meets standards, False otherwise
         """
-        Critique a prompt.
+        raise NotImplementedError()
+
+    def critique(self, prompt: str) -> Dict[str, Any]:
+        """
+        Critique a prompt and provide feedback.
 
         Args:
             prompt: The prompt to critique
 
         Returns:
-            The critiqued prompt
+            Dictionary containing critique results
         """
-        raise NotImplementedError
+        raise NotImplementedError()

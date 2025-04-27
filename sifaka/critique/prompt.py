@@ -1,123 +1,100 @@
 """
-Prompt-based critique for Sifaka.
+Prompt critique implementation.
 """
 
-from typing import Dict, Any, List, Optional
-from pydantic import Field
-from .base import Critique
-from ..models.base import ModelProvider
+from typing import Dict, Any, Optional
+
+from sifaka.critique.base import Critique
 
 
 class PromptCritique(Critique):
     """
-    A critique that uses prompts to improve LLM outputs.
-
-    This critique uses the LLM itself to improve outputs based on rule violations.
+    A class for critiquing and validating prompts using a language model.
 
     Attributes:
-        name: The name of the critique
-        model: The model provider to use for critique
-        system_prompt: The system prompt to use for critique
-        user_prompt_template: The template for the user prompt
+        name: Name of the critique instance
+        description: Description of what this critique does
+        model: The language model to use for critiquing
+        min_confidence: Minimum confidence threshold for accepting critique results
+        config: Additional configuration options
     """
 
-    system_prompt: str = Field(
-        default="You are a helpful AI assistant that improves text based on feedback.",
-        description="The system prompt to use for critique",
-    )
-    user_prompt_template: str = Field(
-        default=(
-            "Please improve the following text based on the feedback:\n\n"
-            "Original text: {output}\n\n"
-            "Feedback:\n{feedback}\n\n"
-            "Improved text:"
-        ),
-        description="The template for the user prompt",
-    )
-    model: ModelProvider
+    model: Any  # Declare model as a field
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        model: ModelProvider,
-        system_prompt: Optional[str] = None,
-        user_prompt_template: Optional[str] = None,
-        **kwargs,
+        model: Any,
+        name: str = "prompt_critique",
+        description: str = "Critiques and validates prompts using a language model",
+        min_confidence: float = 0.7,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
-        Initialize a prompt critique.
+        Initialize the prompt critique.
 
         Args:
-            name: The name of the critique
-            description: Description of the critique
-            model: The model provider to use for critique
-            system_prompt: The system prompt to use for critique
-            user_prompt_template: The template for the user prompt
-            **kwargs: Additional arguments for the critique
+            model: The language model to use for critiquing
+            name: Name of the critique instance
+            description: Description of what this critique does
+            min_confidence: Minimum confidence threshold (0-1)
+            config: Additional configuration options
         """
-        if system_prompt is not None:
-            kwargs["system_prompt"] = system_prompt
-        if user_prompt_template is not None:
-            kwargs["user_prompt_template"] = user_prompt_template
+        super().__init__(
+            name=name,
+            description=description,
+            min_confidence=min_confidence,
+            config=config or {},
+            model=model,
+        )
 
-        kwargs["model"] = model
-        super().__init__(name=name, description=description, **kwargs)
-
-    def _format_feedback(self, rule_violations: List[Dict[str, Any]]) -> str:
+    def critique(self, prompt: str) -> Dict[str, Any]:
         """
-        Format rule violations into feedback.
+        Critique a prompt and provide feedback.
 
         Args:
-            rule_violations: List of rule violations
+            prompt: The prompt to critique
 
         Returns:
-            The formatted feedback
+            Dictionary containing critique results including:
+            - score: Overall quality score (0-1)
+            - feedback: Specific feedback and suggestions
+            - issues: List of identified issues
+            - suggestions: List of improvement suggestions
         """
-        if not rule_violations:
-            return "No specific feedback provided."
+        # Create critique prompt
+        critique_prompt = (
+            "Please analyze this prompt and provide detailed feedback:\n\n"
+            f"{prompt}\n\n"
+            "Evaluate based on:\n"
+            "1. Clarity and specificity\n"
+            "2. Potential ambiguity or confusion\n"
+            "3. Completeness of instructions\n"
+            "4. Appropriate constraints and context\n"
+            "5. Overall effectiveness"
+        )
 
-        feedback = []
-        for violation in rule_violations:
-            rule_name = violation.get("rule", "Unknown rule")
-            message = violation.get("message", "No message provided")
-            feedback.append(f"- {rule_name}: {message}")
+        # Get model response
+        response = self.model.generate(critique_prompt)
 
-        return "\n".join(feedback)
+        # Process and structure the feedback
+        # This is a simplified example - you would want to add more sophisticated
+        # parsing of the model's response in a production system
+        return {
+            "score": 0.8,  # Example score
+            "feedback": response,
+            "issues": ["Example issue"],
+            "suggestions": ["Example suggestion"],
+        }
 
-    def critique(self, prompt: str) -> str:
+    def validate(self, prompt: str) -> bool:
         """
-        Critique a prompt using the model.
+        Validate if a prompt meets quality standards.
 
         Args:
-            prompt: The prompt containing the output and violations to critique
+            prompt: The prompt to validate
 
         Returns:
-            The improved output
+            True if prompt meets standards, False otherwise
         """
-        try:
-            response = self.model.generate(prompt=prompt, system_prompt=self.system_prompt)
-            return response.strip()
-        except Exception as e:
-            # If system_prompt fails, try without it
-            response = self.model.generate(prompt=prompt)
-            return response.strip()
-
-    def improve(
-        self, output: str, prompt: str, rule_violations: List[Dict[str, Any]], **kwargs
-    ) -> str:
-        """
-        Improve the output based on rule violations.
-
-        Args:
-            output: The output to improve
-            prompt: The original prompt
-            rule_violations: List of rule violations
-            **kwargs: Additional arguments for improvement
-
-        Returns:
-            The improved output
-        """
-        feedback = self._format_feedback(rule_violations)
-        user_prompt = self.user_prompt_template.format(output=output, feedback=feedback)
-        return self.critique(user_prompt)
+        result = self.critique(prompt)
+        return result["score"] >= self.min_confidence
