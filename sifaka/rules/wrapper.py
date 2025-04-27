@@ -5,9 +5,9 @@ This module provides rules for wrapping and formatting text output,
 including prefix/suffix addition, text encapsulation, and template-based wrapping.
 """
 
-from typing import Dict, List, Optional, Protocol, runtime_checkable, Final
+from typing import Dict, List, Optional, Protocol, runtime_checkable, Final, Any
 from dataclasses import dataclass, field
-from sifaka.rules.base import Rule, RuleResult
+from sifaka.rules.base import Rule, RuleResult, RuleValidator
 
 
 @dataclass(frozen=True)
@@ -89,7 +89,7 @@ class CodeBlockValidator(Protocol):
         ...
 
 
-class DefaultWrapperValidator:
+class DefaultWrapperValidator(RuleValidator[str]):
     """Default implementation of text wrapping validation."""
 
     def __init__(self, config: WrapperConfig):
@@ -139,8 +139,17 @@ class DefaultWrapperValidator:
             },
         )
 
+    def can_validate(self, output: str) -> bool:
+        """Check if this validator can handle the input."""
+        return isinstance(output, str)
 
-class DefaultCodeBlockValidator:
+    @property
+    def validation_type(self) -> type[str]:
+        """Get the type of input this validator can handle."""
+        return str
+
+
+class DefaultCodeBlockValidator(RuleValidator[str]):
     """Default implementation of code block validation."""
 
     def __init__(self, config: CodeBlockConfig):
@@ -196,18 +205,43 @@ class DefaultCodeBlockValidator:
             },
         )
 
+    def can_validate(self, output: str) -> bool:
+        """Check if this validator can handle the input."""
+        return isinstance(output, str)
+
+    @property
+    def validation_type(self) -> type[str]:
+        """Get the type of input this validator can handle."""
+        return str
+
 
 class WrapperRule(Rule):
-    """Rule for validating text wrapping."""
+    """Rule for wrapping text with prefix, suffix, or template."""
 
     def __init__(
         self,
         name: str,
         description: str,
-        validator: WrapperValidator,
+        validator: Optional[RuleValidator[str]] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        super().__init__(name=name, description=description)
-        self._validator = validator
+        """
+        Initialize the rule with text wrapping validation.
+
+        Args:
+            name: The name of the rule
+            description: Description of the rule
+            validator: Optional custom validator implementation
+            config: Optional configuration dictionary
+        """
+        # Create config object first
+        wrapper_config = WrapperConfig(**(config or {}))
+
+        # Create default validator if none provided
+        validator = validator or DefaultWrapperValidator(wrapper_config)
+
+        # Initialize base class
+        super().__init__(name=name, description=description, validator=validator)
 
     def _validate_impl(self, output: str) -> RuleResult:
         """Validate output wrapping."""
@@ -215,16 +249,32 @@ class WrapperRule(Rule):
 
 
 class CodeBlockRule(Rule):
-    """Rule for validating code blocks."""
+    """Rule for formatting and validating code blocks."""
 
     def __init__(
         self,
         name: str,
         description: str,
-        validator: CodeBlockValidator,
+        validator: Optional[RuleValidator[str]] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        super().__init__(name=name, description=description)
-        self._validator = validator
+        """
+        Initialize the rule with code block validation.
+
+        Args:
+            name: The name of the rule
+            description: Description of the rule
+            validator: Optional custom validator implementation
+            config: Optional configuration dictionary
+        """
+        # Create config object first
+        code_block_config = CodeBlockConfig(**(config or {}))
+
+        # Create default validator if none provided
+        validator = validator or DefaultCodeBlockValidator(code_block_config)
+
+        # Initialize base class
+        super().__init__(name=name, description=description, validator=validator)
 
     def _validate_impl(self, output: str) -> RuleResult:
         """Validate output code block."""
@@ -260,58 +310,84 @@ DEFAULT_LANGUAGE_CONFIGS: Final[Dict[str, Dict[str, Any]]] = {
 
 
 def create_wrapper_rule(
-    name: str,
-    description: str,
-    prefix: str = "",
-    suffix: str = "",
-    template: Optional[str] = None,
-    strip_whitespace: bool = True,
-    preserve_newlines: bool = True,
-    cache_size: int = 100,
-    priority: int = 1,
-    cost: float = 1.0,
+    name: str = "wrapper_rule",
+    description: str = "Validates text wrapping",
+    config: Optional[Dict[str, Any]] = None,
 ) -> WrapperRule:
-    """Create a wrapper rule with default configuration."""
-    config = WrapperConfig(
-        prefix=prefix,
-        suffix=suffix,
-        template=template,
-        strip_whitespace=strip_whitespace,
-        preserve_newlines=preserve_newlines,
-        cache_size=cache_size,
-        priority=priority,
-        cost=cost,
+    """
+    Create a wrapper rule with configuration.
+
+    Args:
+        name: The name of the rule
+        description: Description of the rule
+        config: Optional configuration dictionary
+
+    Returns:
+        Configured WrapperRule instance
+    """
+    if config is None:
+        config = {
+            "prefix": "",
+            "suffix": "",
+            "template": None,
+            "strip_whitespace": True,
+            "preserve_newlines": True,
+            "cache_size": 100,
+            "priority": 1,
+            "cost": 1.0,
+        }
+
+    return WrapperRule(
+        name=name,
+        description=description,
+        config=config,
     )
-    validator = DefaultWrapperValidator(config)
-    return WrapperRule(name=name, description=description, validator=validator)
 
 
 def create_code_block_rule(
-    name: str,
-    description: str,
-    language: str,
-    indent_size: Optional[int] = None,
-    add_syntax_markers: Optional[bool] = None,
-    preserve_indentation: bool = True,
-    cache_size: int = 100,
-    priority: int = 1,
-    cost: float = 1.0,
+    name: str = "code_block_rule",
+    description: str = "Validates code block formatting",
+    config: Optional[Dict[str, Any]] = None,
 ) -> CodeBlockRule:
-    """Create a code block rule with default configuration."""
-    # Use language-specific defaults if available
-    lang_config = DEFAULT_LANGUAGE_CONFIGS.get(language, {})
-    config = CodeBlockConfig(
-        language=language,
-        indent_size=indent_size or lang_config.get("indent_size", 4),
-        add_syntax_markers=(
-            add_syntax_markers
-            if add_syntax_markers is not None
-            else lang_config.get("add_syntax_markers", True)
-        ),
-        preserve_indentation=preserve_indentation,
-        cache_size=cache_size,
-        priority=priority,
-        cost=cost,
+    """
+    Create a code block rule with configuration.
+
+    Args:
+        name: The name of the rule
+        description: Description of the rule
+        config: Optional configuration dictionary
+
+    Returns:
+        Configured CodeBlockRule instance
+    """
+    if config is None:
+        config = {
+            "language": "text",
+            "indent_size": 4,
+            "add_syntax_markers": True,
+            "preserve_indentation": True,
+            "cache_size": 100,
+            "priority": 1,
+            "cost": 1.0,
+        }
+
+    return CodeBlockRule(
+        name=name,
+        description=description,
+        config=config,
     )
-    validator = DefaultCodeBlockValidator(config)
-    return CodeBlockRule(name=name, description=description, validator=validator)
+
+
+# Export public classes and functions
+__all__ = [
+    "WrapperRule",
+    "WrapperConfig",
+    "WrapperValidator",
+    "DefaultWrapperValidator",
+    "CodeBlockRule",
+    "CodeBlockConfig",
+    "CodeBlockValidator",
+    "DefaultCodeBlockValidator",
+    "create_wrapper_rule",
+    "create_code_block_rule",
+]

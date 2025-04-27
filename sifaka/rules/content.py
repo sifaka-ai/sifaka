@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Optional, Protocol, runtime_checkable, TypeV
 from typing_extensions import TypeGuard
 from dataclasses import dataclass, field
 from pydantic import BaseModel, Field, ConfigDict
+import re
 
 from sifaka.rules.base import (
     Rule,
@@ -67,29 +68,120 @@ class ToneIndicators:
 
 
 @dataclass(frozen=True)
-class ToneConfig(RuleConfig):
-    """Immutable configuration for tone consistency."""
+class ProhibitedContentConfig(RuleConfig):
+    """Configuration for prohibited content validation."""
 
-    expected_tone: str
-    indicators: Dict[str, ToneIndicators]
-    threshold: float = 0.7
+    terms: List[str] = field(
+        default_factory=lambda: [
+            "profanity",
+            "obscenity",
+            "hate speech",
+            "explicit content",
+            "adult content",
+            "nsfw",
+            "inappropriate",
+        ]
+    )
+    case_sensitive: bool = False
+    cache_size: int = 100
+    priority: int = 1
+    cost: float = 1.0
 
     def __post_init__(self) -> None:
+        """Validate configuration."""
         super().__post_init__()
-        if not 0 <= self.threshold <= 1:
-            raise ConfigurationError("Threshold must be between 0 and 1")
-        if not self.expected_tone:
-            raise ConfigurationError("Expected tone cannot be empty")
-        if not self.indicators:
-            raise ConfigurationError("Tone indicators cannot be empty")
+        if not self.terms:
+            raise ValueError("Must provide at least one prohibited term")
 
-    def with_tone(self, tone: str) -> "ToneConfig":
-        """Create new config with updated tone."""
-        return self.with_options(expected_tone=tone)
 
-    def with_threshold(self, threshold: float) -> "ToneConfig":
-        """Create new config with updated threshold."""
-        return self.with_options(threshold=threshold)
+@dataclass(frozen=True)
+class ToneConfig(RuleConfig):
+    """Configuration for tone consistency validation."""
+
+    expected_tone: str = "neutral"
+    tone_indicators: Dict[str, Dict[str, List[str]]] = field(
+        default_factory=lambda: {
+            "formal": {
+                "positive": [
+                    "therefore",
+                    "consequently",
+                    "furthermore",
+                    "moreover",
+                    "thus",
+                    "hence",
+                ],
+                "negative": [
+                    "yo",
+                    "hey",
+                    "cool",
+                    "awesome",
+                    "btw",
+                    "gonna",
+                    "wanna",
+                ],
+            },
+            "informal": {
+                "positive": [
+                    "hey",
+                    "hi",
+                    "cool",
+                    "great",
+                    "awesome",
+                    "nice",
+                    "yeah",
+                ],
+                "negative": [
+                    "therefore",
+                    "consequently",
+                    "furthermore",
+                    "moreover",
+                    "thus",
+                    "hence",
+                ],
+            },
+            "neutral": {
+                "positive": [
+                    "the",
+                    "is",
+                    "are",
+                    "this",
+                    "that",
+                    "these",
+                    "those",
+                ],
+                "negative": [
+                    "!",
+                    "!!",
+                    "???",
+                    "omg",
+                    "wow",
+                    "awesome",
+                    "terrible",
+                ],
+            },
+        }
+    )
+    threshold: float = 0.7
+    cache_size: int = 100
+    priority: int = 1
+    cost: float = 1.0
+
+    def __post_init__(self) -> None:
+        """Validate configuration."""
+        super().__post_init__()
+        if not 0.0 <= self.threshold <= 1.0:
+            raise ValueError("Threshold must be between 0.0 and 1.0")
+        if not self.tone_indicators:
+            raise ValueError("Must provide at least one tone indicator")
+        if self.expected_tone not in self.tone_indicators:
+            raise ValueError(f"Expected tone {self.expected_tone} not found in indicators")
+        for tone, indicators in self.tone_indicators.items():
+            if "positive" not in indicators or "negative" not in indicators:
+                raise ValueError(f"Tone {tone} must have both positive and negative indicators")
+            if not indicators["positive"] or not indicators["negative"]:
+                raise ValueError(
+                    f"Tone {tone} must have non-empty positive and negative indicators"
+                )
 
 
 class ContentValidator(RuleValidator[str]):
@@ -190,7 +282,7 @@ class ToneConsistencyValidator(ContentValidator):
             if not isinstance(output, str):
                 raise TypeError("Output must be a string")
 
-            if self._config.expected_tone not in self._config.indicators:
+            if self._config.expected_tone not in self._config.tone_indicators:
                 return RuleResult(
                     passed=False,
                     message=f"Unknown tone: {self._config.expected_tone}",
@@ -199,16 +291,16 @@ class ToneConsistencyValidator(ContentValidator):
 
             # Analyze tone
             tone_scores = self._tone_analyzer.analyze_tone(output)
-            indicators = self._config.indicators[self._config.expected_tone]
+            indicators = self._config.tone_indicators[self._config.expected_tone]
 
             # Check indicators
             output_lower = output.lower()
-            found_positive = [ind for ind in indicators.positive if ind.lower() in output_lower]
-            found_negative = [ind for ind in indicators.negative if ind.lower() in output_lower]
+            found_positive = [ind for ind in indicators["positive"] if ind.lower() in output_lower]
+            found_negative = [ind for ind in indicators["negative"] if ind.lower() in output_lower]
 
             # Calculate consistency score
-            total_positive = len(indicators.positive)
-            total_negative = len(indicators.negative)
+            total_positive = len(indicators["positive"])
+            total_negative = len(indicators["negative"])
 
             positive_ratio = len(found_positive) / total_positive if total_positive > 0 else 0
             negative_ratio = len(found_negative) / total_negative if total_negative > 0 else 0
@@ -265,6 +357,134 @@ class DefaultToneAnalyzer:
         return ["formal", "informal", "technical", "casual"]
 
 
+class DefaultProhibitedContentValidator(RuleValidator[str]):
+    """Default implementation of prohibited content validation."""
+
+    def __init__(self, config: ProhibitedContentConfig) -> None:
+        """Initialize with configuration."""
+        self._config = config
+
+    @property
+    def config(self) -> ProhibitedContentConfig:
+        """Get the validator configuration."""
+        return self._config
+
+    def validate(self, text: str) -> RuleResult:
+        """Validate text for prohibited content."""
+        if not isinstance(text, str):
+            raise ValueError("Input must be a string")
+
+        check_text = text if self.config.case_sensitive else text.lower()
+        found_terms = []
+
+        for term in self.config.terms:
+            check_term = term if self.config.case_sensitive else term.lower()
+            if check_term in check_text:
+                found_terms.append(term)
+
+        if found_terms:
+            return RuleResult(
+                passed=False,
+                message=f"Found prohibited terms: {', '.join(found_terms)}",
+                metadata={
+                    "found_terms": found_terms,
+                    "case_sensitive": self.config.case_sensitive,
+                },
+            )
+
+        return RuleResult(
+            passed=True,
+            message="No prohibited terms found",
+            metadata={
+                "found_terms": [],
+                "case_sensitive": self.config.case_sensitive,
+            },
+        )
+
+    def can_validate(self, output: str) -> bool:
+        """Check if this validator can handle the input."""
+        return isinstance(output, str)
+
+    @property
+    def validation_type(self) -> type[str]:
+        """Get the type of input this validator can handle."""
+        return str
+
+
+class DefaultToneValidator(RuleValidator[str]):
+    """Default implementation of tone validation."""
+
+    def __init__(self, config: ToneConfig) -> None:
+        """Initialize with configuration."""
+        self._config = config
+
+    @property
+    def config(self) -> ToneConfig:
+        """Get the validator configuration."""
+        return self._config
+
+    def validate(self, text: str) -> RuleResult:
+        """Validate text for tone consistency."""
+        if not isinstance(text, str):
+            raise ValueError("Input must be a string")
+
+        text_lower = text.lower()
+        tone_scores: Dict[str, Dict[str, float]] = {}
+
+        # Calculate tone scores for each tone type
+        for tone, indicators in self.config.tone_indicators.items():
+            positive_matches = sum(1 for term in indicators["positive"] if term in text_lower)
+            negative_matches = sum(1 for term in indicators["negative"] if term in text_lower)
+
+            total_indicators = len(indicators["positive"]) + len(indicators["negative"])
+            positive_score = (
+                positive_matches / len(indicators["positive"]) if indicators["positive"] else 0
+            )
+            negative_score = (
+                negative_matches / len(indicators["negative"]) if indicators["negative"] else 0
+            )
+
+            tone_scores[tone] = {
+                "positive": positive_score,
+                "negative": negative_score,
+                "overall": (positive_score - negative_score + 1) / 2,  # Normalize to [0,1]
+            }
+
+        # Check if the expected tone meets the threshold
+        expected_score = tone_scores[self.config.expected_tone]["overall"]
+        meets_threshold = expected_score >= self.config.threshold
+
+        if not meets_threshold:
+            return RuleResult(
+                passed=False,
+                message=f"Text does not maintain expected {self.config.expected_tone} tone (score: {expected_score:.2f})",
+                metadata={
+                    "tone_scores": tone_scores,
+                    "expected_tone": self.config.expected_tone,
+                    "threshold": self.config.threshold,
+                },
+            )
+
+        return RuleResult(
+            passed=True,
+            message=f"Text maintains expected {self.config.expected_tone} tone",
+            metadata={
+                "tone_scores": tone_scores,
+                "expected_tone": self.config.expected_tone,
+                "threshold": self.config.threshold,
+            },
+        )
+
+    def can_validate(self, output: str) -> bool:
+        """Check if this validator can handle the input."""
+        return isinstance(output, str)
+
+    @property
+    def validation_type(self) -> type[str]:
+        """Get the type of input this validator can handle."""
+        return str
+
+
 class ProhibitedContentRule(
     Rule[str, RuleResult, ProhibitedContentValidator, RuleResultHandler[RuleResult]]
 ):
@@ -274,83 +494,219 @@ class ProhibitedContentRule(
         self,
         name: str,
         description: str,
-        terms: Sequence[str],
-        case_sensitive: bool = False,
-        analyzer: Optional[ContentAnalyzer] = None,
-        config: Optional[RuleConfig] = None,
-        result_handler: Optional[RuleResultHandler[RuleResult]] = None,
+        validator: Optional[RuleValidator[str]] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Initialize the prohibited content rule."""
-        prohibited_terms = ProhibitedTerms(
-            terms=frozenset(terms),
-            case_sensitive=case_sensitive,
-        )
-        validator = ProhibitedContentValidator(
-            terms=prohibited_terms,
-            analyzer=analyzer,
-        )
+        """
+        Initialize the prohibited content rule.
+
+        Args:
+            name: The name of the rule
+            description: Description of the rule
+            validator: Optional custom validator implementation
+            config: Optional configuration dictionary
+        """
+        # Create config object first
+        prohibited_config = ProhibitedContentConfig(**(config or {}))
+
+        # Create default validator if none provided
+        validator = validator or DefaultProhibitedContentValidator(prohibited_config)
+
+        # Initialize base class
         super().__init__(
             name=name,
             description=description,
             validator=validator,
-            config=config or RuleConfig(),
-            result_handler=result_handler,
+            config=prohibited_config,
+            result_handler=None,
         )
 
     def _validate_impl(self, output: str, **kwargs) -> RuleResult:
-        """Validate that the output does not contain prohibited terms."""
-        return self._validator.validate(output, **kwargs)
+        """Validate output for prohibited content."""
+        return self._validator.validate(output)
 
 
 class ToneConsistencyRule(
     Rule[str, RuleResult, ToneConsistencyValidator, RuleResultHandler[RuleResult]]
 ):
-    """Rule that checks if the output maintains a consistent tone."""
+    """Rule that checks for tone consistency."""
 
     def __init__(
         self,
         name: str,
         description: str,
-        expected_tone: str,
-        indicators: Dict[str, Dict[str, List[str]]],
-        threshold: float = 0.7,
-        analyzer: Optional[ToneAnalyzer] = None,
-        config: Optional[RuleConfig] = None,
-        result_handler: Optional[RuleResultHandler[RuleResult]] = None,
+        validator: Optional[RuleValidator[str]] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Initialize the tone consistency rule."""
-        # Convert indicators to immutable format
-        tone_indicators = {
-            tone: ToneIndicators(
-                positive=frozenset(inds.get("positive", [])),
-                negative=frozenset(inds.get("negative", [])),
-            )
-            for tone, inds in indicators.items()
-        }
+        """
+        Initialize the tone consistency rule.
 
-        tone_config = ToneConfig(
-            expected_tone=expected_tone,
-            indicators=tone_indicators,
-            threshold=threshold,
-            priority=config.priority if config else RuleConfig().priority,
-            cache_size=config.cache_size if config else RuleConfig().cache_size,
-            cost=config.cost if config else RuleConfig().cost,
-            metadata=config.metadata if config else RuleConfig().metadata,
-        )
+        Args:
+            name: The name of the rule
+            description: Description of the rule
+            validator: Optional custom validator implementation
+            config: Optional configuration dictionary
+        """
+        # Create config object first
+        tone_config = ToneConfig(**(config or {}))
 
-        validator = ToneConsistencyValidator(
-            config=tone_config,
-            analyzer=analyzer,
-        )
+        # Create default validator if none provided
+        validator = validator or DefaultToneValidator(tone_config)
 
+        # Initialize base class
         super().__init__(
             name=name,
             description=description,
             validator=validator,
             config=tone_config,
-            result_handler=result_handler,
+            result_handler=None,
         )
 
     def _validate_impl(self, output: str, **kwargs) -> RuleResult:
-        """Validate that the output maintains a consistent tone."""
-        return self._validator.validate(output, **kwargs)
+        """Validate output tone consistency."""
+        return self._validator.validate(output)
+
+
+def create_prohibited_content_rule(
+    name: str = "prohibited_content_rule",
+    description: str = "Validates text for prohibited content",
+    config: Optional[Dict[str, Any]] = None,
+) -> ProhibitedContentRule:
+    """
+    Create a prohibited content rule with configuration.
+
+    Args:
+        name: The name of the rule
+        description: Description of the rule
+        config: Optional configuration dictionary
+
+    Returns:
+        Configured ProhibitedContentRule instance
+    """
+    if config is None:
+        config = {
+            "terms": [
+                "profanity",
+                "obscenity",
+                "hate speech",
+                "explicit content",
+                "adult content",
+                "nsfw",
+                "inappropriate",
+            ],
+            "case_sensitive": False,
+            "cache_size": 100,
+            "priority": 1,
+            "cost": 1.0,
+        }
+
+    return ProhibitedContentRule(
+        name=name,
+        description=description,
+        config=config,
+    )
+
+
+def create_tone_consistency_rule(
+    name: str = "tone_consistency_rule",
+    description: str = "Validates text tone consistency",
+    config: Optional[Dict[str, Any]] = None,
+) -> ToneConsistencyRule:
+    """
+    Create a tone consistency rule with configuration.
+
+    Args:
+        name: The name of the rule
+        description: Description of the rule
+        config: Optional configuration dictionary
+
+    Returns:
+        Configured ToneConsistencyRule instance
+    """
+    if config is None:
+        config = {
+            "expected_tone": "neutral",
+            "tone_indicators": {
+                "formal": {
+                    "positive": [
+                        "therefore",
+                        "consequently",
+                        "furthermore",
+                        "moreover",
+                        "thus",
+                        "hence",
+                    ],
+                    "negative": [
+                        "yo",
+                        "hey",
+                        "cool",
+                        "awesome",
+                        "btw",
+                        "gonna",
+                        "wanna",
+                    ],
+                },
+                "informal": {
+                    "positive": [
+                        "hey",
+                        "hi",
+                        "cool",
+                        "great",
+                        "awesome",
+                        "nice",
+                        "yeah",
+                    ],
+                    "negative": [
+                        "therefore",
+                        "consequently",
+                        "furthermore",
+                        "moreover",
+                        "thus",
+                        "hence",
+                    ],
+                },
+                "neutral": {
+                    "positive": [
+                        "the",
+                        "is",
+                        "are",
+                        "this",
+                        "that",
+                        "these",
+                        "those",
+                    ],
+                    "negative": [
+                        "!",
+                        "!!",
+                        "???",
+                        "omg",
+                        "wow",
+                        "awesome",
+                        "terrible",
+                    ],
+                },
+            },
+            "threshold": 0.7,
+            "cache_size": 100,
+            "priority": 1,
+            "cost": 1.0,
+        }
+
+    return ToneConsistencyRule(
+        name=name,
+        description=description,
+        config=config,
+    )
+
+
+# Export public classes and functions
+__all__ = [
+    "ProhibitedContentRule",
+    "ProhibitedContentConfig",
+    "DefaultProhibitedContentValidator",
+    "ToneConsistencyRule",
+    "ToneConfig",
+    "DefaultToneValidator",
+    "create_prohibited_content_rule",
+    "create_tone_consistency_rule",
+]

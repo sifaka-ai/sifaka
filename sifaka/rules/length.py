@@ -7,7 +7,7 @@ This module provides rules for validating text length, supporting both character
 from typing import Dict, Any, Protocol, runtime_checkable, Final, Optional, Type
 from dataclasses import dataclass
 
-from sifaka.rules.base import Rule, RuleResult
+from sifaka.rules.base import Rule, RuleResult, RuleValidator
 
 
 @dataclass(frozen=True)
@@ -52,7 +52,7 @@ class LengthValidator(Protocol):
     def validate(self, text: str) -> RuleResult: ...
 
 
-class DefaultLengthValidator:
+class DefaultLengthValidator(RuleValidator[str]):
     """Default implementation of length validation."""
 
     def __init__(self, config: LengthConfig) -> None:
@@ -134,12 +134,12 @@ class DefaultLengthValidator:
             metadata=metadata,
         )
 
-    def can_validate(self, text: Any) -> bool:
-        """Check if the validator can handle the input."""
-        return isinstance(text, str)
+    def can_validate(self, output: str) -> bool:
+        """Check if this validator can handle the input."""
+        return isinstance(output, str)
 
     @property
-    def validation_type(self) -> Type[str]:
+    def validation_type(self) -> type[str]:
         """Get the type of input this validator can handle."""
         return str
 

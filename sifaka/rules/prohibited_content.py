@@ -15,7 +15,7 @@ Architecture Notes:
 from typing import Dict, Any, Protocol, runtime_checkable, Final, Set, Optional, Type
 from dataclasses import dataclass
 
-from sifaka.rules.base import Rule, RuleResult
+from sifaka.rules.base import Rule, RuleResult, RuleValidator
 
 
 @dataclass(frozen=True)
@@ -53,7 +53,7 @@ class ProhibitedContentValidator(Protocol):
     def validate(self, text: str) -> RuleResult: ...
 
 
-class DefaultProhibitedContentValidator:
+class DefaultProhibitedContentValidator(RuleValidator[str]):
     """Default implementation of prohibited content validation."""
 
     def __init__(self, config: ProhibitedContentConfig) -> None:
@@ -119,12 +119,12 @@ class DefaultProhibitedContentValidator:
             metadata=metadata,
         )
 
-    def can_validate(self, text: Any) -> bool:
+    def can_validate(self, output: str) -> bool:
         """Check if the validator can handle the input."""
-        return isinstance(text, str)
+        return isinstance(output, str)
 
     @property
-    def validation_type(self) -> Type[str]:
+    def validation_type(self) -> type[str]:
         """Get the type of input this validator can handle."""
         return str
 

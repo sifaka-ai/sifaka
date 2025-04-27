@@ -5,7 +5,7 @@ This module provides rules for validating text formatting, including length,
 paragraph structure, writing style, and general formatting patterns.
 """
 
-from typing import Dict, Any, List, Protocol, runtime_checkable, Final, TypeVar, Set
+from typing import Dict, Any, List, Protocol, runtime_checkable, Final, TypeVar, Set, Optional
 from typing_extensions import TypeGuard
 from dataclasses import dataclass, field
 import re
@@ -177,7 +177,7 @@ class FormattingValidator(Protocol):
     def config(self) -> FormattingConfig: ...
 
 
-class DefaultLengthValidator:
+class DefaultLengthValidator(RuleValidator[str]):
     """Default implementation of text length validation."""
 
     def __init__(self, config: LengthConfig) -> None:
@@ -199,37 +199,64 @@ class DefaultLengthValidator:
         if self.config.exact_length is not None and length != self.config.exact_length:
             return RuleResult(
                 passed=False,
-                message=f"Text length {length} does not meet exact length requirement of {self.config.exact_length} {self.config.unit}",
-                metadata={"length": length, "requirement": "exact"},
+                message=f"Text {self.config.unit} count {length} does not match required count of {self.config.exact_length}",
+                metadata={
+                    "length": length,
+                    "required_length": self.config.exact_length,
+                    "unit": self.config.unit,
+                },
             )
 
         if length < self.config.min_length:
             return RuleResult(
                 passed=False,
-                message=f"Text length {length} is below minimum {self.config.min_length} {self.config.unit}",
-                metadata={"length": length, "requirement": "minimum"},
+                message=f"Text {self.config.unit} count {length} is below minimum of {self.config.min_length}",
+                metadata={
+                    "length": length,
+                    "min_length": self.config.min_length,
+                    "unit": self.config.unit,
+                },
             )
 
         if length > self.config.max_length:
             return RuleResult(
                 passed=False,
-                message=f"Text length {length} exceeds maximum {self.config.max_length} {self.config.unit}",
-                metadata={"length": length, "requirement": "maximum"},
+                message=f"Text {self.config.unit} count {length} exceeds maximum of {self.config.max_length}",
+                metadata={
+                    "length": length,
+                    "max_length": self.config.max_length,
+                    "unit": self.config.unit,
+                },
             )
 
         return RuleResult(
             passed=True,
-            message=f"Text length {length} meets requirements",
-            metadata={"length": length},
+            message=f"Text {self.config.unit} count {length} is within acceptable range",
+            metadata={
+                "length": length,
+                "min_length": self.config.min_length,
+                "max_length": self.config.max_length,
+                "unit": self.config.unit,
+            },
         )
 
+    def can_validate(self, output: str) -> bool:
+        """Check if this validator can handle the input."""
+        return isinstance(output, str)
 
-class DefaultParagraphValidator:
+    @property
+    def validation_type(self) -> type[str]:
+        """Get the type of input this validator can handle."""
+        return str
+
+
+class DefaultParagraphValidator(RuleValidator[str]):
     """Default implementation of paragraph structure validation."""
 
     def __init__(self, config: ParagraphConfig) -> None:
         """Initialize with configuration."""
         self._config = config
+        self._sentence_pattern = re.compile(self.config.sentence_delimiters)
 
     @property
     def config(self) -> ParagraphConfig:
@@ -241,53 +268,71 @@ class DefaultParagraphValidator:
         if not isinstance(text, str):
             raise ValueError("Text must be a string")
 
-        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
-        issues = []
-        metadata = {"paragraphs": []}
+        paragraphs = text.split("\n\n")
+        invalid_paragraphs = []
 
-        for i, paragraph in enumerate(paragraphs, 1):
-            sentences = [
-                s.strip() for s in re.split(self.config.sentence_delimiters, paragraph) if s.strip()
-            ]
-            words = paragraph.split()
+        for i, para in enumerate(paragraphs, 1):
+            # Count sentences
+            sentences = [s.strip() for s in self._sentence_pattern.split(para) if s.strip()]
+            sentence_count = len(sentences)
 
-            paragraph_info = {
-                "num_sentences": len(sentences),
-                "num_words": len(words),
-                "content": paragraph[:100] + "..." if len(paragraph) > 100 else paragraph,
-            }
+            # Count words in each sentence
+            sentence_word_counts = [len(s.split()) for s in sentences]
 
-            if len(sentences) < self.config.min_sentences:
-                issues.append(f"Paragraph {i} has fewer than {self.config.min_sentences} sentences")
-                paragraph_info["error"] = "too_few_sentences"
-            elif len(sentences) > self.config.max_sentences:
-                issues.append(f"Paragraph {i} exceeds {self.config.max_sentences} sentences")
-                paragraph_info["error"] = "too_many_sentences"
+            # Check sentence count
+            if not (self.config.min_sentences <= sentence_count <= self.config.max_sentences):
+                invalid_paragraphs.append(
+                    {
+                        "index": i,
+                        "reason": "sentence_count",
+                        "count": sentence_count,
+                        "text": para,
+                    }
+                )
+                continue
 
-            if len(words) < self.config.min_words:
-                issues.append(f"Paragraph {i} has fewer than {self.config.min_words} words")
-                paragraph_info["error"] = "too_few_words"
-            elif len(words) > self.config.max_words:
-                issues.append(f"Paragraph {i} exceeds {self.config.max_words} words")
-                paragraph_info["error"] = "too_many_words"
+            # Check word count in each sentence
+            for j, word_count in enumerate(sentence_word_counts, 1):
+                if not (self.config.min_words <= word_count <= self.config.max_words):
+                    invalid_paragraphs.append(
+                        {
+                            "index": i,
+                            "sentence_index": j,
+                            "reason": "word_count",
+                            "count": word_count,
+                            "text": sentences[j - 1],
+                        }
+                    )
 
-            metadata["paragraphs"].append(paragraph_info)
-
-        if issues:
+        if invalid_paragraphs:
             return RuleResult(
                 passed=False,
-                message="Paragraph structure validation failed",
-                metadata={"issues": issues, **metadata},
+                message="Found paragraphs with invalid structure",
+                metadata={
+                    "invalid_paragraphs": invalid_paragraphs,
+                    "total_paragraphs": len(paragraphs),
+                },
             )
 
         return RuleResult(
             passed=True,
-            message="Paragraph structure is valid",
-            metadata=metadata,
+            message="All paragraphs have valid structure",
+            metadata={
+                "total_paragraphs": len(paragraphs),
+            },
         )
 
+    def can_validate(self, output: str) -> bool:
+        """Check if this validator can handle the input."""
+        return isinstance(output, str)
 
-class DefaultStyleValidator:
+    @property
+    def validation_type(self) -> type[str]:
+        """Get the type of input this validator can handle."""
+        return str
+
+
+class DefaultStyleValidator(RuleValidator[str]):
     """Default implementation of writing style validation."""
 
     def __init__(self, config: StyleConfig) -> None:
@@ -300,7 +345,7 @@ class DefaultStyleValidator:
         return self._config
 
     def validate(self, text: str) -> RuleResult:
-        """Validate writing style consistency."""
+        """Validate writing style."""
         if not isinstance(text, str):
             raise ValueError("Text must be a string")
 
@@ -308,57 +353,55 @@ class DefaultStyleValidator:
         style_scores = {}
 
         for style, indicators in self.config.style_indicators.items():
-            found_indicators = [ind for ind in indicators if ind in text_lower]
-            style_scores[style] = len(found_indicators) / len(indicators)
+            matches = sum(1 for indicator in indicators if indicator.lower() in text_lower)
+            if indicators:
+                style_scores[style] = matches / len(indicators)
 
-        # Find the dominant style
-        dominant_style, max_score = max(style_scores.items(), key=lambda x: x[1])
-
-        # Check if the dominant style is sufficiently strong
-        if max_score < self.config.style_threshold:
+        if not style_scores:
             return RuleResult(
-                passed=False,
-                message="No clear writing style detected",
-                metadata={
-                    "style_scores": style_scores,
-                    "threshold": self.config.style_threshold,
-                },
+                passed=True,
+                message="No style indicators found",
+                metadata={"style_scores": {}},
             )
 
-        # Check for style consistency
-        inconsistent_styles = [
-            style
-            for style, score in style_scores.items()
-            if style != dominant_style and score > self.config.style_threshold / 2
-        ]
-
-        if inconsistent_styles:
-            return RuleResult(
-                passed=False,
-                message=f"Mixed writing styles detected: {dominant_style} with {', '.join(inconsistent_styles)}",
-                metadata={
-                    "dominant_style": dominant_style,
-                    "inconsistent_styles": inconsistent_styles,
-                    "style_scores": style_scores,
-                },
-            )
+        # Find dominant style
+        dominant_style = max(style_scores.items(), key=lambda x: x[1])
+        is_consistent = dominant_style[1] >= self.config.style_threshold
 
         return RuleResult(
-            passed=True,
-            message=f"Consistent {dominant_style} writing style detected",
+            passed=is_consistent,
+            message=(
+                f"Consistent {dominant_style[0]} style detected"
+                if is_consistent
+                else "No consistent writing style detected"
+            ),
             metadata={
-                "dominant_style": dominant_style,
                 "style_scores": style_scores,
+                "dominant_style": dominant_style[0],
+                "dominant_score": dominant_style[1],
+                "threshold": self.config.style_threshold,
             },
         )
 
+    def can_validate(self, output: str) -> bool:
+        """Check if this validator can handle the input."""
+        return isinstance(output, str)
 
-class DefaultFormattingValidator:
+    @property
+    def validation_type(self) -> type[str]:
+        """Get the type of input this validator can handle."""
+        return str
+
+
+class DefaultFormattingValidator(RuleValidator[str]):
     """Default implementation of text formatting validation."""
 
     def __init__(self, config: FormattingConfig) -> None:
         """Initialize with configuration."""
         self._config = config
+        self._compiled_patterns = {
+            name: re.compile(pattern) for name, pattern in config.formatting_patterns.items()
+        }
 
     @property
     def config(self) -> FormattingConfig:
@@ -366,28 +409,28 @@ class DefaultFormattingValidator:
         return self._config
 
     def validate(self, text: str) -> RuleResult:
-        """Validate text formatting patterns."""
+        """Validate text formatting."""
         if not isinstance(text, str):
             raise ValueError("Text must be a string")
 
         lines = text.split("\n")
         found_patterns = set()
-        pattern_matches = {}
+        pattern_matches = {name: [] for name in self._compiled_patterns}
 
-        for pattern_name, pattern in self.config.formatting_patterns.items():
-            matches = [i + 1 for i, line in enumerate(lines) if re.match(pattern, line)]
-            if matches:
-                found_patterns.add(pattern_name)
-                pattern_matches[pattern_name] = matches
+        for i, line in enumerate(lines, 1):
+            for name, pattern in self._compiled_patterns.items():
+                if pattern.search(line):
+                    found_patterns.add(name)
+                    pattern_matches[name].append(i)
 
-        missing_patterns = self.config.required_patterns - found_patterns
-        if missing_patterns:
+        missing_required = self.config.required_patterns - found_patterns
+        if missing_required:
             return RuleResult(
                 passed=False,
-                message=f"Missing required formatting patterns: {', '.join(missing_patterns)}",
+                message=f"Missing required formatting patterns: {', '.join(missing_required)}",
                 metadata={
-                    "missing_patterns": list(missing_patterns),
                     "found_patterns": list(found_patterns),
+                    "missing_patterns": list(missing_required),
                     "pattern_matches": pattern_matches,
                 },
             )
@@ -401,174 +444,311 @@ class DefaultFormattingValidator:
             },
         )
 
+    def can_validate(self, output: str) -> bool:
+        """Check if this validator can handle the input."""
+        return isinstance(output, str)
+
+    @property
+    def validation_type(self) -> type[str]:
+        """Get the type of input this validator can handle."""
+        return str
+
 
 class LengthRule(Rule):
-    """Rule that checks for appropriate text length."""
+    """Rule for validating text length."""
 
     def __init__(
         self,
         name: str,
         description: str,
-        validator: LengthValidator,
+        validator: Optional[RuleValidator[str]] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Initialize the length rule."""
-        super().__init__(name=name, description=description)
-        self._validator = validator
+        """
+        Initialize the rule with length validation.
 
-    @property
-    def validator(self) -> LengthValidator:
-        """Get the length validator."""
-        return self._validator
+        Args:
+            name: The name of the rule
+            description: Description of the rule
+            validator: Optional custom validator implementation
+            config: Optional configuration dictionary
+        """
+        # Create config object first
+        length_config = LengthConfig(**(config or {}))
 
-    def validate(self, text: str) -> RuleResult:
-        """Validate text length."""
-        if not isinstance(text, str):
-            raise ValueError("Text must be a string")
+        # Create default validator if none provided
+        validator = validator or DefaultLengthValidator(length_config)
 
-        try:
-            return self._validator.validate(text)
-        except Exception as e:
-            return RuleResult(
-                passed=False,
-                message=f"Error during length validation: {str(e)}",
-                metadata={"error": str(e)},
-            )
+        # Initialize base class
+        super().__init__(name=name, description=description, validator=validator)
+
+    def _validate_impl(self, output: str) -> RuleResult:
+        """Validate output length."""
+        return self._validator.validate(output)
 
 
 class ParagraphRule(Rule):
-    """Rule that checks for proper paragraph formatting."""
+    """Rule for validating paragraph structure."""
 
     def __init__(
         self,
         name: str,
         description: str,
-        validator: ParagraphValidator,
+        validator: Optional[RuleValidator[str]] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Initialize the paragraph rule."""
-        super().__init__(name=name, description=description)
-        self._validator = validator
+        """
+        Initialize the rule with paragraph validation.
 
-    @property
-    def validator(self) -> ParagraphValidator:
-        """Get the paragraph validator."""
-        return self._validator
+        Args:
+            name: The name of the rule
+            description: Description of the rule
+            validator: Optional custom validator implementation
+            config: Optional configuration dictionary
+        """
+        # Create config object first
+        paragraph_config = ParagraphConfig(**(config or {}))
 
-    def validate(self, text: str) -> RuleResult:
-        """Validate paragraph structure."""
-        if not isinstance(text, str):
-            raise ValueError("Text must be a string")
+        # Create default validator if none provided
+        validator = validator or DefaultParagraphValidator(paragraph_config)
 
-        try:
-            return self._validator.validate(text)
-        except Exception as e:
-            return RuleResult(
-                passed=False,
-                message=f"Error during paragraph validation: {str(e)}",
-                metadata={"error": str(e)},
-            )
+        # Initialize base class
+        super().__init__(name=name, description=description, validator=validator)
+
+    def _validate_impl(self, output: str) -> RuleResult:
+        """Validate output paragraph structure."""
+        return self._validator.validate(output)
 
 
 class StyleRule(Rule):
-    """Rule that checks for consistent writing style."""
+    """Rule for validating writing style."""
 
     def __init__(
         self,
         name: str,
         description: str,
-        validator: StyleValidator,
+        validator: Optional[RuleValidator[str]] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Initialize the style rule."""
-        super().__init__(name=name, description=description)
-        self._validator = validator
+        """
+        Initialize the rule with style validation.
 
-    @property
-    def validator(self) -> StyleValidator:
-        """Get the style validator."""
-        return self._validator
+        Args:
+            name: The name of the rule
+            description: Description of the rule
+            validator: Optional custom validator implementation
+            config: Optional configuration dictionary
+        """
+        # Create config object first
+        style_config = StyleConfig(**(config or {}))
 
-    def validate(self, text: str) -> RuleResult:
-        """Validate writing style."""
-        if not isinstance(text, str):
-            raise ValueError("Text must be a string")
+        # Create default validator if none provided
+        validator = validator or DefaultStyleValidator(style_config)
 
-        try:
-            return self._validator.validate(text)
-        except Exception as e:
-            return RuleResult(
-                passed=False,
-                message=f"Error during style validation: {str(e)}",
-                metadata={"error": str(e)},
-            )
+        # Initialize base class
+        super().__init__(name=name, description=description, validator=validator)
+
+    def _validate_impl(self, output: str) -> RuleResult:
+        """Validate output writing style."""
+        return self._validator.validate(output)
 
 
 class FormattingRule(Rule):
-    """Rule that checks for proper text formatting."""
+    """Rule for validating text formatting."""
 
     def __init__(
         self,
         name: str,
         description: str,
-        validator: FormattingValidator,
+        validator: Optional[RuleValidator[str]] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Initialize the formatting rule."""
-        super().__init__(name=name, description=description)
-        self._validator = validator
+        """
+        Initialize the rule with formatting validation.
 
-    @property
-    def validator(self) -> FormattingValidator:
-        """Get the formatting validator."""
-        return self._validator
+        Args:
+            name: The name of the rule
+            description: Description of the rule
+            validator: Optional custom validator implementation
+            config: Optional configuration dictionary
+        """
+        # Create config object first
+        formatting_config = FormattingConfig(**(config or {}))
 
-    def validate(self, text: str) -> RuleResult:
-        """Validate text formatting."""
-        if not isinstance(text, str):
-            raise ValueError("Text must be a string")
+        # Create default validator if none provided
+        validator = validator or DefaultFormattingValidator(formatting_config)
 
-        try:
-            return self._validator.validate(text)
-        except Exception as e:
-            return RuleResult(
-                passed=False,
-                message=f"Error during formatting validation: {str(e)}",
-                metadata={"error": str(e)},
-            )
+        # Initialize base class
+        super().__init__(name=name, description=description, validator=validator)
+
+    def _validate_impl(self, output: str) -> RuleResult:
+        """Validate output formatting."""
+        return self._validator.validate(output)
 
 
 def create_length_rule(
-    name: str,
-    description: str,
-    config: LengthConfig | None = None,
+    name: str = "length_rule",
+    description: str = "Validates text length",
+    config: Optional[Dict[str, Any]] = None,
 ) -> LengthRule:
-    """Create a length rule with default configuration."""
-    validator = DefaultLengthValidator(config or LengthConfig())
-    return LengthRule(name=name, description=description, validator=validator)
+    """
+    Create a length rule with configuration.
+
+    Args:
+        name: The name of the rule
+        description: Description of the rule
+        config: Optional configuration dictionary
+
+    Returns:
+        Configured LengthRule instance
+    """
+    if config is None:
+        config = {
+            "min_length": 50,
+            "max_length": 5000,
+            "exact_length": None,
+            "unit": "characters",
+            "cache_size": 100,
+            "priority": 1,
+            "cost": 1.0,
+        }
+
+    return LengthRule(
+        name=name,
+        description=description,
+        config=config,
+    )
 
 
 def create_paragraph_rule(
-    name: str,
-    description: str,
-    config: ParagraphConfig | None = None,
+    name: str = "paragraph_rule",
+    description: str = "Validates paragraph structure",
+    config: Optional[Dict[str, Any]] = None,
 ) -> ParagraphRule:
-    """Create a paragraph rule with default configuration."""
-    validator = DefaultParagraphValidator(config or ParagraphConfig())
-    return ParagraphRule(name=name, description=description, validator=validator)
+    """
+    Create a paragraph rule with configuration.
+
+    Args:
+        name: The name of the rule
+        description: Description of the rule
+        config: Optional configuration dictionary
+
+    Returns:
+        Configured ParagraphRule instance
+    """
+    if config is None:
+        config = {
+            "min_sentences": 2,
+            "max_sentences": 5,
+            "min_words": 5,
+            "max_words": 30,
+            "sentence_delimiters": r"[.!?]+",
+            "cache_size": 100,
+            "priority": 1,
+            "cost": 1.0,
+        }
+
+    return ParagraphRule(
+        name=name,
+        description=description,
+        config=config,
+    )
 
 
 def create_style_rule(
-    name: str,
-    description: str,
-    config: StyleConfig | None = None,
+    name: str = "style_rule",
+    description: str = "Validates writing style",
+    config: Optional[Dict[str, Any]] = None,
 ) -> StyleRule:
-    """Create a style rule with default configuration."""
-    validator = DefaultStyleValidator(config or StyleConfig())
-    return StyleRule(name=name, description=description, validator=validator)
+    """
+    Create a style rule with configuration.
+
+    Args:
+        name: The name of the rule
+        description: Description of the rule
+        config: Optional configuration dictionary
+
+    Returns:
+        Configured StyleRule instance
+    """
+    if config is None:
+        config = {
+            "style_indicators": {
+                "formal": ["therefore", "consequently", "furthermore", "thus", "hence"],
+                "informal": ["yeah", "cool", "awesome", "btw", "gonna", "wanna"],
+                "technical": ["algorithm", "parameter", "function", "variable", "method"],
+                "casual": ["hey", "hi", "thanks", "please", "sorry"],
+            },
+            "style_threshold": 0.7,
+            "cache_size": 100,
+            "priority": 1,
+            "cost": 1.0,
+        }
+
+    return StyleRule(
+        name=name,
+        description=description,
+        config=config,
+    )
 
 
 def create_formatting_rule(
-    name: str,
-    description: str,
-    config: FormattingConfig | None = None,
+    name: str = "formatting_rule",
+    description: str = "Validates text formatting",
+    config: Optional[Dict[str, Any]] = None,
 ) -> FormattingRule:
-    """Create a formatting rule with default configuration."""
-    validator = DefaultFormattingValidator(config or FormattingConfig())
-    return FormattingRule(name=name, description=description, validator=validator)
+    """
+    Create a formatting rule with configuration.
+
+    Args:
+        name: The name of the rule
+        description: Description of the rule
+        config: Optional configuration dictionary
+
+    Returns:
+        Configured FormattingRule instance
+    """
+    if config is None:
+        config = {
+            "formatting_patterns": {
+                "bullet_points": r"^\s*[-*•]\s+",
+                "numbered_lists": r"^\s*\d+\.\s+",
+                "indentation": r"^\s{2,}",
+                "blank_lines": r"^\s*$",
+            },
+            "required_patterns": set(),
+            "cache_size": 100,
+            "priority": 1,
+            "cost": 1.0,
+        }
+
+    return FormattingRule(
+        name=name,
+        description=description,
+        config=config,
+    )
+
+
+# Export public classes and functions
+__all__ = [
+    "LengthRule",
+    "LengthConfig",
+    "LengthValidator",
+    "DefaultLengthValidator",
+    "ParagraphRule",
+    "ParagraphConfig",
+    "ParagraphValidator",
+    "DefaultParagraphValidator",
+    "StyleRule",
+    "StyleConfig",
+    "StyleValidator",
+    "DefaultStyleValidator",
+    "FormattingRule",
+    "FormattingConfig",
+    "FormattingValidator",
+    "DefaultFormattingValidator",
+    "create_length_rule",
+    "create_paragraph_rule",
+    "create_style_rule",
+    "create_formatting_rule",
+]

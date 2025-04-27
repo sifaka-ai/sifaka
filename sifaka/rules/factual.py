@@ -2,8 +2,7 @@
 Fact-checking rules for Sifaka.
 """
 
-from typing import Dict, Any, List, Set, Protocol, runtime_checkable, Final, TypeVar
-from typing_extensions import TypeGuard
+from typing import Dict, Any, List, Set, Optional, Final
 from dataclasses import dataclass, field
 from sifaka.rules.base import Rule, RuleResult, RuleConfig, RuleValidator
 import re
@@ -33,14 +32,12 @@ class FactualConsistencyConfig(RuleConfig):
     cost: float = 1.0
 
     def __post_init__(self) -> None:
+        """Validate configuration."""
+        super().__post_init__()
         if not 0.0 <= self.confidence_threshold <= 1.0:
             raise ValueError("confidence_threshold must be between 0.0 and 1.0")
-        if self.cache_size <= 0:
-            raise ValueError("cache_size must be positive")
-        if self.priority < 0:
-            raise ValueError("priority must be non-negative")
-        if self.cost < 0:
-            raise ValueError("cost must be non-negative")
+        if not self.contradiction_indicators:
+            raise ValueError("Must provide at least one contradiction indicator")
 
 
 @dataclass(frozen=True)
@@ -60,17 +57,12 @@ class ConfidenceConfig(RuleConfig):
     cost: float = 1.0
 
     def __post_init__(self) -> None:
-        if not all(
-            isinstance(level, str) and isinstance(indicators, list)
-            for level, indicators in self.confidence_indicators.items()
-        ):
-            raise ValueError("confidence_indicators must be a Dict[str, List[str]]")
-        if self.cache_size <= 0:
-            raise ValueError("cache_size must be positive")
-        if self.priority < 0:
-            raise ValueError("priority must be non-negative")
-        if self.cost < 0:
-            raise ValueError("cost must be non-negative")
+        """Validate configuration."""
+        super().__post_init__()
+        if not self.confidence_indicators:
+            raise ValueError("Must provide at least one confidence level")
+        if not all(indicators for indicators in self.confidence_indicators.values()):
+            raise ValueError("Each confidence level must have at least one indicator")
 
 
 @dataclass(frozen=True)
@@ -91,14 +83,10 @@ class CitationConfig(RuleConfig):
     cost: float = 1.0
 
     def __post_init__(self) -> None:
-        if not all(isinstance(pattern, str) for pattern in self.citation_patterns):
-            raise ValueError("citation_patterns must be a List[str]")
-        if self.cache_size <= 0:
-            raise ValueError("cache_size must be positive")
-        if self.priority < 0:
-            raise ValueError("priority must be non-negative")
-        if self.cost < 0:
-            raise ValueError("cost must be non-negative")
+        """Validate configuration."""
+        super().__post_init__()
+        if not self.citation_patterns:
+            raise ValueError("Must provide at least one citation pattern")
 
 
 @dataclass(frozen=True)
@@ -116,53 +104,228 @@ class FactualAccuracyConfig(RuleConfig):
     cost: float = 1.0
 
     def __post_init__(self) -> None:
-        if not all(
-            isinstance(key, str) and isinstance(facts, set)
-            for key, facts in self.knowledge_base.items()
-        ):
-            raise ValueError("knowledge_base must be a Dict[str, Set[str]]")
-        if self.cache_size <= 0:
-            raise ValueError("cache_size must be positive")
-        if self.priority < 0:
-            raise ValueError("priority must be non-negative")
-        if self.cost < 0:
-            raise ValueError("cost must be non-negative")
+        """Validate configuration."""
+        super().__post_init__()
+        if not self.knowledge_base:
+            raise ValueError("Must provide at least one knowledge base entry")
+        if not all(facts for facts in self.knowledge_base.values()):
+            raise ValueError("Each knowledge base entry must have at least one fact")
 
 
-@runtime_checkable
-class FactualConsistencyValidator(Protocol):
-    """Protocol for factual consistency validation."""
+class DefaultFactualConsistencyValidator(RuleValidator[str]):
+    """Default implementation of factual consistency validation."""
 
-    def validate(self, text: str) -> RuleResult: ...
+    def __init__(self, config: FactualConsistencyConfig) -> None:
+        """Initialize with configuration."""
+        self._config = config
+
     @property
-    def config(self) -> FactualConsistencyConfig: ...
+    def config(self) -> FactualConsistencyConfig:
+        """Get the validator configuration."""
+        return self._config
 
+    def validate(self, text: str) -> RuleResult:
+        """Validate text for factual consistency."""
+        if not isinstance(text, str):
+            raise ValueError("Input must be a string")
 
-@runtime_checkable
-class ConfidenceValidator(Protocol):
-    """Protocol for confidence validation."""
+        # Check for contradictions using indicators
+        found_contradictions = []
+        for indicator in self.config.contradiction_indicators:
+            if indicator.lower() in text.lower():
+                found_contradictions.append(indicator)
 
-    def validate(self, text: str) -> RuleResult: ...
+        # Calculate confidence score based on contradictions
+        confidence_score = 1.0 - (
+            len(found_contradictions) / len(self.config.contradiction_indicators)
+        )
+        meets_threshold = confidence_score >= self.config.confidence_threshold
+
+        if not meets_threshold:
+            return RuleResult(
+                passed=False,
+                message=f"Found potential contradictions: {', '.join(found_contradictions)}",
+                metadata={
+                    "found_contradictions": found_contradictions,
+                    "confidence_score": confidence_score,
+                    "threshold": self.config.confidence_threshold,
+                },
+            )
+
+        return RuleResult(
+            passed=True,
+            message="No contradictions found",
+            metadata={
+                "found_contradictions": [],
+                "confidence_score": confidence_score,
+                "threshold": self.config.confidence_threshold,
+            },
+        )
+
+    def can_validate(self, output: str) -> bool:
+        """Check if this validator can handle the input."""
+        return isinstance(output, str)
+
     @property
-    def config(self) -> ConfidenceConfig: ...
+    def validation_type(self) -> type[str]:
+        """Get the type of input this validator can handle."""
+        return str
 
 
-@runtime_checkable
-class CitationValidator(Protocol):
-    """Protocol for citation validation."""
+class DefaultConfidenceValidator(RuleValidator[str]):
+    """Default implementation of confidence validation."""
 
-    def validate(self, text: str) -> RuleResult: ...
+    def __init__(self, config: ConfidenceConfig) -> None:
+        """Initialize with configuration."""
+        self._config = config
+
     @property
-    def config(self) -> CitationConfig: ...
+    def config(self) -> ConfidenceConfig:
+        """Get the validator configuration."""
+        return self._config
 
+    def validate(self, text: str) -> RuleResult:
+        """Validate text for confidence indicators."""
+        if not isinstance(text, str):
+            raise ValueError("Input must be a string")
 
-@runtime_checkable
-class FactualAccuracyValidator(Protocol):
-    """Protocol for factual accuracy validation."""
+        text_lower = text.lower()
+        confidence_scores: Dict[str, List[str]] = {}
 
-    def validate(self, text: str) -> RuleResult: ...
+        # Find indicators for each confidence level
+        for level, indicators in self.config.confidence_indicators.items():
+            found = [ind for ind in indicators if ind.lower() in text_lower]
+            if found:
+                confidence_scores[level] = found
+
+        if not confidence_scores:
+            return RuleResult(
+                passed=False,
+                message="No confidence indicators found",
+                metadata={"confidence_levels": {}},
+            )
+
+        # Determine dominant confidence level
+        dominant_level = max(confidence_scores.items(), key=lambda x: len(x[1]))[0]
+
+        return RuleResult(
+            passed=True,
+            message=f"Found {dominant_level} confidence level",
+            metadata={
+                "confidence_levels": confidence_scores,
+                "dominant_level": dominant_level,
+            },
+        )
+
+    def can_validate(self, output: str) -> bool:
+        """Check if this validator can handle the input."""
+        return isinstance(output, str)
+
     @property
-    def config(self) -> FactualAccuracyConfig: ...
+    def validation_type(self) -> type[str]:
+        """Get the type of input this validator can handle."""
+        return str
+
+
+class DefaultCitationValidator(RuleValidator[str]):
+    """Default implementation of citation validation."""
+
+    def __init__(self, config: CitationConfig) -> None:
+        """Initialize with configuration."""
+        self._config = config
+        self._patterns = [re.compile(pattern) for pattern in config.citation_patterns]
+
+    @property
+    def config(self) -> CitationConfig:
+        """Get the validator configuration."""
+        return self._config
+
+    def validate(self, text: str) -> RuleResult:
+        """Validate text for citations."""
+        if not isinstance(text, str):
+            raise ValueError("Input must be a string")
+
+        found_citations = []
+        for pattern in self._patterns:
+            found_citations.extend(pattern.findall(text))
+
+        if not found_citations and self.config.required_citations:
+            return RuleResult(
+                passed=False,
+                message="No citations found",
+                metadata={
+                    "found_citations": [],
+                    "required": self.config.required_citations,
+                },
+            )
+
+        return RuleResult(
+            passed=True,
+            message=f"Found {len(found_citations)} citation(s)",
+            metadata={
+                "found_citations": found_citations,
+                "required": self.config.required_citations,
+            },
+        )
+
+    def can_validate(self, output: str) -> bool:
+        """Check if this validator can handle the input."""
+        return isinstance(output, str)
+
+    @property
+    def validation_type(self) -> type[str]:
+        """Get the type of input this validator can handle."""
+        return str
+
+
+class DefaultFactualAccuracyValidator(RuleValidator[str]):
+    """Default implementation of factual accuracy validation."""
+
+    def __init__(self, config: FactualAccuracyConfig) -> None:
+        """Initialize with configuration."""
+        self._config = config
+
+    @property
+    def config(self) -> FactualAccuracyConfig:
+        """Get the validator configuration."""
+        return self._config
+
+    def validate(self, text: str) -> RuleResult:
+        """Validate text for factual accuracy."""
+        if not isinstance(text, str):
+            raise ValueError("Input must be a string")
+
+        text_lower = text.lower()
+        found_facts: Dict[str, Set[str]] = {}
+
+        # Check each knowledge base entry
+        for topic, facts in self.config.knowledge_base.items():
+            found = {fact for fact in facts if fact.lower() in text_lower}
+            if found:
+                found_facts[topic] = found
+
+        if not found_facts:
+            return RuleResult(
+                passed=True,
+                message="No factual claims found to verify",
+                metadata={"verified_facts": {}},
+            )
+
+        # All found facts are considered accurate since they're from the knowledge base
+        return RuleResult(
+            passed=True,
+            message=f"Verified {len(found_facts)} factual claim(s)",
+            metadata={"verified_facts": found_facts},
+        )
+
+    def can_validate(self, output: str) -> bool:
+        """Check if this validator can handle the input."""
+        return isinstance(output, str)
+
+    @property
+    def validation_type(self) -> type[str]:
+        """Get the type of input this validator can handle."""
+        return str
 
 
 class FactualConsistencyRule(Rule):
@@ -172,170 +335,239 @@ class FactualConsistencyRule(Rule):
         self,
         name: str,
         description: str,
-        config: FactualConsistencyConfig,
-        validator: FactualConsistencyValidator,
+        validator: Optional[RuleValidator[str]] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Initialize the factual consistency rule."""
-        super().__init__(name=name, description=description)
-        self._config = config
-        self._validator = validator
-
-    @property
-    def config(self) -> FactualConsistencyConfig:
-        """Get the rule configuration."""
-        return self._config
-
-    @property
-    def validator(self) -> FactualConsistencyValidator:
-        """Get the rule validator."""
-        return self._validator
-
-    def validate(self, text: str) -> RuleResult:
         """
-        Validate that the text maintains factual consistency.
+        Initialize the factual consistency rule.
 
         Args:
-            text: The text to validate
-
-        Returns:
-            RuleResult: The result of the validation
-
-        Raises:
-            ValueError: If text is None or not a string
+            name: The name of the rule
+            description: Description of the rule
+            validator: Optional custom validator implementation
+            config: Optional configuration dictionary
         """
-        if not isinstance(text, str):
-            raise ValueError("Text must be a string")
+        # Create config object first
+        factual_config = FactualConsistencyConfig(**(config or {}))
 
-        return self._validator.validate(text)
+        # Create default validator if none provided
+        validator = validator or DefaultFactualConsistencyValidator(factual_config)
+
+        # Initialize base class
+        super().__init__(name=name, description=description, validator=validator)
+
+    def _validate_impl(self, output: str) -> RuleResult:
+        """Validate output for factual consistency."""
+        return self._validator.validate(output)
 
 
 class ConfidenceRule(Rule):
-    """Rule that checks for appropriate confidence levels in statements."""
+    """Rule that checks for confidence indicators in the text."""
 
     def __init__(
         self,
         name: str,
         description: str,
-        config: ConfidenceConfig,
-        validator: ConfidenceValidator,
+        validator: Optional[RuleValidator[str]] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Initialize the confidence rule."""
-        super().__init__(name=name, description=description)
-        self._config = config
-        self._validator = validator
-
-    @property
-    def config(self) -> ConfidenceConfig:
-        """Get the rule configuration."""
-        return self._config
-
-    @property
-    def validator(self) -> ConfidenceValidator:
-        """Get the rule validator."""
-        return self._validator
-
-    def validate(self, text: str) -> RuleResult:
         """
-        Validate that the text uses appropriate confidence levels.
+        Initialize the confidence rule.
 
         Args:
-            text: The text to validate
-
-        Returns:
-            RuleResult: The result of the validation
-
-        Raises:
-            ValueError: If text is None or not a string
+            name: The name of the rule
+            description: Description of the rule
+            validator: Optional custom validator implementation
+            config: Optional configuration dictionary
         """
-        if not isinstance(text, str):
-            raise ValueError("Text must be a string")
+        # Create config object first
+        confidence_config = ConfidenceConfig(**(config or {}))
 
-        return self._validator.validate(text)
+        # Create default validator if none provided
+        validator = validator or DefaultConfidenceValidator(confidence_config)
+
+        # Initialize base class
+        super().__init__(name=name, description=description, validator=validator)
+
+    def _validate_impl(self, output: str) -> RuleResult:
+        """Validate output for confidence indicators."""
+        return self._validator.validate(output)
 
 
 class CitationRule(Rule):
-    """Rule that checks for proper citations and references."""
+    """Rule that checks for citations in the text."""
 
     def __init__(
         self,
         name: str,
         description: str,
-        config: CitationConfig,
-        validator: CitationValidator,
+        validator: Optional[RuleValidator[str]] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Initialize the citation rule."""
-        super().__init__(name=name, description=description)
-        self._config = config
-        self._validator = validator
-
-    @property
-    def config(self) -> CitationConfig:
-        """Get the rule configuration."""
-        return self._config
-
-    @property
-    def validator(self) -> CitationValidator:
-        """Get the rule validator."""
-        return self._validator
-
-    def validate(self, text: str) -> RuleResult:
         """
-        Validate that the text contains proper citations.
+        Initialize the citation rule.
 
         Args:
-            text: The text to validate
-
-        Returns:
-            RuleResult: The result of the validation
-
-        Raises:
-            ValueError: If text is None or not a string
+            name: The name of the rule
+            description: Description of the rule
+            validator: Optional custom validator implementation
+            config: Optional configuration dictionary
         """
-        if not isinstance(text, str):
-            raise ValueError("Text must be a string")
+        # Create config object first
+        citation_config = CitationConfig(**(config or {}))
 
-        return self._validator.validate(text)
+        # Create default validator if none provided
+        validator = validator or DefaultCitationValidator(citation_config)
+
+        # Initialize base class
+        super().__init__(name=name, description=description, validator=validator)
+
+    def _validate_impl(self, output: str) -> RuleResult:
+        """Validate output for citations."""
+        return self._validator.validate(output)
 
 
 class FactualAccuracyRule(Rule):
-    """Rule that checks for factual accuracy using a knowledge base."""
+    """Rule that checks for factual accuracy in the text."""
 
     def __init__(
         self,
         name: str,
         description: str,
-        config: FactualAccuracyConfig,
-        validator: FactualAccuracyValidator,
+        validator: Optional[RuleValidator[str]] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Initialize the factual accuracy rule."""
-        super().__init__(name=name, description=description)
-        self._config = config
-        self._validator = validator
-
-    @property
-    def config(self) -> FactualAccuracyConfig:
-        """Get the rule configuration."""
-        return self._config
-
-    @property
-    def validator(self) -> FactualAccuracyValidator:
-        """Get the rule validator."""
-        return self._validator
-
-    def validate(self, text: str) -> RuleResult:
         """
-        Validate that the text contains accurate facts.
+        Initialize the factual accuracy rule.
 
         Args:
-            text: The text to validate
-
-        Returns:
-            RuleResult: The result of the validation
-
-        Raises:
-            ValueError: If text is None or not a string
+            name: The name of the rule
+            description: Description of the rule
+            validator: Optional custom validator implementation
+            config: Optional configuration dictionary
         """
-        if not isinstance(text, str):
-            raise ValueError("Text must be a string")
+        # Create config object first
+        accuracy_config = FactualAccuracyConfig(**(config or {}))
 
-        return self._validator.validate(text)
+        # Create default validator if none provided
+        validator = validator or DefaultFactualAccuracyValidator(accuracy_config)
+
+        # Initialize base class
+        super().__init__(name=name, description=description, validator=validator)
+
+    def _validate_impl(self, output: str) -> RuleResult:
+        """Validate output for factual accuracy."""
+        return self._validator.validate(output)
+
+
+def create_factual_consistency_rule(
+    name: str = "factual_consistency_rule",
+    description: str = "Validates text for factual consistency",
+    config: Optional[Dict[str, Any]] = None,
+) -> FactualConsistencyRule:
+    """
+    Create a factual consistency rule with configuration.
+
+    Args:
+        name: The name of the rule
+        description: Description of the rule
+        config: Optional configuration dictionary
+
+    Returns:
+        Configured FactualConsistencyRule instance
+    """
+    return FactualConsistencyRule(
+        name=name,
+        description=description,
+        config=config,
+    )
+
+
+def create_confidence_rule(
+    name: str = "confidence_rule",
+    description: str = "Validates text for confidence indicators",
+    config: Optional[Dict[str, Any]] = None,
+) -> ConfidenceRule:
+    """
+    Create a confidence rule with configuration.
+
+    Args:
+        name: The name of the rule
+        description: Description of the rule
+        config: Optional configuration dictionary
+
+    Returns:
+        Configured ConfidenceRule instance
+    """
+    return ConfidenceRule(
+        name=name,
+        description=description,
+        config=config,
+    )
+
+
+def create_citation_rule(
+    name: str = "citation_rule",
+    description: str = "Validates text for citations",
+    config: Optional[Dict[str, Any]] = None,
+) -> CitationRule:
+    """
+    Create a citation rule with configuration.
+
+    Args:
+        name: The name of the rule
+        description: Description of the rule
+        config: Optional configuration dictionary
+
+    Returns:
+        Configured CitationRule instance
+    """
+    return CitationRule(
+        name=name,
+        description=description,
+        config=config,
+    )
+
+
+def create_factual_accuracy_rule(
+    name: str = "factual_accuracy_rule",
+    description: str = "Validates text for factual accuracy",
+    config: Optional[Dict[str, Any]] = None,
+) -> FactualAccuracyRule:
+    """
+    Create a factual accuracy rule with configuration.
+
+    Args:
+        name: The name of the rule
+        description: Description of the rule
+        config: Optional configuration dictionary
+
+    Returns:
+        Configured FactualAccuracyRule instance
+    """
+    return FactualAccuracyRule(
+        name=name,
+        description=description,
+        config=config,
+    )
+
+
+# Export public classes and functions
+__all__ = [
+    "FactualConsistencyRule",
+    "FactualConsistencyConfig",
+    "DefaultFactualConsistencyValidator",
+    "ConfidenceRule",
+    "ConfidenceConfig",
+    "DefaultConfidenceValidator",
+    "CitationRule",
+    "CitationConfig",
+    "DefaultCitationValidator",
+    "FactualAccuracyRule",
+    "FactualAccuracyConfig",
+    "DefaultFactualAccuracyValidator",
+    "create_factual_consistency_rule",
+    "create_confidence_rule",
+    "create_citation_rule",
+    "create_factual_accuracy_rule",
+]

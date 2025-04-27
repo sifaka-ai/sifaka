@@ -5,7 +5,7 @@ This module provides rules for validating legal content, including citation form
 legal terms, and other legal-specific validation requirements.
 """
 
-from typing import Dict, Any, List, Set, Protocol, runtime_checkable, Final
+from typing import Dict, Any, List, Set, Protocol, runtime_checkable, Final, Optional
 from typing_extensions import TypeGuard
 from dataclasses import dataclass, field
 import re
@@ -123,7 +123,7 @@ class LegalTermsValidator(Protocol):
     def config(self) -> LegalTermsConfig: ...
 
 
-class DefaultLegalCitationValidator:
+class DefaultLegalCitationValidator(RuleValidator[str]):
     """Default implementation of legal citation validation."""
 
     def __init__(self, config: LegalCitationConfig) -> None:
@@ -201,7 +201,7 @@ class DefaultLegalCitationValidator:
 
             return RuleResult(
                 passed=True,
-                message=f"All {total_citations} citations are valid",
+                message=f"Found {total_citations} valid citations",
                 metadata={
                     "found_citations": found_citations,
                     "total_citations": total_citations,
@@ -211,12 +211,21 @@ class DefaultLegalCitationValidator:
         except Exception as e:
             return RuleResult(
                 passed=False,
-                message=f"Error during citation validation: {str(e)}",
+                message=f"Error validating citations: {str(e)}",
                 metadata={"error": str(e)},
             )
 
+    def can_validate(self, output: str) -> bool:
+        """Check if this validator can handle the input."""
+        return isinstance(output, str)
 
-class DefaultLegalTermsValidator:
+    @property
+    def validation_type(self) -> type[str]:
+        """Get the type of input this validator can handle."""
+        return str
+
+
+class DefaultLegalTermsValidator(RuleValidator[str]):
     """Default implementation of legal terms validation."""
 
     def __init__(self, config: LegalTermsConfig) -> None:
@@ -234,149 +243,239 @@ class DefaultLegalTermsValidator:
             raise ValueError("Text must be a string")
 
         try:
-            text_to_check = text if self.config.case_sensitive else text.lower()
-            terms_to_check = lambda t: t if self.config.case_sensitive else t.lower()
+            # Process text based on case sensitivity
+            if not self.config.case_sensitive:
+                text = text.lower()
+                legal_terms = {t.lower() for t in self.config.legal_terms}
+                warning_terms = {t.lower() for t in self.config.warning_terms}
+                required_terms = {t.lower() for t in self.config.required_terms}
+                prohibited_terms = {t.lower() for t in self.config.prohibited_terms}
+            else:
+                legal_terms = self.config.legal_terms
+                warning_terms = self.config.warning_terms
+                required_terms = self.config.required_terms
+                prohibited_terms = self.config.prohibited_terms
 
-            # Check for required terms
-            missing_terms = [
-                term
-                for term in self.config.required_terms
-                if terms_to_check(term) not in text_to_check
-            ]
-            if missing_terms:
+            # Find terms
+            found_legal_terms = {term for term in legal_terms if term in text}
+            found_warning_terms = {term for term in warning_terms if term in text}
+            found_required_terms = {term for term in required_terms if term in text}
+            found_prohibited_terms = {term for term in prohibited_terms if term in text}
+
+            # Check requirements
+            missing_required = required_terms - found_required_terms
+            if missing_required:
                 return RuleResult(
                     passed=False,
-                    message=f"Missing required legal terms: {', '.join(missing_terms)}",
+                    message=f"Missing required terms: {', '.join(missing_required)}",
                     metadata={
-                        "missing_terms": missing_terms,
-                        "requirement": "required",
+                        "missing_required": list(missing_required),
+                        "found_legal": list(found_legal_terms),
+                        "found_warning": list(found_warning_terms),
+                        "found_prohibited": list(found_prohibited_terms),
                     },
                 )
 
-            # Check for prohibited terms
-            found_prohibited = [
-                term
-                for term in self.config.prohibited_terms
-                if terms_to_check(term) in text_to_check
-            ]
-            if found_prohibited:
+            if found_prohibited_terms:
                 return RuleResult(
                     passed=False,
-                    message=f"Found prohibited legal terms: {', '.join(found_prohibited)}",
+                    message=f"Found prohibited terms: {', '.join(found_prohibited_terms)}",
                     metadata={
-                        "found_prohibited": found_prohibited,
-                        "requirement": "prohibited",
+                        "found_prohibited": list(found_prohibited_terms),
+                        "found_legal": list(found_legal_terms),
+                        "found_warning": list(found_warning_terms),
                     },
                 )
-
-            # Check for legal terms
-            found_legal_terms = [
-                term for term in self.config.legal_terms if terms_to_check(term) in text_to_check
-            ]
-
-            # Check for warning terms
-            found_warning_terms = [
-                term for term in self.config.warning_terms if terms_to_check(term) in text_to_check
-            ]
 
             return RuleResult(
                 passed=True,
-                message="Legal terms validation passed",
+                message="All legal terms requirements met",
                 metadata={
-                    "found_legal_terms": found_legal_terms,
-                    "found_warning_terms": found_warning_terms,
+                    "found_legal": list(found_legal_terms),
+                    "found_warning": list(found_warning_terms),
                 },
             )
 
         except Exception as e:
             return RuleResult(
                 passed=False,
-                message=f"Error during legal terms validation: {str(e)}",
+                message=f"Error validating legal terms: {str(e)}",
                 metadata={"error": str(e)},
             )
+
+    def can_validate(self, output: str) -> bool:
+        """Check if this validator can handle the input."""
+        return isinstance(output, str)
+
+    @property
+    def validation_type(self) -> type[str]:
+        """Get the type of input this validator can handle."""
+        return str
 
 
 class LegalCitationRule(Rule):
-    """Rule that validates legal citations in the output."""
+    """Rule for validating legal citations."""
 
     def __init__(
         self,
         name: str,
         description: str,
-        validator: LegalCitationValidator,
+        validator: Optional[RuleValidator[str]] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Initialize the legal citation rule."""
-        super().__init__(name=name, description=description)
-        self._validator = validator
+        """
+        Initialize the rule with legal citation validation.
 
-    @property
-    def validator(self) -> LegalCitationValidator:
-        """Get the citation validator."""
-        return self._validator
+        Args:
+            name: The name of the rule
+            description: Description of the rule
+            validator: Optional custom validator implementation
+            config: Optional configuration dictionary
+        """
+        # Create config object first
+        citation_config = LegalCitationConfig(**(config or {}))
 
-    def validate(self, text: str) -> RuleResult:
-        """Validate legal citations."""
-        if not isinstance(text, str):
-            raise ValueError("Text must be a string")
+        # Create default validator if none provided
+        validator = validator or DefaultLegalCitationValidator(citation_config)
 
-        try:
-            return self._validator.validate(text)
-        except Exception as e:
-            return RuleResult(
-                passed=False,
-                message=f"Error during citation validation: {str(e)}",
-                metadata={"error": str(e)},
-            )
+        # Initialize base class
+        super().__init__(name=name, description=description, validator=validator)
+
+    def _validate_impl(self, output: str) -> RuleResult:
+        """Validate output citations."""
+        return self._validator.validate(output)
 
 
 class LegalTermsRule(Rule):
-    """Rule that validates legal terms in the output."""
+    """Rule for validating legal terms."""
 
     def __init__(
         self,
         name: str,
         description: str,
-        validator: LegalTermsValidator,
+        validator: Optional[RuleValidator[str]] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Initialize the legal terms rule."""
-        super().__init__(name=name, description=description)
-        self._validator = validator
+        """
+        Initialize the rule with legal terms validation.
 
-    @property
-    def validator(self) -> LegalTermsValidator:
-        """Get the terms validator."""
-        return self._validator
+        Args:
+            name: The name of the rule
+            description: Description of the rule
+            validator: Optional custom validator implementation
+            config: Optional configuration dictionary
+        """
+        # Create config object first
+        terms_config = LegalTermsConfig(**(config or {}))
 
-    def validate(self, text: str) -> RuleResult:
-        """Validate legal terms."""
-        if not isinstance(text, str):
-            raise ValueError("Text must be a string")
+        # Create default validator if none provided
+        validator = validator or DefaultLegalTermsValidator(terms_config)
 
-        try:
-            return self._validator.validate(text)
-        except Exception as e:
-            return RuleResult(
-                passed=False,
-                message=f"Error during legal terms validation: {str(e)}",
-                metadata={"error": str(e)},
-            )
+        # Initialize base class
+        super().__init__(name=name, description=description, validator=validator)
+
+    def _validate_impl(self, output: str) -> RuleResult:
+        """Validate output legal terms."""
+        return self._validator.validate(output)
 
 
 def create_legal_citation_rule(
-    name: str,
-    description: str,
-    config: LegalCitationConfig | None = None,
+    name: str = "legal_citation_rule",
+    description: str = "Validates legal citations",
+    config: Optional[Dict[str, Any]] = None,
 ) -> LegalCitationRule:
-    """Create a legal citation rule with default configuration."""
-    validator = DefaultLegalCitationValidator(config or LegalCitationConfig())
-    return LegalCitationRule(name=name, description=description, validator=validator)
+    """
+    Create a legal citation rule with configuration.
+
+    Args:
+        name: The name of the rule
+        description: Description of the rule
+        config: Optional configuration dictionary
+
+    Returns:
+        Configured LegalCitationRule instance
+    """
+    if config is None:
+        config = {
+            "citation_patterns": [
+                r"\d+\s+U\.S\.\s+\d+",  # US Reports citations
+                r"\d+\s+S\.\s*Ct\.\s+\d+",  # Supreme Court Reporter
+                r"\d+\s+F\.\d+d\s+\d+",  # Federal Reporter citations
+                r"\d+\s+F\.\s*Supp\.\s+\d+",  # Federal Supplement
+            ],
+            "require_citations": True,
+            "min_citations": 0,
+            "max_citations": 100,
+            "cache_size": 100,
+            "priority": 1,
+            "cost": 1.0,
+        }
+
+    return LegalCitationRule(
+        name=name,
+        description=description,
+        config=config,
+    )
 
 
 def create_legal_terms_rule(
-    name: str,
-    description: str,
-    config: LegalTermsConfig | None = None,
+    name: str = "legal_terms_rule",
+    description: str = "Validates legal terms",
+    config: Optional[Dict[str, Any]] = None,
 ) -> LegalTermsRule:
-    """Create a legal terms rule with default configuration."""
-    validator = DefaultLegalTermsValidator(config or LegalTermsConfig())
-    return LegalTermsRule(name=name, description=description, validator=validator)
+    """
+    Create a legal terms rule with configuration.
+
+    Args:
+        name: The name of the rule
+        description: Description of the rule
+        config: Optional configuration dictionary
+
+    Returns:
+        Configured LegalTermsRule instance
+    """
+    if config is None:
+        config = {
+            "legal_terms": {
+                "confidential",
+                "proprietary",
+                "classified",
+                "restricted",
+                "private",
+                "sensitive",
+            },
+            "warning_terms": {
+                "warning",
+                "caution",
+                "notice",
+                "disclaimer",
+                "privileged",
+            },
+            "required_terms": set(),
+            "prohibited_terms": set(),
+            "case_sensitive": False,
+            "cache_size": 100,
+            "priority": 1,
+            "cost": 1.0,
+        }
+
+    return LegalTermsRule(
+        name=name,
+        description=description,
+        config=config,
+    )
+
+
+# Export public classes and functions
+__all__ = [
+    "LegalCitationRule",
+    "LegalCitationConfig",
+    "LegalCitationValidator",
+    "DefaultLegalCitationValidator",
+    "LegalTermsRule",
+    "LegalTermsConfig",
+    "LegalTermsValidator",
+    "DefaultLegalTermsValidator",
+    "create_legal_citation_rule",
+    "create_legal_terms_rule",
+]
