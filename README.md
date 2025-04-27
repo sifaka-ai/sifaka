@@ -350,6 +350,8 @@ model = AnthropicProvider(
 # Initialize the critic
 critic = PromptCritic(
     config=PromptCriticConfig(
+        name="quality_critic",
+        description="Improves text quality and ensures pattern consistency",
         system_prompt="You are an expert editor focused on improving text quality.",
         temperature=0.7,
         max_tokens=2000
@@ -360,9 +362,12 @@ critic = PromptCritic(
 
 # Analyze text
 text = "The quick brown fox jumps over the lazy dog."
-result = critic.validate(text)
-print(f"Validation result: {result.passed}")
-print(f"Message: {result.message}")
+try:
+    result = critic.validate(text)
+    print(f"Validation result: {result.passed}")
+    print(f"Message: {result.message}")
+except Exception as e:
+    print(f"Error during validation: {str(e)}")
 ```
 
 Required environment variables:
@@ -377,10 +382,11 @@ pip install python-dotenv sifaka
 
 Common issues and solutions:
 1. Import Error: Make sure to import `RuleConfig` and `RulePriority` from `sifaka.rules.base`
-2. Missing name/description: All rules require `name` and `description` parameters
+2. Missing name/description: All components (rules AND critics) require `name` and `description` parameters
 3. API Key: Set your Anthropic API key in the environment variables
 4. Model Configuration: The API key goes in the ModelConfig, not PromptCriticConfig
 5. Dependencies: Install required packages using pip
+6. Error Handling: Always wrap validation calls in try-except blocks to handle potential errors
 
 ## 🔑 API Keys and Configuration
 
