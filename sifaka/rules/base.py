@@ -2,7 +2,11 @@
 Base classes for Sifaka rules.
 """
 
+from abc import ABC, abstractmethod
+from functools import lru_cache
 from typing import Dict, Any, Optional, Callable, Union, Tuple
+import hashlib
+
 from pydantic import BaseModel, Field, ConfigDict
 
 
@@ -32,7 +36,7 @@ class RuleResult(BaseModel):
         return self.passed
 
 
-class Rule(BaseModel):
+class Rule(ABC, BaseModel):
     """
     Base class for all Sifaka rules.
 
@@ -42,11 +46,17 @@ class Rule(BaseModel):
         name: The name of the rule
         description: Description of the rule
         config: Configuration for the rule
+        cache_size: Size of the LRU cache (0 to disable)
+        priority: Priority of the rule (higher numbers run first)
+        cost: Estimated computational cost (higher numbers are more expensive)
     """
 
     name: str
     description: str
     config: Dict[str, Any] = {}
+    cache_size: int = 0
+    priority: int = 0
+    cost: int = 1
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -55,6 +65,9 @@ class Rule(BaseModel):
         name: str,
         description: str,
         config: Optional[Dict[str, Any]] = None,
+        cache_size: int = 0,
+        priority: int = 0,
+        cost: int = 1,
         **kwargs,
     ) -> None:
         """
@@ -64,30 +77,75 @@ class Rule(BaseModel):
             name: The name of the rule
             description: Description of the rule
             config: Configuration for the rule
+            cache_size: Size of the LRU cache (0 to disable)
+            priority: Priority of the rule (higher numbers run first)
+            cost: Estimated computational cost (higher numbers are more expensive)
             **kwargs: Additional arguments
         """
         super().__init__(
             name=name,
             description=description,
             config=config or {},
+            cache_size=cache_size,
+            priority=priority,
+            cost=cost,
             **kwargs,
         )
 
-    def validate(self, output: str, **kwargs) -> RuleResult:
+        # Initialize cache if enabled
+        if self.cache_size > 0:
+            self._cached_validate = lru_cache(maxsize=self.cache_size)(self._validate_impl)
+        else:
+            self._cached_validate = self._validate_impl
+
+    def _get_cache_key(self, output: str) -> str:
         """
-        Validate the output against this rule.
+        Generate a cache key for the output.
 
         Args:
-            output: The LLM output to validate
-            **kwargs: Additional context for validation
+            output: The output to validate
 
         Returns:
-            The result of the validation
-
-        Raises:
-            NotImplementedError: If the subclass does not implement this method
+            A cache key string
         """
-        raise NotImplementedError("Subclasses must implement validate()")
+        # Create a hash of the output and config
+        hasher = hashlib.md5()
+        hasher.update(output.encode())
+        hasher.update(str(self.config).encode())
+        return hasher.hexdigest()
+
+    @abstractmethod
+    def _validate_impl(self, output: str) -> RuleResult:
+        """
+        Implement the validation logic.
+
+        Args:
+            output: The output to validate
+
+        Returns:
+            RuleResult with validation results
+        """
+        pass
+
+    def validate(self, output: str) -> RuleResult:
+        """
+        Validate an output.
+
+        This method handles caching if enabled.
+
+        Args:
+            output: The output to validate
+
+        Returns:
+            RuleResult with validation results
+        """
+        if self.cache_size > 0:
+            # Use cache key for cached validation
+            cache_key = self._get_cache_key(output)
+            return self._cached_validate(cache_key)
+        else:
+            # Direct validation without caching
+            return self._validate_impl(output)
 
 
 class FunctionRule(Rule):
@@ -103,18 +161,17 @@ class FunctionRule(Rule):
 
     func: Callable
 
-    def validate(self, output: str, **kwargs) -> RuleResult:
+    def _validate_impl(self, output: str) -> RuleResult:
         """
-        Validate the output using the wrapped function.
+        Validate using the provided function.
 
         Args:
             output: The LLM output to validate
-            **kwargs: Additional context for validation
 
         Returns:
             The result of the validation
         """
-        result = self.func(output, **kwargs)
+        result = self.func(output)
 
         if isinstance(result, RuleResult):
             return result

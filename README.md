@@ -629,3 +629,177 @@ This example shows:
 4. Success/failure handling
 
 Each rule can define its own validation logic, and the critic will try to fix any violations while preserving the essential content.
+
+## 🚀 Performance Optimization
+
+Sifaka provides several ways to optimize performance:
+
+### Parallel Rule Validation
+
+Enable parallel validation when rules are independent:
+
+```python
+from sifaka import Reflector
+from sifaka.models import AnthropicProvider
+from sifaka.rules import LengthRule, ProhibitedContentRule
+
+reflector = Reflector(
+    name="optimized_validator",
+    model=provider,
+    rules=[length_rule, prohibited_terms],
+    parallel_validation=True  # Enable parallel validation
+)
+```
+
+### Rule Caching
+
+Cache expensive rule validations:
+
+```python
+from sifaka.rules import ToxicityRule
+from functools import lru_cache
+
+class CachedToxicityRule(ToxicityRule):
+    @lru_cache(maxsize=1000)
+    def validate(self, output: str) -> RuleResult:
+        return super().validate(output)
+
+# Use the cached version
+toxicity_rule = CachedToxicityRule(
+    name="toxicity_check",
+    description="Checks for toxic content with caching",
+    config={"max_toxicity": 0.5}
+)
+```
+
+### Batch Processing
+
+Group validations for efficiency:
+
+```python
+from sifaka import BatchReflector
+
+batch_reflector = BatchReflector(
+    name="batch_validator",
+    model=provider,
+    rules=[length_rule, prohibited_terms],
+    batch_size=10  # Process 10 items at once
+)
+
+# Process multiple items efficiently
+results = batch_reflector.reflect_batch([
+    "First prompt",
+    "Second prompt",
+    "Third prompt"
+])
+```
+
+### Memory Management
+
+Control memory usage with configuration:
+
+```python
+reflector = Reflector(
+    name="memory_efficient",
+    model=provider,
+    rules=[length_rule, prohibited_terms],
+    max_cache_size=1000,  # Limit cache size
+    clear_history=True    # Clear history after each reflection
+)
+```
+
+### Model Configuration
+
+Optimize model settings for your use case:
+
+```python
+from sifaka.models import AnthropicProvider
+
+provider = AnthropicProvider(
+    model_name="claude-3-haiku-20240307",
+    request_timeout=30,     # Adjust timeout
+    max_retries=2,         # Limit retries
+    temperature=0.1        # Lower temperature for faster responses
+)
+```
+
+### Performance Monitoring
+
+Monitor and tune performance:
+
+```python
+from sifaka.monitoring import PerformanceMonitor
+
+monitor = PerformanceMonitor()
+reflector = Reflector(
+    name="monitored_validator",
+    model=provider,
+    rules=[length_rule, prohibited_terms],
+    performance_monitor=monitor
+)
+
+# Get performance metrics
+metrics = monitor.get_metrics()
+print(f"Average validation time: {metrics['avg_validation_time_ms']}ms")
+print(f"Rules per second: {metrics['rules_per_second']}")
+```
+
+### Best Practices
+
+1. **Rule Ordering**: Place fast rules before slow ones
+2. **Batch Size**: Adjust batch size based on available memory
+3. **Cache Tuning**: Monitor cache hit rates and adjust sizes
+4. **Async Operations**: Use async where possible for I/O bound operations
+5. **Resource Limits**: Set appropriate timeouts and retry limits
+
+## Rule Prioritization
+
+Rules can be prioritized to optimize validation performance. Each rule has two attributes that control its execution order:
+
+- `priority` (int): Higher numbers run first. Use this to run more important rules before less important ones.
+- `cost` (int): Higher numbers indicate more computational expense. Among rules with the same priority, lower cost rules run first.
+
+Example:
+
+```python
+from sifaka.rules import LengthRule, ToxicityRule
+from sifaka.providers import AnthropicProvider
+from sifaka import Reflector
+
+# High priority, low cost rule runs first
+length_rule = LengthRule(
+    name="length",
+    description="Check output length",
+    config={"min_length": 100, "max_length": 200},
+    priority=2,  # High priority
+    cost=1       # Low cost
+)
+
+# Lower priority, high cost rule runs second
+toxicity_rule = ToxicityRule(
+    name="toxicity",
+    description="Check for toxic content",
+    config={"max_toxicity": 0.7},
+    priority=1,  # Lower priority
+    cost=3       # Higher cost due to API call
+)
+
+provider = AnthropicProvider(api_key="your-key")
+reflector = Reflector(
+    provider=provider,
+    rules=[length_rule, toxicity_rule]
+)
+
+result = reflector.reflect("Tell me about machine learning")
+print(result)
+```
+
+The reflector will:
+1. Run the length rule first (priority=2)
+2. Only if length passes, run the toxicity rule (priority=1)
+3. If using parallel validation and a rule fails, cancel remaining lower priority rules
+
+This optimization is especially useful when:
+- Some rules are more critical than others
+- Rules have varying computational costs
+- You want to fail fast on important checks
