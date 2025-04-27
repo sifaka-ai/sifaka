@@ -219,7 +219,14 @@ format_rule = FormatRule(
 )
 
 # Create a critic for improving outputs that fail validation
-critic = PromptCritic(model=provider)
+critic = PromptCritic(
+    model=provider,
+    system_prompt=(
+        "You are an editor that makes text more concise while preserving key information. "
+        "When asked to adjust text length, you MUST ensure the output is within the specified character limits. "
+        "Always return your response as a plain string, not a dictionary or any other format."
+    )
+)
 
 # Create a reflector with rules and critic
 reflector = Reflector(
@@ -229,8 +236,7 @@ reflector = Reflector(
     critic=critic
 )
 
-# Get a response and validate it
-logger.info("Starting reflection process...")
+# Use the reflector
 try:
     result = reflector.reflect(
         "Write a professional email about a search project update",
