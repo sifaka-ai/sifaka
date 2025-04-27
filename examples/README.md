@@ -2,74 +2,74 @@
 
 This directory contains example scripts demonstrating various features and integrations of the Sifaka library.
 
+## Core Components
+
+1. **Chain**
+The main component that orchestrates the validation and improvement process:
+
+```python
+from sifaka.chain import Chain
+from sifaka.rules import LengthRule, SymmetryRule, RepetitionRule
+from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
+from sifaka.models import OpenAIProvider
+from sifaka.rules.base import RuleConfig, RulePriority
+
+# Initialize provider
+provider = OpenAIProvider(
+    model_name="gpt-4-turbo-preview",
+    config={"api_key": "your-api-key"}
+)
+
+# Set up rules
+rules = [
+    LengthRule(
+        name="length_check",
+        description="Checks if output length is within bounds",
+        config={"min_length": 30, "max_length": 100}
+    ),
+    SymmetryRule(
+        name="symmetry_check",
+        description="Checks for text symmetry patterns",
+        config=RuleConfig(
+            priority=RulePriority.MEDIUM,
+            metadata={"symmetry_threshold": 0.8}
+        )
+    )
+]
+
+# Set up critic
+critic = PromptCritic(
+    model=provider,
+    config=PromptCriticConfig(
+        name="text_improver",
+        description="Improves text based on validation results"
+    )
+)
+
+# Create chain
+chain = Chain(
+    model=provider,
+    rules=rules,
+    critic=critic,
+    max_attempts=3
+)
+
+# Generate and validate content
+result = chain.run("Write a professional email...")
+```
+
+⚠️ **Note**: The previously used `Reflector` class is deprecated and will be removed in version 2.0.0. Please use the `Chain` class as shown above.
+
 ## Available Examples
 
 1. **Basic Usage** (`basic_usage.py`):
    - Demonstrates fundamental pattern analysis capabilities
    - Shows how to use LengthRule, ProhibitedContentRule, SymmetryRule, and RepetitionRule
    - Example text analysis with multiple validation rules
-   ```python
-   from sifaka.rules import LengthRule, ProhibitedContentRule, SymmetryRule, RepetitionRule
-   from sifaka.rules.base import RuleConfig, RulePriority
-
-   # Create a length validation rule
-   length_rule = LengthRule(
-       name="length_check",
-       description="Checks if output length is within bounds",
-       config={
-           "min_length": 30,
-           "max_length": 100,
-           "unit": "characters",
-       },
-   )
-
-   # Create a symmetry rule with specific thresholds
-   symmetry_rule = SymmetryRule(
-       name="symmetry_check",
-       description="Checks for text symmetry patterns",
-       config=RuleConfig(
-           priority=RulePriority.MEDIUM,
-           metadata={
-               "mirror_mode": "both",
-               "symmetry_threshold": 0.8,
-               "preserve_whitespace": True,
-               "preserve_case": True,
-               "ignore_punctuation": True,
-           },
-       ),
-   )
-   ```
 
 2. **OpenAI Integration** (`openai_example.py`):
    - Shows integration with OpenAI's GPT models
    - Demonstrates text improvement using PromptCritic
-   ```python
-   from sifaka.models import OpenAIProvider
-   from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
-   from sifaka.models.base import ModelConfig
-
-   # Initialize OpenAI provider
-   openai_provider = OpenAIProvider(
-       model_name="gpt-4-turbo-preview",
-       config=ModelConfig(
-           api_key=os.getenv("OPENAI_API_KEY"),
-           temperature=0.7,
-           max_tokens=1000,
-       ),
-   )
-
-   # Create a critic with the OpenAI provider
-   critic = PromptCritic(
-       model=openai_provider,
-       config=PromptCriticConfig(
-           name="openai_critic",
-           description="A critic that uses OpenAI to improve text",
-           system_prompt="You are an expert editor that improves text.",
-           temperature=0.7,
-           max_tokens=1000,
-       ),
-   )
-   ```
 
 3. **Pydantic Integration** (`pydantic_integration.py`):
    - Demonstrates using Pydantic models with Sifaka
@@ -108,10 +108,6 @@ This directory contains example scripts demonstrating various features and integ
    python basic_usage.py
    # etc.
    ```
-
-## Important Notes
-
-⚠️ **Deprecation Warning**: The `Reflector` class is deprecated and will be removed in version 2.0.0. Please use `SymmetryRule` and `RepetitionRule` from `sifaka.rules.pattern_rules` instead.
 
 ## Best Practices
 

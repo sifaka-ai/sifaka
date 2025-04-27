@@ -12,34 +12,49 @@ Architecture Overview:
 - Rules can be combined in a Reflector for comprehensive validation
 
 Available Rules:
-1. LengthRule: Validates text length against constraints
-   - Supports minimum, maximum, and exact length requirements
-   - Useful for ensuring content meets size requirements
+1. Base Rules:
+   - Rule (base class)
+   - RuleResult
+   - FunctionRule
 
-2. ProhibitedContentRule: Checks for prohibited terms
-   - Case-insensitive matching
-   - Returns detailed information about found terms
-   - Ideal for content filtering
+2. Content Rules:
+   - LengthRule: Validates text length
+   - ProhibitedContentRule: Checks for prohibited terms
+   - FormatRule: Validates text format
+   - ParagraphRule: Validates paragraph structure
+   - StyleRule: Validates text style
+   - FormattingRule: Validates text formatting
 
-3. SentimentRule: Analyzes text sentiment
-   - Threshold-based validation
-   - Placeholder for sentiment analysis integration
-   - Useful for maintaining content tone
-
-4. ToxicityRule: Checks for toxic content
-   - Threshold-based validation
-   - Placeholder for toxicity analysis integration
-   - Important for content safety
-
-5. FormatRule: Validates text format
-   - Supports markdown, JSON, and plain text
-   - Basic syntax validation
-   - Ensures content meets formatting requirements
-
-6. Pattern Rules: Analyze text patterns and structure
+3. Pattern Rules:
    - SymmetryRule: Checks for text symmetry
    - RepetitionRule: Detects repeated patterns
-   - Useful for structural validation
+
+4. Safety Rules:
+   - ToxicityRule: Checks for toxic content
+   - BiasRule: Checks for bias
+   - HarmfulContentRule: Detects harmful content
+
+5. Domain-Specific Rules:
+   - MedicalRule: Medical content validation
+   - LegalRule: Legal content validation
+   - LegalCitationRule: Validates legal citations
+   - LegalTermsRule: Validates legal terminology
+   - PythonRule: Python code validation
+   - ConsistencyRule: Content consistency validation
+
+6. Factual Rules:
+   - FactualConsistencyRule: Checks fact consistency
+   - ConfidenceRule: Validates confidence levels
+   - CitationRule: Validates citations
+   - FactualAccuracyRule: Checks factual accuracy
+
+7. Sentiment Rules:
+   - SentimentRule: Analyzes text sentiment
+   - EmotionalContentRule: Validates emotional content
+
+8. Wrapper Rules:
+   - WrapperRule: Base wrapper for rules
+   - CodeBlockRule: Validates code blocks
 
 Usage Example:
     from sifaka.rules import LengthRule, ProhibitedContentRule, FormatRule
@@ -60,26 +75,82 @@ Usage Example:
     result = reflector.validate("Your content here")
 """
 
-from .base import Rule, RuleResult
+from .base import Rule, RuleResult, FunctionRule
 from .safety import ToxicityRule, BiasRule, HarmfulContentRule
 from .classifier_rule import ClassifierRule
 from .prohibited_content import ProhibitedContentRule
 from .format import FormatRule
-from .sentiment import SentimentRule
+from .sentiment import SentimentRule, EmotionalContentRule
 from .length import LengthRule
 from .pattern_rules import SymmetryRule, RepetitionRule
+from .domain import (
+    LegalRule,
+    MedicalRule,
+    PythonRule,
+    ConsistencyRule,
+    LegalCitationRule,
+    LegalTermsRule,
+    create_legal_rule,
+    create_medical_rule,
+    create_python_rule,
+    create_consistency_rule,
+    create_legal_citation_rule,
+    create_legal_terms_rule,
+)
+from .factual import (
+    FactualConsistencyRule,
+    ConfidenceRule,
+    CitationRule,
+    FactualAccuracyRule,
+)
+from .formatting import ParagraphRule, StyleRule, FormattingRule
+from .wrapper import WrapperRule, CodeBlockRule
 
 __all__ = [
+    # Base
     "Rule",
     "RuleResult",
+    "FunctionRule",
+    # Safety
     "ToxicityRule",
     "BiasRule",
     "HarmfulContentRule",
+    # Classifier
     "ClassifierRule",
+    # Content
     "ProhibitedContentRule",
     "FormatRule",
-    "SentimentRule",
     "LengthRule",
+    # Pattern
     "SymmetryRule",
     "RepetitionRule",
+    # Domain
+    "LegalRule",
+    "MedicalRule",
+    "PythonRule",
+    "ConsistencyRule",
+    # Legal-specific
+    "LegalCitationRule",
+    "LegalTermsRule",
+    "create_legal_citation_rule",
+    "create_legal_terms_rule",
+    "create_legal_rule",
+    "create_medical_rule",
+    "create_python_rule",
+    "create_consistency_rule",
+    # Factual
+    "FactualConsistencyRule",
+    "ConfidenceRule",
+    "CitationRule",
+    "FactualAccuracyRule",
+    # Sentiment
+    "SentimentRule",
+    "EmotionalContentRule",
+    # Formatting
+    "ParagraphRule",
+    "StyleRule",
+    "FormattingRule",
+    # Wrapper
+    "WrapperRule",
+    "CodeBlockRule",
 ]
