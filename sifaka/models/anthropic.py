@@ -2,7 +2,7 @@
 Anthropic model provider for Sifaka.
 """
 
-from typing import Dict, Any, Optional, ClassVar
+from typing import Dict, Any, Optional
 from pydantic import Field, PrivateAttr
 from .base import ModelProvider
 
@@ -27,7 +27,7 @@ class AnthropicProvider(ModelProvider):
     additional_kwargs: Dict[str, Any] = Field(default_factory=dict)
 
     # Private attributes
-    _anthropic: ClassVar[Any] = PrivateAttr(default=None)
+    _anthropic: Any = PrivateAttr(default=None)
 
     def __init__(
         self,

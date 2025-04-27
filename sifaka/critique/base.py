@@ -1,58 +1,59 @@
 """
-Base classes for Sifaka critiques.
+Base critique class.
 """
 
-from typing import Dict, Any, List, Optional
-from pydantic import BaseModel
+from typing import Any, Dict, Optional
+
+from pydantic import BaseModel, ConfigDict
 
 
 class Critique(BaseModel):
     """
-    Base class for all Sifaka critiques.
-
-    A critique improves an LLM output based on rule violations or other criteria.
+    Base class for critique systems.
 
     Attributes:
-        name (str): The name of the critique
+        name: The name of the critique system
+        description: Description of the critique system
+        config: Configuration for the critique system
     """
 
     name: str
+    description: str
+    config: Dict[str, Any] = {}
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def __init__(self, name: Optional[str] = None, **data):
-        """
-        Initialize a critique.
-
-        Args:
-            name (Optional[str]): The name of the critique
-            **data: Additional data for the critique
-        """
-        if name is not None:
-            data["name"] = name
-        elif "name" not in data:
-            data["name"] = self.__class__.__name__
-
-        super().__init__(**data)
-
-    def improve(
+    def __init__(
         self,
-        output: str,
-        prompt: Optional[str] = None,
-        rule_violations: Optional[List[Dict[str, Any]]] = None,
-        **kwargs
-    ) -> str:
+        name: str,
+        description: str,
+        config: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> None:
         """
-        Improve the output based on rule violations or other criteria.
+        Initialize a critique system.
 
         Args:
-            output (str): The LLM output to improve
-            prompt (Optional[str]): The original prompt that generated the output
-            rule_violations (Optional[List[Dict[str, Any]]]): List of rule violations
-            **kwargs: Additional context for improvement
+            name: The name of the critique system
+            description: Description of the critique system
+            config: Configuration for the critique system
+            **kwargs: Additional arguments
+        """
+        super().__init__(
+            name=name,
+            description=description,
+            config=config or {},
+            **kwargs,
+        )
+
+    def critique(self, prompt: str) -> str:
+        """
+        Critique a prompt.
+
+        Args:
+            prompt: The prompt to critique
 
         Returns:
-            str: The improved output
+            The critiqued prompt
         """
-        raise NotImplementedError("Subclasses must implement improve()")
+        raise NotImplementedError

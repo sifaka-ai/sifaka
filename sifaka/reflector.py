@@ -1,160 +1,211 @@
 """
-Core Reflector class for Sifaka.
+Reflector class for Sifaka.
 """
 
-from typing import List, Optional, Dict, Any, Callable, Union, ClassVar
-from pydantic import BaseModel, Field
-from .rules.base import Rule
-from .critique.base import Critique
-from .models.base import ModelProvider
-from .utils.logging import get_logger
+from typing import Any, Dict, List, Optional, Tuple
+
+from pydantic import BaseModel, ConfigDict
+
+from sifaka.critique.base import Critique
+from sifaka.models.base import ModelProvider
+from sifaka.rules.base import Rule, RuleResult
+from sifaka.utils.logging import get_logger
+from sifaka.utils.tracing import Tracer
 
 logger = get_logger(__name__)
 
 
 class Reflector(BaseModel):
     """
-    The main class for the Sifaka framework that orchestrates the reflection process.
-
-    Reflector applies rules and critiques to LLM outputs to ensure they meet quality standards
-    before being presented to users.
+    A reflector that validates and improves LLM outputs.
 
     Attributes:
-        rules (List[Union[Rule, Callable]]): List of rules to apply to the LLM output
-        critique_enabled (bool): Whether critique is enabled
-        critique (Optional[Critique]): The critique to use if enabled
-        trace (bool): Whether to trace the reflection process
-        trace_data (List[Dict[str, Any]]): Trace data if tracing is enabled
+        name: The name of the reflector
+        model: The model provider to use
+        rules: List of rules to apply
+        critique: Whether to enable critique
+        tracer: Optional tracer for debugging
+        critic: Optional critique system for improving outputs
     """
 
-    rules: List[Union[Rule, Callable]] = Field(default_factory=list)
-    critique_enabled: bool = False
-    critique: Optional[Critique] = None
-    trace: bool = False
-    trace_data: List[Dict[str, Any]] = Field(default_factory=list)
+    name: str
+    model: ModelProvider
+    rules: List[Rule] = []
+    critique: bool = True
+    tracer: Optional[Tracer] = None
+    critic: Optional[Critique] = None
 
-    # Class variables
-    _function_rule_class: ClassVar[type] = None
-
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def __init__(
         self,
-        rules: Optional[List[Union[Rule, Callable]]] = None,
-        critique: Union[bool, Critique] = False,
-        trace: bool = False,
-        **data,
-    ):
+        name: str,
+        model: ModelProvider,
+        rules: Optional[List[Rule]] = None,
+        critique: bool = True,
+        tracer: Optional[Tracer] = None,
+        critic: Optional[Critique] = None,
+        **kwargs,
+    ) -> None:
         """
         Initialize a reflector.
 
         Args:
-            rules (Optional[List[Union[Rule, Callable]]]): List of rules to apply to the LLM output
-            critique (Union[bool, Critique]): Whether to apply critique to improve the output
-            trace (bool): Whether to trace the reflection process
-            **data: Additional data for the reflector
+            name: The name of the reflector
+            model: The model provider to use
+            rules: List of rules to apply
+            critique: Whether to enable critique
+            tracer: Optional tracer for debugging
+            critic: Optional critique system for improving outputs
+            **kwargs: Additional arguments
         """
-        # Set up initial values
-        init_data = {
-            "rules": rules or [],
-            "critique_enabled": bool(critique),
-            "critique": critique if isinstance(critique, Critique) else None,
-            "trace": trace,
-            "trace_data": [],
-        }
+        super().__init__(
+            name=name,
+            model=model,
+            rules=rules or [],
+            critique=critique,
+            tracer=tracer,
+            critic=critic,
+            **kwargs,
+        )
 
-        # Update with any additional data
-        init_data.update(data)
+    @property
+    def has_rules(self) -> bool:
+        """Return whether the reflector has any rules."""
+        return bool(self.rules)
 
-        # Initialize the model
-        super().__init__(**init_data)
+    @property
+    def has_tracer(self) -> bool:
+        """Return whether the reflector has a tracer."""
+        return self.tracer is not None
 
-        # Convert callable rules to Rule objects
-        self._convert_callable_rules()
+    @property
+    def has_critic(self) -> bool:
+        """Return whether the reflector has a critic."""
+        return self.critic is not None
 
-    def _convert_callable_rules(self) -> None:
+    def _validate_output(self, output: str) -> Tuple[bool, List[Dict[str, Any]]]:
         """
-        Convert callable rules to Rule objects.
-        """
-        if self._function_rule_class is None:
-            from .rules.base import FunctionRule
-
-            self.__class__._function_rule_class = FunctionRule
-
-        for i, rule in enumerate(self.rules):
-            if callable(rule) and not isinstance(rule, Rule):
-                self.rules[i] = self._function_rule_class(func=rule)
-
-    def run(self, model: ModelProvider, prompt: str, **kwargs) -> Dict[str, Any]:
-        """
-        Run the reflection process on the given prompt using the provided model.
+        Validate the output using the reflector's rules.
 
         Args:
-            model (ModelProvider): The LLM provider to use
-            prompt (str): The prompt to send to the LLM
-            **kwargs: Additional arguments to pass to the model
+            output: The output to validate
 
         Returns:
-            Dict[str, Any]: The result of the reflection process, including:
-                - original_output: The original output from the LLM
-                - final_output: The final output after applying rules and critiques
-                - rule_violations: Any rule violations that were detected
-                - trace: Trace data if tracing is enabled
+            Tuple of (passed, violations) where:
+                - passed: Whether the output passed all rules
+                - violations: List of rule violations
         """
-        logger.info(f"Running reflection with {len(self.rules)} rules")
-
-        # Get the initial output from the model
-        original_output = model.generate(prompt, **kwargs)
-        current_output = original_output
-
-        if self.trace:
-            self.trace_data.append({"stage": "initial_output", "output": original_output})
-
-        # Apply rules
-        rule_violations = []
+        violations = []
         for rule in self.rules:
-            result = rule.validate(current_output, prompt=prompt)
+            result = rule.validate(output)
             if not result.passed:
-                rule_violations.append(
+                violations.append(
                     {"rule": rule.name, "message": result.message, "metadata": result.metadata}
                 )
 
-                if self.trace:
-                    self.trace_data.append(
-                        {
-                            "stage": f"rule_violation_{rule.name}",
-                            "violation": result.message,
-                            "metadata": result.metadata,
-                        }
-                    )
+        return not violations, violations
 
-        # Apply critique if enabled and there are violations
-        if self.critique_enabled and (rule_violations or isinstance(self.critique, Critique)):
-            if self.critique is None:
-                from .critique.prompt import PromptCritique
+    def _improve_output(self, output: str, violations: List[Dict[str, Any]]) -> str:
+        """
+        Improve the output using the critique system.
 
-                self.critique = PromptCritique(model)
+        Args:
+            output: The output to improve
+            violations: List of rule violations
 
-            improved_output = self.critique.improve(
-                current_output, prompt=prompt, rule_violations=rule_violations
+        Returns:
+            The improved output
+
+        Raises:
+            ValueError: If critique is enabled but no critic is configured
+        """
+        if not self.has_critic:
+            raise ValueError(
+                "Critique is enabled but no critic is configured. "
+                "Please provide a critic when initializing the reflector."
             )
 
-            if self.trace:
-                self.trace_data.append(
-                    {"stage": "critique", "original": current_output, "improved": improved_output}
-                )
+        # Create a critique prompt
+        critique_prompt = f"""
+        The following output failed validation with the following violations:
+        {violations}
 
-            current_output = improved_output
+        Original output:
+        {output}
 
-        # Prepare the result
-        result = {
-            "original_output": original_output,
-            "final_output": current_output,
-            "rule_violations": rule_violations,
-        }
+        Please provide an improved version that addresses these issues.
+        """
 
-        if self.trace:
-            result["trace"] = self.trace_data
+        # Get the improved output from the critic
+        improved_output = self.critic.critique(critique_prompt)
+        logger.debug("Improved output: %s", improved_output)
 
-        return result
+        # Validate the improved output
+        passed, new_violations = self._validate_output(improved_output)
+        if not passed:
+            logger.warning("Improved output still has violations: %s", new_violations)
+
+        return improved_output
+
+    def _trace_event(self, event_type: str, data: Dict[str, Any]) -> None:
+        """
+        Trace an event if a tracer is configured.
+
+        Args:
+            event_type: The type of event
+            data: The event data
+        """
+        if self.has_tracer:
+            self.tracer.add_event("reflector", event_type, data)
+
+    def reflect(self, prompt: str, **kwargs) -> str:
+        """
+        Reflect on a prompt and generate an improved output.
+
+        Args:
+            prompt: The prompt to reflect on
+            **kwargs: Additional arguments for the model
+
+        Returns:
+            The improved output
+
+        Raises:
+            ValueError: If the output fails validation and critique is disabled
+        """
+        # Start tracing if configured
+        if self.has_tracer:
+            self.tracer.start_trace("reflector")
+
+        # Generate the output
+        self._trace_event("start", {"prompt": prompt})
+        output = self.model.generate(prompt, **kwargs)
+        self._trace_event("end", {"output": output})
+
+        # Validate the output
+        passed, violations = self._validate_output(output)
+        if not passed:
+            if self.critique:
+                # Improve the output using the critique system
+                self._trace_event("critique_start", {"violations": violations})
+                output = self._improve_output(output, violations)
+                self._trace_event("critique_end", {"output": output})
+            else:
+                raise ValueError(f"Output failed validation: {violations}")
+
+        return output
+
+    def __call__(self, prompt: str, **kwargs) -> str:
+        """
+        Reflect on a prompt and generate an improved output.
+
+        This allows the reflector to be called like a function.
+
+        Args:
+            prompt: The prompt to reflect on
+            **kwargs: Additional arguments for the model
+
+        Returns:
+            The improved output
+        """
+        return self.reflect(prompt, **kwargs)

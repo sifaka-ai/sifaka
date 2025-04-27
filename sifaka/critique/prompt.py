@@ -1,77 +1,104 @@
 """
 Prompt-based critique for Sifaka.
 """
+
 from typing import Dict, Any, List, Optional
+from pydantic import Field
 from .base import Critique
 from ..models.base import ModelProvider
 
+
 class PromptCritique(Critique):
     """
-    A critique that uses the LLM itself to improve the output.
-    
-    Args:
-        model (ModelProvider): The LLM provider to use for critique
-        name (Optional[str]): The name of the critique
+    A critique that uses prompts to improve LLM outputs.
+
+    This critique uses the LLM itself to improve outputs based on rule violations.
+
+    Attributes:
+        name: The name of the critique
+        model: The model provider to use for critique
+        system_prompt: The system prompt to use for critique
+        user_prompt_template: The template for the user prompt
     """
-    
-    def __init__(self, model: ModelProvider, name: Optional[str] = None):
-        super().__init__(name or "prompt_critique")
-        self.model = model
-    
+
+    system_prompt: str = Field(
+        default="You are a helpful AI assistant that improves text based on feedback.",
+        description="The system prompt to use for critique",
+    )
+    user_prompt_template: str = Field(
+        default=(
+            "Please improve the following text based on the feedback:\n\n"
+            "Original text: {output}\n\n"
+            "Feedback:\n{feedback}\n\n"
+            "Improved text:"
+        ),
+        description="The template for the user prompt",
+    )
+
+    def __init__(
+        self,
+        model: ModelProvider,
+        system_prompt: Optional[str] = None,
+        user_prompt_template: Optional[str] = None,
+        **kwargs,
+    ) -> None:
+        """
+        Initialize a prompt critique.
+
+        Args:
+            model: The model provider to use for critique
+            system_prompt: The system prompt to use for critique
+            user_prompt_template: The template for the user prompt
+            **kwargs: Additional arguments for the critique
+        """
+        if system_prompt is not None:
+            kwargs["system_prompt"] = system_prompt
+        if user_prompt_template is not None:
+            kwargs["user_prompt_template"] = user_prompt_template
+
+        super().__init__(model=model, **kwargs)
+
+    def _format_feedback(self, rule_violations: List[Dict[str, Any]]) -> str:
+        """
+        Format rule violations into feedback.
+
+        Args:
+            rule_violations: List of rule violations
+
+        Returns:
+            The formatted feedback
+        """
+        if not rule_violations:
+            return "No specific feedback provided."
+
+        feedback = []
+        for violation in rule_violations:
+            rule_name = violation.get("rule", "Unknown rule")
+            message = violation.get("message", "No message provided")
+            feedback.append(f"- {rule_name}: {message}")
+
+        return "\n".join(feedback)
+
     def improve(
-        self, 
-        output: str, 
-        prompt: Optional[str] = None,
-        rule_violations: Optional[List[Dict[str, Any]]] = None,
-        **kwargs
+        self, output: str, prompt: str, rule_violations: List[Dict[str, Any]], **kwargs
     ) -> str:
         """
-        Improve the output by asking the LLM to critique and revise it.
-        
+        Improve the output based on rule violations.
+
         Args:
-            output (str): The LLM output to improve
-            prompt (Optional[str]): The original prompt that generated the output
-            rule_violations (Optional[List[Dict[str, Any]]]): List of rule violations
-            **kwargs: Additional context for improvement
-            
+            output: The output to improve
+            prompt: The original prompt
+            rule_violations: List of rule violations
+            **kwargs: Additional arguments for improvement
+
         Returns:
-            str: The improved output
+            The improved output
         """
-        critique_prompt = self._build_critique_prompt(output, prompt, rule_violations)
-        improved_output = self.model.generate(critique_prompt)
-        return improved_output
-    
-    def _build_critique_prompt(
-        self, 
-        output: str, 
-        prompt: Optional[str] = None,
-        rule_violations: Optional[List[Dict[str, Any]]] = None
-    ) -> str:
-        """
-        Build a prompt for the LLM to critique and revise the output.
-        
-        Args:
-            output (str): The LLM output to improve
-            prompt (Optional[str]): The original prompt that generated the output
-            rule_violations (Optional[List[Dict[str, Any]]]): List of rule violations
-            
-        Returns:
-            str: The critique prompt
-        """
-        critique_prompt = "You are a helpful assistant that improves text. "
-        
-        if prompt:
-            critique_prompt += f"The original request was: \"{prompt}\"\n\n"
-        
-        critique_prompt += f"Here is the text to improve:\n\n{output}\n\n"
-        
-        if rule_violations:
-            critique_prompt += "The text has the following issues that need to be fixed:\n"
-            for violation in rule_violations:
-                critique_prompt += f"- {violation['message']}\n"
-            critique_prompt += "\n"
-        
-        critique_prompt += "Please provide an improved version of the text that addresses these issues. "
-        critique_prompt += "Only return the improved text without explanations or additional commentary."
-        
-        return critique_prompt
+        feedback = self._format_feedback(rule_violations)
+        user_prompt = self.user_prompt_template.format(output=output, feedback=feedback)
+
+        improved_output = self.model.generate(
+            user_prompt, system_prompt=self.system_prompt, **kwargs
+        )
+
+        return improved_output.strip()

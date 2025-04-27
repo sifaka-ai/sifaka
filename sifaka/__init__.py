@@ -1,8 +1,22 @@
 """
-Sifaka: A framework for adding reflection and reliability to LLM applications.
+Sifaka - A framework for building reliable and reflective AI systems.
 """
 
-from .reflector import Reflector
-from .rules import legal_citation_check
+__version__ = "0.1.0"
 
-__all__ = ["Reflector", "legal_citation_check"]
+from sifaka.reflector import Reflector
+from sifaka.rules.base import Rule, RuleResult
+from sifaka.critique.base import Critique
+from sifaka.models.base import ModelProvider
+from sifaka.utils.tracing import Tracer
+from sifaka.utils.logging import get_logger
+
+__all__ = [
+    "Reflector",
+    "Rule",
+    "RuleResult",
+    "Critique",
+    "ModelProvider",
+    "Tracer",
+    "get_logger",
+]

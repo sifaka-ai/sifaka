@@ -2,8 +2,8 @@
 Base classes for Sifaka model providers.
 """
 
-from typing import Optional
-from pydantic import BaseModel
+from typing import Optional, Dict, Any
+from pydantic import BaseModel, ConfigDict
 
 
 class ModelProvider(BaseModel):
@@ -13,38 +13,67 @@ class ModelProvider(BaseModel):
     A model provider is responsible for generating text using an LLM.
 
     Attributes:
-        name (str): The name of the model provider
+        name: The name of the model provider
+        config: Configuration for the model provider
     """
 
     name: str
+    config: Dict[str, Any] = {}
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def __init__(self, name: Optional[str] = None, **data):
+    def __init__(
+        self,
+        name: str,
+        config: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> None:
         """
         Initialize a model provider.
 
         Args:
-            name (Optional[str]): The name of the model provider
-            **data: Additional data for the model provider
+            name: The name of the model provider
+            config: Configuration for the model provider
+            **kwargs: Additional arguments
         """
-        if name is not None:
-            data["name"] = name
-        elif "name" not in data:
-            data["name"] = self.__class__.__name__
+        super().__init__(
+            name=name,
+            config=config or {},
+            **kwargs,
+        )
 
-        super().__init__(**data)
+    @property
+    def provider_name(self) -> str:
+        """Return the name of the model provider."""
+        return self.name
 
     def generate(self, prompt: str, **kwargs) -> str:
         """
         Generate text using the LLM.
 
         Args:
-            prompt (str): The prompt to send to the LLM
+            prompt: The prompt to send to the LLM
             **kwargs: Additional arguments to pass to the LLM
 
         Returns:
-            str: The generated text
+            The generated text
+
+        Raises:
+            NotImplementedError: If the subclass does not implement this method
         """
         raise NotImplementedError("Subclasses must implement generate()")
+
+    def __call__(self, prompt: str, **kwargs) -> str:
+        """
+        Generate text using the LLM.
+
+        This allows the model provider to be called like a function.
+
+        Args:
+            prompt: The prompt to send to the LLM
+            **kwargs: Additional arguments to pass to the LLM
+
+        Returns:
+            The generated text
+        """
+        return self.generate(prompt, **kwargs)
