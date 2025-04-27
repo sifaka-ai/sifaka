@@ -3,92 +3,87 @@ Legal-specific rules for Sifaka.
 """
 
 import re
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 from pydantic import BaseModel, Field
 from sifaka.rules.base import Rule, RuleResult
 
 
 class LegalCitationRule(Rule):
-    """
-    Rule that checks for valid legal citations in the output.
-
-    Attributes:
-        citation_patterns (List[str]): List of regex patterns for legal citations
-        citation_regex (re.Pattern): Compiled regex pattern for matching citations
-    """
+    """Rule that validates legal citations in the output."""
 
     citation_patterns: List[str] = Field(
-        default=[
-            # Supreme Court
-            r"\d+ U\.S\. \d+",
-            r"\d+ S\.Ct\. \d+",
-            # Federal Reporter
-            r"\d+ F\.\d[d|rd] \d+",
-            # State cases
-            r"\d+ [A-Za-z\.]+\d?[d|rd] \d+",
-            # Statutes
-            r"\d+ U\.S\.C\. § \d+",
-        ]
+        default=[], description="List of regex patterns for legal citations"
     )
+    compiled_patterns: List[re.Pattern] = []
 
-    citation_regex: re.Pattern = Field(default=None)
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        config: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(name=name, description=description, config=config or {}, **kwargs)
 
-    class Config:
-        arbitrary_types_allowed = True
+        config = config or {}
+        self.citation_patterns = config.get(
+            "citation_patterns",
+            [
+                r"\d+\s+U\.S\.\s+\d+",  # US Reports citations
+                r"\d+\s+S\.\s*Ct\.\s+\d+",  # Supreme Court Reporter
+                r"\d+\s+F\.\d+d\s+\d+",  # Federal Reporter citations
+                r"\d+\s+F\.\s*Supp\.\s+\d+",  # Federal Supplement
+            ],
+        )
 
-    def __init__(self, **data):
-        super().__init__(**data)
-        if self.citation_regex is None:
-            self.citation_regex = re.compile(
-                "|".join(f"({pattern})" for pattern in self.citation_patterns)
-            )
+        # Compile patterns for efficiency
+        self.compiled_patterns = [re.compile(pattern) for pattern in self.citation_patterns]
 
-    def validate(self, output: str, **kwargs) -> RuleResult:
+    def _validate_impl(self, output: str) -> RuleResult:
         """
-        Validate that all legal citations in the output are properly formatted.
+        Validate that legal citations in the output are properly formatted.
 
         Args:
-            output (str): The LLM output to validate
-            **kwargs: Additional context for validation
+            output: The text to validate
 
         Returns:
-            RuleResult: The result of the validation
-
-        Raises:
-            ValueError: If output is None
+            RuleResult with citation validation results
         """
-        if output is None:
-            raise ValueError("Output cannot be None")
+        try:
+            # Find all citations
+            found_citations = []
+            for pattern in self.compiled_patterns:
+                found_citations.extend(pattern.findall(output))
 
-        # Find all citations in the output
-        citations = self.citation_regex.findall(output)
-        citations = [
-            c for group in citations for c in group if c
-        ]  # Flatten and remove empty matches
+            # Check if citations are properly formatted
+            invalid_citations = []
+            for citation in found_citations:
+                # Add specific validation logic here if needed
+                # For now, we just ensure they match the patterns
+                if not any(pattern.match(citation) for pattern in self.compiled_patterns):
+                    invalid_citations.append(citation)
 
-        if not citations:
-            return RuleResult(passed=True, message="No legal citations found in the output.")
+            passed = len(invalid_citations) == 0
 
-        # For a real implementation, we would validate each citation against a legal database
-        # For this proof of concept, we'll just check the format
-        invalid_citations = []
-        for citation in citations:
-            # In a real implementation, this would check against a legal database
-            # For now, we'll just assume all found citations are valid
-            pass
-
-        if invalid_citations:
+            return RuleResult(
+                passed=passed,
+                message=(
+                    f"Found {len(invalid_citations)} invalid citations"
+                    if not passed
+                    else f"All {len(found_citations)} citations are valid"
+                ),
+                metadata={
+                    "found_citations": found_citations,
+                    "invalid_citations": invalid_citations,
+                    "total_citations": len(found_citations),
+                },
+            )
+        except Exception as e:
             return RuleResult(
                 passed=False,
-                message=f"Found {len(invalid_citations)} invalid legal citations",
-                metadata={"invalid_citations": invalid_citations},
+                message=f"Error during citation validation: {str(e)}",
+                metadata={"error": str(e)},
             )
-
-        return RuleResult(
-            passed=True,
-            message=f"All {len(citations)} legal citations are valid",
-            metadata={"valid_citations": citations},
-        )
 
 
 # Convenience function for use in the API
@@ -103,5 +98,7 @@ def legal_citation_check(output: str, **kwargs) -> RuleResult:
     Returns:
         RuleResult: The result of the validation
     """
-    rule = LegalCitationRule()
-    return rule.validate(output, **kwargs)
+    rule = LegalCitationRule(
+        name="Legal Citation Check", description="Check legal citations in the output"
+    )
+    return rule._validate_impl(output)

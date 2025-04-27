@@ -30,9 +30,9 @@ class ClassifierRule(Rule):
         default=None, description="Optional function to convert classification to validation result"
     )
     threshold: float = Field(
-        default=0.5, ge=0.0, le=1.0, description="Confidence threshold for validation (0-1)"
+        default=0.5, description="Confidence threshold for validation", ge=0.0, le=1.0
     )
-    valid_labels: List[Union[str, int, float, bool]] = Field(
+    valid_labels: List[str] = Field(
         default_factory=list, description="List of labels considered valid"
     )
 
@@ -42,43 +42,71 @@ class ClassifierRule(Rule):
         description: str,
         classifier: Classifier,
         config: Optional[Dict[str, Any]] = None,
-        validation_fn: Optional[Callable[[ClassificationResult], RuleResult]] = None,
-        threshold: float = 0.5,
-        valid_labels: Optional[List[Union[str, int, float, bool]]] = None,
         **kwargs,
     ) -> None:
         """
-        Initialize a classifier rule.
+        Initialize a classifier-based rule.
 
         Args:
             name: The name of the rule
             description: Description of the rule
             classifier: The classifier to use
-            config: Configuration for the rule
-            validation_fn: Optional function to convert classification to validation result
-            threshold: Confidence threshold for validation
-            valid_labels: List of labels considered valid
+            config: Configuration dictionary containing:
+                   - validation_fn: Optional function to convert classification to validation
+                   - threshold: Confidence threshold (default: 0.5)
+                   - valid_labels: List of labels considered valid
             **kwargs: Additional arguments
         """
+        if not isinstance(classifier, Classifier):
+            raise ValueError("classifier must be an instance of Classifier")
+
+        # Extract configuration
+        config = config or {}
+
+        # Set validation function
+        validation_fn = config.get("validation_fn")
+        if validation_fn is not None:
+            if not callable(validation_fn):
+                raise ValueError("validation_fn must be callable")
+            # Check function signature
+            import inspect
+
+            sig = inspect.signature(validation_fn)
+            if len(sig.parameters) != 1:
+                raise ValueError("validation_fn must take exactly one argument")
+            param = list(sig.parameters.values())[0]
+            if param.annotation != ClassificationResult:
+                raise ValueError("validation_fn argument must be annotated as ClassificationResult")
+            if sig.return_annotation not in (bool, RuleResult):
+                raise ValueError("validation_fn must return bool or RuleResult")
+
+        # Set threshold with validation
+        threshold = config.get("threshold", 0.5)
+        if not isinstance(threshold, (int, float)) or not 0 <= threshold <= 1:
+            raise ValueError("threshold must be a number between 0 and 1")
+
+        # Set valid labels
+        valid_labels = config.get("valid_labels", [])
+        if not isinstance(valid_labels, list):
+            raise ValueError("valid_labels must be a list")
+
         # Inherit classifier's cost if not specified
         if "cost" not in kwargs and hasattr(classifier, "cost"):
             kwargs["cost"] = classifier.cost
 
-        # Initialize parent class with all fields
+        # Initialize base rule with all fields
         super().__init__(
             name=name,
             description=description,
-            config=config or {},
+            config=config,
+            classifier=classifier,
+            validation_fn=validation_fn,
+            threshold=threshold,
+            valid_labels=valid_labels,
             **kwargs,
         )
 
-        # Set classifier-specific fields
-        self.classifier = classifier
-        self.validation_fn = validation_fn
-        self.threshold = threshold
-        self.valid_labels = valid_labels or []
-
-        # Warm up the classifier if needed
+        # Warm up the classifier
         self.classifier.warm_up()
 
     def _validate_impl(self, output: str) -> RuleResult:
@@ -86,56 +114,58 @@ class ClassifierRule(Rule):
         Validate output using the classifier.
 
         Args:
-            output: The output to validate
+            output: The text to validate
 
         Returns:
-            RuleResult with validation results
-
-        Raises:
-            ValueError: If output is None
+            RuleResult with classification validation results
         """
-        if output is None:
-            raise ValueError("Output cannot be None")
+        try:
+            if not output:
+                raise ValueError("Text cannot be empty")
 
-        # Get classification
-        result = self.classifier.classify(output)
+            # Get classification result
+            result = self.classifier.classify(output)
 
-        # Use custom validation function if provided
-        if self.validation_fn is not None:
-            validation_result = self.validation_fn(result)
-            if not isinstance(validation_result, RuleResult):
-                raise ValueError("Validation function must return a RuleResult")
-            return validation_result
+            # Use custom validation function if provided
+            if self.validation_fn is not None:
+                validation_result = self.validation_fn(result)
+                if isinstance(validation_result, bool):
+                    return RuleResult(
+                        passed=validation_result,
+                        message=("Validation passed" if validation_result else "Validation failed"),
+                        metadata={
+                            "classification": result.model_dump(),
+                            "threshold": self.threshold,
+                            "valid_labels": self.valid_labels,
+                            "custom": True,
+                        },
+                    )
+                elif isinstance(validation_result, RuleResult):
+                    return validation_result
+                else:
+                    raise ValueError("validation_fn must return bool or RuleResult")
 
-        # Default validation logic
-        passed = result.confidence >= self.threshold and (
-            not self.valid_labels or result.label in self.valid_labels
-        )
+            # Default validation logic
+            passed = result.confidence >= self.threshold and (
+                not self.valid_labels or result.label in self.valid_labels
+            )
 
-        confidence_msg = f"confidence: {result.confidence:.2f}"
-        label_msg = f"label: {result.label}"
-        threshold_msg = f"threshold: {self.threshold}"
-        valid_labels_msg = f"valid labels: {self.valid_labels}" if self.valid_labels else ""
-
-        message = (
-            f"Validation {'passed' if passed else 'failed'} " f"({confidence_msg}, {label_msg}"
-        )
-        if not passed:
-            message += f", {threshold_msg}"
-            if valid_labels_msg:
-                message += f", {valid_labels_msg}"
-        message += ")"
-
-        return RuleResult(
-            passed=passed,
-            message=message,
-            metadata={
-                "confidence": result.confidence,
-                "label": result.label,
-                "classification_result": {
-                    "confidence": result.confidence,
-                    "label": result.label,
-                    **(result.metadata or {}),
+            return RuleResult(
+                passed=passed,
+                message=(
+                    f"Classification '{result.label}' with confidence {result.confidence:.2f}"
+                    if passed
+                    else f"Failed validation: {result.label} ({result.confidence:.2f})"
+                ),
+                metadata={
+                    "classification": result.model_dump(),
+                    "threshold": self.threshold,
+                    "valid_labels": self.valid_labels,
                 },
-            },
-        )
+            )
+        except Exception as e:
+            return RuleResult(
+                passed=False,
+                message=f"Error during classification: {str(e)}",
+                metadata={"error": str(e)},
+            )

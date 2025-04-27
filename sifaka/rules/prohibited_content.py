@@ -80,24 +80,15 @@ class ProhibitedContentRule(Rule):
         object.__setattr__(self, "prohibited_terms", prohibited_terms)
         object.__setattr__(self, "case_sensitive", case_sensitive)
 
-    def validate(self, output: str) -> RuleResult:
+    def _validate_impl(self, output: str) -> RuleResult:
         """
-        Validate that the output does not contain any prohibited terms.
-
-        This method implements the core validation logic by:
-        1. Optionally converting output to lowercase for case-insensitive matching
-        2. Checking for each prohibited term
-        3. Constructing a detailed result message
-        4. Packaging the result with relevant metadata
+        Implementation of the validation logic for prohibited terms.
 
         Args:
             output: The text to validate
 
         Returns:
-            RuleResult: Contains:
-                       - passed: Boolean indicating if no prohibited terms found
-                       - message: Human-readable validation result
-                       - metadata: Additional validation details including found terms
+            RuleResult: Contains validation result with found terms and metadata
         """
         try:
             if not self.case_sensitive:

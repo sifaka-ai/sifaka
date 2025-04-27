@@ -58,6 +58,7 @@ Usage Example:
 from .base import Rule, RuleResult
 from .safety import ToxicityRule, BiasRule, HarmfulContentRule
 from .classifier_rule import ClassifierRule
+from .prohibited_content import ProhibitedContentRule
 
 __all__ = [
     "Rule",
@@ -66,4 +67,5 @@ __all__ = [
     "BiasRule",
     "HarmfulContentRule",
     "ClassifierRule",
+    "ProhibitedContentRule",
 ]

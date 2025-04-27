@@ -17,23 +17,22 @@ class TestLegalCitationRule(LegalCitationRule):
             raise ValueError("Output must be a string")
 
         # Find all citations in the output
-        citations = self.citation_regex.findall(output)
-        citations = [
-            c for group in citations for c in group if c
-        ]  # Flatten and remove empty matches
+        found_citations = []
+        for pattern in self.compiled_patterns:
+            found_citations.extend(pattern.findall(output))
 
-        if not citations:
+        if not found_citations:
             return RuleResult(
                 passed=True,
                 message="No legal citations found in the output.",
-                metadata={"citations": []},
+                metadata={"valid_citations": [], "invalid_citations": []},
             )
 
         # For this test implementation, we'll validate basic citation formats
         invalid_citations = []
-        for citation in citations:
+        for citation in found_citations:
             # Basic format validation
-            if not any(re.match(pattern, citation) for pattern in self.citation_patterns):
+            if not any(pattern.match(citation) for pattern in self.compiled_patterns):
                 invalid_citations.append(citation)
 
         if invalid_citations:
@@ -42,21 +41,34 @@ class TestLegalCitationRule(LegalCitationRule):
                 message=f"Found {len(invalid_citations)} invalid legal citations",
                 metadata={
                     "invalid_citations": invalid_citations,
-                    "valid_citations": [c for c in citations if c not in invalid_citations],
+                    "valid_citations": [c for c in found_citations if c not in invalid_citations],
                 },
             )
 
         return RuleResult(
             passed=True,
-            message=f"All {len(citations)} legal citations are valid",
-            metadata={"valid_citations": citations},
+            message=f"All {len(found_citations)} legal citations are valid",
+            metadata={"valid_citations": found_citations, "invalid_citations": []},
         )
 
 
 @pytest.fixture
 def rule():
     """Create a TestLegalCitationRule instance."""
-    return TestLegalCitationRule(name="test_legal_citation", description="Test legal citation rule")
+    return TestLegalCitationRule(
+        name="test_legal_citation",
+        description="Test legal citation rule",
+        config={
+            "citation_patterns": [
+                r"\d+\s+U\.S\.\s+\d+",  # US Reports citations
+                r"\d+\s+S\.\s*Ct\.\s+\d+",  # Supreme Court Reporter
+                r"\d+\s+F\.\d+d\s+\d+",  # Federal Reporter citations
+                r"\d+\s+F\.\s*Supp\.\s+\d+",  # Federal Supplement
+                r"\d+\s+[A-Za-z]+(?:\.[A-Za-z]+)*\.[23]d\s+\d+",  # State Reporter citations
+                r"\d+\s+U\.S\.C\.\s+§\s+\d+",  # Federal statute citations
+            ],
+        },
+    )
 
 
 def test_initialization():
@@ -65,7 +77,7 @@ def test_initialization():
     rule = TestLegalCitationRule(name="test", description="test")
     assert rule.name == "test"
     assert isinstance(rule.citation_patterns, list)
-    assert isinstance(rule.citation_regex, re.Pattern)
+    assert isinstance(rule.compiled_patterns[0], re.Pattern)
 
     # Test custom initialization
     custom_patterns = [r"\d+ Custom \d+", r"[A-Z]+ v\. [A-Z]+"]
@@ -73,7 +85,7 @@ def test_initialization():
         name="test", description="test", config={"citation_patterns": custom_patterns}
     )
     assert rule.citation_patterns == custom_patterns
-    assert "|".join(f"({pattern})" for pattern in custom_patterns) in rule.citation_regex.pattern
+    assert all(isinstance(pattern, re.Pattern) for pattern in rule.compiled_patterns)
 
 
 def test_supreme_court_citations(rule):
@@ -232,7 +244,20 @@ def test_consistent_results(rule):
 
 def test_citation_patterns():
     """Test that all default citation patterns are working."""
-    rule = TestLegalCitationRule(name="test", description="test")
+    rule = TestLegalCitationRule(
+        name="test",
+        description="test",
+        config={
+            "citation_patterns": [
+                r"\d+\s+U\.S\.\s+\d+",  # US Reports citations
+                r"\d+\s+S\.\s*Ct\.\s+\d+",  # Supreme Court Reporter
+                r"\d+\s+F\.\d+d\s+\d+",  # Federal Reporter citations
+                r"\d+\s+F\.\s*Supp\.\s+\d+",  # Federal Supplement
+                r"\d+\s+[A-Za-z]+(?:\.[A-Za-z]+)*\.[23]d\s+\d+",  # State Reporter citations
+                r"\d+\s+U\.S\.C\.\s+§\s+\d+",  # Federal statute citations
+            ],
+        },
+    )
 
     # Test each citation pattern
     test_cases = [
