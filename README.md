@@ -296,132 +296,56 @@ pip install sifaka[dev]
 
 ## 🚀 Quick Start
 
-Here are two examples showing both operating modes:
+Here's a basic example demonstrating text validation with Sifaka:
 
 ```python
-from sifaka.models import AnthropicProvider
-from sifaka.models.base import ModelConfig
-from sifaka.rules import LengthRule, ProhibitedContentRule, SymmetryRule, RepetitionRule
-from sifaka.rules.base import RuleConfig, RulePriority
-from sifaka.critics import PromptCritic
-from sifaka.critics.prompt import PromptCriticConfig
-from sifaka.integrations.langchain import wrap_chain, ChainConfig
+import os
 from dotenv import load_dotenv
+from sifaka.models import AnthropicProvider
+from sifaka.rules import SymmetryRule, RepetitionRule, RuleConfig, RulePriority
+from sifaka.critics import PromptCritic, PromptCriticConfig
 
 # Load environment variables
 load_dotenv()
 
-# Initialize the provider with configuration
-config = ModelConfig(
-    api_key=os.environ.get("ANTHROPIC_API_KEY"),
-    temperature=0.7,  # Balanced between creativity and consistency
-    max_tokens=2000,  # Sufficient for detailed responses
-)
-
-provider = AnthropicProvider(
-    model_name="claude-3-haiku-20240307",
-    config=config
-)
-
-# Create rules
-length_rule = LengthRule(
-    name="length_check",
-    description="Checks if output length is within bounds",
-    config=RuleConfig(
-        priority=RulePriority.HIGH,
-        metadata={
-            "min_length": 100,
-            "max_length": 500,
-            "unit": "characters"
-        }
-    )
-)
-
-prohibited_terms = ProhibitedContentRule(
-    name="content_filter",
-    description="Checks for prohibited or inappropriate content",
-    config=RuleConfig(
-        priority=RulePriority.HIGH,
-        metadata={
-            "prohibited_terms": ["controversial", "inappropriate"],
-            "case_sensitive": False
-        }
-    )
-)
-
+# Configure rules
 symmetry_rule = SymmetryRule(
-    name="symmetry_check",
-    description="Checks for text symmetry patterns",
     config=RuleConfig(
         priority=RulePriority.MEDIUM,
         metadata={
             "mirror_mode": "both",
             "symmetry_threshold": 0.8,
             "preserve_whitespace": True,
-            "preserve_case": True,
-            "ignore_punctuation": True,
         }
     )
 )
 
-# Create a critic (for critic mode)
-critic_config = PromptCriticConfig(
-    name="content_quality_critic",
-    description="Improves text quality",
-    system_prompt="You are an expert editor focused on improving text quality, clarity, and effectiveness.",
-    temperature=0.7,
-    max_tokens=1000
-)
-critic = PromptCritic(config=critic_config, model=provider)
-
-# Example 1: Validation-only Mode
-validation_chain = wrap_chain(
-    chain=provider.get_langchain_llm(),
-    config=ChainConfig(
-        rules=[length_rule, prohibited_terms, symmetry_rule],
-        critique=False,
-        max_attempts=1  # Single attempt since no critic
+repetition_rule = RepetitionRule(
+    config=RuleConfig(
+        priority=RulePriority.MEDIUM,
+        metadata={
+            "pattern_type": "repeat",
+            "pattern_length": 3,
+        }
     )
 )
 
-try:
-    result = validation_chain.run(
-        "Write a professional email about a project update"
-    )
-    print("Validation passed!")
-except ValueError as e:
-    print(f"Validation failed: {e}")
-
-# Example 2: Critic Mode
-critic_chain = wrap_chain(
-    chain=provider.get_langchain_llm(),
-    config=ChainConfig(
-        rules=[length_rule, prohibited_terms, symmetry_rule],
-        critique=True,
-        critic=critic,
-        max_attempts=3  # Multiple attempts for improvement
-    )
+# Initialize the critic
+critic = PromptCritic(
+    config=PromptCriticConfig(
+        api_key=os.environ.get("ANTHROPIC_API_KEY"),
+        model="claude-3-haiku-20240307",
+        temperature=0.7,
+        max_tokens=2000
+    ),
+    rules=[symmetry_rule, repetition_rule]
 )
 
-try:
-    result = critic_chain.run(
-        "Write a professional email about a project update"
-    )
-    print("Final result:", result)
-
-    # Access validation results
-    for rule_result in result.rule_results:
-        print(f"\n{rule_result.name} validation:")
-        print(f"- Passed: {rule_result.passed}")
-        print(f"- Message: {rule_result.message}")
-
-    # Access critic's feedback
-    if result.critique_details:
-        print("\nCritic's Analysis:")
-        print(f"- Score: {result.critique_details.get('score')}")
-        print(f"- Feedback: {result.critique_details.get('feedback')}")
-except ValueError as e:
-    print(f"All improvement attempts failed: {e}")
+# Analyze text
+text = "The quick brown fox jumps over the lazy dog."
+result = critic.validate(text)
+print(f"Validation result: {result.passed}")
+print(f"Message: {result.message}")
 ```
 
 ## 🔑 API Keys and Configuration
@@ -1178,3 +1102,276 @@ Each example demonstrates different aspects of Sifaka:
 - Combined classifiers show how to use multiple analysis types together
 
 For complete examples with error handling, logging, and more features, check the full examples in the `examples/` directory.
+
+## 📝 Common Use Cases
+
+### 1. Content Moderation
+```python
+from sifaka.rules import ToxicityRule, ProhibitedContentRule, SentimentRule
+from sifaka.critics import PromptCritic
+from sifaka.models import AnthropicProvider
+
+# Configure moderation rules
+moderation_rules = [
+    ToxicityRule(
+        config=RuleConfig(
+            priority=RulePriority.HIGH,
+            metadata={"max_toxicity": 0.7}
+        )
+    ),
+    ProhibitedContentRule(
+        config=RuleConfig(
+            priority=RulePriority.HIGH,
+            metadata={
+                "prohibited_terms": ["offensive", "inappropriate"],
+                "case_sensitive": False
+            }
+        )
+    ),
+    SentimentRule(
+        config=RuleConfig(
+            priority=RulePriority.MEDIUM,
+            metadata={"min_sentiment": 0.0}  # Ensure neutral or positive sentiment
+        )
+    )
+]
+
+# Initialize critic for content improvement
+critic = PromptCritic(
+    config=PromptCriticConfig(
+        api_key=os.environ.get("ANTHROPIC_API_KEY"),
+        model="claude-3-haiku-20240307",
+        system_prompt="You are a content moderator focused on maintaining professional and appropriate language."
+    )
+)
+
+# Create moderation chain
+moderation_chain = Chain(
+    model=AnthropicProvider(model_name="claude-3-haiku-20240307"),
+    rules=moderation_rules,
+    critic=critic,
+    max_attempts=3
+)
+
+# Use the chain
+result = moderation_chain.run("Write a product review")
+```
+
+### 2. Legal Document Analysis
+```python
+from sifaka.rules import LegalCitationRule, FormatRule
+from sifaka.classifiers import ReadabilityClassifier
+
+# Configure legal document rules
+legal_rules = [
+    LegalCitationRule(
+        config=RuleConfig(
+            priority=RulePriority.HIGH,
+            metadata={
+                "jurisdiction": "US",
+                "validate_citations": True
+            }
+        )
+    ),
+    FormatRule(
+        config=RuleConfig(
+            priority=RulePriority.MEDIUM,
+            metadata={
+                "required_format": "legal",
+                "required_sections": ["introduction", "analysis", "conclusion"]
+            }
+        )
+    )
+]
+
+# Add readability analysis
+readability_classifier = ReadabilityClassifier(
+    name="legal_readability",
+    min_confidence=0.7
+)
+
+# Process legal document
+def analyze_legal_document(text: str):
+    # Check format and citations
+    results = {rule.name: rule.validate(text) for rule in legal_rules}
+
+    # Analyze readability
+    readability = readability_classifier.classify(text)
+
+    return {
+        "validation_results": results,
+        "readability_level": readability.label,
+        "readability_score": readability.metadata.get("grade_level")
+    }
+```
+
+### 3. Technical Documentation Generation
+```python
+from sifaka.rules import CodeRule, FormatRule
+from sifaka.critics import PromptCritic
+
+# Configure documentation rules
+doc_rules = [
+    CodeRule(
+        config=RuleConfig(
+            priority=RulePriority.HIGH,
+            metadata={
+                "language": "python",
+                "validate_syntax": True,
+                "check_style": True
+            }
+        )
+    ),
+    FormatRule(
+        config=RuleConfig(
+            priority=RulePriority.MEDIUM,
+            metadata={
+                "required_format": "markdown",
+                "required_sections": ["usage", "api", "examples"]
+            }
+        )
+    )
+]
+
+# Initialize technical documentation critic
+tech_critic = PromptCritic(
+    config=PromptCriticConfig(
+        api_key=os.environ.get("ANTHROPIC_API_KEY"),
+        model="claude-3-haiku-20240307",
+        system_prompt="You are a technical documentation expert focused on clarity and accuracy."
+    )
+)
+
+# Generate and validate documentation
+doc_chain = Chain(
+    model=AnthropicProvider(model_name="claude-3-haiku-20240307"),
+    rules=doc_rules,
+    critic=tech_critic,
+    max_attempts=3
+)
+
+# Generate documentation
+result = doc_chain.run("Generate documentation for a Python function")
+```
+
+### 4. Creative Writing Assistant
+```python
+from sifaka.rules import StyleRule, RepetitionRule, SymmetryRule
+from sifaka.critics import PromptCritic
+
+# Configure creative writing rules
+writing_rules = [
+    StyleRule(
+        config=RuleConfig(
+            priority=RulePriority.HIGH,
+            metadata={
+                "style": "narrative",
+                "tone": "descriptive",
+                "check_pacing": True
+            }
+        )
+    ),
+    RepetitionRule(
+        config=RuleConfig(
+            priority=RulePriority.MEDIUM,
+            metadata={
+                "pattern_type": "phrase",
+                "max_repetitions": 2
+            }
+        )
+    ),
+    SymmetryRule(
+        config=RuleConfig(
+            priority=RulePriority.LOW,
+            metadata={
+                "mirror_mode": "both",
+                "symmetry_threshold": 0.6
+            }
+        )
+    )
+]
+
+# Initialize creative writing critic
+creative_critic = PromptCritic(
+    config=PromptCriticConfig(
+        api_key=os.environ.get("ANTHROPIC_API_KEY"),
+        model="claude-3-haiku-20240307",
+        system_prompt="You are a creative writing expert focused on engaging storytelling."
+    )
+)
+
+# Create creative writing chain
+writing_chain = Chain(
+    model=AnthropicProvider(model_name="claude-3-haiku-20240307"),
+    rules=writing_rules,
+    critic=creative_critic,
+    max_attempts=3
+)
+
+# Generate creative content
+result = writing_chain.run("Write a short story about time travel")
+```
+
+### 5. Customer Support Response Validator
+```python
+from sifaka.rules import ToneRule, EmotionRule, FormatRule
+from sifaka.critics import PromptCritic
+
+# Configure support response rules
+support_rules = [
+    ToneRule(
+        config=RuleConfig(
+            priority=RulePriority.HIGH,
+            metadata={
+                "required_tone": "professional",
+                "empathy_level": "high"
+            }
+        )
+    ),
+    EmotionRule(
+        config=RuleConfig(
+            priority=RulePriority.HIGH,
+            metadata={
+                "min_positivity": 0.6,
+                "max_negativity": 0.2
+            }
+        )
+    ),
+    FormatRule(
+        config=RuleConfig(
+            priority=RulePriority.MEDIUM,
+            metadata={
+                "required_sections": ["greeting", "solution", "closing"],
+                "max_length": 500
+            }
+        )
+    )
+]
+
+# Initialize support response critic
+support_critic = PromptCritic(
+    config=PromptCriticConfig(
+        api_key=os.environ.get("ANTHROPIC_API_KEY"),
+        model="claude-3-haiku-20240307",
+        system_prompt="You are a customer support expert focused on helpful and empathetic responses."
+    )
+)
+
+# Create support response chain
+support_chain = Chain(
+    model=AnthropicProvider(model_name="claude-3-haiku-20240307"),
+    rules=support_rules,
+    critic=support_critic,
+    max_attempts=3
+)
+
+# Generate support response
+result = support_chain.run("Generate a response to a customer complaint about a delayed shipment")
+```
+
+Each use case demonstrates:
+- Specific rule configurations for the domain
+- Custom critic configurations
+- Appropriate rule prioritization
+- Error handling and validation
+- Domain-specific improvements
