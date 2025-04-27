@@ -21,17 +21,100 @@ from sifaka.rules import (
     SymmetryRule,
     RepetitionRule,
 )
-from sifaka.rules.pattern_rules import (
-    SymmetryConfig,
-    RepetitionConfig,
-)
-from sifaka.critics import PromptCritic
-from sifaka.critics.prompt import PromptCriticConfig
-from sifaka.chain import Chain
+from sifaka.rules.base import RuleConfig, RulePriority
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def analyze_text(text: str) -> Dict[str, Any]:
+    """
+    Analyze text using pattern rules and basic validation.
+
+    Args:
+        text: The text to analyze
+
+    Returns:
+        Dict containing analysis results
+    """
+    results = {}
+
+    # Create pattern detection rules
+    symmetry_rule = SymmetryRule(
+        name="symmetry_check",
+        description="Checks for text symmetry patterns",
+        config=RuleConfig(
+            priority=RulePriority.MEDIUM,
+            metadata={
+                "mirror_mode": "both",
+                "symmetry_threshold": 0.8,
+                "preserve_whitespace": True,
+                "preserve_case": True,
+                "ignore_punctuation": True,
+            },
+        ),
+    )
+
+    repetition_rule = RepetitionRule(
+        name="repetition_check",
+        description="Detects repetitive patterns",
+        config=RuleConfig(
+            priority=RulePriority.MEDIUM,
+            metadata={
+                "pattern_type": "repeat",
+                "pattern_length": 3,
+                "case_sensitive": True,
+                "allow_overlap": False,
+            },
+        ),
+    )
+
+    # Add basic validation rules
+    length_rule = LengthRule(
+        name="length_check",
+        description="Checks if output length is within bounds",
+        config={"min_length": 50, "max_length": 500, "unit": "characters"},
+    )
+
+    prohibited_terms = ProhibitedContentRule(
+        name="content_filter",
+        description="Checks for prohibited or inappropriate content",
+        config={"prohibited_terms": ["controversial", "inappropriate"], "case_sensitive": False},
+    )
+
+    # Run length check
+    length_result = length_rule._validate_impl(text)
+    results["length"] = {
+        "passed": length_result.passed,
+        "message": length_result.message,
+        "metadata": length_result.metadata,
+    }
+
+    # Run content check
+    content_result = prohibited_terms._validate_impl(text)
+    results["content"] = {
+        "passed": content_result.passed,
+        "message": content_result.message,
+        "metadata": content_result.metadata,
+    }
+
+    # Check for patterns
+    symmetry_result = symmetry_rule._validate_impl(text)
+    results["symmetry"] = {
+        "passed": symmetry_result.passed,
+        "message": symmetry_result.message,
+        "metadata": symmetry_result.metadata,
+    }
+
+    repetition_result = repetition_rule._validate_impl(text)
+    results["repetition"] = {
+        "passed": repetition_result.passed,
+        "message": repetition_result.message,
+        "metadata": repetition_result.metadata,
+    }
+
+    return results
 
 
 def main():
@@ -50,108 +133,46 @@ def main():
         config=config,
     )
 
-    # Create pattern detection rules
-    symmetry_rule = SymmetryRule(
-        name="symmetry_check",
-        description="Checks for text symmetry patterns",
-        config=SymmetryConfig(
-            mirror_mode="both",  # Check both horizontal and vertical symmetry
-            symmetry_threshold=0.8,  # 80% symmetry required
-            preserve_whitespace=True,  # Consider whitespace in symmetry
-            preserve_case=True,  # Case-sensitive matching
-        ),
-    )
-
-    repetition_rule = RepetitionRule(
-        name="repetition_check",
-        description="Detects repetitive patterns",
-        config=RepetitionConfig(
-            pattern_type="repeat",  # Look for repeated sequences
-            pattern_length=3,  # Minimum length of pattern to detect
-            max_occurrences=3,  # Maximum allowed repetitions
-        ),
-    )
-
-    # Add basic validation rules
-    length_rule = LengthRule(
-        name="length_check",
-        description="Checks if output length is within bounds",
-        config={"min_length": 50, "max_length": 500},
-    )
-
-    prohibited_terms = ProhibitedContentRule(
-        name="content_filter",
-        description="Checks for prohibited or inappropriate content",
-        config={"prohibited_terms": ["controversial", "inappropriate"]},
-    )
-
-    # Create a critic for improving outputs
-    critic_config = PromptCriticConfig(
-        name="pattern_critic",
-        description="Improves text patterns and structure",
-        system_prompt="""You are an expert at creating well-structured text with balanced patterns.
-        Focus on:
-        1. Creating visually appealing layouts
-        2. Using repetition effectively without being excessive
-        3. Maintaining symmetry where appropriate
-        4. Keeping content clear and meaningful""",
-        temperature=0.7,
-        max_tokens=1000,
-    )
-
-    critic = PromptCritic(config=critic_config, model=model)
-
-    # Create the chain with all components
-    chain = Chain(
-        model=model,
-        rules=[symmetry_rule, repetition_rule, length_rule, prohibited_terms],
-        critic=critic,
-        max_attempts=3,
-    )
-
-    # Example prompts that test different pattern aspects
-    prompts = [
-        "Create a visually symmetric poem about nature",
-        "Write a story with intentional repetitive elements",
-        "Generate a balanced piece of text with mirrored structure",
+    # Example texts that test different pattern aspects
+    texts = [
+        "The quick brown fox jumps over the lazy dog. The lazy dog lets the quick brown fox jump.",
+        "A man, a plan, a canal: Panama!",
+        "This is a very simple text that should be easy to read and understand. It has some repeating words like read and understand.",
+        "The quantum mechanical interpretation of molecular orbital theory requires advanced understanding of mathematical principles.",
+        # Additional pattern-focused texts
+        "Roses are red, red are roses, in the garden they grow, grow they in the garden.",
+        "Mirror mirror on the wall, who is the fairest of them all? All of them fairest the is who, wall the on mirror mirror?",
     ]
 
-    # Process each prompt
-    for prompt in prompts:
-        logger.info("\nProcessing prompt: %s", prompt)
-        try:
-            # Generate and validate content
-            result = chain.run(prompt)
-            logger.info("\nGenerated content:")
-            logger.info(result)
+    # Process each text
+    for i, text in enumerate(texts, 1):
+        logger.info("\n%s", "=" * 50)
+        logger.info("Analyzing text %d: %s", i, text)
 
-            # Log validation results
-            logger.info("\nValidation Results:")
-            for rule_result in result.rule_results:
-                logger.info("\n%s:", rule_result.name)
-                logger.info("- Passed: %s", rule_result.passed)
-                logger.info("- Message: %s", rule_result.message)
-                if rule_result.metadata:
-                    logger.info("- Details:")
-                    for key, value in rule_result.metadata.items():
-                        logger.info("  * %s: %s", key, value)
+        results = analyze_text(text)
 
-            # Log critic's feedback if available
-            if hasattr(result, "critique_details"):
-                logger.info("\nCritic's Analysis:")
-                logger.info("- Score: %s", result.critique_details.get("score"))
-                logger.info("- Feedback: %s", result.critique_details.get("feedback"))
-                if result.critique_details.get("issues"):
-                    logger.info("- Issues:")
-                    for issue in result.critique_details["issues"]:
-                        logger.info("  * %s", issue)
-                if result.critique_details.get("suggestions"):
-                    logger.info("- Suggestions:")
-                    for suggestion in result.critique_details["suggestions"]:
-                        logger.info("  * %s", suggestion)
+        logger.info("\nLength Check:")
+        logger.info("- Passed: %s", results["length"]["passed"])
+        logger.info("- Message: %s", results["length"]["message"])
+        logger.info("- Details: %s", results["length"]["metadata"])
 
-        except ValueError as e:
-            logger.error("Validation failed: %s", str(e))
+        logger.info("\nContent Check:")
+        logger.info("- Passed: %s", results["content"]["passed"])
+        logger.info("- Message: %s", results["content"]["message"])
+        logger.info("- Details: %s", results["content"]["metadata"])
+
+        logger.info("\nPattern Analysis:")
+        logger.info("Symmetry Check:")
+        logger.info("- Passed: %s", results["symmetry"]["passed"])
+        logger.info("- Message: %s", results["symmetry"]["message"])
+        if "symmetry_score" in results["symmetry"]["metadata"]:
+            logger.info("- Score: %.2f", results["symmetry"]["metadata"]["symmetry_score"])
+
+        logger.info("\nRepetition Check:")
+        logger.info("- Passed: %s", results["repetition"]["passed"])
+        logger.info("- Message: %s", results["repetition"]["message"])
+        if "patterns" in results["repetition"]["metadata"]:
+            logger.info("- Patterns found: %s", results["repetition"]["metadata"]["patterns"])
 
 
 if __name__ == "__main__":

@@ -4,17 +4,8 @@ Basic usage example for Sifaka.
 This example demonstrates:
 1. Setting up a model provider
 2. Creating rules for validation
-3. Using critics for content improvement
-4. Pattern detection with specialized rules (symmetry and repetition)
-5. Handling validation results and pattern analysis
-
-The example shows two modes of operation:
-- Validation-only mode: Uses rules to validate output without attempting improvements
-- Critic mode: Uses both rules and critics to validate and improve output
-
-Usage:
-    - For strict validation without improvements, use Chain without a critic
-    - For validation with automatic improvements, add a critic to the Chain
+3. Pattern detection with specialized rules (symmetry and repetition)
+4. Handling validation results and pattern analysis
 """
 
 import logging
@@ -26,44 +17,36 @@ from dotenv import load_dotenv
 from sifaka.models import AnthropicProvider
 from sifaka.models.base import ModelConfig
 from sifaka.rules import LengthRule, ProhibitedContentRule, SymmetryRule, RepetitionRule
-from sifaka.rules.base import RuleConfig, RulePriority, RuleResult, RuleValidator
-from sifaka.rules.pattern_rules import SymmetryConfig, RepetitionConfig
-from sifaka.critics import PromptCritic
-from sifaka.critics.prompt import PromptCriticConfig
-from sifaka.chain import Chain
+from sifaka.rules.base import RuleConfig, RulePriority, RuleResult
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def main():
-    # Load environment variables
-    load_dotenv()
+def analyze_text(text: str) -> Dict[str, Any]:
+    """
+    Analyze text using multiple rules.
 
-    # Initialize the model provider with configuration
-    config = ModelConfig(
-        api_key=os.environ.get("ANTHROPIC_API_KEY"),
-        temperature=0.7,
-        max_tokens=2000,
-    )
+    Args:
+        text: The text to analyze
 
-    model = AnthropicProvider(
-        model_name="claude-3-haiku-20240307",
-        config=config,
-    )
+    Returns:
+        Dict containing analysis results
+    """
+    results = {}
 
     # Create basic validation rules
     length_rule = LengthRule(
         name="length_check",
         description="Checks if output length is within bounds",
-        config={"min_length": 100, "max_length": 500},
+        config={"min_length": 30, "max_length": 100, "unit": "characters"},
     )
 
     prohibited_terms = ProhibitedContentRule(
         name="content_filter",
         description="Checks for prohibited or inappropriate content",
-        config={"prohibited_terms": ["controversial", "inappropriate"]},
+        config={"prohibited_terms": ["controversial", "inappropriate"], "case_sensitive": False},
     )
 
     # Create pattern detection rules
@@ -96,107 +79,93 @@ def main():
         ),
     )
 
-    # Create a critic for improving outputs
-    critic_config = PromptCriticConfig(
-        name="content_quality_critic",
-        description="Improves text quality focusing on professionalism and clarity",
-        system_prompt="You are an expert editor that improves text quality, focusing on professionalism, clarity, and effectiveness.",
+    # Run length check
+    length_result = length_rule._validate_impl(text)
+    results["length"] = {
+        "passed": length_result.passed,
+        "message": length_result.message,
+        "metadata": length_result.metadata,
+    }
+
+    # Run content check
+    content_result = prohibited_terms._validate_impl(text)
+    results["content"] = {
+        "passed": content_result.passed,
+        "message": content_result.message,
+        "metadata": content_result.metadata,
+    }
+
+    # Check for patterns
+    symmetry_result = symmetry_rule._validate_impl(text)
+    results["symmetry"] = {
+        "passed": symmetry_result.passed,
+        "message": symmetry_result.message,
+        "metadata": symmetry_result.metadata,
+    }
+
+    repetition_result = repetition_rule._validate_impl(text)
+    results["repetition"] = {
+        "passed": repetition_result.passed,
+        "message": repetition_result.message,
+        "metadata": repetition_result.metadata,
+    }
+
+    return results
+
+
+def main():
+    # Load environment variables
+    load_dotenv()
+
+    # Initialize the model provider with configuration
+    config = ModelConfig(
+        api_key=os.environ.get("ANTHROPIC_API_KEY"),
         temperature=0.7,
-        max_tokens=1000,
+        max_tokens=2000,
     )
 
-    critic = PromptCritic(config=critic_config, model=model)
-
-    # Create two chains to demonstrate different modes
-    validation_chain = Chain(
-        model=model,
-        rules=[length_rule, prohibited_terms, symmetry_rule, repetition_rule],
-        max_attempts=1,  # Single attempt since no critic
+    model = AnthropicProvider(
+        model_name="claude-3-haiku-20240307",
+        config=config,
     )
 
-    critic_chain = Chain(
-        model=model,
-        rules=[length_rule, prohibited_terms, symmetry_rule, repetition_rule],
-        critic=critic,
-        max_attempts=3,  # Multiple attempts for improvement
-    )
-
-    # Example prompts to test different pattern aspects
-    prompts = [
-        "Write a professional email about a project update that includes a repeating call-to-action phrase",
-        "Create a palindromic story that reads the same forwards and backwards",
-        "Generate a poem with alternating patterns in each stanza and mirror symmetry",
-        "Write a technical document with consistent section structures and repeated key points",
+    # Example texts to analyze
+    texts = [
+        "The quick brown fox jumps over the lazy dog. The lazy dog lets the quick brown fox jump.",
+        "A man, a plan, a canal: Panama!",
+        "This is a very simple text that should be easy to read.",
+        "The quantum mechanical interpretation of molecular orbital theory requires advanced understanding of mathematical principles.",
     ]
 
-    # Process each prompt with both chains
-    for prompt in prompts:
+    # Process each text
+    for i, text in enumerate(texts, 1):
         logger.info("\n%s", "=" * 50)
-        logger.info("Processing prompt: %s", prompt)
+        logger.info("Analyzing text %d: %s", i, text)
 
-        # Try validation-only mode
-        logger.info("\nValidation-only Mode:")
-        try:
-            result = validation_chain.run(prompt)
-            logger.info("Generated content:")
-            logger.info(result)
-            logger.info("\nValidation Results:")
-            for rule_result in result.rule_results:
-                logger.info("\n%s:", rule_result.name)
-                logger.info("- Passed: %s", rule_result.passed)
-                logger.info("- Message: %s", rule_result.message)
-        except ValueError as e:
-            logger.info("Validation failed: %s", str(e))
+        results = analyze_text(text)
 
-        # Try critic mode
-        logger.info("\nCritic Mode:")
-        try:
-            result = critic_chain.run(prompt)
-            logger.info("\nGenerated content:")
-            logger.info(result)
+        logger.info("\nLength Check:")
+        logger.info("- Passed: %s", results["length"]["passed"])
+        logger.info("- Message: %s", results["length"]["message"])
+        logger.info("- Details: %s", results["length"]["metadata"])
 
-            # Log validation results with focus on patterns
-            logger.info("\nValidation Results:")
-            for rule_result in result.rule_results:
-                logger.info("\n%s:", rule_result.name)
-                logger.info("- Passed: %s", rule_result.passed)
-                logger.info("- Message: %s", rule_result.message)
+        logger.info("\nContent Check:")
+        logger.info("- Passed: %s", results["content"]["passed"])
+        logger.info("- Message: %s", results["content"]["message"])
+        logger.info("- Details: %s", results["content"]["metadata"])
 
-                # Detailed pattern analysis logging
-                if isinstance(rule_result.metadata, dict):
-                    if "symmetry_score" in rule_result.metadata:
-                        logger.info(
-                            "- Symmetry Score: %.2f", rule_result.metadata["symmetry_score"]
-                        )
-                        if "symmetric_segments" in rule_result.metadata:
-                            logger.info("- Symmetric Segments:")
-                            for segment in rule_result.metadata["symmetric_segments"]:
-                                logger.info("  * %s", segment)
+        logger.info("\nPattern Analysis:")
+        logger.info("Symmetry Check:")
+        logger.info("- Passed: %s", results["symmetry"]["passed"])
+        logger.info("- Message: %s", results["symmetry"]["message"])
+        if "symmetry_score" in results["symmetry"]["metadata"]:
+            logger.info("- Score: %.2f", results["symmetry"]["metadata"]["symmetry_score"])
 
-                    if "patterns" in rule_result.metadata:
-                        logger.info("- Detected Patterns:")
-                        for pattern in rule_result.metadata["patterns"]:
-                            logger.info("  * Pattern: %s", pattern["pattern"])
-                            logger.info("    Occurrences: %d", pattern["occurrences"])
-                            if "locations" in pattern:
-                                logger.info("    Locations: %s", pattern["locations"])
-
-            # Log critic's feedback if available
-            if hasattr(result, "critique_details"):
-                logger.info("\nCritic's Analysis:")
-                logger.info("- Score: %s", result.critique_details.get("score"))
-                logger.info("- Feedback: %s", result.critique_details.get("feedback"))
-                if result.critique_details.get("issues"):
-                    logger.info("- Issues:")
-                    for issue in result.critique_details["issues"]:
-                        logger.info("  * %s", issue)
-                if result.critique_details.get("suggestions"):
-                    logger.info("- Suggestions:")
-                    for suggestion in result.critique_details["suggestions"]:
-                        logger.info("  * %s", suggestion)
-
-        except ValueError as e:
-            logger.error("Validation failed: %s", str(e))
+        logger.info("\nRepetition Check:")
+        logger.info("- Passed: %s", results["repetition"]["passed"])
+        logger.info("- Message: %s", results["repetition"]["message"])
+        if "patterns" in results["repetition"]["metadata"]:
+            logger.info("- Patterns found: %s", results["repetition"]["metadata"]["patterns"])
 
 
 if __name__ == "__main__":

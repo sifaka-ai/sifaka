@@ -4,7 +4,7 @@ Example of using Sifaka with Pydantic models and LangChain for structured output
 
 import logging
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field, ConfigDict
 from dotenv import load_dotenv
 from langchain.prompts import PromptTemplate
@@ -14,7 +14,8 @@ from langchain_core.runnables import RunnablePassthrough
 from sifaka.integrations.langchain import ChainConfig, wrap_chain
 from sifaka.models import AnthropicProvider
 from sifaka.models.base import ModelConfig
-from sifaka.reflector import Reflector, ReflectionConfig, PatternConfig
+from sifaka.rules import SymmetryRule, RepetitionRule
+from sifaka.rules.base import RuleConfig, RulePriority
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -40,6 +41,66 @@ class MovieReview(BaseModel):
     recommended: bool = Field(..., description="Whether the movie is recommended")
 
 
+def analyze_text(text: str) -> Dict[str, Any]:
+    """
+    Analyze text using pattern rules.
+
+    Args:
+        text: The text to analyze
+
+    Returns:
+        Dict containing analysis results
+    """
+    results = {}
+
+    # Create pattern detection rules
+    symmetry_rule = SymmetryRule(
+        name="symmetry_check",
+        description="Checks for text symmetry patterns",
+        config=RuleConfig(
+            priority=RulePriority.MEDIUM,
+            metadata={
+                "mirror_mode": "both",
+                "symmetry_threshold": 0.4,  # Lower threshold for movie reviews
+                "preserve_whitespace": True,
+                "preserve_case": True,
+                "ignore_punctuation": True,
+            },
+        ),
+    )
+
+    repetition_rule = RepetitionRule(
+        name="repetition_check",
+        description="Detects repetitive patterns",
+        config=RuleConfig(
+            priority=RulePriority.MEDIUM,
+            metadata={
+                "pattern_type": "repeat",
+                "pattern_length": 3,
+                "case_sensitive": False,
+                "allow_overlap": True,
+            },
+        ),
+    )
+
+    # Check for patterns
+    symmetry_result = symmetry_rule._validate_impl(text)
+    results["symmetry"] = {
+        "passed": symmetry_result.passed,
+        "message": symmetry_result.message,
+        "metadata": symmetry_result.metadata,
+    }
+
+    repetition_result = repetition_rule._validate_impl(text)
+    results["repetition"] = {
+        "passed": repetition_result.passed,
+        "message": repetition_result.message,
+        "metadata": repetition_result.metadata,
+    }
+
+    return results
+
+
 def main():
     # Load environment variables
     load_dotenv()
@@ -58,23 +119,6 @@ def main():
 
     # Create the Pydantic parser
     parser = PydanticOutputParser(pydantic_object=MovieReview)
-
-    # Create reflector for analyzing reviews
-    reflector = Reflector(
-        reflection_config=ReflectionConfig(
-            mirror_mode="both",  # Check both horizontal and vertical symmetry
-            preserve_whitespace=True,
-            preserve_case=True,
-            ignore_punctuation=False,
-            symmetry_threshold=0.4,  # Lower threshold for movie reviews
-        ),
-        pattern_config=PatternConfig(
-            pattern_type="repeat",
-            pattern_length=3,  # Look for repeated phrases
-            case_sensitive=False,
-            allow_overlap=True,
-        ),
-    )
 
     # Create a prompt template that includes the parser's formatting instructions
     prompt = PromptTemplate(
@@ -155,24 +199,22 @@ def main():
             logger.info("\nSummary: %s", review.summary)
             logger.info("Recommended: %s", "Yes" if review.recommended else "No")
 
-            # Perform reflection analysis on the summary
-            reflection_results = reflector.validate(review.summary)
+            # Perform pattern analysis on the summary
+            pattern_results = analyze_text(review.summary)
 
-            logger.info("\nSummary Reflection Analysis:")
+            logger.info("\nSummary Pattern Analysis:")
             logger.info("Symmetry Analysis:")
-            logger.info(
-                "- Score: %.2f", reflection_results["reflection"].metadata["symmetry_score"]
-            )
-            logger.info("- Mode: %s", reflection_results["reflection"].metadata["mirror_mode"])
+            logger.info("- Score: %.2f", pattern_results["symmetry"]["metadata"]["symmetry_score"])
+            logger.info("- Message: %s", pattern_results["symmetry"]["message"])
 
-            logger.info("\nPattern Analysis:")
-            logger.info(
-                "- Total patterns: %d", reflection_results["pattern"].metadata["match_count"]
-            )
-            if reflection_results["pattern"].metadata["matches_found"]:
+            logger.info("\nRepetition Analysis:")
+            logger.info("- Message: %s", pattern_results["repetition"]["message"])
+            if "patterns" in pattern_results["repetition"]["metadata"]:
                 logger.info("- Notable patterns:")
-                for pattern in reflection_results["pattern"].metadata["matches_found"][:3]:
-                    logger.info("  * %s", pattern)
+                patterns = pattern_results["repetition"]["metadata"]["patterns"]
+                if isinstance(patterns, list) and len(patterns) > 0:
+                    for pattern in patterns[:3]:
+                        logger.info("  * %s", pattern)
 
         except Exception as e:
             logger.error("Failed to generate or validate review: %s", str(e))
