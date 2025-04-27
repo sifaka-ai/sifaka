@@ -302,7 +302,8 @@ Here's a basic example demonstrating text validation with Sifaka:
 import os
 from dotenv import load_dotenv
 from sifaka.models import AnthropicProvider
-from sifaka.rules import SymmetryRule, RepetitionRule, RuleConfig, RulePriority
+from sifaka.rules import SymmetryRule, RepetitionRule
+from sifaka.rules.base import RuleConfig, RulePriority
 from sifaka.critics import PromptCritic, PromptCriticConfig
 
 # Load environment variables
@@ -310,6 +311,8 @@ load_dotenv()
 
 # Configure rules
 symmetry_rule = SymmetryRule(
+    name="symmetry_check",
+    description="Checks for text symmetry patterns",
     config=RuleConfig(
         priority=RulePriority.MEDIUM,
         metadata={
@@ -321,6 +324,8 @@ symmetry_rule = SymmetryRule(
 )
 
 repetition_rule = RepetitionRule(
+    name="repetition_check",
+    description="Detects repetitive patterns",
     config=RuleConfig(
         priority=RulePriority.MEDIUM,
         metadata={
@@ -336,7 +341,8 @@ critic = PromptCritic(
         api_key=os.environ.get("ANTHROPIC_API_KEY"),
         model="claude-3-haiku-20240307",
         temperature=0.7,
-        max_tokens=2000
+        max_tokens=2000,
+        system_prompt="You are an expert editor focused on improving text quality."
     ),
     rules=[symmetry_rule, repetition_rule]
 )
@@ -347,6 +353,22 @@ result = critic.validate(text)
 print(f"Validation result: {result.passed}")
 print(f"Message: {result.message}")
 ```
+
+Required environment variables:
+```bash
+ANTHROPIC_API_KEY=your_api_key_here
+```
+
+Required dependencies:
+```bash
+pip install python-dotenv sifaka
+```
+
+Common issues and solutions:
+1. Import Error: Make sure to import `RuleConfig` and `RulePriority` from `sifaka.rules.base`
+2. Missing name/description: All rules require `name` and `description` parameters
+3. API Key: Set your Anthropic API key in the environment variables
+4. Dependencies: Install required packages using pip
 
 ## 🔑 API Keys and Configuration
 
