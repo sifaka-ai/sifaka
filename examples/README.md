@@ -79,6 +79,13 @@ result = chain.run("Write a professional email...")
    - Shows how to combine multiple classifiers
    - Demonstrates advanced pattern detection
 
+5. **Toxicity Rule** (`toxicity_rule_example.py`):
+   - Demonstrates how to create a custom rule with a proper validator
+   - Shows toxicity detection using the ToxicityClassifier
+   - Illustrates passing validation feedback to an LLM for content improvement
+   - Implements the RuleValidator protocol for proper rule integration
+   - Requires the toxicity extras: `pip install sifaka[toxicity]`
+
 ## Requirements
 
 - Python 3.7+
@@ -91,6 +98,9 @@ result = chain.run("Write a professional email...")
 1. Install required dependencies:
    ```bash
    pip install -r requirements.txt
+
+   # For toxicity example
+   pip install sifaka[toxicity]
    ```
 
 2. Set up environment variables:
@@ -106,6 +116,7 @@ result = chain.run("Write a professional email...")
    ```bash
    python openai_example.py
    python basic_usage.py
+   python toxicity_rule_example.py
    # etc.
    ```
 
@@ -125,6 +136,12 @@ result = chain.run("Write a professional email...")
    - Never hardcode API keys
    - Use environment variables or secure configuration
    - Follow provider-specific best practices
+
+4. Custom Rules and Validators:
+   - Implement the RuleValidator protocol for custom validators
+   - Ensure validator.validation_type returns the correct type
+   - Pass the validator to the Rule constructor
+   - Override _validate_impl to call the validator's validate method
 
 ## Contributing
 
