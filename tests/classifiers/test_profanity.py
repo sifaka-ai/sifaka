@@ -257,7 +257,7 @@ def test_censoring(profanity_classifier):
     """Test text censoring functionality."""
     test_cases = [
         ("This is a bad word.", "This is a *** word.", 1),
-        ("Multiple bad and inappropriate words.", "Multiple *** and ************ words.", 2),
+        ("Multiple bad and inappropriate words.", "Multiple *** and ************* words.", 2),
         ("Clean text stays unchanged.", "Clean text stays unchanged.", 0),
         ("bad BAD Bad bAd", "*** *** *** ***", 4),
     ]

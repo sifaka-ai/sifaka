@@ -100,7 +100,9 @@ Example with channel:
 """
 
 # Standard library imports
-from typing import Any, Dict, Generic, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Dict, Generic, List, Optional, Tuple, TypeVar, Union, Callable
+import logging
+from functools import partial
 
 # Third-party imports
 from langgraph.channels import AnyValue
@@ -109,9 +111,9 @@ from langgraph.prebuilt import ToolNode
 from pydantic import BaseModel, ConfigDict
 
 # Local imports
-from sifaka.critique.base import Critique
-from sifaka.models.base import ModelProvider
+from sifaka.critics.base import Critic
 from sifaka.rules.base import Rule, RuleResult
+from sifaka.models.base import ModelProvider
 from sifaka.utils.logging import get_logger
 from sifaka.utils.tracing import Tracer, TraceEvent
 
@@ -135,7 +137,7 @@ class SifakaGraph(BaseModel, Generic[T]):
     rules: List[Rule] = []
     critique: bool = True
     tracer: Optional[Tracer] = None
-    critic: Optional[Critique] = None
+    critic: Optional[Critic] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -145,7 +147,7 @@ class SifakaGraph(BaseModel, Generic[T]):
         rules: Optional[List[Rule]] = None,
         critique: bool = True,
         tracer: Optional[Tracer] = None,
-        critic: Optional[Critique] = None,
+        critic: Optional[Critic] = None,
         **kwargs,
     ) -> None:
         """
@@ -331,7 +333,7 @@ class SifakaStateGraph(SifakaGraph[T]):
         rules: Optional[List[Rule]] = None,
         critique: bool = True,
         tracer: Optional[Tracer] = None,
-        critic: Optional[Critique] = None,
+        critic: Optional[Critic] = None,
         **kwargs,
     ) -> None:
         """
@@ -408,7 +410,7 @@ class SifakaToolNode(BaseModel):
     rules: List[Rule] = []
     critique: bool = True
     tracer: Optional[Tracer] = None
-    critic: Optional[Critique] = None
+    critic: Optional[Critic] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -418,7 +420,7 @@ class SifakaToolNode(BaseModel):
         rules: Optional[List[Rule]] = None,
         critique: bool = True,
         tracer: Optional[Tracer] = None,
-        critic: Optional[Critique] = None,
+        critic: Optional[Critic] = None,
         **kwargs,
     ) -> None:
         """
@@ -581,7 +583,7 @@ class SifakaChannel(BaseModel):
     rules: List[Rule] = []
     critique: bool = True
     tracer: Optional[Tracer] = None
-    critic: Optional[Critique] = None
+    critic: Optional[Critic] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -779,3 +781,57 @@ def wrap_channel(channel: AnyValue, **kwargs) -> SifakaChannel:
         A wrapped channel with Sifaka's features
     """
     return SifakaChannel(channel=channel, **kwargs)
+
+
+def wrap_rule(
+    rule: Rule,
+    model: Optional[ModelProvider] = None,
+    config: Optional[Dict[str, Any]] = None,
+) -> Callable:
+    """
+    Wrap a rule for use in a LangGraph.
+
+    Args:
+        rule: The rule to wrap
+        model: Optional model provider to use
+        config: Optional configuration
+
+    Returns:
+        A function that can be used in a LangGraph
+    """
+
+    def wrapped(inputs: Dict[str, Any]) -> Dict[str, Any]:
+        output = inputs.get("output", "")
+        result = rule.validate(output)
+        return {
+            "passed": result.passed,
+            "message": result.message,
+            "metadata": result.metadata,
+        }
+
+    return wrapped
+
+
+def wrap_critic(
+    critic: Critic,
+    model: Optional[ModelProvider] = None,
+    config: Optional[Dict[str, Any]] = None,
+) -> Callable:
+    """
+    Wrap a critic for use in a LangGraph.
+
+    Args:
+        critic: The critic to wrap
+        model: Optional model provider to use
+        config: Optional configuration
+
+    Returns:
+        A function that can be used in a LangGraph
+    """
+
+    def wrapped(inputs: Dict[str, Any]) -> Dict[str, Any]:
+        output = inputs.get("output", "")
+        result = critic.critique(output)
+        return result
+
+    return wrapped

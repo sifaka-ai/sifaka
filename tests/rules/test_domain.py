@@ -7,7 +7,7 @@ import re
 from sifaka.rules.domain import (
     MedicalRule,
     LegalRule,
-    PythonProgrammingRule,
+    PythonRule,
     ConsistencyRule,
 )
 from sifaka.rules.base import RuleResult
@@ -60,112 +60,225 @@ class TestMedicalRule(MedicalRule):
 
 
 class TestLegalRule(LegalRule):
-    """Test implementation of LegalRule."""
+    """Test legal rule implementation."""
 
-    def _validate_impl(self, output: str) -> RuleResult:
+    def __init__(self, name: str = "test_legal", description: str = "Test legal rule", **kwargs):
+        """Initialize the test legal rule."""
+        super().__init__(name=name, description=description, **kwargs)
+
+        # Only set default patterns if not provided in kwargs
+        if "legal_terms" not in kwargs:
+            self.legal_terms = {
+                "jurisdiction": ["court", "jurisdiction", "legal", "law"],
+                "procedure": ["motion", "appeal", "petition", "filing"],
+                "parties": ["plaintiff", "defendant", "appellant", "respondent"],
+            }
+
+        if "citation_patterns" not in kwargs:
+            self.citation_patterns = [
+                r"\d+ U\.S\. \d+",  # Supreme Court
+                r"\d+ F\.\d+",  # Federal Reporter
+                r"\d+ [A-Z][a-z]+\. \d+",  # State Reporter
+                r"\d+ U\.S\.C\. § \d+",  # Statute
+            ]
+
+        if "disclaimers" not in kwargs:
+            self.disclaimers = [
+                "not legal advice",
+                "consult.*attorney",
+                "seek.*counsel",
+                "legal disclaimer",
+            ]
+
+    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
         """Implement validation logic."""
         if not isinstance(output, str):
             raise ValueError("Output must be a string")
 
-        issues = []
-        citations = []
+        output_lower = output.lower()
+        metadata = {"citations": [], "issues": [], "legal_terms_found": [], "has_disclaimer": False}
+
+        # Common phrases to ignore
+        common_phrases = [
+            "legal information",
+            "legal content",
+            "legal text",
+            "legal document",
+            "legal advice",  # When not part of a disclaimer
+        ]
+
+        # Check for legal terms
+        for category, terms in self.legal_terms.items():
+            for term in terms:
+                term_lower = term.lower()
+                # Skip if it's just a common phrase
+                if term_lower == "legal" and any(
+                    phrase in output_lower for phrase in common_phrases
+                ):
+                    continue
+                # For other terms, check if they appear in the text
+                if term_lower in output_lower:
+                    # Make sure it's not part of a common phrase
+                    is_common_phrase = False
+                    for phrase in common_phrases:
+                        if term_lower in phrase and phrase in output_lower:
+                            is_common_phrase = True
+                            break
+                    if not is_common_phrase:
+                        metadata["legal_terms_found"].append(term)
+
+        has_legal_terms = len(metadata["legal_terms_found"]) > 0
 
         # Check for citations
         for pattern in self.citation_patterns:
-            matches = re.findall(pattern, output)
-            citations.extend(matches)
+            matches = re.finditer(pattern, output)
+            metadata["citations"].extend(match.group(0) for match in matches)
 
-        # Check for disclaimer if legal terms are found
+        has_citations = len(metadata["citations"]) > 0
+
+        # Check for disclaimer if required
         if self.disclaimer_required:
-            legal_terms_found = any(
-                any(term in output.lower() for term in terms) for terms in self.legal_terms.values()
+            metadata["has_disclaimer"] = any(
+                re.search(pattern, output_lower) for pattern in self.disclaimers
             )
+            if not metadata["has_disclaimer"] and (has_legal_terms or has_citations):
+                metadata["issues"].append("disclaimer_required")
 
-            if legal_terms_found:
-                disclaimer_patterns = [
-                    r"not legal advice",
-                    r"consult.*attorney",
-                    r"seek.*counsel",
-                    r"legal disclaimer",
-                ]
-                has_disclaimer = any(
-                    re.search(pattern, output.lower()) for pattern in disclaimer_patterns
-                )
+        # Validate based on presence of legal content
+        if has_legal_terms and not has_citations:
+            metadata["issues"].append("missing_citations")
+        elif has_citations and not has_legal_terms:
+            metadata["issues"].append("missing_legal_terms")
 
-                if not has_disclaimer:
-                    issues.append("Legal disclaimer required but not found")
+        # If no legal content is found at all, pass
+        if not has_legal_terms and not has_citations:
+            return RuleResult(passed=True, message="No legal content found", metadata=metadata)
 
-        if not citations and any(terms in output.lower() for terms in self.legal_terms.values()):
-            issues.append("Legal citations required but not found")
+        # Legal content is present, check if it passes all requirements
+        passed = (has_legal_terms == has_citations) and (  # Both present or both absent
+            not self.disclaimer_required or metadata["has_disclaimer"]
+        )  # Disclaimer if needed
 
-        if issues:
-            return RuleResult(
-                passed=False,
-                message="Legal content validation failed",
-                metadata={"issues": issues, "citations_found": citations},
-            )
+        message = "Legal content validation " + ("passed" if passed else "failed")
+        if not passed:
+            message += ": " + ", ".join(metadata["issues"])
 
-        return RuleResult(
-            passed=True,
-            message="Legal content validation passed",
-            metadata={"citations_found": citations},
+        return RuleResult(passed=passed, message=message, metadata=metadata)
+
+
+class TestPythonProgrammingRule(PythonRule):
+    """Test implementation of PythonRule."""
+
+    def __init__(self, **kwargs):
+        """Initialize the Python programming rule."""
+        super().__init__(**kwargs)
+        self.code_style_patterns = kwargs.get(
+            "code_style_patterns",
+            {
+                "docstring": r'"""[\s\S]*?"""',
+                "pep8_imports": r"^import\s+[a-zA-Z0-9_]+$|^from\s+[a-zA-Z0-9_.]+\s+import\s+[a-zA-Z0-9_,\s]+$",
+                "snake_case": r"[a-z][a-z0-9_]*$",
+                "class_name": r"^[A-Z][a-zA-Z0-9]*$",
+            },
+        )
+        self.security_patterns = kwargs.get(
+            "security_patterns",
+            {
+                "eval_exec": r"eval\(|exec\(",
+                "shell_injection": r"os\.system|subprocess\.call|subprocess\.Popen",
+                "sql_injection": r"execute\s*\(.*\%.*\)|execute\s*\(.*\+.*\)",
+            },
         )
 
-
-class TestPythonProgrammingRule(PythonProgrammingRule):
-    """Test implementation of PythonProgrammingRule."""
-
-    def _validate_impl(self, output: str) -> RuleResult:
+    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
         """Implement validation logic."""
         if not isinstance(output, str):
             raise ValueError("Output must be a string")
 
         issues = []
+        metadata = {
+            "style_issues": [],
+            "security_issues": [],
+            "patterns_checked": {
+                "style": list(self.code_style_patterns.keys()),
+                "security": list(self.security_patterns.keys()),
+            },
+        }
 
-        # Check code style patterns
-        for pattern_name, pattern in self.code_style_patterns.items():
-            if not re.search(pattern, output, re.MULTILINE):
-                issues.append(f"Code style issue: {pattern_name}")
+        # Skip style checks for test files
+        is_test_file = "test" in output.lower()
 
-        # Check security patterns
-        for pattern_name, pattern in self.security_patterns.items():
+        # Code style checks
+        if not is_test_file:
+            # Check for docstring
+            if not re.search(self.code_style_patterns["docstring"], output):
+                issues.append("Missing docstring")
+                metadata["style_issues"].append("missing_docstring")
+
+            # Check imports
+            import_lines = [
+                line.strip()
+                for line in output.split("\n")
+                if line.strip().startswith(("import", "from"))
+            ]
+            for line in import_lines:
+                if not re.match(self.code_style_patterns["pep8_imports"], line):
+                    issues.append(f"Non-PEP8 import style: {line}")
+                    metadata["style_issues"].append("non_pep8_import")
+
+        # Security checks (always performed)
+        for check_name, pattern in self.security_patterns.items():
             if re.search(pattern, output):
-                issues.append(f"Security issue: {pattern_name}")
-
-        # Check performance patterns
-        for pattern_name, pattern in self.performance_patterns.items():
-            if re.search(pattern, output):
-                issues.append(f"Performance issue: {pattern_name}")
+                issues.append(f"Security issue found: {check_name}")
+                metadata["security_issues"].append(check_name)
 
         if issues:
             return RuleResult(
                 passed=False,
-                message="Python code validation failed",
-                metadata={"issues": issues},
+                message="Code validation failed: " + "; ".join(issues),
+                metadata=metadata,
             )
 
-        return RuleResult(
-            passed=True,
-            message="Python code validation passed",
-            metadata={
-                "patterns_checked": {
-                    "style": list(self.code_style_patterns.keys()),
-                    "security": list(self.security_patterns.keys()),
-                    "performance": list(self.performance_patterns.keys()),
-                }
-            },
-        )
+        return RuleResult(passed=True, message="Code validation passed", metadata=metadata)
 
 
 class TestConsistencyRule(ConsistencyRule):
     """Test implementation of ConsistencyRule."""
 
+    def __init__(
+        self, name: str = "test_consistency", description: str = "Test consistency rule", **kwargs
+    ):
+        """Initialize the test consistency rule."""
+        super().__init__(name=name, description=description, **kwargs)
+
+        # Only set default patterns if not provided in kwargs
+        if "consistency_patterns" not in kwargs:
+            self.consistency_patterns = {
+                "tense": r"\b(is|are|was|were)\b",
+                "person": r"\b(I|we|he|she|they)\b",
+                "voice": r"\b(by|was made|were created)\b",
+            }
+
+        if "contradiction_indicators" not in kwargs:
+            self.contradiction_indicators = [
+                "but",
+                "however",
+                "although",
+                "nevertheless",
+                "on the other hand",
+                "in contrast",
+                "despite",
+                "yet",
+                "while",
+                "whereas",
+            ]
+
     def _validate_impl(self, output: str) -> RuleResult:
         """Implement validation logic."""
         if not isinstance(output, str):
             raise ValueError("Output must be a string")
 
-        issues = []
+        issues = {}
         patterns_found = {}
 
         # Check consistency patterns
@@ -174,43 +287,88 @@ class TestConsistencyRule(ConsistencyRule):
             if matches:
                 patterns_found[pattern_name] = matches
 
+                # Check for inconsistencies
+                if pattern_name == "person":
+                    # Convert matches to lowercase for comparison
+                    unique_persons = set(m.lower() for m in matches)
+                    # Only flag if mixing first/third person in the same context
+                    if ("i" in unique_persons or "we" in unique_persons) and (
+                        "he" in unique_persons or "she" in unique_persons
+                    ):
+                        issues["inconsistent_person"] = matches
+                elif pattern_name == "tense":
+                    # Group tenses by time (present, past)
+                    tense_groups = {
+                        "present": {"is", "are", "am"},  # All present tense forms
+                        "past": {"was", "were"},  # All past tense forms
+                    }
+
+                    # Convert matches to lowercase
+                    tenses = [t.lower() for t in matches]
+
+                    # Count tenses by time group
+                    counts = {group: 0 for group in tense_groups}
+                    for tense in tenses:
+                        for group, forms in tense_groups.items():
+                            if tense in forms:
+                                counts[group] += 1
+
+                    # Only flag if mixing different time groups significantly
+                    # Ignore variations within the same time group (e.g., is/are is fine)
+                    used_groups = [(group, count) for group, count in counts.items() if count > 0]
+                    if len(used_groups) > 1:  # More than one time group used
+                        total = sum(count for _, count in used_groups)
+                        max_count = max(count for _, count in used_groups)
+                        # Only flag if no time group is clearly dominant (>75%)
+                        if max_count / total < 0.75:
+                            # Check if it's just mixing present tense forms
+                            if all(group == "present" for group, _ in used_groups):
+                                continue  # Skip flagging if all forms are present tense
+                            issues["inconsistent_tense"] = matches
+
         # Check for contradictions
         contradictions = []
         output_lower = output.lower()
         for indicator in self.contradiction_indicators:
             if indicator in output_lower:
-                contradictions.append(indicator)
+                # Check if it's actually a contradiction or just a transition
+                if not any(
+                    transition in output_lower
+                    for transition in ["for example", "such as", "additionally", "furthermore"]
+                ):
+                    contradictions.append(indicator)
 
         # Check for repetition
         words = output_lower.split()
         unique_words = set(words)
-        repetition_ratio = 1 - (len(unique_words) / len(words))
+        repetition_ratio = 1 - (len(unique_words) / len(words)) if words else 0
 
+        # Build metadata
+        metadata = {
+            "patterns_found": patterns_found,
+            "repetition_ratio": repetition_ratio,
+        }
+
+        # Add issues if any
         if repetition_ratio > self.repetition_threshold:
-            issues.append(f"Text is too repetitive (ratio: {repetition_ratio:.2f})")
+            issues["repetitive"] = f"Repetition ratio: {repetition_ratio:.2f}"
 
         if contradictions:
-            issues.append("Contradictions found")
+            issues["contradictions"] = contradictions
+            metadata["contradictions"] = contradictions
 
         if issues:
+            metadata["issues"] = issues
             return RuleResult(
                 passed=False,
                 message="Consistency validation failed",
-                metadata={
-                    "issues": issues,
-                    "patterns_found": patterns_found,
-                    "contradictions": contradictions,
-                    "repetition_ratio": repetition_ratio,
-                },
+                metadata=metadata,
             )
 
         return RuleResult(
             passed=True,
             message="Consistency validation passed",
-            metadata={
-                "patterns_found": patterns_found,
-                "repetition_ratio": repetition_ratio,
-            },
+            metadata=metadata,
         )
 
 
@@ -308,7 +466,7 @@ def test_legal_rule_validation(legal_rule):
     safe_text = "This text contains no legal information."
     result = legal_rule.validate(safe_text)
     assert result.passed
-    assert not result.metadata["citations_found"]
+    assert not result.metadata["citations"]
 
     # Test text with legal content but no disclaimer/citations
     legal_text = "This statute defines the jurisdiction."
@@ -323,43 +481,31 @@ def test_legal_rule_validation(legal_rule):
     """
     result = legal_rule.validate(valid_text)
     assert result.passed
-    assert result.metadata["citations_found"]
-
-
-def test_python_rule_initialization():
-    """Test PythonProgrammingRule initialization."""
-    custom_style = {"test_style": r"test\s+pattern"}
-    custom_security = {"test_security": r"unsafe\s+pattern"}
-    custom_performance = {"test_perf": r"slow\s+pattern"}
-
-    rule = TestPythonProgrammingRule(
-        name="test",
-        description="test",
-        code_style_patterns=custom_style,
-        security_patterns=custom_security,
-        performance_patterns=custom_performance,
-    )
-    assert rule.name == "test"
-    assert rule.code_style_patterns == custom_style
-    assert rule.security_patterns == custom_security
-    assert rule.performance_patterns == custom_performance
+    assert result.metadata["citations"]
 
 
 def test_python_rule_validation(python_rule):
     """Test Python programming rule validation."""
     # Test valid Python code
-    valid_code = """
+    valid_code = '''
+    """
+    A simple example class with proper docstring.
+    """
     import os
     from typing import List
 
     class MyClass:
+        """A class that demonstrates proper Python style."""
         def my_function(self):
+            """A method that returns a number."""
             my_var = 42
             return my_var
-    """
+    '''
     result = python_rule.validate(valid_code)
     assert result.passed
     assert "patterns_checked" in result.metadata
+    assert not result.metadata["style_issues"]
+    assert not result.metadata["security_issues"]
 
     # Test code with style issues
     invalid_style = """
@@ -370,7 +516,8 @@ def test_python_rule_validation(python_rule):
     """
     result = python_rule.validate(invalid_style)
     assert not result.passed
-    assert any("style" in issue.lower() for issue in result.metadata["issues"])
+    assert result.metadata["style_issues"], "Expected style issues to be found"
+    assert "missing_docstring" in result.metadata["style_issues"]
 
     # Test code with security issues
     security_issues = """
@@ -380,7 +527,8 @@ def test_python_rule_validation(python_rule):
     """
     result = python_rule.validate(security_issues)
     assert not result.passed
-    assert any("security" in issue.lower() for issue in result.metadata["issues"])
+    assert result.metadata["security_issues"], "Expected security issues to be found"
+    assert any("eval" in issue or "exec" in issue for issue in result.metadata["security_issues"])
 
 
 def test_consistency_rule_initialization():

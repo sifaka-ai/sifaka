@@ -15,10 +15,14 @@ class LengthRule(Rule):
     Attributes:
         min_length (int): Minimum allowed length in characters
         max_length (int): Maximum allowed length in characters
+        exact_length (int): Exact allowed length in characters
+        unit (str): Unit of measurement (characters or words)
     """
 
     min_length: int = Field(default=50)
     max_length: int = Field(default=5000)
+    exact_length: int = Field(default=None)
+    unit: str = Field(default="characters")
 
     class Config:
         arbitrary_types_allowed = True
@@ -35,30 +39,42 @@ class LengthRule(Rule):
             RuleResult: The result of the validation
 
         Raises:
-            ValueError: If output is None
+            ValueError: If output is None or not a string
         """
+        if not isinstance(output, str):
+            raise ValueError("Output must be a string")
+
         if output is None:
             raise ValueError("Output cannot be None")
 
         length = len(output)
+        if self.unit == "words":
+            length = len(output.split())
+
+        if self.exact_length is not None and length != self.exact_length:
+            return RuleResult(
+                passed=False,
+                message=f"Text length {length} does not meet exact length requirement of {self.exact_length} {self.unit}",
+                metadata={"length": length},
+            )
 
         if length < self.min_length:
             return RuleResult(
                 passed=False,
-                message=f"Output is too short ({length} characters)",
-                metadata={"length": length, "min_length": self.min_length},
+                message=f"Text length {length} is below minimum {self.min_length} {self.unit}",
+                metadata={"length": length},
             )
 
         if length > self.max_length:
             return RuleResult(
                 passed=False,
-                message=f"Output is too long ({length} characters)",
-                metadata={"length": length, "max_length": self.max_length},
+                message=f"Text length {length} exceeds maximum {self.max_length} {self.unit}",
+                metadata={"length": length},
             )
 
         return RuleResult(
             passed=True,
-            message=f"Output length is acceptable ({length} characters)",
+            message=f"Text length {length} meets requirements",
             metadata={"length": length},
         )
 
@@ -68,10 +84,10 @@ class ParagraphRule(Rule):
     Rule that checks for proper paragraph formatting.
 
     Attributes:
-        min_sentences (int): Minimum sentences per paragraph
-        max_sentences (int): Maximum sentences per paragraph
-        min_words (int): Minimum words per sentence
-        max_words (int): Maximum words per sentence
+        min_sentences: Minimum sentences per paragraph
+        max_sentences: Maximum sentences per paragraph
+        min_words: Minimum words per sentence
+        max_words: Maximum words per sentence
     """
 
     min_sentences: int = Field(default=2)
@@ -79,58 +95,62 @@ class ParagraphRule(Rule):
     min_words: int = Field(default=5)
     max_words: int = Field(default=30)
 
-    class Config:
-        arbitrary_types_allowed = True
-
-    def validate(self, output: str, **kwargs) -> RuleResult:
+    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
         """
         Validate that the output has proper paragraph structure.
 
         Args:
-            output (str): The LLM output to validate
-            **kwargs: Additional context for validation
+            output: The text to validate
+            **kwargs: Additional validation context
 
         Returns:
-            RuleResult: The result of the validation
-
-        Raises:
-            ValueError: If output is None
+            RuleResult with validation results
         """
-        if output is None:
-            raise ValueError("Output cannot be None")
+        if not isinstance(output, str):
+            raise ValueError("Output must be a string")
 
-        paragraphs = output.split("\n\n")
+        paragraphs = [p.strip() for p in output.split("\n\n") if p.strip()]
         issues = []
+        metadata = {"paragraphs": []}
 
-        for i, paragraph in enumerate(paragraphs):
-            sentences = re.split(r"[.!?]+", paragraph)
-            sentences = [s.strip() for s in sentences if s.strip()]
+        for i, paragraph in enumerate(paragraphs, 1):
+            sentences = [s.strip() for s in re.split(r"[.!?]+", paragraph) if s.strip()]
+            words = paragraph.split()
+
+            paragraph_info = {
+                "num_sentences": len(sentences),
+                "num_words": len(words),
+                "content": paragraph,
+            }
 
             if len(sentences) < self.min_sentences:
-                issues.append(f"Paragraph {i+1} has too few sentences ({len(sentences)})")
+                issues.append(f"Paragraph {i} has fewer than {self.min_sentences} sentences")
+                paragraph_info["error"] = "too few sentences"
+            elif len(sentences) > self.max_sentences:
+                issues.append(f"Paragraph {i} exceeds {self.max_sentences} sentences")
+                paragraph_info["error"] = "too many sentences"
 
-            if len(sentences) > self.max_sentences:
-                issues.append(f"Paragraph {i+1} has too many sentences ({len(sentences)})")
+            if len(words) < self.min_words:
+                issues.append(f"Paragraph {i} has fewer than {self.min_words} words")
+                paragraph_info["error"] = "too few words"
+            elif len(words) > self.max_words:
+                issues.append(f"Paragraph {i} exceeds {self.max_words} words")
+                paragraph_info["error"] = "too many words"
 
-            for j, sentence in enumerate(sentences):
-                words = sentence.split()
-                if len(words) < self.min_words:
-                    issues.append(
-                        f"Sentence {j+1} in paragraph {i+1} has too few words ({len(words)})"
-                    )
-                if len(words) > self.max_words:
-                    issues.append(
-                        f"Sentence {j+1} in paragraph {i+1} has too many words ({len(words)})"
-                    )
+            metadata["paragraphs"].append(paragraph_info)
 
         if issues:
             return RuleResult(
                 passed=False,
-                message="Paragraph formatting issues detected",
-                metadata={"issues": issues},
+                message="Paragraph structure validation failed",
+                metadata={"issues": issues, **metadata},
             )
 
-        return RuleResult(passed=True, message="Paragraph formatting is acceptable")
+        return RuleResult(
+            passed=True,
+            message="Paragraph structure is valid",
+            metadata=metadata,
+        )
 
 
 class StyleRule(Rule):
@@ -138,8 +158,8 @@ class StyleRule(Rule):
     Rule that checks for consistent writing style.
 
     Attributes:
-        style_indicators (Dict[str, List[str]]): Dictionary of style indicators
-        style_threshold (float): Threshold for style consistency (0.0 to 1.0)
+        style_indicators: Dictionary of style indicators
+        style_threshold: Threshold for style consistency (0.0 to 1.0)
     """
 
     style_indicators: Dict[str, List[str]] = Field(
@@ -152,50 +172,47 @@ class StyleRule(Rule):
     )
     style_threshold: float = Field(default=0.7)
 
-    class Config:
-        arbitrary_types_allowed = True
-
-    def validate(self, output: str, **kwargs) -> RuleResult:
+    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
         """
         Validate that the output maintains a consistent writing style.
 
         Args:
-            output (str): The LLM output to validate
-            **kwargs: Additional context for validation
+            output: The text to validate
+            **kwargs: Additional validation context
 
         Returns:
-            RuleResult: The result of the validation
-
-        Raises:
-            ValueError: If output is None
+            RuleResult with validation results
         """
-        if output is None:
-            raise ValueError("Output cannot be None")
+        if not isinstance(output, str):
+            raise ValueError("Output must be a string")
 
         output_lower = output.lower()
         style_scores = {}
 
         for style, indicators in self.style_indicators.items():
-            found_indicators = []
-            for indicator in indicators:
-                if indicator in output_lower:
-                    found_indicators.append(indicator)
+            found_indicators = [ind for ind in indicators if ind in output_lower]
             style_scores[style] = len(found_indicators) / len(indicators)
 
         # Find the dominant style
         dominant_style = max(style_scores.items(), key=lambda x: x[1])
 
+        metadata = {
+            "style_scores": style_scores,
+            "dominant_style": dominant_style[0],
+            "dominant_score": dominant_style[1],
+        }
+
         if dominant_style[1] < self.style_threshold:
             return RuleResult(
                 passed=False,
-                message="Writing style is inconsistent",
-                metadata={"style_scores": style_scores},
+                message=f"Writing style is inconsistent (highest score: {dominant_style[1]:.2f})",
+                metadata=metadata,
             )
 
         return RuleResult(
             passed=True,
             message=f"Writing style is consistent ({dominant_style[0]})",
-            metadata={"style_scores": style_scores},
+            metadata=metadata,
         )
 
 
@@ -204,7 +221,7 @@ class FormattingRule(Rule):
     Rule that checks for proper text formatting.
 
     Attributes:
-        formatting_patterns (Dict[str, str]): Dictionary of formatting patterns to check
+        formatting_patterns: Dictionary of formatting patterns to check
     """
 
     formatting_patterns: Dict[str, str] = Field(
@@ -218,36 +235,38 @@ class FormattingRule(Rule):
         }
     )
 
-    class Config:
-        arbitrary_types_allowed = True
-
-    def validate(self, output: str, **kwargs) -> RuleResult:
+    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
         """
         Validate that the output follows proper formatting rules.
 
         Args:
-            output (str): The LLM output to validate
-            **kwargs: Additional context for validation
+            output: The text to validate
+            **kwargs: Additional validation context
 
         Returns:
-            RuleResult: The result of the validation
-
-        Raises:
-            ValueError: If output is None
+            RuleResult with validation results
         """
-        if output is None:
-            raise ValueError("Output cannot be None")
+        if not isinstance(output, str):
+            raise ValueError("Output must be a string")
 
-        issues = {}
+        issues = []
+        metadata = {"issues": {}}
 
         for issue_type, pattern in self.formatting_patterns.items():
-            matches = re.findall(pattern, output)
+            matches = list(re.finditer(pattern, output))
             if matches:
-                issues[issue_type] = matches
+                metadata["issues"][issue_type] = [m.group() for m in matches]
+                issues.append(f"Found {issue_type} issues")
 
         if issues:
             return RuleResult(
-                passed=False, message="Formatting issues detected", metadata={"issues": issues}
+                passed=False,
+                message="Formatting issues detected",
+                metadata=metadata,
             )
 
-        return RuleResult(passed=True, message="Formatting is acceptable")
+        return RuleResult(
+            passed=True,
+            message="Formatting is acceptable",
+            metadata=metadata,
+        )

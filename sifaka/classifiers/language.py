@@ -13,8 +13,9 @@ logger = get_logger(__name__)
 
 # Only import type hints during type checking
 if TYPE_CHECKING:
-    from langdetect import detect_langs
+    from langdetect import detect_langs, detect
     from langdetect.language import Language
+    from langdetect import LangDetectException
 
 
 class LanguageClassifier(Classifier):
@@ -120,12 +121,14 @@ class LanguageClassifier(Classifier):
         )
         self.min_confidence = min_confidence
         self._detect_langs = None
+        self._detect = None
 
     def _load_langdetect(self) -> None:
         """Load the language detector."""
         try:
             langdetect = importlib.import_module("langdetect")
             self._detect_langs = langdetect.detect_langs
+            self._detect = langdetect.detect
 
             # Set seed for consistent results
             langdetect.DetectorFactory.seed = 0
@@ -145,55 +148,83 @@ class LanguageClassifier(Classifier):
 
     def classify(self, text: str) -> ClassificationResult:
         """
-        Classify text language.
+        Classify the language of the input text.
 
         Args:
-            text: The text to classify
+            text: The text to classify.
 
         Returns:
-            ClassificationResult with language detection results
+            ClassificationResult with detected language and confidence.
         """
-        self.warm_up()
-        try:
-            # Get language probabilities
-            langs = self._detect_langs(text)
+        metadata = {
+            "language_name": "Unknown",  # Default language name
+            "language_code": "en",  # Default language code
+            "all_languages": {
+                "en": {"probability": 1.0, "name": "English"}
+            },  # Default language info
+        }
 
-            if not langs:
-                return ClassificationResult(
-                    label="en",  # Default to English
-                    confidence=0.0,
-                    metadata={"error": "No language detected"},
-                )
-
-            # Get most likely language
-            top_lang = langs[0]
-            lang_code = top_lang.lang
-            confidence = top_lang.prob
-
-            # Get all detected languages with probabilities
-            all_langs = {
-                lang.lang: {
-                    "probability": lang.prob,
-                    "name": self.LANGUAGE_NAMES.get(lang.lang, "Unknown"),
+        # Handle invalid input types
+        if not isinstance(text, str):
+            metadata.update(
+                {
+                    "error_type": "invalid_input",
+                    "error": f"Invalid input type: {type(text).__name__}",
                 }
-                for lang in langs
-                if lang.prob >= self.min_confidence
-            }
-
-            return ClassificationResult(
-                label=lang_code,
-                confidence=confidence,
-                metadata={
-                    "language_name": self.LANGUAGE_NAMES.get(lang_code, "Unknown"),
-                    "all_languages": all_langs,
-                },
             )
+            return ClassificationResult(
+                label="en",
+                confidence=0.0,
+                metadata=metadata,
+            )
+
+        # Handle empty or whitespace-only strings
+        if not text or text.isspace():
+            metadata.update(
+                {
+                    "error_type": "empty_input",
+                    "error": "No language detected - empty or whitespace input",
+                }
+            )
+            return ClassificationResult(
+                label="en",
+                confidence=0.0,
+                metadata=metadata,
+            )
+
+        try:
+            # Ensure langdetect is loaded
+            if self._detect is None:
+                self.warm_up()
+
+            # Detect language
+            lang = self._detect(text)
+            confidence = 1.0  # langdetect doesn't provide confidence scores
+
+            # Map language code to full name if available
+            language_name = self.LANGUAGE_NAMES.get(lang, lang)
+            metadata.update(
+                {
+                    "language_code": lang,
+                    "language_name": language_name,
+                    "all_languages": {lang: {"probability": 1.0, "name": language_name}},
+                }
+            )
+
+            return ClassificationResult(label=lang, confidence=confidence, metadata=metadata)
+
         except Exception as e:
             logger.error("Failed to detect language: %s", e)
+            metadata.update(
+                {
+                    "error_type": "detection_error",
+                    "error": f"Failed to detect language: {str(e)}",
+                }
+            )
             return ClassificationResult(
-                label="en",  # Default to English
+                label="en",
                 confidence=0.0,
-                metadata={"error": str(e)},
+                metadata=metadata,
             )
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:

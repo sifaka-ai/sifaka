@@ -102,3 +102,51 @@ def legal_citation_check(output: str, **kwargs) -> RuleResult:
         name="Legal Citation Check", description="Check legal citations in the output"
     )
     return rule._validate_impl(output)
+
+
+class LegalRule(Rule):
+    """Rule that validates if text contains legal terms."""
+
+    def __init__(self, legal_terms: Optional[List[str]] = None, cache_size: int = 0):
+        """
+        Initialize the legal rule.
+
+        Args:
+            legal_terms: List of legal terms to check for. If None, uses default terms.
+            cache_size: Size of the validation cache. Defaults to 0 (no caching).
+        """
+        super().__init__(cache_size=cache_size)
+        self.legal_terms = (
+            legal_terms
+            if legal_terms is not None
+            else ["confidential", "proprietary", "classified", "restricted", "private", "sensitive"]
+        )
+
+    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
+        """
+        Validate if the output contains legal terms.
+
+        Args:
+            output: The output to validate
+            **kwargs: Additional validation context
+
+        Returns:
+            RuleResult indicating if the text is safe
+        """
+        found_terms = []
+        lower_output = output.lower()
+
+        for term in self.legal_terms:
+            if term.lower() in lower_output:
+                found_terms.append(term)
+
+        is_safe = len(found_terms) == 0
+        return RuleResult(
+            is_safe=is_safe,
+            message=(
+                f"Found legal terms: {', '.join(found_terms)}"
+                if found_terms
+                else "No legal terms found"
+            ),
+            metadata={"found_terms": found_terms},
+        )

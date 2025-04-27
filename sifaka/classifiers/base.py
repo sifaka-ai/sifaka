@@ -4,7 +4,7 @@ Base classes for Sifaka classifiers.
 
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, Union, List
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ClassificationResult(BaseModel):
@@ -17,9 +17,9 @@ class ClassificationResult(BaseModel):
         metadata: Additional metadata about the classification
     """
 
-    label: Union[str, int, float, bool]
-    confidence: float
-    metadata: Dict[str, Any] = {}
+    label: Any = Field(description="The classification label")
+    confidence: float = Field(ge=0.0, le=1.0, description="Confidence score between 0 and 1")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -37,14 +37,18 @@ class Classifier(ABC, BaseModel):
         labels: List of possible labels/classes
         cache_size: Size of the LRU cache (0 to disable)
         cost: Estimated computational cost (higher numbers are more expensive)
+        min_confidence: Minimum confidence threshold for classification
     """
 
-    name: str
-    description: str
-    config: Dict[str, Any] = {}
-    labels: List[Union[str, int, float, bool]]
-    cache_size: int = 0
-    cost: int = 1
+    name: str = Field(description="Name of the classifier")
+    description: str = Field(description="Description of the classifier")
+    config: Dict[str, Any] = Field(default_factory=dict, description="Additional configuration")
+    labels: List[str] = Field(description="List of possible classification labels")
+    cache_size: int = Field(default=0, ge=0, description="Size of the classification cache")
+    cost: int = Field(default=1, ge=0, description="Cost of running the classifier")
+    min_confidence: float = Field(
+        default=0.5, ge=0.0, le=1.0, description="Minimum confidence threshold"
+    )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -79,3 +83,18 @@ class Classifier(ABC, BaseModel):
         Optional warm-up method for classifiers that need initialization.
         """
         pass
+
+    def _classify_impl(self, text: str) -> ClassificationResult:
+        """
+        Implement classification logic.
+
+        Args:
+            text: The text to classify
+
+        Returns:
+            ClassificationResult with label and confidence
+
+        Raises:
+            NotImplementedError: Must be implemented by subclasses
+        """
+        raise NotImplementedError("Subclasses must implement _classify_impl")

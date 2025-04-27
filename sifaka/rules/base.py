@@ -18,11 +18,15 @@ class RuleResult(BaseModel):
         passed: Whether the validation passed
         message: Message explaining the result
         metadata: Additional metadata about the result
+        score: Optional confidence score between 0 and 1
     """
 
-    passed: bool
-    message: Optional[str] = None
-    metadata: Dict[str, Any] = {}
+    passed: bool = Field(description="Whether the validation passed")
+    message: str = Field(description="Message explaining the validation result")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    score: Optional[float] = Field(
+        default=None, ge=0, le=1, description="Confidence score between 0 and 1"
+    )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -51,12 +55,12 @@ class Rule(ABC, BaseModel):
         cost: Estimated computational cost (higher numbers are more expensive)
     """
 
-    name: str
-    description: str
-    config: Dict[str, Any] = {}
-    cache_size: int = 0
-    priority: int = 0
-    cost: int = 1
+    name: str = Field(description="Name of the rule")
+    description: str = Field(description="Description of the rule")
+    config: Dict[str, Any] = Field(default_factory=dict, description="Additional configuration")
+    cache_size: int = Field(default=0, ge=0, description="Size of the validation cache")
+    priority: int = Field(default=0, description="Priority of the rule (higher runs first)")
+    cost: int = Field(default=1, ge=0, description="Cost of running the rule")
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -98,12 +102,13 @@ class Rule(ABC, BaseModel):
         else:
             self._cached_validate = self._validate_impl
 
-    def _get_cache_key(self, output: str) -> str:
+    def _get_cache_key(self, output: str, **kwargs) -> str:
         """
         Generate a cache key for the output.
 
         Args:
             output: The output to validate
+            **kwargs: Additional validation context
 
         Returns:
             A cache key string
@@ -115,19 +120,20 @@ class Rule(ABC, BaseModel):
         return hasher.hexdigest()
 
     @abstractmethod
-    def _validate_impl(self, output: str) -> RuleResult:
+    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
         """
         Implement the validation logic.
 
         Args:
             output: The output to validate
+            **kwargs: Additional validation context
 
         Returns:
             RuleResult with validation results
         """
         pass
 
-    def validate(self, output: str) -> RuleResult:
+    def validate(self, output: str, **kwargs) -> RuleResult:
         """
         Validate an output.
 
@@ -135,6 +141,7 @@ class Rule(ABC, BaseModel):
 
         Args:
             output: The output to validate
+            **kwargs: Additional validation context
 
         Returns:
             RuleResult with validation results
@@ -145,15 +152,25 @@ class Rule(ABC, BaseModel):
         if output is None:
             raise ValueError("Output cannot be None")
         if not isinstance(output, str):
-            raise ValueError(f"Output must be a string, got {type(output)}")
+            raise ValueError("Output must be a string")
 
+        # Check cache if enabled
         if self.cache_size > 0:
-            # Use cache key for cached validation
-            cache_key = self._get_cache_key(output)
-            return self._cached_validate(cache_key)
-        else:
-            # Direct validation without caching
-            return self._validate_impl(output)
+            cache_key = self._get_cache_key(output, **kwargs)
+            if cache_key in self._result_cache:
+                return self._result_cache[cache_key]
+
+        # Validate output
+        result = self._validate_impl(output, **kwargs)
+
+        # Update cache if enabled
+        if self.cache_size > 0:
+            cache_key = self._get_cache_key(output, **kwargs)
+            self._result_cache[cache_key] = result
+            if len(self._result_cache) > self.cache_size:
+                self._result_cache.popitem(last=False)
+
+        return result
 
 
 class FunctionRule(Rule):
@@ -169,17 +186,18 @@ class FunctionRule(Rule):
 
     func: Callable
 
-    def _validate_impl(self, output: str) -> RuleResult:
+    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
         """
         Validate using the provided function.
 
         Args:
             output: The LLM output to validate
+            **kwargs: Additional validation context
 
         Returns:
             The result of the validation
         """
-        result = self.func(output)
+        result = self.func(output, **kwargs)
 
         if isinstance(result, RuleResult):
             return result

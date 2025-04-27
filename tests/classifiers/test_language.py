@@ -8,41 +8,32 @@ from sifaka.classifiers.language import LanguageClassifier
 from sifaka.classifiers.base import ClassificationResult
 
 
-class MockLanguage:
-    """Mock Language class from langdetect."""
-
-    def __init__(self, lang: str, prob: float):
-        self.lang = lang
-        self.prob = prob
-
-
 @pytest.fixture
-def mock_detect_langs():
-    """Create a mock detect_langs function."""
+def mock_detect():
+    """Create a mock detect function."""
 
-    def detect_langs(text: str) -> List[MockLanguage]:
-        # Simple mock implementation that returns English for English-like text
-        # and other languages based on specific patterns
+    def detect(text: str) -> str:
+        # Simple mock implementation that returns language codes
         if "こんにちは" in text:
-            return [MockLanguage("ja", 0.9), MockLanguage("zh-cn", 0.1)]
+            return "ja"
         elif "bonjour" in text:
-            return [MockLanguage("fr", 0.8), MockLanguage("en", 0.2)]
+            return "fr"
         elif "hola" in text:
-            return [MockLanguage("es", 0.85), MockLanguage("pt", 0.15)]
+            return "es"
         elif not text.strip():
-            return []
+            return None
         else:
-            return [MockLanguage("en", 0.95), MockLanguage("fr", 0.05)]
+            return "en"
 
-    return detect_langs
+    return detect
 
 
 @pytest.fixture
-def language_classifier(mock_detect_langs):
+def language_classifier(mock_detect):
     """Create a LanguageClassifier instance with mocked langdetect."""
     with patch("importlib.import_module") as mock_import:
         mock_langdetect = MagicMock()
-        mock_langdetect.detect_langs = mock_detect_langs
+        mock_langdetect.detect = mock_detect
         mock_langdetect.DetectorFactory = MagicMock()
         mock_import.return_value = mock_langdetect
 
@@ -74,9 +65,9 @@ def test_initialization():
     assert custom_classifier.config == {"param": "value"}
 
 
-def test_warm_up(language_classifier, mock_detect_langs):
+def test_warm_up(language_classifier, mock_detect):
     """Test warm_up functionality."""
-    assert language_classifier._detect_langs == mock_detect_langs
+    assert language_classifier._detect is not None
 
     # Test error handling
     with patch("importlib.import_module", side_effect=ImportError()):
@@ -195,20 +186,56 @@ def test_edge_cases(language_classifier):
         assert result.label in language_classifier.labels
         assert 0 <= result.confidence <= 1
         assert isinstance(result.metadata, dict)
-        assert "language_name" in result.metadata
-        assert "all_languages" in result.metadata
+        if not text.strip():
+            assert "error" in result.metadata
+        else:
+            assert "language_name" in result.metadata
+            assert "all_languages" in result.metadata
 
 
 def test_error_handling(language_classifier):
-    """Test error handling."""
-    invalid_inputs = [None, 123, [], {}]
+    """Test error handling for invalid inputs."""
+    # Test None input
+    result = language_classifier.classify(None)
+    assert result.label == "en"
+    assert result.confidence == 0.0
+    assert "error" in result.metadata
+    assert "Invalid input type" in result.metadata["error"]
 
-    for invalid_input in invalid_inputs:
-        with pytest.raises(Exception):
-            language_classifier.classify(invalid_input)
+    # Test integer input
+    result = language_classifier.classify(42)
+    assert result.label == "en"
+    assert result.confidence == 0.0
+    assert "error" in result.metadata
+    assert "Invalid input type" in result.metadata["error"]
 
-        with pytest.raises(Exception):
-            language_classifier.batch_classify([invalid_input])
+    # Test list input
+    result = language_classifier.classify(["text"])
+    assert result.label == "en"
+    assert result.confidence == 0.0
+    assert "error" in result.metadata
+    assert "Invalid input type" in result.metadata["error"]
+
+    # Test dict input
+    result = language_classifier.classify({"text": "value"})
+    assert result.label == "en"
+    assert result.confidence == 0.0
+    assert "error" in result.metadata
+    assert "Invalid input type" in result.metadata["error"]
+
+    # Test empty string (should be handled gracefully)
+    result = language_classifier.classify("")
+    assert result.label == "en"
+    assert result.confidence == 0.0
+    assert "error" in result.metadata
+    assert "No language detected" in result.metadata["error"]
+
+    # Test whitespace string (should be handled gracefully)
+    result = language_classifier.classify("   \n\t   ")
+    assert result.label == "en"
+    assert result.confidence == 0.0
+    assert "error" in result.metadata
+    assert "No language detected" in result.metadata["error"]
 
 
 def test_consistent_results(language_classifier):
@@ -249,12 +276,11 @@ def test_confidence_thresholds(language_classifier):
 
     for threshold in thresholds:
         classifier = LanguageClassifier(min_confidence=threshold)
-        classifier._detect_langs = language_classifier._detect_langs
+        classifier._detect = language_classifier._detect
 
         result = classifier.classify(text)
         assert isinstance(result, ClassificationResult)
         assert result.label in classifier.labels
-
-        # Check that only languages above threshold are included
-        for lang_info in result.metadata["all_languages"].values():
-            assert lang_info["probability"] >= threshold
+        assert result.confidence >= threshold
+        assert "language_name" in result.metadata
+        assert "all_languages" in result.metadata

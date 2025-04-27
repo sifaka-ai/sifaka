@@ -76,50 +76,44 @@ class ProhibitedContentRule(Rule):
         if not prohibited_terms:
             raise ValueError("prohibited_terms list cannot be empty")
 
-        # Set the values using object.__setattr__ to bypass Pydantic validation
-        object.__setattr__(self, "prohibited_terms", prohibited_terms)
-        object.__setattr__(self, "case_sensitive", case_sensitive)
+        self.prohibited_terms = prohibited_terms
+        self.case_sensitive = case_sensitive
 
-    def _validate_impl(self, output: str) -> RuleResult:
+    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
         """
-        Implementation of the validation logic for prohibited terms.
+        Validate that the output does not contain prohibited terms.
 
         Args:
             output: The text to validate
+            **kwargs: Additional validation context
 
         Returns:
-            RuleResult: Contains validation result with found terms and metadata
+            RuleResult indicating whether prohibited terms were found
         """
-        try:
-            if not self.case_sensitive:
-                output = output.lower()
-                found_terms = [term for term in self.prohibited_terms if term.lower() in output]
-            else:
-                found_terms = [term for term in self.prohibited_terms if term in output]
+        if not isinstance(output, str):
+            raise ValueError("Output must be a string")
 
-            passed = not found_terms
+        found_terms = []
+        text = output if self.case_sensitive else output.lower()
+        terms = (
+            self.prohibited_terms
+            if self.case_sensitive
+            else [t.lower() for t in self.prohibited_terms]
+        )
 
-            return RuleResult(
-                passed=passed,
-                message=(
-                    f"Found prohibited terms: {', '.join(found_terms)}"
-                    if found_terms
-                    else "No prohibited terms found"
-                ),
-                metadata={
-                    "found_terms": found_terms,
-                    "prohibited_terms": self.prohibited_terms,
-                    "case_sensitive": self.case_sensitive,
-                },
-            )
+        for term in terms:
+            if term in text:
+                found_terms.append(term)
 
-        except Exception as e:
+        if found_terms:
             return RuleResult(
                 passed=False,
-                message=f"Error during content validation: {str(e)}",
-                metadata={
-                    "error": str(e),
-                    "prohibited_terms": self.prohibited_terms,
-                    "case_sensitive": self.case_sensitive,
-                },
+                message=f"Found prohibited terms: {', '.join(found_terms)}",
+                metadata={"found_terms": found_terms},
             )
+
+        return RuleResult(
+            passed=True,
+            message="No prohibited terms found",
+            metadata={"found_terms": []},
+        )

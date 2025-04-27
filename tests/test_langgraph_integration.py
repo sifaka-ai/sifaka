@@ -1,175 +1,103 @@
-from langgraph.graph import Graph
-from langgraph.prebuilt import ToolNode
-from anthropic import Anthropic
-from pydantic import BaseModel, Field
-from typing import Literal
+"""Tests for langgraph integration."""
 
-from sifaka.integrations.langgraph import wrap_graph
+from typing import Dict, Any, Optional
+from pydantic import Field
+
+import pytest
+from langchain.schema import HumanMessage, AIMessage, BaseMessage
+
 from sifaka.rules.base import Rule, RuleResult
-from sifaka.critique.base import Critique
+from sifaka.rules.domain import MedicalRule
+from sifaka.rules.legal import LegalCitationRule
+from sifaka.rules.format import FormatRule
+from sifaka.rules.safety import ToxicityRule
+from sifaka.rules.content import ToneConsistencyRule
+from sifaka.rules.wrapper import wrap_rule, wrap_graph
 
 
-class LengthRule(Rule):
-    """Rule that checks if the output is too short."""
+class MockRule(Rule):
+    """Mock rule for testing."""
 
-    def __init__(self):
+    validate_called: bool = Field(default=False, description="Whether validate was called")
+    validate_args: Optional[Dict[str, Any]] = Field(
+        default=None, description="Arguments passed to validate"
+    )
+
+    def __init__(
+        self,
+        name: str = "mock_rule",
+        description: str = "Mock rule for testing",
+        config: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> None:
+        """Initialize mock rule."""
         super().__init__(
-            name="length_rule", description="Checks if the output is at least 50 characters long"
+            name=name,
+            description=description,
+            config=config or {},
+            **kwargs,
         )
 
-    def validate(self, output: str) -> RuleResult:
-        if len(output) < 50:
-            return RuleResult(
-                passed=False, message="Output is too short", metadata={"length": len(output)}
-            )
-        return RuleResult(passed=True)
-
-
-class ProhibitedContentRule(Rule):
-    """Rule that checks if the output contains prohibited terms."""
-
-    def __init__(self, prohibited_terms: list[str]):
-        super().__init__(
-            name="prohibited_content_rule",
-            description="Checks if the output contains any prohibited terms",
+    def _validate_impl(self, text: str, **kwargs) -> RuleResult:
+        """Mock validation implementation."""
+        self.validate_called = True
+        self.validate_args = {"text": text, **kwargs}
+        return RuleResult(
+            passed=True,
+            score=1.0,
+            message="Mock validation passed",
+            feedback="Mock validation passed",
+            metadata={"mock": True},
         )
-        self.prohibited_terms = prohibited_terms
-
-    def validate(self, output: str) -> RuleResult:
-        found_terms = [term for term in self.prohibited_terms if term.lower() in output.lower()]
-        if found_terms:
-            return RuleResult(
-                passed=False,
-                message=f"Output contains prohibited terms: {', '.join(found_terms)}",
-                metadata={"found_terms": found_terms},
-            )
-        return RuleResult(passed=True)
 
 
-class SentimentRule(Rule):
-    """Rule that checks if the output maintains a neutral or positive sentiment."""
-
-    def __init__(self, min_sentiment: float = -0.5):
-        super().__init__(
-            name="sentiment_rule",
-            description="Checks if the output maintains a neutral or positive sentiment",
-        )
-        self.min_sentiment = min_sentiment
-
-    def validate(self, output: str) -> RuleResult:
-        # This is a placeholder - in a real implementation, you'd use a sentiment analysis library
-        sentiment_score = 0.0  # Placeholder value
-        if sentiment_score < self.min_sentiment:
-            return RuleResult(
-                passed=False,
-                message=f"Output sentiment score ({sentiment_score}) is below minimum threshold ({self.min_sentiment})",
-                metadata={"sentiment_score": sentiment_score},
-            )
-        return RuleResult(passed=True)
+@pytest.fixture
+def mock_rule():
+    """Create a mock rule instance."""
+    return MockRule()
 
 
-class ToxicityRule(Rule):
-    """Rule that checks if the output contains toxic content."""
+def test_wrap_rule(mock_rule):
+    """Test wrapping a rule."""
+    wrapped = wrap_rule(mock_rule)
 
-    def __init__(self, max_toxicity: float = 0.5):
-        super().__init__(
-            name="toxicity_rule", description="Checks if the output contains toxic content"
-        )
-        self.max_toxicity = max_toxicity
+    # Test with string input
+    result = wrapped("test text")
+    assert mock_rule.validate_called
+    assert mock_rule.validate_args["text"] == "test text"
+    assert result.passed
+    assert result.score == 1.0
+    assert "mock" in result.metadata
 
-    def validate(self, output: str) -> RuleResult:
-        # This is a placeholder - in a real implementation, you'd use a toxicity detection library
-        toxicity_score = 0.0  # Placeholder value
-        if toxicity_score > self.max_toxicity:
-            return RuleResult(
-                passed=False,
-                message=f"Output toxicity score ({toxicity_score}) exceeds maximum threshold ({self.max_toxicity})",
-                metadata={"toxicity_score": toxicity_score},
-            )
-        return RuleResult(passed=True)
+    # Test with message input
+    message = AIMessage(content="test message")
+    result = wrapped(message)
+    assert mock_rule.validate_args["text"] == "test message"
+    assert result.passed
 
 
-class FormatRule(Rule):
-    """Rule that checks if the output follows specific formatting requirements."""
-
-    def __init__(self, required_format: Literal["markdown", "plain_text", "json"] = "plain_text"):
-        super().__init__(
-            name="format_rule",
-            description="Checks if the output follows specific formatting requirements",
-        )
-        self.required_format = required_format
-
-    def validate(self, output: str) -> RuleResult:
-        if self.required_format == "markdown":
-            # Check for basic markdown syntax
-            if not any(char in output for char in ["#", "*", "_", "`"]):
-                return RuleResult(
-                    passed=False,
-                    message="Output does not contain any markdown formatting",
-                    metadata={"format": self.required_format},
-                )
-        elif self.required_format == "json":
-            # Check for valid JSON
-            try:
-                import json
-
-                json.loads(output)
-            except json.JSONDecodeError:
-                return RuleResult(
-                    passed=False,
-                    message="Output is not valid JSON",
-                    metadata={"format": self.required_format},
-                )
-        return RuleResult(passed=True)
-
-
-class ClaudeCritique(Critique):
-    """Critique that uses Claude to improve outputs."""
-
-    client: Anthropic = Field(default_factory=Anthropic)
-
-    def __init__(self):
-        super().__init__(name="claude_critique", description="Uses Claude to improve outputs")
-
-    def critique(self, prompt: str) -> dict:
-        response = self.client.messages.create(
-            model="claude-3-opus-20240229",
-            max_tokens=1000,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return {"output": response.content[0].text}
-
-
-def main():
-    # Create a simple graph that returns a short message
-    graph = Graph()
-
-    # Create a node that generates a short message
-    def generate_message(inputs):
-        return {"output": "Hello!"}
-
-    # Add the node to the graph
-    graph.add_node("generate", generate_message)
-    graph.set_entry_point("generate")
-
-    # Create rules and critique
+def test_wrap_graph():
+    """Test wrapping a graph with rules."""
     rules = [
-        LengthRule(),
-        ProhibitedContentRule(["badword1", "badword2"]),
-        SentimentRule(min_sentiment=-0.5),
-        ToxicityRule(max_toxicity=0.5),
-        FormatRule(required_format="plain_text"),
+        MockRule(name="medical"),
+        MockRule(name="legal"),
+        MockRule(name="format"),
+        MockRule(name="toxicity"),
+        MockRule(name="tone"),
     ]
-    critic = ClaudeCritique()
 
-    # Wrap the graph with Sifaka's features
-    sifaka_graph = wrap_graph(graph=graph, rules=rules, critique=True, critic=critic)
+    graph = wrap_graph(rules)
 
-    # Run the graph
-    print("Running graph...")
-    output = sifaka_graph({"input": "Hello"})
-    print("\nFinal output:", output)
+    # Test with string input
+    state = {"input": "test text"}
+    result = graph.run(state)
+    assert isinstance(result, dict)
+    assert "results" in result
+    assert len(result["results"]) == len(rules)
 
-
-if __name__ == "__main__":
-    main()
+    # Test with message input
+    state = {"input": BaseMessage(content="test text")}
+    result = graph.run(state)
+    assert isinstance(result, dict)
+    assert "results" in result
+    assert len(result["results"]) == len(rules)

@@ -102,8 +102,28 @@ class SentimentClassifier(Classifier):
 
         Returns:
             ClassificationResult with sentiment scores
+
+        Raises:
+            ValueError: If input is not a string
         """
+        if not isinstance(text, str):
+            raise ValueError("Input must be a string")
+
         self.warm_up()
+
+        # Handle empty or whitespace-only text
+        if not text.strip():
+            return ClassificationResult(
+                label="neutral",
+                confidence=0.0,
+                metadata={
+                    "compound_score": 0.0,
+                    "pos_score": 0.0,
+                    "neg_score": 0.0,
+                    "neu_score": 1.0,
+                },
+            )
+
         try:
             scores = self._analyzer.polarity_scores(text)
             compound_score = scores["compound"]
@@ -127,7 +147,13 @@ class SentimentClassifier(Classifier):
             return ClassificationResult(
                 label="neutral",
                 confidence=0.0,
-                metadata={"error": str(e)},
+                metadata={
+                    "error": str(e),
+                    "compound_score": 0.0,
+                    "pos_score": 0.0,
+                    "neg_score": 0.0,
+                    "neu_score": 1.0,
+                },
             )
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:

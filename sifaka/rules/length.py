@@ -1,4 +1,8 @@
-from typing import Optional, Tuple, Dict, Any
+"""
+Length validation rules for Sifaka.
+"""
+
+from typing import Optional, Dict, Any
 from sifaka.rules.base import Rule, RuleResult
 from pydantic import Field
 
@@ -7,34 +11,19 @@ class LengthRule(Rule):
     """
     Rule that checks if the output length falls within specified bounds.
 
-    This rule is part of the Sifaka validation framework and implements length
-    validation for text content. It supports three types of length constraints:
-    - Minimum length: Ensures output is not too short
-    - Maximum length: Ensures output is not too long
-    - Exact length: Ensures output matches a specific length
+    This rule supports both character and word count validation.
 
-    Architecture Notes:
-    - Inherits from the base Rule class to implement the validation contract
-    - Uses a flexible constraint system supporting min/max/exact lengths
-    - Returns RuleResult objects containing validation status, messages, and metadata
-    - Follows the single responsibility principle by focusing only on length validation
-    - Includes helper methods for constraint validation and description generation
-
-    Data Flow:
-    1. User creates LengthRule with desired length constraints
-    2. validate() method receives output text
-    3. Length is calculated and checked against constraints
-    4. Result is wrapped in RuleResult with relevant metadata
-    5. RuleResult is returned to the caller
+    Attributes:
+        min_length: Minimum length
+        max_length: Maximum length (optional)
+        exact_length: Exact length required (optional)
+        unit: Unit of measurement ('characters' or 'words')
     """
 
-    min_length: Optional[int] = Field(
-        default=None, description="Minimum allowed length (inclusive)"
-    )
-    max_length: Optional[int] = Field(
-        default=None, description="Maximum allowed length (inclusive)"
-    )
-    exact_length: Optional[int] = Field(default=None, description="Exact required length")
+    min_length: int = Field(default=50, description="Minimum length")
+    max_length: Optional[int] = Field(default=5000, description="Maximum length")
+    exact_length: Optional[int] = Field(default=None, description="Exact length required")
+    unit: str = Field(default="characters", description="Unit of measurement (characters or words)")
 
     def __init__(
         self,
@@ -53,125 +42,108 @@ class LengthRule(Rule):
                    - min_length: Minimum allowed length (inclusive)
                    - max_length: Maximum allowed length (inclusive)
                    - exact_length: Exact required length
+                   - unit: Unit of measurement ('characters' or 'words')
             **kwargs: Additional arguments
-
-        Raises:
-            ValueError: If length constraints are invalid, specifically:
-                       - exact_length is negative
-                       - exact_length is used with min_length or max_length
-                       - min_length is greater than max_length
-                       - min_length or max_length is negative
         """
-        # First initialize the base class
         super().__init__(name=name, description=description, config=config or {}, **kwargs)
 
-        # Extract length constraints from config
         config = config or {}
-        min_length = config.get("min_length")
-        max_length = config.get("max_length")
-        exact_length = config.get("exact_length")
+        self.min_length = config.get("min_length", self.min_length)
+        self.max_length = config.get("max_length", self.max_length)
+        self.exact_length = config.get("exact_length", self.exact_length)
+        self.unit = config.get("unit", self.unit)
 
-        # Validate constraints
-        if exact_length is not None:
-            if exact_length < 0:
+        if self.unit not in ["characters", "words"]:
+            raise ValueError("Unit must be either 'characters' or 'words'")
+
+        if self.exact_length is not None:
+            if self.exact_length < 0:
                 raise ValueError("exact_length must be non-negative")
-            if min_length is not None or max_length is not None:
+            if self.min_length != 50 or self.max_length != 5000:
                 raise ValueError("exact_length cannot be used with min_length or max_length")
         else:
-            if min_length is not None and max_length is not None and min_length > max_length:
-                raise ValueError("min_length cannot be greater than max_length")
-            if min_length is not None and min_length < 0:
+            if self.min_length < 0:
                 raise ValueError("min_length must be non-negative")
-            if max_length is not None and max_length < 0:
+            if self.max_length is not None and self.max_length < 0:
                 raise ValueError("max_length must be non-negative")
+            if self.max_length is not None and self.min_length > self.max_length:
+                raise ValueError("min_length cannot be greater than max_length")
 
-        # Set the values using object.__setattr__ to bypass Pydantic validation
-        object.__setattr__(self, "min_length", min_length)
-        object.__setattr__(self, "max_length", max_length)
-        object.__setattr__(self, "exact_length", exact_length)
-
-    def validate(self, output: str) -> RuleResult:
+    def _get_length(self, text: str) -> int:
         """
-        Validate that the output length meets the specified constraints.
+        Get the length of the text in the specified unit.
 
-        This method implements the core validation logic by:
-        1. Calculating the output length
-        2. Checking against the specified constraints
-        3. Constructing a detailed result message
-        4. Packaging the result with relevant metadata
+        Args:
+            text: The text to measure
+
+        Returns:
+            Length in the specified unit
+        """
+        if self.unit == "words":
+            return len(text.split())
+        return len(text)
+
+    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
+        """
+        Validate that the output length is within acceptable bounds.
 
         Args:
             output: The text to validate
+            **kwargs: Additional validation context
 
         Returns:
-            RuleResult: Contains:
-                       - passed: Boolean indicating if length meets constraints
-                       - message: Human-readable validation result
-                       - metadata: Additional validation details including lengths
+            RuleResult with validation results
         """
-        try:
-            length = len(output)
-            passed, message = self._check_length(length)
+        if not isinstance(output, str):
+            raise ValueError("Output must be a string")
 
-            return RuleResult(
-                passed=passed,
-                message=message,
-                metadata={
-                    "length": length,
-                    "min_length": self.min_length,
-                    "max_length": self.max_length,
-                    "exact_length": self.exact_length,
-                },
-            )
+        length = self._get_length(output)
+        metadata = {
+            "length": length,
+            "min_length": self.min_length,
+            "max_length": self.max_length,
+            "exact_length": self.exact_length,
+            "unit": self.unit,
+        }
 
-        except Exception as e:
+        # Handle empty or whitespace-only text
+        if not output.strip():
             return RuleResult(
                 passed=False,
-                message=f"Error during length validation: {str(e)}",
-                metadata={
-                    "error": str(e),
-                    "min_length": self.min_length,
-                    "max_length": self.max_length,
-                    "exact_length": self.exact_length,
-                },
+                message=f"Empty or whitespace-only text (0 {self.unit})",
+                metadata=metadata,
             )
 
-    def _check_length(self, length: int) -> Tuple[bool, str]:
-        """
-        Check if the length meets the specified constraints.
-
-        Args:
-            length: The length to check
-
-        Returns:
-            Tuple[bool, str]: A tuple containing:
-                            - bool: Whether the length meets the constraints
-                            - str: A message describing the result
-        """
+        # Check exact length if specified
         if self.exact_length is not None:
-            passed = length == self.exact_length
-            message = (
-                f"Output length {length} {'matches' if passed else 'does not match'} "
-                f"required length of {self.exact_length}"
-            )
-            return passed, message
-
-        passed = True
-        message_parts = []
-
-        if self.min_length is not None:
-            min_passed = length >= self.min_length
-            passed &= min_passed
-            message_parts.append(
-                f"{'meets' if min_passed else 'does not meet'} minimum length of {self.min_length}"
+            if length != self.exact_length:
+                return RuleResult(
+                    passed=False,
+                    message=f"Output {self.unit} count {length} does not match required count of {self.exact_length}",
+                    metadata=metadata,
+                )
+            return RuleResult(
+                passed=True,
+                message=f"Output {self.unit} count matches required count of {self.exact_length}",
+                metadata=metadata,
             )
 
-        if self.max_length is not None:
-            max_passed = length <= self.max_length
-            passed &= max_passed
-            message_parts.append(
-                f"{'meets' if max_passed else 'does not meet'} maximum length of {self.max_length}"
+        # Check length bounds
+        issues = []
+        if length < self.min_length:
+            issues.append(f"below minimum of {self.min_length}")
+        if self.max_length is not None and length > self.max_length:
+            issues.append(f"exceeds maximum of {self.max_length}")
+
+        if issues:
+            return RuleResult(
+                passed=False,
+                message=f"Output {self.unit} count {length} {' and '.join(issues)}",
+                metadata=metadata,
             )
 
-        message = f"Output length {length} {' and '.join(message_parts)}"
-        return passed, message
+        return RuleResult(
+            passed=True,
+            message=f"Output {self.unit} count {length} meets requirements",
+            metadata=metadata,
+        )

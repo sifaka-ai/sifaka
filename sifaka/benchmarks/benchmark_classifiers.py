@@ -3,18 +3,15 @@ Benchmarking suite for Sifaka classifiers.
 
 This module provides tools to measure:
 1. Individual classifier performance
-2. Combined classifier pipeline performance
-3. Memory usage
-4. Throughput and latency
-5. Caching effectiveness
+2. Memory usage
+3. Throughput and latency
+4. Caching effectiveness
 """
 
-import asyncio
-import cProfile
 import gc
 import time
 import statistics
-from typing import List, Dict, Any, Callable
+from typing import Dict, Any, Callable
 from memory_profiler import profile
 import psutil
 import numpy as np
@@ -24,8 +21,6 @@ from sifaka.classifiers.readability import ReadabilityClassifier
 from sifaka.classifiers.sentiment import SentimentClassifier
 from sifaka.classifiers.language import LanguageClassifier
 from sifaka.classifiers.profanity import ProfanityClassifier
-from sifaka.providers.anthropic import AnthropicProvider
-from sifaka.examples.combined_classifiers import ContentAnalyzer
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -241,12 +236,9 @@ class ClassifierBenchmark:
 
         return stats
 
-    def run_all_benchmarks(self, api_key: str = None) -> Dict[str, Any]:
+    def run_all_benchmarks(self) -> Dict[str, Any]:
         """
         Run all benchmarks and return results.
-
-        Args:
-            api_key: Optional API key for LLM provider
 
         Returns:
             Dictionary with all benchmark results
@@ -257,9 +249,6 @@ class ClassifierBenchmark:
             "language": self.benchmark_single_classifier(self.language),
             "profanity": self.benchmark_single_classifier(self.profanity),
         }
-
-        if api_key:
-            results["pipeline"] = self.benchmark_pipeline(api_key)
 
         return results
 

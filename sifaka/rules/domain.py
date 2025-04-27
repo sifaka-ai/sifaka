@@ -6,6 +6,7 @@ from typing import Dict, Any, List, Optional, Set
 from pydantic import Field
 from sifaka.rules.base import Rule, RuleResult
 import re
+import ast
 
 
 class MedicalRule(Rule):
@@ -100,12 +101,13 @@ class MedicalRule(Rule):
 
 class LegalRule(Rule):
     """
-    Rule that checks for legal content accuracy and compliance.
+    Rule that validates legal content.
 
     Attributes:
-        legal_terms (Dict[str, List[str]]): Dictionary of legal terms and their correct variations
-        citation_patterns (List[str]): List of regex patterns for legal citations
-        disclaimer_required (bool): Whether legal disclaimers are required
+        legal_terms: Dictionary of legal terms and their variations
+        citation_patterns: List of regex patterns for legal citations
+        disclaimers: List of required legal disclaimers
+        disclaimer_required: Whether legal disclaimers are required
     """
 
     legal_terms: Dict[str, List[str]] = Field(
@@ -114,8 +116,10 @@ class LegalRule(Rule):
             "statute": ["statute", "law", "regulation", "code"],
             "precedent": ["precedent", "case law", "ruling"],
             "liability": ["liability", "responsibility", "duty"],
-        }
+        },
+        description="Dictionary of legal terms and their variations",
     )
+
     citation_patterns: List[str] = Field(
         default=[
             r"\d+ [A-Z]+\. \d+",  # Volume Reporter Page
@@ -125,83 +129,88 @@ class LegalRule(Rule):
             r"\d+ S\.Ct\. \d+",  # Supreme Court Reporter
             r"\d+ F\.\d+",  # Federal Reporter
             r"\d+ F\.Supp\.\d+",  # Federal Supplement
-        ]
+        ],
+        description="List of regex patterns for legal citations",
     )
-    disclaimer_required: bool = Field(default=True)
 
-    class Config:
-        arbitrary_types_allowed = True
+    disclaimers: List[str] = Field(
+        default=[
+            "not legal advice",
+            "consult.*attorney",
+            "seek.*counsel",
+            "legal disclaimer",
+        ],
+        description="List of required legal disclaimers",
+    )
 
-    def validate(self, output: str, **kwargs) -> RuleResult:
+    disclaimer_required: bool = Field(
+        default=True,
+        description="Whether legal disclaimers are required",
+    )
+
+    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
         """
-        Validate that the output contains accurate legal information and proper citations.
-
-        Args:
-            output (str): The LLM output to validate
-            **kwargs: Additional context for validation
-
-        Returns:
-            RuleResult: The result of the validation
-
-        Raises:
-            ValueError: If output is None
+        Validate that the output contains appropriate legal content and disclaimers.
         """
-        if output is None:
-            raise ValueError("Output cannot be None")
+        if not isinstance(output, str):
+            raise ValueError("Output must be a string")
 
-        issues = []
-        citations = []
+        output_lower = output.lower()
+        metadata = {"citations": [], "issues": [], "legal_terms_found": [], "has_disclaimer": False}
+
+        # Check for legal terms
+        for category, terms in self.legal_terms.items():
+            for term in terms:
+                if term.lower() in output_lower:
+                    metadata["legal_terms_found"].append(term)
+
+        has_legal_terms = len(metadata["legal_terms_found"]) > 0
 
         # Check for citations
         for pattern in self.citation_patterns:
-            matches = re.findall(pattern, output)
-            citations.extend(matches)
+            matches = re.finditer(pattern, output)
+            metadata["citations"].extend(match.group(0) for match in matches)
 
-        # Check for disclaimer if legal terms are found
+        has_citations = len(metadata["citations"]) > 0
+
+        # Check for disclaimer if required
         if self.disclaimer_required:
-            legal_terms_found = any(
-                any(term in output.lower() for term in terms) for terms in self.legal_terms.values()
+            metadata["has_disclaimer"] = any(
+                re.search(pattern, output_lower) for pattern in self.disclaimers
             )
+            if not metadata["has_disclaimer"] and (has_legal_terms or has_citations):
+                metadata["issues"].append("disclaimer_required")
 
-            if legal_terms_found:
-                disclaimer_patterns = [
-                    r"not legal advice",
-                    r"consult.*attorney",
-                    r"seek.*counsel",
-                    r"legal disclaimer",
-                ]
-                has_disclaimer = any(
-                    re.search(pattern, output.lower()) for pattern in disclaimer_patterns
-                )
+        # Validate based on presence of legal content
+        if has_legal_terms and not has_citations:
+            metadata["issues"].append("missing_citations")
+        elif has_citations and not has_legal_terms:
+            metadata["issues"].append("missing_legal_terms")
 
-                if not has_disclaimer:
-                    issues.append("Legal disclaimer required but not found")
+        # If no legal content is found at all, pass
+        if not has_legal_terms and not has_citations:
+            return RuleResult(passed=True, message="No legal content found", metadata=metadata)
 
-        if not citations and any(terms in output.lower() for terms in self.legal_terms.values()):
-            issues.append("Legal citations required but not found")
+        # Legal content is present, check if it passes all requirements
+        passed = (has_legal_terms == has_citations) and (  # Both present or both absent
+            not self.disclaimer_required or metadata["has_disclaimer"]
+        )  # Disclaimer if needed
 
-        if issues:
-            return RuleResult(
-                passed=False,
-                message="Legal content validation failed",
-                metadata={"issues": issues, "citations_found": citations},
-            )
+        message = "Legal content validation " + ("passed" if passed else "failed")
+        if not passed:
+            message += ": " + ", ".join(metadata["issues"])
 
-        return RuleResult(
-            passed=True,
-            message="Legal content validation passed",
-            metadata={"citations_found": citations},
-        )
+        return RuleResult(passed=passed, message=message, metadata=metadata)
 
 
-class PythonProgrammingRule(Rule):
+class PythonRule(Rule):
     """
     Rule that checks for Python code quality and best practices.
 
     Attributes:
-        code_style_patterns (Dict[str, str]): Dictionary of code style patterns to check
-        security_patterns (Dict[str, str]): Dictionary of security-related patterns to check
-        performance_patterns (Dict[str, str]): Dictionary of performance-related patterns to check
+        code_style_patterns: Dictionary of code style patterns to check
+        security_patterns: Dictionary of security-related patterns to check
+        performance_patterns: Dictionary of performance-related patterns to check
     """
 
     code_style_patterns: Dict[str, str] = Field(
@@ -210,7 +219,7 @@ class PythonProgrammingRule(Rule):
             "pep8_classes": r"class\s+[A-Z]",
             "pep8_functions": r"def\s+[a-z_]+",
             "pep8_variables": r"[a-z_][a-z0-9_]*\s*=",
-            "docstring": r'""".*?"""',
+            "docstring": r'"""[\s\S]*?"""',
         }
     )
     security_patterns: Dict[str, str] = Field(
@@ -234,50 +243,67 @@ class PythonProgrammingRule(Rule):
     class Config:
         arbitrary_types_allowed = True
 
-    def validate(self, output: str, **kwargs) -> RuleResult:
+    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
         """
-        Validate that the output contains proper Python code.
+        Validate that the output is valid Python code and follows style guidelines.
 
         Args:
-            output (str): The LLM output to validate
-            **kwargs: Additional context for validation
+            output: The Python code to validate
+            **kwargs: Additional validation context
 
         Returns:
-            RuleResult: The result of the validation
-
-        Raises:
-            ValueError: If output is None
+            RuleResult with validation results
         """
-        if output is None:
-            raise ValueError("Output cannot be None")
-
+        metadata = {"style_issues": [], "security_issues": [], "issues": []}
         issues = []
 
-        # Check code style
-        for name, pattern in self.code_style_patterns.items():
-            if not re.search(pattern, output, re.MULTILINE):
-                issues.append(f"Code style issue: {name}")
+        # Skip validation for test files unless explicitly requested
+        is_test = kwargs.get("is_test", False)
+        force_validate = kwargs.get("force_validate", False)
+        if is_test and not force_validate:
+            return RuleResult(
+                passed=True, message="Validation skipped for test file", metadata=metadata
+            )
 
-        # Check security
-        for name, pattern in self.security_patterns.items():
-            if re.search(pattern, output):
-                issues.append(f"Security issue: {name}")
+        try:
+            # Basic syntax check
+            ast.parse(output)
+        except SyntaxError as e:
+            issues.append(f"Syntax error: {str(e)}")
+            metadata["issues"] = issues
+            return RuleResult(
+                passed=False,
+                message="Python validation failed: Invalid syntax",
+                metadata=metadata,
+            )
 
-        # Check performance
-        for name, pattern in self.performance_patterns.items():
+        # Style checks (skip for test files)
+        if not is_test:
+            # Check docstring - only require for non-empty code
+            if output.strip() and not re.search(self.code_style_patterns["docstring"], output):
+                metadata["style_issues"].append("missing_docstring")
+
+        # Security checks (always perform)
+        for pattern_name, pattern in self.security_patterns.items():
             if re.search(pattern, output):
-                issues.append(f"Performance issue: {name}")
+                metadata["security_issues"].append(pattern_name)
+
+        # Combine all issues
+        issues.extend(metadata["style_issues"])
+        issues.extend(metadata["security_issues"])
+        metadata["issues"] = issues
 
         if issues:
             return RuleResult(
                 passed=False,
-                message="Python code validation failed",
-                metadata={"issues": issues},
+                message="Code validation failed: " + "; ".join(issues),
+                metadata=metadata,
             )
 
         return RuleResult(
             passed=True,
-            message="Python code validation passed",
+            message="Code validation passed",
+            metadata=metadata,
         )
 
 

@@ -1,5 +1,6 @@
 """Tests for the formatting rules."""
 
+import re
 import pytest
 from typing import Dict, Any, List
 
@@ -116,7 +117,19 @@ class TestStyleRule(StyleRule):
 
 
 class TestFormattingRule(FormattingRule):
-    """Test implementation of FormattingRule."""
+    """Test formatting rule implementation."""
+
+    def __init__(
+        self, name: str = "test_formatting", description: str = "Test formatting rule", **kwargs
+    ):
+        super().__init__(name=name, description=description, **kwargs)
+        self.formatting_patterns = {
+            "multiple_spaces": r"\s{2,}",
+            "multiple_newlines": r"\n{3,}",
+            "missing_period": r"[^.!?]\n",
+            "missing_space": r"[a-z][A-Z]",
+            "incorrect_quotes": r'["\'][^"\']*["\']',
+        }
 
     def _validate_impl(self, output: str) -> RuleResult:
         """Implement validation logic."""
@@ -133,14 +146,14 @@ class TestFormattingRule(FormattingRule):
         if issues:
             return RuleResult(
                 passed=False,
-                message="Formatting issues detected",
+                message="Formatting validation failed",
                 metadata={"issues": issues},
             )
 
         return RuleResult(
             passed=True,
-            message="Text formatting is acceptable",
-            metadata={"patterns_checked": list(self.formatting_patterns.keys())},
+            message="Formatting validation passed",
+            metadata={},
         )
 
 

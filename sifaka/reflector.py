@@ -2,7 +2,7 @@
 Reflector class for Sifaka.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
@@ -10,11 +10,11 @@ import time
 import concurrent.futures
 import logging
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field, Field
 
-from sifaka.critique.base import Critique
-from sifaka.models.base import ModelProvider
+from sifaka.critics.base import Critic
 from sifaka.rules.base import Rule, RuleResult
+from sifaka.models.base import ModelProvider
 from sifaka.utils.logging import get_logger
 from sifaka.utils.tracing import Tracer
 from sifaka.monitoring import PerformanceMonitor
@@ -24,40 +24,43 @@ logger = logging.getLogger(__name__)
 
 class Reflector(BaseModel):
     """
-    A reflector that validates and improves LLM outputs.
+    A reflector that validates and critiques prompts.
 
     Attributes:
-        name: The name of the reflector
-        model: The model provider to use
+        name: Name of the reflector
+        description: Description of what this reflector does
         rules: List of rules to apply
-        critique: Whether to enable critique
-        tracer: Optional tracer for debugging
-        critic: Optional critique system for improving outputs
-        parallel_validation: Whether to run rules in parallel
-        max_workers: Maximum number of worker threads for parallel validation
-        performance_monitor: Optional performance monitor
+        critic: Optional critic to use
+        model: Optional model provider to use
+        config: Additional configuration parameters
     """
 
-    name: str
-    model: ModelProvider
-    rules: List[Rule] = []
-    critique: bool = True
-    tracer: Optional[Tracer] = None
-    critic: Optional[Critique] = None
-    parallel_validation: bool = False
-    max_workers: Optional[int] = None
-    performance_monitor: Optional[PerformanceMonitor] = None
+    name: str = Field(default="reflector", description="Name of the reflector")
+    description: str = Field(
+        default="Validates and critiques prompts",
+        description="Description of what this reflector does",
+    )
+    rules: List[Rule] = Field(default_factory=list, description="List of rules to apply")
+    critic: Optional[Critic] = Field(default=None, description="Optional critic to use")
+    model: Optional[ModelProvider] = Field(
+        default=None, description="Optional model provider to use"
+    )
+    config: Dict[str, Any] = Field(default_factory=dict, description="Additional configuration")
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @computed_field
+    def critique(self) -> bool:
+        """Whether critique functionality is enabled (True if critic is provided)."""
+        return self.critic is not None
 
     def __init__(
         self,
         name: str,
         model: ModelProvider,
         rules: Optional[List[Rule]] = None,
-        critique: bool = True,
         tracer: Optional[Tracer] = None,
-        critic: Optional[Critique] = None,
+        critic: Optional[Critic] = None,
         parallel_validation: bool = False,
         max_workers: Optional[int] = None,
         performance_monitor: Optional[PerformanceMonitor] = None,
@@ -70,7 +73,6 @@ class Reflector(BaseModel):
             name: The name of the reflector
             model: The model provider to use
             rules: List of rules to apply
-            critique: Whether to enable critique
             tracer: Optional tracer for debugging
             critic: Optional critique system for improving outputs
             parallel_validation: Whether to run rules in parallel
@@ -82,7 +84,6 @@ class Reflector(BaseModel):
             name=name,
             model=model,
             rules=rules or [],
-            critique=critique,
             tracer=tracer,
             critic=critic,
             parallel_validation=parallel_validation,

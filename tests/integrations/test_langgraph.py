@@ -2,7 +2,7 @@
 Tests for the LangGraph integration.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -19,9 +19,12 @@ from sifaka.integrations.langgraph import (
     wrap_state_graph,
     wrap_tool_node,
     wrap_channel,
+    wrap_rule,
+    wrap_critic,
 )
 from sifaka.rules.base import Rule, RuleResult
-from sifaka.critique.base import Critique
+from sifaka.critics.base import Critic
+from sifaka.models.base import ModelProvider
 from sifaka.utils.tracing import Tracer
 
 
@@ -32,25 +35,29 @@ class MockRule(Rule):
         """Initialize the mock rule."""
         super().__init__(name="mock_rule", description="A mock rule for testing")
 
-    def validate(self, output: str) -> RuleResult:
-        """Validate the output."""
+    def _validate_impl(self, output: str) -> RuleResult:
+        """Implement the validation logic."""
         if "error" in output:
             return RuleResult(
                 passed=False, message="Output contains error", metadata={"error": "error"}
             )
-        return RuleResult(passed=True)
+        return RuleResult(passed=True, message="Test passed", metadata={"test": True})
 
 
-class MockCritique(Critique):
-    """Mock critique for testing."""
+class MockCritic(Critic):
+    """Mock critic for testing."""
 
     def __init__(self) -> None:
-        """Initialize the mock critique."""
-        super().__init__(name="mock_critique", description="A mock critique for testing")
+        """Initialize the mock critic."""
+        super().__init__(name="mock_critic", description="A mock critic for testing")
 
     def critique(self, prompt: str) -> Dict[str, Any]:
         """Critique the prompt."""
         return {"output": "fixed"}
+
+    def validate(self, prompt: str) -> bool:
+        """Validate the prompt."""
+        return True
 
 
 @pytest.fixture
@@ -112,7 +119,7 @@ def test_sifaka_graph_with_rules(mock_graph: Graph) -> None:
 
 def test_sifaka_graph_with_critic(mock_graph: Graph) -> None:
     """Test SifakaGraph with critic."""
-    critic = MockCritique()
+    critic = MockCritic()
     graph = SifakaGraph(graph=mock_graph, critic=critic)
     assert graph.critic == critic
 
@@ -145,7 +152,7 @@ def test_sifaka_graph_run_with_validation(mock_graph: Graph) -> None:
 def test_sifaka_graph_run_with_critique(mock_graph: Graph) -> None:
     """Test SifakaGraph run method with critique."""
     rules = [MockRule()]
-    critic = MockCritique()
+    critic = MockCritic()
     graph = SifakaGraph(graph=mock_graph, rules=rules, critic=critic)
     mock_graph.compile.return_value = {"output": "error"}
     output = graph.run({"input": "Hello"})

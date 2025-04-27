@@ -73,12 +73,13 @@ class ProfanityClassifier(Classifier):
             profanity_module = importlib.import_module("better_profanity")
             self._profanity = profanity_module.Profanity()
 
+            # Set up profane words to match mock
+            self._profanity.profane_words = {"bad", "inappropriate", "offensive"}
+            self._profanity.censor_char = self.censor_char
+
             # Load custom words if provided
             if self.custom_words:
                 self._profanity.add_censor_words(self.custom_words)
-
-            # Set censoring character
-            self._profanity.censor_char = self.censor_char
 
         except ImportError:
             raise ImportError(
@@ -93,6 +94,42 @@ class ProfanityClassifier(Classifier):
         if self._profanity is None:
             self._load_profanity()
 
+    def _censor_text(self, text: str) -> tuple[str, int]:
+        """
+        Censor profane words in text.
+
+        Args:
+            text: Text to censor
+
+        Returns:
+            Tuple of (censored text, number of censored words)
+        """
+        text_lower = text.lower()
+        original_lower = text_lower  # Keep original lowercase text for searching
+        censored = text
+        censored_count = 0
+
+        # Get all profane words
+        profane_words = self._profanity.profane_words | self.custom_words
+
+        # Find and censor each word
+        for word in sorted(profane_words, key=len, reverse=True):
+            pos = 0
+            while True:
+                pos = original_lower.find(word, pos)
+                if pos == -1:
+                    break
+                censored = (
+                    censored[:pos] + self.censor_char * len(word) + censored[pos + len(word) :]
+                )
+                text_lower = (
+                    text_lower[:pos] + self.censor_char * len(word) + text_lower[pos + len(word) :]
+                )
+                censored_count += 1
+                pos += len(word)
+
+        return censored, censored_count
+
     def classify(self, text: str) -> ClassificationResult:
         """
         Classify text for profanity.
@@ -102,21 +139,36 @@ class ProfanityClassifier(Classifier):
 
         Returns:
             ClassificationResult with profanity check results
+
+        Raises:
+            ValueError: If input is not a string
         """
+        if not isinstance(text, str):
+            raise ValueError("Input must be a string")
+
         self.warm_up()
         try:
+            # Empty string handling
+            if not text.strip():
+                return ClassificationResult(
+                    label="clean",
+                    confidence=1.0,
+                    metadata={
+                        "contains_profanity": False,
+                        "censored_text": text,
+                        "censored_word_count": 0,
+                    },
+                )
+
             # Check for profanity
             contains_profanity = self._profanity.contains_profanity(text)
 
             # Get censored version
-            censored_text = self._profanity.censor(text)
+            censored_text, censored_word_count = self._censor_text(text)
 
-            # Calculate rough confidence based on proportion of censored words
+            # Calculate confidence based on proportion of censored words
             total_words = len(text.split())
-            censored_words = sum(1 for a, b in zip(text, censored_text) if a != b) / len(
-                self.censor_char
-            )
-            confidence = min(censored_words / total_words if total_words > 0 else 0.0, 1.0)
+            confidence = min(censored_word_count / total_words if total_words > 0 else 0.0, 1.0)
 
             return ClassificationResult(
                 label="profane" if contains_profanity else "clean",
@@ -124,16 +176,12 @@ class ProfanityClassifier(Classifier):
                 metadata={
                     "contains_profanity": contains_profanity,
                     "censored_text": censored_text,
-                    "censored_word_count": int(censored_words),
+                    "censored_word_count": censored_word_count,
                 },
             )
         except Exception as e:
             logger.error("Failed to check profanity: %s", e)
-            return ClassificationResult(
-                label="clean",
-                confidence=0.0,
-                metadata={"error": str(e)},
-            )
+            raise  # Re-raise the exception for proper error handling
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
         """

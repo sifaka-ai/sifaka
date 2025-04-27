@@ -96,27 +96,41 @@ class ToxicityClassifier(Classifier):
         Returns:
             ClassificationResult with toxicity scores
         """
+        if not isinstance(text, str):
+            return ClassificationResult(
+                label="unknown", confidence=0.0, metadata={"error": "Input must be a string"}
+            )
+
+        if not text.strip():
+            return ClassificationResult(
+                label="unknown", confidence=0.0, metadata={"error": "Empty input"}
+            )
+
         self.warm_up()
         try:
             scores = self._model.predict(text)
+            scores = {k: float(v) for k, v in scores.items()}
 
-            # Get highest toxicity score and category
-            max_category = max(scores.items(), key=lambda x: x[1])
-            label, confidence = max_category
+            # Check for severe toxicity or threats first
+            if scores.get("severe_toxic", 0) >= 0.7:
+                label = "severe_toxic"
+                confidence = scores["severe_toxic"]
+            elif scores.get("threat", 0) >= 0.7:
+                label = "threat"
+                confidence = scores["threat"]
+            else:
+                # Get highest toxicity score and category
+                max_category = max(scores.items(), key=lambda x: x[1])
+                label, confidence = max_category
 
             return ClassificationResult(
                 label=label,
-                confidence=float(confidence),
-                metadata={"all_scores": {k: float(v) for k, v in scores.items()}},
+                confidence=confidence,
+                metadata={"all_scores": scores},
             )
         except Exception as e:
             logger.error("Failed to classify text: %s", e)
-            # Return a safe default
-            return ClassificationResult(
-                label="unknown",
-                confidence=0.0,
-                metadata={"error": str(e)},
-            )
+            return ClassificationResult(label="unknown", confidence=0.0, metadata={"error": str(e)})
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
         """
@@ -135,8 +149,18 @@ class ToxicityClassifier(Classifier):
             results = []
             for i in range(len(texts)):
                 scores = {k: float(v[i]) for k, v in batch_scores.items()}
-                max_category = max(scores.items(), key=lambda x: x[1])
-                label, confidence = max_category
+
+                # Check for severe toxicity or threats first
+                if scores.get("severe_toxic", 0) >= 0.7:
+                    label = "severe_toxic"
+                    confidence = scores["severe_toxic"]
+                elif scores.get("threat", 0) >= 0.7:
+                    label = "threat"
+                    confidence = scores["threat"]
+                else:
+                    # Get highest toxicity score and category
+                    max_category = max(scores.items(), key=lambda x: x[1])
+                    label, confidence = max_category
 
                 results.append(
                     ClassificationResult(
@@ -149,12 +173,7 @@ class ToxicityClassifier(Classifier):
             return results
         except Exception as e:
             logger.error("Failed to batch classify texts: %s", e)
-            # Return safe defaults
             return [
-                ClassificationResult(
-                    label="unknown",
-                    confidence=0.0,
-                    metadata={"error": str(e)},
-                )
+                ClassificationResult(label="unknown", confidence=0.0, metadata={"error": str(e)})
                 for _ in texts
             ]

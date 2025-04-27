@@ -117,6 +117,7 @@ Here's a complete example showing different ways to use API keys:
 from sifaka import Reflector
 from sifaka.models import OpenAIProvider, AnthropicProvider
 from sifaka.rules import ProhibitedContentRule
+from sifaka.critique import PromptCritique
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -142,12 +143,12 @@ prohibited_terms = ProhibitedContentRule(
 # Create a critic for improving outputs that fail validation
 critic = PromptCritique(model=anthropic_model)
 
-# Create a reflector with rules and critique
+# Create a reflector with rules and critic
+# Note: critique functionality is automatically enabled when a critic is provided
 reflector = Reflector(
     name="content_validator",
     model=anthropic_model,
     rules=[prohibited_terms],
-    critique=True,
     critic=critic
 )
 
@@ -988,33 +989,185 @@ The benchmarking suite automatically handles:
 
 Sifaka is a powerful framework for validating and classifying text content. It provides a comprehensive set of rules and classifiers for various text analysis tasks.
 
-## Rules
+## 📏 Rules
 
-### Safety Rules
-- **ToxicityRule**: Validates text for toxic content using predefined indicators and thresholds
-- **BiasRule**: Checks for biased content across different categories
-- **HarmfulContentRule**: Detects potentially harmful or dangerous content
+Sifaka provides a comprehensive set of rules to validate and control LLM outputs. Here's a detailed overview of each rule type:
+
+### Base Rule
+
+The foundation for all rules in Sifaka. Provides core validation functionality.
+
+```python
+from sifaka.rules import Rule
+
+# Base class attributes
+name: str  # Name of the rule
+description: str  # Description of what the rule checks
+config: Dict[str, Any]  # Rule configuration
+```
 
 ### Content Rules
-- **ProhibitedContentRule**: Enforces restrictions on specific content patterns
-- **ToneConsistencyRule**: Ensures consistent tone throughout the text
 
-### Formatting Rules
-- **LengthRule**: Validates text length constraints
-- **ParagraphRule**: Ensures proper paragraph structure
-- **StyleRule**: Checks for consistent styling
-- **FormattingRule**: Validates general text formatting
+#### ProhibitedContentRule
+
+Checks for and prevents specified prohibited content.
+
+```python
+from sifaka.rules import ProhibitedContentRule
+
+rule = ProhibitedContentRule(
+    name="content_filter",
+    description="Filters prohibited content",
+    config={
+        "prohibited_terms": ["term1", "term2"],
+        "case_sensitive": False,
+        "whole_word_match": True
+    }
+)
+```
+
+#### FormatRule
+
+Ensures content follows specified formatting requirements.
+
+```python
+from sifaka.rules import FormatRule
+
+rule = FormatRule(
+    name="format_check",
+    description="Validates content format",
+    config={
+        "required_format": "markdown",  # or "json", "yaml", etc.
+        "schema": {...},  # Optional: JSON schema for validation
+        "strict": True  # Optional: strict format checking
+    }
+)
+```
+
+#### LengthRule
+
+Controls the length of generated content.
+
+```python
+from sifaka.rules import LengthRule
+
+rule = LengthRule(
+    name="length_check",
+    description="Validates content length",
+    config={
+        "min_length": 100,
+        "max_length": 1000,
+        "unit": "characters"  # or "words", "sentences"
+    }
+)
+```
+
+### Safety Rules
+
+#### ToxicityRule
+
+Prevents toxic or harmful content.
+
+```python
+from sifaka.rules import ToxicityRule
+
+rule = ToxicityRule(
+    name="toxicity_check",
+    description="Checks for toxic content",
+    config={
+        "max_toxicity": 0.7,
+        "check_categories": ["hate", "threat", "profanity"]
+    }
+)
+```
+
+#### SentimentRule
+
+Controls the emotional tone of content.
+
+```python
+from sifaka.rules import SentimentRule
+
+rule = SentimentRule(
+    name="sentiment_check",
+    description="Validates content sentiment",
+    config={
+        "min_sentiment": 0.0,  # Minimum sentiment score (-1 to 1)
+        "target_sentiment": "positive"  # or "neutral", "negative"
+    }
+)
+```
 
 ### Domain-Specific Rules
-- **LegalCitationRule**: Validates legal citations and references
-- **FactualConsistencyRule**: Ensures factual consistency
-- **ConfidenceRule**: Validates confidence levels in statements
-- **CitationRule**: Checks for proper citations
-- **FactualAccuracyRule**: Verifies factual accuracy
 
-### Base Rules
-- **ClassifierRule**: Base class for implementing classifier-based rules
-- **TemplateRule**: Base template for creating new rules
+#### LegalCitationRule
+
+Validates legal citations and references.
+
+```python
+from sifaka.rules import LegalCitationRule
+
+rule = LegalCitationRule(
+    name="citation_check",
+    description="Validates legal citations",
+    config={
+        "citation_styles": ["bluebook", "alwd"],
+        "strict_validation": True,
+        "require_pinpoint": False
+    }
+)
+```
+
+#### CodeRule
+
+Validates code snippets and programming content.
+
+```python
+from sifaka.rules import CodeRule
+
+rule = CodeRule(
+    name="code_check",
+    description="Validates code content",
+    config={
+        "language": "python",
+        "lint": True,
+        "check_syntax": True,
+        "style_guide": "pep8"
+    }
+)
+```
+
+### Rule Flow Diagram
+
+```mermaid
+graph TD
+    A[Input Text] --> B[Rule Processor]
+    B --> C{Validation Process}
+    C --> D[Content Analysis]
+    C --> E[Rule Application]
+    C --> F[Constraint Checking]
+    D --> G[Validation Result]
+    E --> G
+    F --> G
+    G --> H[Pass/Fail]
+    G --> I[Violations]
+    G --> J[Suggestions]
+```
+
+### Best Practices
+
+1. **Rule Composition**: Combine multiple rules for comprehensive validation
+2. **Configuration**: Tune rule parameters based on your specific needs
+3. **Error Handling**: Implement proper error handling for rule violations
+4. **Performance**: Consider rule execution order for optimal performance
+5. **Maintenance**: Regularly update rule configurations based on feedback
+
+### Performance Considerations
+
+- Rules are evaluated in order of registration
+- Some rules may have dependencies on classifiers
+- Consider caching rule results for frequently checked content
+- Monitor rule execution time for performance optimization
 
 ## Classifiers
 
@@ -1094,3 +1247,202 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## 📊 Classifiers
+
+Sifaka provides a suite of classifiers to analyze and validate text content. Here's a detailed overview of each classifier:
+
+### Base Classifier
+
+The foundation for all classifiers in Sifaka. Provides core functionality and interfaces that other classifiers extend.
+
+```python
+from sifaka.classifiers import Classifier, ClassificationResult
+
+# Base class attributes
+name: str  # Name of the classifier
+description: str  # Description of what the classifier does
+labels: List[str]  # Possible classification labels
+cost: float  # Computational cost of classification
+```
+
+### Profanity Classifier
+
+Detects and censors profanity and inappropriate language in text.
+
+```python
+from sifaka.classifiers import ProfanityClassifier
+
+classifier = ProfanityClassifier(
+    name="profanity_check",  # Optional: custom name
+    description="Detects inappropriate language",  # Optional: custom description
+    custom_words={"word1", "word2"},  # Optional: additional words to check
+    censor_char="*"  # Optional: character for censoring (default: *)
+)
+
+result = classifier.classify("Your text here")
+# Returns ClassificationResult with:
+# - label: "clean" or "profane"
+# - confidence: float between 0 and 1
+# - metadata: {
+#     "contains_profanity": bool,
+#     "censored_text": str,
+#     "censored_word_count": int
+# }
+```
+
+### Sentiment Classifier
+
+Analyzes the emotional tone of text using state-of-the-art sentiment analysis.
+
+```python
+from sifaka.classifiers import SentimentClassifier
+
+classifier = SentimentClassifier(
+    name="sentiment_analyzer",
+    description="Analyzes text sentiment",
+    threshold=0.5  # Optional: threshold for positive/negative classification
+)
+
+result = classifier.classify("Your text here")
+# Returns ClassificationResult with:
+# - label: "positive", "negative", or "neutral"
+# - confidence: float between 0 and 1
+# - metadata: {
+#     "sentiment_score": float,
+#     "detailed_scores": Dict[str, float]
+# }
+```
+
+### Readability Classifier
+
+Assesses text complexity and readability using various metrics (Flesch-Kincaid, etc.).
+
+```python
+from sifaka.classifiers import ReadabilityClassifier
+
+classifier = ReadabilityClassifier(
+    name="readability_check",
+    description="Analyzes text complexity",
+    target_grade_level=8  # Optional: target reading grade level
+)
+
+result = classifier.classify("Your text here")
+# Returns ClassificationResult with:
+# - label: "easy", "moderate", or "complex"
+# - confidence: float between 0 and 1
+# - metadata: {
+#     "grade_level": float,
+#     "reading_time": float,
+#     "metrics": {
+#         "flesch_kincaid": float,
+#         "gunning_fog": float,
+#         "coleman_liau": float
+#     }
+# }
+```
+
+### Toxicity Classifier
+
+Identifies toxic, harmful, or inappropriate content using advanced content moderation.
+
+```python
+from sifaka.classifiers import ToxicityClassifier
+
+classifier = ToxicityClassifier(
+    name="toxicity_check",
+    description="Detects toxic content",
+    threshold=0.7  # Optional: toxicity threshold
+)
+
+result = classifier.classify("Your text here")
+# Returns ClassificationResult with:
+# - label: "safe" or "toxic"
+# - confidence: float between 0 and 1
+# - metadata: {
+#     "toxicity_score": float,
+#     "category_scores": Dict[str, float]
+# }
+```
+
+### Language Classifier
+
+Identifies the language of text and provides language-specific metrics.
+
+```python
+from sifaka.classifiers import LanguageClassifier
+
+classifier = LanguageClassifier(
+    name="language_detector",
+    description="Detects text language",
+    supported_languages=["en", "es", "fr"]  # Optional: limit supported languages
+)
+
+result = classifier.classify("Your text here")
+# Returns ClassificationResult with:
+# - label: ISO language code (e.g., "en", "es")
+# - confidence: float between 0 and 1
+# - metadata: {
+#     "language_name": str,
+#     "language_family": str,
+#     "script": str
+# }
+```
+
+### LLM Classifier
+
+Uses Large Language Models for sophisticated text classification tasks.
+
+```python
+from sifaka.classifiers import LLMClassifier
+
+classifier = LLMClassifier(
+    name="llm_classifier",
+    description="Advanced text classification",
+    model="gpt-4",  # Specify LLM model to use
+    labels=["technical", "non-technical"],  # Custom classification labels
+    prompt_template="Classify the following text as {labels}: {text}"
+)
+
+result = classifier.classify("Your text here")
+# Returns ClassificationResult with:
+# - label: One of the specified labels
+# - confidence: float between 0 and 1
+# - metadata: {
+#     "model_name": str,
+#     "reasoning": str,
+#     "additional_insights": Dict[str, Any]
+# }
+```
+
+### Data Flow Diagram
+
+```mermaid
+graph TD
+    A[Input Text] --> B[Classifier]
+    B --> C{Classification Process}
+    C --> D[Text Analysis]
+    C --> E[Feature Extraction]
+    C --> F[Model Inference]
+    D --> G[ClassificationResult]
+    E --> G
+    F --> G
+    G --> H[Label]
+    G --> I[Confidence]
+    G --> J[Metadata]
+```
+
+### Best Practices
+
+1. **Initialization**: Always initialize classifiers with appropriate configurations for your use case
+2. **Error Handling**: Handle potential exceptions during classification
+3. **Batch Processing**: Use `batch_classify()` for multiple texts to improve performance
+4. **Confidence Thresholds**: Set appropriate confidence thresholds for your application
+5. **Metadata Usage**: Leverage metadata for detailed insights and debugging
+
+### Performance Considerations
+
+- Most classifiers have a `cost` attribute indicating computational complexity
+- Use batch classification when processing multiple texts
+- Consider caching results for frequently classified content
+- Monitor memory usage when processing large texts

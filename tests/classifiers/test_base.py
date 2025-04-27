@@ -26,64 +26,81 @@ class TestClassifier(Classifier):
 
 
 def test_classification_result_initialization():
-    """Test ClassificationResult initialization."""
-    # Test basic initialization
-    result = ClassificationResult(label="test", confidence=0.8, metadata={"key": "value"})
+    """Test initialization of ClassificationResult."""
+    # Test valid initialization
+    result = ClassificationResult(label="test", confidence=0.8)
     assert result.label == "test"
     assert result.confidence == 0.8
+    assert result.metadata == {}
+
+    # Test with metadata
+    result = ClassificationResult(label="test", confidence=0.8, metadata={"key": "value"})
     assert result.metadata == {"key": "value"}
 
-    # Test different label types
-    label_types = ["string_label", 123, 1.23, True]
-    for label in label_types:
-        result = ClassificationResult(label=label, confidence=0.8)
-        assert result.label == label
-
-    # Test confidence bounds
-    result = ClassificationResult(label="test", confidence=0.0)
-    assert result.confidence == 0.0
-    result = ClassificationResult(label="test", confidence=1.0)
-    assert result.confidence == 1.0
-
-    # Test validation errors
+    # Test invalid confidence values
     with pytest.raises(ValidationError):
         ClassificationResult(label="test", confidence=1.5)
+
     with pytest.raises(ValidationError):
         ClassificationResult(label="test", confidence=-0.5)
 
 
+class MockClassifier(Classifier):
+    """Mock classifier for testing."""
+
+    def __init__(
+        self,
+        name: str = "mock",
+        description: str = "Mock classifier for testing",
+        labels: list[str] = None,
+        min_confidence: float = 0.5,
+        **kwargs,
+    ):
+        """Initialize mock classifier."""
+        super().__init__(
+            name=name,
+            description=description,
+            labels=labels or ["unknown", "test"],
+            min_confidence=min_confidence,
+            **kwargs,
+        )
+
+    def classify(self, text: str) -> ClassificationResult:
+        """Mock classification implementation."""
+        if not isinstance(text, str):
+            raise ValueError("Input must be a string")
+
+        if not text:
+            return ClassificationResult(
+                label="unknown", confidence=0.0, metadata={"empty_input": True}
+            )
+        return ClassificationResult(label="test", confidence=1.0, metadata={"test": True})
+
+    def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
+        """Mock batch classification implementation."""
+        return [self.classify(text) for text in texts]
+
+
 def test_classifier_initialization():
-    """Test Classifier initialization."""
-    # Test basic initialization
-    classifier = TestClassifier()
+    """Test initialization of base classifier."""
+    # Test valid initialization
+    classifier = MockClassifier(
+        name="test",
+        description="test classifier",
+        labels=["label1", "label2"],
+        min_confidence=0.5,
+    )
     assert classifier.name == "test"
     assert classifier.description == "test classifier"
-    assert classifier.labels == ["positive", "negative"]
-    assert classifier.config == {}
-    assert classifier.cache_size == 0
-    assert classifier.cost == 1
+    assert classifier.labels == ["label1", "label2"]
+    assert classifier.min_confidence == 0.5
 
-    # Test custom initialization
-    custom_classifier = TestClassifier(
-        name="custom",
-        description="custom classifier",
-        labels=["label1", "label2"],
-        config={"param": "value"},
-        cache_size=100,
-        cost=5,
-    )
-    assert custom_classifier.name == "custom"
-    assert custom_classifier.description == "custom classifier"
-    assert custom_classifier.labels == ["label1", "label2"]
-    assert custom_classifier.config == {"param": "value"}
-    assert custom_classifier.cache_size == 100
-    assert custom_classifier.cost == 5
+    # Test invalid min_confidence
+    with pytest.raises(ValidationError):
+        MockClassifier(name="test", min_confidence=1.5)
 
-    # Test validation errors
     with pytest.raises(ValidationError):
-        TestClassifier(cache_size=-1)
-    with pytest.raises(ValidationError):
-        TestClassifier(cost=-1)
+        MockClassifier(name="test", min_confidence=-0.5)
 
 
 def test_classifier_classify():
@@ -181,18 +198,30 @@ def test_edge_cases():
 
 
 def test_error_handling():
-    """Test error handling."""
-    classifier = TestClassifier()
-    invalid_inputs = [None, 123, [], {}]
+    """Test error handling for invalid inputs."""
+    classifier = MockClassifier()
 
-    for invalid_input in invalid_inputs:
-        # Test single classification
-        with pytest.raises(Exception):
-            classifier.classify(invalid_input)
+    # Test None input
+    with pytest.raises(ValueError, match="Input must be a string"):
+        classifier.classify(None)
 
-        # Test batch classification
-        with pytest.raises(Exception):
-            classifier.batch_classify([invalid_input])
+    # Test integer input
+    with pytest.raises(ValueError, match="Input must be a string"):
+        classifier.classify(123)
+
+    # Test list input
+    with pytest.raises(ValueError, match="Input must be a string"):
+        classifier.classify([])
+
+    # Test dict input
+    with pytest.raises(ValueError, match="Input must be a string"):
+        classifier.classify({})
+
+    # Test empty string
+    result = classifier.classify("")
+    assert result.label == "unknown"
+    assert result.confidence == 0.0
+    assert "empty_input" in result.metadata
 
 
 def test_consistent_results():
