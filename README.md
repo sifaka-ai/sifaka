@@ -1019,56 +1019,69 @@ Sifaka comes with several example implementations demonstrating different use ca
 
 ### 1. Basic Usage (`examples/basic_usage.py`)
 
-Demonstrates fundamental pattern analysis capabilities:
-
 ```python
 from sifaka.models import AnthropicProvider
+from sifaka.models.base import ModelConfig
 from sifaka.rules import LengthRule, ProhibitedContentRule, SymmetryRule, RepetitionRule
+from sifaka.rules.base import RuleConfig, RulePriority
 
-def analyze_text(text: str):
-    # Create basic validation rules
-    length_rule = LengthRule(
-        name="length_check",
-        description="Checks if output length is within bounds",
-        config={
-            "min_length": 30,
-            "max_length": 100,
-            "unit": "characters"
-        }
-    )
-
-    # Configure pattern detection rules
-    symmetry_rule = SymmetryRule(
-        name="symmetry_check",
-        description="Checks for text symmetry patterns",
-        config={
-            "mirror_mode": "both",
-            "symmetry_threshold": 0.8,
-            "preserve_whitespace": True
-        }
-    )
-
-    # Analyze text with multiple rules
-    results = {
-        "length": length_rule._validate_impl(text),
-        "symmetry": symmetry_rule._validate_impl(text),
-        # ... additional rule validations
+# Create basic validation rules
+length_rule = LengthRule(
+    name="length_check",
+    description="Checks if output length is within bounds",
+    config={
+        "min_length": 30,
+        "max_length": 100,
+        "unit": "characters"  # Using character-based length measurement
     }
-    return results
+)
+
+prohibited_terms = ProhibitedContentRule(
+    name="content_filter",
+    description="Checks for prohibited or inappropriate content",
+    config={
+        "prohibited_terms": ["controversial", "inappropriate"],
+        "case_sensitive": False  # Case-insensitive term matching
+    }
+)
+
+# Configure pattern detection rules
+symmetry_rule = SymmetryRule(
+    name="symmetry_check",
+    description="Checks for text symmetry patterns",
+    config=RuleConfig(
+        priority=RulePriority.MEDIUM,
+        metadata={
+            "mirror_mode": "both",  # Check both horizontal and vertical symmetry
+            "symmetry_threshold": 0.8,  # High threshold for strict symmetry
+            "preserve_whitespace": True,
+            "preserve_case": True,
+            "ignore_punctuation": True
+        }
+    )
+)
+
+# Analyze text with multiple rules
+results = {
+    "length": length_rule._validate_impl(text),
+    "content": prohibited_terms._validate_impl(text),
+    "symmetry": symmetry_rule._validate_impl(text)
+}
 ```
 
 ### 2. Pydantic Integration (`examples/pydantic_integration.py`)
 
-Shows how to use Sifaka with Pydantic models and LangChain:
-
 ```python
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from langchain.prompts import PromptTemplate
 from langchain.output_parsers import PydanticOutputParser
-from sifaka.integrations.langchain import wrap_chain
+from langchain_core.runnables import RunnablePassthrough
+from sifaka.integrations.langchain import ChainConfig, wrap_chain
 
 class MovieReview(BaseModel):
     """Structured movie review model with validation"""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
     title: str = Field(..., description="The title of the movie")
     rating: float = Field(..., ge=0.0, le=10.0)
     summary: str = Field(..., min_length=50, max_length=500)
@@ -1077,9 +1090,23 @@ class MovieReview(BaseModel):
 # Create the Pydantic parser
 parser = PydanticOutputParser(pydantic_object=MovieReview)
 
+# Create a structured prompt template
+prompt = PromptTemplate(
+    template="Write a detailed movie review for: {movie_title}\n\n{format_instructions}",
+    input_variables=["movie_title"],
+    partial_variables={"format_instructions": parser.get_format_instructions()}
+)
+
 # Create LangChain pipeline with Sifaka validation
-chain = wrap_chain(
-    chain=your_langchain_pipeline,
+chain = (
+    {"movie_title": lambda x: x["movie_title"]}  # Extract movie title
+    | prompt  # Format prompt
+    | provider.get_langchain_llm()  # Generate review
+)
+
+# Wrap with Sifaka for validation
+sifaka_chain = wrap_chain(
+    chain=chain,
     config=ChainConfig(
         output_parser=parser,
         critique=True
@@ -1087,38 +1114,46 @@ chain = wrap_chain(
 )
 
 # Generate and validate reviews
-result = chain.run({"movie_title": "The Matrix"})
+result = sifaka_chain.run({"movie_title": "The Matrix"})
 review = MovieReview.model_validate(result)
 ```
 
 ### 3. Combined Classifiers (`examples/combined_classifiers.py`)
 
-Demonstrates using multiple classifiers and pattern rules together:
-
 ```python
 from sifaka.classifiers.sentiment import SentimentClassifier
 from sifaka.classifiers.readability import ReadabilityClassifier
 from sifaka.rules import SymmetryRule, RepetitionRule
+from sifaka.rules.base import RuleConfig, RulePriority
 
 def analyze_text(text: str):
-    # Initialize classifiers
+    # Initialize classifiers with confidence thresholds
     sentiment_classifier = SentimentClassifier(
         name="tone_analyzer",
+        description="Analyzes the tone/sentiment of text",
         min_confidence=0.7
     )
 
     readability_classifier = ReadabilityClassifier(
         name="readability_analyzer",
+        description="Analyzes text readability",
         min_confidence=0.7
     )
 
     # Configure pattern rules
     symmetry_rule = SymmetryRule(
         name="symmetry_check",
-        config={
-            "mirror_mode": "both",
-            "symmetry_threshold": 0.4
-        }
+        description="Checks for text symmetry patterns",
+        config=RuleConfig(
+            priority=RulePriority.MEDIUM,
+            metadata={
+                "mirror_mode": "both",
+                "symmetry_threshold": 0.8,
+                "preserve_whitespace": True,
+                "preserve_case": True,
+                "ignore_punctuation": True
+            }
+        )
     )
 
     # Perform multi-faceted analysis
@@ -1128,11 +1163,18 @@ def analyze_text(text: str):
         "symmetry": symmetry_rule._validate_impl(text)
     }
     return results
+
+# Example usage
+text = "The quick brown fox jumps over the lazy dog"
+results = analyze_text(text)
+print(f"Sentiment: {results['sentiment'].label}")
+print(f"Readability: {results['readability'].label}")
+print(f"Symmetry passed: {results['symmetry'].passed}")
 ```
 
 Each example demonstrates different aspects of Sifaka:
-- Basic usage shows fundamental pattern analysis
-- Pydantic integration shows structured data validation
+- Basic usage shows fundamental pattern analysis with direct rule validation
+- Pydantic integration shows structured data validation with LangChain
 - Combined classifiers show how to use multiple analysis types together
 
-For more details, check the full examples in the `examples/` directory.
+For complete examples with error handling, logging, and more features, check the full examples in the `examples/` directory.

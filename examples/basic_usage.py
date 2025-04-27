@@ -9,7 +9,7 @@ This example demonstrates the fundamental usage of Sifaka's pattern analysis cap
 2. Creating and applying validation rules
    - Length validation with character-based constraints
    - Content filtering for prohibited terms
-   - Pattern detection using symmetry and repetition rules
+   - Pattern rules for symmetry and repetition analysis
 
 3. Pattern Analysis Features
    - Text symmetry detection with configurable thresholds

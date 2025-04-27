@@ -12,8 +12,8 @@ This example demonstrates:
    - Building a chain with RunnablePassthrough
 
 3. Pattern Analysis with Sifaka
-   - Analyzing text symmetry in review summaries
-   - Detecting repetitive patterns in content
+   - Using SymmetryRule for text structure analysis
+   - Using RepetitionRule for pattern detection
    - Combining multiple validation rules
 
 4. Error Handling and Logging
