@@ -2,12 +2,12 @@
 Performance monitoring for Sifaka.
 """
 
+import statistics
+import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
-import statistics
-import threading
+from typing import Dict, Optional
 
 from sifaka.utils.logging import get_logger
 

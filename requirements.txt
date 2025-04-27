@@ -5,6 +5,8 @@ typing-extensions>=4.10.0
 # Model providers
 anthropic>=0.18.1
 openai>=1.13.3
+tiktoken>=0.6.0  # Required for token counting
+google-generativeai>=0.3.2  # Required for Gemini provider
 
 # ML/Classification
 detoxify>=0.5.1

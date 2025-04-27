@@ -12,8 +12,9 @@ Architecture Notes:
 - Follows single responsibility principle with clear separation of concerns
 """
 
-from typing import Dict, Any, Protocol, runtime_checkable, Final, Set, List, FrozenSet
-from dataclasses import dataclass, field
+from typing import Dict, Any, Protocol, runtime_checkable, Final, Set, Optional, Type
+from dataclasses import dataclass
+
 from sifaka.rules.base import Rule, RuleResult
 
 
@@ -21,7 +22,7 @@ from sifaka.rules.base import Rule, RuleResult
 class ProhibitedContentConfig:
     """Immutable configuration for prohibited content validation."""
 
-    prohibited_terms: FrozenSet[str]
+    prohibited_terms: Set[str]
     case_sensitive: bool = False
     cache_size: int = 10
     priority: int = 2
@@ -29,8 +30,8 @@ class ProhibitedContentConfig:
 
     def __post_init__(self) -> None:
         """Validate configuration parameters."""
-        if not isinstance(self.prohibited_terms, (set, frozenset)):
-            object.__setattr__(self, "prohibited_terms", frozenset(self.prohibited_terms))
+        if not isinstance(self.prohibited_terms, (set, frozenset, list)):
+            object.__setattr__(self, "prohibited_terms", set(self.prohibited_terms))
 
         if not self.prohibited_terms:
             raise ValueError("prohibited_terms set cannot be empty")
@@ -64,7 +65,7 @@ class DefaultProhibitedContentValidator:
         """Get the validator configuration."""
         return self._config
 
-    def _find_prohibited_terms(self, text: str) -> List[str]:
+    def _find_prohibited_terms(self, text: str) -> list[str]:
         """
         Find all prohibited terms in the text.
 
@@ -118,6 +119,15 @@ class DefaultProhibitedContentValidator:
             metadata=metadata,
         )
 
+    def can_validate(self, text: Any) -> bool:
+        """Check if the validator can handle the input."""
+        return isinstance(text, str)
+
+    @property
+    def validation_type(self) -> Type[str]:
+        """Get the type of input this validator can handle."""
+        return str
+
 
 class ProhibitedContentRule(Rule):
     """Rule that checks if the text contains any prohibited terms."""
@@ -126,9 +136,8 @@ class ProhibitedContentRule(Rule):
         self,
         name: str,
         description: str,
-        validator: ProhibitedContentValidator | None = None,
-        config: ProhibitedContentConfig | None = None,
-        **kwargs,
+        validator: Optional[ProhibitedContentValidator] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Initialize the rule with prohibited content validation.
@@ -137,34 +146,34 @@ class ProhibitedContentRule(Rule):
             name: The name of the rule
             description: Description of the rule
             validator: Custom prohibited content validator implementation
-            config: Prohibited content validation configuration
-            **kwargs: Additional arguments
+            config: Prohibited content validation configuration dictionary
         """
-        super().__init__(name=name, description=description, **kwargs)
-        self.validator = validator or DefaultProhibitedContentValidator(
-            config
-            or ProhibitedContentConfig(prohibited_terms=frozenset(["inappropriate", "offensive"]))
-        )
+        # Create the config object first
+        prohibited_config = ProhibitedContentConfig(**(config or {}))
 
-    def _validate_impl(self, text: str, **kwargs) -> RuleResult:
+        # Create default validator if none provided
+        validator = validator or DefaultProhibitedContentValidator(prohibited_config)
+
+        # Initialize base class
+        super().__init__(name=name, description=description, validator=validator)
+
+    def _validate_impl(self, text: str) -> RuleResult:
         """
         Validate that the text does not contain prohibited terms.
 
         Args:
             text: The text to validate
-            **kwargs: Additional validation context
 
         Returns:
             RuleResult with validation results
         """
-        return self.validator.validate(text)
+        return self._validator.validate(text)
 
 
 def create_prohibited_content_rule(
     name: str = "prohibited_content_rule",
     description: str = "Validates text for prohibited content",
-    config: ProhibitedContentConfig | None = None,
-    validator: ProhibitedContentValidator | None = None,
+    config: Optional[Dict[str, Any]] = None,
 ) -> ProhibitedContentRule:
     """
     Factory function to create a prohibited content rule.
@@ -172,15 +181,24 @@ def create_prohibited_content_rule(
     Args:
         name: The name of the rule
         description: Description of the rule
-        config: Prohibited content validation configuration
-        validator: Custom prohibited content validator implementation
+        config: Dictionary of configuration parameters
 
     Returns:
         Configured ProhibitedContentRule instance
     """
+    prohibited_config = ProhibitedContentConfig(**(config or {}))
     return ProhibitedContentRule(
         name=name,
         description=description,
-        validator=validator,
-        config=config,
+        config=prohibited_config,
     )
+
+
+# Export public classes and functions
+__all__ = [
+    "ProhibitedContentRule",
+    "ProhibitedContentConfig",
+    "ProhibitedContentValidator",
+    "DefaultProhibitedContentValidator",
+    "create_prohibited_content_rule",
+]

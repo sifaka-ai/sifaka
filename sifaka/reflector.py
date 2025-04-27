@@ -5,8 +5,9 @@ This module provides rules for text reflection and transformation,
 including text mirroring, symmetry validation, and pattern matching.
 """
 
-from typing import Dict, List, Optional, Protocol, runtime_checkable, Final, Any
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, Protocol, runtime_checkable, Final
+
 from sifaka.rules.base import Rule, RuleResult
 
 

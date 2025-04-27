@@ -164,7 +164,7 @@ class Rule(Generic[T, R, V, H], ABC):
         self,
         name: str,
         description: str,
-        validator: V,
+        validator: Optional[V] = None,
         config: Optional[RuleConfig] = None,
         result_handler: Optional[H] = None,
     ) -> None:
@@ -174,7 +174,7 @@ class Rule(Generic[T, R, V, H], ABC):
         Args:
             name: The name of the rule
             description: Description of the rule
-            validator: The validator implementation
+            validator: Optional validator implementation
             config: Rule configuration
             result_handler: Optional handler for validation results
         """
@@ -182,12 +182,15 @@ class Rule(Generic[T, R, V, H], ABC):
         self._description: Final[str] = description
         self._config: Final[RuleConfig] = config or RuleConfig()
 
-        # Validate and set validator
-        if not isinstance(validator, RuleValidator):
-            raise ConfigurationError(
-                f"Validator must implement RuleValidator protocol, got {type(validator)}"
-            )
-        self._validator: Final[V] = validator
+        # Validate and set validator if provided
+        if validator is not None:
+            if not isinstance(validator, RuleValidator):
+                raise ConfigurationError(
+                    f"Validator must implement RuleValidator protocol, got {type(validator)}"
+                )
+            self._validator: Final[V] = validator
+        else:
+            self._validator = None
 
         # Validate and set handler if provided
         if result_handler is not None:

@@ -57,10 +57,10 @@ pip install sifaka[dev]
 ## 🚀 Quick Start
 
 ```python
-from sifaka import Reflector
 from sifaka.models import OpenAIProvider, AnthropicProvider
 from sifaka.rules import LengthRule, ProhibitedContentRule
 from sifaka.critics import PromptCritic
+from sifaka.critics.prompt import PromptCriticConfig
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -91,8 +91,17 @@ prohibited_terms = ProhibitedContentRule(
     }
 )
 
+# Create a critic with proper configuration
+critic_config = PromptCriticConfig(
+    name="content_quality_critic",
+    description="Improves text quality focusing on professionalism and clarity",
+    system_prompt="You are an expert editor that improves text quality, focusing on professionalism, clarity, and effectiveness.",
+    temperature=0.7,
+    max_tokens=1000
+)
+
 # Create a critic for improving outputs that fail validation
-critic = PromptCritic(model=provider)
+critic = PromptCritic(config=critic_config, model=provider)
 
 # Create a reflector with rules and critic
 reflector = Reflector(
@@ -190,10 +199,21 @@ Improve LLM outputs when they fail validation:
 
 ```python
 from sifaka.critics import PromptCritic
+from sifaka.critics.prompt import PromptCriticConfig
 
+# Create critic configuration
+critic_config = PromptCriticConfig(
+    name="content_quality_critic",
+    description="Improves text quality focusing on professionalism and clarity",
+    system_prompt="You are an expert editor that improves text quality, focusing on professionalism, clarity, and effectiveness.",
+    temperature=0.7,
+    max_tokens=1000
+)
+
+# Create the critic
 critic = PromptCritic(
-    model=provider,
-    system_prompt="You are an editor that improves text..."
+    config=critic_config,
+    model=provider
 )
 ```
 

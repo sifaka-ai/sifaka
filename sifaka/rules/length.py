@@ -4,8 +4,9 @@ Length validation rules for Sifaka.
 This module provides rules for validating text length, supporting both character and word count validation.
 """
 
-from typing import Dict, Any, Protocol, runtime_checkable, Final, Literal
-from dataclasses import dataclass, field
+from typing import Dict, Any, Protocol, runtime_checkable, Final, Optional, Type
+from dataclasses import dataclass
+
 from sifaka.rules.base import Rule, RuleResult
 
 
@@ -16,7 +17,7 @@ class LengthConfig:
     min_length: int = 50
     max_length: int | None = 5000
     exact_length: int | None = None
-    unit: Literal["characters", "words"] = "characters"
+    unit: str = "characters"  # "characters" or "words"
     cache_size: int = 10
     priority: int = 2
     cost: float = 1.5
@@ -133,6 +134,15 @@ class DefaultLengthValidator:
             metadata=metadata,
         )
 
+    def can_validate(self, text: Any) -> bool:
+        """Check if the validator can handle the input."""
+        return isinstance(text, str)
+
+    @property
+    def validation_type(self) -> Type[str]:
+        """Get the type of input this validator can handle."""
+        return str
+
 
 class LengthRule(Rule):
     """Rule that checks if the text length falls within specified bounds."""
@@ -141,9 +151,8 @@ class LengthRule(Rule):
         self,
         name: str,
         description: str,
-        validator: LengthValidator | None = None,
-        config: LengthConfig | None = None,
-        **kwargs,
+        validator: Optional[LengthValidator] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Initialize the rule with length constraints.
@@ -152,31 +161,34 @@ class LengthRule(Rule):
             name: The name of the rule
             description: Description of the rule
             validator: Custom length validator implementation
-            config: Length validation configuration
-            **kwargs: Additional arguments
+            config: Length validation configuration dictionary
         """
-        super().__init__(name=name, description=description, **kwargs)
-        self.validator = validator or DefaultLengthValidator(config or LengthConfig())
+        # Create the config object first
+        length_config = LengthConfig(**(config or {}))
 
-    def _validate_impl(self, text: str, **kwargs) -> RuleResult:
+        # Create default validator if none provided
+        validator = validator or DefaultLengthValidator(length_config)
+
+        # Initialize base class
+        super().__init__(name=name, description=description, validator=validator)
+
+    def _validate_impl(self, text: str) -> RuleResult:
         """
         Validate that the text length is within acceptable bounds.
 
         Args:
             text: The text to validate
-            **kwargs: Additional validation context
 
         Returns:
             RuleResult with validation results
         """
-        return self.validator.validate(text)
+        return self._validator.validate(text)
 
 
 def create_length_rule(
     name: str = "length_rule",
     description: str = "Validates text length",
-    config: LengthConfig | None = None,
-    validator: LengthValidator | None = None,
+    config: Optional[Dict[str, Any]] = None,
 ) -> LengthRule:
     """
     Factory function to create a length rule.
@@ -184,15 +196,24 @@ def create_length_rule(
     Args:
         name: The name of the rule
         description: Description of the rule
-        config: Length validation configuration
-        validator: Custom length validator implementation
+        config: Length validation configuration dictionary
 
     Returns:
         Configured LengthRule instance
     """
+    length_config = LengthConfig(**(config or {}))
     return LengthRule(
         name=name,
         description=description,
-        validator=validator,
-        config=config,
+        config=length_config,
     )
+
+
+# Export public classes and functions
+__all__ = [
+    "LengthRule",
+    "LengthConfig",
+    "LengthValidator",
+    "DefaultLengthValidator",
+    "create_length_rule",
+]
