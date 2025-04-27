@@ -70,7 +70,7 @@ class FormatRule(Rule):
         # Set the value using object.__setattr__ to bypass Pydantic validation
         object.__setattr__(self, "required_format", required_format)
 
-    def validate(self, output: str) -> RuleResult:
+    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
         """
         Validate that the output matches the required format.
 
@@ -82,6 +82,7 @@ class FormatRule(Rule):
 
         Args:
             output: The text to validate
+            **kwargs: Additional validation context
 
         Returns:
             RuleResult: Contains:

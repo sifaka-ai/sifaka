@@ -57,7 +57,23 @@ class PromptCritic(Critic):
 
         # Construct critique prompt for the language model
         critique_prompt = f"""
-        Please evaluate the following prompt for clarity, completeness, and effectiveness:
+        Please evaluate the following prompt and provide your response in a structured format with these components:
+        1. A score between 0 and 1 (where 1 is perfect)
+        2. General feedback
+        3. List of specific issues
+        4. List of improvement suggestions
+
+        Format your response exactly like this:
+        SCORE: [number between 0 and 1]
+        FEEDBACK: [your general feedback]
+        ISSUES:
+        - [issue 1]
+        - [issue 2]
+        SUGGESTIONS:
+        - [suggestion 1]
+        - [suggestion 2]
+
+        Here is the prompt to evaluate:
 
         {prompt}
 
@@ -71,25 +87,60 @@ class PromptCritic(Critic):
         # Get response from the model
         response = self.model.generate(critique_prompt)
 
-        # Validate response format
-        if not isinstance(response, dict):
-            raise TypeError("Model response must be a dictionary")
+        if not isinstance(response, str):
+            raise TypeError("Model response must be a string")
 
-        required_keys = ["score", "feedback", "issues", "suggestions"]
-        missing_keys = [key for key in required_keys if key not in response]
-        if missing_keys:
-            raise KeyError(f"Model response missing required keys: {missing_keys}")
+        # Parse the response into a dictionary
+        try:
+            # Split response into sections
+            sections = response.split("\n")
 
-        if not isinstance(response["score"], (int, float)):
-            raise TypeError("Score must be a number")
-        if not isinstance(response["feedback"], str):
-            raise TypeError("Feedback must be a string")
-        if not isinstance(response["issues"], list):
-            raise TypeError("Issues must be a list")
-        if not isinstance(response["suggestions"], list):
-            raise TypeError("Suggestions must be a list")
+            # Initialize result dictionary
+            result = {"score": 0.0, "feedback": "", "issues": [], "suggestions": []}
 
-        return response
+            current_section = None
+            for line in sections:
+                line = line.strip()
+                if not line:
+                    continue
+
+                if line.startswith("SCORE:"):
+                    try:
+                        score_str = line.replace("SCORE:", "").strip()
+                        result["score"] = float(score_str)
+                    except ValueError:
+                        result["score"] = 0.5  # Default score if parsing fails
+                elif line.startswith("FEEDBACK:"):
+                    result["feedback"] = line.replace("FEEDBACK:", "").strip()
+                elif line.startswith("ISSUES:"):
+                    current_section = "issues"
+                elif line.startswith("SUGGESTIONS:"):
+                    current_section = "suggestions"
+                elif line.startswith("-") and current_section:
+                    item = line.replace("-", "").strip()
+                    if item:
+                        result[current_section].append(item)
+
+            # Validate the parsed result
+            if not isinstance(result["score"], (int, float)):
+                raise TypeError("Score must be a number")
+            if not isinstance(result["feedback"], str):
+                raise TypeError("Feedback must be a string")
+            if not isinstance(result["issues"], list):
+                raise TypeError("Issues must be a list")
+            if not isinstance(result["suggestions"], list):
+                raise TypeError("Suggestions must be a list")
+
+            return result
+
+        except Exception as e:
+            # If parsing fails, return a default structured response
+            return {
+                "score": 0.5,
+                "feedback": str(response),  # Use full response as feedback
+                "issues": ["Failed to parse structured response"],
+                "suggestions": ["Please try again with a clearer prompt"],
+            }
 
     def validate(self, prompt: str) -> bool:
         """Check if a prompt meets quality standards.

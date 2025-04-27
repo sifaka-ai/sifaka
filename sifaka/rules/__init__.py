@@ -59,6 +59,9 @@ from .base import Rule, RuleResult
 from .safety import ToxicityRule, BiasRule, HarmfulContentRule
 from .classifier_rule import ClassifierRule
 from .prohibited_content import ProhibitedContentRule
+from .format import FormatRule
+from .sentiment import SentimentRule
+from .length import LengthRule
 
 __all__ = [
     "Rule",
@@ -68,4 +71,7 @@ __all__ = [
     "HarmfulContentRule",
     "ClassifierRule",
     "ProhibitedContentRule",
+    "FormatRule",
+    "SentimentRule",
+    "LengthRule",
 ]

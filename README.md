@@ -117,7 +117,7 @@ Here's a complete example showing different ways to use API keys:
 from sifaka import Reflector
 from sifaka.models import OpenAIProvider, AnthropicProvider
 from sifaka.rules import ProhibitedContentRule
-from sifaka.critics import PromptCritique
+from sifaka.critics import PromptCritic
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -141,7 +141,7 @@ prohibited_terms = ProhibitedContentRule(
 )
 
 # Create a critic for improving outputs that fail validation
-critic = PromptCritique(model=anthropic_model)
+critic = PromptCritic(model=anthropic_model)
 
 # Create a reflector with rules and critic
 # Note: critique functionality is automatically enabled when a critic is provided
@@ -172,9 +172,8 @@ print(result)
 ```python
 from sifaka import Reflector
 from sifaka.models import AnthropicProvider
-from sifaka.rules import ProhibitedContentRule, FormatRule, SentimentRule, ToxicityRule, LengthRule
-from sifaka.rules.legal import LegalCitationRule
-from sifaka.critics import PromptCritique
+from sifaka.rules import LengthRule, ProhibitedContentRule, FormatRule
+from sifaka.critics import PromptCritic
 from sifaka.utils.logging import get_logger
 import logging
 from dotenv import load_dotenv
@@ -191,7 +190,7 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)  # Silence HTTP debug lo
 load_dotenv()
 
 # Initialize the provider
-provider = AnthropicProvider(model_name="claude-3-sonnet-20240229")
+provider = AnthropicProvider(model_name="claude-3-haiku-20240307")
 
 # Create rules
 length_rule = LengthRule(
@@ -199,7 +198,7 @@ length_rule = LengthRule(
     description="Checks if output length is within bounds",
     config={
         "min_length": 100,
-        "max_length": 500  # Reduced max length to make the output more concise
+        "max_length": 500
     }
 )
 
@@ -219,59 +218,14 @@ format_rule = FormatRule(
     }
 )
 
-sentiment_rule = SentimentRule(
-    name="sentiment_check",
-    description="Ensures output has positive sentiment",
-    config={
-        "min_sentiment": 0.0
-    }
-)
-
-toxicity_rule = ToxicityRule(
-    name="toxicity_check",
-    description="Checks for toxic content",
-    config={
-        "max_toxicity": 0.5
-    }
-)
-
-legal_citations = LegalCitationRule(
-    name="legal_citation_check",
-    description="Validates legal citations in the text",
-    config={}
-)
-
 # Create a critic for improving outputs that fail validation
-critic = PromptCritique(
-    name="content_improver",
-    description="Improves content based on rule violations",
-    model=provider,
-    system_prompt=(
-        "You are an editor that makes text more concise while preserving key information. "
-        "When asked to adjust text length, you MUST ensure the output is within the specified character limits."
-    ),
-    user_prompt_template=(
-        "Please improve this text to STRICTLY meet the length requirements:\n\n"
-        "Text: {output}\n\n"
-        "Issues: {feedback}\n\n"
-        "IMPORTANT: Your response MUST be between {min_length}-{max_length} characters.\n"
-        "Current length: {current_length} characters\n\n"
-        "Provide a concise version that fits these exact requirements."
-    )
-)
+critic = PromptCritic(model=provider)
 
-# Create a reflector with rules and critique
+# Create a reflector with rules and critic
 reflector = Reflector(
-    name="legal_content_validator",
+    name="content_validator",
     model=provider,
-    rules=[
-        length_rule,
-        prohibited_terms,
-        format_rule,
-        sentiment_rule,
-        toxicity_rule,
-        legal_citations
-    ],
+    rules=[length_rule, prohibited_terms, format_rule],
     critic=critic
 )
 
@@ -279,7 +233,7 @@ reflector = Reflector(
 logger.info("Starting reflection process...")
 try:
     result = reflector.reflect(
-        "Write about the Supreme Court case Brown v. Board of Education",
+        "Write a professional email about a search project update",
         max_attempts=3  # Try up to 3 times to fix any violations
     )
     logger.info("Final result:\n%s", result)
@@ -546,7 +500,7 @@ Let's walk through an example:
 from sifaka import Reflector
 from sifaka.models import AnthropicProvider
 from sifaka.rules import LengthRule
-from sifaka.critics import PromptCritique
+from sifaka.critics import PromptCritic
 import logging
 
 # Configure logging
@@ -567,7 +521,7 @@ length_rule = LengthRule(
 )
 
 # Create a critic
-critic = PromptCritique(
+critic = PromptCritic(
     name="content_improver",
     description="Improves content based on rule violations",
     model=provider,

@@ -33,6 +33,7 @@ class Reflector(BaseModel):
         critic: Optional critic to use
         model: Optional model provider to use
         config: Additional configuration parameters
+        tracer: Optional tracer for debugging
     """
 
     name: str = Field(default="reflector", description="Name of the reflector")
@@ -46,6 +47,14 @@ class Reflector(BaseModel):
         default=None, description="Optional model provider to use"
     )
     config: Dict[str, Any] = Field(default_factory=dict, description="Additional configuration")
+    tracer: Optional[Tracer] = Field(default=None, description="Optional tracer for debugging")
+    parallel_validation: bool = Field(default=False, description="Whether to run rules in parallel")
+    max_workers: Optional[int] = Field(
+        default=None, description="Maximum number of worker threads for parallel validation"
+    )
+    performance_monitor: Optional[PerformanceMonitor] = Field(
+        default_factory=PerformanceMonitor, description="Optional performance monitor"
+    )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
