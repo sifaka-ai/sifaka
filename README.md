@@ -953,3 +953,127 @@ result = rule._validate_impl("""
 """)
 assert result.passed  # True
 ```
+
+## 📚 Examples
+
+Sifaka comes with several example implementations demonstrating different use cases:
+
+### 1. Basic Usage (`examples/basic_usage.py`)
+
+Demonstrates fundamental pattern analysis capabilities:
+
+```python
+from sifaka.models import AnthropicProvider
+from sifaka.rules import LengthRule, ProhibitedContentRule, SymmetryRule, RepetitionRule
+
+def analyze_text(text: str):
+    # Create basic validation rules
+    length_rule = LengthRule(
+        name="length_check",
+        description="Checks if output length is within bounds",
+        config={
+            "min_length": 30,
+            "max_length": 100,
+            "unit": "characters"
+        }
+    )
+
+    # Configure pattern detection rules
+    symmetry_rule = SymmetryRule(
+        name="symmetry_check",
+        description="Checks for text symmetry patterns",
+        config={
+            "mirror_mode": "both",
+            "symmetry_threshold": 0.8,
+            "preserve_whitespace": True
+        }
+    )
+
+    # Analyze text with multiple rules
+    results = {
+        "length": length_rule._validate_impl(text),
+        "symmetry": symmetry_rule._validate_impl(text),
+        # ... additional rule validations
+    }
+    return results
+```
+
+### 2. Pydantic Integration (`examples/pydantic_integration.py`)
+
+Shows how to use Sifaka with Pydantic models and LangChain:
+
+```python
+from pydantic import BaseModel, Field
+from langchain.prompts import PromptTemplate
+from langchain.output_parsers import PydanticOutputParser
+from sifaka.integrations.langchain import wrap_chain
+
+class MovieReview(BaseModel):
+    """Structured movie review model with validation"""
+    title: str = Field(..., description="The title of the movie")
+    rating: float = Field(..., ge=0.0, le=10.0)
+    summary: str = Field(..., min_length=50, max_length=500)
+    recommended: bool = Field(...)
+
+# Create the Pydantic parser
+parser = PydanticOutputParser(pydantic_object=MovieReview)
+
+# Create LangChain pipeline with Sifaka validation
+chain = wrap_chain(
+    chain=your_langchain_pipeline,
+    config=ChainConfig(
+        output_parser=parser,
+        critique=True
+    )
+)
+
+# Generate and validate reviews
+result = chain.run({"movie_title": "The Matrix"})
+review = MovieReview.model_validate(result)
+```
+
+### 3. Combined Classifiers (`examples/combined_classifiers.py`)
+
+Demonstrates using multiple classifiers and pattern rules together:
+
+```python
+from sifaka.classifiers.sentiment import SentimentClassifier
+from sifaka.classifiers.readability import ReadabilityClassifier
+from sifaka.rules import SymmetryRule, RepetitionRule
+
+def analyze_text(text: str):
+    # Initialize classifiers
+    sentiment_classifier = SentimentClassifier(
+        name="tone_analyzer",
+        min_confidence=0.7
+    )
+
+    readability_classifier = ReadabilityClassifier(
+        name="readability_analyzer",
+        min_confidence=0.7
+    )
+
+    # Configure pattern rules
+    symmetry_rule = SymmetryRule(
+        name="symmetry_check",
+        config={
+            "mirror_mode": "both",
+            "symmetry_threshold": 0.4
+        }
+    )
+
+    # Perform multi-faceted analysis
+    results = {
+        "sentiment": sentiment_classifier.classify(text),
+        "readability": readability_classifier.classify(text),
+        "symmetry": symmetry_rule._validate_impl(text)
+    }
+    return results
+```
+
+Each example demonstrates different aspects of Sifaka:
+- Basic usage shows fundamental pattern analysis
+- Pydantic integration shows structured data validation
+- Combined classifiers show how to use multiple analysis types together
+
+For more details, check the full examples in the `examples/` directory.
