@@ -27,6 +27,43 @@ class PromptCritic(Critic):
     )
     model: Any = Field(..., description="Language model to use for critiquing")
 
+    def improve(self, output: str, violations: List[Dict[str, Any]]) -> str:
+        """Improve an output based on rule violations.
+
+        Args:
+            output: The output to improve
+            violations: List of rule violations
+
+        Returns:
+            str: The improved output
+        """
+        # Construct improvement prompt
+        violation_text = "\n".join(f"- {v['rule']}: {v['message']}" for v in violations)
+        improve_prompt = f"""
+        Please improve the following text to fix these violations:
+
+        VIOLATIONS:
+        {violation_text}
+
+        ORIGINAL TEXT:
+        {output}
+
+        REQUIREMENTS:
+        1. Fix all violations while preserving the key information
+        2. Return ONLY the improved text, with no additional explanations or formatting
+        3. Ensure the output is in markdown format
+        4. Keep the length within the specified limits
+        """
+
+        # Get improved version from the model
+        improved = self.model.generate(improve_prompt)
+
+        # Ensure we return a string
+        if not isinstance(improved, str):
+            raise TypeError("Model must return a string")
+
+        return improved.strip()
+
     def critique(self, prompt: str) -> Dict[str, Any]:
         """Analyze a prompt and provide detailed feedback.
 
