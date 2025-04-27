@@ -25,7 +25,8 @@ from dotenv import load_dotenv
 
 from sifaka.models import AnthropicProvider
 from sifaka.models.base import ModelConfig
-from sifaka.rules import LengthRule, ProhibitedContentRule, SymmetryRule, RepetitionRule, RuleResult
+from sifaka.rules import LengthRule, ProhibitedContentRule, SymmetryRule, RepetitionRule
+from sifaka.rules.base import RuleConfig, RulePriority, RuleResult, RuleValidator
 from sifaka.rules.pattern_rules import SymmetryConfig, RepetitionConfig
 from sifaka.critics import PromptCritic
 from sifaka.critics.prompt import PromptCriticConfig
@@ -69,23 +70,29 @@ def main():
     symmetry_rule = SymmetryRule(
         name="symmetry_check",
         description="Checks for text symmetry patterns",
-        config=SymmetryConfig(
-            mirror_mode="both",
-            symmetry_threshold=0.8,
-            min_length=20,
-            ignore_case=True,
-            ignore_punctuation=True,
+        config=RuleConfig(
+            priority=RulePriority.MEDIUM,
+            metadata={
+                "mirror_mode": "both",
+                "symmetry_threshold": 0.8,
+                "preserve_whitespace": True,
+                "preserve_case": True,
+                "ignore_punctuation": True,
+            },
         ),
     )
 
     repetition_rule = RepetitionRule(
         name="repetition_check",
         description="Detects repetitive patterns",
-        config=RepetitionConfig(
-            pattern_type="both",  # Detect both exact and semantic repetitions
-            pattern_length=3,
-            min_occurrences=2,
-            semantic_threshold=0.85,
+        config=RuleConfig(
+            priority=RulePriority.MEDIUM,
+            metadata={
+                "pattern_type": "repeat",
+                "pattern_length": 3,
+                "case_sensitive": True,
+                "allow_overlap": False,
+            },
         ),
     )
 

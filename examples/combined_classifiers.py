@@ -1,278 +1,150 @@
 """
-Example of using multiple classifiers with Sifaka.
+Example demonstrating combined use of classifiers and pattern rules.
 
-This example demonstrates:
-1. Creating custom classifiers for content analysis
-2. Using critics for content reflection and improvement
-3. Using pattern rules for structural analysis
-4. Combining multiple validation strategies
+This example shows how to:
+1. Use existing classifiers (sentiment and readability)
+2. Combine them with pattern rules (symmetry and repetition)
+3. Process text through multiple analysis steps
 """
 
-import logging
-import os
-from typing import Dict, Any, List, Optional, Type
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
-from dotenv import load_dotenv
-from langchain.chains import LLMChain
-from langchain.prompts import PromptTemplate
-from pydantic import Field
 
-from sifaka.models.base import ModelConfig
-from sifaka.models.anthropic import AnthropicProvider
-from sifaka.classifiers.base import (
-    BaseClassifier,
-    ClassificationResult,
-    ClassifierConfig,
-)
-from sifaka.rules.base import Rule, RuleResult, RuleConfig, RuleValidator, RulePriority
-from sifaka.rules.pattern_rules import SymmetryRule, RepetitionRule
-from sifaka.rules.adapters import ClassifierRuleAdapter
-from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
-from sifaka.chain import Chain
-from sifaka.models.openai import OpenAIProvider
-from sifaka.rules.classifier_rule import ClassifierRule, ClassifierRuleConfig, ClassifierProtocol
+from sifaka.classifiers.sentiment import SentimentClassifier
+from sifaka.classifiers.readability import ReadabilityClassifier
+from sifaka.classifiers.base import ClassificationResult
+from sifaka.rules import SymmetryRule, RepetitionRule
+from sifaka.rules.base import RuleConfig, RulePriority
+
+import logging
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class ReadabilityClassifier(BaseClassifier):
-    """Classifier for text readability."""
+def analyze_text(text: str) -> Dict[str, Any]:
+    """
+    Analyze text using multiple classifiers and pattern rules.
 
-    thresholds: Dict[str, float] = Field(
-        default_factory=lambda: {"easy": 0.7, "medium": 0.4, "hard": 0.0}
+    Args:
+        text: The text to analyze
+
+    Returns:
+        Dict containing analysis results
+    """
+    results = {}
+
+    # Initialize classifiers
+    sentiment_classifier = SentimentClassifier(
+        name="tone_analyzer", description="Analyzes the tone/sentiment of text", min_confidence=0.7
     )
 
-    def __init__(self, config: Optional[ClassifierConfig] = None) -> None:
-        """Initialize the classifier."""
-        super().__init__(
-            name="ReadabilityClassifier",
-            description="Classifies text based on readability",
-            config=config
-            or ClassifierConfig(
-                labels=["easy", "medium", "hard"],
-                min_confidence=0.5,
-            ),
-        )
-
-    def _classify_impl(self, text: str) -> ClassificationResult:
-        """Classify text based on readability."""
-        # Simple readability metric: average word length
-        words = text.split()
-        if not words:
-            return ClassificationResult(
-                label="unknown",
-                confidence=0.0,
-                metadata={"reason": "no_words"},
-            )
-
-        avg_word_length = sum(len(word) for word in words) / len(words)
-        normalized_length = min(1.0, avg_word_length / 10.0)  # Normalize to 0-1
-
-        # Determine label based on thresholds
-        for label, threshold in self.thresholds.items():
-            if normalized_length >= threshold:
-                return ClassificationResult(
-                    label=label,
-                    confidence=normalized_length,
-                    metadata={"avg_word_length": avg_word_length},
-                )
-
-        return ClassificationResult(
-            label="unknown",
-            confidence=0.0,
-            metadata={"reason": "no_match"},
-        )
-
-    @classmethod
-    def create(cls) -> "ReadabilityClassifier":
-        """Create a new instance with default configuration."""
-        return cls()
-
-
-class ToneClassifier(BaseClassifier):
-    """Classifier for text tone."""
-
-    tone_indicators: Dict[str, List[str]] = Field(
-        default_factory=lambda: {
-            "positive": ["great", "excellent", "good", "amazing", "wonderful"],
-            "negative": ["bad", "poor", "terrible", "awful", "horrible"],
-            "neutral": ["average", "typical", "standard", "normal", "regular"],
-        }
+    readability_classifier = ReadabilityClassifier(
+        name="readability_analyzer", description="Analyzes text readability", min_confidence=0.7
     )
 
-    def __init__(self, config: Optional[ClassifierConfig] = None) -> None:
-        """Initialize the classifier."""
-        super().__init__(
-            name="ToneClassifier",
-            description="Classifies text based on tone",
-            config=config
-            or ClassifierConfig(
-                labels=["positive", "negative", "neutral"],
-                min_confidence=0.5,
-            ),
-        )
+    # Initialize pattern rules
+    symmetry_rule = SymmetryRule(
+        name="symmetry_check",
+        description="Checks for text symmetry patterns",
+        config=RuleConfig(
+            priority=RulePriority.MEDIUM,
+            metadata={
+                "mirror_mode": "both",
+                "symmetry_threshold": 0.8,
+                "preserve_whitespace": True,
+                "preserve_case": True,
+                "ignore_punctuation": True,
+            },
+        ),
+    )
 
-    def _classify_impl(self, text: str) -> ClassificationResult:
-        """Classify text based on tone."""
-        text = text.lower()
-        word_count = len(text.split())
-        if not word_count:
-            return ClassificationResult(
-                label="unknown",
-                confidence=0.0,
-                metadata={"reason": "no_words"},
-            )
+    repetition_rule = RepetitionRule(
+        name="repetition_check",
+        description="Detects repetitive patterns",
+        config=RuleConfig(
+            priority=RulePriority.MEDIUM,
+            metadata={
+                "pattern_type": "repeat",
+                "pattern_length": 3,
+                "case_sensitive": True,
+                "allow_overlap": False,
+            },
+        ),
+    )
 
-        # Count indicators for each tone
-        tone_counts = {tone: 0 for tone in self.tone_indicators}
-        for tone, indicators in self.tone_indicators.items():
-            for indicator in indicators:
-                tone_counts[tone] += text.count(indicator)
+    # Run sentiment analysis
+    sentiment_result = sentiment_classifier.classify(text)
+    results["sentiment"] = {
+        "label": sentiment_result.label,
+        "confidence": sentiment_result.confidence,
+        "metadata": sentiment_result.metadata,
+    }
 
-        # Find dominant tone
-        max_count = max(tone_counts.values())
-        if max_count == 0:
-            return ClassificationResult(
-                label="neutral",
-                confidence=0.5,
-                metadata={"reason": "no_indicators"},
-            )
+    # Run readability analysis
+    readability_result = readability_classifier.classify(text)
+    results["readability"] = {
+        "label": readability_result.label,
+        "confidence": readability_result.confidence,
+        "metadata": readability_result.metadata,
+    }
 
-        dominant_tone = max(tone_counts.items(), key=lambda x: x[1])[0]
-        confidence = min(1.0, max_count / word_count)
+    # Check for patterns
+    symmetry_result = symmetry_rule._validate_impl(text)
+    results["symmetry"] = {
+        "passed": symmetry_result.passed,
+        "message": symmetry_result.message,
+        "metadata": symmetry_result.metadata,
+    }
 
-        return ClassificationResult(
-            label=dominant_tone,
-            confidence=confidence,
-            metadata={"tone_counts": tone_counts},
-        )
+    repetition_result = repetition_rule._validate_impl(text)
+    results["repetition"] = {
+        "passed": repetition_result.passed,
+        "message": repetition_result.message,
+        "metadata": repetition_result.metadata,
+    }
 
-    @classmethod
-    def create(cls) -> "ToneClassifier":
-        """Create a new instance with default configuration."""
-        return cls()
-
-
-@dataclass
-class ClassifierValidator(RuleValidator[str]):
-    """Validator for classifier rules."""
-
-    classifier: BaseClassifier
-    required_label: Optional[str] = None
-    min_confidence: float = 0.5
-
-    def validate(self, output: str, **kwargs) -> RuleResult:
-        """Validate text using the classifier."""
-        result = self.classifier.classify(output)
-
-        # If no required label, just report the classification
-        if not self.required_label:
-            return RuleResult(
-                passed=True,
-                message=f"Classified as {result.label} with confidence {result.confidence:.2f}",
-                metadata=result.metadata,
-            )
-
-        # Check if classification matches requirements
-        passed = result.label == self.required_label and result.confidence >= self.min_confidence
-
-        return RuleResult(
-            passed=passed,
-            message=(
-                f"Classification {result.label} matches required {self.required_label}"
-                if passed
-                else f"Expected {self.required_label}, got {result.label}"
-            ),
-            metadata=result.metadata,
-        )
-
-    def can_validate(self, output: str) -> bool:
-        """Check if the input can be validated."""
-        return isinstance(output, str)
-
-    @property
-    def validation_type(self) -> Type[str]:
-        """Get the type of input this validator accepts."""
-        return str
-
-
-class StringValidator(RuleValidator[str]):
-    """Base validator for string inputs."""
-
-    def can_validate(self, output: str) -> bool:
-        """Check if the input can be validated."""
-        return isinstance(output, str)
-
-    @property
-    def validation_type(self) -> Type[str]:
-        """Get the type of input this validator accepts."""
-        return str
-
-    def validate(self, output: str, **kwargs) -> RuleResult:
-        """Validate the input."""
-        if not isinstance(output, str):
-            return RuleResult(
-                passed=False,
-                message="Input must be a string",
-                metadata={"error": "invalid_type"},
-            )
-        return RuleResult(
-            passed=True,
-            message="Input is a valid string",
-            metadata={},
-        )
+    return results
 
 
 def main():
-    # Initialize model provider using environment variables
-    model_provider = OpenAIProvider()
-
-    # Create classifiers
-    readability_classifier = ReadabilityClassifier.create()
-    tone_classifier = ToneClassifier.create()
-
-    # Create validators
-    readability_validator = ClassifierValidator(readability_classifier)
-    tone_validator = ClassifierValidator(tone_classifier)
-    string_validator = StringValidator()
-
-    # Create rules
-    rules = [
-        readability_validator,
-        tone_validator,
-        string_validator,
+    # Example texts to analyze
+    texts = [
+        "The quick brown fox jumps over the lazy dog. The lazy dog lets the quick brown fox jump.",
+        "A man, a plan, a canal: Panama!",
+        "This is a very simple text that should be easy to read.",
+        "The quantum mechanical interpretation of molecular orbital theory requires advanced understanding of mathematical principles.",
     ]
 
-    # Create critic config
-    critic_config = PromptCriticConfig(
-        name="combined_critic",
-        description="Improves text based on readability and tone",
-        min_confidence=0.5,
-    )
+    for i, text in enumerate(texts, 1):
+        logger.info("\n%s", "=" * 50)
+        logger.info("Analyzing text %d: %s", i, text)
 
-    # Create critic
-    critic = PromptCritic(config=critic_config, model=model_provider)
+        results = analyze_text(text)
 
-    # Create chain
-    chain = Chain(model=model_provider, rules=rules, critic=critic, max_attempts=3)
+        logger.info("\nSentiment Analysis:")
+        logger.info("- Label: %s", results["sentiment"]["label"])
+        logger.info("- Confidence: %.2f", results["sentiment"]["confidence"])
+        logger.info("- Details: %s", results["sentiment"]["metadata"])
 
-    # Example prompts
-    prompts = [
-        "Explain the role of quantum computing in cryptography",
-        "Describe the impact of artificial intelligence on healthcare",
-        "Discuss the principles of sustainable urban development",
-    ]
+        logger.info("\nReadability Analysis:")
+        logger.info("- Level: %s", results["readability"]["label"])
+        logger.info("- Confidence: %.2f", results["readability"]["confidence"])
+        logger.info("- Metrics: %s", results["readability"]["metadata"])
 
-    # Process each prompt
-    for prompt in prompts:
-        print(f"\nProcessing prompt: {prompt}")
-        try:
-            result = chain.run(prompt)
-            print(f"Generated text: {result}")
-        except ValueError as e:
-            print(f"Error: {e}")
+        logger.info("\nPattern Analysis:")
+        logger.info("Symmetry Check:")
+        logger.info("- Passed: %s", results["symmetry"]["passed"])
+        logger.info("- Message: %s", results["symmetry"]["message"])
+        if "symmetry_score" in results["symmetry"]["metadata"]:
+            logger.info("- Score: %.2f", results["symmetry"]["metadata"]["symmetry_score"])
+
+        logger.info("\nRepetition Check:")
+        logger.info("- Passed: %s", results["repetition"]["passed"])
+        logger.info("- Message: %s", results["repetition"]["message"])
+        if "patterns" in results["repetition"]["metadata"]:
+            logger.info("- Patterns found: %s", results["repetition"]["metadata"]["patterns"])
 
 
 if __name__ == "__main__":
