@@ -302,9 +302,11 @@ Here's a basic example demonstrating text validation with Sifaka:
 import os
 from dotenv import load_dotenv
 from sifaka.models import AnthropicProvider
+from sifaka.models.base import ModelConfig
 from sifaka.rules import SymmetryRule, RepetitionRule
 from sifaka.rules.base import RuleConfig, RulePriority
-from sifaka.critics import PromptCritic, PromptCriticConfig
+from sifaka.critics import PromptCritic
+from sifaka.critics.prompt import PromptCriticConfig
 
 # Load environment variables
 load_dotenv()
@@ -335,15 +337,24 @@ repetition_rule = RepetitionRule(
     )
 )
 
+# Initialize the model provider
+model = AnthropicProvider(
+    model_name="claude-3-haiku-20240307",
+    config=ModelConfig(
+        api_key=os.environ.get("ANTHROPIC_API_KEY"),
+        temperature=0.7,
+        max_tokens=2000
+    )
+)
+
 # Initialize the critic
 critic = PromptCritic(
     config=PromptCriticConfig(
-        api_key=os.environ.get("ANTHROPIC_API_KEY"),
-        model="claude-3-haiku-20240307",
+        system_prompt="You are an expert editor focused on improving text quality.",
         temperature=0.7,
-        max_tokens=2000,
-        system_prompt="You are an expert editor focused on improving text quality."
+        max_tokens=2000
     ),
+    model=model,  # Pass the model instance here
     rules=[symmetry_rule, repetition_rule]
 )
 
@@ -368,7 +379,8 @@ Common issues and solutions:
 1. Import Error: Make sure to import `RuleConfig` and `RulePriority` from `sifaka.rules.base`
 2. Missing name/description: All rules require `name` and `description` parameters
 3. API Key: Set your Anthropic API key in the environment variables
-4. Dependencies: Install required packages using pip
+4. Model Configuration: The API key goes in the ModelConfig, not PromptCriticConfig
+5. Dependencies: Install required packages using pip
 
 ## 🔑 API Keys and Configuration
 
