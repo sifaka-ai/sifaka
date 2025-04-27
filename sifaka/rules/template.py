@@ -34,7 +34,13 @@ class TemplateRule(Rule):
 
         Returns:
             RuleResult: The result of the validation
+
+        Raises:
+            ValueError: If output is None
         """
+        if output is None:
+            raise ValueError("Output cannot be None")
+
         try:
             # Implement your validation logic here
             # Example: Check if output meets some criteria

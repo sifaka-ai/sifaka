@@ -53,7 +53,13 @@ class MedicalRule(Rule):
 
         Returns:
             RuleResult: The result of the validation
+
+        Raises:
+            ValueError: If output is None
         """
+        if output is None:
+            raise ValueError("Output cannot be None")
+
         output_lower = output.lower()
         issues = []
         found_warning_terms = []
@@ -136,7 +142,13 @@ class LegalRule(Rule):
 
         Returns:
             RuleResult: The result of the validation
+
+        Raises:
+            ValueError: If output is None
         """
+        if output is None:
+            raise ValueError("Output cannot be None")
+
         issues = []
         citations = []
 
@@ -224,7 +236,7 @@ class PythonProgrammingRule(Rule):
 
     def validate(self, output: str, **kwargs) -> RuleResult:
         """
-        Validate that the output follows Python best practices.
+        Validate that the output contains proper Python code.
 
         Args:
             output (str): The LLM output to validate
@@ -232,33 +244,41 @@ class PythonProgrammingRule(Rule):
 
         Returns:
             RuleResult: The result of the validation
+
+        Raises:
+            ValueError: If output is None
         """
-        issues = {}
+        if output is None:
+            raise ValueError("Output cannot be None")
+
+        issues = []
 
         # Check code style
-        for pattern_name, pattern in self.code_style_patterns.items():
-            matches = re.findall(pattern, output, re.MULTILINE)
-            if matches:
-                issues[f"code_style_{pattern_name}"] = matches
+        for name, pattern in self.code_style_patterns.items():
+            if not re.search(pattern, output, re.MULTILINE):
+                issues.append(f"Code style issue: {name}")
 
         # Check security
-        for pattern_name, pattern in self.security_patterns.items():
-            matches = re.findall(pattern, output)
-            if matches:
-                issues[f"security_{pattern_name}"] = matches
+        for name, pattern in self.security_patterns.items():
+            if re.search(pattern, output):
+                issues.append(f"Security issue: {name}")
 
         # Check performance
-        for pattern_name, pattern in self.performance_patterns.items():
-            matches = re.findall(pattern, output)
-            if matches:
-                issues[f"performance_{pattern_name}"] = matches
+        for name, pattern in self.performance_patterns.items():
+            if re.search(pattern, output):
+                issues.append(f"Performance issue: {name}")
 
         if issues:
             return RuleResult(
-                passed=False, message="Python code validation failed", metadata={"issues": issues}
+                passed=False,
+                message="Python code validation failed",
+                metadata={"issues": issues},
             )
 
-        return RuleResult(passed=True, message="Python code validation passed")
+        return RuleResult(
+            passed=True,
+            message="Python code validation passed",
+        )
 
 
 class ConsistencyRule(Rule):
@@ -300,7 +320,7 @@ class ConsistencyRule(Rule):
 
     def validate(self, output: str, **kwargs) -> RuleResult:
         """
-        Validate that the output maintains consistency in various aspects.
+        Validate that the output maintains consistency.
 
         Args:
             output (str): The LLM output to validate
@@ -308,7 +328,13 @@ class ConsistencyRule(Rule):
 
         Returns:
             RuleResult: The result of the validation
+
+        Raises:
+            ValueError: If output is None
         """
+        if output is None:
+            raise ValueError("Output cannot be None")
+
         issues = {}
         output_lower = output.lower()
 

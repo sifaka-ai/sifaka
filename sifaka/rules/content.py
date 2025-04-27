@@ -17,15 +17,12 @@ class ProhibitedContentRule(Rule):
         case_sensitive (bool): Whether the check should be case-sensitive
     """
 
-    prohibited_terms: List[str] = Field(default_factory=list)
-    case_sensitive: bool = Field(default=False)
-
-    class Config:
-        arbitrary_types_allowed = True
+    prohibited_terms: List[str] = []
+    case_sensitive: bool = False
 
     def validate(self, output: str, **kwargs) -> RuleResult:
         """
-        Validate that the output does not contain any prohibited terms.
+        Validate that the output does not contain prohibited terms.
 
         Args:
             output (str): The LLM output to validate
@@ -33,23 +30,35 @@ class ProhibitedContentRule(Rule):
 
         Returns:
             RuleResult: The result of the validation
-        """
-        check_output = output if self.case_sensitive else output.lower()
-        found_terms = []
 
-        for term in self.prohibited_terms:
-            search_term = term if self.case_sensitive else term.lower()
-            if search_term in check_output:
+        Raises:
+            ValueError: If output is None
+        """
+        if output is None:
+            raise ValueError("Output cannot be None")
+
+        found_terms = []
+        check_output = output if self.case_sensitive else output.lower()
+        check_terms = (
+            self.prohibited_terms
+            if self.case_sensitive
+            else [term.lower() for term in self.prohibited_terms]
+        )
+
+        for term in check_terms:
+            if term in check_output:
                 found_terms.append(term)
 
-        if found_terms:
-            return RuleResult(
-                passed=False,
-                message=f"Output contains prohibited terms: {', '.join(found_terms)}",
-                metadata={"found_terms": found_terms},
-            )
-
-        return RuleResult(passed=True, message="No prohibited terms found in the output")
+        return RuleResult(
+            passed=len(found_terms) == 0,
+            message=(
+                "Prohibited content detected" if found_terms else "No prohibited content detected"
+            ),
+            metadata={
+                "found_terms": found_terms if found_terms else None,
+                "case_sensitive": self.case_sensitive,
+            },
+        )
 
 
 class ToneConsistencyRule(Rule):
@@ -88,7 +97,13 @@ class ToneConsistencyRule(Rule):
 
         Returns:
             RuleResult: The result of the validation
+
+        Raises:
+            ValueError: If output is None
         """
+        if output is None:
+            raise ValueError("Output cannot be None")
+
         if self.expected_tone.lower() not in self.tone_indicators:
             return RuleResult(
                 passed=False,

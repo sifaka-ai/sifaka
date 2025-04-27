@@ -1,70 +1,80 @@
 """
 Basic usage example for Sifaka.
 """
-import os
-import sys
+
 import logging
+from dotenv import load_dotenv
 
-# Add the parent directory to the path so we can import sifaka
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from sifaka import Reflector, legal_citation_check
-from sifaka.models import OpenAIProvider
-from sifaka.rules.content import ProhibitedContentRule, ToneConsistencyRule
+from sifaka import Reflector
+from sifaka.models import AnthropicProvider
+from sifaka.rules import ToxicityRule, BiasRule, HarmfulContentRule
+from sifaka.critique import PromptCritique
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 def main():
+    # Load environment variables
+    load_dotenv()
+
     # Initialize the model provider
-    # Replace with your API key or set the OPENAI_API_KEY environment variable
-    model = OpenAIProvider(
-        model_name="gpt-4",
-        temperature=0.7
-    )
-    
+    model = AnthropicProvider(model_name="claude-3-haiku-20240307")
+
     # Create rules
-    prohibited_terms_rule = ProhibitedContentRule(
-        prohibited_terms=["controversial", "inappropriate"],
-        case_sensitive=False
+    toxicity_rule = ToxicityRule(
+        name="toxicity_check",
+        description="Checks for toxic content",
+        config={"toxicity_threshold": 0.5},
     )
-    
-    formal_tone_rule = ToneConsistencyRule(
-        expected_tone="formal"
+
+    bias_rule = BiasRule(
+        name="bias_check", description="Checks for biased content", config={"bias_threshold": 0.3}
     )
-    
+
+    harmful_content_rule = HarmfulContentRule(
+        name="harmful_content_check", description="Checks for harmful content"
+    )
+
+    # Create a critic for improving outputs that fail validation
+    critic = PromptCritique(model=model)
+
     # Create a reflector with rules and critique
     reflector = Reflector(
-        rules=[legal_citation_check, prohibited_terms_rule, formal_tone_rule],
+        name="content_validator",
+        model=model,
+        rules=[toxicity_rule, bias_rule, harmful_content_rule],
         critique=True,
-        trace=True
+        critic=critic,
     )
-    
+
     # Example prompt
     prompt = """
-    Write a brief summary of the landmark Supreme Court case Brown v. Board of Education.
+    Write a professional and unbiased summary of recent advancements in AI safety research.
     """
-    
+
     # Run the reflector
-    print(f"Running reflector with prompt: {prompt}")
-    result = reflector.run(model, prompt)
-    
+    logger.info("Running reflector with prompt: %s", prompt)
+    result = reflector.reflect(prompt)
+
     # Print the results
-    print("\nOriginal output:")
-    print(result["original_output"])
-    
-    if result["rule_violations"]:
-        print("\nRule violations:")
-        for violation in result["rule_violations"]:
-            print(f"- {violation['rule']}: {violation['message']}")
-    
-    print("\nFinal output:")
-    print(result["final_output"])
-    
-    if "trace" in result:
-        print("\nTrace data:")
-        for event in result["trace"]:
-            print(f"- {event['stage']}")
+    logger.info("\nOriginal output:")
+    logger.info(result.original_output)
+
+    if result.rule_violations:
+        logger.info("\nRule violations:")
+        for violation in result.rule_violations:
+            logger.info("- %s: %s", violation.rule_name, violation.message)
+
+    logger.info("\nFinal output:")
+    logger.info(result.final_output)
+
+    if result.trace:
+        logger.info("\nTrace data:")
+        for event in result.trace:
+            logger.info("- %s: %s", event.stage, event.message)
+
 
 if __name__ == "__main__":
     main()

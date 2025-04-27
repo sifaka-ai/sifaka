@@ -131,14 +131,22 @@ class Rule(ABC, BaseModel):
         """
         Validate an output.
 
-        This method handles caching if enabled.
+        This method handles input validation and caching if enabled.
 
         Args:
             output: The output to validate
 
         Returns:
             RuleResult with validation results
+
+        Raises:
+            ValueError: If output is None or not a string
         """
+        if output is None:
+            raise ValueError("Output cannot be None")
+        if not isinstance(output, str):
+            raise ValueError(f"Output must be a string, got {type(output)}")
+
         if self.cache_size > 0:
             # Use cache key for cached validation
             cache_key = self._get_cache_key(output)

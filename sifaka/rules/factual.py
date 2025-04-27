@@ -46,7 +46,13 @@ class FactualConsistencyRule(Rule):
 
         Returns:
             RuleResult: The result of the validation
+
+        Raises:
+            ValueError: If output is None
         """
+        if output is None:
+            raise ValueError("Output cannot be None")
+
         output_lower = output.lower()
         contradictions = []
 
@@ -94,7 +100,13 @@ class ConfidenceRule(Rule):
 
         Returns:
             RuleResult: The result of the validation
+
+        Raises:
+            ValueError: If output is None
         """
+        if output is None:
+            raise ValueError("Output cannot be None")
+
         output_lower = output.lower()
         confidence_levels = {}
 
@@ -148,7 +160,13 @@ class CitationRule(Rule):
 
         Returns:
             RuleResult: The result of the validation
+
+        Raises:
+            ValueError: If output is None
         """
+        if output is None:
+            raise ValueError("Output cannot be None")
+
         citations = []
         for pattern in self.citation_patterns:
             matches = re.findall(pattern, output)
@@ -198,7 +216,13 @@ class FactualAccuracyRule(Rule):
 
         Returns:
             RuleResult: The result of the validation
+
+        Raises:
+            ValueError: If output is None
         """
+        if output is None:
+            raise ValueError("Output cannot be None")
+
         output_lower = output.lower()
         inaccuracies = []
 

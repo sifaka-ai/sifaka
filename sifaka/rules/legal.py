@@ -53,7 +53,13 @@ class LegalCitationRule(Rule):
 
         Returns:
             RuleResult: The result of the validation
+
+        Raises:
+            ValueError: If output is None
         """
+        if output is None:
+            raise ValueError("Output cannot be None")
+
         # Find all citations in the output
         citations = self.citation_regex.findall(output)
         citations = [

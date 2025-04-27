@@ -12,7 +12,7 @@ class ProhibitedContentRule(Rule):
 
     Architecture Notes:
     - Inherits from the base Rule class to implement the validation contract
-    - Uses case-insensitive matching for prohibited terms
+    - Uses case-sensitive or case-insensitive matching based on configuration
     - Returns RuleResult objects containing validation status, messages, and metadata
     - Follows the single responsibility principle by focusing only on content filtering
     - Includes error handling for validation failures
@@ -28,7 +28,10 @@ class ProhibitedContentRule(Rule):
         rule = ProhibitedContentRule(
             name="content_rule",
             description="Checks for prohibited terms",
-            config={"prohibited_terms": ["bad", "inappropriate", "forbidden"]}
+            config={
+                "prohibited_terms": ["bad", "inappropriate", "forbidden"],
+                "case_sensitive": False
+            }
         )
         result = rule.validate("This is a bad example")
         # result.passed will be False
@@ -37,6 +40,9 @@ class ProhibitedContentRule(Rule):
 
     prohibited_terms: List[str] = Field(
         default=[], description="List of terms that should not appear in the output"
+    )
+    case_sensitive: bool = Field(
+        default=False, description="Whether to perform case-sensitive matching"
     )
 
     def __init__(
@@ -54,6 +60,7 @@ class ProhibitedContentRule(Rule):
             description: Description of the rule
             config: Configuration dictionary containing:
                    - prohibited_terms: List of terms that should not appear in the output
+                   - case_sensitive: Whether to perform case-sensitive matching
             **kwargs: Additional arguments
 
         Raises:
@@ -61,22 +68,24 @@ class ProhibitedContentRule(Rule):
         """
         super().__init__(name=name, description=description, config=config or {}, **kwargs)
 
-        # Extract prohibited terms from config
+        # Extract configuration
         config = config or {}
         prohibited_terms = config.get("prohibited_terms", [])
+        case_sensitive = config.get("case_sensitive", False)
 
         if not prohibited_terms:
             raise ValueError("prohibited_terms list cannot be empty")
 
         # Set the values using object.__setattr__ to bypass Pydantic validation
         object.__setattr__(self, "prohibited_terms", prohibited_terms)
+        object.__setattr__(self, "case_sensitive", case_sensitive)
 
     def validate(self, output: str) -> RuleResult:
         """
         Validate that the output does not contain any prohibited terms.
 
         This method implements the core validation logic by:
-        1. Converting output to lowercase for case-insensitive matching
+        1. Optionally converting output to lowercase for case-insensitive matching
         2. Checking for each prohibited term
         3. Constructing a detailed result message
         4. Packaging the result with relevant metadata
@@ -91,8 +100,12 @@ class ProhibitedContentRule(Rule):
                        - metadata: Additional validation details including found terms
         """
         try:
-            output_lower = output.lower()
-            found_terms = [term for term in self.prohibited_terms if term.lower() in output_lower]
+            if not self.case_sensitive:
+                output = output.lower()
+                found_terms = [term for term in self.prohibited_terms if term.lower() in output]
+            else:
+                found_terms = [term for term in self.prohibited_terms if term in output]
+
             passed = not found_terms
 
             return RuleResult(
@@ -102,12 +115,20 @@ class ProhibitedContentRule(Rule):
                     if found_terms
                     else "No prohibited terms found"
                 ),
-                metadata={"found_terms": found_terms, "prohibited_terms": self.prohibited_terms},
+                metadata={
+                    "found_terms": found_terms,
+                    "prohibited_terms": self.prohibited_terms,
+                    "case_sensitive": self.case_sensitive,
+                },
             )
 
         except Exception as e:
             return RuleResult(
                 passed=False,
                 message=f"Error during content validation: {str(e)}",
-                metadata={"error": str(e), "prohibited_terms": self.prohibited_terms},
+                metadata={
+                    "error": str(e),
+                    "prohibited_terms": self.prohibited_terms,
+                    "case_sensitive": self.case_sensitive,
+                },
             )

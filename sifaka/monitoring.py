@@ -4,7 +4,7 @@ Performance monitoring for Sifaka.
 
 import time
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 import statistics
 import threading
@@ -20,17 +20,20 @@ class TimingStats:
 
     count: int = 0
     total_time: float = 0.0
-    min_time: float = float("inf")
-    max_time: float = 0.0
-    times: deque = deque(maxlen=1000)  # Keep last 1000 measurements
+    min_time: Optional[float] = None
+    max_time: Optional[float] = None
+    times: deque = field(default_factory=lambda: deque(maxlen=100))
 
-    def add(self, timing: float) -> None:
+    def add_measurement(self, time: float) -> None:
         """Add a timing measurement."""
         self.count += 1
-        self.total_time += timing
-        self.min_time = min(self.min_time, timing)
-        self.max_time = max(self.max_time, timing)
-        self.times.append(timing)
+        self.total_time += time
+        self.times.append(time)
+
+        if self.min_time is None or time < self.min_time:
+            self.min_time = time
+        if self.max_time is None or time > self.max_time:
+            self.max_time = time
 
     @property
     def avg_time(self) -> float:
@@ -38,18 +41,9 @@ class TimingStats:
         return self.total_time / self.count if self.count > 0 else 0.0
 
     @property
-    def median_time(self) -> float:
-        """Calculate median time."""
-        return statistics.median(self.times) if self.times else 0.0
-
-    @property
-    def p95_time(self) -> float:
-        """Calculate 95th percentile time."""
-        if not self.times:
-            return 0.0
-        sorted_times = sorted(self.times)
-        idx = int(len(sorted_times) * 0.95)
-        return sorted_times[idx]
+    def recent_avg_time(self) -> float:
+        """Calculate average of recent times."""
+        return statistics.mean(self.times) if self.times else 0.0
 
 
 class PerformanceMonitor:
@@ -69,9 +63,10 @@ class PerformanceMonitor:
         self.lock = threading.Lock()
 
         # Timing statistics
-        self.rule_times = {}  # Dict[str, TimingStats]
+        self.rule_times: Dict[str, TimingStats] = {}
         self.generation_times = TimingStats()
         self.critique_times = TimingStats()
+        self.validation_times = TimingStats()
 
         # Success/failure tracking
         self.total_attempts = 0
@@ -90,17 +85,22 @@ class PerformanceMonitor:
         with self.lock:
             if rule_name not in self.rule_times:
                 self.rule_times[rule_name] = TimingStats()
-            self.rule_times[rule_name].add(elapsed)
+            self.rule_times[rule_name].add_measurement(elapsed)
 
     def record_generation_time(self, elapsed: float) -> None:
         """Record time taken for model generation."""
         with self.lock:
-            self.generation_times.add(elapsed)
+            self.generation_times.add_measurement(elapsed)
 
     def record_critique_time(self, elapsed: float) -> None:
         """Record time taken for critique."""
         with self.lock:
-            self.critique_times.add(elapsed)
+            self.critique_times.add_measurement(elapsed)
+
+    def record_validation_time(self, elapsed: float) -> None:
+        """Record time taken for validation."""
+        with self.lock:
+            self.validation_times.add_measurement(elapsed)
 
     def record_attempt(self, success: bool) -> None:
         """Record a validation attempt."""
@@ -141,24 +141,30 @@ class PerformanceMonitor:
                     name: {
                         "count": stats.count,
                         "avg_time_ms": stats.avg_time * 1000,
-                        "median_time_ms": stats.median_time * 1000,
-                        "p95_time_ms": stats.p95_time * 1000,
-                        "min_time_ms": stats.min_time * 1000,
-                        "max_time_ms": stats.max_time * 1000,
+                        "recent_avg_time_ms": stats.recent_avg_time * 1000,
+                        "min_time_ms": (
+                            stats.min_time * 1000 if stats.min_time is not None else None
+                        ),
+                        "max_time_ms": (
+                            stats.max_time * 1000 if stats.max_time is not None else None
+                        ),
                     }
                     for name, stats in self.rule_times.items()
                 },
                 "model_generation": {
                     "count": self.generation_times.count,
                     "avg_time_ms": self.generation_times.avg_time * 1000,
-                    "median_time_ms": self.generation_times.median_time * 1000,
-                    "p95_time_ms": self.generation_times.p95_time * 1000,
+                    "recent_avg_time_ms": self.generation_times.recent_avg_time * 1000,
                 },
                 "critique": {
                     "count": self.critique_times.count,
                     "avg_time_ms": self.critique_times.avg_time * 1000,
-                    "median_time_ms": self.critique_times.median_time * 1000,
-                    "p95_time_ms": self.critique_times.p95_time * 1000,
+                    "recent_avg_time_ms": self.critique_times.recent_avg_time * 1000,
+                },
+                "validation": {
+                    "count": self.validation_times.count,
+                    "avg_time_ms": self.validation_times.avg_time * 1000,
+                    "recent_avg_time_ms": self.validation_times.recent_avg_time * 1000,
                 },
                 "attempts": {
                     "total": self.total_attempts,
@@ -172,3 +178,13 @@ class PerformanceMonitor:
                     "hit_rate": cache_hit_rate,
                 },
             }
+
+    def log_metrics(self) -> None:
+        """Log current performance metrics."""
+        metrics = self.get_metrics()
+        logger.info("Performance metrics:")
+        for name, value in metrics.items():
+            if "time" in name:
+                logger.info(f"  {name}: {value:.2f}ms")
+            else:
+                logger.info(f"  {name}: {value:.2f}")

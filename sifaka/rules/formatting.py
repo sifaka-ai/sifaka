@@ -33,7 +33,13 @@ class LengthRule(Rule):
 
         Returns:
             RuleResult: The result of the validation
+
+        Raises:
+            ValueError: If output is None
         """
+        if output is None:
+            raise ValueError("Output cannot be None")
+
         length = len(output)
 
         if length < self.min_length:
@@ -86,7 +92,13 @@ class ParagraphRule(Rule):
 
         Returns:
             RuleResult: The result of the validation
+
+        Raises:
+            ValueError: If output is None
         """
+        if output is None:
+            raise ValueError("Output cannot be None")
+
         paragraphs = output.split("\n\n")
         issues = []
 
@@ -153,7 +165,13 @@ class StyleRule(Rule):
 
         Returns:
             RuleResult: The result of the validation
+
+        Raises:
+            ValueError: If output is None
         """
+        if output is None:
+            raise ValueError("Output cannot be None")
+
         output_lower = output.lower()
         style_scores = {}
 
@@ -205,7 +223,7 @@ class FormattingRule(Rule):
 
     def validate(self, output: str, **kwargs) -> RuleResult:
         """
-        Validate that the output has proper text formatting.
+        Validate that the output follows proper formatting rules.
 
         Args:
             output (str): The LLM output to validate
@@ -213,7 +231,13 @@ class FormattingRule(Rule):
 
         Returns:
             RuleResult: The result of the validation
+
+        Raises:
+            ValueError: If output is None
         """
+        if output is None:
+            raise ValueError("Output cannot be None")
+
         issues = {}
 
         for issue_type, pattern in self.formatting_patterns.items():

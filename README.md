@@ -1,12 +1,7 @@
-<p align="center">
-  <img src="assets/sifika.jpg" alt="Sifaka - A lemur species from Madagascar" width="100%" max-width="800px"/>
-</p>
-
 # Sifaka: Reflection and Reliability for LLMs
 
-[![PyPI version](https://badge.fury.io/py/sifaka.svg)](https://badge.fury.io/py/sifaka)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+<div style="display: flex; align-items: start;">
+<div style="flex: 1;">
 
 **Sifaka** is an open-source framework that adds **reflection and reliability** to large language model (LLM) applications. It helps developers build safer, more reliable AI systems by:
 
@@ -15,6 +10,16 @@
 - Providing transparency and auditability
 
 Whether you're building AI-powered tools for legal research, customer support, or creative generation, Sifaka makes your outputs **safer, smarter, and more transparent.**
+
+</div>
+<div style="flex: 0 0 40%; margin-left: 20px;">
+  <img src="assets/sifika.jpg" alt="Sifaka - A lemur species from Madagascar" width="100%"/>
+</div>
+</div>
+
+[![PyPI version](https://badge.fury.io/py/sifaka.svg)](https://badge.fury.io/py/sifaka)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
 ## 🌟 Features
 
@@ -803,3 +808,286 @@ This optimization is especially useful when:
 - Some rules are more critical than others
 - Rules have varying computational costs
 - You want to fail fast on important checks
+```
+
+## Pluggable Classifiers
+
+Sifaka supports both LLM-based and lightweight ML classifiers for validation. This allows you to:
+- Use fast, local models for simple tasks
+- Leverage LLMs for complex classification
+- Mix and match based on your needs
+
+### Using Lightweight Classifiers
+
+```python
+from sifaka.classifiers import ToxicityClassifier
+from sifaka.rules import ClassifierRule
+
+# Create a lightweight toxicity classifier
+classifier = ToxicityClassifier(
+    name="toxicity_detector",
+    model_name="original"  # Uses the Detoxify model
+)
+
+# Create a rule using the classifier
+toxicity_rule = ClassifierRule(
+    name="toxicity_check",
+    description="Check for toxic content using Detoxify",
+    classifier=classifier,
+    threshold=0.7,  # Confidence threshold
+    valid_labels=["clean"]  # Labels considered valid
+)
+
+# Use in a reflector
+reflector = Reflector(
+    name="content_validator",
+    model=model,
+    rules=[toxicity_rule]
+)
+```
+
+### Using LLM Classifiers
+
+```python
+from sifaka.classifiers import LLMClassifier
+from sifaka.rules import ClassifierRule
+from sifaka.models import AnthropicProvider
+
+# Create an LLM-based classifier
+classifier = LLMClassifier(
+    name="sentiment_classifier",
+    description="Classifies text sentiment",
+    model=AnthropicProvider(model_name="claude-3-haiku-20240307"),
+    labels=["positive", "neutral", "negative"],
+    system_prompt=(
+        "You are a sentiment classifier that categorizes text as positive, neutral, or negative. "
+        "Respond with a JSON object containing 'label' and 'confidence' fields."
+    )
+)
+
+# Create a rule using the classifier
+sentiment_rule = ClassifierRule(
+    name="sentiment_check",
+    description="Ensure positive sentiment",
+    classifier=classifier,
+    threshold=0.8,
+    valid_labels=["positive"]
+)
+
+# Use in a reflector
+reflector = Reflector(
+    name="sentiment_validator",
+    model=model,
+    rules=[sentiment_rule]
+)
+```
+
+### Creating Custom Classifiers
+
+You can create custom classifiers by inheriting from the `Classifier` base class:
+
+```python
+from sifaka.classifiers import Classifier, ClassificationResult
+from typing import List
+import your_ml_library
+
+class CustomClassifier(Classifier):
+    def __init__(self, name: str, description: str, **kwargs):
+        super().__init__(
+            name=name,
+            description=description,
+            labels=["label1", "label2"],
+            cost=1,  # Low cost for fast local model
+            **kwargs
+        )
+        self.model = your_ml_library.load_model()
+
+    def classify(self, text: str) -> ClassificationResult:
+        prediction = self.model.predict(text)
+        return ClassificationResult(
+            label=prediction.label,
+            confidence=prediction.probability,
+            metadata={"extra_info": prediction.metadata}
+        )
+
+    def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
+        predictions = self.model.predict_batch(texts)
+        return [
+            ClassificationResult(
+                label=p.label,
+                confidence=p.probability,
+                metadata={"extra_info": p.metadata}
+            )
+            for p in predictions
+        ]
+```
+
+### Performance Considerations
+
+- Lightweight classifiers are faster but may be less accurate
+- LLM classifiers are more flexible but have higher latency and cost
+- Use the `cost` attribute to help the reflector optimize rule ordering
+- Enable caching for frequently used classifications
+- Use batch classification when possible
+```
+
+## Benchmarking
+
+Sifaka includes comprehensive benchmarking tools to measure and visualize classifier performance. The benchmarking suite provides insights into:
+
+1. Individual classifier performance
+2. Combined classifier pipeline performance
+3. Memory usage
+4. Throughput and latency
+5. Caching effectiveness
+
+### Running Benchmarks
+
+```python
+from sifaka.benchmarks import ClassifierBenchmark, BenchmarkVisualizer
+
+# Initialize and run benchmarks
+benchmark = ClassifierBenchmark(num_samples=1000)
+results = benchmark.run_all_benchmarks()
+
+# Create visualizations
+visualizer = BenchmarkVisualizer(results)
+visualizer.create_all_visualizations()
+```
+
+The benchmarking suite will generate:
+- Latency distribution plots
+- Memory usage comparisons
+- Throughput comparisons
+- Cache effectiveness visualizations
+- A detailed markdown report
+- Raw results in JSON format
+
+All visualizations and reports are saved in a `benchmark_results` directory for easy sharing and analysis.
+
+### Available Metrics
+
+For each classifier, the following metrics are tracked:
+- Throughput (texts/second)
+- Mean, median, P95, and P99 latencies
+- Memory usage
+- Cache size (for applicable classifiers)
+
+The benchmarking suite automatically handles:
+- Warm-up rounds before measurement
+- Test data generation of varying complexity
+- Memory profiling
+- Cache effectiveness tracking
+- Pipeline performance measurement
+```
+
+# Sifaka Framework Documentation
+
+Sifaka is a powerful framework for validating and classifying text content. It provides a comprehensive set of rules and classifiers for various text analysis tasks.
+
+## Rules
+
+### Safety Rules
+- **ToxicityRule**: Validates text for toxic content using predefined indicators and thresholds
+- **BiasRule**: Checks for biased content across different categories
+- **HarmfulContentRule**: Detects potentially harmful or dangerous content
+
+### Content Rules
+- **ProhibitedContentRule**: Enforces restrictions on specific content patterns
+- **ToneConsistencyRule**: Ensures consistent tone throughout the text
+
+### Formatting Rules
+- **LengthRule**: Validates text length constraints
+- **ParagraphRule**: Ensures proper paragraph structure
+- **StyleRule**: Checks for consistent styling
+- **FormattingRule**: Validates general text formatting
+
+### Domain-Specific Rules
+- **LegalCitationRule**: Validates legal citations and references
+- **FactualConsistencyRule**: Ensures factual consistency
+- **ConfidenceRule**: Validates confidence levels in statements
+- **CitationRule**: Checks for proper citations
+- **FactualAccuracyRule**: Verifies factual accuracy
+
+### Base Rules
+- **ClassifierRule**: Base class for implementing classifier-based rules
+- **TemplateRule**: Base template for creating new rules
+
+## Classifiers
+
+### Text Analysis Classifiers
+- **ToxicityClassifier**: Detects toxic content using the Detoxify model
+- **SentimentClassifier**: Analyzes text sentiment using VADER
+- **ProfanityClassifier**: Identifies profane content
+- **LanguageClassifier**: Detects and validates language
+- **ReadabilityClassifier**: Assesses text readability
+- **LLMClassifier**: Leverages language models for classification
+
+## Usage
+
+### Rule Usage Example
+```python
+from sifaka.rules import ToxicityRule
+
+# Initialize the rule
+rule = ToxicityRule(
+    name="toxicity_check",
+    description="Check for toxic content",
+    threshold=0.7
+)
+
+# Validate text
+result = rule.validate("Your text here")
+print(f"Validation passed: {result.passed}")
+print(f"Message: {result.message}")
+print(f"Metadata: {result.metadata}")
+```
+
+### Classifier Usage Example
+```python
+from sifaka.classifiers import SentimentClassifier
+
+# Initialize the classifier
+classifier = SentimentClassifier(
+    name="sentiment_analysis",
+    description="Analyze text sentiment"
+)
+
+# Classify text
+result = classifier.classify("Your text here")
+print(f"Label: {result.label}")
+print(f"Confidence: {result.confidence}")
+```
+
+## Contributing
+
+To add new rules or classifiers:
+
+1. Inherit from the appropriate base class (`Rule` or `Classifier`)
+2. Implement required methods (`validate` for rules, `classify` for classifiers)
+3. Add comprehensive tests
+4. Update documentation
+
+## License
+
+MIT License
+
+Copyright (c) 2024 Sifaka Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
