@@ -61,23 +61,37 @@ result = reflector.validate("Your text here")
 
 After (1.0.0):
 ```python
-from sifaka.rules.pattern_rules import SymmetryRule, RepetitionRule
+from sifaka.rules import SymmetryRule, RepetitionRule
+from sifaka.rules.base import RuleConfig, RulePriority
 
 # For symmetry detection
 symmetry_rule = SymmetryRule(
     name="symmetry_check",
-    config=SymmetryConfig(
-        mirror_mode="both",
-        symmetry_threshold=0.8
+    description="Checks for text symmetry patterns",
+    config=RuleConfig(
+        priority=RulePriority.MEDIUM,
+        metadata={
+            "mirror_mode": "both",
+            "symmetry_threshold": 0.8,
+            "preserve_whitespace": True,
+            "preserve_case": True,
+            "ignore_punctuation": True,
+        }
     )
 )
 
 # For pattern detection
 repetition_rule = RepetitionRule(
     name="repetition_check",
-    config=RepetitionConfig(
-        pattern_type="repeat",
-        pattern_length=3
+    description="Detects repetitive patterns",
+    config=RuleConfig(
+        priority=RulePriority.MEDIUM,
+        metadata={
+            "pattern_type": "repeat",
+            "pattern_length": 3,
+            "case_sensitive": True,
+            "allow_overlap": False,
+        }
     )
 )
 
@@ -286,46 +300,88 @@ Here are two examples showing both operating modes:
 
 ```python
 from sifaka.models import AnthropicProvider
-from sifaka.rules import LengthRule, ProhibitedContentRule
+from sifaka.models.base import ModelConfig
+from sifaka.rules import LengthRule, ProhibitedContentRule, SymmetryRule, RepetitionRule
+from sifaka.rules.base import RuleConfig, RulePriority
 from sifaka.critics import PromptCritic
 from sifaka.critics.prompt import PromptCriticConfig
-from sifaka.core import Chain
+from sifaka.integrations.langchain import wrap_chain, ChainConfig
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# Initialize the provider
-provider = AnthropicProvider(model_name="claude-3-haiku-20240307")
+# Initialize the provider with configuration
+config = ModelConfig(
+    api_key=os.environ.get("ANTHROPIC_API_KEY"),
+    temperature=0.7,  # Balanced between creativity and consistency
+    max_tokens=2000,  # Sufficient for detailed responses
+)
+
+provider = AnthropicProvider(
+    model_name="claude-3-haiku-20240307",
+    config=config
+)
 
 # Create rules
 length_rule = LengthRule(
     name="length_check",
     description="Checks if output length is within bounds",
-    config={"min_length": 100, "max_length": 500}
+    config=RuleConfig(
+        priority=RulePriority.HIGH,
+        metadata={
+            "min_length": 100,
+            "max_length": 500,
+            "unit": "characters"
+        }
+    )
 )
 
 prohibited_terms = ProhibitedContentRule(
     name="content_filter",
     description="Checks for prohibited or inappropriate content",
-    config={"prohibited_terms": ["controversial", "inappropriate"]}
+    config=RuleConfig(
+        priority=RulePriority.HIGH,
+        metadata={
+            "prohibited_terms": ["controversial", "inappropriate"],
+            "case_sensitive": False
+        }
+    )
+)
+
+symmetry_rule = SymmetryRule(
+    name="symmetry_check",
+    description="Checks for text symmetry patterns",
+    config=RuleConfig(
+        priority=RulePriority.MEDIUM,
+        metadata={
+            "mirror_mode": "both",
+            "symmetry_threshold": 0.8,
+            "preserve_whitespace": True,
+            "preserve_case": True,
+            "ignore_punctuation": True,
+        }
+    )
 )
 
 # Create a critic (for critic mode)
 critic_config = PromptCriticConfig(
     name="content_quality_critic",
     description="Improves text quality",
-    system_prompt="You are an expert editor...",
+    system_prompt="You are an expert editor focused on improving text quality, clarity, and effectiveness.",
     temperature=0.7,
     max_tokens=1000
 )
 critic = PromptCritic(config=critic_config, model=provider)
 
 # Example 1: Validation-only Mode
-validation_chain = Chain(
-    model=provider,
-    rules=[length_rule, prohibited_terms],
-    max_attempts=1  # Single attempt since no critic
+validation_chain = wrap_chain(
+    chain=provider.get_langchain_llm(),
+    config=ChainConfig(
+        rules=[length_rule, prohibited_terms, symmetry_rule],
+        critique=False,
+        max_attempts=1  # Single attempt since no critic
+    )
 )
 
 try:
@@ -337,11 +393,14 @@ except ValueError as e:
     print(f"Validation failed: {e}")
 
 # Example 2: Critic Mode
-critic_chain = Chain(
-    model=provider,
-    rules=[length_rule, prohibited_terms],
-    critic=critic,
-    max_attempts=3  # Multiple attempts for improvement
+critic_chain = wrap_chain(
+    chain=provider.get_langchain_llm(),
+    config=ChainConfig(
+        rules=[length_rule, prohibited_terms, symmetry_rule],
+        critique=True,
+        critic=critic,
+        max_attempts=3  # Multiple attempts for improvement
+    )
 )
 
 try:
@@ -357,7 +416,7 @@ try:
         print(f"- Message: {rule_result.message}")
 
     # Access critic's feedback
-    if hasattr(result, "critique_details"):
+    if result.critique_details:
         print("\nCritic's Analysis:")
         print(f"- Score: {result.critique_details.get('score')}")
         print(f"- Feedback: {result.critique_details.get('feedback')}")
