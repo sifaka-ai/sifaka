@@ -8,7 +8,7 @@ including symmetry detection and repetition analysis.
 from dataclasses import dataclass
 from typing import Dict, Optional, Protocol, runtime_checkable
 
-from sifaka.rules.base import Rule, RuleResult
+from sifaka.rules.base import Rule, RuleResult, RuleConfig
 
 
 @dataclass(frozen=True)
@@ -76,11 +76,20 @@ class SymmetryRule(Rule):
         self,
         name: str = "symmetry_validator",
         description: str = "Validates text symmetry patterns",
-        config: Optional[SymmetryConfig] = None,
+        config: Optional[RuleConfig] = None,
     ) -> None:
         """Initialize the symmetry rule."""
-        super().__init__(name=name, description=description)
-        self.config = config or SymmetryConfig()
+        super().__init__(name=name, description=description, config=config)
+        self._symmetry_config = SymmetryConfig(
+            mirror_mode=self.config.metadata.get("mirror_mode", "horizontal"),
+            preserve_whitespace=self.config.metadata.get("preserve_whitespace", True),
+            preserve_case=self.config.metadata.get("preserve_case", True),
+            ignore_punctuation=self.config.metadata.get("ignore_punctuation", False),
+            symmetry_threshold=self.config.metadata.get("symmetry_threshold", 1.0),
+            cache_size=self.config.cache_size,
+            priority=self.config.priority.value,
+            cost=self.config.cost,
+        )
 
     def _validate_impl(self, text: str) -> RuleResult:
         """Validate text symmetry."""
@@ -89,25 +98,25 @@ class SymmetryRule(Rule):
 
         # Process text according to configuration
         processed_text = text
-        if not self.config.preserve_case:
+        if not self._symmetry_config.preserve_case:
             processed_text = processed_text.lower()
-        if self.config.ignore_punctuation:
+        if self._symmetry_config.ignore_punctuation:
             processed_text = "".join(c for c in processed_text if c.isalnum() or c.isspace())
 
         lines = processed_text.split("\n")
         symmetry_score = 0.0
 
-        if self.config.mirror_mode in {"horizontal", "both"}:
+        if self._symmetry_config.mirror_mode in {"horizontal", "both"}:
             # Check horizontal symmetry
             for line in lines:
-                if not self.config.preserve_whitespace:
+                if not self._symmetry_config.preserve_whitespace:
                     line = line.strip()
                 reversed_line = line[::-1]
                 similarity = self._calculate_similarity(line, reversed_line)
                 symmetry_score += similarity
             symmetry_score /= len(lines) if lines else 1
 
-        if self.config.mirror_mode in {"vertical", "both"}:
+        if self._symmetry_config.mirror_mode in {"vertical", "both"}:
             # Check vertical symmetry
             reversed_lines = lines[::-1]
             vertical_score = (
@@ -117,12 +126,12 @@ class SymmetryRule(Rule):
                 else 0
             )
 
-            if self.config.mirror_mode == "both":
+            if self._symmetry_config.mirror_mode == "both":
                 symmetry_score = (symmetry_score + vertical_score) / 2
             else:
                 symmetry_score = vertical_score
 
-        is_symmetric = symmetry_score >= self.config.symmetry_threshold
+        is_symmetric = symmetry_score >= self._symmetry_config.symmetry_threshold
 
         return RuleResult(
             passed=is_symmetric,
@@ -133,7 +142,7 @@ class SymmetryRule(Rule):
             ),
             metadata={
                 "symmetry_score": symmetry_score,
-                "mirror_mode": self.config.mirror_mode,
+                "mirror_mode": self._symmetry_config.mirror_mode,
                 "original_text": text,
                 "processed_text": processed_text,
             },
@@ -156,11 +165,20 @@ class RepetitionRule(Rule):
         self,
         name: str = "repetition_detector",
         description: str = "Detects repetitive patterns in text",
-        config: Optional[RepetitionConfig] = None,
+        config: Optional[RuleConfig] = None,
     ) -> None:
         """Initialize the repetition rule."""
-        super().__init__(name=name, description=description)
-        self.config = config or RepetitionConfig()
+        super().__init__(name=name, description=description, config=config)
+        self._repetition_config = RepetitionConfig(
+            pattern_type=self.config.metadata.get("pattern_type", "repeat"),
+            pattern_length=self.config.metadata.get("pattern_length", 2),
+            custom_pattern=self.config.metadata.get("custom_pattern"),
+            case_sensitive=self.config.metadata.get("case_sensitive", True),
+            allow_overlap=self.config.metadata.get("allow_overlap", False),
+            cache_size=self.config.cache_size,
+            priority=self.config.priority.value,
+            cost=self.config.cost,
+        )
 
     def _validate_impl(self, text: str) -> RuleResult:
         """Validate text for repetitive patterns."""
@@ -168,24 +186,27 @@ class RepetitionRule(Rule):
             raise ValueError("Input must be a string")
 
         # Process text according to configuration
-        if not self.config.case_sensitive:
+        if not self._repetition_config.case_sensitive:
             text = text.lower()
 
         matches = []
         match_count = 0
 
-        if self.config.pattern_type == "custom" and self.config.custom_pattern:
+        if (
+            self._repetition_config.pattern_type == "custom"
+            and self._repetition_config.custom_pattern
+        ):
             # Use custom pattern
-            pattern = self.config.custom_pattern
+            pattern = self._repetition_config.custom_pattern
             matches = self._find_pattern_matches(text, pattern)
             match_count = len(matches)
         else:
             # Find repeating or alternating patterns
-            for i in range(len(text) - self.config.pattern_length + 1):
-                if not self.config.allow_overlap and any(i < end for _, end in matches):
+            for i in range(len(text) - self._repetition_config.pattern_length + 1):
+                if not self._repetition_config.allow_overlap and any(i < end for _, end in matches):
                     continue
 
-                pattern = text[i : i + self.config.pattern_length]
+                pattern = text[i : i + self._repetition_config.pattern_length]
                 if self._is_valid_pattern(text, pattern, i):
                     matches.append((i, i + len(pattern)))
                     match_count += 1
@@ -198,17 +219,17 @@ class RepetitionRule(Rule):
                 "matches_found": [
                     text[start:end] for start, end in matches[:10]
                 ],  # Limit to first 10
-                "pattern_type": self.config.pattern_type,
-                "pattern_length": self.config.pattern_length,
+                "pattern_type": self._repetition_config.pattern_type,
+                "pattern_length": self._repetition_config.pattern_length,
             },
         )
 
     def _is_valid_pattern(self, text: str, pattern: str, start_pos: int) -> bool:
         """Check if a pattern is valid according to configuration."""
-        if self.config.pattern_type == "repeat":
+        if self._repetition_config.pattern_type == "repeat":
             # Look for exact repetitions
             return text.count(pattern) > 1
-        elif self.config.pattern_type == "alternate":
+        elif self._repetition_config.pattern_type == "alternate":
             # Look for alternating patterns
             if len(text) < start_pos + len(pattern) * 2:
                 return False
@@ -225,5 +246,5 @@ class RepetitionRule(Rule):
             if pos == -1:
                 break
             matches.append((pos, pos + len(pattern)))
-            start = pos + (1 if self.config.allow_overlap else len(pattern))
+            start = pos + (1 if self._repetition_config.allow_overlap else len(pattern))
         return matches
