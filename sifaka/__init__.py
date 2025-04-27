@@ -1,27 +1,56 @@
 """
-Sifaka - A framework for building reliable and reflective AI systems.
+Sifaka: A framework for building reliable and reflective AI systems.
 """
 
-__version__ = "0.1.0"
+import warnings
+from typing import List
 
+from sifaka.models import AnthropicProvider, OpenAIProvider
+from sifaka.rules import (
+    Rule,
+    LengthRule,
+    ProhibitedContentRule,
+    SentimentRule,
+    ToxicityRule,
+    FormatRule,
+    SymmetryRule,
+    RepetitionRule,
+)
+from sifaka.critics import PromptCritic
+from sifaka.chain import Chain
+
+# Import deprecated Reflector for backward compatibility
 from sifaka.reflector import Reflector
-from sifaka.rules.base import Rule, RuleResult
-from sifaka.critics.base import Critic
-from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
-from sifaka.critics import DEFAULT_PROMPT_CONFIG
-from sifaka.models.base import ModelProvider
-from sifaka.utils.tracing import Tracer
-from sifaka.utils.logging import get_logger
+
+# Version information
+__version__ = "1.0.0"
+
+# Show deprecation warning for Reflector
+warnings.warn(
+    "The Reflector class is deprecated and will be removed in version 2.0.0. "
+    "Use SymmetryRule and RepetitionRule from sifaka.rules.pattern_rules instead. "
+    "See the migration guide in the documentation for more details.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 __all__ = [
-    "Reflector",
+    # Core components
+    "Chain",
     "Rule",
-    "RuleResult",
-    "Critic",
+    # Model providers
+    "AnthropicProvider",
+    "OpenAIProvider",
+    # Rules
+    "LengthRule",
+    "ProhibitedContentRule",
+    "SentimentRule",
+    "ToxicityRule",
+    "FormatRule",
+    "SymmetryRule",
+    "RepetitionRule",
+    # Critics
     "PromptCritic",
-    "PromptCriticConfig",
-    "DEFAULT_PROMPT_CONFIG",
-    "ModelProvider",
-    "Tracer",
-    "get_logger",
+    # Deprecated (will be removed in 2.0.0)
+    "Reflector",
 ]

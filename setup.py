@@ -63,7 +63,7 @@ extras_require["all"] = [
 
 setup(
     name="sifaka",
-    version="0.2.0",
+    version="1.0.0",
     description="A framework for building reliable and reflective AI systems",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
@@ -75,7 +75,7 @@ setup(
     extras_require=extras_require,
     python_requires=">=3.8",
     classifiers=[
-        "Development Status :: 4 - Beta",
+        "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",

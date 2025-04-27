@@ -99,168 +99,146 @@ Example with channel:
     ```
 """
 
-# Standard library imports
-from typing import Any, Dict, Generic, List, Optional, Tuple, TypeVar, Union, Callable
-import logging
-from functools import partial
-
-# Third-party imports
-from langgraph.channels import AnyValue
-from langgraph.graph import Graph, StateGraph
-from langgraph.prebuilt import ToolNode
-from pydantic import BaseModel, ConfigDict
-
-# Local imports
-from sifaka.critics.base import Critic
+from typing import (
+    Dict,
+    Any,
+    List,
+    Optional,
+    Union,
+    Callable,
+    TypeVar,
+    Generic,
+    Protocol,
+    runtime_checkable,
+    cast,
+    TypeGuard,
+    Tuple,
+)
+from dataclasses import dataclass, field
+from abc import ABC, abstractmethod
+from langchain.graphs import StateGraph
+from langchain.schema import BaseMessage
 from sifaka.rules.base import Rule, RuleResult
 from sifaka.models.base import ModelProvider
 from sifaka.utils.logging import get_logger
-from sifaka.utils.tracing import Tracer, TraceEvent
 
 logger = get_logger(__name__)
-T = TypeVar("T")
+StateType = TypeVar("StateType")
+NodeType = TypeVar("NodeType")
 
 
-class SifakaGraph(BaseModel, Generic[T]):
+@runtime_checkable
+class GraphValidator(Protocol[StateType]):
+    """Protocol for graph state validation."""
+
+    def validate(self, state: StateType) -> RuleResult: ...
+    def can_validate(self, state: StateType) -> bool: ...
+
+
+@runtime_checkable
+class GraphProcessor(Protocol[StateType]):
+    """Protocol for graph state processing."""
+
+    def process(self, state: StateType) -> StateType: ...
+    def can_process(self, state: StateType) -> bool: ...
+
+
+@runtime_checkable
+class GraphNode(Protocol[StateType, NodeType]):
+    """Protocol for graph nodes."""
+
+    def run(self, state: StateType) -> NodeType: ...
+    def can_run(self, state: StateType) -> bool: ...
+
+
+@dataclass
+class GraphConfig(Generic[StateType]):
+    """Configuration for Sifaka graphs."""
+
+    validators: List[GraphValidator[StateType]] = field(default_factory=list)
+    processors: List[GraphProcessor[StateType]] = field(default_factory=list)
+    critique: bool = True
+
+    def __post_init__(self) -> None:
+        """Validate configuration."""
+        if not isinstance(self.validators, list):
+            raise ValueError("validators must be a list")
+        if not isinstance(self.processors, list):
+            raise ValueError("processors must be a list")
+
+
+class SifakaGraph(Generic[StateType, NodeType]):
     """
     A LangGraph graph that integrates Sifaka's reflection and reliability features.
-
-    Attributes:
-        graph: The underlying LangGraph graph
-        rules: List of rules to apply to graph outputs
-        critique: Whether to enable critique
-        tracer: Optional tracer for debugging
-        critic: Optional critique system for improving outputs
     """
-
-    graph: Graph
-    rules: List[Rule] = []
-    critique: bool = True
-    tracer: Optional[Tracer] = None
-    critic: Optional[Critic] = None
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def __init__(
         self,
-        graph: Graph,
-        rules: Optional[List[Rule]] = None,
-        critique: bool = True,
-        tracer: Optional[Tracer] = None,
-        critic: Optional[Critic] = None,
-        **kwargs,
+        graph: StateGraph,
+        config: GraphConfig[StateType],
     ) -> None:
         """
         Initialize a Sifaka graph.
 
         Args:
             graph: The LangGraph graph to wrap
-            rules: List of rules to apply to graph outputs
-            critique: Whether to enable critique
-            tracer: Optional tracer for debugging
-            critic: Optional critique system for improving outputs
-            **kwargs: Additional arguments for the graph
+            config: Graph configuration
         """
-        super().__init__(
-            graph=graph,
-            rules=rules or [],
-            critique=critique,
-            tracer=tracer,
-            critic=critic,
-            **kwargs,
-        )
+        self._graph = graph
+        self._config = config
 
     @property
-    def has_rules(self) -> bool:
-        """Return whether the graph has any rules."""
-        return bool(self.rules)
+    def has_validators(self) -> bool:
+        """Return whether the graph has any validators."""
+        return bool(self._config.validators)
 
     @property
-    def has_tracer(self) -> bool:
-        """Return whether the graph has a tracer."""
-        return self.tracer is not None
+    def has_processors(self) -> bool:
+        """Return whether the graph has any processors."""
+        return bool(self._config.processors)
 
-    @property
-    def has_critic(self) -> bool:
-        """Return whether the graph has a critic."""
-        return self.critic is not None
-
-    def _validate_output(self, output: Dict[str, Any]) -> Tuple[bool, List[Dict[str, Any]]]:
+    def _validate_state(self, state: StateType) -> tuple[bool, List[Dict[str, Any]]]:
         """
-        Validate the output using the graph's rules.
+        Validate the state using the graph's validators.
 
         Args:
-            output: The output to validate
+            state: The state to validate
 
         Returns:
             Tuple of (passed, violations) where:
-                - passed: Whether the output passed all rules
-                - violations: List of rule violations
+                - passed: Whether the state passed all validators
+                - violations: List of validation violations
         """
         violations = []
-        for rule in self.rules:
-            result = rule.validate(str(output))
-            if not result.passed:
-                violations.append(
-                    {"rule": rule.name, "message": result.message, "metadata": result.metadata}
-                )
+        for validator in self._config.validators:
+            if validator.can_validate(state):
+                result = validator.validate(state)
+                if not result.passed:
+                    violations.append(
+                        {
+                            "validator": validator.__class__.__name__,
+                            "message": result.message,
+                            "metadata": result.metadata,
+                        }
+                    )
 
         return not violations, violations
 
-    def _improve_output(
-        self, output: Dict[str, Any], violations: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def _process_state(self, state: StateType) -> StateType:
         """
-        Improve the output using the critique system.
+        Process the state using the graph's processors.
 
         Args:
-            output: The output to improve
-            violations: List of rule violations
+            state: The state to process
 
         Returns:
-            The improved output
-
-        Raises:
-            ValueError: If critique is enabled but no critic is configured
+            The processed state
         """
-        if not self.has_critic:
-            raise ValueError(
-                "Critique is enabled but no critic is configured. "
-                "Please provide a critic when initializing the graph."
-            )
-
-        # Create a critique prompt
-        critique_prompt = f"""
-        The following output failed validation with the following violations:
-        {violations}
-
-        Original output:
-        {output}
-
-        Please provide an improved version that addresses these issues.
-        """
-
-        # Get the improved output from the critic
-        improved_output = self.critic.critique(critique_prompt)
-        logger.debug("Improved output: %s", improved_output)
-
-        # Validate the improved output
-        passed, new_violations = self._validate_output(improved_output)
-        if not passed:
-            logger.warning("Improved output still has violations: %s", new_violations)
-
-        return improved_output
-
-    def _trace_event(self, event_type: str, data: Dict[str, Any]) -> None:
-        """
-        Trace an event if a tracer is configured.
-
-        Args:
-            event_type: The type of event
-            data: The event data
-        """
-        if self.has_tracer:
-            self.tracer.trace(event_type, data)
+        processed = state
+        for processor in self._config.processors:
+            if processor.can_process(processed):
+                processed = processor.process(processed)
+        return processed
 
     def run(self, inputs: Dict[str, Any], **kwargs) -> Dict[str, Any]:
         """
@@ -271,567 +249,148 @@ class SifakaGraph(BaseModel, Generic[T]):
             **kwargs: Additional arguments for the graph
 
         Returns:
-            The graph's output
+            The graph's output state
 
         Raises:
-            ValueError: If critique is enabled but no critic is configured
+            ValueError: If the state fails validation and critique is disabled
         """
-        if self.has_tracer:
-            self._trace_event("run", {"inputs": inputs})
-
-        # Validate the graph
-        self.graph.validate()
-
         # Run the graph
-        output = self.graph.compile(inputs)
+        state = self._graph.run(inputs, **kwargs)
+        logger.debug("Graph state: %s", state)
 
-        # Validate the output
-        if self.has_rules:
-            passed, violations = self._validate_output(output)
-            if not passed:
-                if self.critique and self.has_critic:
-                    output = self._improve_output(output, violations)
-                else:
-                    logger.warning("Output validation failed: %s", violations)
+        # Process the state
+        if self.has_processors:
+            state = self._process_state(state)
 
-        if self.has_tracer:
-            self._trace_event("run_complete", {"output": output})
+        # Validate the state
+        passed, violations = self._validate_state(state)
+        if not passed:
+            if self._config.critique:
+                # TODO: Implement critique
+                pass
+            else:
+                raise ValueError(f"Graph state failed validation: {violations}")
 
-        return output
+        return state
 
     def __call__(self, inputs: Dict[str, Any], **kwargs) -> Dict[str, Any]:
-        """
-        Call the graph with Sifaka's reflection and reliability features.
-
-        Args:
-            inputs: The inputs to the graph
-            **kwargs: Additional arguments for the graph
-
-        Returns:
-            The graph's output
-        """
+        """Run the graph (callable interface)."""
         return self.run(inputs, **kwargs)
 
 
-class SifakaStateGraph(SifakaGraph[T]):
-    """
-    A LangGraph state graph that integrates Sifaka's reflection and reliability features.
+class RuleBasedValidator(GraphValidator[Dict[str, Any]]):
+    """A validator that uses Sifaka rules."""
 
-    Attributes:
-        graph: The underlying LangGraph state graph
-        rules: List of rules to apply to graph outputs
-        critique: Whether to enable critique
-        tracer: Optional tracer for debugging
-        critic: Optional critique system for improving outputs
-    """
+    def __init__(self, rules: List[Rule]) -> None:
+        """Initialize with rules."""
+        self._rules = rules
 
-    graph: StateGraph
+    def validate(self, state: Dict[str, Any]) -> RuleResult:
+        """Validate using rules."""
+        for key, value in state.items():
+            if isinstance(value, str):
+                for rule in self._rules:
+                    result = rule.validate(value)
+                    if not result.passed:
+                        return result
+        return RuleResult(passed=True, message="All rules passed")
+
+    def can_validate(self, state: Dict[str, Any]) -> bool:
+        """Check if can validate the state."""
+        return isinstance(state, dict)
+
+
+class SifakaNode(GraphNode[StateType, NodeType]):
+    """
+    A node in a Sifaka graph that integrates validation and processing.
+    """
 
     def __init__(
         self,
-        graph: StateGraph,
-        rules: Optional[List[Rule]] = None,
-        critique: bool = True,
-        tracer: Optional[Tracer] = None,
-        critic: Optional[Critic] = None,
-        **kwargs,
+        node: Callable[[StateType], NodeType],
+        validators: Optional[List[GraphValidator[StateType]]] = None,
+        processors: Optional[List[GraphProcessor[StateType]]] = None,
     ) -> None:
         """
-        Initialize a Sifaka state graph.
+        Initialize a Sifaka node.
 
         Args:
-            graph: The LangGraph state graph to wrap
-            rules: List of rules to apply to graph outputs
-            critique: Whether to enable critique
-            tracer: Optional tracer for debugging
-            critic: Optional critique system for improving outputs
-            **kwargs: Additional arguments for the graph
+            node: The node function to wrap
+            validators: Optional list of validators
+            processors: Optional list of processors
         """
-        super().__init__(
-            graph=graph,
-            rules=rules,
-            critique=critique,
-            tracer=tracer,
-            critic=critic,
-            **kwargs,
-        )
-
-    def run(self, inputs: Dict[str, Any], **kwargs) -> Dict[str, Any]:
-        """
-        Run the state graph with Sifaka's reflection and reliability features.
-
-        Args:
-            inputs: The inputs to the graph
-            **kwargs: Additional arguments for the graph
-
-        Returns:
-            The graph's output
-
-        Raises:
-            ValueError: If critique is enabled but no critic is configured
-        """
-        if self.has_tracer:
-            self._trace_event("run", {"inputs": inputs})
-
-        # Validate the graph
-        self.graph.validate()
-
-        # Run the graph
-        output = self.graph.compile(inputs)
-
-        # Validate the output
-        if self.has_rules:
-            passed, violations = self._validate_output(output)
-            if not passed:
-                if self.critique and self.has_critic:
-                    output = self._improve_output(output, violations)
-                else:
-                    logger.warning("Output validation failed: %s", violations)
-
-        if self.has_tracer:
-            self._trace_event("run_complete", {"output": output})
-
-        return output
-
-
-class SifakaToolNode(BaseModel):
-    """
-    A LangGraph tool node that integrates Sifaka's reflection and reliability features.
-
-    Attributes:
-        node: The underlying tool node
-        rules: List of rules to apply to tool outputs
-        critique: Whether to enable critique
-        tracer: Optional tracer for debugging
-        critic: Optional critique system for improving outputs
-    """
-
-    node: ToolNode
-    rules: List[Rule] = []
-    critique: bool = True
-    tracer: Optional[Tracer] = None
-    critic: Optional[Critic] = None
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    def __init__(
-        self,
-        node: ToolNode,
-        rules: Optional[List[Rule]] = None,
-        critique: bool = True,
-        tracer: Optional[Tracer] = None,
-        critic: Optional[Critic] = None,
-        **kwargs,
-    ) -> None:
-        """
-        Initialize a Sifaka tool node.
-
-        Args:
-            node: The LangGraph tool node to wrap
-            rules: List of rules to apply to tool outputs
-            critique: Whether to enable critique
-            tracer: Optional tracer for debugging
-            critic: Optional critique system for improving outputs
-            **kwargs: Additional arguments for the node
-        """
-        super().__init__(
-            node=node,
-            rules=rules or [],
-            critique=critique,
-            tracer=tracer,
-            critic=critic,
-            **kwargs,
-        )
-
-    @property
-    def has_rules(self) -> bool:
-        """Return whether the node has any rules."""
-        return bool(self.rules)
-
-    @property
-    def has_tracer(self) -> bool:
-        """Return whether the node has a tracer."""
-        return self.tracer is not None
-
-    @property
-    def has_critic(self) -> bool:
-        """Return whether the node has a critic."""
-        return self.critic is not None
-
-    def _validate_output(self, output: Any) -> Tuple[bool, List[Dict[str, Any]]]:
-        """
-        Validate the output using the node's rules.
-
-        Args:
-            output: The output to validate
-
-        Returns:
-            Tuple of (passed, violations) where:
-                - passed: Whether the output passed all rules
-                - violations: List of rule violations
-        """
-        violations = []
-        for rule in self.rules:
-            result = rule.validate(str(output))
-            if not result.passed:
-                violations.append(
-                    {"rule": rule.name, "message": result.message, "metadata": result.metadata}
-                )
-
-        return not violations, violations
-
-    def _improve_output(self, output: Any, violations: List[Dict[str, Any]]) -> Any:
-        """
-        Improve the output using the critique system.
-
-        Args:
-            output: The output to improve
-            violations: List of rule violations
-
-        Returns:
-            The improved output
-
-        Raises:
-            ValueError: If critique is enabled but no critic is configured
-        """
-        if not self.has_critic:
-            raise ValueError(
-                "Critique is enabled but no critic is configured. "
-                "Please provide a critic when initializing the node."
-            )
-
-        # Create a critique prompt
-        critique_prompt = f"""
-        The following output failed validation with the following violations:
-        {violations}
-
-        Original output:
-        {output}
-
-        Please provide an improved version that addresses these issues.
-        """
-
-        # Get the improved output from the critic
-        improved_output = self.critic.critique(critique_prompt)
-        logger.debug("Improved output: %s", improved_output)
-
-        # Validate the improved output
-        passed, new_violations = self._validate_output(improved_output)
-        if not passed:
-            logger.warning("Improved output still has violations: %s", new_violations)
-
-        return improved_output
-
-    def _trace_event(self, event_type: str, data: Dict[str, Any]) -> None:
-        """
-        Trace an event if a tracer is configured.
-
-        Args:
-            event_type: The type of event
-            data: The event data
-        """
-        if self.has_tracer:
-            self.tracer.trace(event_type, data)
-
-    def invoke(self, tool_input: Dict[str, Any]) -> Any:
-        """
-        Invoke the tool node with the given input.
-
-        Args:
-            tool_input: The input to the tool
-
-        Returns:
-            The output of the tool
-
-        Raises:
-            ValueError: If critique is enabled but no critic is configured
-        """
-        if self.has_tracer:
-            self._trace_event("invoke", {"input": tool_input})
-
-        # Invoke the tool
-        output = self.node.invoke(tool_input)
-
-        # Validate the output
-        if self.has_rules:
-            passed, violations = self._validate_output(output)
-            if not passed:
-                if self.critique and self.has_critic:
-                    output = self._improve_output(output, violations)
-                else:
-                    logger.warning("Output validation failed: %s", violations)
-
-        if self.has_tracer:
-            self._trace_event("invoke_complete", {"output": output})
-
-        return output
-
-
-class SifakaChannel(BaseModel):
-    """
-    A LangGraph channel that integrates Sifaka's reflection and reliability features.
-
-    Attributes:
-        channel: The underlying channel
-        rules: List of rules to apply to channel messages
-        critique: Whether to enable critique
-        tracer: Optional tracer for debugging
-        critic: Optional critique system for improving messages
-    """
-
-    channel: AnyValue
-    rules: List[Rule] = []
-    critique: bool = True
-    tracer: Optional[Tracer] = None
-    critic: Optional[Critic] = None
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    @property
-    def has_rules(self) -> bool:
-        """Return whether the channel has any rules."""
-        return bool(self.rules)
-
-    @property
-    def has_tracer(self) -> bool:
-        """Return whether the channel has a tracer."""
-        return self.tracer is not None
-
-    @property
-    def has_critic(self) -> bool:
-        """Return whether the channel has a critic."""
-        return self.critic is not None
-
-    def _validate_message(self, message: Any) -> Tuple[bool, List[Dict[str, Any]]]:
-        """
-        Validate a message using the channel's rules.
-
-        Args:
-            message: The message to validate
-
-        Returns:
-            Tuple of (passed, violations) where:
-                - passed: Whether the message passed all rules
-                - violations: List of rule violations
-        """
-        violations = []
-        for rule in self.rules:
-            result = rule.validate(str(message))
-            if not result.passed:
-                violations.append(
-                    {"rule": rule.name, "message": result.message, "metadata": result.metadata}
-                )
-
-        return not violations, violations
-
-    def _improve_message(self, message: Any, violations: List[Dict[str, Any]]) -> Any:
-        """
-        Improve a message using the critique system.
-
-        Args:
-            message: The message to improve
-            violations: List of rule violations
-
-        Returns:
-            The improved message
-
-        Raises:
-            ValueError: If critique is enabled but no critic is configured
-        """
-        if not self.has_critic:
-            raise ValueError(
-                "Critique is enabled but no critic is configured. "
-                "Please provide a critic when initializing the channel."
-            )
-
-        # Create a critique prompt
-        critique_prompt = f"""
-        The following message failed validation with the following violations:
-        {violations}
-
-        Original message:
-        {message}
-
-        Please provide an improved version that addresses these issues.
-        """
-
-        # Get the improved message from the critic
-        improved_message = self.critic.critique(critique_prompt)
-        logger.debug("Improved message: %s", improved_message)
-
-        # Validate the improved message
-        passed, new_violations = self._validate_message(improved_message)
-        if not passed:
-            logger.warning("Improved message still has violations: %s", new_violations)
-
-        return improved_message
-
-    def _trace_event(self, event_type: str, data: Dict[str, Any]) -> None:
-        """
-        Trace an event if a tracer is configured.
-
-        Args:
-            event_type: The type of event
-            data: The event data
-        """
-        if self.has_tracer:
-            self.tracer.trace(event_type, data)
-
-    def send(self, message: Any) -> None:
-        """
-        Send a message through the channel.
-
-        Args:
-            message: The message to send
-
-        Raises:
-            ValueError: If critique is enabled but no critic is configured
-        """
-        if self.has_tracer:
-            self._trace_event("send", {"message": message})
-
-        # Validate the message
-        if self.has_rules:
-            passed, violations = self._validate_message(message)
-            if not passed:
-                if self.critique and self.has_critic:
-                    message = self._improve_message(message, violations)
-                else:
-                    logger.warning("Message validation failed: %s", violations)
-
-        # Send the message
-        self.channel.update(message)
-
-    def receive(self) -> Any:
-        """
-        Receive a message from the channel.
-
-        Returns:
-            The received message
-        """
-        if self.has_tracer:
-            self._trace_event("receive", {})
-
-        # Receive the message
-        message = self.channel.get()
-
-        # Validate the message
-        if self.has_rules:
-            passed, violations = self._validate_message(message)
-            if not passed:
-                if self.critique and self.has_critic:
-                    message = self._improve_message(message, violations)
-                else:
-                    logger.warning("Message validation failed: %s", violations)
-
-        return message
-
-
-def wrap_graph(graph: Graph, **kwargs) -> SifakaGraph:
+        self._node = node
+        self._validators = validators or []
+        self._processors = processors or []
+
+    def run(self, state: StateType) -> NodeType:
+        """Run the node with validation and processing."""
+        # Process state before running node
+        processed_state = state
+        for processor in self._processors:
+            if processor.can_process(processed_state):
+                processed_state = processor.process(processed_state)
+
+        # Validate state before running node
+        for validator in self._validators:
+            if validator.can_validate(processed_state):
+                result = validator.validate(processed_state)
+                if not result.passed:
+                    logger.warning("Node validation failed: %s", result.message)
+
+        # Run the node
+        return self._node(processed_state)
+
+    def can_run(self, state: StateType) -> bool:
+        """Check if the node can run on the state."""
+        return True
+
+
+def wrap_graph(
+    graph: StateGraph,
+    config: Optional[GraphConfig[StateType]] = None,
+) -> SifakaGraph[StateType, Any]:
     """
     Wrap a LangGraph graph with Sifaka's features.
 
     Args:
         graph: The graph to wrap
-        **kwargs: Additional arguments for SifakaGraph
+        config: Optional graph configuration
 
     Returns:
         The wrapped graph
     """
-    return SifakaGraph(graph=graph, **kwargs)
+    return SifakaGraph(graph=graph, config=config or GraphConfig())
 
 
-def wrap_state_graph(graph: StateGraph, **kwargs) -> SifakaStateGraph:
+def wrap_node(
+    node: Callable[[StateType], NodeType],
+    validators: Optional[List[GraphValidator[StateType]]] = None,
+    processors: Optional[List[GraphProcessor[StateType]]] = None,
+) -> SifakaNode[StateType, NodeType]:
     """
-    Wrap a LangGraph state graph with Sifaka's features.
+    Wrap a graph node with Sifaka's features.
 
     Args:
-        graph: The state graph to wrap
-        **kwargs: Additional arguments for SifakaStateGraph
+        node: The node function to wrap
+        validators: Optional list of validators
+        processors: Optional list of processors
 
     Returns:
-        The wrapped state graph
+        The wrapped node
     """
-    return SifakaStateGraph(graph=graph, **kwargs)
+    return SifakaNode(node=node, validators=validators, processors=processors)
 
 
-def wrap_tool_node(node: ToolNode, **kwargs) -> SifakaToolNode:
-    """
-    Wrap a LangGraph tool node with Sifaka's features.
-
-    Args:
-        node: The node to wrap
-        **kwargs: Additional arguments for the node
-
-    Returns:
-        A wrapped node with Sifaka's features
-    """
-    return SifakaToolNode(node=node, **kwargs)
-
-
-def wrap_channel(channel: AnyValue, **kwargs) -> SifakaChannel:
-    """
-    Wrap a LangGraph channel with Sifaka's features.
-
-    Args:
-        channel: The channel to wrap
-        **kwargs: Additional arguments for the channel
-
-    Returns:
-        A wrapped channel with Sifaka's features
-    """
-    return SifakaChannel(channel=channel, **kwargs)
-
-
-def wrap_rule(
-    rule: Rule,
-    model: Optional[ModelProvider] = None,
-    config: Optional[Dict[str, Any]] = None,
-) -> Callable:
-    """
-    Wrap a rule for use in a LangGraph.
-
-    Args:
-        rule: The rule to wrap
-        model: Optional model provider to use
-        config: Optional configuration
-
-    Returns:
-        A function that can be used in a LangGraph
-    """
-
-    def wrapped(inputs: Dict[str, Any]) -> Dict[str, Any]:
-        output = inputs.get("output", "")
-        result = rule.validate(output)
-        return {
-            "passed": result.passed,
-            "message": result.message,
-            "metadata": result.metadata,
-        }
-
-    return wrapped
-
-
-def wrap_critic(
-    critic: Critic,
-    model: Optional[ModelProvider] = None,
-    config: Optional[Dict[str, Any]] = None,
-) -> Callable:
-    """
-    Wrap a critic for use in a LangGraph.
-
-    Args:
-        critic: The critic to wrap
-        model: Optional model provider to use
-        config: Optional configuration
-
-    Returns:
-        A function that can be used in a LangGraph
-    """
-
-    def wrapped(inputs: Dict[str, Any]) -> Dict[str, Any]:
-        output = inputs.get("output", "")
-        result = critic.critique(output)
-        return result
-
-    return wrapped
+# Export public classes and functions
+__all__ = [
+    "GraphValidator",
+    "GraphProcessor",
+    "GraphNode",
+    "GraphConfig",
+    "SifakaGraph",
+    "RuleBasedValidator",
+    "SifakaNode",
+    "wrap_graph",
+    "wrap_node",
+]

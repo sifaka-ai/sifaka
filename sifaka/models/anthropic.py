@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any
 import anthropic
 from anthropic import Anthropic
 import tiktoken
+from langchain_anthropic import ChatAnthropic
 from sifaka.models.base import ModelProvider, ModelConfig, APIClient, TokenCounter
 from sifaka.utils.logging import get_logger
 
@@ -88,3 +89,12 @@ class AnthropicProvider(ModelProvider):
     def _create_default_token_counter(self) -> TokenCounter:
         """Create a default token counter for the current model."""
         return AnthropicTokenCounter(model=self.model_name)
+
+    def get_langchain_llm(self) -> ChatAnthropic:
+        """Get a LangChain ChatAnthropic instance for this provider."""
+        return ChatAnthropic(
+            model_name=self.model_name,
+            anthropic_api_key=self.config.api_key,
+            temperature=self.config.temperature,
+            max_tokens=self.config.max_tokens,
+        )

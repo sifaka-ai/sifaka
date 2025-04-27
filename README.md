@@ -23,16 +23,242 @@ Whether you're building AI-powered tools for legal research, customer support, o
 
 ## 🌟 What is Sifaka?
 
-Sifaka works through a process called "reflection," where:
+Sifaka is a framework for building reliable and transparent LLM applications through a combination of:
 
-1. An LLM generates an initial response to a prompt
-2. The response is validated against a set of rules (length, prohibited content, format, etc.)
-3. If any rules are violated, a "critic" component improves the response
-4. This process repeats until all rules pass or a maximum number of attempts is reached
+1. **Content Reflection**: Using critics to analyze and improve LLM outputs
+2. **Rule-Based Validation**: Enforcing constraints on content
+3. **Pattern Analysis**: Detecting structural patterns in text
 
-This approach ensures that LLM outputs meet your specific requirements before they reach users.
+The framework follows this process:
 
-Sifaka is provider-agnostic and works with multiple LLM providers including **OpenAI** (GPT models), **Anthropic** (Claude models), and others, giving you flexibility in choosing the right model for your needs.
+1. An LLM generates an initial response
+2. The response is validated against rules (content, format, patterns)
+3. If rules fail, a critic reflects on and improves the response
+4. This cycle continues until all rules pass or max attempts reached
+
+## 🔄 Version 1.0.0 Migration Guide
+
+### Breaking Changes
+
+1. **Reflector Deprecation**
+   - The `Reflector` class has been deprecated and moved to specialized pattern rules
+   - Pattern detection is now handled by `SymmetryRule` and `RepetitionRule`
+   - The old `Reflector` class will be removed in version 2.0.0
+
+Before (0.2.x):
+```python
+from sifaka.reflector import Reflector
+
+reflector = Reflector(
+    reflection_config=ReflectionConfig(
+        mirror_mode="both",
+        symmetry_threshold=0.8
+    )
+)
+
+result = reflector.validate("Your text here")
+```
+
+After (1.0.0):
+```python
+from sifaka.rules.pattern_rules import SymmetryRule, RepetitionRule
+
+# For symmetry detection
+symmetry_rule = SymmetryRule(
+    name="symmetry_check",
+    config=SymmetryConfig(
+        mirror_mode="both",
+        symmetry_threshold=0.8
+    )
+)
+
+# For pattern detection
+repetition_rule = RepetitionRule(
+    name="repetition_check",
+    config=RepetitionConfig(
+        pattern_type="repeat",
+        pattern_length=3
+    )
+)
+
+# Use with other rules
+rules = [symmetry_rule, repetition_rule, length_rule, prohibited_terms]
+chain = Chain(model=provider, rules=rules, critic=critic)
+```
+
+2. **Architecture Updates**
+   - Pattern detection is now part of the rules system
+   - Clearer separation between reflection (critics) and pattern detection (rules)
+   - More consistent API across all rule types
+
+### Deprecation Timeline
+- 1.0.0: `Reflector` marked as deprecated with warnings
+- 1.1.x: Bug fixes and improvements to pattern rules
+- 2.0.0: `Reflector` class removed entirely
+
+## 🏗️ Architecture
+
+Sifaka has three main components and supports two operating modes:
+
+### Operating Modes
+
+1. **Validation-only Mode**
+   - Uses rules to validate output without attempting improvements
+   - Fails fast when validation rules are not met
+   - Useful for strict enforcement of rules
+   - Example:
+   ```python
+   validation_chain = Chain(
+       model=provider,
+       rules=[length_rule, prohibited_terms],
+       max_attempts=1  # Single attempt since no critic
+   )
+   ```
+
+2. **Critic Mode**
+   - Uses both rules and critics to validate and improve output
+   - Attempts to fix rule violations through reflection
+   - Provides detailed feedback and suggestions
+   - Example:
+   ```python
+   critic_chain = Chain(
+       model=provider,
+       rules=[length_rule, prohibited_terms],
+       critic=critic,
+       max_attempts=3  # Multiple attempts for improvement
+   )
+   ```
+
+### 1. Critics (Reflection)
+
+Critics are the core reflection mechanism, analyzing and improving content:
+
+```python
+from sifaka.critics import PromptCritic
+from sifaka.critics.prompt import PromptCriticConfig
+
+critic = PromptCritic(
+    config=PromptCriticConfig(
+        name="quality_critic",
+        description="Improves content quality",
+        system_prompt="You are an expert editor...",
+    ),
+    model=provider
+)
+
+# Reflect on and improve content
+improved = critic.critique(content)
+```
+
+### 2. Rules (Validation)
+
+Rules enforce constraints on content. Sifaka provides several types:
+
+```python
+from sifaka.rules import (
+    # Content Rules
+    LengthRule,              # Control length
+    ProhibitedContentRule,   # Filter content
+    SentimentRule,           # Check sentiment
+    ToxicityRule,           # Prevent toxicity
+
+    # Format Rules
+    FormatRule,             # Enforce format
+    JSONRule,               # Validate JSON
+
+    # Pattern Rules
+    SymmetryRule,           # Check symmetry
+    RepetitionRule,         # Find patterns
+)
+
+# Example: Create a length rule
+length_rule = LengthRule(
+    name="length_check",
+    min_length=100,
+    max_length=500
+)
+
+# Example: Create pattern rules
+symmetry_rule = SymmetryRule(
+    name="symmetry_check",
+    config=SymmetryConfig(
+        mirror_mode="both",
+        symmetry_threshold=0.8
+    )
+)
+
+repetition_rule = RepetitionRule(
+    name="repetition_check",
+    config=RepetitionConfig(
+        pattern_type="repeat",
+        pattern_length=3
+    )
+)
+```
+
+### 3. Providers (LLM Integration)
+
+Sifaka supports multiple LLM providers:
+
+```python
+from sifaka.models import (
+    OpenAIProvider,
+    AnthropicProvider,
+    # ... other providers
+)
+
+provider = AnthropicProvider(
+    model_name="claude-3-haiku-20240307",
+    api_key="your-api-key"
+)
+```
+
+## 🔄 Putting It All Together
+
+Here's how the components work together:
+
+```python
+from sifaka.core import Chain
+
+# Create components
+rules = [length_rule, prohibited_terms, pattern_rule]
+critic = PromptCritic(config=critic_config, model=provider)
+
+# Create chain
+chain = Chain(
+    model=provider,
+    rules=rules,
+    critic=critic,
+    max_attempts=3
+)
+
+# Generate content with validation and reflection
+result = chain.run("Write a professional email...")
+```
+
+## 📊 Understanding Results
+
+Sifaka provides detailed insights about the content:
+
+```python
+# Rule validation results
+for rule_result in result.rule_results:
+    print(f"{rule_result.name}: {rule_result.passed}")
+    print(f"Message: {rule_result.message}")
+    print(f"Details: {rule_result.metadata}")
+
+# Critic's reflection
+if result.critique_details:
+    print(f"Quality Score: {result.critique_details['score']}")
+    print(f"Feedback: {result.critique_details['feedback']}")
+    print(f"Issues: {result.critique_details['issues']}")
+    print(f"Suggestions: {result.critique_details['suggestions']}")
+
+# Pattern analysis
+if result.pattern_details:
+    print(f"Patterns found: {result.pattern_details['match_count']}")
+    print(f"Examples: {result.pattern_details['matches_found']}")
+```
 
 ## 📦 Installation
 
@@ -56,70 +282,87 @@ pip install sifaka[dev]
 
 ## 🚀 Quick Start
 
+Here are two examples showing both operating modes:
+
 ```python
-from sifaka.models import OpenAIProvider, AnthropicProvider
+from sifaka.models import AnthropicProvider
 from sifaka.rules import LengthRule, ProhibitedContentRule
 from sifaka.critics import PromptCritic
 from sifaka.critics.prompt import PromptCriticConfig
+from sifaka.core import Chain
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# Initialize the provider (choose one)
-# OpenAI provider
-# provider = OpenAIProvider(model_name="gpt-4")
-
-# Anthropic provider
+# Initialize the provider
 provider = AnthropicProvider(model_name="claude-3-haiku-20240307")
 
 # Create rules
 length_rule = LengthRule(
     name="length_check",
     description="Checks if output length is within bounds",
-    config={
-        "min_length": 100,
-        "max_length": 500
-    }
+    config={"min_length": 100, "max_length": 500}
 )
 
 prohibited_terms = ProhibitedContentRule(
     name="content_filter",
     description="Checks for prohibited or inappropriate content",
-    config={
-        "prohibited_terms": ["controversial", "inappropriate"]
-    }
+    config={"prohibited_terms": ["controversial", "inappropriate"]}
 )
 
-# Create a critic with proper configuration
+# Create a critic (for critic mode)
 critic_config = PromptCriticConfig(
     name="content_quality_critic",
-    description="Improves text quality focusing on professionalism and clarity",
-    system_prompt="You are an expert editor that improves text quality, focusing on professionalism, clarity, and effectiveness.",
+    description="Improves text quality",
+    system_prompt="You are an expert editor...",
     temperature=0.7,
     max_tokens=1000
 )
-
-# Create a critic for improving outputs that fail validation
 critic = PromptCritic(config=critic_config, model=provider)
 
-# Create a reflector with rules and critic
-reflector = Reflector(
-    name="content_validator",
+# Example 1: Validation-only Mode
+validation_chain = Chain(
     model=provider,
     rules=[length_rule, prohibited_terms],
-    critic=critic
+    max_attempts=1  # Single attempt since no critic
 )
 
-# Use the reflector
 try:
-    result = reflector.reflect(
-        "Write a professional email about a search project update",
-        max_attempts=3  # Try up to 3 times to fix any violations
+    result = validation_chain.run(
+        "Write a professional email about a project update"
     )
-    print(f"Final result:\n{result}")
-except RuntimeError as e:
-    print(f"Failed to generate valid output: {e}")
+    print("Validation passed!")
+except ValueError as e:
+    print(f"Validation failed: {e}")
+
+# Example 2: Critic Mode
+critic_chain = Chain(
+    model=provider,
+    rules=[length_rule, prohibited_terms],
+    critic=critic,
+    max_attempts=3  # Multiple attempts for improvement
+)
+
+try:
+    result = critic_chain.run(
+        "Write a professional email about a project update"
+    )
+    print("Final result:", result)
+
+    # Access validation results
+    for rule_result in result.rule_results:
+        print(f"\n{rule_result.name} validation:")
+        print(f"- Passed: {rule_result.passed}")
+        print(f"- Message: {rule_result.message}")
+
+    # Access critic's feedback
+    if hasattr(result, "critique_details"):
+        print("\nCritic's Analysis:")
+        print(f"- Score: {result.critique_details.get('score')}")
+        print(f"- Feedback: {result.critique_details.get('feedback')}")
+except ValueError as e:
+    print(f"All improvement attempts failed: {e}")
 ```
 
 ## 🔑 API Keys and Configuration

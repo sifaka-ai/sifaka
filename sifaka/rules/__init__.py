@@ -36,6 +36,11 @@ Available Rules:
    - Basic syntax validation
    - Ensures content meets formatting requirements
 
+6. Pattern Rules: Analyze text patterns and structure
+   - SymmetryRule: Checks for text symmetry
+   - RepetitionRule: Detects repeated patterns
+   - Useful for structural validation
+
 Usage Example:
     from sifaka.rules import LengthRule, ProhibitedContentRule, FormatRule
     from sifaka import Reflector
@@ -62,6 +67,7 @@ from .prohibited_content import ProhibitedContentRule
 from .format import FormatRule
 from .sentiment import SentimentRule
 from .length import LengthRule
+from .pattern_rules import SymmetryRule, RepetitionRule
 
 __all__ = [
     "Rule",
@@ -74,4 +80,6 @@ __all__ = [
     "FormatRule",
     "SentimentRule",
     "LengthRule",
+    "SymmetryRule",
+    "RepetitionRule",
 ]

@@ -1,179 +1,181 @@
 """
-Example of using Sifaka with Pydantic models for structured data validation.
+Example of using Sifaka with Pydantic models and LangChain for structured output validation and reflection.
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+import os
+from typing import List, Optional
 from pydantic import BaseModel, Field, ConfigDict
 from dotenv import load_dotenv
+from langchain.prompts import PromptTemplate
+from langchain.output_parsers import PydanticOutputParser
+from langchain_core.runnables import RunnablePassthrough
 
-from sifaka import Reflector
+from sifaka.integrations.langchain import ChainConfig, wrap_chain
 from sifaka.models import AnthropicProvider
-from sifaka.rules import Rule, RuleResult
-from sifaka.critique import PromptCritique
+from sifaka.models.base import ModelConfig
+from sifaka.reflector import Reflector, ReflectionConfig, PatternConfig
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# Define Pydantic models for structured data validation
-class ProductReview(BaseModel):
+class MovieReview(BaseModel):
     """
-    A product review with structured fields.
-
-    Attributes:
-        title (str): The review title
-        rating (int): Rating from 1-5
-        pros (List[str]): List of positive points
-        cons (List[str]): List of negative points
-        summary (str): Brief summary of the review
+    A structured movie review.
     """
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    title: str = Field(..., min_length=5, max_length=100)
-    rating: int = Field(..., ge=1, le=5)
-    pros: List[str] = Field(default_factory=list, min_length=1)
-    cons: List[str] = Field(default_factory=list, min_length=1)
-    summary: str = Field(..., min_length=20, max_length=500)
-
-
-class ReviewValidationRule(Rule):
-    """
-    Rule that validates product reviews using Pydantic models.
-    """
-
-    min_rating: int = 1
-    max_rating: int = 5
-
-    def __init__(
-        self,
-        name: str,
-        description: str,
-        config: Optional[Dict[str, Any]] = None,
-        **kwargs,
-    ) -> None:
-        """Initialize the review validation rule."""
-        super().__init__(name=name, description=description, config=config or {}, **kwargs)
-
-        config = config or {}
-        if "min_rating" in config:
-            self.min_rating = config["min_rating"]
-        if "max_rating" in config:
-            self.max_rating = config["max_rating"]
-
-    def validate(self, output: str) -> RuleResult:
-        """
-        Validate that the output contains a valid product review.
-
-        Args:
-            output (str): The LLM output to validate
-
-        Returns:
-            RuleResult: The result of the validation
-        """
-        try:
-            # Parse the output into sections
-            sections = output.split("\n\n")
-            if len(sections) < 4:
-                return RuleResult(
-                    passed=False,
-                    message="Output does not contain all required sections",
-                    metadata={"error": "Missing sections"},
-                )
-
-            # Extract review components
-            title = sections[0].strip()
-            rating_text = sections[1].strip().split(":")[1].strip() if ":" in sections[1] else "0"
-            rating = int(rating_text)
-
-            pros_section = [s for s in sections if s.lower().startswith("pros:")][0]
-            cons_section = [s for s in sections if s.lower().startswith("cons:")][0]
-
-            pros = [p.strip("- ") for p in pros_section.split("\n")[1:] if p.strip()]
-            cons = [c.strip("- ") for c in cons_section.split("\n")[1:] if c.strip()]
-
-            summary = sections[-1].strip()
-
-            # Create and validate the review using Pydantic
-            review = ProductReview(
-                title=title, rating=rating, pros=pros, cons=cons, summary=summary
-            )
-
-            return RuleResult(
-                passed=True,
-                message="Valid product review format",
-                metadata={"review": review.model_dump()},
-            )
-
-        except Exception as e:
-            return RuleResult(
-                passed=False, message=f"Invalid review format: {str(e)}", metadata={"error": str(e)}
-            )
+    title: str = Field(..., description="The title of the movie")
+    year: int = Field(..., description="The year the movie was released", ge=1900, le=2024)
+    rating: float = Field(..., description="Rating from 0.0 to 10.0", ge=0.0, le=10.0)
+    genre: List[str] = Field(..., description="List of movie genres")
+    strengths: List[str] = Field(..., description="List of movie strengths")
+    weaknesses: List[str] = Field(..., description="List of movie weaknesses")
+    summary: str = Field(
+        ..., description="Brief summary of the movie", min_length=50, max_length=500
+    )
+    recommended: bool = Field(..., description="Whether the movie is recommended")
 
 
 def main():
-    """Example usage of Pydantic validation with Sifaka."""
     # Load environment variables
     load_dotenv()
 
-    # Initialize the model provider
-    model = AnthropicProvider(model_name="claude-3-haiku-20240307")
-
-    # Create the review validation rule
-    review_rule = ReviewValidationRule(
-        name="review_validator",
-        description="Validates product review format",
-        config={"min_rating": 1, "max_rating": 5},
+    # Initialize the model provider with configuration
+    config = ModelConfig(
+        api_key=os.environ.get("ANTHROPIC_API_KEY"),
+        temperature=0.7,
+        max_tokens=2000,
     )
 
-    # Create a critic for improving outputs that fail validation
-    critic = PromptCritique(model=model)
+    model = AnthropicProvider(
+        model_name="claude-3-haiku-20240307",
+        config=config,
+    )
 
-    # Create a reflector with the rule and critique
+    # Create the Pydantic parser
+    parser = PydanticOutputParser(pydantic_object=MovieReview)
+
+    # Create reflector for analyzing reviews
     reflector = Reflector(
-        name="review_validator", model=model, rules=[review_rule], critique=True, critic=critic
+        reflection_config=ReflectionConfig(
+            mirror_mode="both",  # Check both horizontal and vertical symmetry
+            preserve_whitespace=True,
+            preserve_case=True,
+            ignore_punctuation=False,
+            symmetry_threshold=0.4,  # Lower threshold for movie reviews
+        ),
+        pattern_config=PatternConfig(
+            pattern_type="repeat",
+            pattern_length=3,  # Look for repeated phrases
+            case_sensitive=False,
+            allow_overlap=True,
+        ),
     )
 
-    # Example prompt
-    prompt = """
-    Write a detailed product review for a new smartphone. Include:
-    - A clear title
-    - A rating from 1-5
-    - At least 3 pros
-    - At least 2 cons
-    - A brief summary
-    """
+    # Create a prompt template that includes the parser's formatting instructions
+    prompt = PromptTemplate(
+        template="""
+        Write a detailed movie review for the following movie: {movie_title}
 
-    # Run the reflector
-    logger.info("Running reflector with prompt: %s", prompt)
-    result = reflector.reflect(prompt)
+        {format_instructions}
 
-    # Print the results
-    logger.info("\nOriginal output:")
-    logger.info(result.original_output)
+        CRITICAL SUMMARY LENGTH REQUIREMENT:
+        The summary field MUST be EXACTLY 250 characters or less. Here's a template to follow:
+        "[Movie Title] is a [genre] film about [brief plot]. Through [key elements], it explores [main theme]. With [notable aspects], the film [conclusion]."
 
-    if result.rule_violations:
-        logger.info("\nRule violations:")
-        for violation in result.rule_violations:
-            logger.info("- %s: %s", violation.rule_name, violation.message)
-    else:
-        logger.info("\nNo rule violations found.")
-        review = result.metadata["review"]
-        logger.info("\nValidated Review:")
-        logger.info("Title: %s", review["title"])
-        logger.info("Rating: %d/5", review["rating"])
-        logger.info("Pros:")
-        for pro in review["pros"]:
-            logger.info("- %s", pro)
-        logger.info("Cons:")
-        for con in review["cons"]:
-            logger.info("- %s", con)
-        logger.info("\nSummary: %s", review["summary"])
+        Example of appropriate length summary (exactly 250 characters):
+        "The Godfather is a crime drama about the Corleone family's rise in the criminal underworld. Through masterful direction and performances, it explores themes of family and power. With iconic scenes and rich character development, the film defines the gangster genre."
+        Character count: 250
 
-    logger.info("\nFinal output:")
-    logger.info(result.final_output)
+        For Inception, here's an example of an appropriate length summary:
+        "Inception is a mind-bending thriller about a team of dream infiltrators who must plant an idea in a CEO's mind. Through stunning visuals and layered storytelling, it explores the nature of reality and consciousness. With innovative effects and compelling performances, the film redefines the sci-fi genre."
+        Character count: 249
+
+        Additional requirements:
+        1. Be objective in your assessment
+        2. Provide specific examples for strengths and weaknesses
+        3. Base the recommendation on clear criteria
+        4. Follow the exact JSON format specified above
+        5. Use proper JSON syntax with no trailing commas
+        6. Ensure all text fields are properly escaped and formatted as valid JSON strings
+        """,
+        input_variables=["movie_title"],
+        partial_variables={
+            "format_instructions": parser.get_format_instructions(),
+        },
+    )
+
+    # Create the chain using RunnableSequence
+    llm = model.get_langchain_llm()
+    chain = (
+        {"movie_title": lambda x: x["movie_title"]}
+        | prompt
+        | llm
+        | (lambda x: x.content if hasattr(x, "content") else x)
+    )
+
+    # Create chain configuration with the parser
+    config = ChainConfig(
+        output_parser=parser,
+        critique=True,
+    )
+
+    # Wrap the chain with Sifaka
+    sifaka_chain = wrap_chain(chain=chain, config=config)
+
+    # Example movies to review
+    movies = [
+        "The Matrix",
+        "Inception",
+        "The Shawshank Redemption",
+    ]
+
+    # Generate and validate reviews
+    for movie in movies:
+        logger.info("\nGenerating review for: %s", movie)
+        try:
+            result = sifaka_chain.run({"movie_title": movie})
+            review = MovieReview.model_validate(result)
+
+            # Log the structured review
+            logger.info("\nValidated Review:")
+            logger.info("Title: %s (%d)", review.title, review.year)
+            logger.info("Rating: %.1f/10", review.rating)
+            logger.info("Genre: %s", ", ".join(review.genre))
+            logger.info("\nStrengths:")
+            for strength in review.strengths:
+                logger.info("- %s", strength)
+            logger.info("\nWeaknesses:")
+            for weakness in review.weaknesses:
+                logger.info("- %s", weakness)
+            logger.info("\nSummary: %s", review.summary)
+            logger.info("Recommended: %s", "Yes" if review.recommended else "No")
+
+            # Perform reflection analysis on the summary
+            reflection_results = reflector.validate(review.summary)
+
+            logger.info("\nSummary Reflection Analysis:")
+            logger.info("Symmetry Analysis:")
+            logger.info(
+                "- Score: %.2f", reflection_results["reflection"].metadata["symmetry_score"]
+            )
+            logger.info("- Mode: %s", reflection_results["reflection"].metadata["mirror_mode"])
+
+            logger.info("\nPattern Analysis:")
+            logger.info(
+                "- Total patterns: %d", reflection_results["pattern"].metadata["match_count"]
+            )
+            if reflection_results["pattern"].metadata["matches_found"]:
+                logger.info("- Notable patterns:")
+                for pattern in reflection_results["pattern"].metadata["matches_found"][:3]:
+                    logger.info("  * %s", pattern)
+
+        except Exception as e:
+            logger.error("Failed to generate or validate review: %s", str(e))
 
 
 if __name__ == "__main__":
