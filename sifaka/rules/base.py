@@ -3,32 +3,109 @@ Base classes for Sifaka rules.
 """
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import Dict, Any, Optional, Callable, Union, Tuple
+from typing import (
+    Dict,
+    Any,
+    Optional,
+    Callable,
+    Union,
+    Tuple,
+    Protocol,
+    runtime_checkable,
+    TypeVar,
+    Generic,
+    Final,
+    cast,
+    overload,
+    List,
+    Type,
+)
+from typing_extensions import TypeGuard, TypeAlias
 import hashlib
+from enum import Enum, auto
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+
+# Type variables for generic implementations
+T = TypeVar("T")  # Input type
+R = TypeVar("R", bound="RuleResult")  # Result type
+V = TypeVar("V", bound="RuleValidator")  # Validator type
+H = TypeVar("H", bound="RuleResultHandler")  # Handler type
 
 
-class RuleResult(BaseModel):
-    """
-    Result of a rule validation.
+class ValidationError(Exception):
+    """Base exception for validation errors."""
 
-    Attributes:
-        passed: Whether the validation passed
-        message: Message explaining the result
-        metadata: Additional metadata about the result
-        score: Optional confidence score between 0 and 1
-    """
+    pass
 
-    passed: bool = Field(..., description="Whether the validation passed")
-    message: str = Field(..., description="Message explaining the result")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
-    score: Optional[float] = Field(
-        default=None, ge=0, le=1, description="Confidence score between 0 and 1"
-    )
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+class ConfigurationError(Exception):
+    """Base exception for configuration errors."""
+
+    pass
+
+
+class RulePriority(Enum):
+    """Priority levels for rule execution."""
+
+    LOW = auto()
+    MEDIUM = auto()
+    HIGH = auto()
+    CRITICAL = auto()
+
+
+@runtime_checkable
+class Validatable(Protocol[T]):
+    """Protocol for objects that can be validated."""
+
+    def is_valid(self) -> bool: ...
+    def validate(self) -> None: ...
+    @property
+    def validation_errors(self) -> list[str]: ...
+
+
+@runtime_checkable
+class RuleValidator(Protocol[T]):
+    """Protocol for rule validation logic."""
+
+    @abstractmethod
+    def validate(self, output: T, **kwargs) -> "RuleResult": ...
+
+    @abstractmethod
+    def can_validate(self, output: T) -> bool: ...
+
+    @property
+    @abstractmethod
+    def validation_type(self) -> type[T]: ...
+
+
+@runtime_checkable
+class RuleResultHandler(Protocol[R]):
+    """Protocol for handling rule validation results."""
+
+    @abstractmethod
+    def handle_result(self, result: R) -> None: ...
+
+    @abstractmethod
+    def should_continue(self, result: R) -> bool: ...
+
+    @abstractmethod
+    def can_handle(self, result: R) -> bool: ...
+
+
+@dataclass(frozen=True)
+class RuleResult:
+    """Immutable result of a rule validation."""
+
+    passed: bool
+    message: str
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    score: Optional[float] = field(default=None)
+
+    def __post_init__(self) -> None:
+        if self.score is not None and not 0 <= self.score <= 1:
+            raise ValueError("Score must be between 0 and 1")
 
     @property
     def failed(self) -> bool:
@@ -39,61 +116,57 @@ class RuleResult(BaseModel):
         """Return whether the validation passed."""
         return self.passed
 
+    def with_metadata(self, **kwargs: Any) -> "RuleResult":
+        """Create a new result with additional metadata."""
+        return RuleResult(
+            passed=self.passed,
+            message=self.message,
+            metadata={**self.metadata, **kwargs},
+            score=self.score,
+        )
 
-class Rule(ABC, BaseModel):
+
+@dataclass(frozen=True)
+class RuleConfig:
+    """Immutable configuration for rules."""
+
+    priority: RulePriority = RulePriority.MEDIUM
+    cache_size: int = 0
+    cost: int = 1
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.cache_size < 0:
+            raise ConfigurationError("Cache size must be non-negative")
+        if self.cost < 0:
+            raise ConfigurationError("Cost must be non-negative")
+
+    def with_options(self, **kwargs: Any) -> "RuleConfig":
+        """Create a new config with updated options."""
+        return RuleConfig(**{**self.__dict__, **kwargs})
+
+
+class Rule(Generic[T, R, V, H], ABC):
     """
     Base class for all Sifaka rules.
 
-    A rule validates an LLM output against a specific criterion.
+    A rule validates an input against a specific criterion using a validator
+    and optionally processes the results using a handler.
 
-    Attributes:
-        name: The name of the rule
-        description: Description of the rule
-        config: Configuration for the rule
-        cache_size: Size of the LRU cache (0 to disable)
-        priority: Priority of the rule (higher numbers run first)
-        cost: Estimated computational cost (higher numbers are more expensive)
+    Type Parameters:
+        T: The type of input to validate
+        R: The type of validation result
+        V: The type of validator
+        H: The type of result handler
     """
-
-    name: str = Field(..., description="Name of the rule")
-    description: str = Field(..., description="Description of the rule")
-    config: Dict[str, Any] = Field(default_factory=dict, description="Additional configuration")
-    cache_size: int = Field(default=0, ge=0, description="Size of the validation cache")
-    priority: int = Field(default=1, description="Priority of the rule (higher runs first)")
-    cost: int = Field(default=1, ge=0, description="Cost of running the rule")
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    @field_validator("priority")
-    def validate_priority(cls, v: int) -> int:
-        """Validate priority is positive."""
-        if v < 0:
-            raise ValueError("Priority must be non-negative")
-        return v
-
-    @field_validator("cost")
-    def validate_cost(cls, v: int) -> int:
-        """Validate cost is positive."""
-        if v < 0:
-            raise ValueError("Cost must be non-negative")
-        return v
-
-    @field_validator("cache_size")
-    def validate_cache_size(cls, v: int) -> int:
-        """Validate cache_size is non-negative."""
-        if v < 0:
-            raise ValueError("Cache size must be non-negative")
-        return v
 
     def __init__(
         self,
         name: str,
         description: str,
-        config: Optional[Dict[str, Any]] = None,
-        cache_size: int = 0,
-        priority: int = 1,
-        cost: int = 1,
-        **kwargs,
+        validator: V,
+        config: Optional[RuleConfig] = None,
+        result_handler: Optional[H] = None,
     ) -> None:
         """
         Initialize a rule.
@@ -101,47 +174,62 @@ class Rule(ABC, BaseModel):
         Args:
             name: The name of the rule
             description: Description of the rule
-            config: Configuration for the rule
-            cache_size: Size of the LRU cache (0 to disable)
-            priority: Priority of the rule (higher numbers run first)
-            cost: Estimated computational cost (higher numbers are more expensive)
-            **kwargs: Additional arguments
+            validator: The validator implementation
+            config: Rule configuration
+            result_handler: Optional handler for validation results
         """
-        super().__init__(
-            name=name,
-            description=description,
-            config=config or {},
-            cache_size=cache_size,
-            priority=priority,
-            cost=cost,
-            **kwargs,
-        )
+        self._name: Final[str] = name
+        self._description: Final[str] = description
+        self._config: Final[RuleConfig] = config or RuleConfig()
+
+        # Validate and set validator
+        if not isinstance(validator, RuleValidator):
+            raise ConfigurationError(
+                f"Validator must implement RuleValidator protocol, got {type(validator)}"
+            )
+        self._validator: Final[V] = validator
+
+        # Validate and set handler if provided
+        if result_handler is not None:
+            if not isinstance(result_handler, RuleResultHandler):
+                raise ConfigurationError(
+                    f"Handler must implement RuleResultHandler protocol, got {type(result_handler)}"
+                )
+            if not result_handler.can_handle(cast(R, RuleResult(passed=True, message="test"))):
+                raise ConfigurationError("Handler cannot handle the result type")
+        self._result_handler: Final[Optional[H]] = result_handler
 
         # Initialize cache if enabled
-        if self.cache_size > 0:
-            self._cached_validate = lru_cache(maxsize=self.cache_size)(self._validate_impl)
+        if self._config.cache_size > 0:
+            self._validate_cached = lru_cache(maxsize=self._config.cache_size)(self._validate_impl)
         else:
-            self._cached_validate = self._validate_impl
+            self._validate_cached = self._validate_impl
 
-    def _get_cache_key(self, output: str, **kwargs) -> str:
-        """
-        Generate a cache key for the output.
+    @property
+    def name(self) -> str:
+        """Get the rule name."""
+        return self._name
 
-        Args:
-            output: The output to validate
-            **kwargs: Additional validation context
+    @property
+    def description(self) -> str:
+        """Get the rule description."""
+        return self._description
 
-        Returns:
-            A cache key string
-        """
-        # Create a hash of the output and config
+    @property
+    def config(self) -> RuleConfig:
+        """Get the rule configuration."""
+        return self._config
+
+    def _get_cache_key(self, output: T, **kwargs) -> str:
+        """Generate a cache key for the output."""
         hasher = hashlib.md5()
-        hasher.update(output.encode())
-        hasher.update(str(self.config).encode())
+        hasher.update(str(output).encode())
+        hasher.update(str(self._config).encode())
+        hasher.update(str(sorted(kwargs.items())).encode())
         return hasher.hexdigest()
 
     @abstractmethod
-    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
+    def _validate_impl(self, output: T, **kwargs) -> R:
         """
         Implement the validation logic.
 
@@ -150,86 +238,164 @@ class Rule(ABC, BaseModel):
             **kwargs: Additional validation context
 
         Returns:
-            RuleResult with validation results
+            Validation result
+
+        Raises:
+            ValidationError: If validation fails
         """
         pass
 
-    def validate(self, output: str, **kwargs) -> RuleResult:
+    def validate(self, output: T, **kwargs) -> R:
         """
         Validate an output.
 
-        This method handles input validation and caching if enabled.
+        This method handles:
+        1. Input validation
+        2. Type checking
+        3. Caching
+        4. Result handling
+        5. Error handling
 
         Args:
             output: The output to validate
             **kwargs: Additional validation context
 
         Returns:
-            RuleResult with validation results
+            Validation result
 
         Raises:
-            ValueError: If output is None or not a string
+            ValidationError: If validation fails
+            TypeError: If output type is invalid
         """
-        if output is None:
-            raise ValueError("Output cannot be None")
-        if not isinstance(output, str):
-            raise ValueError("Output must be a string")
+        # Validate input type
+        if not isinstance(output, self._validator.validation_type):
+            raise TypeError(f"Output must be of type {self._validator.validation_type}")
 
-        # Check cache if enabled
-        if self.cache_size > 0:
-            cache_key = self._get_cache_key(output, **kwargs)
-            if cache_key in self._result_cache:
-                return self._result_cache[cache_key]
+        # Check if validator can handle the input
+        if not self._validator.can_validate(output):
+            raise ValidationError(f"Validator cannot handle input: {output}")
 
-        # Validate output
-        result = self._validate_impl(output, **kwargs)
+        try:
+            # Get from cache or validate
+            if self._config.cache_size > 0:
+                cache_key = self._get_cache_key(output, **kwargs)
+                result = self._validate_cached(output, **kwargs)
+            else:
+                result = self._validate_impl(output, **kwargs)
 
-        # Update cache if enabled
-        if self.cache_size > 0:
-            cache_key = self._get_cache_key(output, **kwargs)
-            self._result_cache[cache_key] = result
-            if len(self._result_cache) > self.cache_size:
-                self._result_cache.popitem(last=False)
+            # Handle result if handler is provided
+            if self._result_handler is not None:
+                self._result_handler.handle_result(result)
+                if not self._result_handler.should_continue(result):
+                    return result
 
-        return result
+            return result
+
+        except Exception as e:
+            # Convert to ValidationError
+            raise ValidationError(f"Validation failed: {str(e)}") from e
 
 
-class FunctionRule(Rule):
+class FunctionRule(Rule[str, RuleResult, RuleValidator[str], RuleResultHandler[RuleResult]]):
     """
-    A rule that wraps a function.
+    A rule that wraps a function for simple validation.
 
-    This allows for simple rule creation using functions.
-
-    Attributes:
-        func: The function to use for validation
-        name: The name of the rule
+    The function must have one of these signatures:
+    1. (str) -> bool
+    2. (str) -> RuleResult
+    3. (str) -> tuple[bool, str]
+    4. (str) -> tuple[bool, str, dict]
     """
 
-    func: Callable
+    def __init__(
+        self,
+        func: Callable[
+            ..., Union[bool, RuleResult, Tuple[bool, str], Tuple[bool, str, Dict[str, Any]]]
+        ],
+        name: str,
+        description: str = "",
+        config: Optional[RuleConfig] = None,
+    ) -> None:
+        """Initialize a function-based rule."""
+        super().__init__(
+            name=name,
+            description=description or func.__doc__ or "",
+            validator=self._create_validator(func),
+            config=config,
+        )
+        self._func = func
+
+    def _create_validator(self, func: Callable) -> RuleValidator[str]:
+        """Create a validator from the function."""
+
+        class FunctionValidator(RuleValidator[str]):
+            def __init__(self, func: Callable) -> None:
+                self._func = func
+
+            def validate(self, output: str, **kwargs) -> RuleResult:
+                result = self._func(output, **kwargs)
+
+                if isinstance(result, bool):
+                    return RuleResult(
+                        passed=result, message="" if result else f"Rule {func.__name__} failed"
+                    )
+                elif isinstance(result, RuleResult):
+                    return result
+                elif isinstance(result, tuple):
+                    passed, message, *rest = result
+                    metadata = rest[0] if rest else {}
+                    return RuleResult(passed=passed, message=message, metadata=metadata)
+                else:
+                    raise ValidationError(
+                        f"Function {func.__name__} returned invalid type: {type(result)}"
+                    )
+
+            def can_validate(self, output: str) -> bool:
+                return isinstance(output, str)
+
+            @property
+            def validation_type(self) -> type[str]:
+                return str
+
+        return FunctionValidator(func)
 
     def _validate_impl(self, output: str, **kwargs) -> RuleResult:
-        """
-        Validate using the provided function.
+        """Implement validation using the wrapped function."""
+        return self._validator.validate(output, **kwargs)
 
-        Args:
-            output: The LLM output to validate
-            **kwargs: Additional validation context
 
-        Returns:
-            The result of the validation
-        """
-        result = self.func(output, **kwargs)
+@runtime_checkable
+class RuleProtocol(Protocol):
+    """Protocol defining the interface for rules."""
 
-        if isinstance(result, RuleResult):
-            return result
-        if isinstance(result, bool):
-            return RuleResult(passed=result, message="" if result else f"Rule {self.name} failed")
-        if isinstance(result, tuple) and len(result) >= 2:
-            passed, message = result[0], result[1]
-            metadata = result[2] if len(result) > 2 else {}
-            return RuleResult(passed=passed, message=message, metadata=metadata)
+    @property
+    def name(self) -> str:
+        """Get rule name."""
+        ...
 
-        raise ValueError(
-            f"Function {self.func.__name__} must return a bool, RuleResult, "
-            f"or tuple of (bool, str[, dict])"
-        )
+    @property
+    def description(self) -> str:
+        """Get rule description."""
+        ...
+
+    def validate(self, output: Any, **kwargs) -> "RuleResult":
+        """Validate output against rule criteria."""
+        ...
+
+    @property
+    def config(self) -> "RuleConfig":
+        """Get rule configuration."""
+        ...
+
+
+# Export these types
+__all__ = [
+    "Rule",
+    "RuleConfig",
+    "RuleResult",
+    "RuleProtocol",
+    "RuleValidator",
+    "RuleResultHandler",
+    "ValidationError",
+    "ConfigurationError",
+]

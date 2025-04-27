@@ -2,19 +2,99 @@
 Readability classifier that analyzes text complexity.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Protocol, runtime_checkable, Final, TypeVar
+from typing_extensions import TypeGuard
 import importlib
 import logging
 import statistics
+from dataclasses import dataclass, field
+from abc import abstractmethod
 
-from sifaka.classifiers.base import Classifier, ClassificationResult
+from sifaka.classifiers.base import BaseClassifier, ClassificationResult, ClassifierConfig
 from sifaka.utils.logging import get_logger
 import textstat
 
 logger = get_logger(__name__)
 
 
-class ReadabilityClassifier(Classifier):
+@runtime_checkable
+class ReadabilityAnalyzer(Protocol):
+    """Protocol for readability analysis engines."""
+
+    @abstractmethod
+    def sentence_count(self, text: str) -> int: ...
+    @abstractmethod
+    def syllable_count(self, text: str) -> int: ...
+    @abstractmethod
+    def lexicon_count(self, text: str) -> int: ...
+    @abstractmethod
+    def difficult_words(self, text: str) -> int: ...
+    @abstractmethod
+    def flesch_reading_ease(self, text: str) -> float: ...
+    @abstractmethod
+    def flesch_kincaid_grade(self, text: str) -> float: ...
+    @abstractmethod
+    def gunning_fog(self, text: str) -> float: ...
+    @abstractmethod
+    def smog_index(self, text: str) -> float: ...
+    @abstractmethod
+    def automated_readability_index(self, text: str) -> float: ...
+    @abstractmethod
+    def dale_chall_readability_score(self, text: str) -> float: ...
+
+
+@dataclass(frozen=True)
+class ReadabilityConfig:
+    """Configuration for readability analysis."""
+
+    min_confidence: float = 0.5
+    grade_level_bounds: Dict[str, tuple[float, float]] = field(
+        default_factory=lambda: {
+            "elementary": (0.0, 6.0),
+            "middle": (6.0, 9.0),
+            "high": (9.0, 12.0),
+            "college": (12.0, 16.0),
+            "graduate": (16.0, float("inf")),
+        }
+    )
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.min_confidence <= 1.0:
+            raise ValueError("min_confidence must be between 0.0 and 1.0")
+
+        # Validate grade level bounds
+        prev_upper = float("-inf")
+        for level, (lower, upper) in self.grade_level_bounds.items():
+            if lower >= upper:
+                raise ValueError(f"Invalid bounds for {level}: lower must be less than upper")
+            if lower < prev_upper:
+                raise ValueError(f"Grade level bounds must be non-overlapping")
+            prev_upper = upper
+
+
+@dataclass(frozen=True)
+class ReadabilityMetrics:
+    """Container for readability metrics."""
+
+    flesch_reading_ease: float
+    flesch_kincaid_grade: float
+    gunning_fog: float
+    smog_index: float
+    automated_readability_index: float
+    dale_chall_readability_score: float
+    lexicon_count: int
+    sentence_count: int
+    syllable_count: int
+    avg_sentence_length: float
+    sentence_length_std: float
+    avg_word_length: float
+    word_length_std: float
+    vocabulary_diversity: float
+    unique_word_count: int
+    difficult_words: int
+
+
+class ReadabilityClassifier(BaseClassifier):
     """
     A classifier that analyzes text readability using textstat.
 
@@ -23,19 +103,18 @@ class ReadabilityClassifier(Classifier):
 
     Requires the 'readability' extra to be installed:
     pip install sifaka[readability]
-
-    Attributes:
-        min_confidence: Minimum confidence threshold
-        labels: Reading level labels
     """
+
+    # Class-level constants
+    DEFAULT_LABELS: Final[List[str]] = ["elementary", "middle", "high", "college", "graduate"]
+    DEFAULT_COST: Final[int] = 1  # Low cost for statistical analysis
 
     def __init__(
         self,
         name: str = "readability_classifier",
         description: str = "Analyzes text readability",
-        config: Dict[str, Any] = None,
-        labels: List[str] = None,
-        min_confidence: float = 0.5,
+        readability_config: Optional[ReadabilityConfig] = None,
+        analyzer: Optional[ReadabilityAnalyzer] = None,
         **kwargs,
     ) -> None:
         """
@@ -44,28 +123,31 @@ class ReadabilityClassifier(Classifier):
         Args:
             name: The name of the classifier
             description: Description of the classifier
-            config: Additional configuration
-            labels: Reading level labels
-            min_confidence: Minimum confidence threshold
-            **kwargs: Additional arguments
+            readability_config: Configuration for readability analysis
+            analyzer: Custom readability analyzer implementation
+            **kwargs: Additional configuration parameters
         """
-        if labels is None:
-            labels = ["elementary", "middle", "high", "college", "graduate"]
-        super().__init__(
-            name=name,
-            description=description,
-            config=config or {},
-            labels=labels,
-            cost=1,
-            min_confidence=min_confidence,
-            **kwargs,
-        )
-        self._textstat = None
+        config = ClassifierConfig(labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, **kwargs)
+        super().__init__(name=name, description=description, config=config)
 
-    def _load_textstat(self) -> None:
+        self._readability_config = readability_config or ReadabilityConfig()
+        self._analyzer = analyzer
+        self._initialized = False
+
+    def _validate_analyzer(self, analyzer: Any) -> TypeGuard[ReadabilityAnalyzer]:
+        """Validate that an analyzer implements the required protocol."""
+        if not isinstance(analyzer, ReadabilityAnalyzer):
+            raise ValueError(
+                f"Analyzer must implement ReadabilityAnalyzer protocol, got {type(analyzer)}"
+            )
+        return True
+
+    def _load_textstat(self) -> ReadabilityAnalyzer:
         """Load the textstat library."""
         try:
-            self._textstat = importlib.import_module("textstat")
+            textstat = importlib.import_module("textstat")
+            self._validate_analyzer(textstat)
+            return textstat
         except ImportError:
             raise ImportError(
                 "textstat package is required for ReadabilityClassifier. "
@@ -75,55 +157,38 @@ class ReadabilityClassifier(Classifier):
             raise RuntimeError(f"Failed to load textstat: {e}")
 
     def warm_up(self) -> None:
-        """Initialize textstat if needed."""
-        if self._textstat is None:
-            self._load_textstat()
+        """Initialize the analyzer if needed."""
+        if not self._initialized:
+            self._analyzer = self._analyzer or self._load_textstat()
+            self._initialized = True
 
     def _get_grade_level(self, grade: float) -> str:
         """Convert grade level to readability label."""
-        if grade < 6:
-            return "elementary"
-        elif grade < 9:
-            return "middle"
-        elif grade < 12:
-            return "high"
-        elif grade < 16:
-            return "college"
-        else:
-            return "graduate"
+        for level, (lower, upper) in self._readability_config.grade_level_bounds.items():
+            if lower <= grade < upper:
+                return level
+        return "graduate"  # Default to highest level if beyond all bounds
 
     def _get_flesch_interpretation(self, score: float) -> str:
         """Interpret Flesch reading ease score."""
-        if score >= 90:
-            return "Very Easy - 5th grade"
-        elif score >= 80:
-            return "Easy - 6th grade"
-        elif score >= 70:
-            return "Fairly Easy - 7th grade"
-        elif score >= 60:
-            return "Standard - 8th/9th grade"
-        elif score >= 50:
-            return "Fairly Difficult - 10th/12th grade"
-        elif score >= 30:
-            return "Difficult - College"
-        else:
-            return "Very Difficult - College Graduate"
+        interpretations = [
+            (90, "Very Easy - 5th grade"),
+            (80, "Easy - 6th grade"),
+            (70, "Fairly Easy - 7th grade"),
+            (60, "Standard - 8th/9th grade"),
+            (50, "Fairly Difficult - 10th/12th grade"),
+            (30, "Difficult - College"),
+            (0, "Very Difficult - College Graduate"),
+        ]
 
-    def _calculate_rix_index(self, text: str) -> float:
-        """Calculate RIX readability index."""
-        words = text.split()
-        if not words:
-            return 0.0
+        for threshold, interpretation in interpretations:
+            if score >= threshold:
+                return interpretation
+        return interpretations[-1][1]
 
-        long_words = sum(1 for word in words if len(word) > 6)
-        sentences = textstat.sentence_count(text)
-        if sentences == 0:
-            return 0.0
-
-        return long_words / sentences
-
-    def _calculate_advanced_stats(self, text: str) -> Dict[str, float]:
-        """Calculate advanced readability statistics."""
+    def _calculate_metrics(self, text: str) -> ReadabilityMetrics:
+        """Calculate comprehensive readability metrics."""
+        analyzer = self._analyzer
         words = text.split()
         unique_words = set(word.lower() for word in words)
 
@@ -133,139 +198,152 @@ class ReadabilityClassifier(Classifier):
         word_length_std = statistics.stdev(word_lengths) if len(word_lengths) > 1 else 0
 
         # Calculate sentence length statistics
-        sentences = textstat.sentence_count(text)
+        sentence_count = analyzer.sentence_count(text)
         words_per_sentence = [len(sent.split()) for sent in text.split(".") if sent.strip()]
         avg_sentence_length = statistics.mean(words_per_sentence) if words_per_sentence else 0
         sentence_length_std = (
             statistics.stdev(words_per_sentence) if len(words_per_sentence) > 1 else 0
         )
 
-        return {
-            "lexicon_count": textstat.lexicon_count(text),
-            "sentence_count": sentences,
-            "syllable_count": textstat.syllable_count(text),
-            "avg_sentence_length": avg_sentence_length,
-            "sentence_length_std": sentence_length_std,
-            "avg_word_length": avg_word_length,
-            "word_length_std": word_length_std,
-            "vocabulary_diversity": len(unique_words) / len(words) if words else 0,
-            "unique_word_count": len(unique_words),
-            "difficult_words": textstat.difficult_words(text),
-        }
+        return ReadabilityMetrics(
+            flesch_reading_ease=analyzer.flesch_reading_ease(text),
+            flesch_kincaid_grade=analyzer.flesch_kincaid_grade(text),
+            gunning_fog=analyzer.gunning_fog(text),
+            smog_index=analyzer.smog_index(text),
+            automated_readability_index=analyzer.automated_readability_index(text),
+            dale_chall_readability_score=analyzer.dale_chall_readability_score(text),
+            lexicon_count=analyzer.lexicon_count(text),
+            sentence_count=sentence_count,
+            syllable_count=analyzer.syllable_count(text),
+            avg_sentence_length=avg_sentence_length,
+            sentence_length_std=sentence_length_std,
+            avg_word_length=avg_word_length,
+            word_length_std=word_length_std,
+            vocabulary_diversity=len(unique_words) / len(words) if words else 0,
+            unique_word_count=len(unique_words),
+            difficult_words=analyzer.difficult_words(text),
+        )
 
-    def _calculate_confidence(self, metrics: Dict[str, float]) -> float:
-        """
-        Calculate confidence based on agreement between metrics.
-
-        Args:
-            metrics: Dictionary of readability metrics
-
-        Returns:
-            Confidence score between 0 and 1
-        """
-        if metrics.get("lexicon_count", 0) == 0:
+    def _calculate_confidence(self, metrics: ReadabilityMetrics) -> float:
+        """Calculate confidence based on agreement between metrics."""
+        if metrics.lexicon_count == 0:
             return 0.0
 
         # Get relevant grade-level metrics
         grade_metrics = [
-            metrics.get("flesch_kincaid_grade", 0),
-            metrics.get("gunning_fog", 0),
-            metrics.get("smog_index", 0),
-            metrics.get("dale_chall_readability_score", 0),
-            metrics.get("automated_readability_index", 0),
+            metrics.flesch_kincaid_grade,
+            metrics.gunning_fog,
+            metrics.smog_index,
+            metrics.dale_chall_readability_score,
+            metrics.automated_readability_index,
         ]
 
         # Calculate coefficient of variation
-        if not grade_metrics or statistics.mean(grade_metrics) == 0:
+        mean = statistics.mean(grade_metrics)
+        if mean == 0:
             return 0.0
 
-        cv = statistics.stdev(grade_metrics) / statistics.mean(grade_metrics)
+        cv = statistics.stdev(grade_metrics) / mean
         confidence = max(0.0, 1.0 - cv)
 
         return min(1.0, confidence)
 
-    def classify(self, text: str, **kwargs) -> ClassificationResult:
+    def _classify_impl(self, text: str) -> ClassificationResult:
         """
-        Classify text readability level.
+        Implement readability classification logic.
 
         Args:
-            text: Input text to classify
-            **kwargs: Additional classification context
+            text: The text to classify
 
         Returns:
             ClassificationResult with readability level and confidence
         """
-        if not isinstance(text, str):
-            raise ValueError("Input must be a string")
-
-        if not text.strip():
-            return ClassificationResult(
-                label=self.labels[0],  # elementary
-                confidence=0.0,
-                metadata={
-                    "error": "Empty input",
-                    "metrics": {
-                        "lexicon_count": 0,
-                        "sentence_count": 0,
-                        "syllable_count": 0,
-                        "flesch_reading_ease": 100.0,  # Most readable
-                        "flesch_kincaid_grade": 0.0,
-                        "gunning_fog": 0.0,
-                        "smog_index": 0.0,
-                        "automated_readability_index": 0.0,
-                        "coleman_liau_index": 0.0,
-                    },
-                },
-            )
-
         self.warm_up()
 
         try:
-            # Calculate basic metrics
-            metrics = {
-                "flesch_kincaid_grade": textstat.flesch_kincaid_grade(text),
-                "gunning_fog": textstat.gunning_fog(text),
-                "smog_index": textstat.smog_index(text),
-                "dale_chall_readability_score": textstat.dale_chall_readability_score(text),
-                "automated_readability_index": textstat.automated_readability_index(text),
-                "flesch_reading_ease": textstat.flesch_reading_ease(text),
-            }
-
-            # Add advanced stats
-            metrics.update(self._calculate_advanced_stats(text))
-            metrics["rix_index"] = self._calculate_rix_index(text)
+            # Calculate all metrics
+            metrics = self._calculate_metrics(text)
 
             # Calculate average grade level
-            grade_level = statistics.mean(
-                [
-                    metrics["flesch_kincaid_grade"],
-                    metrics["gunning_fog"],
-                    metrics["smog_index"],
-                    metrics["dale_chall_readability_score"],
-                    metrics["automated_readability_index"],
-                ]
-            )
+            grade_metrics = [
+                metrics.flesch_kincaid_grade,
+                metrics.gunning_fog,
+                metrics.smog_index,
+                metrics.dale_chall_readability_score,
+                metrics.automated_readability_index,
+            ]
+            avg_grade = statistics.mean(grade_metrics)
 
-            # Get readability level
-            label = self._get_grade_level(grade_level)
-
-            # Calculate confidence
+            # Get readability level and confidence
+            level = self._get_grade_level(avg_grade)
             confidence = self._calculate_confidence(metrics)
 
-            return ClassificationResult(label=label, confidence=confidence, metadata=metrics)
+            # Create detailed metadata
+            metadata = {
+                "grade_level": avg_grade,
+                "flesch_interpretation": self._get_flesch_interpretation(
+                    metrics.flesch_reading_ease
+                ),
+                "metrics": {
+                    "flesch_reading_ease": metrics.flesch_reading_ease,
+                    "flesch_kincaid_grade": metrics.flesch_kincaid_grade,
+                    "gunning_fog": metrics.gunning_fog,
+                    "smog_index": metrics.smog_index,
+                    "automated_readability_index": metrics.automated_readability_index,
+                    "dale_chall_score": metrics.dale_chall_readability_score,
+                },
+                "text_stats": {
+                    "lexicon_count": metrics.lexicon_count,
+                    "sentence_count": metrics.sentence_count,
+                    "syllable_count": metrics.syllable_count,
+                    "avg_sentence_length": metrics.avg_sentence_length,
+                    "sentence_length_std": metrics.sentence_length_std,
+                    "avg_word_length": metrics.avg_word_length,
+                    "word_length_std": metrics.word_length_std,
+                    "vocabulary_diversity": metrics.vocabulary_diversity,
+                    "unique_word_count": metrics.unique_word_count,
+                    "difficult_words": metrics.difficult_words,
+                },
+            }
+
+            return ClassificationResult(label=level, confidence=confidence, metadata=metadata)
+
         except Exception as e:
+            logger.error("Failed to classify text readability: %s", e)
             return ClassificationResult(
-                label=self.labels[0], confidence=0.0, metadata={"error": str(e)}  # elementary
+                label="unknown",
+                confidence=0.0,
+                metadata={"error": str(e), "reason": "classification_error"},
             )
 
-    def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
+    @classmethod
+    def create_with_custom_analyzer(
+        cls,
+        analyzer: ReadabilityAnalyzer,
+        name: str = "custom_readability_classifier",
+        description: str = "Custom readability analyzer",
+        readability_config: Optional[ReadabilityConfig] = None,
+        **kwargs,
+    ) -> "ReadabilityClassifier":
         """
-        Classify multiple texts.
+        Factory method to create a classifier with a custom analyzer.
 
         Args:
-            texts: List of texts to classify
+            analyzer: Custom readability analyzer implementation
+            name: Name of the classifier
+            description: Description of the classifier
+            readability_config: Custom readability configuration
+            **kwargs: Additional configuration parameters
 
         Returns:
-            List of ClassificationResults
+            Configured ReadabilityClassifier instance
         """
-        return [self.classify(text) for text in texts]
+        instance = cls(
+            name=name,
+            description=description,
+            readability_config=readability_config,
+            analyzer=analyzer,
+            **kwargs,
+        )
+        instance._validate_analyzer(analyzer)
+        return instance

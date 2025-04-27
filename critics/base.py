@@ -1,8 +1,8 @@
-from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List, Annotated
-from pydantic import BaseModel, Field, ValidationError, ConfigDict
-from pydantic.functional_validators import BeforeValidator
-from copy import deepcopy
+from typing import Dict, Any, Optional, List
+from pydantic import BaseModel, Field, ConfigDict as PydanticConfigDict
+from pydantic.functional_validators import field_validator
+from pydantic_core import PydanticCustomError
+from .protocols import TextValidator, TextCritic, TextImprover, ConfigDict, is_config_dict
 
 
 def validate_dict(v: Any) -> Dict[str, Any]:
@@ -23,15 +23,33 @@ def validate_dict(v: Any) -> Dict[str, Any]:
     return v
 
 
-class Critic(BaseModel, ABC):
-    """Base class for all critics."""
+class Critic(BaseModel):
+    """Base class for all critics.
 
-    model_config = ConfigDict(strict=True, validate_assignment=True)
+    This class provides the core functionality for text validation,
+    critique, and improvement. It uses protocols for flexibility
+    and dependency injection.
+    """
+
+    model_config = PydanticConfigDict(strict=True, validate_assignment=True)
 
     name: str = Field(..., min_length=1)
     description: str = Field(..., min_length=1)
     min_confidence: float = Field(default=0.7, ge=0.0, le=1.0)
-    config: Annotated[Dict[str, Any], BeforeValidator(validate_dict)] = Field(default_factory=dict)
+    config: ConfigDict = Field(default_factory=dict)
+
+    validator: Optional[TextValidator] = None
+    critic: Optional[TextCritic] = None
+    improver: Optional[TextImprover] = None
+
+    @field_validator("config")
+    def validate_config(cls, v: Any) -> ConfigDict:
+        """Validate configuration dictionary."""
+        if not is_config_dict(v):
+            raise PydanticCustomError(
+                "invalid_config", "Config must be a dictionary with valid types"
+            )
+        return v
 
     def __str__(self) -> str:
         """Return string representation of the critic."""
@@ -39,9 +57,14 @@ class Critic(BaseModel, ABC):
 
     def __repr__(self) -> str:
         """Return detailed string representation of the critic."""
-        return f"{self.__class__.__name__}(name='{self.name}', description='{self.description}', min_confidence={self.min_confidence}, config={self.config})"
+        return (
+            f"{self.__class__.__name__}("
+            f"name='{self.name}', "
+            f"description='{self.description}', "
+            f"min_confidence={self.min_confidence}, "
+            f"config={self.config})"
+        )
 
-    @abstractmethod
     def validate(self, text: str) -> bool:
         """Validate the given text.
 
@@ -50,10 +73,14 @@ class Critic(BaseModel, ABC):
 
         Returns:
             bool: True if the text is valid, False otherwise
-        """
-        pass
 
-    @abstractmethod
+        Raises:
+            RuntimeError: If no validator is configured
+        """
+        if self.validator is None:
+            raise RuntimeError("No validator configured")
+        return self.validator.validate(text)
+
     def critique(self, text: str) -> Dict[str, Any]:
         """Critique the given text.
 
@@ -66,18 +93,54 @@ class Critic(BaseModel, ABC):
                 - feedback (str): Feedback message
                 - issues (List[str]): List of identified issues
                 - suggestions (List[str]): List of improvement suggestions
-        """
-        pass
 
-    @abstractmethod
-    def improve(self, text: str, violations: Optional[List[Dict[str, Any]]] = None) -> str:
-        """Improve the given text based on violations.
+        Raises:
+            RuntimeError: If no critic is configured
+        """
+        if self.critic is None:
+            raise RuntimeError("No critic configured")
+        return self.critic.critique(text)
+
+    def improve(self, text: str, feedback: str) -> str:
+        """Improve the given text based on feedback.
 
         Args:
             text: The text to improve
-            violations: List of violation dictionaries
+            feedback: Feedback to guide improvement
 
         Returns:
             str: The improved text
+
+        Raises:
+            RuntimeError: If no improver is configured
         """
+        if self.improver is None:
+            raise RuntimeError("No improver configured")
+        return self.improver.improve(text, feedback)
+
+    async def avalidate(self, text: str) -> bool:
+        """Async version of validate."""
+        if self.validator is None:
+            raise RuntimeError("No validator configured")
+        return await self.validator.validate(text)
+
+    async def acritique(self, text: str) -> Dict[str, Any]:
+        """Async version of critique."""
+        if self.critic is None:
+            raise RuntimeError("No critic configured")
+        return await self.critic.critique(text)
+
+    async def aimprove(self, text: str, feedback: str) -> str:
+        """Async version of improve."""
+        if self.improver is None:
+            raise RuntimeError("No improver configured")
+        return await self.improver.improve(text, feedback)
+
+    def __enter__(self) -> "Critic":
+        """Enter context manager."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit context manager."""
+        # Cleanup any resources if needed
         pass

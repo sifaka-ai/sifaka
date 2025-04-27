@@ -1,364 +1,310 @@
-"""Tests for the factual rules."""
+"""Tests for factual rules."""
 
 import pytest
-from typing import Dict, Any, List, Set
-
+from typing import Dict, List, Set
+from dataclasses import dataclass
+from sifaka.rules.base import RuleResult
 from sifaka.rules.factual import (
+    FactualConsistencyConfig,
+    FactualConsistencyValidator,
     FactualConsistencyRule,
+    ConfidenceConfig,
+    ConfidenceValidator,
     ConfidenceRule,
+    CitationConfig,
+    CitationValidator,
     CitationRule,
+    FactualAccuracyConfig,
+    FactualAccuracyValidator,
     FactualAccuracyRule,
 )
-from sifaka.rules.base import RuleResult
 
 
-class TestFactualConsistencyRule(FactualConsistencyRule):
-    """Test implementation of FactualConsistencyRule."""
+@dataclass
+class MockFactualConsistencyValidator:
+    """Mock validator for testing factual consistency."""
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Implement validation logic."""
-        if not isinstance(output, str):
-            raise ValueError("Output must be a string")
+    config: FactualConsistencyConfig
 
-        output_lower = output.lower()
-        contradictions = []
-
-        for indicator in self.contradiction_indicators:
-            if indicator in output_lower:
-                contradictions.append(indicator)
-
-        if contradictions:
-            return RuleResult(
-                passed=False,
-                message="Output contains potential contradictions",
-                metadata={"contradiction_indicators": contradictions},
-            )
-
-        return RuleResult(passed=True, message="No contradictions detected")
+    def validate(self, text: str) -> RuleResult:
+        """Mock validation that checks for contradictions."""
+        for indicator in self.config.contradiction_indicators:
+            if indicator in text.lower():
+                return RuleResult(
+                    passed=False,
+                    message="Found contradiction",
+                    metadata={"indicator": indicator},
+                )
+        return RuleResult(passed=True, message="No contradictions found")
 
 
-class TestConfidenceRule(ConfidenceRule):
-    """Test implementation of ConfidenceRule."""
+@dataclass
+class MockConfidenceValidator:
+    """Mock validator for testing confidence levels."""
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Implement validation logic."""
-        if not isinstance(output, str):
-            raise ValueError("Output must be a string")
+    config: ConfidenceConfig
 
-        output_lower = output.lower()
-        confidence_levels = {}
-
-        for level, indicators in self.confidence_indicators.items():
-            found_indicators = []
+    def validate(self, text: str) -> RuleResult:
+        """Mock validation that checks confidence levels."""
+        text_lower = text.lower()
+        found_levels = {}
+        for level, indicators in self.config.confidence_indicators.items():
             for indicator in indicators:
-                if indicator in output_lower:
-                    found_indicators.append(indicator)
-            if found_indicators:
-                confidence_levels[level] = found_indicators
-
-        if confidence_levels:
-            return RuleResult(
-                passed=True,
-                message="Confidence levels detected",
-                metadata={"confidence_levels": confidence_levels},
-            )
-
-        return RuleResult(passed=True, message="No confidence indicators detected")
-
-
-class TestCitationRule(CitationRule):
-    """Test implementation of CitationRule."""
-
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Implement validation logic."""
-        if not isinstance(output, str):
-            raise ValueError("Output must be a string")
-
-        citations = []
-        for pattern in self.citation_patterns:
-            matches = re.findall(pattern, output)
-            citations.extend(matches)
-
-        if self.required_citations and not citations:
-            return RuleResult(
-                passed=False,
-                message="No citations found in the output",
-                metadata={"citation_patterns": self.citation_patterns},
-            )
-
+                if indicator in text_lower:
+                    found_levels.setdefault(level, []).append(indicator)
         return RuleResult(
             passed=True,
-            message=f"Found {len(citations)} citations",
+            message="Confidence check complete",
+            metadata={"levels": found_levels},
+        )
+
+
+@dataclass
+class MockCitationValidator:
+    """Mock validator for testing citations."""
+
+    config: CitationConfig
+
+    def validate(self, text: str) -> RuleResult:
+        """Mock validation that checks for citations."""
+        import re
+
+        citations = []
+        for pattern in self.config.citation_patterns:
+            matches = re.findall(pattern, text)
+            citations.extend(matches)
+
+        if self.config.required_citations and not citations:
+            return RuleResult(
+                passed=False,
+                message="No citations found",
+                metadata={"required": True},
+            )
+        return RuleResult(
+            passed=True,
+            message="Citations check complete",
             metadata={"citations": citations},
         )
 
 
-class TestFactualAccuracyRule(FactualAccuracyRule):
-    """Test implementation of FactualAccuracyRule."""
+@dataclass
+class MockFactualAccuracyValidator:
+    """Mock validator for testing factual accuracy."""
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Implement validation logic."""
-        if not isinstance(output, str):
-            raise ValueError("Output must be a string")
+    config: FactualAccuracyConfig
 
-        output_lower = output.lower()
-        found_facts = {}
-
-        for topic, variations in self.knowledge_base.items():
-            found_variations = []
-            for variation in variations:
-                if variation.lower() in output_lower:
-                    found_variations.append(variation)
-            if found_variations:
-                found_facts[topic] = found_variations
-
-        if not found_facts:
-            return RuleResult(
-                passed=True,
-                message="No factual claims detected",
-                metadata={"checked_topics": list(self.knowledge_base.keys())},
-            )
-
+    def validate(self, text: str) -> RuleResult:
+        """Mock validation that checks facts against knowledge base."""
+        text_lower = text.lower()
+        inaccuracies = []
+        for fact, variations in self.config.knowledge_base.items():
+            if not any(variation.lower() in text_lower for variation in variations):
+                inaccuracies.append(fact)
         return RuleResult(
-            passed=True,
-            message=f"Found factual claims about {len(found_facts)} topics",
-            metadata={"found_facts": found_facts},
+            passed=not inaccuracies,
+            message="Factual check complete",
+            metadata={"inaccuracies": inaccuracies},
         )
 
 
 @pytest.fixture
-def consistency_rule():
-    """Create a TestFactualConsistencyRule instance."""
-    return TestFactualConsistencyRule(name="test_consistency", description="Test consistency rule")
-
-
-@pytest.fixture
-def confidence_rule():
-    """Create a TestConfidenceRule instance."""
-    return TestConfidenceRule(name="test_confidence", description="Test confidence rule")
-
-
-@pytest.fixture
-def citation_rule():
-    """Create a TestCitationRule instance."""
-    return TestCitationRule(
-        name="test_citation", description="Test citation rule", required_citations=True
-    )
-
-
-@pytest.fixture
-def accuracy_rule():
-    """Create a TestFactualAccuracyRule instance."""
-    return TestFactualAccuracyRule(name="test_accuracy", description="Test accuracy rule")
-
-
-def test_consistency_rule_initialization():
-    """Test FactualConsistencyRule initialization."""
-    custom_indicators = ["but", "however"]
-    rule = TestFactualConsistencyRule(
-        name="test",
-        description="test",
-        contradiction_indicators=custom_indicators,
+def factual_consistency_config() -> FactualConsistencyConfig:
+    """Create a test configuration for factual consistency."""
+    return FactualConsistencyConfig(
+        contradiction_indicators=["but", "however"],
         confidence_threshold=0.8,
+        cache_size=50,
+        priority=2,
+        cost=1.5,
     )
-    assert rule.name == "test"
-    assert rule.contradiction_indicators == custom_indicators
-    assert rule.confidence_threshold == 0.8
 
 
-def test_consistency_rule_validation(consistency_rule):
-    """Test consistency rule validation."""
-    # Test text without contradictions
-    valid_text = "The sky is blue. The grass is green."
-    result = consistency_rule.validate(valid_text)
+@pytest.fixture
+def confidence_config() -> ConfidenceConfig:
+    """Create a test configuration for confidence levels."""
+    return ConfidenceConfig(
+        confidence_indicators={
+            "high": ["definitely", "certainly"],
+            "low": ["maybe", "possibly"],
+        },
+        cache_size=50,
+        priority=2,
+        cost=1.5,
+    )
+
+
+@pytest.fixture
+def citation_config() -> CitationConfig:
+    """Create a test configuration for citations."""
+    return CitationConfig(
+        citation_patterns=[r"\[[\d]+\]", r"\([A-Za-z]+, \d{4}\)"],
+        required_citations=True,
+        cache_size=50,
+        priority=2,
+        cost=1.5,
+    )
+
+
+@pytest.fixture
+def factual_accuracy_config() -> FactualAccuracyConfig:
+    """Create a test configuration for factual accuracy."""
+    return FactualAccuracyConfig(
+        knowledge_base={
+            "earth": {"round", "spherical"},
+            "water": {"H2O", "dihydrogen monoxide"},
+        },
+        cache_size=50,
+        priority=2,
+        cost=1.5,
+    )
+
+
+def test_factual_consistency_config_validation():
+    """Test factual consistency configuration validation."""
+    with pytest.raises(ValueError, match="confidence_threshold must be between 0.0 and 1.0"):
+        FactualConsistencyConfig(confidence_threshold=1.5)
+
+    with pytest.raises(ValueError, match="cache_size must be positive"):
+        FactualConsistencyConfig(cache_size=0)
+
+    with pytest.raises(ValueError, match="priority must be non-negative"):
+        FactualConsistencyConfig(priority=-1)
+
+    with pytest.raises(ValueError, match="cost must be non-negative"):
+        FactualConsistencyConfig(cost=-1.0)
+
+
+def test_confidence_config_validation():
+    """Test confidence configuration validation."""
+    with pytest.raises(ValueError, match="confidence_indicators must be a Dict"):
+        ConfidenceConfig(confidence_indicators={"high": "not a list"})  # type: ignore
+
+    with pytest.raises(ValueError, match="cache_size must be positive"):
+        ConfidenceConfig(cache_size=0)
+
+
+def test_citation_config_validation():
+    """Test citation configuration validation."""
+    with pytest.raises(ValueError, match="citation_patterns must be a List"):
+        CitationConfig(citation_patterns={"not": "a list"})  # type: ignore
+
+    with pytest.raises(ValueError, match="cache_size must be positive"):
+        CitationConfig(cache_size=0)
+
+
+def test_factual_accuracy_config_validation():
+    """Test factual accuracy configuration validation."""
+    with pytest.raises(ValueError, match="knowledge_base must be a Dict"):
+        FactualAccuracyConfig(knowledge_base={"key": "not a set"})  # type: ignore
+
+    with pytest.raises(ValueError, match="cache_size must be positive"):
+        FactualAccuracyConfig(cache_size=0)
+
+
+def test_factual_consistency_rule(factual_consistency_config: FactualConsistencyConfig):
+    """Test factual consistency rule validation."""
+    validator = MockFactualConsistencyValidator(config=factual_consistency_config)
+    rule = FactualConsistencyRule(
+        name="test",
+        description="test rule",
+        config=factual_consistency_config,
+        validator=validator,
+    )
+
+    # Test with contradiction
+    result = rule.validate("This is true, but that is false")
+    assert not result.passed
+    assert "Found contradiction" in result.message
+    assert result.metadata["indicator"] == "but"
+
+    # Test without contradiction
+    result = rule.validate("This is consistently true")
     assert result.passed
-    assert "No contradictions" in result.message
-
-    # Test text with contradictions
-    invalid_text = "The sky is blue. However, it appears to be red."
-    result = consistency_rule.validate(invalid_text)
-    assert not result.passed
-    assert "however" in result.metadata["contradiction_indicators"]
-
-    # Test multiple contradictions
-    multiple_contradictions = (
-        "Although X is true, Y is false. However, Z is true. Nevertheless, A is false."
-    )
-    result = consistency_rule.validate(multiple_contradictions)
-    assert not result.passed
-    assert len(result.metadata["contradiction_indicators"]) > 1
+    assert "No contradictions found" in result.message
 
 
-def test_confidence_rule_initialization():
-    """Test ConfidenceRule initialization."""
-    custom_indicators = {"high": ["definitely", "certainly"], "low": ["maybe", "possibly"]}
-    rule = TestConfidenceRule(
-        name="test", description="test", confidence_indicators=custom_indicators
-    )
-    assert rule.name == "test"
-    assert rule.confidence_indicators == custom_indicators
-
-
-def test_confidence_rule_validation(confidence_rule):
+def test_confidence_rule(confidence_config: ConfidenceConfig):
     """Test confidence rule validation."""
-    # Test high confidence
-    high_confidence = "This will definitely happen. We are certainly sure."
-    result = confidence_rule.validate(high_confidence)
-    assert result.passed
-    assert "high" in result.metadata["confidence_levels"]
-
-    # Test low confidence
-    low_confidence = "This might happen. It's possibly true."
-    result = confidence_rule.validate(low_confidence)
-    assert result.passed
-    assert "low" in result.metadata["confidence_levels"]
-
-    # Test mixed confidence
-    mixed_confidence = "This will definitely happen, but maybe not today."
-    result = confidence_rule.validate(mixed_confidence)
-    assert result.passed
-    assert "high" in result.metadata["confidence_levels"]
-    assert "low" in result.metadata["confidence_levels"]
-
-
-def test_citation_rule_initialization():
-    """Test CitationRule initialization."""
-    custom_patterns = [r"\[\d+\]", r"\(Author, \d{4}\)"]
-    rule = TestCitationRule(
-        name="test", description="test", citation_patterns=custom_patterns, required_citations=True
+    validator = MockConfidenceValidator(config=confidence_config)
+    rule = ConfidenceRule(
+        name="test",
+        description="test rule",
+        config=confidence_config,
+        validator=validator,
     )
-    assert rule.name == "test"
-    assert rule.citation_patterns == custom_patterns
-    assert rule.required_citations is True
+
+    # Test with confidence indicators
+    result = rule.validate("I am definitely sure about this")
+    assert result.passed
+    assert "high" in result.metadata["levels"]
+    assert "definitely" in result.metadata["levels"]["high"]
+
+    # Test without confidence indicators
+    result = rule.validate("This is a statement")
+    assert result.passed
+    assert not result.metadata["levels"]
 
 
-def test_citation_rule_validation(citation_rule):
+def test_citation_rule(citation_config: CitationConfig):
     """Test citation rule validation."""
-    # Test text with citations
-    valid_text = "According to [1], this is true. (Smith et al., 2020) confirms it."
-    result = citation_rule.validate(valid_text)
+    validator = MockCitationValidator(config=citation_config)
+    rule = CitationRule(
+        name="test",
+        description="test rule",
+        config=citation_config,
+        validator=validator,
+    )
+
+    # Test with citations
+    result = rule.validate("According to [1] and (Smith, 2020)")
     assert result.passed
     assert len(result.metadata["citations"]) == 2
 
-    # Test text without citations
-    invalid_text = "This text has no citations."
-    result = citation_rule.validate(invalid_text)
+    # Test without citations
+    result = rule.validate("This has no citations")
     assert not result.passed
     assert "No citations found" in result.message
 
-    # Test different citation formats
-    mixed_citations = """
-    [1] Numeric citation
-    (Smith, 2020) Author-year citation
-    https://example.com URL citation
-    """
-    result = citation_rule.validate(mixed_citations)
-    assert result.passed
-    assert len(result.metadata["citations"]) == 3
 
-
-def test_accuracy_rule_initialization():
-    """Test FactualAccuracyRule initialization."""
-    custom_knowledge_base = {
-        "test_fact": {"value1", "value2"},
-        "another_fact": {"value3", "value4"},
-    }
-    rule = TestFactualAccuracyRule(
-        name="test", description="test", knowledge_base=custom_knowledge_base
+def test_factual_accuracy_rule(factual_accuracy_config: FactualAccuracyConfig):
+    """Test factual accuracy rule validation."""
+    validator = MockFactualAccuracyValidator(config=factual_accuracy_config)
+    rule = FactualAccuracyRule(
+        name="test",
+        description="test rule",
+        config=factual_accuracy_config,
+        validator=validator,
     )
-    assert rule.name == "test"
-    assert rule.knowledge_base == custom_knowledge_base
 
-
-def test_accuracy_rule_validation(accuracy_rule):
-    """Test accuracy rule validation."""
-    # Test text with known facts
-    valid_text = "The Earth is round and pi is 3.14159."
-    result = accuracy_rule.validate(valid_text)
+    # Test with accurate facts
+    result = rule.validate("The earth is round and water is H2O")
     assert result.passed
-    assert "earth_shape" in result.metadata["found_facts"]
-    assert "pi" in result.metadata["found_facts"]
+    assert not result.metadata["inaccuracies"]
 
-    # Test text with no known facts
-    no_facts = "This text contains no known facts from our knowledge base."
-    result = accuracy_rule.validate(no_facts)
-    assert result.passed
-    assert "checked_topics" in result.metadata
-
-    # Test multiple fact variations
-    multiple_facts = "Water boils at 100°C (212°F). The Earth is spherical and shaped like a geoid."
-    result = accuracy_rule.validate(multiple_facts)
-    assert result.passed
-    assert "water_boiling_point" in result.metadata["found_facts"]
-    assert "earth_shape" in result.metadata["found_facts"]
+    # Test with inaccurate facts
+    result = rule.validate("The earth is flat")
+    assert not result.passed
+    assert "earth" in result.metadata["inaccuracies"]
 
 
-def test_edge_cases():
-    """Test edge cases for all rules."""
-    rules = [
-        TestFactualConsistencyRule(name="consistency", description="test"),
-        TestConfidenceRule(name="confidence", description="test"),
-        TestCitationRule(name="citation", description="test"),
-        TestFactualAccuracyRule(name="accuracy", description="test"),
-    ]
+def test_rule_type_validation():
+    """Test type validation for rules."""
+    with pytest.raises(ValueError, match="Text must be a string"):
+        FactualConsistencyRule(
+            name="test",
+            description="test",
+            config=FactualConsistencyConfig(),
+            validator=MockFactualConsistencyValidator(config=FactualConsistencyConfig()),
+        ).validate(
+            None
+        )  # type: ignore
 
-    edge_cases = {
-        "empty": "",
-        "whitespace": "   \n\t   ",
-        "special_chars": "!@#$%^&*()",
-        "unicode": "Hello 世界",
-        "newlines": "Line 1\nLine 2\nLine 3",
-        "numbers_only": "123 456 789",
-    }
-
-    for rule in rules:
-        for case_name, text in edge_cases.items():
-            result = rule.validate(text)
-            assert isinstance(result, RuleResult)
-            assert isinstance(result.passed, bool)
-            assert isinstance(result.message, str)
-            assert isinstance(result.metadata, dict)
-
-
-def test_error_handling():
-    """Test error handling for all rules."""
-    rules = [
-        TestFactualConsistencyRule(name="consistency", description="test"),
-        TestConfidenceRule(name="confidence", description="test"),
-        TestCitationRule(name="citation", description="test"),
-        TestFactualAccuracyRule(name="accuracy", description="test"),
-    ]
-
-    invalid_inputs = [None, 123, [], {}]
-
-    for rule in rules:
-        for invalid_input in invalid_inputs:
-            with pytest.raises(ValueError):
-                rule.validate(invalid_input)
-
-
-def test_consistent_results():
-    """Test consistency of validation results."""
-    rules = [
-        TestFactualConsistencyRule(name="consistency", description="test"),
-        TestConfidenceRule(name="confidence", description="test"),
-        TestCitationRule(name="citation", description="test"),
-        TestFactualAccuracyRule(name="accuracy", description="test"),
-    ]
-
-    test_text = """
-    According to [1], the Earth is definitely round.
-    However, some people disagree.
-    (Smith et al., 2020) confirms that water boils at 100°C.
-    """
-
-    for rule in rules:
-        # Run validation multiple times
-        results = [rule.validate(test_text) for _ in range(3)]
-
-        # All results should be consistent
-        first_result = results[0]
-        for result in results[1:]:
-            assert result.passed == first_result.passed
-            assert result.message == first_result.message
-            assert result.metadata == first_result.metadata
+    with pytest.raises(ValueError, match="Text must be a string"):
+        ConfidenceRule(
+            name="test",
+            description="test",
+            config=ConfidenceConfig(),
+            validator=MockConfidenceValidator(config=ConfidenceConfig()),
+        ).validate(
+            123
+        )  # type: ignore

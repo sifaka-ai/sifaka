@@ -1,406 +1,333 @@
-"""Tests for the formatting rules."""
+"""Tests for formatting rules."""
 
-import re
 import pytest
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Set, Protocol, runtime_checkable, Final
+from dataclasses import dataclass, field
 
-from sifaka.rules.formatting import LengthRule, ParagraphRule, StyleRule, FormattingRule
+from sifaka.rules.formatting import (
+    LengthRule,
+    ParagraphRule,
+    StyleRule,
+    FormattingRule,
+    LengthConfig,
+    ParagraphConfig,
+    StyleConfig,
+    FormattingConfig,
+    LengthValidator,
+    ParagraphValidator,
+    StyleValidator,
+    FormattingValidator,
+    DefaultLengthValidator,
+    DefaultParagraphValidator,
+    DefaultStyleValidator,
+    DefaultFormattingValidator,
+    create_length_rule,
+    create_paragraph_rule,
+    create_style_rule,
+    create_formatting_rule,
+)
 from sifaka.rules.base import RuleResult
 
 
-class TestLengthRule(LengthRule):
-    """Test implementation of LengthRule."""
-
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Implement validation logic."""
-        if not isinstance(output, str):
-            raise ValueError("Output must be a string")
-
-        length = len(output)
-
-        if length < self.min_length:
-            return RuleResult(
-                passed=False,
-                message=f"Output is below minimum length ({length} characters)",
-                metadata={"length": length, "min_length": self.min_length},
-            )
-
-        if length > self.max_length:
-            return RuleResult(
-                passed=False,
-                message=f"Output exceeds maximum length ({length} characters)",
-                metadata={"length": length, "max_length": self.max_length},
-            )
-
-        return RuleResult(
-            passed=True,
-            message=f"Output length is acceptable ({length} characters)",
-            metadata={"length": length},
-        )
-
-
-class TestParagraphRule(ParagraphRule):
-    """Test implementation of ParagraphRule."""
-
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Implement validation logic."""
-        if not isinstance(output, str):
-            raise ValueError("Output must be a string")
-
-        paragraphs = output.split("\n\n")
-        issues = []
-
-        for i, paragraph in enumerate(paragraphs):
-            sentences = [s.strip() for s in paragraph.split(".") if s.strip()]
-
-            if len(sentences) < self.min_sentences:
-                issues.append(
-                    f"Paragraph {i+1} has fewer sentences than minimum ({len(sentences)})"
-                )
-
-            if len(sentences) > self.max_sentences:
-                issues.append(f"Paragraph {i+1} exceeds maximum sentences ({len(sentences)})")
-
-            for j, sentence in enumerate(sentences):
-                words = sentence.split()
-                if len(words) < self.min_words:
-                    issues.append(
-                        f"Sentence {j+1} in paragraph {i+1} has fewer words than minimum ({len(words)})"
-                    )
-                if len(words) > self.max_words:
-                    issues.append(
-                        f"Sentence {j+1} in paragraph {i+1} exceeds maximum words ({len(words)})"
-                    )
-
-        if issues:
-            return RuleResult(
-                passed=False,
-                message="Paragraph formatting issues detected",
-                metadata={"issues": issues},
-            )
-
-        return RuleResult(passed=True, message="Paragraph formatting is acceptable")
-
-
-class TestStyleRule(StyleRule):
-    """Test implementation of StyleRule."""
-
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Implement validation logic."""
-        if not isinstance(output, str):
-            raise ValueError("Output must be a string")
-
-        output_lower = output.lower()
-        style_scores = {}
-
-        for style, indicators in self.style_indicators.items():
-            found_indicators = []
-            for indicator in indicators:
-                if indicator in output_lower:
-                    found_indicators.append(indicator)
-            style_scores[style] = len(found_indicators) / len(indicators)
-
-        dominant_style = max(style_scores.items(), key=lambda x: x[1])
-
-        if dominant_style[1] < self.style_threshold:
-            return RuleResult(
-                passed=False,
-                message="Writing style is inconsistent",
-                metadata={"style_scores": style_scores},
-            )
-
-        return RuleResult(
-            passed=True,
-            message=f"Writing style is consistent ({dominant_style[0]})",
-            metadata={"style_scores": style_scores},
-        )
-
-
-class TestFormattingRule(FormattingRule):
-    """Test formatting rule implementation."""
-
-    def __init__(
-        self, name: str = "test_formatting", description: str = "Test formatting rule", **kwargs
-    ):
-        super().__init__(name=name, description=description, **kwargs)
-        self.formatting_patterns = {
-            "multiple_spaces": r"\s{2,}",
-            "multiple_newlines": r"\n{3,}",
-            "missing_period": r"[^.!?]\n",
-            "missing_space": r"[a-z][A-Z]",
-            "incorrect_quotes": r'["\'][^"\']*["\']',
-        }
-
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Implement validation logic."""
-        if not isinstance(output, str):
-            raise ValueError("Output must be a string")
-
-        issues = []
-        for pattern_name, pattern in self.formatting_patterns.items():
-            matches = list(re.finditer(pattern, output))
-            if matches:
-                for match in matches:
-                    issues.append(f"{pattern_name} at position {match.start()}")
-
-        if issues:
-            return RuleResult(
-                passed=False,
-                message="Formatting validation failed",
-                metadata={"issues": issues},
-            )
-
-        return RuleResult(
-            passed=True,
-            message="Formatting validation passed",
-            metadata={},
-        )
-
-
 @pytest.fixture
-def length_rule():
-    """Create a TestLengthRule instance."""
-    return TestLengthRule(
-        name="test_length", description="Test length rule", min_length=10, max_length=100
+def length_config() -> LengthConfig:
+    """Create a test length configuration."""
+    return LengthConfig(
+        min_length=10,
+        max_length=100,
+        unit="characters",
+        cache_size=10,
+        priority=2,
+        cost=1.5,
     )
 
 
 @pytest.fixture
-def paragraph_rule():
-    """Create a TestParagraphRule instance."""
-    return TestParagraphRule(
-        name="test_paragraph",
-        description="Test paragraph rule",
+def paragraph_config() -> ParagraphConfig:
+    """Create a test paragraph configuration."""
+    return ParagraphConfig(
         min_sentences=2,
-        max_sentences=4,
-        min_words=3,
-        max_words=15,
+        max_sentences=5,
+        min_words_per_sentence=5,
+        max_words_per_sentence=20,
+        cache_size=10,
+        priority=2,
+        cost=1.5,
     )
 
 
 @pytest.fixture
-def style_rule():
-    """Create a TestStyleRule instance."""
-    return TestStyleRule(name="test_style", description="Test style rule", style_threshold=0.6)
+def style_config() -> StyleConfig:
+    """Create a test style configuration."""
+    return StyleConfig(
+        style_indicators={"formal", "technical", "concise"},
+        min_style_score=0.7,
+        cache_size=10,
+        priority=2,
+        cost=1.5,
+    )
 
 
 @pytest.fixture
-def formatting_rule():
-    """Create a TestFormattingRule instance."""
-    return TestFormattingRule(name="test_formatting", description="Test formatting rule")
+def formatting_config() -> FormattingConfig:
+    """Create a test formatting configuration."""
+    return FormattingConfig(
+        patterns=[r"\b[A-Z][a-z]+\b", r"\b\d+\b"],
+        min_matches=1,
+        max_matches=10,
+        cache_size=10,
+        priority=2,
+        cost=1.5,
+    )
 
 
-def test_length_rule_initialization():
-    """Test LengthRule initialization."""
-    rule = TestLengthRule(name="test", description="test", min_length=50, max_length=200)
-    assert rule.name == "test"
-    assert rule.min_length == 50
-    assert rule.max_length == 200
+@pytest.fixture
+def length_validator(length_config: LengthConfig) -> LengthValidator:
+    """Create a test length validator."""
+    return DefaultLengthValidator(length_config)
 
 
-def test_length_rule_validation(length_rule):
-    """Test length rule validation."""
+@pytest.fixture
+def paragraph_validator(paragraph_config: ParagraphConfig) -> ParagraphValidator:
+    """Create a test paragraph validator."""
+    return DefaultParagraphValidator(paragraph_config)
+
+
+@pytest.fixture
+def style_validator(style_config: StyleConfig) -> StyleValidator:
+    """Create a test style validator."""
+    return DefaultStyleValidator(style_config)
+
+
+@pytest.fixture
+def formatting_validator(formatting_config: FormattingConfig) -> FormattingValidator:
+    """Create a test formatting validator."""
+    return DefaultFormattingValidator(formatting_config)
+
+
+def test_length_config_validation():
+    """Test length configuration validation."""
+    # Test valid configuration
+    config = LengthConfig(min_length=10, max_length=100)
+    assert config.min_length == 10
+    assert config.max_length == 100
+
+    # Test invalid configurations
+    with pytest.raises(ValueError, match="min_length must be non-negative"):
+        LengthConfig(min_length=-1)
+
+    with pytest.raises(ValueError, match="max_length must be greater than min_length"):
+        LengthConfig(min_length=100, max_length=10)
+
+    with pytest.raises(ValueError, match="unit must be one of"):
+        LengthConfig(unit="invalid")
+
+
+def test_paragraph_config_validation():
+    """Test paragraph configuration validation."""
+    # Test valid configuration
+    config = ParagraphConfig(
+        min_sentences=2,
+        max_sentences=5,
+        min_words_per_sentence=5,
+        max_words_per_sentence=20,
+    )
+    assert config.min_sentences == 2
+    assert config.max_sentences == 5
+
+    # Test invalid configurations
+    with pytest.raises(ValueError, match="min_sentences must be positive"):
+        ParagraphConfig(min_sentences=0)
+
+    with pytest.raises(ValueError, match="max_sentences must be greater than min_sentences"):
+        ParagraphConfig(min_sentences=5, max_sentences=2)
+
+
+def test_style_config_validation():
+    """Test style configuration validation."""
+    # Test valid configuration
+    config = StyleConfig(
+        style_indicators={"formal", "technical"},
+        min_style_score=0.7,
+    )
+    assert "formal" in config.style_indicators
+    assert config.min_style_score == 0.7
+
+    # Test invalid configurations
+    with pytest.raises(ValueError, match="style_indicators must be a set"):
+        StyleConfig(style_indicators=["invalid"])  # type: ignore
+
+    with pytest.raises(ValueError, match="min_style_score must be between 0 and 1"):
+        StyleConfig(min_style_score=1.5)
+
+
+def test_length_validation(length_validator: LengthValidator):
+    """Test length validation."""
+    rule = LengthRule(
+        name="Test Length Rule",
+        description="Test length validation",
+        validator=length_validator,
+    )
+
     # Test valid length
-    result = length_rule.validate("This is a valid length text.")
+    text = "This is a valid length text for testing."
+    result = rule.validate(text)
     assert result.passed
-    assert "length" in result.metadata
+    assert result.metadata["length"] >= rule.validator.config.min_length
 
     # Test too short
-    result = length_rule.validate("Too short")
+    text = "Too short"
+    result = rule.validate(text)
     assert not result.passed
-    assert "below minimum" in result.message.lower()
+    assert "Text length below minimum" in result.message
 
     # Test too long
-    result = length_rule.validate("x" * 150)
+    text = "x" * (rule.validator.config.max_length + 1)
+    result = rule.validate(text)
     assert not result.passed
-    assert "exceeds maximum" in result.message.lower()
+    assert "Text length exceeds maximum" in result.message
 
 
-def test_paragraph_rule_initialization():
-    """Test ParagraphRule initialization."""
-    rule = TestParagraphRule(
-        name="test", description="test", min_sentences=2, max_sentences=5, min_words=5, max_words=20
+def test_paragraph_validation(paragraph_validator: ParagraphValidator):
+    """Test paragraph validation."""
+    rule = ParagraphRule(
+        name="Test Paragraph Rule",
+        description="Test paragraph validation",
+        validator=paragraph_validator,
     )
-    assert rule.name == "test"
-    assert rule.min_sentences == 2
-    assert rule.max_sentences == 5
-    assert rule.min_words == 5
-    assert rule.max_words == 20
 
-
-def test_paragraph_rule_validation(paragraph_rule):
-    """Test paragraph rule validation."""
     # Test valid paragraph structure
-    valid_text = """This is a good first sentence. And here is the second one.
-
-This is another paragraph. It also has two sentences."""
-    result = paragraph_rule.validate(valid_text)
+    text = """This is a good first sentence. This is a good second sentence with enough words.
+    The third sentence maintains proper structure. The fourth sentence concludes well."""
+    result = rule.validate(text)
     assert result.passed
+    assert result.metadata["sentence_count"] >= rule.validator.config.min_sentences
 
     # Test too few sentences
-    invalid_text = "This is a single sentence paragraph."
-    result = paragraph_rule.validate(invalid_text)
+    text = "This is a single sentence."
+    result = rule.validate(text)
     assert not result.passed
-    assert "fewer sentences than minimum" in result.metadata["issues"][0]
+    assert "Too few sentences" in result.message
 
-    # Test too many sentences
-    many_sentences = "One. Two. Three. Four. Five. Six."
-    result = paragraph_rule.validate(many_sentences)
+    # Test too many words per sentence
+    text = "This sentence has way too many words and goes on and on and on and on and on and on and on and on and on and on and on making it much longer than it should be according to our configuration."
+    result = rule.validate(text)
     assert not result.passed
-    assert "exceeds maximum sentences" in result.metadata["issues"][0]
+    assert "Sentence exceeds maximum words" in result.message
 
 
-def test_style_rule_initialization():
-    """Test StyleRule initialization."""
-    custom_indicators = {"technical": ["algorithm", "function"], "casual": ["hey", "thanks"]}
-    rule = TestStyleRule(
-        name="test", description="test", style_indicators=custom_indicators, style_threshold=0.8
+def test_style_validation(style_validator: StyleValidator):
+    """Test style validation."""
+    rule = StyleRule(
+        name="Test Style Rule",
+        description="Test style validation",
+        validator=style_validator,
     )
-    assert rule.name == "test"
-    assert rule.style_indicators == custom_indicators
-    assert rule.style_threshold == 0.8
 
-
-def test_style_rule_validation(style_rule):
-    """Test style rule validation."""
-    # Test consistent formal style
-    formal_text = "Therefore, we must proceed. Furthermore, the analysis shows. Thus, we conclude."
-    result = style_rule.validate(formal_text)
+    # Test formal style
+    text = "The implementation demonstrates a sophisticated approach to solving complex technical challenges."
+    result = rule.validate(text)
     assert result.passed
-    assert "formal" in result.message.lower()
+    assert result.metadata["style_score"] >= rule.validator.config.min_style_score
 
-    # Test consistent informal style
-    informal_text = "Yeah, that's cool! Gonna be awesome! BTW, check this out!"
-    result = style_rule.validate(informal_text)
+    # Test informal style
+    text = "Hey guys! Check out this cool thing I made!"
+    result = rule.validate(text)
+    assert not result.passed
+    assert "Style score below minimum" in result.message
+
+
+def test_formatting_validation(formatting_validator: FormattingValidator):
+    """Test formatting validation."""
+    rule = FormattingRule(
+        name="Test Formatting Rule",
+        description="Test formatting validation",
+        validator=formatting_validator,
+    )
+
+    # Test valid formatting
+    text = "John has 42 apples and Mary has 15 oranges."
+    result = rule.validate(text)
     assert result.passed
-    assert "informal" in result.message.lower()
+    assert len(result.metadata["matches"]) >= rule.validator.config.min_matches
 
-    # Test inconsistent style
-    mixed_text = "Therefore, the algorithm is cool. BTW, check out this parameter!"
-    result = style_rule.validate(mixed_text)
+    # Test no matches
+    text = "no proper names or numbers here"
+    result = rule.validate(text)
     assert not result.passed
-    assert "inconsistent" in result.message.lower()
+    assert "No pattern matches found" in result.message
 
-
-def test_formatting_rule_initialization():
-    """Test FormattingRule initialization."""
-    custom_patterns = {
-        "multiple_spaces": r"\s{2,}",
-        "multiple_newlines": r"\n{3,}",
-        "missing_period": r"[^.!?]\n",
-        "missing_space": r"[a-z][A-Z]",
-        "incorrect_quotes": r'["\'][^"\']*["\']',
-    }
-    rule = TestFormattingRule(name="test", description="test", formatting_patterns=custom_patterns)
-    assert rule.name == "test"
-    assert rule.formatting_patterns == custom_patterns
-
-
-def test_formatting_rule_validation(formatting_rule):
-    """Test formatting rule validation."""
-    # Test well-formatted text
-    valid_text = "This is a properly formatted text. It has correct spacing and punctuation."
-    result = formatting_rule.validate(valid_text)
-    assert result.passed
-    assert not result.metadata.get("issues", [])
-
-    # Test multiple spaces
-    invalid_text = "This  has  multiple  spaces."
-    result = formatting_rule.validate(invalid_text)
+    # Test too many matches
+    text = "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15"
+    result = rule.validate(text)
     assert not result.passed
-    assert any("multiple_spaces" in issue for issue in result.metadata["issues"])
+    assert "Too many pattern matches" in result.message
 
-    # Test multiple newlines
-    invalid_text = "First line.\n\n\nToo many newlines."
-    result = formatting_rule.validate(invalid_text)
-    assert not result.passed
-    assert any("multiple_newlines" in issue for issue in result.metadata["issues"])
 
-    # Test missing period
-    invalid_text = "First line\nSecond line"
-    result = formatting_rule.validate(invalid_text)
-    assert not result.passed
-    assert any("missing_period" in issue for issue in result.metadata["issues"])
+def test_factory_functions():
+    """Test factory functions for creating rules."""
+    # Test length rule creation
+    length_rule = create_length_rule(
+        name="Length Rule",
+        description="Test length validation",
+    )
+    assert isinstance(length_rule.validator, DefaultLengthValidator)
 
-    # Test missing space
-    invalid_text = "missingSpace"
-    result = formatting_rule.validate(invalid_text)
-    assert not result.passed
-    assert any("missing_space" in issue for issue in result.metadata["issues"])
+    # Test paragraph rule creation
+    paragraph_rule = create_paragraph_rule(
+        name="Paragraph Rule",
+        description="Test paragraph validation",
+    )
+    assert isinstance(paragraph_rule.validator, DefaultParagraphValidator)
 
-    # Test incorrect quotes
-    invalid_text = "Using 'single' and \"double\" quotes."
-    result = formatting_rule.validate(invalid_text)
-    assert not result.passed
-    assert any("incorrect_quotes" in issue for issue in result.metadata["issues"])
+    # Test style rule creation
+    style_rule = create_style_rule(
+        name="Style Rule",
+        description="Test style validation",
+    )
+    assert isinstance(style_rule.validator, DefaultStyleValidator)
+
+    # Test formatting rule creation
+    formatting_rule = create_formatting_rule(
+        name="Formatting Rule",
+        description="Test formatting validation",
+    )
+    assert isinstance(formatting_rule.validator, DefaultFormattingValidator)
 
 
 def test_edge_cases():
-    """Test edge cases for all rules."""
-    rules = [
-        TestLengthRule(name="length", description="test"),
-        TestParagraphRule(name="paragraph", description="test"),
-        TestStyleRule(name="style", description="test"),
-        TestFormattingRule(name="formatting", description="test"),
-    ]
+    """Test edge cases and error handling."""
+    rule = create_length_rule(
+        name="Test Rule",
+        description="Test validation",
+    )
 
-    edge_cases = {
-        "empty": "",
-        "whitespace": "   \n\t   ",
-        "special_chars": "!@#$%^&*()",
-        "unicode": "Hello 世界",
-        "newlines": "Line 1\nLine 2\nLine 3",
-        "numbers_only": "123 456 789",
-    }
+    # Test empty text
+    result = rule.validate("")
+    assert not result.passed
+    assert "Empty text" in result.message
 
-    for rule in rules:
-        for case_name, text in edge_cases.items():
-            result = rule.validate(text)
-            assert isinstance(result, RuleResult)
-            assert isinstance(result.passed, bool)
-            assert isinstance(result.message, str)
-            assert isinstance(result.metadata, dict)
+    # Test invalid input type
+    with pytest.raises(ValueError, match="Text must be a string"):
+        rule.validate(123)  # type: ignore
 
-
-def test_error_handling():
-    """Test error handling for all rules."""
-    rules = [
-        TestLengthRule(name="length", description="test"),
-        TestParagraphRule(name="paragraph", description="test"),
-        TestStyleRule(name="style", description="test"),
-        TestFormattingRule(name="formatting", description="test"),
-    ]
-
-    invalid_inputs = [None, 123, [], {}]
-
-    for rule in rules:
-        for invalid_input in invalid_inputs:
-            with pytest.raises(ValueError):
-                rule.validate(invalid_input)
+    # Test None input
+    with pytest.raises(ValueError, match="Text must be a string"):
+        rule.validate(None)  # type: ignore
 
 
 def test_consistent_results():
-    """Test consistency of validation results."""
-    rules = [
-        TestLengthRule(name="length", description="test"),
-        TestParagraphRule(name="paragraph", description="test"),
-        TestStyleRule(name="style", description="test"),
-        TestFormattingRule(name="formatting", description="test"),
-    ]
+    """Test that validation results are consistent."""
+    rule = create_paragraph_rule(
+        name="Test Rule",
+        description="Test validation",
+    )
+    text = """This is a test paragraph. It has multiple sentences.
+    The sentences are well-formed. The structure is consistent."""
 
-    test_text = """
-    This is a test paragraph. It contains multiple sentences.
-
-    Furthermore, we can analyze the style. Therefore, it should be consistent.
-    """
-
-    for rule in rules:
-        # Run validation multiple times
-        results = [rule.validate(test_text) for _ in range(3)]
-
-        # All results should be consistent
-        first_result = results[0]
-        for result in results[1:]:
-            assert result.passed == first_result.passed
-            assert result.message == first_result.message
-            assert result.metadata == first_result.metadata
+    # Multiple validations should yield the same result
+    result1 = rule.validate(text)
+    result2 = rule.validate(text)
+    assert result1.passed == result2.passed
+    assert result1.message == result2.message
+    assert result1.metadata == result2.metadata

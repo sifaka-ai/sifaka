@@ -1,121 +1,321 @@
-from typing import Optional, Dict, Any
-from textblob import TextBlob
+"""
+Sentiment analysis rules for Sifaka.
+
+This module provides rules for analyzing and validating text sentiment,
+including positive/negative sentiment detection and emotional content analysis.
+"""
+
+from typing import Dict, List, Set, Protocol, runtime_checkable, Final
+from dataclasses import dataclass, field
 from sifaka.rules.base import Rule, RuleResult
 
 
-class SentimentRule(Rule):
-    """
-    Rule that checks if the output meets a minimum sentiment threshold.
+@dataclass(frozen=True)
+class SentimentConfig:
+    """Configuration for sentiment validation."""
 
-    This rule is part of the Sifaka validation framework and implements sentiment
-    analysis for text content. It uses a sentiment analysis model to determine
-    the emotional tone of the output and ensures it meets a minimum threshold.
+    threshold: float
+    positive_words: Set[str]
+    negative_words: Set[str]
+    cache_size: int = 100
+    priority: int = 1
+    cost: float = 1.0
 
-    Architecture Notes:
-    - Inherits from the base Rule class to implement the validation contract
-    - Uses a sentiment analysis model to score text
-    - Returns RuleResult objects containing validation status, messages, and metadata
-    - Follows the single responsibility principle by focusing only on sentiment validation
-    - Includes error handling for sentiment analysis failures
+    def __post_init__(self):
+        """Validate configuration."""
+        if not 0.0 <= self.threshold <= 1.0:
+            raise ValueError("Threshold must be between 0.0 and 1.0")
+        if not self.positive_words:
+            raise ValueError("Must provide at least one positive word")
+        if not self.negative_words:
+            raise ValueError("Must provide at least one negative word")
+        if self.cache_size < 0:
+            raise ValueError("Cache size must be non-negative")
+        if self.priority < 0:
+            raise ValueError("Priority must be non-negative")
+        if self.cost < 0:
+            raise ValueError("Cost must be non-negative")
 
-    Data Flow:
-    1. User creates SentimentRule with desired sentiment threshold
-    2. validate() method receives output text
-    3. Sentiment analysis is performed on the text
-    4. Score is compared against threshold
-    5. Result is wrapped in RuleResult with relevant metadata
-    6. RuleResult is returned to the caller
 
-    Usage Example:
-        rule = SentimentRule(
-            name="sentiment_rule",
-            description="Ensures positive sentiment",
-            config={"min_sentiment": 0.0}
+@dataclass(frozen=True)
+class EmotionalContentConfig:
+    """Configuration for emotional content validation."""
+
+    categories: Dict[str, List[str]]
+    min_emotion_score: float = 0.3
+    max_emotion_score: float = 0.8
+    cache_size: int = 100
+    priority: int = 1
+    cost: float = 1.0
+
+    def __post_init__(self):
+        """Validate configuration."""
+        if not 0.0 <= self.min_emotion_score <= self.max_emotion_score <= 1.0:
+            raise ValueError("Emotion scores must be between 0.0 and 1.0 and min <= max")
+        if not self.categories:
+            raise ValueError("Must provide at least one emotion category")
+        if self.cache_size < 0:
+            raise ValueError("Cache size must be non-negative")
+        if self.priority < 0:
+            raise ValueError("Priority must be non-negative")
+        if self.cost < 0:
+            raise ValueError("Cost must be non-negative")
+        for category, indicators in self.categories.items():
+            if not indicators:
+                raise ValueError(f"Category {category} must have at least one indicator")
+
+
+@runtime_checkable
+class SentimentValidator(Protocol):
+    """Protocol for sentiment validation."""
+
+    @property
+    def config(self) -> SentimentConfig:
+        """Get validator configuration."""
+        ...
+
+    def validate(self, text: str) -> RuleResult:
+        """Validate text sentiment."""
+        ...
+
+
+@runtime_checkable
+class EmotionalContentValidator(Protocol):
+    """Protocol for emotional content validation."""
+
+    @property
+    def config(self) -> EmotionalContentConfig:
+        """Get validator configuration."""
+        ...
+
+    def validate(self, text: str) -> RuleResult:
+        """Validate emotional content."""
+        ...
+
+
+class DefaultSentimentValidator:
+    """Default implementation of sentiment validation."""
+
+    def __init__(self, config: SentimentConfig):
+        self._config = config
+
+    @property
+    def config(self) -> SentimentConfig:
+        return self._config
+
+    def validate(self, text: str) -> RuleResult:
+        """Validate text sentiment."""
+        if not isinstance(text, str):
+            raise ValueError("Input must be a string")
+
+        text_lower = text.lower()
+        positive_matches = sum(1 for word in self.config.positive_words if word in text_lower)
+        negative_matches = sum(1 for word in self.config.negative_words if word in text_lower)
+
+        total_matches = positive_matches + negative_matches
+        if total_matches == 0:
+            return RuleResult(
+                passed=True,
+                message="Neutral sentiment detected",
+                metadata={
+                    "sentiment_score": 0.5,
+                    "positive_matches": 0,
+                    "negative_matches": 0,
+                },
+            )
+
+        sentiment_score = positive_matches / total_matches
+        is_positive = sentiment_score >= self.config.threshold
+
+        return RuleResult(
+            passed=is_positive,
+            message=f"{'Positive' if is_positive else 'Negative'} sentiment detected (score: {sentiment_score:.2f})",
+            metadata={
+                "sentiment_score": sentiment_score,
+                "positive_matches": positive_matches,
+                "negative_matches": negative_matches,
+            },
         )
-    """
 
-    min_sentiment: float = 0.0
+
+class DefaultEmotionalContentValidator:
+    """Default implementation of emotional content validation."""
+
+    def __init__(self, config: EmotionalContentConfig):
+        self._config = config
+
+    @property
+    def config(self) -> EmotionalContentConfig:
+        return self._config
+
+    def validate(self, text: str) -> RuleResult:
+        """Validate emotional content."""
+        if not isinstance(text, str):
+            raise ValueError("Input must be a string")
+
+        text_lower = text.lower()
+        emotion_scores: Dict[str, float] = {}
+        detected_emotions: Dict[str, List[str]] = {}
+
+        for category, indicators in self.config.categories.items():
+            found_indicators = [indicator for indicator in indicators if indicator in text_lower]
+            if found_indicators:
+                score = len(found_indicators) / len(indicators)
+                emotion_scores[category] = score
+                detected_emotions[category] = found_indicators
+
+        if not emotion_scores:
+            return RuleResult(
+                passed=True,
+                message="No strong emotions detected",
+                metadata={
+                    "emotion_scores": {},
+                    "detected_emotions": {},
+                },
+            )
+
+        avg_emotion_score = sum(emotion_scores.values()) / len(emotion_scores)
+        is_balanced = (
+            self.config.min_emotion_score <= avg_emotion_score <= self.config.max_emotion_score
+        )
+
+        return RuleResult(
+            passed=is_balanced,
+            message=f"{'Balanced' if is_balanced else 'Unbalanced'} emotional content detected (score: {avg_emotion_score:.2f})",
+            metadata={
+                "emotion_scores": emotion_scores,
+                "detected_emotions": detected_emotions,
+                "average_score": avg_emotion_score,
+            },
+        )
+
+
+class SentimentRule(Rule):
+    """Rule for validating text sentiment."""
 
     def __init__(
         self,
         name: str,
         description: str,
-        config: Optional[Dict[str, Any]] = None,
-        **kwargs,
+        validator: SentimentValidator,
     ) -> None:
-        """
-        Initialize the rule with a minimum sentiment threshold.
+        super().__init__(name=name, description=description)
+        self._validator = validator
 
-        Args:
-            name: The name of the rule
-            description: Description of the rule
-            config: Configuration dictionary containing:
-                   - min_sentiment: Minimum allowed sentiment score (inclusive).
-                                  Must be between -1.0 (very negative) and 1.0 (very positive).
-                                  Defaults to 0.0 (neutral).
-            **kwargs: Additional arguments
+    def _validate_impl(self, output: str) -> RuleResult:
+        """Validate output sentiment."""
+        return self._validator.validate(output)
 
-        Raises:
-            ValueError: If min_sentiment is not between -1.0 and 1.0
-        """
-        super().__init__(name=name, description=description, config=config or {}, **kwargs)
 
-        # Extract sentiment threshold from config
-        config = config or {}
-        min_sentiment = config.get("min_sentiment", 0.0)
+class EmotionalContentRule(Rule):
+    """Rule for validating emotional content."""
 
-        if not -1.0 <= min_sentiment <= 1.0:
-            raise ValueError("min_sentiment must be between -1.0 and 1.0")
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        validator: EmotionalContentValidator,
+    ) -> None:
+        super().__init__(name=name, description=description)
+        self._validator = validator
 
-        # Set the value using object.__setattr__ to bypass Pydantic validation
-        object.__setattr__(self, "min_sentiment", min_sentiment)
+    def _validate_impl(self, output: str) -> RuleResult:
+        """Validate output emotional content."""
+        return self._validator.validate(output)
 
-    def validate(self, output: str) -> RuleResult:
-        """
-        Validate that the output meets the minimum sentiment threshold.
 
-        This method implements the core validation logic by:
-        1. Analyzing the sentiment of the output text
-        2. Comparing the sentiment score against the threshold
-        3. Constructing a detailed result message
-        4. Packaging the result with relevant metadata
+# Default word sets for sentiment analysis
+DEFAULT_POSITIVE_WORDS: Final[Set[str]] = {
+    "good",
+    "great",
+    "excellent",
+    "amazing",
+    "wonderful",
+    "fantastic",
+    "happy",
+    "joy",
+    "love",
+    "beautiful",
+    "perfect",
+    "brilliant",
+    "outstanding",
+    "superb",
+    "delightful",
+    "pleasant",
+    "impressive",
+}
 
-        Args:
-            output: The text to validate
+DEFAULT_NEGATIVE_WORDS: Final[Set[str]] = {
+    "bad",
+    "terrible",
+    "awful",
+    "horrible",
+    "poor",
+    "disappointing",
+    "sad",
+    "angry",
+    "hate",
+    "ugly",
+    "wrong",
+    "failure",
+    "worst",
+    "inferior",
+    "unpleasant",
+    "mediocre",
+    "frustrating",
+}
 
-        Returns:
-            RuleResult: Contains:
-                       - passed: Boolean indicating if sentiment meets threshold
-                       - message: Human-readable validation result
-                       - metadata: Additional validation details including scores
-        """
-        try:
-            # TODO: Replace with actual sentiment analysis implementation
-            sentiment_score = 0.0  # Placeholder implementation
-            passed = sentiment_score >= self.min_sentiment
+# Default emotion categories
+DEFAULT_EMOTION_CATEGORIES: Final[Dict[str, List[str]]] = {
+    "joy": ["happy", "delighted", "excited", "cheerful", "joyful"],
+    "sadness": ["sad", "depressed", "unhappy", "gloomy", "miserable"],
+    "anger": ["angry", "furious", "outraged", "irritated", "mad"],
+    "fear": ["scared", "afraid", "terrified", "anxious", "worried"],
+    "surprise": ["surprised", "amazed", "astonished", "shocked", "stunned"],
+}
 
-            return RuleResult(
-                passed=passed,
-                message=(
-                    f"Output sentiment {sentiment_score:.2f} "
-                    f"{'meets' if passed else 'does not meet'} "
-                    f"minimum threshold of {self.min_sentiment}"
-                ),
-                metadata={"sentiment_score": sentiment_score, "min_sentiment": self.min_sentiment},
-            )
 
-        except Exception as e:
-            return RuleResult(
-                passed=False,
-                message=f"Error during sentiment analysis: {str(e)}",
-                metadata={"error": str(e), "min_sentiment": self.min_sentiment},
-            )
+def create_sentiment_rule(
+    name: str,
+    description: str,
+    threshold: float = 0.6,
+    positive_words: Set[str] = None,
+    negative_words: Set[str] = None,
+    cache_size: int = 100,
+    priority: int = 1,
+    cost: float = 1.0,
+) -> SentimentRule:
+    """Create a sentiment rule with default configuration."""
+    config = SentimentConfig(
+        threshold=threshold,
+        positive_words=positive_words or DEFAULT_POSITIVE_WORDS,
+        negative_words=negative_words or DEFAULT_NEGATIVE_WORDS,
+        cache_size=cache_size,
+        priority=priority,
+        cost=cost,
+    )
+    validator = DefaultSentimentValidator(config)
+    return SentimentRule(name=name, description=description, validator=validator)
 
-    def _generate_description(
-        self, min_sentiment: float, subjectivity_threshold: Optional[float]
-    ) -> str:
-        """Generate a human-readable description of the sentiment criteria."""
-        criteria = [f"sentiment above {min_sentiment:.2f}"]
-        if subjectivity_threshold is not None:
-            criteria.append(f"subjectivity below {subjectivity_threshold:.2f}")
-        return f"Checks if output has {' and '.join(criteria)}"
+
+def create_emotional_content_rule(
+    name: str,
+    description: str,
+    categories: Dict[str, List[str]] = None,
+    min_emotion_score: float = 0.3,
+    max_emotion_score: float = 0.8,
+    cache_size: int = 100,
+    priority: int = 1,
+    cost: float = 1.0,
+) -> EmotionalContentRule:
+    """Create an emotional content rule with default configuration."""
+    config = EmotionalContentConfig(
+        categories=categories or DEFAULT_EMOTION_CATEGORIES,
+        min_emotion_score=min_emotion_score,
+        max_emotion_score=max_emotion_score,
+        cache_size=cache_size,
+        priority=priority,
+        cost=cost,
+    )
+    validator = DefaultEmotionalContentValidator(config)
+    return EmotionalContentRule(name=name, description=description, validator=validator)

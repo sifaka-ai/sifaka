@@ -1,60 +1,30 @@
 """
 Length validation rules for Sifaka.
+
+This module provides rules for validating text length, supporting both character and word count validation.
 """
 
-from typing import Optional, Dict, Any
+from typing import Dict, Any, Protocol, runtime_checkable, Final, Literal
+from dataclasses import dataclass, field
 from sifaka.rules.base import Rule, RuleResult
-from pydantic import Field
 
 
-class LengthRule(Rule):
-    """
-    Rule that checks if the output length falls within specified bounds.
+@dataclass(frozen=True)
+class LengthConfig:
+    """Immutable configuration for length validation."""
 
-    This rule supports both character and word count validation.
+    min_length: int = 50
+    max_length: int | None = 5000
+    exact_length: int | None = None
+    unit: Literal["characters", "words"] = "characters"
+    cache_size: int = 10
+    priority: int = 2
+    cost: float = 1.5
 
-    Attributes:
-        min_length: Minimum length
-        max_length: Maximum length (optional)
-        exact_length: Exact length required (optional)
-        unit: Unit of measurement ('characters' or 'words')
-    """
-
-    min_length: int = Field(default=50, description="Minimum length")
-    max_length: Optional[int] = Field(default=5000, description="Maximum length")
-    exact_length: Optional[int] = Field(default=None, description="Exact length required")
-    unit: str = Field(default="characters", description="Unit of measurement (characters or words)")
-
-    def __init__(
-        self,
-        name: str,
-        description: str,
-        config: Optional[Dict[str, Any]] = None,
-        **kwargs,
-    ) -> None:
-        """
-        Initialize the rule with length constraints.
-
-        Args:
-            name: The name of the rule
-            description: Description of the rule
-            config: Configuration dictionary containing:
-                   - min_length: Minimum allowed length (inclusive)
-                   - max_length: Maximum allowed length (inclusive)
-                   - exact_length: Exact required length
-                   - unit: Unit of measurement ('characters' or 'words')
-            **kwargs: Additional arguments
-        """
-        super().__init__(name=name, description=description, config=config or {}, **kwargs)
-
-        config = config or {}
-        self.min_length = config.get("min_length", self.min_length)
-        self.max_length = config.get("max_length", self.max_length)
-        self.exact_length = config.get("exact_length", self.exact_length)
-        self.unit = config.get("unit", self.unit)
-
+    def __post_init__(self) -> None:
+        """Validate configuration parameters."""
         if self.unit not in ["characters", "words"]:
-            raise ValueError("Unit must be either 'characters' or 'words'")
+            raise ValueError("unit must be either 'characters' or 'words'")
 
         if self.exact_length is not None:
             if self.exact_length < 0:
@@ -64,86 +34,165 @@ class LengthRule(Rule):
         else:
             if self.min_length < 0:
                 raise ValueError("min_length must be non-negative")
-            if self.max_length is not None and self.max_length < 0:
-                raise ValueError("max_length must be non-negative")
-            if self.max_length is not None and self.min_length > self.max_length:
-                raise ValueError("min_length cannot be greater than max_length")
+            if self.max_length is not None:
+                if self.max_length < 0:
+                    raise ValueError("max_length must be non-negative")
+                if self.min_length > self.max_length:
+                    raise ValueError("min_length cannot be greater than max_length")
+
+
+@runtime_checkable
+class LengthValidator(Protocol):
+    """Protocol for length validation components."""
+
+    @property
+    def config(self) -> LengthConfig: ...
+
+    def validate(self, text: str) -> RuleResult: ...
+
+
+class DefaultLengthValidator:
+    """Default implementation of length validation."""
+
+    def __init__(self, config: LengthConfig) -> None:
+        """Initialize the validator with configuration."""
+        self._config = config
+
+    @property
+    def config(self) -> LengthConfig:
+        """Get the validator configuration."""
+        return self._config
 
     def _get_length(self, text: str) -> int:
-        """
-        Get the length of the text in the specified unit.
-
-        Args:
-            text: The text to measure
-
-        Returns:
-            Length in the specified unit
-        """
-        if self.unit == "words":
+        """Get the length of the text in the specified unit."""
+        if self.config.unit == "words":
             return len(text.split())
         return len(text)
 
-    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
+    def validate(self, text: str) -> RuleResult:
         """
-        Validate that the output length is within acceptable bounds.
+        Validate that the text length is within acceptable bounds.
 
         Args:
-            output: The text to validate
-            **kwargs: Additional validation context
+            text: The text to validate
 
         Returns:
             RuleResult with validation results
         """
-        if not isinstance(output, str):
-            raise ValueError("Output must be a string")
+        if not isinstance(text, str):
+            raise ValueError("Text must be a string")
 
-        length = self._get_length(output)
+        length = self._get_length(text)
         metadata = {
             "length": length,
-            "min_length": self.min_length,
-            "max_length": self.max_length,
-            "exact_length": self.exact_length,
-            "unit": self.unit,
+            "min_length": self.config.min_length,
+            "max_length": self.config.max_length,
+            "exact_length": self.config.exact_length,
+            "unit": self.config.unit,
         }
 
         # Handle empty or whitespace-only text
-        if not output.strip():
+        if not text.strip():
             return RuleResult(
                 passed=False,
-                message=f"Empty or whitespace-only text (0 {self.unit})",
+                message=f"Empty or whitespace-only text (0 {self.config.unit})",
                 metadata=metadata,
             )
 
         # Check exact length if specified
-        if self.exact_length is not None:
-            if length != self.exact_length:
+        if self.config.exact_length is not None:
+            if length != self.config.exact_length:
                 return RuleResult(
                     passed=False,
-                    message=f"Output {self.unit} count {length} does not match required count of {self.exact_length}",
+                    message=f"Text {self.config.unit} count {length} does not match required count of {self.config.exact_length}",
                     metadata=metadata,
                 )
             return RuleResult(
                 passed=True,
-                message=f"Output {self.unit} count matches required count of {self.exact_length}",
+                message=f"Text {self.config.unit} count matches required count of {self.config.exact_length}",
                 metadata=metadata,
             )
 
         # Check length bounds
         issues = []
-        if length < self.min_length:
-            issues.append(f"below minimum of {self.min_length}")
-        if self.max_length is not None and length > self.max_length:
-            issues.append(f"exceeds maximum of {self.max_length}")
+        if length < self.config.min_length:
+            issues.append(f"below minimum of {self.config.min_length}")
+        if self.config.max_length is not None and length > self.config.max_length:
+            issues.append(f"exceeds maximum of {self.config.max_length}")
 
         if issues:
             return RuleResult(
                 passed=False,
-                message=f"Output {self.unit} count {length} {' and '.join(issues)}",
+                message=f"Text {self.config.unit} count {length} {' and '.join(issues)}",
                 metadata=metadata,
             )
 
         return RuleResult(
             passed=True,
-            message=f"Output {self.unit} count {length} meets requirements",
+            message=f"Text {self.config.unit} count {length} meets requirements",
             metadata=metadata,
         )
+
+
+class LengthRule(Rule):
+    """Rule that checks if the text length falls within specified bounds."""
+
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        validator: LengthValidator | None = None,
+        config: LengthConfig | None = None,
+        **kwargs,
+    ) -> None:
+        """
+        Initialize the rule with length constraints.
+
+        Args:
+            name: The name of the rule
+            description: Description of the rule
+            validator: Custom length validator implementation
+            config: Length validation configuration
+            **kwargs: Additional arguments
+        """
+        super().__init__(name=name, description=description, **kwargs)
+        self.validator = validator or DefaultLengthValidator(config or LengthConfig())
+
+    def _validate_impl(self, text: str, **kwargs) -> RuleResult:
+        """
+        Validate that the text length is within acceptable bounds.
+
+        Args:
+            text: The text to validate
+            **kwargs: Additional validation context
+
+        Returns:
+            RuleResult with validation results
+        """
+        return self.validator.validate(text)
+
+
+def create_length_rule(
+    name: str = "length_rule",
+    description: str = "Validates text length",
+    config: LengthConfig | None = None,
+    validator: LengthValidator | None = None,
+) -> LengthRule:
+    """
+    Factory function to create a length rule.
+
+    Args:
+        name: The name of the rule
+        description: Description of the rule
+        config: Length validation configuration
+        validator: Custom length validator implementation
+
+    Returns:
+        Configured LengthRule instance
+    """
+    return LengthRule(
+        name=name,
+        description=description,
+        validator=validator,
+        config=config,
+    )

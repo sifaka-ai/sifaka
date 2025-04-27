@@ -2,41 +2,81 @@
 Toxicity classifier using the Detoxify model.
 """
 
-from typing import List, Dict, Any, Optional, TYPE_CHECKING
+from typing import List, Dict, Any, Optional, Protocol, runtime_checkable, Final, TypeVar
+from typing_extensions import TypeGuard
 import importlib
 import logging
+from dataclasses import dataclass
+from abc import abstractmethod
+import numpy as np
 
-from sifaka.classifiers.base import Classifier, ClassificationResult
+from sifaka.classifiers.base import BaseClassifier, ClassificationResult, ClassifierConfig
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Only import type hints during type checking
-if TYPE_CHECKING:
-    from detoxify import Detoxify
+
+@runtime_checkable
+class ToxicityModel(Protocol):
+    """Protocol for toxicity detection models."""
+
+    @abstractmethod
+    def predict(self, text: str | List[str]) -> Dict[str, np.ndarray | float]: ...
 
 
-class ToxicityClassifier(Classifier):
+@dataclass(frozen=True)
+class ToxicityThresholds:
+    """Immutable thresholds for toxicity classification."""
+
+    severe_toxic: float = 0.7
+    threat: float = 0.7
+    general: float = 0.5
+
+    def __post_init__(self) -> None:
+        if not all(0.0 <= t <= 1.0 for t in [self.severe_toxic, self.threat, self.general]):
+            raise ValueError("All thresholds must be between 0.0 and 1.0")
+        if self.general > self.severe_toxic:
+            raise ValueError("General threshold should not be higher than severe threshold")
+
+
+@dataclass(frozen=True)
+class ToxicityConfig:
+    """Configuration for toxicity classifier."""
+
+    model_name: str = "original"
+    thresholds: ToxicityThresholds = ToxicityThresholds()
+
+    def __post_init__(self) -> None:
+        if self.model_name not in ["original", "unbiased", "multilingual"]:
+            raise ValueError("Model name must be one of: original, unbiased, multilingual")
+
+
+class ToxicityClassifier(BaseClassifier):
     """
     A lightweight toxicity classifier using the Detoxify model.
 
     This provides a fast, local alternative to API-based toxicity detection.
     Requires the 'toxicity' extra to be installed:
     pip install sifaka[toxicity]
-
-    Attributes:
-        model_name: The Detoxify model to use
-        labels: The toxicity categories to check
     """
 
-    model_name: str = "original"
+    # Class-level constants
+    DEFAULT_LABELS: Final[List[str]] = [
+        "toxic",
+        "severe_toxic",
+        "obscene",
+        "threat",
+        "insult",
+        "identity_hate",
+    ]
+    DEFAULT_COST: Final[int] = 2  # Moderate cost for local ML model
 
     def __init__(
         self,
         name: str = "toxicity_classifier",
         description: str = "Detects toxic content using Detoxify",
-        model_name: str = "original",
-        config: Optional[Dict[str, Any]] = None,
+        toxicity_config: Optional[ToxicityConfig] = None,
+        model: Optional[ToxicityModel] = None,
         **kwargs,
     ) -> None:
         """
@@ -45,27 +85,31 @@ class ToxicityClassifier(Classifier):
         Args:
             name: The name of the classifier
             description: Description of the classifier
-            model_name: The Detoxify model to use ('original', 'unbiased', or 'multilingual')
-            config: Additional configuration
-            **kwargs: Additional arguments
+            toxicity_config: Configuration for toxicity detection
+            model: Custom toxicity model implementation
+            **kwargs: Additional configuration parameters
         """
-        super().__init__(
-            name=name,
-            description=description,
-            config=config or {},
-            labels=["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"],
-            cost=2,  # Moderate cost for local ML model
-            **kwargs,
-        )
-        self.model_name = model_name
-        self._model = None
-        self._detoxify = None
+        config = ClassifierConfig(labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, **kwargs)
+        super().__init__(name=name, description=description, config=config)
 
-    def _load_detoxify(self) -> None:
-        """Load the Detoxify package."""
+        self._toxicity_config = toxicity_config or ToxicityConfig()
+        self._model = model
+        self._detoxify = None
+        self._initialized = False
+
+    def _validate_model(self, model: Any) -> TypeGuard[ToxicityModel]:
+        """Validate that a model implements the required protocol."""
+        if not isinstance(model, ToxicityModel):
+            raise ValueError(f"Model must implement ToxicityModel protocol, got {type(model)}")
+        return True
+
+    def _load_detoxify(self) -> ToxicityModel:
+        """Load the Detoxify package and model."""
         try:
             detoxify_module = importlib.import_module("detoxify")
-            self._detoxify = detoxify_module.Detoxify
+            model = detoxify_module.Detoxify(model_type=self._toxicity_config.model_name)
+            self._validate_model(model)
+            return model
         except ImportError:
             raise ImportError(
                 "Detoxify package is required for ToxicityClassifier. "
@@ -75,20 +119,33 @@ class ToxicityClassifier(Classifier):
             raise RuntimeError(f"Failed to load Detoxify: {e}")
 
     def warm_up(self) -> None:
-        """Load the model if not already loaded."""
-        if self._model is None:
-            if self._detoxify is None:
-                self._load_detoxify()
-            try:
-                logger.info("Loading Detoxify model %s...", self.model_name)
-                self._model = self._detoxify(model_type=self.model_name)
-                logger.info("Detoxify model loaded successfully")
-            except Exception as e:
-                raise RuntimeError(f"Failed to load Detoxify model: {e}")
+        """Initialize the model if needed."""
+        if not self._initialized:
+            self._model = self._model or self._load_detoxify()
+            self._initialized = True
 
-    def classify(self, text: str) -> ClassificationResult:
+    def _get_toxicity_label(self, scores: Dict[str, float]) -> tuple[str, float]:
+        """Get toxicity label and confidence based on scores."""
+        thresholds = self._toxicity_config.thresholds
+
+        # Check for severe toxicity or threats first
+        if scores.get("severe_toxic", 0) >= thresholds.severe_toxic:
+            return "severe_toxic", scores["severe_toxic"]
+        elif scores.get("threat", 0) >= thresholds.threat:
+            return "threat", scores["threat"]
+
+        # Get highest toxicity score and category
+        max_category = max(scores.items(), key=lambda x: x[1])
+        label, confidence = max_category
+
+        # Only return if it meets the general threshold
+        if confidence >= thresholds.general:
+            return label, confidence
+        return "non_toxic", confidence
+
+    def _classify_impl(self, text: str) -> ClassificationResult:
         """
-        Classify text toxicity.
+        Implement toxicity classification logic.
 
         Args:
             text: The text to classify
@@ -96,32 +153,12 @@ class ToxicityClassifier(Classifier):
         Returns:
             ClassificationResult with toxicity scores
         """
-        if not isinstance(text, str):
-            return ClassificationResult(
-                label="unknown", confidence=0.0, metadata={"error": "Input must be a string"}
-            )
-
-        if not text.strip():
-            return ClassificationResult(
-                label="unknown", confidence=0.0, metadata={"error": "Empty input"}
-            )
-
         self.warm_up()
+
         try:
             scores = self._model.predict(text)
             scores = {k: float(v) for k, v in scores.items()}
-
-            # Check for severe toxicity or threats first
-            if scores.get("severe_toxic", 0) >= 0.7:
-                label = "severe_toxic"
-                confidence = scores["severe_toxic"]
-            elif scores.get("threat", 0) >= 0.7:
-                label = "threat"
-                confidence = scores["threat"]
-            else:
-                # Get highest toxicity score and category
-                max_category = max(scores.items(), key=lambda x: x[1])
-                label, confidence = max_category
+            label, confidence = self._get_toxicity_label(scores)
 
             return ClassificationResult(
                 label=label,
@@ -130,11 +167,15 @@ class ToxicityClassifier(Classifier):
             )
         except Exception as e:
             logger.error("Failed to classify text: %s", e)
-            return ClassificationResult(label="unknown", confidence=0.0, metadata={"error": str(e)})
+            return ClassificationResult(
+                label="unknown",
+                confidence=0.0,
+                metadata={"error": str(e), "reason": "classification_error"},
+            )
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
         """
-        Classify multiple texts.
+        Classify multiple texts efficiently.
 
         Args:
             texts: List of texts to classify
@@ -142,25 +183,16 @@ class ToxicityClassifier(Classifier):
         Returns:
             List of ClassificationResults
         """
+        self.validate_batch_input(texts)
         self.warm_up()
+
         try:
             batch_scores = self._model.predict(texts)
-
             results = []
+
             for i in range(len(texts)):
                 scores = {k: float(v[i]) for k, v in batch_scores.items()}
-
-                # Check for severe toxicity or threats first
-                if scores.get("severe_toxic", 0) >= 0.7:
-                    label = "severe_toxic"
-                    confidence = scores["severe_toxic"]
-                elif scores.get("threat", 0) >= 0.7:
-                    label = "threat"
-                    confidence = scores["threat"]
-                else:
-                    # Get highest toxicity score and category
-                    max_category = max(scores.items(), key=lambda x: x[1])
-                    label, confidence = max_category
+                label, confidence = self._get_toxicity_label(scores)
 
                 results.append(
                     ClassificationResult(
@@ -174,6 +206,42 @@ class ToxicityClassifier(Classifier):
         except Exception as e:
             logger.error("Failed to batch classify texts: %s", e)
             return [
-                ClassificationResult(label="unknown", confidence=0.0, metadata={"error": str(e)})
+                ClassificationResult(
+                    label="unknown",
+                    confidence=0.0,
+                    metadata={"error": str(e), "reason": "batch_classification_error"},
+                )
                 for _ in texts
             ]
+
+    @classmethod
+    def create_with_custom_model(
+        cls,
+        model: ToxicityModel,
+        name: str = "custom_toxicity_classifier",
+        description: str = "Custom toxicity model",
+        toxicity_config: Optional[ToxicityConfig] = None,
+        **kwargs,
+    ) -> "ToxicityClassifier":
+        """
+        Factory method to create a classifier with a custom model.
+
+        Args:
+            model: Custom toxicity model implementation
+            name: Name of the classifier
+            description: Description of the classifier
+            toxicity_config: Custom toxicity configuration
+            **kwargs: Additional configuration parameters
+
+        Returns:
+            Configured ToxicityClassifier instance
+        """
+        instance = cls(
+            name=name,
+            description=description,
+            toxicity_config=toxicity_config,
+            model=model,
+            **kwargs,
+        )
+        instance._validate_model(model)
+        return instance

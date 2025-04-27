@@ -9,63 +9,329 @@ This example demonstrates how to:
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Protocol, TypeVar, runtime_checkable, Final
+from typing_extensions import TypeGuard
+from dataclasses import dataclass, field
 from dotenv import load_dotenv
 
 from sifaka import Reflector
 from sifaka.models import AnthropicProvider
 from sifaka.rules import ClassifierRule
-from sifaka.classifiers.base import Classifier, ClassificationResult
+from sifaka.classifiers.base import BaseClassifier, ClassificationResult, ClassifierConfig
 from sifaka.critique import PromptCritique
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T", bound="BaseClassifier")
 
-class SentimentClassifier(Classifier):
+
+@runtime_checkable
+class TextProcessor(Protocol):
+    """Protocol for text processing components."""
+
+    def process(self, text: str) -> Dict[str, Any]: ...
+
+
+@runtime_checkable
+class ClassifierProtocol(Protocol):
+    """Protocol for classifier components."""
+
+    def classify(self, text: str) -> ClassificationResult: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def description(self) -> str: ...
+
+
+@dataclass(frozen=True)
+class WordList:
+    """Immutable container for word lists used in classification."""
+
+    positive: frozenset[str]
+    negative: frozenset[str]
+
+
+@dataclass(frozen=True)
+class ComplexityThresholds:
+    """Immutable thresholds for text complexity analysis."""
+
+    complex: float = 7.0
+    moderate: float = 5.0
+    min_confidence: float = 0.5
+
+    def __post_init__(self) -> None:
+        if self.moderate >= self.complex:
+            raise ValueError("moderate threshold must be less than complex threshold")
+        if not 0.0 <= self.min_confidence <= 1.0:
+            raise ValueError("min_confidence must be between 0.0 and 1.0")
+
+
+@runtime_checkable
+class ComplexityAnalyzer(Protocol):
+    """Protocol for text complexity analysis."""
+
+    def calculate_avg_word_length(self, text: str) -> float: ...
+    def calculate_sentence_length(self, text: str) -> float: ...
+    def calculate_unique_words_ratio(self, text: str) -> float: ...
+
+
+class DefaultComplexityAnalyzer:
+    """Default implementation of ComplexityAnalyzer."""
+
+    def calculate_avg_word_length(self, text: str) -> float:
+        """Calculate average word length."""
+        words = text.split()
+        if not words:
+            return 0.0
+        return sum(len(word) for word in words) / len(words)
+
+    def calculate_sentence_length(self, text: str) -> float:
+        """Calculate average sentence length."""
+        sentences = [s.strip() for s in text.split(".") if s.strip()]
+        if not sentences:
+            return 0.0
+        return sum(len(s.split()) for s in sentences) / len(sentences)
+
+    def calculate_unique_words_ratio(self, text: str) -> float:
+        """Calculate ratio of unique words."""
+        words = text.lower().split()
+        if not words:
+            return 0.0
+        return len(set(words)) / len(words)
+
+
+class ComplexityClassifier(BaseClassifier):
+    """A classifier that analyzes text complexity."""
+
+    # Class-level constants
+    DEFAULT_LABELS: Final[List[str]] = ["simple", "moderate", "complex"]
+    DEFAULT_COST: Final[int] = 1  # Low cost for statistical analysis
+
+    def __init__(
+        self,
+        name: str = "complexity_classifier",
+        description: str = "Text complexity analysis",
+        thresholds: ComplexityThresholds | None = None,
+        analyzer: ComplexityAnalyzer | None = None,
+        **kwargs,
+    ) -> None:
+        """
+        Initialize the complexity classifier.
+
+        Args:
+            name: The name of the classifier
+            description: Description of the classifier
+            thresholds: Complexity thresholds configuration
+            analyzer: Custom complexity analyzer implementation
+            **kwargs: Additional configuration parameters
+        """
+        config = ClassifierConfig(labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, **kwargs)
+        super().__init__(name=name, description=description, config=config)
+
+        self._thresholds = thresholds or ComplexityThresholds()
+        self._analyzer = analyzer or DefaultComplexityAnalyzer()
+
+    def _validate_analyzer(self, analyzer: Any) -> TypeGuard[ComplexityAnalyzer]:
+        """Validate that an analyzer implements the required protocol."""
+        if not isinstance(analyzer, ComplexityAnalyzer):
+            raise ValueError(
+                f"Analyzer must implement ComplexityAnalyzer protocol, got {type(analyzer)}"
+            )
+        return True
+
+    def _calculate_complexity_metrics(self, text: str) -> Dict[str, float]:
+        """Calculate comprehensive complexity metrics."""
+        return {
+            "avg_word_length": self._analyzer.calculate_avg_word_length(text),
+            "avg_sentence_length": self._analyzer.calculate_sentence_length(text),
+            "unique_words_ratio": self._analyzer.calculate_unique_words_ratio(text),
+        }
+
+    def _calculate_confidence(self, metrics: Dict[str, float]) -> float:
+        """Calculate confidence based on metrics consistency."""
+        # Higher confidence if metrics agree on complexity level
+        word_complex = metrics["avg_word_length"] > self._thresholds.complex
+        sent_complex = metrics["avg_sentence_length"] > 20  # Typical threshold
+        unique_complex = metrics["unique_words_ratio"] > 0.8  # High vocabulary diversity
+
+        agreement = sum([word_complex, sent_complex, unique_complex])
+        base_confidence = agreement / 3.0
+
+        return max(base_confidence, self._thresholds.min_confidence)
+
+    def _classify_impl(self, text: str) -> ClassificationResult:
+        """
+        Implement complexity classification logic.
+
+        Args:
+            text: The text to classify
+
+        Returns:
+            ClassificationResult with complexity level and confidence
+        """
+        try:
+            # Calculate complexity metrics
+            metrics = self._calculate_complexity_metrics(text)
+            avg_word_length = metrics["avg_word_length"]
+
+            # Determine complexity level
+            if avg_word_length > self._thresholds.complex:
+                label = "complex"
+            elif avg_word_length > self._thresholds.moderate:
+                label = "moderate"
+            else:
+                label = "simple"
+
+            # Calculate confidence
+            confidence = self._calculate_confidence(metrics)
+
+            return ClassificationResult(
+                label=label,
+                confidence=confidence,
+                metadata={
+                    "metrics": metrics,
+                    "thresholds": {
+                        "complex": self._thresholds.complex,
+                        "moderate": self._thresholds.moderate,
+                    },
+                },
+            )
+
+        except Exception as e:
+            logger.error("Failed to classify text complexity: %s", e)
+            return ClassificationResult(
+                label="unknown",
+                confidence=0.0,
+                metadata={"error": str(e), "reason": "classification_error"},
+            )
+
+    @classmethod
+    def create_with_custom_analyzer(
+        cls,
+        analyzer: ComplexityAnalyzer,
+        name: str = "custom_complexity_classifier",
+        description: str = "Custom complexity analyzer",
+        thresholds: ComplexityThresholds | None = None,
+        **kwargs,
+    ) -> "ComplexityClassifier":
+        """
+        Factory method to create a classifier with a custom analyzer.
+
+        Args:
+            analyzer: Custom complexity analyzer implementation
+            name: Name of the classifier
+            description: Description of the classifier
+            thresholds: Custom complexity thresholds
+            **kwargs: Additional configuration parameters
+
+        Returns:
+            Configured ComplexityClassifier instance
+        """
+        instance = cls(
+            name=name,
+            description=description,
+            thresholds=thresholds,
+            analyzer=analyzer,
+            **kwargs,
+        )
+        instance._validate_analyzer(analyzer)
+        return instance
+
+
+class SentimentClassifier(BaseClassifier, Classifier):
     """A simple sentiment classifier."""
 
-    def __init__(self, name: str = "sentiment", description: str = "Sentiment analysis"):
+    def __init__(
+        self,
+        name: str = "sentiment",
+        description: str = "Sentiment analysis",
+        word_list: WordList | None = None,
+    ):
         super().__init__(name=name, description=description)
-        self.positive_words = ["good", "great", "excellent", "amazing", "wonderful"]
-        self.negative_words = ["bad", "terrible", "awful", "horrible", "poor"]
+        default_words = WordList(
+            positive=frozenset(["good", "great", "excellent", "amazing", "wonderful"]),
+            negative=frozenset(["bad", "terrible", "awful", "horrible", "poor"]),
+        )
+        self._words = word_list or default_words
 
     def classify(self, text: str) -> ClassificationResult:
         """Classify text sentiment."""
+        self.validate_input(text)
         text = text.lower()
-        pos_count = sum(1 for word in self.positive_words if word in text)
-        neg_count = sum(1 for word in self.negative_words if word in text)
+
+        pos_count = sum(1 for word in self._words.positive if word in text)
+        neg_count = sum(1 for word in self._words.negative if word in text)
 
         total = pos_count + neg_count
         if total == 0:
-            return ClassificationResult(label="neutral", confidence=1.0)
+            return ClassificationResult(
+                label="neutral", confidence=1.0, metadata={"reason": "no sentiment words found"}
+            )
 
         if pos_count > neg_count:
-            return ClassificationResult(label="positive", confidence=pos_count / total)
+            confidence = pos_count / total
+            return ClassificationResult(
+                label="positive",
+                confidence=confidence,
+                metadata={"positive_words": pos_count, "negative_words": neg_count},
+            )
         elif neg_count > pos_count:
-            return ClassificationResult(label="negative", confidence=neg_count / total)
+            confidence = neg_count / total
+            return ClassificationResult(
+                label="negative",
+                confidence=confidence,
+                metadata={"positive_words": pos_count, "negative_words": neg_count},
+            )
         else:
-            return ClassificationResult(label="neutral", confidence=0.5)
+            return ClassificationResult(
+                label="neutral",
+                confidence=0.5,
+                metadata={"positive_words": pos_count, "negative_words": neg_count},
+            )
 
 
-class ComplexityClassifier(Classifier):
-    """A simple text complexity classifier."""
+def create_reflector(
+    model: AnthropicProvider,
+    sentiment_classifier: ClassifierProtocol | None = None,
+    complexity_classifier: ClassifierProtocol | None = None,
+    threshold: float = 0.6,
+) -> Reflector:
+    """Factory function to create a configured Reflector instance."""
 
-    def __init__(self, name: str = "complexity", description: str = "Text complexity analysis"):
-        super().__init__(name=name, description=description)
+    # Create default classifiers if not provided
+    sentiment = sentiment_classifier or SentimentClassifier()
+    complexity = complexity_classifier or ComplexityClassifier()
 
-    def classify(self, text: str) -> ClassificationResult:
-        """Classify text complexity."""
-        words = text.split()
-        avg_word_length = sum(len(word) for word in words) / len(words) if words else 0
+    # Create classifier rules
+    sentiment_rule = ClassifierRule(
+        name="sentiment_check",
+        description="Checks for appropriate sentiment",
+        classifier=sentiment,
+        threshold=threshold,
+        valid_labels=["positive", "neutral"],
+    )
 
-        if avg_word_length > 7:
-            return ClassificationResult(label="complex", confidence=0.8)
-        elif avg_word_length > 5:
-            return ClassificationResult(label="moderate", confidence=0.7)
-        else:
-            return ClassificationResult(label="simple", confidence=0.9)
+    complexity_rule = ClassifierRule(
+        name="complexity_check",
+        description="Checks text complexity",
+        classifier=complexity,
+        threshold=threshold,
+        valid_labels=["simple", "moderate"],
+    )
+
+    # Create a critic for improving outputs that fail validation
+    critic = PromptCritique(model=model)
+
+    # Create and return a reflector with both rules
+    return Reflector(
+        name="content_validator",
+        model=model,
+        rules=[sentiment_rule, complexity_rule],
+        critique=True,
+        critic=critic,
+    )
 
 
 def main():
@@ -76,38 +342,8 @@ def main():
     # Initialize the model provider
     model = AnthropicProvider(model_name="claude-3-haiku-20240307")
 
-    # Create classifiers
-    sentiment_classifier = SentimentClassifier()
-    complexity_classifier = ComplexityClassifier()
-
-    # Create classifier rules
-    sentiment_rule = ClassifierRule(
-        name="sentiment_check",
-        description="Checks for appropriate sentiment",
-        classifier=sentiment_classifier,
-        threshold=0.6,
-        valid_labels=["positive", "neutral"],
-    )
-
-    complexity_rule = ClassifierRule(
-        name="complexity_check",
-        description="Checks text complexity",
-        classifier=complexity_classifier,
-        threshold=0.7,
-        valid_labels=["simple", "moderate"],
-    )
-
-    # Create a critic for improving outputs that fail validation
-    critic = PromptCritique(model=model)
-
-    # Create a reflector with both rules
-    reflector = Reflector(
-        name="content_validator",
-        model=model,
-        rules=[sentiment_rule, complexity_rule],
-        critique=True,
-        critic=critic,
-    )
+    # Create reflector with default classifiers
+    reflector = create_reflector(model)
 
     # Example prompts
     prompts = [

@@ -1,75 +1,220 @@
 """
 Formatting and style rules for Sifaka.
+
+This module provides rules for validating text formatting, including length,
+paragraph structure, writing style, and general formatting patterns.
 """
 
-from typing import Dict, Any, List, Optional
-from pydantic import Field
-from sifaka.rules.base import Rule, RuleResult
+from typing import Dict, Any, List, Protocol, runtime_checkable, Final, TypeVar, Set
+from typing_extensions import TypeGuard
+from dataclasses import dataclass, field
 import re
+from sifaka.rules.base import Rule, RuleResult, RuleConfig, RuleValidator
 
 
-class LengthRule(Rule):
-    """
-    Rule that checks for appropriate text length.
+@dataclass(frozen=True)
+class LengthConfig(RuleConfig):
+    """Configuration for text length validation."""
 
-    Attributes:
-        min_length (int): Minimum allowed length in characters
-        max_length (int): Maximum allowed length in characters
-        exact_length (int): Exact allowed length in characters
-        unit (str): Unit of measurement (characters or words)
-    """
+    min_length: int = 50
+    max_length: int = 5000
+    exact_length: int | None = None
+    unit: str = "characters"  # "characters" or "words"
+    cache_size: int = 100
+    priority: int = 1
+    cost: float = 1.0
 
-    min_length: int = Field(default=50)
-    max_length: int = Field(default=5000)
-    exact_length: int = Field(default=None)
-    unit: str = Field(default="characters")
+    def __post_init__(self) -> None:
+        """Validate configuration parameters."""
+        if self.min_length < 0:
+            raise ValueError("min_length must be non-negative")
+        if self.max_length < self.min_length:
+            raise ValueError("max_length must be greater than or equal to min_length")
+        if self.exact_length is not None and self.exact_length < 0:
+            raise ValueError("exact_length must be non-negative")
+        if self.unit not in ["characters", "words"]:
+            raise ValueError("unit must be either 'characters' or 'words'")
+        if self.cache_size <= 0:
+            raise ValueError("cache_size must be positive")
+        if self.priority < 0:
+            raise ValueError("priority must be non-negative")
+        if self.cost < 0:
+            raise ValueError("cost must be non-negative")
 
-    class Config:
-        arbitrary_types_allowed = True
 
-    def validate(self, output: str, **kwargs) -> RuleResult:
-        """
-        Validate that the output length is within acceptable bounds.
+@dataclass(frozen=True)
+class ParagraphConfig(RuleConfig):
+    """Configuration for paragraph structure validation."""
 
-        Args:
-            output (str): The LLM output to validate
-            **kwargs: Additional context for validation
+    min_sentences: int = 2
+    max_sentences: int = 5
+    min_words: int = 5
+    max_words: int = 30
+    sentence_delimiters: str = r"[.!?]+"
+    cache_size: int = 100
+    priority: int = 1
+    cost: float = 1.0
 
-        Returns:
-            RuleResult: The result of the validation
+    def __post_init__(self) -> None:
+        """Validate configuration parameters."""
+        if self.min_sentences < 0:
+            raise ValueError("min_sentences must be non-negative")
+        if self.max_sentences < self.min_sentences:
+            raise ValueError("max_sentences must be greater than or equal to min_sentences")
+        if self.min_words < 0:
+            raise ValueError("min_words must be non-negative")
+        if self.max_words < self.min_words:
+            raise ValueError("max_words must be greater than or equal to min_words")
+        if not self.sentence_delimiters:
+            raise ValueError("sentence_delimiters cannot be empty")
+        if self.cache_size <= 0:
+            raise ValueError("cache_size must be positive")
+        if self.priority < 0:
+            raise ValueError("priority must be non-negative")
+        if self.cost < 0:
+            raise ValueError("cost must be non-negative")
 
-        Raises:
-            ValueError: If output is None or not a string
-        """
-        if not isinstance(output, str):
-            raise ValueError("Output must be a string")
 
-        if output is None:
-            raise ValueError("Output cannot be None")
+@dataclass(frozen=True)
+class StyleConfig(RuleConfig):
+    """Configuration for writing style validation."""
 
-        length = len(output)
-        if self.unit == "words":
-            length = len(output.split())
+    style_indicators: Dict[str, List[str]] = field(
+        default_factory=lambda: {
+            "formal": ["therefore", "consequently", "furthermore", "thus", "hence"],
+            "informal": ["yeah", "cool", "awesome", "btw", "gonna", "wanna"],
+            "technical": ["algorithm", "parameter", "function", "variable", "method"],
+            "casual": ["hey", "hi", "thanks", "please", "sorry"],
+        }
+    )
+    style_threshold: float = 0.7
+    cache_size: int = 100
+    priority: int = 1
+    cost: float = 1.0
 
-        if self.exact_length is not None and length != self.exact_length:
+    def __post_init__(self) -> None:
+        """Validate configuration parameters."""
+        if not isinstance(self.style_indicators, dict):
+            raise ValueError("style_indicators must be a Dict[str, List[str]]")
+        if not all(isinstance(v, list) for v in self.style_indicators.values()):
+            raise ValueError("style_indicators values must be lists")
+        if not 0.0 <= self.style_threshold <= 1.0:
+            raise ValueError("style_threshold must be between 0.0 and 1.0")
+        if self.cache_size <= 0:
+            raise ValueError("cache_size must be positive")
+        if self.priority < 0:
+            raise ValueError("priority must be non-negative")
+        if self.cost < 0:
+            raise ValueError("cost must be non-negative")
+
+
+@dataclass(frozen=True)
+class FormattingConfig(RuleConfig):
+    """Configuration for general text formatting validation."""
+
+    formatting_patterns: Dict[str, str] = field(
+        default_factory=lambda: {
+            "bullet_points": r"^\s*[-*•]\s+",
+            "numbered_lists": r"^\s*\d+\.\s+",
+            "indentation": r"^\s{2,}",
+            "blank_lines": r"^\s*$",
+        }
+    )
+    required_patterns: Set[str] = field(default_factory=set)
+    cache_size: int = 100
+    priority: int = 1
+    cost: float = 1.0
+
+    def __post_init__(self) -> None:
+        """Validate configuration parameters."""
+        if not isinstance(self.formatting_patterns, dict):
+            raise ValueError("formatting_patterns must be a Dict[str, str]")
+        if not all(isinstance(v, str) for v in self.formatting_patterns.values()):
+            raise ValueError("formatting_patterns values must be strings")
+        if not all(p in self.formatting_patterns for p in self.required_patterns):
+            raise ValueError("required_patterns must be a subset of formatting_patterns keys")
+        if self.cache_size <= 0:
+            raise ValueError("cache_size must be positive")
+        if self.priority < 0:
+            raise ValueError("priority must be non-negative")
+        if self.cost < 0:
+            raise ValueError("cost must be non-negative")
+
+
+@runtime_checkable
+class LengthValidator(Protocol):
+    """Protocol for text length validation."""
+
+    def validate(self, text: str) -> RuleResult: ...
+    @property
+    def config(self) -> LengthConfig: ...
+
+
+@runtime_checkable
+class ParagraphValidator(Protocol):
+    """Protocol for paragraph structure validation."""
+
+    def validate(self, text: str) -> RuleResult: ...
+    @property
+    def config(self) -> ParagraphConfig: ...
+
+
+@runtime_checkable
+class StyleValidator(Protocol):
+    """Protocol for writing style validation."""
+
+    def validate(self, text: str) -> RuleResult: ...
+    @property
+    def config(self) -> StyleConfig: ...
+
+
+@runtime_checkable
+class FormattingValidator(Protocol):
+    """Protocol for general text formatting validation."""
+
+    def validate(self, text: str) -> RuleResult: ...
+    @property
+    def config(self) -> FormattingConfig: ...
+
+
+class DefaultLengthValidator:
+    """Default implementation of text length validation."""
+
+    def __init__(self, config: LengthConfig) -> None:
+        """Initialize with configuration."""
+        self._config = config
+
+    @property
+    def config(self) -> LengthConfig:
+        """Get the validator configuration."""
+        return self._config
+
+    def validate(self, text: str) -> RuleResult:
+        """Validate text length."""
+        if not isinstance(text, str):
+            raise ValueError("Text must be a string")
+
+        length = len(text) if self.config.unit == "characters" else len(text.split())
+
+        if self.config.exact_length is not None and length != self.config.exact_length:
             return RuleResult(
                 passed=False,
-                message=f"Text length {length} does not meet exact length requirement of {self.exact_length} {self.unit}",
-                metadata={"length": length},
+                message=f"Text length {length} does not meet exact length requirement of {self.config.exact_length} {self.config.unit}",
+                metadata={"length": length, "requirement": "exact"},
             )
 
-        if length < self.min_length:
+        if length < self.config.min_length:
             return RuleResult(
                 passed=False,
-                message=f"Text length {length} is below minimum {self.min_length} {self.unit}",
-                metadata={"length": length},
+                message=f"Text length {length} is below minimum {self.config.min_length} {self.config.unit}",
+                metadata={"length": length, "requirement": "minimum"},
             )
 
-        if length > self.max_length:
+        if length > self.config.max_length:
             return RuleResult(
                 passed=False,
-                message=f"Text length {length} exceeds maximum {self.max_length} {self.unit}",
-                metadata={"length": length},
+                message=f"Text length {length} exceeds maximum {self.config.max_length} {self.config.unit}",
+                metadata={"length": length, "requirement": "maximum"},
             )
 
         return RuleResult(
@@ -79,63 +224,52 @@ class LengthRule(Rule):
         )
 
 
-class ParagraphRule(Rule):
-    """
-    Rule that checks for proper paragraph formatting.
+class DefaultParagraphValidator:
+    """Default implementation of paragraph structure validation."""
 
-    Attributes:
-        min_sentences: Minimum sentences per paragraph
-        max_sentences: Maximum sentences per paragraph
-        min_words: Minimum words per sentence
-        max_words: Maximum words per sentence
-    """
+    def __init__(self, config: ParagraphConfig) -> None:
+        """Initialize with configuration."""
+        self._config = config
 
-    min_sentences: int = Field(default=2)
-    max_sentences: int = Field(default=5)
-    min_words: int = Field(default=5)
-    max_words: int = Field(default=30)
+    @property
+    def config(self) -> ParagraphConfig:
+        """Get the validator configuration."""
+        return self._config
 
-    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
-        """
-        Validate that the output has proper paragraph structure.
+    def validate(self, text: str) -> RuleResult:
+        """Validate paragraph structure."""
+        if not isinstance(text, str):
+            raise ValueError("Text must be a string")
 
-        Args:
-            output: The text to validate
-            **kwargs: Additional validation context
-
-        Returns:
-            RuleResult with validation results
-        """
-        if not isinstance(output, str):
-            raise ValueError("Output must be a string")
-
-        paragraphs = [p.strip() for p in output.split("\n\n") if p.strip()]
+        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
         issues = []
         metadata = {"paragraphs": []}
 
         for i, paragraph in enumerate(paragraphs, 1):
-            sentences = [s.strip() for s in re.split(r"[.!?]+", paragraph) if s.strip()]
+            sentences = [
+                s.strip() for s in re.split(self.config.sentence_delimiters, paragraph) if s.strip()
+            ]
             words = paragraph.split()
 
             paragraph_info = {
                 "num_sentences": len(sentences),
                 "num_words": len(words),
-                "content": paragraph,
+                "content": paragraph[:100] + "..." if len(paragraph) > 100 else paragraph,
             }
 
-            if len(sentences) < self.min_sentences:
-                issues.append(f"Paragraph {i} has fewer than {self.min_sentences} sentences")
-                paragraph_info["error"] = "too few sentences"
-            elif len(sentences) > self.max_sentences:
-                issues.append(f"Paragraph {i} exceeds {self.max_sentences} sentences")
-                paragraph_info["error"] = "too many sentences"
+            if len(sentences) < self.config.min_sentences:
+                issues.append(f"Paragraph {i} has fewer than {self.config.min_sentences} sentences")
+                paragraph_info["error"] = "too_few_sentences"
+            elif len(sentences) > self.config.max_sentences:
+                issues.append(f"Paragraph {i} exceeds {self.config.max_sentences} sentences")
+                paragraph_info["error"] = "too_many_sentences"
 
-            if len(words) < self.min_words:
-                issues.append(f"Paragraph {i} has fewer than {self.min_words} words")
-                paragraph_info["error"] = "too few words"
-            elif len(words) > self.max_words:
-                issues.append(f"Paragraph {i} exceeds {self.max_words} words")
-                paragraph_info["error"] = "too many words"
+            if len(words) < self.config.min_words:
+                issues.append(f"Paragraph {i} has fewer than {self.config.min_words} words")
+                paragraph_info["error"] = "too_few_words"
+            elif len(words) > self.config.max_words:
+                issues.append(f"Paragraph {i} exceeds {self.config.max_words} words")
+                paragraph_info["error"] = "too_many_words"
 
             metadata["paragraphs"].append(paragraph_info)
 
@@ -153,120 +287,288 @@ class ParagraphRule(Rule):
         )
 
 
-class StyleRule(Rule):
-    """
-    Rule that checks for consistent writing style.
+class DefaultStyleValidator:
+    """Default implementation of writing style validation."""
 
-    Attributes:
-        style_indicators: Dictionary of style indicators
-        style_threshold: Threshold for style consistency (0.0 to 1.0)
-    """
+    def __init__(self, config: StyleConfig) -> None:
+        """Initialize with configuration."""
+        self._config = config
 
-    style_indicators: Dict[str, List[str]] = Field(
-        default={
-            "formal": ["therefore", "consequently", "furthermore", "thus", "hence"],
-            "informal": ["yeah", "cool", "awesome", "btw", "gonna", "wanna"],
-            "technical": ["algorithm", "parameter", "function", "variable", "method"],
-            "casual": ["hey", "hi", "thanks", "please", "sorry"],
-        }
-    )
-    style_threshold: float = Field(default=0.7)
+    @property
+    def config(self) -> StyleConfig:
+        """Get the validator configuration."""
+        return self._config
 
-    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
-        """
-        Validate that the output maintains a consistent writing style.
+    def validate(self, text: str) -> RuleResult:
+        """Validate writing style consistency."""
+        if not isinstance(text, str):
+            raise ValueError("Text must be a string")
 
-        Args:
-            output: The text to validate
-            **kwargs: Additional validation context
-
-        Returns:
-            RuleResult with validation results
-        """
-        if not isinstance(output, str):
-            raise ValueError("Output must be a string")
-
-        output_lower = output.lower()
+        text_lower = text.lower()
         style_scores = {}
 
-        for style, indicators in self.style_indicators.items():
-            found_indicators = [ind for ind in indicators if ind in output_lower]
+        for style, indicators in self.config.style_indicators.items():
+            found_indicators = [ind for ind in indicators if ind in text_lower]
             style_scores[style] = len(found_indicators) / len(indicators)
 
         # Find the dominant style
-        dominant_style = max(style_scores.items(), key=lambda x: x[1])
+        dominant_style, max_score = max(style_scores.items(), key=lambda x: x[1])
 
-        metadata = {
-            "style_scores": style_scores,
-            "dominant_style": dominant_style[0],
-            "dominant_score": dominant_style[1],
-        }
-
-        if dominant_style[1] < self.style_threshold:
+        # Check if the dominant style is sufficiently strong
+        if max_score < self.config.style_threshold:
             return RuleResult(
                 passed=False,
-                message=f"Writing style is inconsistent (highest score: {dominant_style[1]:.2f})",
-                metadata=metadata,
+                message="No clear writing style detected",
+                metadata={
+                    "style_scores": style_scores,
+                    "threshold": self.config.style_threshold,
+                },
+            )
+
+        # Check for style consistency
+        inconsistent_styles = [
+            style
+            for style, score in style_scores.items()
+            if style != dominant_style and score > self.config.style_threshold / 2
+        ]
+
+        if inconsistent_styles:
+            return RuleResult(
+                passed=False,
+                message=f"Mixed writing styles detected: {dominant_style} with {', '.join(inconsistent_styles)}",
+                metadata={
+                    "dominant_style": dominant_style,
+                    "inconsistent_styles": inconsistent_styles,
+                    "style_scores": style_scores,
+                },
             )
 
         return RuleResult(
             passed=True,
-            message=f"Writing style is consistent ({dominant_style[0]})",
-            metadata=metadata,
+            message=f"Consistent {dominant_style} writing style detected",
+            metadata={
+                "dominant_style": dominant_style,
+                "style_scores": style_scores,
+            },
         )
+
+
+class DefaultFormattingValidator:
+    """Default implementation of text formatting validation."""
+
+    def __init__(self, config: FormattingConfig) -> None:
+        """Initialize with configuration."""
+        self._config = config
+
+    @property
+    def config(self) -> FormattingConfig:
+        """Get the validator configuration."""
+        return self._config
+
+    def validate(self, text: str) -> RuleResult:
+        """Validate text formatting patterns."""
+        if not isinstance(text, str):
+            raise ValueError("Text must be a string")
+
+        lines = text.split("\n")
+        found_patterns = set()
+        pattern_matches = {}
+
+        for pattern_name, pattern in self.config.formatting_patterns.items():
+            matches = [i + 1 for i, line in enumerate(lines) if re.match(pattern, line)]
+            if matches:
+                found_patterns.add(pattern_name)
+                pattern_matches[pattern_name] = matches
+
+        missing_patterns = self.config.required_patterns - found_patterns
+        if missing_patterns:
+            return RuleResult(
+                passed=False,
+                message=f"Missing required formatting patterns: {', '.join(missing_patterns)}",
+                metadata={
+                    "missing_patterns": list(missing_patterns),
+                    "found_patterns": list(found_patterns),
+                    "pattern_matches": pattern_matches,
+                },
+            )
+
+        return RuleResult(
+            passed=True,
+            message="All required formatting patterns found",
+            metadata={
+                "found_patterns": list(found_patterns),
+                "pattern_matches": pattern_matches,
+            },
+        )
+
+
+class LengthRule(Rule):
+    """Rule that checks for appropriate text length."""
+
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        validator: LengthValidator,
+    ) -> None:
+        """Initialize the length rule."""
+        super().__init__(name=name, description=description)
+        self._validator = validator
+
+    @property
+    def validator(self) -> LengthValidator:
+        """Get the length validator."""
+        return self._validator
+
+    def validate(self, text: str) -> RuleResult:
+        """Validate text length."""
+        if not isinstance(text, str):
+            raise ValueError("Text must be a string")
+
+        try:
+            return self._validator.validate(text)
+        except Exception as e:
+            return RuleResult(
+                passed=False,
+                message=f"Error during length validation: {str(e)}",
+                metadata={"error": str(e)},
+            )
+
+
+class ParagraphRule(Rule):
+    """Rule that checks for proper paragraph formatting."""
+
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        validator: ParagraphValidator,
+    ) -> None:
+        """Initialize the paragraph rule."""
+        super().__init__(name=name, description=description)
+        self._validator = validator
+
+    @property
+    def validator(self) -> ParagraphValidator:
+        """Get the paragraph validator."""
+        return self._validator
+
+    def validate(self, text: str) -> RuleResult:
+        """Validate paragraph structure."""
+        if not isinstance(text, str):
+            raise ValueError("Text must be a string")
+
+        try:
+            return self._validator.validate(text)
+        except Exception as e:
+            return RuleResult(
+                passed=False,
+                message=f"Error during paragraph validation: {str(e)}",
+                metadata={"error": str(e)},
+            )
+
+
+class StyleRule(Rule):
+    """Rule that checks for consistent writing style."""
+
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        validator: StyleValidator,
+    ) -> None:
+        """Initialize the style rule."""
+        super().__init__(name=name, description=description)
+        self._validator = validator
+
+    @property
+    def validator(self) -> StyleValidator:
+        """Get the style validator."""
+        return self._validator
+
+    def validate(self, text: str) -> RuleResult:
+        """Validate writing style."""
+        if not isinstance(text, str):
+            raise ValueError("Text must be a string")
+
+        try:
+            return self._validator.validate(text)
+        except Exception as e:
+            return RuleResult(
+                passed=False,
+                message=f"Error during style validation: {str(e)}",
+                metadata={"error": str(e)},
+            )
 
 
 class FormattingRule(Rule):
-    """
-    Rule that checks for proper text formatting.
+    """Rule that checks for proper text formatting."""
 
-    Attributes:
-        formatting_patterns: Dictionary of formatting patterns to check
-    """
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        validator: FormattingValidator,
+    ) -> None:
+        """Initialize the formatting rule."""
+        super().__init__(name=name, description=description)
+        self._validator = validator
 
-    formatting_patterns: Dict[str, str] = Field(
-        default={
-            "multiple_spaces": r"\s{2,}",
-            "multiple_newlines": r"\n{3,}",
-            "trailing_whitespace": r"\s+\n",
-            "missing_period": r"[^.!?]\n",
-            "missing_space": r"[a-z][A-Z]",
-            "incorrect_quotes": r'["\'][^"\']*["\']',
-        }
-    )
+    @property
+    def validator(self) -> FormattingValidator:
+        """Get the formatting validator."""
+        return self._validator
 
-    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
-        """
-        Validate that the output follows proper formatting rules.
+    def validate(self, text: str) -> RuleResult:
+        """Validate text formatting."""
+        if not isinstance(text, str):
+            raise ValueError("Text must be a string")
 
-        Args:
-            output: The text to validate
-            **kwargs: Additional validation context
-
-        Returns:
-            RuleResult with validation results
-        """
-        if not isinstance(output, str):
-            raise ValueError("Output must be a string")
-
-        issues = []
-        metadata = {"issues": {}}
-
-        for issue_type, pattern in self.formatting_patterns.items():
-            matches = list(re.finditer(pattern, output))
-            if matches:
-                metadata["issues"][issue_type] = [m.group() for m in matches]
-                issues.append(f"Found {issue_type} issues")
-
-        if issues:
+        try:
+            return self._validator.validate(text)
+        except Exception as e:
             return RuleResult(
                 passed=False,
-                message="Formatting issues detected",
-                metadata=metadata,
+                message=f"Error during formatting validation: {str(e)}",
+                metadata={"error": str(e)},
             )
 
-        return RuleResult(
-            passed=True,
-            message="Formatting is acceptable",
-            metadata=metadata,
-        )
+
+def create_length_rule(
+    name: str,
+    description: str,
+    config: LengthConfig | None = None,
+) -> LengthRule:
+    """Create a length rule with default configuration."""
+    validator = DefaultLengthValidator(config or LengthConfig())
+    return LengthRule(name=name, description=description, validator=validator)
+
+
+def create_paragraph_rule(
+    name: str,
+    description: str,
+    config: ParagraphConfig | None = None,
+) -> ParagraphRule:
+    """Create a paragraph rule with default configuration."""
+    validator = DefaultParagraphValidator(config or ParagraphConfig())
+    return ParagraphRule(name=name, description=description, validator=validator)
+
+
+def create_style_rule(
+    name: str,
+    description: str,
+    config: StyleConfig | None = None,
+) -> StyleRule:
+    """Create a style rule with default configuration."""
+    validator = DefaultStyleValidator(config or StyleConfig())
+    return StyleRule(name=name, description=description, validator=validator)
+
+
+def create_formatting_rule(
+    name: str,
+    description: str,
+    config: FormattingConfig | None = None,
+) -> FormattingRule:
+    """Create a formatting rule with default configuration."""
+    validator = DefaultFormattingValidator(config or FormattingConfig())
+    return FormattingRule(name=name, description=description, validator=validator)

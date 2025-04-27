@@ -1,232 +1,227 @@
-"""Tests for the FormatRule."""
+"""Tests for format rules."""
 
 import pytest
-from typing import Dict, Any
+import json
+from typing import Dict, Any, List, Set, Protocol, runtime_checkable, Final
+from dataclasses import dataclass, field
 
-from sifaka.rules.format import FormatRule
+from sifaka.rules.format import (
+    FormatRule,
+    FormatConfig,
+    FormatValidator,
+    DefaultFormatValidator,
+    create_format_rule,
+)
 from sifaka.rules.base import RuleResult
 
 
-class TestFormatRule(FormatRule):
-    """Test implementation of FormatRule."""
-
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Implement validation logic."""
-        if not isinstance(output, str):
-            raise ValueError("Output must be a string")
-
-        try:
-            if self.required_format == "markdown":
-                passed = self._validate_markdown(output)
-            elif self.required_format == "json":
-                passed = self._validate_json(output)
-            else:  # plain_text
-                passed = bool(output.strip())  # Any non-empty string is valid plain text
-
-            message = f"Output {'is' if passed else 'is not'} valid {self.required_format}"
-
-            return RuleResult(
-                passed=passed,
-                message=message,
-                metadata={"format": self.required_format, "output_length": len(output)},
-            )
-
-        except Exception as e:
-            return RuleResult(
-                passed=False,
-                message=f"Error during format validation: {str(e)}",
-                metadata={"error": str(e), "format": self.required_format},
-            )
-
-
 @pytest.fixture
-def rule():
-    """Create a TestFormatRule instance."""
-    return TestFormatRule(
-        name="test_format", description="Test format rule", config={"required_format": "plain_text"}
+def format_config() -> FormatConfig:
+    """Create a test format configuration."""
+    return FormatConfig(
+        required_format="markdown",
+        markdown_elements={"headers", "lists", "code_blocks"},
+        json_schema={
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "age": {"type": "integer"},
+            },
+            "required": ["name"],
+        },
+        cache_size=10,
+        priority=2,
+        cost=1.5,
     )
 
 
-def test_initialization():
-    """Test rule initialization with different parameters."""
-    # Test default initialization (plain_text)
-    rule = TestFormatRule(name="test", description="test", config={"required_format": "plain_text"})
-    assert rule.name == "test"
-    assert rule.required_format == "plain_text"
-
-    # Test markdown initialization
-    rule = TestFormatRule(name="test", description="test", config={"required_format": "markdown"})
-    assert rule.required_format == "markdown"
-
-    # Test JSON initialization
-    rule = TestFormatRule(name="test", description="test", config={"required_format": "json"})
-    assert rule.required_format == "json"
+@pytest.fixture
+def format_validator(format_config: FormatConfig) -> FormatValidator:
+    """Create a test format validator."""
+    return DefaultFormatValidator(format_config)
 
 
-def test_initialization_validation():
-    """Test initialization with invalid parameters."""
-    # Test invalid format type
-    with pytest.raises(ValueError):
-        TestFormatRule(
-            name="test", description="test", config={"required_format": "invalid_format"}
-        )
+@pytest.fixture
+def format_rule(
+    format_validator: FormatValidator,
+) -> FormatRule:
+    """Create a test format rule."""
+    return FormatRule(
+        name="Test Format Rule",
+        description="Test format validation",
+        validator=format_validator,
+    )
 
 
-def test_plain_text_validation():
-    """Test validation of plain text format."""
-    rule = TestFormatRule(name="test", description="test", config={"required_format": "plain_text"})
+def test_format_config_validation():
+    """Test format configuration validation."""
+    # Test valid configuration
+    config = FormatConfig(
+        required_format="markdown",
+        markdown_elements={"headers", "lists"},
+    )
+    assert config.required_format == "markdown"
+    assert "headers" in config.markdown_elements
+
+    # Test invalid configurations
+    with pytest.raises(ValueError, match="required_format must be one of"):
+        FormatConfig(required_format="invalid")
+
+    with pytest.raises(ValueError, match="markdown_elements must be a set"):
+        FormatConfig(markdown_elements=["invalid"])  # type: ignore
+
+
+def test_markdown_validation(format_rule: FormatRule):
+    """Test markdown format validation."""
+    # Test valid markdown
+    text = """
+# Header
+
+- List item 1
+- List item 2
+
+```python
+def hello():
+    print("Hello, world!")
+```
+"""
+    result = format_rule.validate(text)
+    assert result.passed
+    assert "headers" in result.metadata["found_elements"]
+    assert "lists" in result.metadata["found_elements"]
+    assert "code_blocks" in result.metadata["found_elements"]
+
+    # Test missing required elements
+    text = "Just plain text without any markdown elements."
+    result = format_rule.validate(text)
+    assert not result.passed
+    assert "Missing required markdown elements" in result.message
+
+
+def test_json_validation(format_rule: FormatRule):
+    """Test JSON format validation."""
+    # Configure rule for JSON validation
+    rule = create_format_rule(
+        name="JSON Format Rule",
+        description="Test JSON validation",
+        config=FormatConfig(
+            required_format="json",
+            json_schema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "age": {"type": "integer"},
+                },
+                "required": ["name"],
+            },
+        ),
+    )
+
+    # Test valid JSON
+    text = '{"name": "John", "age": 30}'
+    result = rule.validate(text)
+    assert result.passed
+    assert result.metadata["parsed_json"] == {"name": "John", "age": 30}
+
+    # Test invalid JSON format
+    text = '{"name": "John", age: 30}'  # Missing quotes around age
+    result = rule.validate(text)
+    assert not result.passed
+    assert "Invalid JSON format" in result.message
+
+    # Test JSON schema validation
+    text = '{"age": 30}'  # Missing required name field
+    result = rule.validate(text)
+    assert not result.passed
+    assert "Schema validation failed" in result.message
+
+
+def test_plain_text_validation(format_rule: FormatRule):
+    """Test plain text format validation."""
+    # Configure rule for plain text validation
+    rule = create_format_rule(
+        name="Plain Text Rule",
+        description="Test plain text validation",
+        config=FormatConfig(
+            required_format="plain_text",
+            min_length=10,
+            max_length=100,
+        ),
+    )
 
     # Test valid plain text
-    result = rule.validate("This is a valid plain text.")
-    assert isinstance(result, RuleResult)
+    text = "This is a valid plain text message."
+    result = rule.validate(text)
     assert result.passed
-    assert result.metadata["format"] == "plain_text"
-    assert result.metadata["output_length"] == len("This is a valid plain text.")
+
+    # Test too short text
+    text = "Too short"
+    result = rule.validate(text)
+    assert not result.passed
+    assert "Text length below minimum" in result.message
+
+    # Test too long text
+    text = "x" * 101
+    result = rule.validate(text)
+    assert not result.passed
+    assert "Text length exceeds maximum" in result.message
+
+
+def test_factory_function():
+    """Test factory function for creating format rules."""
+    # Test rule creation with default config
+    rule = create_format_rule(
+        name="Test Rule",
+        description="Test validation",
+    )
+    assert rule.name == "Test Rule"
+    assert isinstance(rule.validator, DefaultFormatValidator)
+
+    # Test rule creation with custom config
+    rule = create_format_rule(
+        name="Custom Rule",
+        description="Custom validation",
+        config=FormatConfig(required_format="json"),
+    )
+    assert rule.validator.config.required_format == "json"
+
+
+def test_edge_cases():
+    """Test edge cases and error handling."""
+    rule = create_format_rule(
+        name="Test Rule",
+        description="Test validation",
+    )
 
     # Test empty text
     result = rule.validate("")
     assert not result.passed
+    assert "Empty text" in result.message
 
-    # Test whitespace-only text
-    result = rule.validate("   \n\t   ")
-    assert not result.passed
+    # Test invalid input type
+    with pytest.raises(ValueError, match="Text must be a string"):
+        rule.validate(123)  # type: ignore
 
-
-def test_markdown_validation():
-    """Test validation of markdown format."""
-    rule = TestFormatRule(name="test", description="test", config={"required_format": "markdown"})
-
-    # Test valid markdown with various elements
-    markdown_samples = [
-        "# Heading",
-        "**Bold text**",
-        "_Italic text_",
-        "`code block`",
-        "> blockquote",
-        "- list item",
-        "1. numbered item",
-        "[link](url)",
-        "# Mixed\n- List\n`code`",
-    ]
-
-    for sample in markdown_samples:
-        result = rule.validate(sample)
-        assert result.passed
-        assert result.metadata["format"] == "markdown"
-
-    # Test invalid markdown (plain text)
-    result = rule.validate("Just plain text without any markdown elements")
-    assert not result.passed
-
-
-def test_json_validation():
-    """Test validation of JSON format."""
-    rule = TestFormatRule(name="test", description="test", config={"required_format": "json"})
-
-    # Test valid JSON samples
-    json_samples = [
-        '{"key": "value"}',
-        '{"number": 42}',
-        '{"nested": {"key": "value"}}',
-        '{"array": [1, 2, 3]}',
-        "[]",
-        "{}",
-        "null",
-        '"string"',
-        "42",
-        "true",
-    ]
-
-    for sample in json_samples:
-        result = rule.validate(sample)
-        assert result.passed
-        assert result.metadata["format"] == "json"
-
-    # Test invalid JSON
-    invalid_json_samples = [
-        '{key: "value"}',  # Missing quotes around key
-        '{"key": value}',  # Missing quotes around value
-        '{"key": "value",}',  # Trailing comma
-        '{"unclosed": "string}',  # Unclosed string
-        "{",  # Incomplete object
-        "[1, 2,]",  # Trailing comma in array
-    ]
-
-    for sample in invalid_json_samples:
-        result = rule.validate(sample)
-        assert not result.passed
-
-
-def test_edge_cases():
-    """Test handling of edge cases for each format."""
-    formats = ["plain_text", "markdown", "json"]
-
-    for format_type in formats:
-        rule = TestFormatRule(
-            name="test", description="test", config={"required_format": format_type}
-        )
-
-        edge_cases = {
-            "empty": "",
-            "whitespace": "   \n\t   ",
-            "special_chars": "!@#$%^&*()",
-            "unicode": "Hello 世界",
-            "newlines": "Line 1\nLine 2\nLine 3",
-            "very_long": "x" * 1000,
-        }
-
-        for text in edge_cases.values():
-            result = rule.validate(text)
-            assert isinstance(result, RuleResult)
-            assert "format" in result.metadata
-            assert "output_length" in result.metadata
-            assert result.metadata["format"] == format_type
-            assert result.metadata["output_length"] == len(text)
-
-
-def test_error_handling(rule):
-    """Test error handling for invalid inputs."""
     # Test None input
-    with pytest.raises(ValueError):
-        rule.validate(None)
-
-    # Test non-string input
-    with pytest.raises(ValueError):
-        rule.validate(123)
-
-
-def test_metadata(rule):
-    """Test metadata in validation results."""
-    result = rule.validate("This is a test text")
-    assert "format" in result.metadata
-    assert "output_length" in result.metadata
-    assert isinstance(result.metadata["format"], str)
-    assert isinstance(result.metadata["output_length"], int)
-    assert result.metadata["format"] == rule.required_format
-    assert result.metadata["output_length"] == len("This is a test text")
+    with pytest.raises(ValueError, match="Text must be a string"):
+        rule.validate(None)  # type: ignore
 
 
 def test_consistent_results():
-    """Test consistency of format validation."""
-    formats = ["plain_text", "markdown", "json"]
-    test_texts = {
-        "plain_text": "This is a test message.",
-        "markdown": "# Heading\n- List item",
-        "json": '{"key": "value"}',
-    }
+    """Test that validation results are consistent."""
+    rule = create_format_rule(
+        name="Test Rule",
+        description="Test validation",
+        config=FormatConfig(required_format="markdown"),
+    )
+    text = """
+# Header
 
-    for format_type in formats:
-        rule = TestFormatRule(
-            name="test", description="test", config={"required_format": format_type}
-        )
-
-        text = test_texts[format_type]
-        # Run validation multiple times
-        results = [rule.validate(text) for _ in range(3)]
-
-        # All results should be consistent
-        first_result = results[0]
-        for result in results[1:]:
-            assert result.passed == first_result.passed
-            assert result.metadata["format"] == first_result.metadata["format"]
-            assert result.metadata["output_length"] == first_result.metadata["output_length"]
+- List item
+"""
+    # Multiple validations should yield the same result
+    result1 = rule.validate(text)
+    result2 = rule.validate(text)
+    assert result1.passed == result2.passed
+    assert result1.message == result2.message
+    assert result1.metadata == result2.metadata

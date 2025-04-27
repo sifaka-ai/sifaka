@@ -1,106 +1,158 @@
-"""Implementation of a prompt critic using a language model."""
+"""
+Implementation of a prompt critic using a language model.
 
-from typing import Dict, Any, List, Optional
-from pydantic import Field
+This module provides a critic that uses language models to evaluate,
+validate, and improve text outputs based on rule violations.
+"""
 
-from .base import Critic
+from typing import Dict, Any, List, Protocol, runtime_checkable, Final
+from dataclasses import dataclass
+import time
+
+from .base import (
+    BaseCritic,
+    CriticConfig,
+    CriticMetadata,
+    TextValidator,
+    TextImprover,
+    TextCritic,
+)
 
 
-class PromptCritic(Critic):
-    """A critic that uses a language model to evaluate and validate prompts.
+@runtime_checkable
+class LanguageModel(Protocol):
+    """Protocol for language model interfaces."""
 
-    This critic analyzes prompts for clarity, ambiguity, completeness, and effectiveness
+    def generate(self, prompt: str) -> str:
+        """Generate text from a prompt."""
+        ...
+
+    @property
+    def model_name(self) -> str:
+        """Get the model name."""
+        ...
+
+
+@dataclass(frozen=True)
+class PromptCriticConfig(CriticConfig):
+    """Configuration for prompt critics."""
+
+    system_prompt: str = "You are an expert editor that improves text."
+    temperature: float = 0.7
+    max_tokens: int = 1000
+
+    def __post_init__(self) -> None:
+        """Validate prompt critic specific configuration."""
+        super().__post_init__()
+        if not self.system_prompt or not self.system_prompt.strip():
+            raise ValueError("system_prompt cannot be empty")
+        if not 0 <= self.temperature <= 1:
+            raise ValueError("temperature must be between 0 and 1")
+        if self.max_tokens < 1:
+            raise ValueError("max_tokens must be positive")
+
+
+class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
+    """A critic that uses a language model to evaluate and improve text.
+
+    This critic analyzes text for clarity, ambiguity, completeness, and effectiveness
     using a language model to generate feedback and validation scores.
-
-    Attributes:
-        name: Name of the critic (defaults to "Prompt Critic").
-        description: Description of what this critic evaluates.
-        model: The language model to use for critiquing.
-        min_confidence: Minimum confidence score for validation (default: 0.7).
-        config: Additional configuration parameters.
     """
 
-    name: str = Field(default="Prompt Critic", description="Name of the critic")
-    description: str = Field(
-        default="Evaluates prompts for clarity, completeness, and effectiveness",
-        description="Description of what this critic evaluates",
-    )
-    model: Any = Field(..., description="Language model to use for critiquing")
-
-    def improve(self, output: str, violations: List[Dict[str, Any]]) -> str:
-        """Improve an output based on rule violations.
+    def __init__(
+        self,
+        config: PromptCriticConfig,
+        model: LanguageModel,
+    ) -> None:
+        """Initialize the prompt critic.
 
         Args:
-            output: The output to improve
+            config: Configuration for the critic
+            model: Language model to use for critiquing
+        """
+        super().__init__(config)
+        if not isinstance(model, LanguageModel):
+            raise TypeError("model must implement LanguageModel protocol")
+        self._model = model
+
+    def improve(self, text: str, violations: List[Dict[str, Any]]) -> str:
+        """Improve text based on rule violations.
+
+        Args:
+            text: The text to improve
             violations: List of rule violations
 
         Returns:
-            str: The improved output
+            str: The improved text
+
+        Raises:
+            ValueError: If text is empty or violations is empty
+            TypeError: If model returns non-string output
         """
+        if not self.is_valid_text(text):
+            raise ValueError("text must be a non-empty string")
+        if not violations:
+            raise ValueError("violations list cannot be empty")
+
         # Construct improvement prompt
-        violation_text = "\n".join(f"- {v['rule']}: {v['message']}" for v in violations)
-        improve_prompt = f"""
+        violation_text = "\n".join(
+            f"- {v.get('rule', 'Unknown')}: {v.get('message', 'No message')}" for v in violations
+        )
+
+        improve_prompt = f"""{self.config.system_prompt}
+
         Please improve the following text to fix these violations:
 
         VIOLATIONS:
         {violation_text}
 
         ORIGINAL TEXT:
-        {output}
+        {text}
 
         REQUIREMENTS:
         1. Fix all violations while preserving the key information
-        2. Return ONLY the improved text, with no additional explanations or formatting
-        3. Ensure the output is in markdown format
-        4. Keep the length within the specified limits
-        """
+        2. Return ONLY the improved text, with no additional explanations
+        3. Ensure the output maintains the original format
+        4. Keep the length reasonable and appropriate
+
+        IMPROVED TEXT:"""
 
         # Get improved version from the model
-        improved = self.model.generate(improve_prompt)
+        try:
+            improved = self._model.generate(improve_prompt)
+            if not isinstance(improved, str):
+                raise TypeError("Model must return a string")
+            return improved.strip()
+        except Exception as e:
+            raise RuntimeError(f"Failed to improve text: {str(e)}") from e
 
-        # Ensure we return a string
-        if not isinstance(improved, str):
-            raise TypeError("Model must return a string")
-
-        return improved.strip()
-
-    def critique(self, prompt: str) -> Dict[str, Any]:
-        """Analyze a prompt and provide detailed feedback.
-
-        Uses the language model to evaluate the prompt based on:
-        - Clarity and ambiguity
-        - Completeness of instructions
-        - Adherence to constraints
-        - Overall effectiveness
+    def critique(self, text: str) -> CriticMetadata:
+        """Analyze text and provide detailed feedback.
 
         Args:
-            prompt: The prompt to critique.
+            text: The text to critique
 
         Returns:
-            Dict containing:
-                - score: float between 0 and 1
-                - feedback: str with general feedback
-                - issues: list of identified issues
-                - suggestions: list of improvement suggestions
+            CriticMetadata containing score, feedback, issues, and suggestions
 
         Raises:
-            TypeError: If prompt is not a string
-            ValueError: If prompt is empty
+            ValueError: If text is empty
+            TypeError: If model returns invalid output
         """
-        if not isinstance(prompt, str):
-            raise TypeError("Prompt must be a string")
-        if not prompt.strip():
-            raise ValueError("Prompt cannot be empty")
+        if not self.is_valid_text(text):
+            raise ValueError("text must be a non-empty string")
 
-        # Construct critique prompt for the language model
-        critique_prompt = f"""
-        Please evaluate the following prompt and provide your response in a structured format with these components:
-        1. A score between 0 and 1 (where 1 is perfect)
-        2. General feedback
-        3. List of specific issues
-        4. List of improvement suggestions
+        start_time = time.time()
 
-        Format your response exactly like this:
+        # Construct critique prompt
+        critique_prompt = f"""{self.config.system_prompt}
+
+        Please evaluate the following text and provide structured feedback:
+
+        TEXT TO EVALUATE:
+        {text}
+
+        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
         SCORE: [number between 0 and 1]
         FEEDBACK: [your general feedback]
         ISSUES:
@@ -110,29 +162,22 @@ class PromptCritic(Critic):
         - [suggestion 1]
         - [suggestion 2]
 
-        Here is the prompt to evaluate:
-
-        {prompt}
-
         Consider:
-        1. Is the prompt clear and unambiguous?
-        2. Are the instructions complete?
-        3. Are any constraints clearly specified?
-        4. Will this prompt be effective for its purpose?
-        """
+        1. Is the text clear and unambiguous?
+        2. Is it complete and well-structured?
+        3. Is it appropriate for its purpose?
+        4. Could it be improved significantly?
 
-        # Get response from the model
-        response = self.model.generate(critique_prompt)
+        EVALUATION:"""
 
-        if not isinstance(response, str):
-            raise TypeError("Model response must be a string")
-
-        # Parse the response into a dictionary
         try:
-            # Split response into sections
-            sections = response.split("\n")
+            # Get and parse response
+            response = self._model.generate(critique_prompt)
+            if not isinstance(response, str):
+                raise TypeError("Model must return a string")
 
-            # Initialize result dictionary
+            # Parse structured response
+            sections = response.strip().split("\n")
             result = {"score": 0.0, "feedback": "", "issues": [], "suggestions": []}
 
             current_section = None
@@ -146,7 +191,7 @@ class PromptCritic(Critic):
                         score_str = line.replace("SCORE:", "").strip()
                         result["score"] = float(score_str)
                     except ValueError:
-                        result["score"] = 0.5  # Default score if parsing fails
+                        result["score"] = 0.5
                 elif line.startswith("FEEDBACK:"):
                     result["feedback"] = line.replace("FEEDBACK:", "").strip()
                 elif line.startswith("ISSUES:"):
@@ -158,44 +203,61 @@ class PromptCritic(Critic):
                     if item:
                         result[current_section].append(item)
 
-            # Validate the parsed result
-            if not isinstance(result["score"], (int, float)):
-                raise TypeError("Score must be a number")
-            if not isinstance(result["feedback"], str):
-                raise TypeError("Feedback must be a string")
-            if not isinstance(result["issues"], list):
-                raise TypeError("Issues must be a list")
-            if not isinstance(result["suggestions"], list):
-                raise TypeError("Suggestions must be a list")
-
-            return result
+            # Create metadata with timing information
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+            return CriticMetadata(
+                score=result["score"],
+                feedback=result["feedback"],
+                issues=result["issues"],
+                suggestions=result["suggestions"],
+                processing_time_ms=processing_time,
+            )
 
         except Exception as e:
-            # If parsing fails, return a default structured response
-            return {
-                "score": 0.5,
-                "feedback": str(response),  # Use full response as feedback
-                "issues": ["Failed to parse structured response"],
-                "suggestions": ["Please try again with a clearer prompt"],
-            }
+            # Return failure metadata if parsing fails
+            return CriticMetadata(
+                score=0.0,
+                feedback=f"Failed to critique text: {str(e)}",
+                issues=["Failed to parse model response"],
+                suggestions=["Try again with clearer text"],
+                processing_time_ms=(time.time() - start_time) * 1000,
+            )
 
-    def validate(self, prompt: str) -> bool:
-        """Check if a prompt meets quality standards.
-
-        Uses the critique method to determine if the prompt's score meets
-        the minimum confidence threshold.
+    def validate(self, text: str) -> bool:
+        """Check if text meets quality standards.
 
         Args:
-            prompt: The prompt to validate.
+            text: The text to validate
 
         Returns:
-            bool: True if the prompt meets quality standards, False otherwise.
+            bool: True if the text meets quality standards
 
         Raises:
-            TypeError: If prompt is not a string
-            ValueError: If prompt is empty
-            KeyError: If model response is missing required fields
-            TypeError: If model response contains invalid types
+            ValueError: If text is empty
         """
-        result = self.critique(prompt)
-        return float(result["score"]) >= self.min_confidence
+        if not self.is_valid_text(text):
+            raise ValueError("text must be a non-empty string")
+
+        try:
+            metadata = self.critique(text)
+            return metadata.score >= self.config.min_confidence
+        except Exception:
+            return False
+
+
+# Default configurations
+DEFAULT_SYSTEM_PROMPT: Final[
+    str
+] = """You are an expert editor that improves text
+while maintaining its core meaning and purpose. Focus on clarity, correctness,
+and effectiveness."""
+
+DEFAULT_PROMPT_CONFIG = PromptCriticConfig(
+    name="Default Prompt Critic",
+    description="Evaluates and improves text using language models",
+    system_prompt=DEFAULT_SYSTEM_PROMPT,
+    temperature=0.7,
+    max_tokens=1000,
+    min_confidence=0.7,
+    max_attempts=3,
+)

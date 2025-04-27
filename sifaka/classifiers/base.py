@@ -3,8 +3,52 @@ Base classes for Sifaka classifiers.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, Union, List
+from typing import Dict, Any, Optional, Union, List, Protocol, TypeVar, runtime_checkable, Type
+from typing_extensions import TypeGuard
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from dataclasses import dataclass
+
+
+@runtime_checkable
+class TextProcessor(Protocol):
+    """Protocol for text processing components."""
+
+    def process(self, text: str) -> Dict[str, Any]: ...
+
+
+@runtime_checkable
+class ClassifierProtocol(Protocol):
+    """Protocol defining the interface for classifiers."""
+
+    def classify(self, text: str) -> "ClassificationResult": ...
+    def batch_classify(self, texts: List[str]) -> List["ClassificationResult"]: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def description(self) -> str: ...
+    @property
+    def min_confidence(self) -> float: ...
+
+
+@dataclass(frozen=True)
+class ClassifierConfig:
+    """Immutable configuration for classifiers."""
+
+    labels: List[str]
+    cache_size: int = 0
+    cost: int = 1
+    min_confidence: float = 0.5
+    additional_config: Dict[str, Any] = Field(default_factory=dict)
+
+    def __post_init__(self):
+        if not isinstance(self.labels, list) or not all(isinstance(l, str) for l in self.labels):
+            raise ValueError("labels must be a list of strings")
+        if self.cache_size < 0:
+            raise ValueError("cache_size must be non-negative")
+        if self.cost < 0:
+            raise ValueError("cost must be non-negative")
+        if not 0.0 <= self.min_confidence <= 1.0:
+            raise ValueError("min_confidence must be between 0 and 1")
 
 
 class ClassificationResult(BaseModel):
@@ -17,73 +61,55 @@ class ClassificationResult(BaseModel):
         metadata: Additional metadata about the classification
     """
 
-    label: Any = Field(description="The classification label")
+    label: str = Field(description="The classification label")
     confidence: float = Field(ge=0.0, le=1.0, description="Confidence score between 0 and 1")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    @model_validator(mode="after")
+    def validate_metadata(self) -> "ClassificationResult":
+        """Ensure metadata is immutable."""
+        self.metadata = dict(self.metadata)  # Create a new dict to prevent mutations
+        return self
 
-class Classifier(ABC, BaseModel):
+    def with_metadata(self, **kwargs) -> "ClassificationResult":
+        """Create a new result with additional metadata."""
+        new_metadata = {**self.metadata, **kwargs}
+        return ClassificationResult(
+            label=self.label, confidence=self.confidence, metadata=new_metadata
+        )
+
+
+T = TypeVar("T", bound="BaseClassifier")
+
+
+class BaseClassifier(ABC, BaseModel):
     """
     Base class for all Sifaka classifiers.
 
     A classifier provides predictions that can be used by rules.
-
-    Attributes:
-        name: The name of the classifier
-        description: Description of the classifier
-        config: Configuration for the classifier
-        labels: List of possible labels/classes
-        cache_size: Size of the LRU cache (0 to disable)
-        cost: Estimated computational cost (higher numbers are more expensive)
-        min_confidence: Minimum confidence threshold for classification
     """
 
     name: str = Field(description="Name of the classifier")
     description: str = Field(description="Description of the classifier")
-    config: Dict[str, Any] = Field(default_factory=dict, description="Additional configuration")
-    labels: List[str] = Field(description="List of possible classification labels")
-    cache_size: int = Field(default=0, ge=0, description="Size of the classification cache")
-    cost: int = Field(default=1, ge=0, description="Cost of running the classifier")
-    min_confidence: float = Field(
-        default=0.5, ge=0.0, le=1.0, description="Minimum confidence threshold"
-    )
+    config: ClassifierConfig
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    def validate_input(self, text: str) -> TypeGuard[str]:
+        """Validate input text."""
+        if not isinstance(text, str):
+            raise ValueError("Input must be a string")
+        return True
+
+    def validate_batch_input(self, texts: List[str]) -> TypeGuard[List[str]]:
+        """Validate batch input texts."""
+        if not isinstance(texts, list) or not all(isinstance(t, str) for t in texts):
+            raise ValueError("Input must be a list of strings")
+        return True
+
     @abstractmethod
-    def classify(self, text: str) -> ClassificationResult:
-        """
-        Classify the input text.
-
-        Args:
-            text: The text to classify
-
-        Returns:
-            ClassificationResult with prediction details
-        """
-        pass
-
-    @abstractmethod
-    def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
-        """
-        Classify multiple texts in batch.
-
-        Args:
-            texts: List of texts to classify
-
-        Returns:
-            List of ClassificationResults
-        """
-        pass
-
-    def warm_up(self) -> None:
-        """
-        Optional warm-up method for classifiers that need initialization.
-        """
-        pass
-
     def _classify_impl(self, text: str) -> ClassificationResult:
         """
         Implement classification logic.
@@ -98,3 +124,75 @@ class Classifier(ABC, BaseModel):
             NotImplementedError: Must be implemented by subclasses
         """
         raise NotImplementedError("Subclasses must implement _classify_impl")
+
+    def classify(self, text: str) -> ClassificationResult:
+        """
+        Classify the input text.
+
+        Args:
+            text: The text to classify
+
+        Returns:
+            ClassificationResult with prediction details
+
+        Raises:
+            ValueError: If input validation fails
+        """
+        self.validate_input(text)
+        if not text.strip():
+            return ClassificationResult(
+                label="unknown", confidence=0.0, metadata={"reason": "empty_input"}
+            )
+        return self._classify_impl(text)
+
+    def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
+        """
+        Classify multiple texts in batch.
+
+        Args:
+            texts: List of texts to classify
+
+        Returns:
+            List of ClassificationResults
+
+        Raises:
+            ValueError: If input validation fails
+        """
+        self.validate_batch_input(texts)
+        return [self.classify(text) for text in texts]
+
+    def warm_up(self) -> None:
+        """
+        Optional warm-up method for classifiers that need initialization.
+        """
+        pass
+
+    @classmethod
+    def create(cls: Type[T], name: str, description: str, labels: List[str], **config_kwargs) -> T:
+        """
+        Factory method to create a classifier instance.
+
+        Args:
+            name: Name of the classifier
+            description: Description of what this classifier does
+            labels: List of valid labels for classification
+            **config_kwargs: Additional configuration parameters
+
+        Returns:
+            New classifier instance
+        """
+        config = ClassifierConfig(labels=labels, **config_kwargs)
+        return cls(name=name, description=description, config=config)
+
+
+# Type alias for external usage
+Classifier = BaseClassifier
+
+# Export these types
+__all__ = [
+    "Classifier",
+    "ClassificationResult",
+    "ClassifierConfig",
+    "ClassifierProtocol",
+    "TextProcessor",
+]

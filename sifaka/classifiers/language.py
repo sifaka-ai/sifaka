@@ -2,23 +2,56 @@
 Language classifier using langdetect.
 """
 
-from typing import List, Dict, Any, Optional, TYPE_CHECKING, ClassVar
+from typing import List, Dict, Any, Optional, Protocol, runtime_checkable, Final, TypeVar, Sequence
+from typing_extensions import TypeGuard
 import importlib
 import logging
+from dataclasses import dataclass, field
+from abc import abstractmethod
 
-from sifaka.classifiers.base import Classifier, ClassificationResult
+from sifaka.classifiers.base import BaseClassifier, ClassificationResult, ClassifierConfig
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Only import type hints during type checking
-if TYPE_CHECKING:
-    from langdetect import detect_langs, detect
-    from langdetect.language import Language
-    from langdetect import LangDetectException
+
+@runtime_checkable
+class LanguageDetector(Protocol):
+    """Protocol for language detection engines."""
+
+    @abstractmethod
+    def detect_langs(self, text: str) -> Sequence[Any]: ...
+    @abstractmethod
+    def detect(self, text: str) -> str: ...
 
 
-class LanguageClassifier(Classifier):
+@dataclass(frozen=True)
+class LanguageConfig:
+    """Configuration for language detection."""
+
+    min_confidence: float = 0.1
+    seed: int = 0  # Seed for consistent results
+    fallback_lang: str = "en"
+    fallback_confidence: float = 0.0
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.min_confidence <= 1.0:
+            raise ValueError("min_confidence must be between 0.0 and 1.0")
+        if self.seed < 0:
+            raise ValueError("seed must be non-negative")
+
+
+@dataclass(frozen=True)
+class LanguageInfo:
+    """Information about a supported language."""
+
+    code: str
+    name: str
+    native_name: Optional[str] = None
+    script: Optional[str] = None
+
+
+class LanguageClassifier(BaseClassifier):
     """
     A lightweight language classifier using langdetect.
 
@@ -27,13 +60,10 @@ class LanguageClassifier(Classifier):
 
     Requires the 'language' extra to be installed:
     pip install sifaka[language]
-
-    Attributes:
-        min_confidence: Minimum confidence threshold
     """
 
-    # ISO 639-1 language codes and their names
-    LANGUAGE_NAMES: ClassVar[Dict[str, str]] = {
+    # Class-level constants
+    LANGUAGE_NAMES: Final[Dict[str, str]] = {
         "af": "Afrikaans",
         "ar": "Arabic",
         "bg": "Bulgarian",
@@ -91,14 +121,14 @@ class LanguageClassifier(Classifier):
         "zh-tw": "Chinese (Traditional)",
     }
 
-    min_confidence: float = 0.1
+    DEFAULT_COST: Final[int] = 1  # Low cost for statistical analysis
 
     def __init__(
         self,
         name: str = "language_classifier",
         description: str = "Detects text language",
-        min_confidence: float = 0.1,
-        config: Optional[Dict[str, Any]] = None,
+        lang_config: Optional[LanguageConfig] = None,
+        detector: Optional[LanguageDetector] = None,
         **kwargs,
     ) -> None:
         """
@@ -107,32 +137,43 @@ class LanguageClassifier(Classifier):
         Args:
             name: The name of the classifier
             description: Description of the classifier
-            min_confidence: Minimum confidence threshold
-            config: Additional configuration
-            **kwargs: Additional arguments
+            lang_config: Language detection configuration
+            detector: Custom language detector implementation
+            **kwargs: Additional configuration parameters
         """
-        super().__init__(
-            name=name,
-            description=description,
-            config=config or {},
-            labels=list(self.LANGUAGE_NAMES.keys()),
-            cost=1,  # Low cost for statistical analysis
-            **kwargs,
+        config = ClassifierConfig(
+            labels=list(self.LANGUAGE_NAMES.keys()), cost=self.DEFAULT_COST, **kwargs
         )
-        self.min_confidence = min_confidence
-        self._detect_langs = None
-        self._detect = None
+        super().__init__(name=name, description=description, config=config)
 
-    def _load_langdetect(self) -> None:
+        self._lang_config = lang_config or LanguageConfig()
+        self._detector = detector
+        self._initialized = False
+
+    def _validate_detector(self, detector: Any) -> TypeGuard[LanguageDetector]:
+        """Validate that a detector implements the required protocol."""
+        if not isinstance(detector, LanguageDetector):
+            raise ValueError(
+                f"Detector must implement LanguageDetector protocol, got {type(detector)}"
+            )
+        return True
+
+    def _load_langdetect(self) -> LanguageDetector:
         """Load the language detector."""
         try:
             langdetect = importlib.import_module("langdetect")
-            self._detect_langs = langdetect.detect_langs
-            self._detect = langdetect.detect
-
             # Set seed for consistent results
-            langdetect.DetectorFactory.seed = 0
+            langdetect.DetectorFactory.seed = self._lang_config.seed
 
+            # Create a wrapper class that implements our protocol
+            class LangDetectWrapper:
+                def __init__(self, detect_langs, detect):
+                    self.detect_langs = detect_langs
+                    self.detect = detect
+
+            detector = LangDetectWrapper(langdetect.detect_langs, langdetect.detect)
+            self._validate_detector(detector)
+            return detector
         except ImportError:
             raise ImportError(
                 "langdetect package is required for LanguageClassifier. "
@@ -143,93 +184,88 @@ class LanguageClassifier(Classifier):
 
     def warm_up(self) -> None:
         """Initialize the language detector if needed."""
-        if self._detect_langs is None:
-            self._load_langdetect()
+        if not self._initialized:
+            self._detector = self._detector or self._load_langdetect()
+            self._initialized = True
 
-    def classify(self, text: str) -> ClassificationResult:
+    def get_language_name(self, lang_code: str) -> str:
+        """Get the full name of a language from its code."""
+        return self.LANGUAGE_NAMES.get(lang_code, "Unknown")
+
+    def _classify_impl(self, text: str) -> ClassificationResult:
         """
-        Classify the language of the input text.
+        Implement language classification logic.
 
         Args:
-            text: The text to classify.
+            text: The text to classify
 
         Returns:
-            ClassificationResult with detected language and confidence.
+            ClassificationResult with detected language and confidence
         """
+        self.warm_up()
+
+        # Initialize default metadata
         metadata = {
-            "language_name": "Unknown",  # Default language name
-            "language_code": "en",  # Default language code
+            "language_name": self.get_language_name(self._lang_config.fallback_lang),
+            "language_code": self._lang_config.fallback_lang,
             "all_languages": {
-                "en": {"probability": 1.0, "name": "English"}
-            },  # Default language info
+                self._lang_config.fallback_lang: {
+                    "probability": self._lang_config.fallback_confidence,
+                    "name": self.get_language_name(self._lang_config.fallback_lang),
+                }
+            },
         }
 
-        # Handle invalid input types
-        if not isinstance(text, str):
-            metadata.update(
-                {
-                    "error_type": "invalid_input",
-                    "error": f"Invalid input type: {type(text).__name__}",
-                }
-            )
-            return ClassificationResult(
-                label="en",
-                confidence=0.0,
-                metadata=metadata,
-            )
-
-        # Handle empty or whitespace-only strings
-        if not text or text.isspace():
-            metadata.update(
-                {
-                    "error_type": "empty_input",
-                    "error": "No language detected - empty or whitespace input",
-                }
-            )
-            return ClassificationResult(
-                label="en",
-                confidence=0.0,
-                metadata=metadata,
-            )
-
         try:
-            # Ensure langdetect is loaded
-            if self._detect is None:
-                self.warm_up()
+            # Get language probabilities
+            lang_probabilities = self._detector.detect_langs(text)
 
-            # Detect language
-            lang = self._detect(text)
-            confidence = 1.0  # langdetect doesn't provide confidence scores
+            # Convert to our format and sort by probability
+            detected_langs = []
+            for lang in lang_probabilities:
+                code = str(lang).split(":")[0]
+                prob = float(str(lang).split(":")[1])
+                detected_langs.append((code, prob))
 
-            # Map language code to full name if available
-            language_name = self.LANGUAGE_NAMES.get(lang, lang)
+            detected_langs.sort(key=lambda x: x[1], reverse=True)
+
+            if not detected_langs:
+                return ClassificationResult(
+                    label=self._lang_config.fallback_lang,
+                    confidence=self._lang_config.fallback_confidence,
+                    metadata={**metadata, "reason": "no_languages_detected"},
+                )
+
+            # Get the most likely language
+            top_lang_code, confidence = detected_langs[0]
+
+            # Update metadata with all detected languages
             metadata.update(
                 {
-                    "language_code": lang,
-                    "language_name": language_name,
-                    "all_languages": {lang: {"probability": 1.0, "name": language_name}},
+                    "language_code": top_lang_code,
+                    "language_name": self.get_language_name(top_lang_code),
+                    "all_languages": {
+                        code: {"probability": prob, "name": self.get_language_name(code)}
+                        for code, prob in detected_langs
+                    },
                 }
             )
 
-            return ClassificationResult(label=lang, confidence=confidence, metadata=metadata)
+            return ClassificationResult(
+                label=top_lang_code, confidence=confidence, metadata=metadata
+            )
 
         except Exception as e:
             logger.error("Failed to detect language: %s", e)
-            metadata.update(
-                {
-                    "error_type": "detection_error",
-                    "error": f"Failed to detect language: {str(e)}",
-                }
-            )
             return ClassificationResult(
-                label="en",
-                confidence=0.0,
-                metadata=metadata,
+                label=self._lang_config.fallback_lang,
+                confidence=self._lang_config.fallback_confidence,
+                metadata={**metadata, "error": str(e), "reason": "detection_error"},
             )
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
         """
-        Classify multiple texts.
+        Classify multiple texts efficiently.
 
         Args:
             texts: List of texts to classify
@@ -237,16 +273,33 @@ class LanguageClassifier(Classifier):
         Returns:
             List of ClassificationResults
         """
-        return [self.classify(text) for text in texts]
+        self.validate_batch_input(texts)
+        return [self._classify_impl(text) for text in texts]
 
-    def get_language_name(self, lang_code: str) -> str:
+    @classmethod
+    def create_with_custom_detector(
+        cls,
+        detector: LanguageDetector,
+        name: str = "custom_language_classifier",
+        description: str = "Custom language detector",
+        lang_config: Optional[LanguageConfig] = None,
+        **kwargs,
+    ) -> "LanguageClassifier":
         """
-        Get the full name of a language from its code.
+        Factory method to create a classifier with a custom detector.
 
         Args:
-            lang_code: ISO 639-1 language code
+            detector: Custom language detector implementation
+            name: Name of the classifier
+            description: Description of the classifier
+            lang_config: Custom language configuration
+            **kwargs: Additional configuration parameters
 
         Returns:
-            Full language name or 'Unknown'
+            Configured LanguageClassifier instance
         """
-        return self.LANGUAGE_NAMES.get(lang_code, "Unknown")
+        instance = cls(
+            name=name, description=description, lang_config=lang_config, detector=detector, **kwargs
+        )
+        instance._validate_detector(detector)
+        return instance

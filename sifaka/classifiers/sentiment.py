@@ -2,21 +2,42 @@
 Sentiment classifier using VADER.
 """
 
-from typing import List, Dict, Any, Optional, TYPE_CHECKING
+from typing import List, Dict, Any, Optional, Protocol, runtime_checkable, Final
+from typing_extensions import TypeGuard
 import importlib
 import logging
+from dataclasses import dataclass
+from abc import abstractmethod
 
-from sifaka.classifiers.base import Classifier, ClassificationResult
+from sifaka.classifiers.base import BaseClassifier, ClassificationResult, ClassifierConfig
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Only import type hints during type checking
-if TYPE_CHECKING:
-    from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+
+@runtime_checkable
+class SentimentAnalyzer(Protocol):
+    """Protocol for sentiment analysis engines."""
+
+    @abstractmethod
+    def polarity_scores(self, text: str) -> Dict[str, float]: ...
 
 
-class SentimentClassifier(Classifier):
+@dataclass(frozen=True)
+class SentimentThresholds:
+    """Immutable thresholds for sentiment classification."""
+
+    positive: float = 0.05
+    negative: float = -0.05
+
+    def __post_init__(self) -> None:
+        if self.positive < self.negative:
+            raise ValueError("Positive threshold must be greater than negative threshold")
+        if not (-1.0 <= self.negative <= self.positive <= 1.0):
+            raise ValueError("Thresholds must be between -1.0 and 1.0")
+
+
+class SentimentClassifier(BaseClassifier):
     """
     A lightweight sentiment classifier using VADER.
 
@@ -25,23 +46,18 @@ class SentimentClassifier(Classifier):
 
     Requires the 'sentiment' extra to be installed:
     pip install sifaka[sentiment]
-
-    Attributes:
-        threshold_pos: Score threshold for positive sentiment
-        threshold_neg: Score threshold for negative sentiment
-        labels: Possible sentiment labels (positive, neutral, negative)
     """
 
-    threshold_pos: float = 0.05
-    threshold_neg: float = -0.05
+    # Class-level constants
+    DEFAULT_LABELS: Final[List[str]] = ["positive", "neutral", "negative"]
+    DEFAULT_COST: Final[int] = 1  # Low cost for lexicon-based analysis
 
     def __init__(
         self,
         name: str = "sentiment_classifier",
         description: str = "Analyzes text sentiment using VADER",
-        threshold_pos: float = 0.05,
-        threshold_neg: float = -0.05,
-        config: Optional[Dict[str, Any]] = None,
+        thresholds: Optional[SentimentThresholds] = None,
+        analyzer: Optional[SentimentAnalyzer] = None,
         **kwargs,
     ) -> None:
         """
@@ -50,28 +66,32 @@ class SentimentClassifier(Classifier):
         Args:
             name: The name of the classifier
             description: Description of the classifier
-            threshold_pos: Score threshold for positive sentiment
-            threshold_neg: Score threshold for negative sentiment
-            config: Additional configuration
-            **kwargs: Additional arguments
+            thresholds: Sentiment threshold configuration
+            analyzer: Custom sentiment analyzer implementation
+            **kwargs: Additional configuration parameters
         """
-        super().__init__(
-            name=name,
-            description=description,
-            config=config or {},
-            labels=["positive", "neutral", "negative"],
-            cost=1,  # Low cost for lexicon-based analysis
-            **kwargs,
-        )
-        self.threshold_pos = threshold_pos
-        self.threshold_neg = threshold_neg
-        self._analyzer = None
+        config = ClassifierConfig(labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, **kwargs)
+        super().__init__(name=name, description=description, config=config)
 
-    def _load_vader(self) -> None:
+        self._thresholds = thresholds or SentimentThresholds()
+        self._analyzer = analyzer
+        self._initialized = False
+
+    def _validate_analyzer(self, analyzer: Any) -> TypeGuard[SentimentAnalyzer]:
+        """Validate that an analyzer implements the required protocol."""
+        if not isinstance(analyzer, SentimentAnalyzer):
+            raise ValueError(
+                f"Analyzer must implement SentimentAnalyzer protocol, got {type(analyzer)}"
+            )
+        return True
+
+    def _load_vader(self) -> SentimentAnalyzer:
         """Load the VADER sentiment analyzer."""
         try:
             vader_module = importlib.import_module("vaderSentiment.vaderSentiment")
-            self._analyzer = vader_module.SentimentIntensityAnalyzer()
+            analyzer = vader_module.SentimentIntensityAnalyzer()
+            self._validate_analyzer(analyzer)
+            return analyzer
         except ImportError:
             raise ImportError(
                 "VADER package is required for SentimentClassifier. "
@@ -82,33 +102,28 @@ class SentimentClassifier(Classifier):
 
     def warm_up(self) -> None:
         """Initialize the sentiment analyzer if needed."""
-        if self._analyzer is None:
-            self._load_vader()
+        if not self._initialized:
+            self._analyzer = self._analyzer or self._load_vader()
+            self._initialized = True
 
     def _get_sentiment_label(self, compound_score: float) -> str:
         """Get sentiment label based on compound score."""
-        if compound_score >= self.threshold_pos:
+        if compound_score >= self._thresholds.positive:
             return "positive"
-        elif compound_score <= self.threshold_neg:
+        elif compound_score <= self._thresholds.negative:
             return "negative"
         return "neutral"
 
-    def classify(self, text: str) -> ClassificationResult:
+    def _classify_impl(self, text: str) -> ClassificationResult:
         """
-        Classify text sentiment.
+        Implement sentiment classification logic.
 
         Args:
             text: The text to classify
 
         Returns:
             ClassificationResult with sentiment scores
-
-        Raises:
-            ValueError: If input is not a string
         """
-        if not isinstance(text, str):
-            raise ValueError("Input must be a string")
-
         self.warm_up()
 
         # Handle empty or whitespace-only text
@@ -121,6 +136,7 @@ class SentimentClassifier(Classifier):
                     "pos_score": 0.0,
                     "neg_score": 0.0,
                     "neu_score": 1.0,
+                    "reason": "empty_input",
                 },
             )
 
@@ -156,14 +172,30 @@ class SentimentClassifier(Classifier):
                 },
             )
 
-    def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
+    @classmethod
+    def create_with_custom_analyzer(
+        cls,
+        analyzer: SentimentAnalyzer,
+        name: str = "custom_sentiment_classifier",
+        description: str = "Custom sentiment analyzer",
+        thresholds: Optional[SentimentThresholds] = None,
+        **kwargs,
+    ) -> "SentimentClassifier":
         """
-        Classify multiple texts.
+        Factory method to create a classifier with a custom analyzer.
 
         Args:
-            texts: List of texts to classify
+            analyzer: Custom sentiment analyzer implementation
+            name: Name of the classifier
+            description: Description of the classifier
+            thresholds: Custom sentiment thresholds
+            **kwargs: Additional configuration parameters
 
         Returns:
-            List of ClassificationResults
+            Configured SentimentClassifier instance
         """
-        return [self.classify(text) for text in texts]
+        instance = cls(
+            name=name, description=description, thresholds=thresholds, analyzer=analyzer, **kwargs
+        )
+        instance._validate_analyzer(analyzer)
+        return instance

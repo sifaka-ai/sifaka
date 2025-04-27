@@ -566,26 +566,127 @@ The benchmark results will be saved in the `benchmark_results` directory, includ
 - Visualization charts
 - Summary report in markdown
 
-## 📄 License
+## Reflection Configuration
 
-MIT License
+The reflection module provides powerful text reflection and pattern matching capabilities through configurable rules. The main configuration class `ReflectionConfig` allows fine-tuning of how text symmetry is validated.
 
-Copyright (c) 2024 Sifaka Contributors
+### ReflectionConfig Parameters
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `mirror_mode` | str | "horizontal" | Mode of reflection validation: "horizontal", "vertical", or "both". Horizontal checks for palindrome-like symmetry, vertical for line-based symmetry. |
+| `symmetry_threshold` | float | 1.0 | Threshold for symmetry validation (0.0 to 1.0). A value of 1.0 requires perfect symmetry, while lower values allow partial matches. For example, 0.8 means text must be 80% symmetric. |
+| `preserve_whitespace` | bool | True | Whether to consider whitespace in symmetry validation. If False, whitespace is stripped before checking. |
+| `preserve_case` | bool | True | Whether to make validation case-sensitive. If False, text is converted to lowercase before checking. |
+| `ignore_punctuation` | bool | False | Whether to ignore punctuation marks during validation. If True, only alphanumeric characters are considered. |
+| `cache_size` | int | 100 | Size of the internal cache for validation results. |
+| `priority` | int | 1 | Priority of the rule when multiple rules are applied. |
+| `cost` | float | 1.0 | Computational cost factor for the rule. |
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+### Examples
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+```python
+from sifaka.reflector import create_reflection_rule
+
+# Perfect palindrome check (case-sensitive)
+palindrome_rule = create_reflection_rule(
+    name="strict_palindrome",
+    description="Check for perfect palindromes",
+    mirror_mode="horizontal",
+    symmetry_threshold=1.0,
+    preserve_case=True
+)
+
+# Relaxed visual symmetry (80% threshold)
+visual_rule = create_reflection_rule(
+    name="visual_symmetry",
+    description="Check for visual symmetry",
+    mirror_mode="both",
+    symmetry_threshold=0.8,
+    preserve_whitespace=True
+)
+
+# Case-insensitive partial matching
+relaxed_rule = create_reflection_rule(
+    name="relaxed_matching",
+    description="Relaxed symmetry checking",
+    mirror_mode="horizontal",
+    symmetry_threshold=0.6,
+    preserve_case=False,
+    ignore_punctuation=True
+)
+```
+
+### Predefined Configurations
+
+The module includes several predefined configurations for common use cases:
+
+1. **Palindrome**
+   ```python
+   {
+       "mirror_mode": "horizontal",
+       "preserve_whitespace": False,
+       "preserve_case": False,
+       "ignore_punctuation": True,
+       "symmetry_threshold": 1.0
+   }
+   ```
+
+2. **Visual Mirror**
+   ```python
+   {
+       "mirror_mode": "both",
+       "preserve_whitespace": True,
+       "preserve_case": True,
+       "ignore_punctuation": False,
+       "symmetry_threshold": 0.8
+   }
+   ```
+
+3. **Partial Symmetry**
+   ```python
+   {
+       "mirror_mode": "horizontal",
+       "preserve_whitespace": True,
+       "preserve_case": True,
+       "ignore_punctuation": False,
+       "symmetry_threshold": 0.6
+   }
+   ```
+
+### Validation Examples
+
+```python
+# Using the palindrome configuration
+rule = create_reflection_rule(
+    name="palindrome",
+    description="Check for palindromes",
+    **DEFAULT_REFLECTION_CONFIGS["palindrome"]
+)
+
+# Perfect palindrome (passes)
+result = rule._validate_impl("A man a plan a canal Panama")
+assert result.passed  # True
+assert result.metadata["symmetry_score"] == 1.0
+
+# Almost symmetric (fails with strict threshold)
+result = rule._validate_impl("almost symmetric")
+assert not result.passed
+assert result.metadata["symmetry_score"] < 1.0
+
+# Visual symmetry with multiple lines
+rule = create_reflection_rule(
+    name="visual",
+    description="Check visual symmetry",
+    **DEFAULT_REFLECTION_CONFIGS["visual_mirror"]
+)
+
+result = rule._validate_impl("""
+*   *   *
+  * * *
+    *
+  * * *
+*   *   *
+""")
+assert result.passed  # True
+```

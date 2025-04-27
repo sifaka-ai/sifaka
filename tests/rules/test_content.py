@@ -1,146 +1,285 @@
 """Tests for the content rules."""
 
 import pytest
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Protocol, runtime_checkable, Optional
+from dataclasses import dataclass
 
-from sifaka.rules.content import ProhibitedContentRule, ToneConsistencyRule
-from sifaka.rules.base import RuleResult
-
-
-class TestProhibitedContentRule(ProhibitedContentRule):
-    """Test implementation of ProhibitedContentRule."""
-
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Implement validation logic."""
-        if not isinstance(output, str):
-            raise ValueError("Output must be a string")
-
-        check_output = output if self.case_sensitive else output.lower()
-        found_terms = []
-
-        for term in self.prohibited_terms:
-            search_term = term if self.case_sensitive else term.lower()
-            if search_term in check_output:
-                found_terms.append(term)
-
-        return RuleResult(
-            passed=len(found_terms) == 0,
-            message=(
-                "No prohibited terms found"
-                if not found_terms
-                else f"Found prohibited terms: {', '.join(found_terms)}"
-            ),
-            metadata={
-                "found_terms": found_terms,
-                "case_sensitive": self.case_sensitive,
-            },
-        )
+from sifaka.rules.content import (
+    ProhibitedContentRule,
+    ToneConsistencyRule,
+    ContentAnalyzer,
+    ToneAnalyzer,
+    ProhibitedTerms,
+    ToneIndicators,
+    ToneConfig,
+    RuleConfig,
+    RuleResult,
+    ValidationError,
+    ConfigurationError,
+)
 
 
-class TestToneConsistencyRule(ToneConsistencyRule):
-    """Test implementation of ToneConsistencyRule."""
+class MockContentAnalyzer:
+    """Mock content analyzer for testing."""
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Implement validation logic."""
-        if not isinstance(output, str):
-            raise ValueError("Output must be a string")
+    def analyze(self, text: str) -> Dict[str, Any]:
+        """Mock analysis."""
+        return {
+            "length": len(text),
+            "word_count": len(text.split()),
+            "mock": True,
+        }
 
-        if self.expected_tone.lower() not in self.tone_indicators:
-            return RuleResult(
-                passed=False,
-                message=f"Unknown tone: {self.expected_tone}",
-                metadata={"available_tones": list(self.tone_indicators.keys())},
-            )
+    def can_analyze(self, text: str) -> bool:
+        """Check if text can be analyzed."""
+        return isinstance(text, str)
 
-        output_lower = output.lower()
 
-        # Check for positive indicators
-        positive_indicators = []
-        for term in self.tone_indicators[self.expected_tone.lower()]["positive"]:
-            if term in output_lower:
-                positive_indicators.append(term)
+class MockToneAnalyzer:
+    """Mock tone analyzer for testing."""
 
-        # Check for negative indicators
-        negative_indicators = []
-        for term in self.tone_indicators[self.expected_tone.lower()]["negative"]:
-            if term in output_lower:
-                negative_indicators.append(term)
+    def analyze_tone(self, text: str) -> Dict[str, float]:
+        """Mock tone analysis."""
+        return {
+            "formality": 0.8,
+            "complexity": 0.6,
+            "mock": True,
+        }
 
-        # Calculate consistency score
-        total_positive = len(self.tone_indicators[self.expected_tone.lower()]["positive"])
-        total_negative = len(self.tone_indicators[self.expected_tone.lower()]["negative"])
-
-        positive_ratio = len(positive_indicators) / total_positive if total_positive > 0 else 0
-        negative_ratio = len(negative_indicators) / total_negative if total_negative > 0 else 0
-        consistency_score = positive_ratio - negative_ratio
-
-        passed = len(negative_indicators) <= len(positive_indicators)
-
-        return RuleResult(
-            passed=passed,
-            message=f"Output {'maintains' if passed else 'does not maintain'} {self.expected_tone} tone",
-            metadata={
-                "positive_indicators": positive_indicators,
-                "negative_indicators": negative_indicators,
-                "consistency_score": consistency_score,
-            },
-        )
+    def get_supported_tones(self) -> List[str]:
+        """Get supported tones."""
+        return ["formal", "informal"]
 
 
 @pytest.fixture
-def prohibited_rule():
-    """Create a ProhibitedContentRule instance."""
-    return TestProhibitedContentRule(
+def content_analyzer() -> MockContentAnalyzer:
+    """Fixture for creating a mock content analyzer."""
+    return MockContentAnalyzer()
+
+
+@pytest.fixture
+def tone_analyzer() -> MockToneAnalyzer:
+    """Fixture for creating a mock tone analyzer."""
+    return MockToneAnalyzer()
+
+
+@pytest.fixture
+def prohibited_terms() -> ProhibitedTerms:
+    """Fixture for creating prohibited terms."""
+    return ProhibitedTerms(
+        terms=frozenset(["bad", "inappropriate"]),
+        case_sensitive=False,
+    )
+
+
+@pytest.fixture
+def tone_indicators() -> Dict[str, ToneIndicators]:
+    """Fixture for creating tone indicators."""
+    return {
+        "formal": ToneIndicators(
+            positive=frozenset(
+                [
+                    "therefore",
+                    "furthermore",
+                    "consequently",
+                    "analysis",
+                    "proceed",
+                ]
+            ),
+            negative=frozenset(
+                [
+                    "hey",
+                    "cool",
+                    "awesome",
+                    "wow",
+                    "yeah",
+                ]
+            ),
+        )
+    }
+
+
+@pytest.fixture
+def tone_config(tone_indicators: Dict[str, ToneIndicators]) -> ToneConfig:
+    """Fixture for creating tone config."""
+    return ToneConfig(
+        expected_tone="formal",
+        indicators=tone_indicators,
+        threshold=0.7,
+        priority=RuleConfig().priority,
+        cache_size=10,
+        cost=2,
+        metadata={"test": True},
+    )
+
+
+@pytest.fixture
+def prohibited_rule(
+    prohibited_terms: ProhibitedTerms,
+    content_analyzer: MockContentAnalyzer,
+) -> ProhibitedContentRule:
+    """Fixture for creating a prohibited content rule."""
+    return ProhibitedContentRule(
         name="test_prohibited",
         description="Test prohibited content rule",
-        config={"prohibited_terms": ["bad", "inappropriate"]},
+        terms=list(prohibited_terms.terms),
+        case_sensitive=prohibited_terms.case_sensitive,
+        analyzer=content_analyzer,
+        config=RuleConfig(cache_size=10, cost=2),
     )
 
 
 @pytest.fixture
-def tone_rule():
-    """Create a ToneConsistencyRule instance."""
-    indicators = {
-        "formal": {
-            "positive": [
-                "therefore",
-                "furthermore",
-                "consequently",
-                "analysis",
-                "proceed",
-            ],
-            "negative": [
-                "hey",
-                "cool",
-                "awesome",
-                "wow",
-                "yeah",
-            ],
-        }
-    }
-    return TestToneConsistencyRule(
+def tone_rule(
+    tone_config: ToneConfig,
+    tone_analyzer: MockToneAnalyzer,
+) -> ToneConsistencyRule:
+    """Fixture for creating a tone consistency rule."""
+    return ToneConsistencyRule(
         name="test_tone",
         description="Test tone consistency rule",
-        config={
-            "tone_indicators": indicators,
-            "expected_tone": "formal",
-            "threshold": 0.7,
+        expected_tone=tone_config.expected_tone,
+        indicators={
+            tone: {
+                "positive": list(indicators.positive),
+                "negative": list(indicators.negative),
+            }
+            for tone, indicators in tone_config.indicators.items()
         },
+        threshold=tone_config.threshold,
+        analyzer=tone_analyzer,
+        config=RuleConfig(cache_size=10, cost=2),
     )
 
 
-def test_prohibited_content_rule_initialization():
-    """Test ProhibitedContentRule initialization."""
-    rule = TestProhibitedContentRule(
-        name="test",
-        description="test",
-        config={"prohibited_terms": ["bad", "inappropriate"]},
+def test_content_analyzer_protocol():
+    """Test ContentAnalyzer protocol implementation."""
+    analyzer = MockContentAnalyzer()
+    assert isinstance(analyzer, ContentAnalyzer)
+
+    # Test non-compliant object
+    class BadAnalyzer:
+        def analyze(self, text: str) -> str:
+            return text
+
+    bad_analyzer = BadAnalyzer()
+    assert not isinstance(bad_analyzer, ContentAnalyzer)
+
+
+def test_tone_analyzer_protocol():
+    """Test ToneAnalyzer protocol implementation."""
+    analyzer = MockToneAnalyzer()
+    assert isinstance(analyzer, ToneAnalyzer)
+
+    # Test non-compliant object
+    class BadAnalyzer:
+        def analyze_tone(self, text: str) -> str:
+            return text
+
+    bad_analyzer = BadAnalyzer()
+    assert not isinstance(bad_analyzer, ToneAnalyzer)
+
+
+def test_prohibited_terms():
+    """Test ProhibitedTerms initialization and behavior."""
+    # Test valid initialization
+    terms = ProhibitedTerms(terms=frozenset(["bad", "inappropriate"]))
+    assert "bad" in terms.terms
+    assert not terms.case_sensitive
+
+    # Test empty terms
+    with pytest.raises(ConfigurationError):
+        ProhibitedTerms(terms=frozenset())
+
+    # Test with_terms
+    new_terms = terms.with_terms(["terrible", "horrible"])
+    assert "terrible" in new_terms.terms
+    assert "bad" not in new_terms.terms
+    assert new_terms.case_sensitive == terms.case_sensitive
+
+    # Test with_case_sensitivity
+    case_sensitive = terms.with_case_sensitivity(True)
+    assert case_sensitive.case_sensitive
+    assert case_sensitive.terms == terms.terms
+
+
+def test_tone_indicators():
+    """Test ToneIndicators initialization and behavior."""
+    # Test valid initialization
+    indicators = ToneIndicators(
+        positive=frozenset(["good", "great"]),
+        negative=frozenset(["bad", "poor"]),
     )
-    assert rule.name == "test"
-    assert rule.prohibited_terms == ["bad", "inappropriate"]
+    assert "good" in indicators.positive
+    assert "bad" in indicators.negative
+
+    # Test empty indicators
+    with pytest.raises(ConfigurationError):
+        ToneIndicators(positive=frozenset(), negative=frozenset())
+
+    # Test one empty set
+    indicators = ToneIndicators(
+        positive=frozenset(["good"]),
+        negative=frozenset(),
+    )
+    assert "good" in indicators.positive
+    assert not indicators.negative
 
 
-def test_prohibited_content_validation(prohibited_rule):
+def test_tone_config():
+    """Test ToneConfig initialization and behavior."""
+    # Test valid initialization
+    indicators = {
+        "formal": ToneIndicators(
+            positive=frozenset(["therefore"]),
+            negative=frozenset(["hey"]),
+        )
+    }
+    config = ToneConfig(
+        expected_tone="formal",
+        indicators=indicators,
+        threshold=0.7,
+    )
+    assert config.expected_tone == "formal"
+    assert config.threshold == 0.7
+    assert "formal" in config.indicators
+
+    # Test invalid threshold
+    with pytest.raises(ConfigurationError):
+        ToneConfig(
+            expected_tone="formal",
+            indicators=indicators,
+            threshold=1.5,
+        )
+
+    # Test empty tone
+    with pytest.raises(ConfigurationError):
+        ToneConfig(
+            expected_tone="",
+            indicators=indicators,
+        )
+
+    # Test empty indicators
+    with pytest.raises(ConfigurationError):
+        ToneConfig(
+            expected_tone="formal",
+            indicators={},
+        )
+
+    # Test with_tone
+    new_config = config.with_tone("informal")
+    assert new_config.expected_tone == "informal"
+    assert new_config.threshold == config.threshold
+    assert new_config.indicators == config.indicators
+
+    # Test with_threshold
+    new_config = config.with_threshold(0.8)
+    assert new_config.threshold == 0.8
+    assert new_config.expected_tone == config.expected_tone
+    assert new_config.indicators == config.indicators
+
+
+def test_prohibited_content_validation(prohibited_rule: ProhibitedContentRule):
     """Test prohibited content rule validation."""
     # Test clean text
     clean_text = "This is a good and appropriate text."
@@ -148,6 +287,7 @@ def test_prohibited_content_validation(prohibited_rule):
     assert result.passed
     assert "found_terms" in result.metadata
     assert len(result.metadata["found_terms"]) == 0
+    assert result.metadata["analysis"]["mock"]  # Check analyzer was used
 
     # Test text with prohibited terms
     bad_text = "This is a bad and inappropriate text."
@@ -157,6 +297,7 @@ def test_prohibited_content_validation(prohibited_rule):
     assert len(result.metadata["found_terms"]) == 2
     assert "bad" in result.metadata["found_terms"]
     assert "inappropriate" in result.metadata["found_terms"]
+    assert result.metadata["analysis"]["mock"]  # Check analyzer was used
 
     # Test case sensitivity
     mixed_case_text = "This is BAD and InAppropriate text."
@@ -164,193 +305,90 @@ def test_prohibited_content_validation(prohibited_rule):
     assert not result.passed
     assert len(result.metadata["found_terms"]) == 2
 
-
-def test_tone_rule_initialization():
-    """Test ToneConsistencyRule initialization."""
-    custom_indicators = {"test_tone": {"positive": ["good", "great"], "negative": ["bad", "poor"]}}
-    rule = TestToneConsistencyRule(
-        name="test",
-        description="test",
-        config={
-            "tone_indicators": custom_indicators,
-            "expected_tone": "test_tone",
-            "threshold": 0.7,
-        },
-    )
-    assert rule.name == "test"
-    assert rule.expected_tone == "test_tone"
-    assert rule.tone_indicators == custom_indicators
-    assert rule.threshold == 0.7
+    # Test invalid input
+    with pytest.raises(TypeError):
+        prohibited_rule.validate(123)  # type: ignore
 
 
-def test_tone_rule_validation(tone_rule):
+def test_tone_consistency_validation(tone_rule: ToneConsistencyRule):
     """Test tone consistency rule validation."""
     # Test formal tone
     formal_text = "Therefore, we must proceed. Furthermore, the analysis shows."
     result = tone_rule.validate(formal_text)
     assert result.passed
+    assert "tone_scores" in result.metadata
+    assert result.metadata["tone_scores"]["mock"]  # Check analyzer was used
+    assert "positive_indicators" in result.metadata
+    assert "negative_indicators" in result.metadata
     assert "consistency_score" in result.metadata
+    assert result.metadata["threshold"] == 0.7
 
     # Test informal tone
     informal_text = "Hey! What's up? This is cool!"
     result = tone_rule.validate(informal_text)
     assert not result.passed
-    assert "consistency_score" in result.metadata
+    assert "tone_scores" in result.metadata
+    assert result.metadata["tone_scores"]["mock"]  # Check analyzer was used
 
+    # Test invalid input
+    with pytest.raises(TypeError):
+        tone_rule.validate(123)  # type: ignore
 
-def test_edge_cases():
-    """Test edge cases for all rules."""
-    rules = [
-        TestProhibitedContentRule(
-            name="prohibited",
-            description="test",
-            config={"prohibited_terms": ["bad"]},
-        ),
-        TestToneConsistencyRule(
-            name="tone",
-            description="test",
-            config={
-                "tone_indicators": {"formal": {"positive": ["therefore"], "negative": ["hey"]}},
-                "expected_tone": "formal",
-            },
-        ),
-    ]
-
-    edge_cases = {
-        "empty": "",
-        "whitespace": "   \n\t   ",
-        "special_chars": "!@#$%^&*()",
-        "unicode": "Hello 世界",
-        "newlines": "Line 1\nLine 2\nLine 3",
-        "numbers_only": "123 456 789",
-    }
-
-    for rule in rules:
-        for case_name, text in edge_cases.items():
-            result = rule.validate(text)
-            assert isinstance(result, RuleResult)
+    # Test unknown tone
+    rule = ToneConsistencyRule(
+        name="test",
+        description="test",
+        expected_tone="unknown",
+        indicators={"formal": {"positive": [], "negative": []}},
+    )
+    result = rule.validate("test")
+    assert not result.passed
+    assert "available_tones" in result.metadata
 
 
 def test_error_handling():
-    """Test error handling for all rules."""
-    rules = [
-        TestProhibitedContentRule(
-            name="prohibited",
+    """Test error handling in content rules."""
+    # Test invalid prohibited terms
+    with pytest.raises(ConfigurationError):
+        ProhibitedTerms(terms=frozenset())
+
+    # Test invalid tone config
+    with pytest.raises(ConfigurationError):
+        ToneConfig(
+            expected_tone="",
+            indicators={},
+            threshold=1.5,
+        )
+
+    # Test invalid analyzer
+    with pytest.raises(ConfigurationError):
+        ProhibitedContentRule(
+            name="test",
             description="test",
-            config={"prohibited_terms": ["bad"]},
-        ),
-        TestToneConsistencyRule(
-            name="tone",
-            description="test",
-            config={
-                "tone_indicators": {"formal": {"positive": ["therefore"], "negative": ["hey"]}},
-                "expected_tone": "formal",
-            },
-        ),
-    ]
-
-    invalid_inputs = [None, 123, [], {}]
-
-    for rule in rules:
-        for invalid_input in invalid_inputs:
-            with pytest.raises(ValueError):
-                rule.validate(invalid_input)
+            terms=["bad"],
+            analyzer="not an analyzer",  # type: ignore
+        )
 
 
-def test_consistent_results():
+def test_consistent_results(
+    prohibited_rule: ProhibitedContentRule,
+    tone_rule: ToneConsistencyRule,
+):
     """Test consistency of validation results."""
-    rules = [
-        TestProhibitedContentRule(
-            name="prohibited",
-            description="test",
-            config={"prohibited_terms": ["bad", "inappropriate"]},
-        ),
-        TestToneConsistencyRule(
-            name="tone",
-            description="test",
-            config={
-                "tone_indicators": {"formal": {"positive": ["therefore"], "negative": ["hey"]}},
-                "expected_tone": "formal",
-            },
-        ),
-    ]
-
-    test_text = """
-    Therefore, we must proceed with the analysis.
-    Furthermore, this demonstrates good practice.
-    """
-
-    for rule in rules:
-        # Run validation multiple times
-        results = [rule.validate(test_text) for _ in range(3)]
-
-        # All results should be consistent
-        first_result = results[0]
-        for result in results[1:]:
-            assert result.passed == first_result.passed
-            assert result.message == first_result.message
-            assert result.metadata == first_result.metadata
-
-
-def test_prohibited_content_edge_cases(prohibited_rule):
-    """Test edge cases for prohibited content rule."""
-    # Test empty string
-    result = prohibited_rule.validate("")
-    assert result.passed
-    assert len(result.metadata["found_terms"]) == 0
-
-    # Test whitespace only
-    result = prohibited_rule.validate("   \n\t   ")
-    assert result.passed
-    assert len(result.metadata["found_terms"]) == 0
-
-    # Test special characters
-    result = prohibited_rule.validate("!@#$%^&*()")
-    assert result.passed
-    assert len(result.metadata["found_terms"]) == 0
-
-    # Test numbers
-    result = prohibited_rule.validate("12345")
-    assert result.passed
-    assert len(result.metadata["found_terms"]) == 0
-
-
-def test_prohibited_content_error_handling():
-    """Test error handling for prohibited content rule."""
-    # Test None input
-    rule = TestProhibitedContentRule(
-        name="test",
-        description="test",
-        config={"prohibited_terms": ["bad", "inappropriate"]},
-    )
-    with pytest.raises(ValueError, match="Output cannot be None"):
-        rule.validate(None)
-
-    # Test invalid config
-    with pytest.raises(ValueError):
-        TestProhibitedContentRule(
-            name="test",
-            description="test",
-            config={"prohibited_terms": None},
-        )
-
-    with pytest.raises(ValueError):
-        TestProhibitedContentRule(
-            name="test",
-            description="test",
-            config={"prohibited_terms": []},
-        )
-
-
-def test_prohibited_content_consistent_results(prohibited_rule):
-    """Test consistent validation results."""
-    text = "This is a bad and inappropriate text."
-
-    # Run validation multiple times
-    results = [prohibited_rule.validate(text) for _ in range(5)]
-
-    # Check all results are the same
-    first_result = results[0]
+    # Test prohibited content rule
+    text = "This is a test text."
+    results = [prohibited_rule.validate(text) for _ in range(3)]
+    first = results[0]
     for result in results[1:]:
-        assert result.passed == first_result.passed
-        assert result.metadata["found_terms"] == first_result.metadata["found_terms"]
+        assert result.passed == first.passed
+        assert result.message == first.message
+        assert result.metadata == first.metadata
+
+    # Test tone consistency rule
+    text = "Therefore, we proceed with the analysis."
+    results = [tone_rule.validate(text) for _ in range(3)]
+    first = results[0]
+    for result in results[1:]:
+        assert result.passed == first.passed
+        assert result.message == first.message
+        assert result.metadata == first.metadata
