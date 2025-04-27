@@ -38,3 +38,66 @@ from sifaka import Reflector, legal_citation_check
 
 reflector = Reflector(rules=[legal_citation_check], critique=True)
 output = reflector.run(model, prompt)
+```
+
+---
+
+## Installation
+
+```bash
+# Basic installation
+pip install sifaka
+
+# With OpenAI support
+pip install sifaka[openai]
+
+# With Anthropic support
+pip install sifaka[anthropic]
+
+# With all integrations
+pip install sifaka[all]
+```
+
+---
+
+## Quick Start
+
+```python
+from sifaka import Reflector, legal_citation_check
+from sifaka.models import OpenAIProvider
+from sifaka.rules.content import ProhibitedContentRule
+
+# Initialize the model provider
+model = OpenAIProvider(model_name="gpt-4")
+
+# Create a custom rule
+prohibited_terms = ProhibitedContentRule(
+    prohibited_terms=["controversial", "inappropriate"]
+)
+
+# Create a reflector with rules and critique
+reflector = Reflector(
+    rules=[legal_citation_check, prohibited_terms],
+    critique=True
+)
+
+# Run the reflector
+result = reflector.run(model, "Write about the Supreme Court case Brown v. Board of Education")
+
+# Get the final output
+print(result["final_output"])
+```
+
+---
+
+## Documentation
+
+For full documentation, visit [docs.sifaka.ai](https://docs.sifaka.ai).
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+## License
+
+Sifaka is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
