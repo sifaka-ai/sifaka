@@ -59,12 +59,17 @@ def test_prohibited_rule_validation(rule):
 def test_error_handling(rule):
     """Test error handling for invalid inputs."""
     # Test None input
-    with pytest.raises(ValueError, match="Output must be a string"):
+    with pytest.raises(ValueError, match="Output cannot be None"):
         rule.validate(None)
 
-    # Test integer input
+    # Test non-string input
     with pytest.raises(ValueError, match="Output must be a string"):
         rule.validate(123)
+
+    # Test empty string
+    result = rule.validate("")
+    assert result.passed
+    assert result.metadata["matches"] == []
 
     # Test list input
     with pytest.raises(ValueError, match="Output must be a string"):

@@ -7,7 +7,7 @@ from functools import lru_cache
 from typing import Dict, Any, Optional, Callable, Union, Tuple
 import hashlib
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 class RuleResult(BaseModel):
@@ -21,8 +21,8 @@ class RuleResult(BaseModel):
         score: Optional confidence score between 0 and 1
     """
 
-    passed: bool = Field(description="Whether the validation passed")
-    message: str = Field(description="Message explaining the validation result")
+    passed: bool = Field(..., description="Whether the validation passed")
+    message: str = Field(..., description="Message explaining the result")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
     score: Optional[float] = Field(
         default=None, ge=0, le=1, description="Confidence score between 0 and 1"
@@ -55,14 +55,35 @@ class Rule(ABC, BaseModel):
         cost: Estimated computational cost (higher numbers are more expensive)
     """
 
-    name: str = Field(description="Name of the rule")
-    description: str = Field(description="Description of the rule")
+    name: str = Field(..., description="Name of the rule")
+    description: str = Field(..., description="Description of the rule")
     config: Dict[str, Any] = Field(default_factory=dict, description="Additional configuration")
     cache_size: int = Field(default=0, ge=0, description="Size of the validation cache")
-    priority: int = Field(default=0, description="Priority of the rule (higher runs first)")
+    priority: int = Field(default=1, description="Priority of the rule (higher runs first)")
     cost: int = Field(default=1, ge=0, description="Cost of running the rule")
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @field_validator("priority")
+    def validate_priority(cls, v: int) -> int:
+        """Validate priority is positive."""
+        if v < 0:
+            raise ValueError("Priority must be non-negative")
+        return v
+
+    @field_validator("cost")
+    def validate_cost(cls, v: int) -> int:
+        """Validate cost is positive."""
+        if v < 0:
+            raise ValueError("Cost must be non-negative")
+        return v
+
+    @field_validator("cache_size")
+    def validate_cache_size(cls, v: int) -> int:
+        """Validate cache_size is non-negative."""
+        if v < 0:
+            raise ValueError("Cache size must be non-negative")
+        return v
 
     def __init__(
         self,
@@ -70,7 +91,7 @@ class Rule(ABC, BaseModel):
         description: str,
         config: Optional[Dict[str, Any]] = None,
         cache_size: int = 0,
-        priority: int = 0,
+        priority: int = 1,
         cost: int = 1,
         **kwargs,
     ) -> None:

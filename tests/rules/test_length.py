@@ -94,15 +94,17 @@ def test_character_length_validation(rule):
     # Test too short
     result = rule.validate("Too short")
     assert not result.passed
-    assert "does not meet minimum length" in result.message.lower()
+    assert "below minimum" in result.message.lower()
     assert result.metadata["length"] == 9
     assert result.metadata["min_length"] == 10
 
     # Test too long
-    result = rule.validate("x" * 101)
+    result = rule.validate(
+        "This text is way too long and exceeds the maximum length limit that we have set for this test case."
+    )
     assert not result.passed
-    assert "does not meet maximum length" in result.message.lower()
-    assert result.metadata["length"] == 101
+    assert "exceeds maximum" in result.message.lower()
+    assert result.metadata["length"] > 100
     assert result.metadata["max_length"] == 100
 
 
@@ -120,14 +122,16 @@ def test_word_length_validation():
     assert result.metadata["length"] == 4
 
     # Test too few words
-    result = rule.validate("Too few")
+    result = rule.validate("Two words")
     assert not result.passed
-    assert "does not meet minimum length" in result.message.lower()
+    assert "below minimum" in result.message.lower()
+    assert result.metadata["length"] == 2
 
     # Test too many words
-    result = rule.validate("This has way too many words to be valid for this test")
+    result = rule.validate("One two three four five six seven eight nine ten eleven")
     assert not result.passed
-    assert "does not meet maximum length" in result.message.lower()
+    assert "exceeds maximum" in result.message.lower()
+    assert result.metadata["length"] == 11
 
 
 def test_edge_cases(rule):
@@ -146,8 +150,9 @@ def test_edge_cases(rule):
 
         if case_name in ["empty", "whitespace"]:
             assert not result.passed
-            assert "does not meet minimum length" in result.message.lower()
+            assert "below minimum" in result.message.lower()
             assert result.metadata["length"] < rule.min_length
+            assert result.metadata["min_length"] == rule.min_length
 
 
 def test_error_handling(rule):

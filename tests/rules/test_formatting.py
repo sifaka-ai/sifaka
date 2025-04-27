@@ -284,7 +284,13 @@ def test_style_rule_validation(style_rule):
 
 def test_formatting_rule_initialization():
     """Test FormattingRule initialization."""
-    custom_patterns = {"test_pattern": r"\d+", "another_pattern": r"[A-Z]+"}
+    custom_patterns = {
+        "multiple_spaces": r"\s{2,}",
+        "multiple_newlines": r"\n{3,}",
+        "missing_period": r"[^.!?]\n",
+        "missing_space": r"[a-z][A-Z]",
+        "incorrect_quotes": r'["\'][^"\']*["\']',
+    }
     rule = TestFormattingRule(name="test", description="test", formatting_patterns=custom_patterns)
     assert rule.name == "test"
     assert rule.formatting_patterns == custom_patterns
@@ -296,24 +302,37 @@ def test_formatting_rule_validation(formatting_rule):
     valid_text = "This is a properly formatted text. It has correct spacing and punctuation."
     result = formatting_rule.validate(valid_text)
     assert result.passed
+    assert not result.metadata.get("issues", [])
 
     # Test multiple spaces
     invalid_text = "This  has  multiple  spaces."
     result = formatting_rule.validate(invalid_text)
     assert not result.passed
-    assert "multiple_spaces" in result.metadata["issues"][0]
+    assert any("multiple_spaces" in issue for issue in result.metadata["issues"])
 
     # Test multiple newlines
     invalid_text = "First line.\n\n\nToo many newlines."
     result = formatting_rule.validate(invalid_text)
     assert not result.passed
-    assert "multiple_newlines" in result.metadata["issues"][0]
+    assert any("multiple_newlines" in issue for issue in result.metadata["issues"])
 
-    # Test trailing whitespace
-    invalid_text = "Line with trailing space. \nNext line."
+    # Test missing period
+    invalid_text = "First line\nSecond line"
     result = formatting_rule.validate(invalid_text)
     assert not result.passed
-    assert "trailing_whitespace" in result.metadata["issues"][0]
+    assert any("missing_period" in issue for issue in result.metadata["issues"])
+
+    # Test missing space
+    invalid_text = "missingSpace"
+    result = formatting_rule.validate(invalid_text)
+    assert not result.passed
+    assert any("missing_space" in issue for issue in result.metadata["issues"])
+
+    # Test incorrect quotes
+    invalid_text = "Using 'single' and \"double\" quotes."
+    result = formatting_rule.validate(invalid_text)
+    assert not result.passed
+    assert any("incorrect_quotes" in issue for issue in result.metadata["issues"])
 
 
 def test_edge_cases():

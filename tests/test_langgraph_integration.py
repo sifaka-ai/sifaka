@@ -90,14 +90,14 @@ def test_wrap_graph():
 
     # Test with string input
     state = {"input": "test text"}
-    result = graph.run(state)
+    result = graph.invoke(state)
     assert isinstance(result, dict)
     assert "results" in result
     assert len(result["results"]) == len(rules)
 
     # Test with message input
     state = {"input": BaseMessage(content="test text")}
-    result = graph.run(state)
+    result = graph.invoke(state)
     assert isinstance(result, dict)
     assert "results" in result
     assert len(result["results"]) == len(rules)

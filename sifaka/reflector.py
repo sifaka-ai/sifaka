@@ -201,7 +201,7 @@ class Reflector(BaseModel):
 
         Args:
             output: The output to improve
-            violations: List of rule violations
+            violations: List of violations to fix
 
         Returns:
             The improved output
@@ -215,20 +215,9 @@ class Reflector(BaseModel):
                 "Please provide a critic when initializing the reflector."
             )
 
-        # Create a critique prompt
-        critique_prompt = f"""
-        The following output failed validation with the following violations:
-        {violations}
-
-        Original output:
-        {output}
-
-        Please provide an improved version that addresses these issues.
-        """
-
         # Get the improved output from the critic
         start_time = time.time()
-        improved_output = self.critic.critique(critique_prompt)
+        improved_output = self.critic.improve(output, violations)
         elapsed = time.time() - start_time
         self.performance_monitor.record_critique_time(elapsed)
 
