@@ -38,8 +38,25 @@ provider = OpenAIProvider(
 
 # Configure rules
 rules = [
-    LengthRule(name="length", min_length=50, max_length=500),
-    ProhibitedContentRule(name="content_filter", prohibited_terms=["inappropriate", "offensive"])
+    LengthRule(
+        name="length",
+        config={
+            "min_length": 50,
+            "max_length": 500,
+            "unit": "characters",
+            "priority": 2,
+            "cost": 1.5,
+        }
+    ),
+    ProhibitedContentRule(
+        name="content_filter",
+        config={
+            "prohibited_terms": ["inappropriate", "offensive"],
+            "case_sensitive": False,
+            "priority": 2,
+            "cost": 1.5,
+        }
+    )
 ]
 
 # Configure critic
@@ -95,6 +112,44 @@ from sifaka.rules import (
     # Domain-specific
     LegalCitationRule, MedicalRule, CodeRule
 )
+
+# Pattern Rules Example
+from sifaka.rules.base import RuleConfig, RulePriority
+
+# Symmetry rule for detecting palindromes and text patterns
+symmetry_rule = SymmetryRule(
+    name="symmetry_check",
+    description="Checks for text symmetry patterns",
+    config=RuleConfig(
+        priority=RulePriority.MEDIUM,
+        cache_size=100,
+        cost=1.0,
+        metadata={
+            "mirror_mode": "both",          # horizontal, vertical, or both
+            "symmetry_threshold": 0.8,       # similarity threshold (0.0 to 1.0)
+            "preserve_whitespace": True,     # consider spaces in symmetry
+            "preserve_case": True,           # case-sensitive check
+            "ignore_punctuation": True,      # ignore punctuation marks
+        },
+    ),
+)
+
+# Repetition rule for detecting repeated patterns
+repetition_rule = RepetitionRule(
+    name="repetition_check",
+    description="Detects repetitive patterns",
+    config=RuleConfig(
+        priority=RulePriority.MEDIUM,
+        cache_size=100,
+        cost=1.0,
+        metadata={
+            "pattern_type": "repeat",       # repeat, alternate, or custom
+            "pattern_length": 3,            # minimum pattern length
+            "case_sensitive": True,         # case-sensitive matching
+            "allow_overlap": False,         # allow overlapping patterns
+        },
+    ),
+)
 ```
 
 ### 3. Critics
@@ -141,6 +196,9 @@ sentiment_rule = ClassifierRule(classifier=SentimentClassifier())
 ### Rule Categories
 - **Content Rules**: Length, prohibited terms, formatting
 - **Pattern Rules**: Symmetry, repetition, structure
+  - Symmetry detection for palindromes and visual patterns
+  - Repetition analysis for text structure
+  - Configurable thresholds and matching options
 - **Safety Rules**: Toxicity, bias, harmful content
 - **Domain Rules**: Legal, medical, code validation
 
@@ -174,7 +232,18 @@ from sifaka.rules import LengthRule
 
 chain = Chain(
     model=OpenAIProvider(model_name="gpt-4", config={"api_key": "YOUR_API_KEY"}),
-    rules=[LengthRule(min_length=50, max_length=200)],
+    rules=[
+        LengthRule(
+            name="length_check",
+            config={
+                "min_length": 50,
+                "max_length": 200,
+                "unit": "characters",
+                "priority": 2,
+                "cost": 1.5,
+            }
+        )
+    ],
     max_attempts=1  # Validation only
 )
 
@@ -208,8 +277,9 @@ result = chain.run("Explain the theory of relativity.")
 
 ### From 0.x to 1.0
 
-The main change is the deprecation of the `Reflector` class:
+The main changes in 1.0 include:
 
+1. Deprecation of the `Reflector` class in favor of specialized pattern rules:
 ```python
 # OLD (0.x): Using Reflector
 from sifaka.reflector import Reflector
@@ -223,11 +293,12 @@ reflector = Reflector(
 
 # NEW (1.0+): Using specialized pattern rules
 from sifaka.rules import SymmetryRule, RepetitionRule
-from sifaka.chain import Chain
+from sifaka.rules.base import RuleConfig, RulePriority
 
 symmetry_rule = SymmetryRule(
     name="symmetry_check",
     config=RuleConfig(
+        priority=RulePriority.MEDIUM,
         metadata={
             "mirror_mode": "both",
             "symmetry_threshold": 0.8
@@ -236,6 +307,24 @@ symmetry_rule = SymmetryRule(
 )
 
 chain = Chain(model=provider, rules=[symmetry_rule])
+```
+
+2. Updated configuration structure for all rules:
+```python
+# OLD (0.x)
+length_rule = LengthRule(name="length", min_length=50, max_length=500)
+
+# NEW (1.0+)
+length_rule = LengthRule(
+    name="length",
+    config={
+        "min_length": 50,
+        "max_length": 500,
+        "unit": "characters",
+        "priority": 2,
+        "cost": 1.5,
+    }
+)
 ```
 
 ## Contributing
