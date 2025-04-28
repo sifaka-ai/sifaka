@@ -52,7 +52,10 @@ Available Rules:
    - SentimentRule: Analyzes text sentiment
    - EmotionalContentRule: Validates emotional content
 
-8. Wrapper Rules:
+8. Adapter Rules:
+   - ClassifierRule: Converts classifiers to rules
+
+9. Wrapper Rules:
    - WrapperRule: Base wrapper for rules
    - CodeBlockRule: Validates code blocks
 
@@ -134,8 +137,12 @@ Usage Example:
                 print(f"- {rule_name}: {rule_result.message}")
 """
 
+import warnings
+
 from .base import FunctionRule, Rule, RuleResult
-from .classifier_rule import ClassifierRule
+
+# Deprecated - use adapters instead
+from .classifier_rule import ClassifierRule as _DeprecatedClassifierRule
 from .domain import (
     ConsistencyRule,
     LegalCitationRule,
@@ -165,6 +172,22 @@ from .safety import BiasRule, HarmfulContentRule, ToxicityRule
 from .sentiment import EmotionalContentRule, SentimentRule
 from .wrapper import CodeBlockRule, WrapperRule
 
+# Import from the new adapters module
+from .adapters import (
+    ClassifierAdapter,
+    ClassifierRule,
+    create_classifier_rule,
+)
+
+# Emit deprecation warning for old ClassifierRule
+ClassifierRule = _DeprecatedClassifierRule  # Keep backward compatibility
+warnings.warn(
+    "Direct import from classifier_rule is deprecated. "
+    "Use rules.adapters.ClassifierRule instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 __all__ = [
     # Base
     "Rule",
@@ -174,8 +197,10 @@ __all__ = [
     "ToxicityRule",
     "BiasRule",
     "HarmfulContentRule",
-    # Classifier
+    # Classifier (both deprecated and new)
     "ClassifierRule",
+    "ClassifierAdapter",
+    "create_classifier_rule",
     # Content
     "ProhibitedContentRule",
     "FormatRule",

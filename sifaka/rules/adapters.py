@@ -1,7 +1,34 @@
+"""
+Adapter module for using classifiers as rules.
+
+.. deprecated:: 1.0.0
+   This module is deprecated and will be removed in version 2.0.0.
+   Use :mod:`sifaka.rules.adapters` instead.
+
+Migration guide:
+1. Replace imports:
+   - Old: from sifaka.rules.adapters import ClassifierAdapter, ClassifierRuleAdapter
+   - New: from sifaka.rules.adapters import ClassifierAdapter, ClassifierRule
+
+2. Class name changes:
+   - ClassifierRuleAdapter is now ClassifierRule
+   - Interface has been improved with more options and better error handling
+"""
+
+import warnings
 from typing import Any, Dict, Optional, Type, Union
 
 from ..classifiers.base import Classifier, ClassifierConfig
 from .base import BaseValidator, Rule, RuleConfig, RuleResult
+
+
+# Emit deprecation warning
+warnings.warn(
+    "The sifaka.rules.adapters module is deprecated and will be removed in version 2.0.0. "
+    "Use sifaka.rules.adapters package instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 class ClassifierAdapter(BaseValidator[str]):

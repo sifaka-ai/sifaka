@@ -1,7 +1,21 @@
 """
 Rule implementation that uses pluggable classifiers.
+
+.. deprecated:: 1.0.0
+   This module is deprecated and will be removed in version 2.0.0.
+   Use :mod:`sifaka.rules.adapters.classifier` instead.
+
+Migration guide:
+1. Replace imports:
+   - Old: from sifaka.rules.classifier_rule import ClassifierRule, ClassifierProtocol
+   - New: from sifaka.rules.adapters import ClassifierRule, create_classifier_rule
+
+2. Update usage:
+   - The new ClassifierRule has better configuration options and error handling
+   - Use create_classifier_rule factory function for easier rule creation
 """
 
+import warnings
 from typing import (
     Any,
     Callable,
@@ -26,6 +40,16 @@ from sifaka.rules.base import (
     RuleResult,
     ValidationError,
 )
+
+
+# Emit deprecation warning
+warnings.warn(
+    "The sifaka.rules.classifier_rule module is deprecated and will be removed in version 2.0.0. "
+    "Use sifaka.rules.adapters.classifier instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 
 T = TypeVar("T", bound=ClassificationResult)
 
