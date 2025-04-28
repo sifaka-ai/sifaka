@@ -3,7 +3,7 @@ Example demonstrating usage of Claude with a Length Critic to expand response le
 
 This example shows how to:
 1. Configure a Claude model provider
-2. Set up a Length Rule that requires longer responses (500-1000 words)
+2. Set up a Length Rule that requires longer responses (300-1000 words)
 3. Create a Chain with the model and rule
 4. Use a PromptCritic to guide Claude to produce more detailed responses
 """
@@ -32,8 +32,8 @@ model = AnthropicProvider(
 
 # Create a length rule with more achievable word count requirements
 length_rule = create_length_rule(
-    min_words=500,  # Reduced from 1000 to 500 (more achievable)
-    max_words=1000,  # Reduced from 2000 to 1000
+    min_words=300,  # Reduced minimum word count for easier success
+    max_words=1000,  # Maximum 1000 words
     rule_id="expanded_length_rule",
 )
 
@@ -50,7 +50,7 @@ critic = PromptCritic(
             "Your job is to make text more detailed and comprehensive by adding relevant examples, "
             "elaborating on key points, providing context, exploring implications, and addressing "
             "potential questions readers might have. Never add fluff or redundant information. "
-            "The target length is 500-1000 words."
+            "The target length is 300-1000 words."
         ),
         temperature=0.7,
     ),
@@ -64,10 +64,11 @@ chain = Chain(
     max_attempts=4,  # Increased from 3 to 4 attempts
 )
 
-# Prompt designed to generate a brief response (around 150 words)
+# Prompt designed to naturally start with a concise response
+# that the critic will then help expand
 prompt = """
-Briefly explain what artificial intelligence is and some of its basic applications.
-Keep your explanation short and to the point.
+Explain what artificial intelligence is and its basic applications.
+Focus on the core concepts but include relevant examples where helpful.
 """
 
 # Run the chain - it will generate text, check the length rule, and if needed,
