@@ -3,7 +3,7 @@ Base classes for Sifaka classifiers.
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import (
     Any,
@@ -43,13 +43,35 @@ class ClassifierProtocol(Protocol):
 
 @dataclass(frozen=True)
 class ClassifierConfig:
-    """Immutable configuration for classifiers."""
+    """
+    Immutable configuration for classifiers.
+
+    This class follows the same pattern as RuleConfig, with both params and metadata fields.
+    The preferred way to configure classifiers is to use the params dictionary for
+    all classifier-specific configuration options:
+
+    ```python
+    config = ClassifierConfig(
+        labels=["label1", "label2"],
+        cost=1,
+        params={
+            "option1": "value1",
+            "option2": "value2",
+        }
+    )
+    ```
+
+    The metadata field is kept for backward compatibility.
+    """
 
     labels: List[str]
     cache_size: int = 0
     cost: int = 1
     min_confidence: float = 0.5
     params: Dict[str, Any] = Field(default_factory=dict)
+
+    # Keep metadata for backward compatibility, similar to RuleConfig
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         if not isinstance(self.labels, list) or not all(isinstance(l, str) for l in self.labels):
@@ -61,6 +83,15 @@ class ClassifierConfig:
         if not 0.0 <= self.min_confidence <= 1.0:
             raise ValueError("min_confidence must be between 0 and 1")
 
+        # For backward compatibility, if metadata is provided but params is empty,
+        # copy metadata to params, similar to RuleConfig
+        if self.metadata and not self.params:
+            object.__setattr__(self, "params", dict(self.metadata))
+
+    def with_options(self, **kwargs: Any) -> "ClassifierConfig":
+        """Create a new config with updated options."""
+        return ClassifierConfig(**{**self.__dict__, **kwargs})
+
     def with_params(self, **kwargs: Any) -> "ClassifierConfig":
         """Create a new config with updated parameters."""
         new_params = {**self.params, **kwargs}
@@ -70,6 +101,7 @@ class ClassifierConfig:
             cost=self.cost,
             min_confidence=self.min_confidence,
             params=new_params,
+            metadata=self.metadata,
         )
 
 

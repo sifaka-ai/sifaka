@@ -33,6 +33,7 @@ from sifaka.utils.logging import get_logger
 # Initialize logger from Sifaka
 logger = get_logger(__name__)
 
+
 def main():
     """Run the legal rules example."""
     logger.info("Starting legal rules example...")
@@ -82,7 +83,7 @@ def main():
     logger.info("\nValidating legal text...")
 
     # General legal validation
-    legal_result = legal_rule._validate_impl(legal_text)
+    legal_result = legal_rule.validate(legal_text)
     logger.info(f"\nGeneral Legal Rule - Passed: {legal_result.passed}")
     logger.info(f"Message: {legal_result.message}")
     if legal_result.metadata:
@@ -90,7 +91,7 @@ def main():
             logger.info(f"{key}: {value}")
 
     # Citation validation
-    citation_result = citation_rule._validate_impl(legal_text)
+    citation_result = citation_rule.validate(legal_text)
     logger.info(f"\nCitation Rule - Passed: {citation_result.passed}")
     logger.info(f"Message: {citation_result.message}")
     if "citations" in citation_result.metadata:
@@ -99,7 +100,7 @@ def main():
             logger.info(f"- {citation}")
 
     # Terminology validation
-    terms_result = terms_rule._validate_impl(legal_text)
+    terms_result = terms_rule.validate(legal_text)
     logger.info(f"\nTerminology Rule - Passed: {terms_result.passed}")
     logger.info(f"Message: {terms_result.message}")
     if "found_terms" in terms_result.metadata:
@@ -113,15 +114,16 @@ def main():
     logger.info("\n\nTesting with invalid text:")
     logger.info(f"'{invalid_text}'")
 
-    invalid_legal = legal_rule._validate_impl(invalid_text)
-    invalid_citation = citation_rule._validate_impl(invalid_text)
-    invalid_terms = terms_rule._validate_impl(invalid_text)
+    invalid_legal = legal_rule.validate(invalid_text)
+    invalid_citation = citation_rule.validate(invalid_text)
+    invalid_terms = terms_rule.validate(invalid_text)
 
     logger.info(f"\nGeneral Legal Rule - Passed: {invalid_legal.passed}")
     logger.info(f"Citation Rule - Passed: {invalid_citation.passed}")
     logger.info(f"Terminology Rule - Passed: {invalid_terms.passed}")
 
     logger.info("\nLegal rules example completed.")
+
 
 if __name__ == "__main__":
     main()

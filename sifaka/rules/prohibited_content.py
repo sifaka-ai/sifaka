@@ -30,8 +30,9 @@ class ProhibitedContentConfig:
 
     def __post_init__(self) -> None:
         """Validate configuration parameters."""
-        if not isinstance(self.prohibited_terms, (set, frozenset, list)):
-            object.__setattr__(self, "prohibited_terms", set(self.prohibited_terms))
+        # Convert to frozenset if not already a frozenset
+        if not isinstance(self.prohibited_terms, frozenset):
+            object.__setattr__(self, "prohibited_terms", frozenset(self.prohibited_terms))
 
         if not self.prohibited_terms:
             raise ValueError("prohibited_terms set cannot be empty")
@@ -75,13 +76,18 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
         Returns:
             List of found prohibited terms
         """
-        if not self.config.case_sensitive:
-            text = text.lower()
-            terms = {term.lower() for term in self.config.prohibited_terms}
-        else:
-            terms = self.config.prohibited_terms
+        # For case-insensitive matching, we need to preserve the original terms
+        # but do the comparison in lowercase
+        original_terms = list(self.config.prohibited_terms)
 
-        return [term for term in terms if term in text]
+        if not self.config.case_sensitive:
+            check_text = text.lower()
+            check_terms = [term.lower() for term in original_terms]
+            # Return the original terms that match when lowercased
+            return [original_terms[i] for i, term in enumerate(check_terms) if term in check_text]
+        else:
+            # For case-sensitive matching, just check if the terms are in the text
+            return [term for term in original_terms if term in text]
 
     def validate(self, text: str, **kwargs) -> RuleResult:
         """
@@ -97,7 +103,8 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
         Raises:
             ValueError: If text is not a string
         """
-        if not isinstance(text, str):
+        # Check for None or non-string input
+        if text is None or not isinstance(text, str):
             raise ValueError("Text must be a string")
 
         found_terms = self._find_prohibited_terms(text)
@@ -152,6 +159,20 @@ class ProhibitedContentRule(Rule[str, RuleResult, DefaultProhibitedContentValida
 
     def _create_default_validator(self) -> DefaultProhibitedContentValidator:
         """Create a default validator from config."""
+        # Default prohibited terms if not provided
+        if "prohibited_terms" not in self._rule_params:
+            self._rule_params["prohibited_terms"] = [
+                "profanity",
+                "obscenity",
+                "hate speech",
+                "explicit content",
+                "adult content",
+                "nsfw",
+                "inappropriate",
+                "offensive",
+            ]
+
+        # Create config with parameters
         rule_config = ProhibitedContentConfig(**self._rule_params)
         return DefaultProhibitedContentValidator(rule_config)
 
@@ -159,7 +180,8 @@ class ProhibitedContentRule(Rule[str, RuleResult, DefaultProhibitedContentValida
 def create_prohibited_content_rule(
     name: str = "prohibited_content_rule",
     description: str = "Validates text for prohibited content",
-    config: Optional[Dict[str, Any]] = None,
+    config: Optional[Any] = None,
+    validator: Optional[DefaultProhibitedContentValidator] = None,
 ) -> ProhibitedContentRule:
     """
     Factory function to create a prohibited content rule.
@@ -167,18 +189,53 @@ def create_prohibited_content_rule(
     Args:
         name: The name of the rule
         description: Description of the rule
-        config: Dictionary of configuration parameters
+        config: Configuration parameters (dict, RuleConfig, or ProhibitedContentConfig)
+        validator: Optional custom validator
 
     Returns:
         Configured ProhibitedContentRule instance
     """
-    # Convert the dictionary config to RuleConfig with params
-    rule_config = RuleConfig(params=config or {})
+    rule_config = None
+
+    # Handle different config types
+    if config is None:
+        # Default configuration with common prohibited terms
+        default_terms = [
+            "profanity",
+            "obscenity",
+            "hate speech",
+            "explicit content",
+            "adult content",
+            "nsfw",
+            "inappropriate",
+            "offensive",
+        ]
+        rule_config = RuleConfig(params={"prohibited_terms": default_terms})
+    elif isinstance(config, dict):
+        # Dictionary config
+        rule_config = RuleConfig(params=config)
+    elif isinstance(config, RuleConfig):
+        # RuleConfig object
+        rule_config = config
+    elif isinstance(config, ProhibitedContentConfig):
+        # ProhibitedContentConfig object - convert to RuleConfig
+        rule_config = RuleConfig(
+            params={
+                "prohibited_terms": config.prohibited_terms,
+                "case_sensitive": config.case_sensitive,
+                "cache_size": config.cache_size,
+                "priority": config.priority,
+                "cost": config.cost,
+            }
+        )
+    else:
+        raise TypeError(f"Unsupported config type: {type(config)}")
 
     return ProhibitedContentRule(
         name=name,
         description=description,
         config=rule_config,
+        validator=validator,
     )
 
 

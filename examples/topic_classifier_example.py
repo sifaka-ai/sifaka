@@ -89,28 +89,12 @@ def create_topic_classifier() -> TopicClassifier:
             top_words_per_topic=10,  # Number of top words per topic
         )
 
-        # Create base classifier config
-        base_config = ClassifierConfig(
-            labels=[f"topic_{i}" for i in range(topic_config.num_topics)],
-            cost=1.0,
-            min_confidence=topic_config.min_confidence,
-            params={
-                "num_topics": topic_config.num_topics,
-                "max_features": topic_config.max_features,
-                "random_state": topic_config.random_state,
-                "top_words_per_topic": topic_config.top_words_per_topic,
-            },
-        )
-
-        # Create classifier instance
+        # Create classifier instance with topic_config
         classifier = TopicClassifier(
             name="document_topic_classifier",
             description="Classifies documents into subject topics",
-            config=base_config,
+            topic_config=topic_config,  # Pass topic_config directly
         )
-
-        # Set topic config directly
-        classifier._topic_config = topic_config
 
         # Prepare and validate training data
         documents, labels = prepare_training_data()
@@ -129,19 +113,22 @@ def create_topic_classifier() -> TopicClassifier:
 def process_classification_result(result: ClassificationResult, text: str) -> None:
     """Process and display classification result with proper formatting."""
     logger.info(f"\nText: {text[:100]}...")
-    logger.info(f"Detected topic: {result.label}")
-    logger.info(f"Confidence: {result.confidence:.2f}")
+    if result.label:
+        logger.info(f"Detected topic: {result.label}")
+        logger.info(f"Confidence: {result.confidence:.2f}")
 
-    if result.metadata:
-        if "top_features" in result.metadata:
-            logger.info("\nTop features:")
-            for feature, score in result.metadata["top_features"].items():
-                logger.info(f"  {feature}: {score:.3f}")
+        if result.metadata:
+            if "top_features" in result.metadata:
+                logger.info("\nTop features:")
+                for feature, score in result.metadata["top_features"].items():
+                    logger.info(f"  {feature}: {score:.3f}")
 
-        if "topic_scores" in result.metadata:
-            logger.info("\nTopic scores:")
-            for topic, score in result.metadata["topic_scores"].items():
-                logger.info(f"  {topic}: {score:.3f}")
+            if "topic_scores" in result.metadata:
+                logger.info("\nTopic scores:")
+                for topic, score in result.metadata["topic_scores"].items():
+                    logger.info(f"  {topic}: {score:.3f}")
+    else:
+        logger.info("No topic detected")
 
 
 def main():
@@ -157,7 +144,7 @@ def main():
 
         # Print classifier information
         logger.info("\nClassifier configuration:")
-        logger.info(f"Available topics: {', '.join(topic_classifier.config.labels)}")
+        logger.info(f"Available topics: {topic_classifier.config.labels}")
         logger.info(f"Minimum confidence: {topic_classifier.config.min_confidence}")
 
         # Test classifier on examples

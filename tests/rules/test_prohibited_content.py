@@ -1,6 +1,5 @@
 """Tests for prohibited content rules."""
 
-
 import pytest
 
 from sifaka.rules.prohibited_content import (
@@ -10,6 +9,7 @@ from sifaka.rules.prohibited_content import (
     ProhibitedContentValidator,
     create_prohibited_content_rule,
 )
+
 
 @pytest.fixture
 def prohibited_config() -> ProhibitedContentConfig:
@@ -22,10 +22,12 @@ def prohibited_config() -> ProhibitedContentConfig:
         cost=1.5,
     )
 
+
 @pytest.fixture
 def prohibited_validator(prohibited_config: ProhibitedContentConfig) -> ProhibitedContentValidator:
     """Create a test prohibited content validator."""
     return DefaultProhibitedContentValidator(prohibited_config)
+
 
 @pytest.fixture
 def prohibited_rule(
@@ -37,6 +39,7 @@ def prohibited_rule(
         description="Test prohibited content validation",
         validator=prohibited_validator,
     )
+
 
 def test_prohibited_config_validation():
     """Test prohibited content configuration validation."""
@@ -60,6 +63,7 @@ def test_prohibited_config_validation():
     config = ProhibitedContentConfig(prohibited_terms=["bad", "worse"])
     assert isinstance(config.prohibited_terms, frozenset)
 
+
 def test_prohibited_validation(prohibited_rule: ProhibitedContentRule):
     """Test prohibited content validation."""
     # Test content without prohibited terms
@@ -82,6 +86,7 @@ def test_prohibited_validation(prohibited_rule: ProhibitedContentRule):
     assert not result.passed
     assert set(result.metadata["found_terms"]) == {"bad", "worse"}
     assert result.metadata["total_terms"] == 2
+
 
 def test_case_sensitivity():
     """Test case sensitivity in validation."""
@@ -107,6 +112,7 @@ def test_case_sensitivity():
     assert not result.passed  # Should fail because case matches
     assert set(result.metadata["found_terms"]) == {"Bad", "WORSE"}
     assert result.metadata["case_sensitive"]
+
 
 def test_edge_cases(prohibited_rule: ProhibitedContentRule):
     """Test edge cases and error handling."""
@@ -134,19 +140,21 @@ def test_edge_cases(prohibited_rule: ProhibitedContentRule):
     assert result.passed
     assert not result.metadata["found_terms"]
 
+
 def test_error_handling(prohibited_rule: ProhibitedContentRule):
     """Test error handling for invalid inputs."""
     # Test None input
-    with pytest.raises(ValueError, match="Text must be a string"):
+    with pytest.raises(TypeError, match="Output must be of type"):
         prohibited_rule.validate(None)  # type: ignore
 
     # Test non-string input
-    with pytest.raises(ValueError, match="Text must be a string"):
+    with pytest.raises(TypeError, match="Output must be of type"):
         prohibited_rule.validate(123)  # type: ignore
 
     # Test list input
-    with pytest.raises(ValueError, match="Text must be a string"):
+    with pytest.raises(TypeError, match="Output must be of type"):
         prohibited_rule.validate(["not", "a", "string"])  # type: ignore
+
 
 def test_factory_function():
     """Test factory function for creating prohibited content rules."""
@@ -156,9 +164,10 @@ def test_factory_function():
         description="Test validation",
     )
     assert rule.name == "Test Rule"
-    assert isinstance(rule.validator, DefaultProhibitedContentValidator)
-    assert "inappropriate" in rule.validator.config.prohibited_terms
-    assert "offensive" in rule.validator.config.prohibited_terms
+    # The validator is a protected attribute (_validator)
+    assert isinstance(rule._validator, DefaultProhibitedContentValidator)
+    assert "inappropriate" in rule._validator.config.prohibited_terms
+    assert "offensive" in rule._validator.config.prohibited_terms
 
     # Test rule creation with custom config
     config = ProhibitedContentConfig(prohibited_terms={"custom", "terms"})
@@ -167,8 +176,8 @@ def test_factory_function():
         description="Custom validation",
         config=config,
     )
-    assert "custom" in rule.validator.config.prohibited_terms
-    assert "terms" in rule.validator.config.prohibited_terms
+    assert "custom" in rule._validator.config.prohibited_terms
+    assert "terms" in rule._validator.config.prohibited_terms
 
     # Test rule creation with custom validator
     validator = DefaultProhibitedContentValidator(
@@ -179,7 +188,8 @@ def test_factory_function():
         description="Validator test",
         validator=validator,
     )
-    assert rule.validator is validator
+    assert rule._validator is validator
+
 
 def test_consistent_results(prohibited_rule: ProhibitedContentRule):
     """Test that validation results are consistent."""

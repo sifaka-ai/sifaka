@@ -18,7 +18,27 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class TopicConfig:
-    """Configuration for topic classification."""
+    """
+    Configuration for topic classification.
+
+    Note: This class is provided for backward compatibility.
+    The preferred way to configure topic classification is to use
+    ClassifierConfig with params:
+
+    ```python
+    config = ClassifierConfig(
+        labels=["topic_0", "topic_1", "topic_2", "topic_3", "topic_4"],
+        cost=2.0,
+        params={
+            "num_topics": 5,
+            "min_confidence": 0.1,
+            "max_features": 1000,
+            "random_state": 42,
+            "top_words_per_topic": 10,
+        }
+    )
+    ```
+    """
 
     num_topics: int = 5  # Number of topics to extract
     min_confidence: float = 0.1  # Minimum confidence threshold
@@ -72,21 +92,27 @@ class TopicClassifier(BaseClassifier):
             # Extract params from kwargs if present
             params = kwargs.pop("params", {})
 
-            # Store topic config
-            self._topic_config = topic_config or TopicConfig()
+            # If topic_config is provided, add its values to params
+            if topic_config is not None:
+                params.update(
+                    {
+                        "num_topics": topic_config.num_topics,
+                        "min_confidence": topic_config.min_confidence,
+                        "max_features": topic_config.max_features,
+                        "random_state": topic_config.random_state,
+                        "top_words_per_topic": topic_config.top_words_per_topic,
+                    }
+                )
 
-            # Add topic config to params
-            params["num_topics"] = self._topic_config.num_topics
-            params["min_confidence"] = self._topic_config.min_confidence
-            params["max_features"] = self._topic_config.max_features
-            params["random_state"] = self._topic_config.random_state
-            params["top_words_per_topic"] = self._topic_config.top_words_per_topic
+            # Get num_topics from params or use default
+            num_topics = params["num_topics"] if "num_topics" in params else 5
+            min_confidence = params["min_confidence"] if "min_confidence" in params else 0.1
 
             # Create config with remaining kwargs
             config = ClassifierConfig(
-                labels=[f"topic_{i}" for i in range(self._topic_config.num_topics)],
+                labels=[f"topic_{i}" for i in range(num_topics)],
                 cost=2.0,  # Default cost
-                min_confidence=self._topic_config.min_confidence,
+                min_confidence=min_confidence,
                 params=params,
                 **kwargs,
             )
@@ -102,9 +128,18 @@ class TopicClassifier(BaseClassifier):
         self._initialized = False
 
     @property
-    def topic_config(self) -> TopicConfig:
-        """Get the topic configuration."""
-        return self._topic_config
+    def num_topics(self) -> int:
+        """Get the number of topics."""
+        return self.config.params["num_topics"] if "num_topics" in self.config.params else 5
+
+    @property
+    def top_words_per_topic(self) -> int:
+        """Get the number of top words per topic."""
+        return (
+            self.config.params["top_words_per_topic"]
+            if "top_words_per_topic" in self.config.params
+            else 10
+        )
 
     def _load_dependencies(self) -> None:
         """Load scikit-learn dependencies."""
@@ -124,16 +159,26 @@ class TopicClassifier(BaseClassifier):
             raise RuntimeError(f"Failed to load scikit-learn modules: {e}")
 
     def warm_up(self) -> None:
-        """Initialize the model if needed."""
+        """
+        Initialize the model if not already initialized.
+        """
         if not self._initialized:
             self._load_dependencies()
+            # Get configuration from params
+            max_features = (
+                self.config.params["max_features"] if "max_features" in self.config.params else 1000
+            )
+            random_state = (
+                self.config.params["random_state"] if "random_state" in self.config.params else 42
+            )
+
             self._vectorizer = self._sklearn_feature_extraction_text.TfidfVectorizer(
-                max_features=self.topic_config.max_features,
+                max_features=max_features,
                 stop_words="english",
             )
             self._model = self._sklearn_decomposition.LatentDirichletAllocation(
-                n_components=self.topic_config.num_topics,
-                random_state=self.topic_config.random_state,
+                n_components=self.num_topics,
+                random_state=random_state,
             )
             self._initialized = True
 
@@ -161,16 +206,17 @@ class TopicClassifier(BaseClassifier):
         # Extract the words that define each topic
         self._topic_words = []
         for _, topic in enumerate(self._model.components_):
-            top_features_ind = topic.argsort()[: -self.topic_config.top_words_per_topic - 1 : -1]
+            top_features_ind = topic.argsort()[: -self.top_words_per_topic - 1 : -1]
             top_features = [self._feature_names[i] for i in top_features_ind]
             self._topic_words.append(top_features)
 
         # Update labels with meaningful topic names
+        labels = [f"topic_{i}_{'+'.join(words[:3])}" for i, words in enumerate(self._topic_words)]
         self.config = ClassifierConfig(
-            labels=[
-                f"topic_{i}_{'+'.join(words[:3])}" for i, words in enumerate(self._topic_words)
-            ],
+            labels=labels,
             cost=self.config.cost,
+            min_confidence=self.config.min_confidence,
+            params=self.config.params,
         )
 
         return self
@@ -202,10 +248,11 @@ class TopicClassifier(BaseClassifier):
 
         # Create detailed metadata
         all_topics = {}
+        labels = list(self.config.labels)  # Convert FieldInfo to list
         for i, prob in enumerate(topic_distribution):
-            all_topics[self.config.labels[i]] = {
+            all_topics[labels[i]] = {
                 "probability": float(prob),
-                "words": self._topic_words[i][: self.topic_config.top_words_per_topic],
+                "words": self._topic_words[i][: self.top_words_per_topic],
             }
 
         metadata = {
@@ -215,7 +262,7 @@ class TopicClassifier(BaseClassifier):
         }
 
         return ClassificationResult(
-            label=self.config.labels[dominant_topic_idx],
+            label=labels[dominant_topic_idx],
             confidence=confidence,
             metadata=metadata,
         )
@@ -244,15 +291,16 @@ class TopicClassifier(BaseClassifier):
         topic_distributions = self._model.transform(X)
 
         results = []
+        labels = list(self.config.labels)  # Convert FieldInfo to list
         for distribution in topic_distributions:
             dominant_topic_idx = distribution.argmax()
             confidence = float(distribution[dominant_topic_idx])
 
             all_topics = {}
             for j, prob in enumerate(distribution):
-                all_topics[self.config.labels[j]] = {
+                all_topics[labels[j]] = {
                     "probability": float(prob),
-                    "words": self._topic_words[j][: self.topic_config.top_words_per_topic],
+                    "words": self._topic_words[j][: self.top_words_per_topic],
                 }
 
             metadata = {
@@ -263,7 +311,7 @@ class TopicClassifier(BaseClassifier):
 
             results.append(
                 ClassificationResult(
-                    label=self.config.labels[dominant_topic_idx],
+                    label=labels[dominant_topic_idx],
                     confidence=confidence,
                     metadata=metadata,
                 )
@@ -288,13 +336,33 @@ class TopicClassifier(BaseClassifier):
             corpus: Corpus of texts to train on
             name: Name of the classifier
             description: Description of the classifier
-            topic_config: Topic classification configuration
+            topic_config: Topic classification configuration (for backward compatibility)
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Trained TopicClassifier
         """
+        # If topic_config is provided but config is not, create config from topic_config
+        if topic_config is not None and config is None:
+            # Extract params from topic_config
+            params = {
+                "num_topics": topic_config.num_topics,
+                "min_confidence": topic_config.min_confidence,
+                "max_features": topic_config.max_features,
+                "random_state": topic_config.random_state,
+                "top_words_per_topic": topic_config.top_words_per_topic,
+            }
+
+            # Create config with params
+            labels = [f"topic_{i}" for i in range(topic_config.num_topics)]
+            config = ClassifierConfig(
+                labels=labels,
+                cost=2.0,
+                min_confidence=topic_config.min_confidence,
+                params=params,
+            )
+
         # Create instance with provided configuration
         classifier = cls(
             name=name, description=description, topic_config=topic_config, config=config, **kwargs

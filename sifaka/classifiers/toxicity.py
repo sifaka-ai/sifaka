@@ -53,7 +53,26 @@ class ToxicityThresholds:
 
 @dataclass(frozen=True)
 class ToxicityConfig:
-    """Configuration for toxicity classifier."""
+    """
+    Configuration for toxicity classifier.
+
+    Note: This class is provided for backward compatibility.
+    The preferred way to configure toxicity detection is to use
+    ClassifierConfig with params:
+
+    ```python
+    config = ClassifierConfig(
+        labels=["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"],
+        cost=2,
+        params={
+            "model_name": "original",
+            "general_threshold": 0.5,
+            "severe_toxic_threshold": 0.7,
+            "threat_threshold": 0.7,
+        }
+    )
+    ```
+    """
 
     model_name: str = "original"
     thresholds: ToxicityThresholds = ToxicityThresholds()
@@ -123,11 +142,12 @@ class ToxicityClassifier(BaseClassifier):
         # Initialize base class
         super().__init__(name=name, description=description, config=config)
 
-        # Store toxicity config and model for later use
-        self._toxicity_config = toxicity_config or ToxicityConfig()
+        # Store model for later use
         self._model = model
         self._detoxify = None
         self._initialized = False
+
+        # We'll use config.params for all configuration instead of a separate _toxicity_config
 
     def _validate_model(self, model: Any) -> TypeGuard[ToxicityModel]:
         """Validate that a model implements the required protocol."""
@@ -138,8 +158,11 @@ class ToxicityClassifier(BaseClassifier):
     def _load_detoxify(self) -> ToxicityModel:
         """Load the Detoxify package and model."""
         try:
+            # Get model_name from config.params
+            model_name = self.config.params.get("model_name", "original")
+
             detoxify_module = importlib.import_module("detoxify")
-            model = detoxify_module.Detoxify(model_type=self._toxicity_config.model_name)
+            model = detoxify_module.Detoxify(model_type=model_name)
             self._validate_model(model)
             return model
         except ImportError:
@@ -158,12 +181,15 @@ class ToxicityClassifier(BaseClassifier):
 
     def _get_toxicity_label(self, scores: Dict[str, float]) -> tuple[str, float]:
         """Get toxicity label and confidence based on scores."""
-        thresholds = self._toxicity_config.thresholds
+        # Get thresholds from config.params
+        severe_toxic_threshold = self.config.params.get("severe_toxic_threshold", 0.7)
+        threat_threshold = self.config.params.get("threat_threshold", 0.7)
+        general_threshold = self.config.params.get("general_threshold", 0.5)
 
         # Check for severe toxicity or threats first
-        if scores.get("severe_toxic", 0) >= thresholds.severe_toxic:
+        if scores.get("severe_toxic", 0) >= severe_toxic_threshold:
             return "severe_toxic", scores["severe_toxic"]
-        elif scores.get("threat", 0) >= thresholds.threat:
+        elif scores.get("threat", 0) >= threat_threshold:
             return "threat", scores["threat"]
 
         # Get highest toxicity score and category
@@ -171,7 +197,7 @@ class ToxicityClassifier(BaseClassifier):
         label, confidence = max_category
 
         # Only return if it meets the general threshold
-        if confidence >= thresholds.general:
+        if confidence >= general_threshold:
             return label, confidence
         return "non_toxic", confidence
 
@@ -263,7 +289,7 @@ class ToxicityClassifier(BaseClassifier):
             model: Custom toxicity model implementation
             name: Name of the classifier
             description: Description of the classifier
-            toxicity_config: Custom toxicity configuration
+            toxicity_config: Custom toxicity configuration (for backward compatibility)
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
@@ -273,6 +299,23 @@ class ToxicityClassifier(BaseClassifier):
         # Validate model first
         if not isinstance(model, ToxicityModel):
             raise ValueError(f"Model must implement ToxicityModel protocol, got {type(model)}")
+
+        # If toxicity_config is provided but config is not, create config from toxicity_config
+        if toxicity_config is not None and config is None:
+            # Extract params from toxicity_config
+            params = {
+                "model_name": toxicity_config.model_name,
+                "general_threshold": toxicity_config.thresholds.general,
+                "severe_toxic_threshold": toxicity_config.thresholds.severe_toxic,
+                "threat_threshold": toxicity_config.thresholds.threat,
+            }
+
+            # Create config with params
+            config = ClassifierConfig(
+                labels=cls.DEFAULT_LABELS,
+                cost=cls.DEFAULT_COST,
+                params=params,
+            )
 
         # Create instance with validated model
         instance = cls(

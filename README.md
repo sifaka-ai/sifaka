@@ -258,7 +258,60 @@ The `examples/` directory contains several example scripts:
    - Rule validation
    - Metrics analysis
 
-⚠️ **Note**: The `Reflector` class is deprecated and will be removed in version 2.0.0. Use `SymmetryRule` and `RepetitionRule` from `sifaka.rules.pattern_rules` instead.
+## Migration Guide
+
+### Upgrading to 2.0.0
+
+Version 2.0.0 removes the deprecated `Reflector` class in favor of the more specialized `SymmetryRule` and `RepetitionRule` classes.
+
+**Before (1.x):**
+```python
+from sifaka import Reflector
+
+reflector = Reflector(
+    reflection_config={
+        "mirror_mode": "horizontal",
+        "symmetry_threshold": 0.8
+    }
+)
+result = reflector.validate("your text here")
+```
+
+**After (2.x):**
+```python
+from sifaka.rules import SymmetryRule, RepetitionRule
+from sifaka.rules.base import RuleConfig
+
+# For symmetry detection
+symmetry_rule = SymmetryRule(
+    name="symmetry_check",
+    config=RuleConfig(
+        metadata={
+            "mirror_mode": "horizontal",
+            "symmetry_threshold": 0.8
+        }
+    )
+)
+result = symmetry_rule.validate("your text here")
+
+# For pattern detection
+pattern_rule = RepetitionRule(
+    name="pattern_check",
+    config=RuleConfig(
+        metadata={
+            "pattern_type": "repeat",
+            "pattern_length": 3
+        }
+    )
+)
+result = pattern_rule.validate("your text here")
+```
+
+The new implementation provides:
+- More specialized and focused functionality
+- Better type safety and validation
+- Improved performance
+- Consistent interface with other rules
 
 ## Contributing
 

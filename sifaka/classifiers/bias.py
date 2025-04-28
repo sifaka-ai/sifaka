@@ -23,7 +23,27 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class BiasConfig:
-    """Configuration for bias detection."""
+    """
+    Configuration for bias detection.
+
+    Note: This class is provided for backward compatibility.
+    The preferred way to configure bias detection is to use
+    ClassifierConfig with params:
+
+    ```python
+    config = ClassifierConfig(
+        labels=["gender", "racial", "political", "neutral"],
+        cost=2.5,
+        params={
+            "min_confidence": 0.7,
+            "max_features": 3000,
+            "random_state": 42,
+            "model_path": "/path/to/model.pkl",
+            "bias_types": ["gender", "racial", "political", "neutral"],
+        }
+    )
+    ```
+    """
 
     min_confidence: float = 0.7  # Minimum confidence threshold
     max_features: int = 3000  # Max features for vectorization
@@ -138,7 +158,8 @@ class BiasDetector(BaseClassifier):
         self._pipeline = None
         self._explanations = {}
         self._initialized = False
-        self._bias_config = BiasConfig()  # Use a private attribute instead of Pydantic field
+
+        # We'll use config.params for all configuration instead of a separate _bias_config
 
     def _load_dependencies(self) -> None:
         """Load scikit-learn dependencies."""
@@ -164,19 +185,24 @@ class BiasDetector(BaseClassifier):
         if not self._initialized:
             self._load_dependencies()
 
-            if self._bias_config.model_path and os.path.exists(self._bias_config.model_path):
-                self._load_model(self._bias_config.model_path)
+            # Get configuration from params
+            model_path = self.config.params.get("model_path")
+            max_features = self.config.params.get("max_features", 3000)
+            random_state = self.config.params.get("random_state", 42)
+
+            if model_path and os.path.exists(model_path):
+                self._load_model(model_path)
             else:
                 # Create TF-IDF vectorizer with custom analyzer to catch bias keywords
                 self._vectorizer = self._sklearn_feature_extraction_text.TfidfVectorizer(
-                    max_features=self._bias_config.max_features,
+                    max_features=max_features,
                     stop_words="english",
                     ngram_range=(1, 2),
                 )
 
                 # Create SVM model with probability estimates
                 svm = self._sklearn_svm.LinearSVC(
-                    random_state=self._bias_config.random_state,
+                    random_state=random_state,
                     class_weight="balanced",
                     max_iter=10000,
                 )
@@ -200,9 +226,11 @@ class BiasDetector(BaseClassifier):
     def _extract_bias_features(self, text: str) -> Dict[str, float]:
         """Extract bias-related features from text."""
         features = {}
-        for bias_type, keywords in self._bias_config.bias_keywords.items():
+        # Get bias keywords from params or use default empty dict
+        bias_keywords = self.config.params.get("bias_keywords", {})
+        for bias_type, keywords in bias_keywords.items():
             count = sum(1 for kw in keywords if re.search(rf"\b{kw}\b", text.lower()))
-            features[f"bias_{bias_type}"] = count / len(keywords)
+            features[f"bias_{bias_type}"] = count / max(len(keywords), 1)  # Avoid division by zero
         return features
 
     def _save_model(self, path: str) -> None:
@@ -215,7 +243,7 @@ class BiasDetector(BaseClassifier):
                     "vectorizer": self._vectorizer,
                     "model": self._model,
                     "pipeline": self._pipeline,
-                    "bias_config": self._bias_config,
+                    "config_params": self.config.params,
                 },
                 f,
             )
@@ -227,7 +255,18 @@ class BiasDetector(BaseClassifier):
             self._vectorizer = data["vectorizer"]
             self._model = data["model"]
             self._pipeline = data["pipeline"]
-            self._bias_config = data["bias_config"]
+
+            # Update config params if available in the saved model
+            if "config_params" in data:
+                # Create a new config with the loaded params
+                self.config = ClassifierConfig(
+                    labels=self.config.labels,
+                    cost=self.config.cost,
+                    min_confidence=self.config.min_confidence,
+                    params=data["config_params"],
+                    metadata=self.config.metadata,
+                )
+
             self._initialized = True
 
     def fit(self, texts: List[str], labels: List[str]) -> "BiasDetector":
@@ -238,9 +277,13 @@ class BiasDetector(BaseClassifier):
         # Load scikit-learn dependencies
         self._load_dependencies()
 
+        # Get configuration from params
+        max_features = self.config.params.get("max_features", 3000)
+        random_state = self.config.params.get("random_state", 42)
+
         # Create vectorizer
         self._vectorizer = self._sklearn_feature_extraction_text.TfidfVectorizer(
-            max_features=self._bias_config.max_features,
+            max_features=max_features,
             stop_words="english",
         )
 
@@ -248,7 +291,7 @@ class BiasDetector(BaseClassifier):
         self._model = self._sklearn_svm.SVC(
             kernel="linear",
             probability=True,
-            random_state=self._bias_config.random_state,
+            random_state=random_state,
         )
 
         # Create pipeline
@@ -267,8 +310,9 @@ class BiasDetector(BaseClassifier):
         self._extract_explanations()
 
         # Save model if path specified
-        if self._bias_config.model_path:
-            self._save_model(self._bias_config.model_path)
+        model_path = self.config.params.get("model_path")
+        if model_path:
+            self._save_model(model_path)
 
         return self
 
@@ -287,7 +331,8 @@ class BiasDetector(BaseClassifier):
 
                 # For each class, extract the top features
                 self._explanations = {}
-                for i, bias_type in enumerate(self._bias_config.bias_types):
+                # Use labels from config instead of bias_types
+                for i, bias_type in enumerate(self.config.labels):
                     # Skip if this is beyond the number of classes in the model
                     if i >= coefficients.shape[0]:
                         continue
@@ -363,10 +408,13 @@ class BiasDetector(BaseClassifier):
             label = max(all_probs.items(), key=lambda x: x[1])[0]
             confidence = all_probs[label]
 
+            # Get min_confidence from config
+            min_confidence = self.config.min_confidence
+
             metadata = {
                 "probabilities": all_probs,
-                "threshold": self._bias_config.min_confidence,
-                "is_confident": confidence >= self._bias_config.min_confidence,
+                "threshold": min_confidence,
+                "is_confident": confidence >= min_confidence,
                 "bias_features": bias_features,
             }
 
@@ -417,7 +465,7 @@ class BiasDetector(BaseClassifier):
             "contributing_features": explanation.get("positive", {}),
             "countering_features": explanation.get("negative", {}),
             "bias_specific_features": bias_features,
-            "examples": self._bias_config.bias_keywords.get(bias_type, []),
+            "examples": self.config.params.get("bias_keywords", {}).get(bias_type, []),
         }
 
     @classmethod
@@ -439,13 +487,32 @@ class BiasDetector(BaseClassifier):
             labels: List of bias type labels
             name: Name of the classifier
             description: Description of the classifier
-            bias_config: Bias detection configuration
+            bias_config: Bias detection configuration (for backward compatibility)
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Trained BiasDetector
         """
+        # If bias_config is provided but config is not, create config from bias_config
+        if bias_config is not None and config is None:
+            # Extract params from bias_config
+            params = {
+                "min_confidence": bias_config.min_confidence,
+                "max_features": bias_config.max_features,
+                "random_state": bias_config.random_state,
+                "model_path": bias_config.model_path,
+                "bias_types": bias_config.bias_types,
+            }
+
+            # Create config with params
+            config = ClassifierConfig(
+                labels=bias_config.bias_types,
+                cost=cls.DEFAULT_COST,
+                min_confidence=bias_config.min_confidence,
+                params=params,
+            )
+
         # Create instance with provided configuration
         classifier = cls(name=name, description=description, config=config, **kwargs)
 

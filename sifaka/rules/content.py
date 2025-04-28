@@ -77,7 +77,24 @@ class ToneIndicators:
 
 @dataclass(frozen=True)
 class ProhibitedContentConfig(RuleConfig):
-    """Configuration for prohibited content validation."""
+    """
+    Configuration for prohibited content validation.
+
+    Note: This class is provided for backward compatibility.
+    The preferred way to configure prohibited content validation is to use
+    RuleConfig with params:
+
+    ```python
+    config = RuleConfig(
+        priority=RulePriority.HIGH,
+        cost=1.0,
+        params={
+            "terms": ["profanity", "obscenity", "hate speech"],
+            "case_sensitive": False,
+        }
+    )
+    ```
+    """
 
     terms: List[str] = field(
         default_factory=lambda: [
@@ -101,10 +118,47 @@ class ProhibitedContentConfig(RuleConfig):
         if not self.terms:
             raise ValueError("Must provide at least one prohibited term")
 
+        # For consistency, copy configuration values to params
+        if not self.params:
+            object.__setattr__(
+                self,
+                "params",
+                {
+                    "terms": self.terms,
+                    "case_sensitive": self.case_sensitive,
+                    "cache_size": self.cache_size,
+                    "priority": self.priority,
+                    "cost": self.cost,
+                },
+            )
+
 
 @dataclass(frozen=True)
 class ToneConfig(RuleConfig):
-    """Configuration for tone consistency validation."""
+    """
+    Configuration for tone consistency validation.
+
+    Note: This class is provided for backward compatibility.
+    The preferred way to configure tone consistency validation is to use
+    RuleConfig with params:
+
+    ```python
+    config = RuleConfig(
+        priority=RulePriority.MEDIUM,
+        cost=1.0,
+        params={
+            "expected_tone": "formal",
+            "tone_indicators": {
+                "formal": {
+                    "positive": ["therefore", "consequently", "furthermore"],
+                    "negative": ["yo", "hey", "cool", "awesome"],
+                }
+            },
+            "threshold": 0.7,
+        }
+    )
+    ```
+    """
 
     expected_tone: str = "neutral"
     tone_indicators: Dict[str, Dict[str, List[str]]] = field(
@@ -190,6 +244,21 @@ class ToneConfig(RuleConfig):
                 raise ValueError(
                     f"Tone {tone} must have non-empty positive and negative indicators"
                 )
+
+        # For consistency, copy configuration values to params
+        if not self.params:
+            object.__setattr__(
+                self,
+                "params",
+                {
+                    "expected_tone": self.expected_tone,
+                    "tone_indicators": self.tone_indicators,
+                    "threshold": self.threshold,
+                    "cache_size": self.cache_size,
+                    "priority": self.priority,
+                    "cost": self.cost,
+                },
+            )
 
 
 class ContentValidator(BaseValidator[str]):
@@ -373,11 +442,15 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
-        check_text = text if self.config.case_sensitive else text.lower()
+        # Get configuration from params for consistency
+        case_sensitive = self.config.params.get("case_sensitive", False)
+        terms = self.config.params.get("terms", self.config.terms)
+
+        check_text = text if case_sensitive else text.lower()
         found_terms = []
 
-        for term in self.config.terms:
-            check_term = term if self.config.case_sensitive else term.lower()
+        for term in terms:
+            check_term = term if case_sensitive else term.lower()
             if check_term in check_text:
                 found_terms.append(term)
 
@@ -387,7 +460,7 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
                 message=f"Found prohibited terms: {', '.join(found_terms)}",
                 metadata={
                     "found_terms": found_terms,
-                    "case_sensitive": self.config.case_sensitive,
+                    "case_sensitive": case_sensitive,
                 },
             )
 
@@ -396,7 +469,7 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
             message="No prohibited terms found",
             metadata={
                 "found_terms": [],
-                "case_sensitive": self.config.case_sensitive,
+                "case_sensitive": case_sensitive,
             },
         )
 
@@ -418,11 +491,16 @@ class DefaultToneValidator(BaseValidator[str]):
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
+        # Get configuration from params for consistency
+        tone_indicators = self.config.params.get("tone_indicators", self.config.tone_indicators)
+        expected_tone = self.config.params.get("expected_tone", self.config.expected_tone)
+        threshold = self.config.params.get("threshold", self.config.threshold)
+
         text_lower = text.lower()
         tone_scores: Dict[str, Dict[str, float]] = {}
 
         # Calculate tone scores for each tone type
-        for tone, indicators in self.config.tone_indicators.items():
+        for tone, indicators in tone_indicators.items():
             positive_matches = sum(1 for term in indicators["positive"] if term in text_lower)
             negative_matches = sum(1 for term in indicators["negative"] if term in text_lower)
 
@@ -441,27 +519,27 @@ class DefaultToneValidator(BaseValidator[str]):
             }
 
         # Check if the expected tone meets the threshold
-        expected_score = tone_scores[self.config.expected_tone]["overall"]
-        meets_threshold = expected_score >= self.config.threshold
+        expected_score = tone_scores[expected_tone]["overall"]
+        meets_threshold = expected_score >= threshold
 
         if not meets_threshold:
             return RuleResult(
                 passed=False,
-                message=f"Text does not maintain expected {self.config.expected_tone} tone (score: {expected_score:.2f})",
+                message=f"Text does not maintain expected {expected_tone} tone (score: {expected_score:.2f})",
                 metadata={
                     "tone_scores": tone_scores,
-                    "expected_tone": self.config.expected_tone,
-                    "threshold": self.config.threshold,
+                    "expected_tone": expected_tone,
+                    "threshold": threshold,
                 },
             )
 
         return RuleResult(
             passed=True,
-            message=f"Text maintains expected {self.config.expected_tone} tone",
+            message=f"Text maintains expected {expected_tone} tone",
             metadata={
                 "tone_scores": tone_scores,
-                "expected_tone": self.config.expected_tone,
-                "threshold": self.config.threshold,
+                "expected_tone": expected_tone,
+                "threshold": threshold,
             },
         )
 
@@ -491,8 +569,8 @@ class ProhibitedContentRule(
         self._rule_params = {}
         if config:
             # For backward compatibility, check both params and metadata
-            params_source = config.params if config.params else config.metadata
-            self._rule_params = params_source
+            # Always prefer params over metadata for consistency
+            self._rule_params = config.params if config.params else config.metadata
 
         # Initialize base class
         super().__init__(

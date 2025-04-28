@@ -51,7 +51,24 @@ class ProfanityChecker(Protocol):
 
 @dataclass(frozen=True)
 class ProfanityConfig:
-    """Configuration for profanity detection."""
+    """
+    Configuration for profanity detection.
+
+    Note: This class is provided for backward compatibility.
+    The preferred way to configure profanity detection is to use
+    ClassifierConfig with params:
+
+    ```python
+    config = ClassifierConfig(
+        labels=["clean", "profane", "unknown"],
+        params={
+            "custom_words": ["word1", "word2"],
+            "censor_char": "*",
+            "min_confidence": 0.7
+        }
+    )
+    ```
+    """
 
     custom_words: Set[str] = field(default_factory=frozenset)
     censor_char: str = "*"
@@ -114,10 +131,11 @@ class ProfanityClassifier(BaseClassifier):
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        # Store profanity config and checker for later use
-        self._profanity_config = profanity_config or ProfanityConfig()
+        # Store checker for later use
         self._checker = checker
         self._initialized = False
+
+        # We'll use config.params for all configuration, so we don't need to store profanity_config separately
 
         # Create config if not provided
         if config is None:
@@ -126,9 +144,14 @@ class ProfanityClassifier(BaseClassifier):
 
             # Add profanity config to params if provided
             if profanity_config is not None:
-                params["custom_words"] = list(profanity_config.custom_words)
-                params["censor_char"] = profanity_config.censor_char
-                params["min_confidence"] = profanity_config.min_confidence
+                # Store all profanity config values in params for consistency
+                params.update(
+                    {
+                        "custom_words": list(profanity_config.custom_words),
+                        "censor_char": profanity_config.censor_char,
+                        "min_confidence": profanity_config.min_confidence,
+                    }
+                )
 
             # Create config with remaining kwargs
             config = ClassifierConfig(
@@ -154,11 +177,18 @@ class ProfanityClassifier(BaseClassifier):
 
             # Configure the checker
             checker.profane_words = {"bad", "inappropriate", "offensive"}
-            checker.censor_char = self._profanity_config.censor_char
+
+            # Get configuration from params for consistency
+            censor_char = self.config.params.get("censor_char", "*")
+            checker.censor_char = censor_char
 
             # Add custom words if provided
-            if self._profanity_config.custom_words:
-                checker.profane_words.update(self._profanity_config.custom_words)
+            custom_words = self.config.params.get("custom_words", [])
+            if custom_words:
+                # Convert to set if it's a list
+                if isinstance(custom_words, list):
+                    custom_words = set(custom_words)
+                checker.profane_words.update(custom_words)
 
             self._validate_checker(checker)
             return checker
@@ -174,16 +204,14 @@ class ProfanityClassifier(BaseClassifier):
     @property
     def custom_words(self) -> Set[str]:
         """Get the custom profanity words."""
-        if hasattr(self, "_profanity_config") and self._profanity_config:
-            return self._profanity_config.custom_words
+        # Always use config.params for consistency
         custom_words = self.config.params.get("custom_words", [])
         return set(custom_words) if isinstance(custom_words, list) else set()
 
     @property
     def censor_char(self) -> str:
         """Get the censoring character."""
-        if hasattr(self, "_profanity_config") and self._profanity_config:
-            return self._profanity_config.censor_char
+        # Always use config.params for consistency
         return self.config.params.get("censor_char", "*")
 
     def add_custom_words(self, words: Set[str]) -> None:
@@ -242,9 +270,11 @@ class ProfanityClassifier(BaseClassifier):
             censor_result = self._censor_text(text)
 
             # Calculate confidence based on proportion of censored words
+            # Use min_confidence from config.params for consistency
+            min_confidence = self.config.params.get("min_confidence", 0.5)
             confidence = max(
                 censor_result.profanity_ratio,
-                self._profanity_config.min_confidence if contains_profanity else 0.0,
+                min_confidence if contains_profanity else 0.0,
             )
 
             return ClassificationResult(

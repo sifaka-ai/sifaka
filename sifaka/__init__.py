@@ -9,7 +9,27 @@ from sifaka.critics import PromptCritic
 from sifaka.models import AnthropicProvider, OpenAIProvider
 
 # Import deprecated Reflector for backward compatibility
-from sifaka.reflector import Reflector
+try:
+    from sifaka.reflector import Reflector
+except ImportError:
+    # Create a dummy Reflector class for backward compatibility
+    class Reflector:
+        """
+        Deprecated: This class is kept for backward compatibility.
+
+        Use SymmetryRule and RepetitionRule from sifaka.rules.pattern_rules instead.
+        """
+
+        def __init__(self, *args, **kwargs):
+            warnings.warn(
+                "The Reflector class is deprecated and will be removed in version 2.0.0. "
+                "Use SymmetryRule and RepetitionRule from sifaka.rules.pattern_rules instead. "
+                "See the migration guide in the documentation for more details.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+
 from sifaka.rules import (
     FormatRule,
     LengthRule,

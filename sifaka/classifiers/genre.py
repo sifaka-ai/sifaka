@@ -22,7 +22,29 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class GenreConfig:
-    """Configuration for genre classification."""
+    """
+    Configuration for genre classification.
+
+    Note: This class is provided for backward compatibility.
+    The preferred way to configure genre classification is to use
+    ClassifierConfig with params:
+
+    ```python
+    config = ClassifierConfig(
+        labels=["news", "fiction", "academic", "technical", "blog"],
+        cost=2.0,
+        params={
+            "min_confidence": 0.6,
+            "max_features": 2000,
+            "random_state": 42,
+            "model_path": "/path/to/model.pkl",
+            "use_ngrams": True,
+            "n_estimators": 100,
+            "default_genres": ["news", "fiction", "academic", "technical", "blog"],
+        }
+    )
+    ```
+    """
 
     min_confidence: float = 0.6  # Minimum confidence threshold
     max_features: int = 2000  # Max features for vectorization
@@ -74,6 +96,7 @@ class GenreClassifier(BaseClassifier):
     DEFAULT_COST: float = 2.0
 
     # Model fields
+    # Keep genre_config for backward compatibility
     genre_config: GenreConfig = Field(default_factory=GenreConfig)
     vectorizer: Optional[Any] = Field(default=None)
     model: Optional[Any] = Field(default=None)
@@ -139,21 +162,28 @@ class GenreClassifier(BaseClassifier):
         if not self.initialized:
             self._load_dependencies()
 
-            if self.genre_config.model_path and os.path.exists(self.genre_config.model_path):
-                self._load_model(self.genre_config.model_path)
+            # Get configuration from params
+            model_path = self.config.params.get("model_path")
+            use_ngrams = self.config.params.get("use_ngrams", True)
+            max_features = self.config.params.get("max_features", 2000)
+            n_estimators = self.config.params.get("n_estimators", 100)
+            random_state = self.config.params.get("random_state", 42)
+
+            if model_path and os.path.exists(model_path):
+                self._load_model(model_path)
             else:
                 # Create TF-IDF vectorizer
-                ngram_range = (1, 3) if self.genre_config.use_ngrams else (1, 1)
+                ngram_range = (1, 3) if use_ngrams else (1, 1)
                 self.vectorizer = self.sklearn_feature_extraction_text.TfidfVectorizer(
-                    max_features=self.genre_config.max_features,
+                    max_features=max_features,
                     stop_words="english",
                     ngram_range=ngram_range,
                 )
 
                 # Create RandomForest model
                 self.model = self.sklearn_ensemble.RandomForestClassifier(
-                    n_estimators=self.genre_config.n_estimators,
-                    random_state=self.genre_config.random_state,
+                    n_estimators=n_estimators,
+                    random_state=random_state,
                 )
 
                 # Create pipeline
@@ -171,7 +201,8 @@ class GenreClassifier(BaseClassifier):
         try:
             model_data = {
                 "pipeline": self.pipeline,
-                "labels": self.custom_labels or self.genre_config.default_genres,
+                "labels": self.custom_labels
+                or self.config.params.get("default_genres", self.config.labels),
                 "feature_importances": self.feature_importances,
             }
 
@@ -247,8 +278,9 @@ class GenreClassifier(BaseClassifier):
         self.feature_importances = self._extract_feature_importances()
 
         # Save the model if path is provided
-        if self.genre_config.model_path:
-            self._save_model(self.genre_config.model_path)
+        model_path = self.config.params.get("model_path")
+        if model_path:
+            self._save_model(model_path)
 
         return self
 
@@ -307,10 +339,13 @@ class GenreClassifier(BaseClassifier):
         ):
             top_features = self.feature_importances[self._config.labels[dominant_class_idx]]
 
+        # Get min_confidence from config
+        min_confidence = self.config.params.get("min_confidence", 0.6)
+
         metadata = {
             "probabilities": all_probs,
-            "threshold": self.genre_config.min_confidence,
-            "is_confident": confidence >= self.genre_config.min_confidence,
+            "threshold": min_confidence,
+            "is_confident": confidence >= min_confidence,
             "top_features": top_features,
         }
 
@@ -355,10 +390,13 @@ class GenreClassifier(BaseClassifier):
             ):
                 top_features = self.feature_importances[self._config.labels[dominant_class_idx]]
 
+            # Get min_confidence from config
+            min_confidence = self.config.params.get("min_confidence", 0.6)
+
             metadata = {
                 "probabilities": all_probs,
-                "threshold": self.genre_config.min_confidence,
-                "is_confident": confidence >= self.genre_config.min_confidence,
+                "threshold": min_confidence,
+                "is_confident": confidence >= min_confidence,
                 "top_features": top_features,
             }
 
@@ -391,13 +429,34 @@ class GenreClassifier(BaseClassifier):
             labels: List of genre labels
             name: Name of the classifier
             description: Description of the classifier
-            genre_config: Genre classification configuration
+            genre_config: Genre classification configuration (for backward compatibility)
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Trained GenreClassifier
         """
+        # If genre_config is provided but config is not, create config from genre_config
+        if genre_config is not None and config is None:
+            # Extract params from genre_config
+            params = {
+                "min_confidence": genre_config.min_confidence,
+                "max_features": genre_config.max_features,
+                "random_state": genre_config.random_state,
+                "model_path": genre_config.model_path,
+                "use_ngrams": genre_config.use_ngrams,
+                "n_estimators": genre_config.n_estimators,
+                "default_genres": genre_config.default_genres,
+            }
+
+            # Create config with params
+            config = ClassifierConfig(
+                labels=genre_config.default_genres,
+                cost=cls.DEFAULT_COST,
+                min_confidence=genre_config.min_confidence,
+                params=params,
+            )
+
         # Create instance with provided configuration
         classifier = cls(
             name=name, description=description, genre_config=genre_config, config=config, **kwargs

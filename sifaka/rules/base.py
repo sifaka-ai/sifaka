@@ -161,7 +161,25 @@ class RuleResult:
 
 @dataclass(frozen=True)
 class RuleConfig:
-    """Immutable configuration for rules."""
+    """
+    Immutable configuration for rules.
+
+    This class provides a consistent way to configure rules with both params and metadata fields.
+    The preferred way to configure rules is to use the params dictionary:
+
+    ```python
+    config = RuleConfig(
+        priority=RulePriority.HIGH,
+        cost=1.0,
+        params={
+            "option1": "value1",
+            "option2": "value2",
+        }
+    )
+    ```
+
+    The metadata field is kept for backward compatibility.
+    """
 
     priority: RulePriority = RulePriority.MEDIUM
     cache_size: int = 0

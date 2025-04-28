@@ -36,3 +36,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support for multiple LLM providers
 - Basic rule system
 - Critic framework for content improvement
+
+## [2.0.0] - 2024-03-21
+
+### Removed
+- **BREAKING**: Removed the deprecated `Reflector` class
+- Removed old pattern detection methods
+- Removed direct reflection validation through the reflector
+
+### Changed
+- Updated documentation to remove references to deprecated functionality
+- Improved migration guide with more examples
+- Updated all examples to use `SymmetryRule` and `RepetitionRule`
+
+### Added
+- New configuration options for pattern detection rules
+- Enhanced validation feedback for symmetry and pattern detection
+- Additional test coverage for pattern rules
