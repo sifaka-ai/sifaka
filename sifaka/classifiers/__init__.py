@@ -22,10 +22,14 @@ Available Classifiers:
    - SentimentClassifier: Analyzes text sentiment (positive/negative/neutral)
    - ProfanityClassifier: Detects profane or inappropriate language
    - ToxicityClassifier: Identifies toxic content
+   - SpamClassifier: Detects spam content in text
+   - BiasDetector: Identifies various forms of bias in text
 
 3. Text Properties:
    - ReadabilityClassifier: Evaluates reading difficulty level
    - LanguageClassifier: Identifies the language of text
+   - TopicClassifier: Identifies topics in text using LDA
+   - GenreClassifier: Categorizes text into genres (news, fiction, academic, etc.)
 
 4. Model-Based:
    - LLMClassifier: Uses LLMs for customizable classification tasks
@@ -59,6 +63,10 @@ from .readability import ReadabilityClassifier
 from .toxicity import ToxicityClassifier
 from .language import LanguageClassifier
 from .llm import LLMClassifier
+from .topic import TopicClassifier, TopicConfig
+from .spam import SpamClassifier, SpamConfig
+from .genre import GenreClassifier, GenreConfig
+from .bias import BiasDetector, BiasConfig
 
 __all__ = [
     # Base
@@ -71,9 +79,17 @@ __all__ = [
     "SentimentClassifier",
     "ProfanityClassifier",
     "ToxicityClassifier",
+    "SpamClassifier",
+    "SpamConfig",
+    "BiasDetector",
+    "BiasConfig",
     # Text Properties
     "ReadabilityClassifier",
     "LanguageClassifier",
+    "TopicClassifier",
+    "TopicConfig",
+    "GenreClassifier",
+    "GenreConfig",
     # Model-Based
     "LLMClassifier",
 ]

@@ -1,51 +1,63 @@
+#!/usr/bin/env python3
 """
-Pattern Rules Usage Example for Sifaka.
+Pattern Rules Example for Sifaka.
 
 This example demonstrates:
-1. Using SymmetryRule for text symmetry validation
+1. Using SymmetryRule for detecting text symmetry
 2. Using RepetitionRule for pattern detection
-3. Combining pattern rules with other validation rules
-4. Handling validation results and pattern analysis
+3. Combining pattern rules with basic validation rules
+
+Usage:
+    python reflector_usage.py
+
+Requirements:
+    - Python environment with Sifaka installed (use pyenv environment "sifaka")
+    - Anthropic API key in ANTHROPIC_API_KEY environment variable (optional)
 """
 
-import logging
 import os
-from typing import Dict, Any, List, Optional
-from dotenv import load_dotenv
+import sys
 
-from sifaka.models import AnthropicProvider
-from sifaka.models.base import ModelConfig
-from sifaka.rules import (
-    LengthRule,
-    ProhibitedContentRule,
-    SymmetryRule,
-    RepetitionRule,
-)
+# Add parent directory to system path for imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    print("Missing dotenv package. Install with: pip install python-dotenv")
+
+from sifaka.rules import LengthRule, ProhibitedContentRule, SymmetryRule, RepetitionRule
 from sifaka.rules.base import RuleConfig, RulePriority
+from sifaka.utils.logging import get_logger
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Initialize logger from Sifaka
+logger = get_logger(__name__)
 
 
-def analyze_text(text: str) -> Dict[str, Any]:
-    """
-    Analyze text using pattern rules and basic validation.
+def main():
+    """Run the pattern rules example."""
+    # Load environment variables (for optional model usage)
+    try:
+        load_dotenv()
+    except:
+        pass  # Not required for this example
 
-    Args:
-        text: The text to analyze
-
-    Returns:
-        Dict containing analysis results
-    """
-    results = {}
+    logger.info("Starting pattern rules example...")
 
     # Create pattern detection rules
+    logger.info("Creating pattern detection rules...")
+
+    # Symmetry rule
     symmetry_rule = SymmetryRule(
         name="symmetry_check",
         description="Checks for text symmetry patterns",
         config=RuleConfig(
             priority=RulePriority.MEDIUM,
+            cache_size=100,
+            cost=1.0,
             metadata={
                 "mirror_mode": "both",
                 "symmetry_threshold": 0.8,
@@ -56,11 +68,14 @@ def analyze_text(text: str) -> Dict[str, Any]:
         ),
     )
 
+    # Repetition rule
     repetition_rule = RepetitionRule(
         name="repetition_check",
         description="Detects repetitive patterns",
         config=RuleConfig(
             priority=RulePriority.MEDIUM,
+            cache_size=100,
+            cost=1.0,
             metadata={
                 "pattern_type": "repeat",
                 "pattern_length": 3,
@@ -70,109 +85,73 @@ def analyze_text(text: str) -> Dict[str, Any]:
         ),
     )
 
-    # Add basic validation rules
+    # Basic validation rules
     length_rule = LengthRule(
         name="length_check",
         description="Checks if output length is within bounds",
-        config={"min_length": 50, "max_length": 500, "unit": "characters"},
+        config={
+            "min_length": 50,
+            "max_length": 500,
+            "unit": "characters",
+            "priority": 2,
+            "cost": 1.5,
+            "cache_size": 100,
+        },
     )
 
-    prohibited_terms = ProhibitedContentRule(
+    content_rule = ProhibitedContentRule(
         name="content_filter",
-        description="Checks for prohibited or inappropriate content",
-        config={"prohibited_terms": ["controversial", "inappropriate"], "case_sensitive": False},
+        description="Checks for prohibited content",
+        config={
+            "prohibited_terms": ["controversial", "inappropriate"],
+            "case_sensitive": False,
+            "priority": 2,
+            "cost": 1.5,
+            "cache_size": 100,
+        },
     )
 
-    # Run length check
-    length_result = length_rule._validate_impl(text)
-    results["length"] = {
-        "passed": length_result.passed,
-        "message": length_result.message,
-        "metadata": length_result.metadata,
-    }
-
-    # Run content check
-    content_result = prohibited_terms._validate_impl(text)
-    results["content"] = {
-        "passed": content_result.passed,
-        "message": content_result.message,
-        "metadata": content_result.metadata,
-    }
-
-    # Check for patterns
-    symmetry_result = symmetry_rule._validate_impl(text)
-    results["symmetry"] = {
-        "passed": symmetry_result.passed,
-        "message": symmetry_result.message,
-        "metadata": symmetry_result.metadata,
-    }
-
-    repetition_result = repetition_rule._validate_impl(text)
-    results["repetition"] = {
-        "passed": repetition_result.passed,
-        "message": repetition_result.message,
-        "metadata": repetition_result.metadata,
-    }
-
-    return results
-
-
-def main():
-    # Load environment variables
-    load_dotenv()
-
-    # Initialize the model provider
-    config = ModelConfig(
-        api_key=os.environ.get("ANTHROPIC_API_KEY"),
-        temperature=0.7,
-        max_tokens=2000,
-    )
-
-    model = AnthropicProvider(
-        model_name="claude-3-haiku-20240307",
-        config=config,
-    )
-
-    # Example texts that test different pattern aspects
+    # Example texts with different pattern characteristics
     texts = [
-        "The quick brown fox jumps over the lazy dog. The lazy dog lets the quick brown fox jump.",
-        "A man, a plan, a canal: Panama!",
-        "This is a very simple text that should be easy to read and understand. It has some repeating words like read and understand.",
-        "The quantum mechanical interpretation of molecular orbital theory requires advanced understanding of mathematical principles.",
-        # Additional pattern-focused texts
-        "Roses are red, red are roses, in the garden they grow, grow they in the garden.",
-        "Mirror mirror on the wall, who is the fairest of them all? All of them fairest the is who, wall the on mirror mirror?",
+        "A man, a plan, a canal: Panama!",  # Palindrome
+        "Roses are red, red are roses, in the garden they grow, grow they in the garden.",  # Repetitive
+        "Mirror mirror on the wall, who is the fairest of them all?",  # Repetitive start
+        "This is just a simple text without any special patterns.",  # Control
     ]
 
     # Process each text
     for i, text in enumerate(texts, 1):
-        logger.info("\n%s", "=" * 50)
-        logger.info("Analyzing text %d: %s", i, text)
+        logger.info(f"\n===== Text {i} =====")
+        logger.info(f"'{text}'")
 
-        results = analyze_text(text)
+        # Check length
+        length_result = length_rule._validate_impl(text)
+        logger.info(f"\nLength Check - Passed: {length_result.passed}")
+        logger.info(f"Message: {length_result.message}")
 
-        logger.info("\nLength Check:")
-        logger.info("- Passed: %s", results["length"]["passed"])
-        logger.info("- Message: %s", results["length"]["message"])
-        logger.info("- Details: %s", results["length"]["metadata"])
+        # Check content
+        content_result = content_rule._validate_impl(text)
+        logger.info(f"\nContent Check - Passed: {content_result.passed}")
+        logger.info(f"Message: {content_result.message}")
 
-        logger.info("\nContent Check:")
-        logger.info("- Passed: %s", results["content"]["passed"])
-        logger.info("- Message: %s", results["content"]["message"])
-        logger.info("- Details: %s", results["content"]["metadata"])
+        # Check symmetry
+        symmetry_result = symmetry_rule._validate_impl(text)
+        logger.info(f"\nSymmetry Check - Passed: {symmetry_result.passed}")
+        logger.info(f"Message: {symmetry_result.message}")
+        if "symmetry_score" in symmetry_result.metadata:
+            logger.info(f"Score: {symmetry_result.metadata['symmetry_score']:.2f}")
 
-        logger.info("\nPattern Analysis:")
-        logger.info("Symmetry Check:")
-        logger.info("- Passed: %s", results["symmetry"]["passed"])
-        logger.info("- Message: %s", results["symmetry"]["message"])
-        if "symmetry_score" in results["symmetry"]["metadata"]:
-            logger.info("- Score: %.2f", results["symmetry"]["metadata"]["symmetry_score"])
+        # Check repetition
+        repetition_result = repetition_rule._validate_impl(text)
+        logger.info(f"\nRepetition Check - Passed: {repetition_result.passed}")
+        logger.info(f"Message: {repetition_result.message}")
+        if "patterns" in repetition_result.metadata and repetition_result.metadata["patterns"]:
+            patterns = repetition_result.metadata["patterns"]
+            logger.info("Patterns found:")
+            for pattern in patterns[:3]:  # Show up to 3 patterns
+                logger.info(f"- '{pattern}'")
 
-        logger.info("\nRepetition Check:")
-        logger.info("- Passed: %s", results["repetition"]["passed"])
-        logger.info("- Message: %s", results["repetition"]["message"])
-        if "patterns" in results["repetition"]["metadata"]:
-            logger.info("- Patterns found: %s", results["repetition"]["metadata"]["patterns"])
+    logger.info("\nPattern rules example completed.")
 
 
 if __name__ == "__main__":

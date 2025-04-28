@@ -1,214 +1,136 @@
+#!/usr/bin/env python3
 """
-Example demonstrating combined use of classifiers and pattern rules.
+Combined Classifiers and Rules Example for Sifaka.
 
-This example showcases the integration of multiple analysis techniques:
-1. Text Classification
-   - Sentiment analysis for tone and emotion detection
-   - Readability assessment using standard metrics
-   - Confidence-based classification results
-
-2. Pattern Analysis
-   - Symmetry detection with configurable thresholds
-   - Repetition identification in text structures
-   - Combined pattern validation approach
-
-3. Multi-faceted Text Analysis
-   - Parallel processing of multiple analysis types
-   - Comprehensive result aggregation
-   - Detailed metadata collection
-
-4. Error Handling and Logging
-   - Structured logging of analysis results
-   - Clear validation messaging
-   - Detailed pattern match reporting
+This example demonstrates:
+1. Using multiple classifiers together (sentiment and readability)
+2. Creating classifier-based rules for validation
+3. Detecting repetition patterns in text
+4. Combining multiple analysis techniques
 
 Usage:
     python combined_classifiers.py
 
 Requirements:
-    - Sifaka library with classifier and pattern rule support
-    - Python logging configuration
+    - Python environment with Sifaka installed (use pyenv environment "sifaka")
 """
 
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass
+import os
+import sys
+
+# Add parent directory to system path for imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
 from sifaka.classifiers.sentiment import SentimentClassifier
 from sifaka.classifiers.readability import ReadabilityClassifier
-from sifaka.classifiers.base import ClassificationResult
-from sifaka.rules import SymmetryRule, RepetitionRule
+from sifaka.rules import RepetitionRule
+from sifaka.rules.adapters import ClassifierRuleAdapter
 from sifaka.rules.base import RuleConfig, RulePriority
+from sifaka.utils.logging import get_logger
 
-import logging
-
-# Configure logging with a consistent format
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+# Initialize logger from Sifaka
+logger = get_logger(__name__)
 
 
-def analyze_text(text: str) -> Dict[str, Any]:
-    """
-    Analyze text using multiple classifiers and pattern rules.
+def main():
+    """Run the combined classifiers example."""
+    logger.info("Starting combined classifiers example...")
 
-    This function combines multiple analysis techniques:
-    1. Sentiment Analysis: Evaluates the emotional tone of the text
-    2. Readability Analysis: Assesses text complexity and readability
-    3. Symmetry Analysis: Detects symmetric patterns in text structure
-    4. Repetition Analysis: Identifies repeated patterns and phrases
+    # Initialize classifiers
+    logger.info("Initializing classifiers and rules...")
 
-    Args:
-        text (str): The text to analyze
-
-    Returns:
-        Dict[str, Any]: Analysis results containing:
-            - sentiment: Sentiment classification results and confidence
-            - readability: Readability level and metrics
-            - symmetry: Symmetry pattern analysis results
-            - repetition: Repetition pattern detection results
-
-    Example:
-        >>> results = analyze_text("The quick brown fox jumps over the lazy dog")
-        >>> print(results["sentiment"]["label"])
-        'neutral'
-    """
-    results = {}
-
-    # Initialize sentiment classifier with confidence threshold
+    # Sentiment classifier
     sentiment_classifier = SentimentClassifier(
         name="tone_analyzer",
         description="Analyzes the tone/sentiment of text",
-        min_confidence=0.7,  # High confidence threshold for reliable results
+        min_confidence=0.7,
     )
 
-    # Initialize readability classifier with confidence threshold
+    # Readability classifier
     readability_classifier = ReadabilityClassifier(
         name="readability_analyzer",
         description="Analyzes text readability",
-        min_confidence=0.7,  # High confidence threshold for reliable results
+        min_confidence=0.7,
     )
 
-    # Configure symmetry detection with balanced thresholds
-    symmetry_rule = SymmetryRule(
-        name="symmetry_check",
-        description="Checks for text symmetry patterns",
-        config=RuleConfig(
+    # Create readability rule adapter
+    readability_rule = ClassifierRuleAdapter(
+        classifier=readability_classifier,
+        rule_config=RuleConfig(
             priority=RulePriority.MEDIUM,
-            metadata={
-                "mirror_mode": "both",  # Check both horizontal and vertical symmetry
-                "symmetry_threshold": 0.8,  # High threshold for meaningful patterns
-                "preserve_whitespace": True,  # Consider spacing in symmetry
-                "preserve_case": True,  # Case-sensitive matching
-                "ignore_punctuation": True,  # Ignore punctuation for better matching
-            },
+            cost=1.0,
+            metadata={"valid_labels": ["simple", "standard"]},
         ),
     )
 
-    # Configure repetition detection with specific constraints
+    # Repetition detection rule
     repetition_rule = RepetitionRule(
         name="repetition_check",
         description="Detects repetitive patterns",
         config=RuleConfig(
             priority=RulePriority.MEDIUM,
             metadata={
-                "pattern_type": "repeat",  # Look for repeated sequences
-                "pattern_length": 3,  # Minimum pattern length
-                "case_sensitive": True,  # Case-sensitive pattern matching
-                "allow_overlap": False,  # Non-overlapping patterns only
+                "pattern_type": "repeat",
+                "pattern_length": 3,
+                "case_sensitive": True,
+                "allow_overlap": False,
             },
         ),
     )
 
-    # Perform sentiment analysis
-    sentiment_result = sentiment_classifier.classify(text)
-    results["sentiment"] = {
-        "label": sentiment_result.label,
-        "confidence": sentiment_result.confidence,
-        "metadata": sentiment_result.metadata,
-    }
-
-    # Perform readability analysis
-    readability_result = readability_classifier.classify(text)
-    results["readability"] = {
-        "label": readability_result.label,
-        "confidence": readability_result.confidence,
-        "metadata": readability_result.metadata,
-    }
-
-    # Perform pattern analysis
-    symmetry_result = symmetry_rule._validate_impl(text)
-    results["symmetry"] = {
-        "passed": symmetry_result.passed,
-        "message": symmetry_result.message,
-        "metadata": symmetry_result.metadata,
-    }
-
-    repetition_result = repetition_rule._validate_impl(text)
-    results["repetition"] = {
-        "passed": repetition_result.passed,
-        "message": repetition_result.message,
-        "metadata": repetition_result.metadata,
-    }
-
-    return results
-
-
-def main():
-    """
-    Main function demonstrating combined classifier and pattern analysis.
-
-    This function:
-    1. Sets up example texts with varying characteristics
-    2. Processes each text through multiple analysis pipelines
-    3. Logs detailed results for each analysis type
-    4. Demonstrates integration of different analysis techniques
-    """
-    # Example texts demonstrating various linguistic patterns
+    # Example texts
     texts = [
-        # Text with repetitive structure and balanced tone
         "The quick brown fox jumps over the lazy dog. The lazy dog lets the quick brown fox jump.",
-        # Palindrome with symmetric structure
-        "A man, a plan, a canal: Panama!",
-        # Simple text for readability analysis
         "This is a very simple text that should be easy to read.",
-        # Complex text with technical content
         "The quantum mechanical interpretation of molecular orbital theory requires advanced understanding of mathematical principles.",
     ]
 
-    # Process each text through the analysis pipeline
+    # Process each text
     for i, text in enumerate(texts, 1):
-        logger.info("\n%s", "=" * 50)
-        logger.info("Analyzing text %d: %s", i, text)
+        logger.info(f"\n===== Text {i} =====")
+        logger.info(f"'{text}'")
 
-        # Perform multi-faceted analysis
-        results = analyze_text(text)
+        # Sentiment analysis
+        sentiment_result = sentiment_classifier.classify(text)
+        logger.info(
+            f"\nSentiment: {sentiment_result.label} (confidence: {sentiment_result.confidence:.2f})"
+        )
 
-        # Log sentiment analysis results
-        logger.info("\nSentiment Analysis:")
-        logger.info("- Label: %s", results["sentiment"]["label"])
-        logger.info("- Confidence: %.2f", results["sentiment"]["confidence"])
-        logger.info("- Details: %s", results["sentiment"]["metadata"])
+        # Readability analysis
+        readability_result = readability_classifier.classify(text)
+        logger.info(
+            f"Readability: {readability_result.label} (confidence: {readability_result.confidence:.2f})"
+        )
 
-        # Log readability analysis results
-        logger.info("\nReadability Analysis:")
-        logger.info("- Level: %s", results["readability"]["label"])
-        logger.info("- Confidence: %.2f", results["readability"]["confidence"])
-        logger.info("- Metrics: %s", results["readability"]["metadata"])
+        # Get some readability metrics
+        if readability_result.metadata:
+            metrics = readability_result.metadata.get("metrics", {})
+            if "flesch_kincaid_grade" in metrics:
+                logger.info(f"Flesch-Kincaid Grade: {metrics['flesch_kincaid_grade']:.1f}")
+            if "flesch_reading_ease" in metrics:
+                logger.info(f"Flesch Reading Ease: {metrics['flesch_reading_ease']:.1f}")
 
-        # Log pattern analysis results
-        logger.info("\nPattern Analysis:")
-        logger.info("Symmetry Check:")
-        logger.info("- Passed: %s", results["symmetry"]["passed"])
-        logger.info("- Message: %s", results["symmetry"]["message"])
-        if "symmetry_score" in results["symmetry"]["metadata"]:
-            logger.info("- Score: %.2f", results["symmetry"]["metadata"]["symmetry_score"])
+        # Readability rule validation
+        readability_validation = readability_rule._validate_impl(text)
+        logger.info(f"\nReadability Rule - Passed: {readability_validation.passed}")
+        logger.info(f"Message: {readability_validation.message}")
 
-        logger.info("\nRepetition Check:")
-        logger.info("- Passed: %s", results["repetition"]["passed"])
-        logger.info("- Message: %s", results["repetition"]["message"])
-        if "patterns" in results["repetition"]["metadata"]:
-            logger.info("- Patterns found: %s", results["repetition"]["metadata"]["patterns"])
+        # Repetition analysis
+        repetition_result = repetition_rule._validate_impl(text)
+        logger.info(f"\nRepetition Check - Passed: {repetition_result.passed}")
+        logger.info(f"Message: {repetition_result.message}")
+
+        # Show detected patterns
+        if "patterns" in repetition_result.metadata and repetition_result.metadata["patterns"]:
+            patterns = repetition_result.metadata["patterns"]
+            logger.info("Patterns found:")
+            for pattern in patterns[:3]:  # Show up to 3 patterns
+                logger.info(f"- '{pattern}'")
+
+    logger.info("\nCombined classifiers example completed.")
 
 
 if __name__ == "__main__":
