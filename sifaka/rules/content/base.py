@@ -1,81 +1,73 @@
 """
 Base classes and protocols for content validation.
-
-This module provides the core abstractions for content validation rules,
-including protocols for content analysis and validation.
 """
 
-from abc import abstractmethod
-from typing import Dict, List, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Any, Dict, List, Protocol, runtime_checkable
 
-from sifaka.rules.base import BaseValidator, RuleConfig, RuleResult
-
-# Type variables
-T = TypeVar("T")
-C = TypeVar("C", bound="ContentConfig")
+from sifaka.rules.base import BaseValidator, ConfigurationError
 
 
 @runtime_checkable
-class ContentAnalyzer(Protocol[T]):
-    """Protocol for content analysis."""
+class ContentAnalyzer(Protocol):
+    """Protocol for content analysis components."""
 
-    @abstractmethod
-    def analyze(self, content: str) -> T:
-        """Analyze content and return results."""
-        ...
-
-    @abstractmethod
-    def can_analyze(self, content: str) -> bool:
-        """Check if content can be analyzed."""
-        ...
-
-
-class BaseContentValidator(BaseValidator[str]):
-    """Base class for content validators."""
-
-    def __init__(self, config: Optional[RuleConfig] = None) -> None:
-        """Initialize validator with optional configuration."""
-        super().__init__()
-        self.config = config or RuleConfig()
-
-    @property
-    def validation_type(self) -> type:
-        """Get the type this validator can validate."""
-        return str
-
-    def can_validate(self, content: str) -> bool:
-        """Check if content can be validated."""
-        return isinstance(content, str) and bool(content.strip())
-
-
-class BaseContentAnalyzer(ContentAnalyzer[T]):
-    """Base implementation of content analyzer."""
-
-    def __init__(self, config: Optional[RuleConfig] = None) -> None:
-        """Initialize analyzer with optional configuration."""
-        self.config = config or RuleConfig()
-
-    def can_analyze(self, content: str) -> bool:
-        """Check if content can be analyzed."""
-        return isinstance(content, str) and bool(content.strip())
+    def analyze(self, text: str) -> Dict[str, Any]: ...
+    def can_analyze(self, text: str) -> bool: ...
 
 
 @runtime_checkable
-class ContentValidator(Protocol):
-    """Protocol for content validation."""
+class ToneAnalyzer(Protocol):
+    """Protocol for tone analysis components."""
 
-    @abstractmethod
-    def validate(self, content: str, **kwargs) -> RuleResult:
-        """Validate content and return results."""
-        ...
+    def analyze_tone(self, text: str) -> Dict[str, float]: ...
+    def get_supported_tones(self) -> List[str]: ...
 
-    @abstractmethod
-    def get_validation_errors(self, content: str) -> List[str]:
-        """Get list of validation errors for content."""
-        ...
 
-    @property
-    @abstractmethod
-    def config(self) -> RuleConfig:
-        """Get validator configuration."""
-        ...
+class ContentValidator(BaseValidator[str]):
+    """Base validator for content-based rules."""
+
+    def __init__(self, analyzer: ContentAnalyzer) -> None:
+        """Initialize with content analyzer."""
+        self._validate_analyzer(analyzer)
+        self._analyzer = analyzer
+
+    def _validate_analyzer(self, analyzer: Any) -> bool:
+        """Validate that an analyzer implements the required protocol."""
+        if not isinstance(analyzer, ContentAnalyzer):
+            raise ConfigurationError(
+                f"Analyzer must implement ContentAnalyzer protocol, got {type(analyzer)}"
+            )
+        return True
+
+
+class DefaultContentAnalyzer:
+    """Default implementation of ContentAnalyzer."""
+
+    def analyze(self, text: str) -> Dict[str, Any]:
+        """Basic content analysis."""
+        return {
+            "length": len(text),
+            "word_count": len(text.split()),
+            "has_content": bool(text.strip()),
+        }
+
+    def can_analyze(self, text: str) -> bool:
+        """Check if text can be analyzed."""
+        return isinstance(text, str)
+
+
+class DefaultToneAnalyzer:
+    """Default implementation of ToneAnalyzer."""
+
+    def analyze_tone(self, text: str) -> Dict[str, float]:
+        """Basic tone analysis."""
+        text_lower = text.lower()
+        words = text_lower.split()
+        return {
+            "formality": sum(1 for w in words if len(w) > 6) / len(words) if words else 0,
+            "complexity": len(set(words)) / len(words) if words else 0,
+        }
+
+    def get_supported_tones(self) -> List[str]:
+        """Get list of supported tones."""
+        return ["formal", "informal", "technical", "casual"]
