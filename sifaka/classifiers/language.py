@@ -17,6 +17,7 @@ from typing import (
 )
 
 from typing_extensions import TypeGuard
+from pydantic import PrivateAttr
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -154,6 +155,10 @@ class LanguageClassifier(BaseClassifier):
     }
 
     DEFAULT_COST: Final[int] = 1  # Low cost for statistical analysis
+
+    # Define private attributes that Pydantic v2 will properly handle
+    _detector: Optional[LanguageDetector] = PrivateAttr(default=None)
+    _initialized: bool = PrivateAttr(default=False)
 
     def __init__(
         self,
