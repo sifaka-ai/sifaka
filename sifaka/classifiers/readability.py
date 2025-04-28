@@ -56,7 +56,30 @@ class ReadabilityAnalyzer(Protocol):
 
 @dataclass(frozen=True)
 class ReadabilityConfig:
-    """Configuration for readability analysis."""
+    """
+    Configuration for readability analysis.
+
+    Note: This class is provided for backward compatibility.
+    The preferred way to configure readability analysis is to use
+    ClassifierConfig with params:
+
+    ```python
+    config = ClassifierConfig(
+        labels=["elementary", "middle", "high", "college", "graduate"],
+        cost=1,
+        params={
+            "min_confidence": 0.5,
+            "grade_level_bounds": {
+                "elementary": (0.0, 6.0),
+                "middle": (6.0, 9.0),
+                "high": (9.0, 12.0),
+                "college": (12.0, 16.0),
+                "graduate": (16.0, float("inf")),
+            }
+        }
+    )
+    ```
+    """
 
     min_confidence: float = 0.5
     grade_level_bounds: Dict[str, tuple[float, float]] = field(
@@ -135,7 +158,7 @@ class ReadabilityClassifier(BaseClassifier):
         Args:
             name: The name of the classifier
             description: Description of the classifier
-            readability_config: Configuration for readability analysis
+            readability_config: Configuration for readability analysis (for backward compatibility)
             analyzer: Custom readability analyzer implementation
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
@@ -160,8 +183,7 @@ class ReadabilityClassifier(BaseClassifier):
         # Initialize base class first
         super().__init__(name=name, description=description, config=config)
 
-        # Store readability config and analyzer for later use
-        self._readability_config = readability_config or ReadabilityConfig()
+        # Store analyzer for later use
         self._analyzer = analyzer
         self._initialized = False
 
@@ -195,7 +217,19 @@ class ReadabilityClassifier(BaseClassifier):
 
     def _get_grade_level(self, grade: float) -> str:
         """Convert grade level to readability label."""
-        for level, (lower, upper) in self._readability_config.grade_level_bounds.items():
+        # Get grade level bounds from config params
+        grade_level_bounds = self.config.params.get(
+            "grade_level_bounds",
+            {
+                "elementary": (0.0, 6.0),
+                "middle": (6.0, 9.0),
+                "high": (9.0, 12.0),
+                "college": (12.0, 16.0),
+                "graduate": (16.0, float("inf")),
+            },
+        )
+
+        for level, (lower, upper) in grade_level_bounds.items():
             if lower <= grade < upper:
                 return level
         return "graduate"  # Default to highest level if beyond all bounds
@@ -364,7 +398,7 @@ class ReadabilityClassifier(BaseClassifier):
             analyzer: Custom readability analyzer implementation
             name: Name of the classifier
             description: Description of the classifier
-            readability_config: Custom readability configuration
+            readability_config: Custom readability configuration (for backward compatibility)
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
@@ -375,6 +409,23 @@ class ReadabilityClassifier(BaseClassifier):
         if not isinstance(analyzer, ReadabilityAnalyzer):
             raise ValueError(
                 f"Analyzer must implement ReadabilityAnalyzer protocol, got {type(analyzer)}"
+            )
+
+        # If readability_config is provided but config is not, create config from readability_config
+        if readability_config is not None and config is None:
+            # Extract params from readability_config
+            params = {
+                "min_confidence": readability_config.min_confidence,
+                "grade_level_bounds": {
+                    k: (v[0], float(v[1])) for k, v in readability_config.grade_level_bounds.items()
+                },
+            }
+
+            # Create config with params
+            config = ClassifierConfig(
+                labels=cls.DEFAULT_LABELS,
+                cost=cls.DEFAULT_COST,
+                params=params,
             )
 
         # Create instance with validated analyzer

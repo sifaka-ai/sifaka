@@ -333,7 +333,7 @@ class TopicClassifier(BaseClassifier):
         Create and train a topic classifier in one step.
 
         Args:
-            corpus: Corpus of texts to train on
+            corpus: List of texts to train on
             name: Name of the classifier
             description: Description of the classifier
             topic_config: Topic classification configuration (for backward compatibility)
@@ -341,7 +341,7 @@ class TopicClassifier(BaseClassifier):
             **kwargs: Additional configuration parameters
 
         Returns:
-            Trained TopicClassifier
+            Trained TopicClassifier instance
         """
         # If topic_config is provided but config is not, create config from topic_config
         if topic_config is not None and config is None:
@@ -355,11 +355,9 @@ class TopicClassifier(BaseClassifier):
             }
 
             # Create config with params
-            labels = [f"topic_{i}" for i in range(topic_config.num_topics)]
             config = ClassifierConfig(
-                labels=labels,
+                labels=[f"topic_{i}" for i in range(topic_config.num_topics)],
                 cost=2.0,
-                min_confidence=topic_config.min_confidence,
                 params=params,
             )
 

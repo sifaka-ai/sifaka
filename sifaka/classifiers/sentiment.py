@@ -29,7 +29,24 @@ class SentimentAnalyzer(Protocol):
 
 @dataclass(frozen=True)
 class SentimentThresholds:
-    """Immutable thresholds for sentiment classification."""
+    """
+    Immutable thresholds for sentiment classification.
+
+    Note: This class is provided for backward compatibility.
+    The preferred way to configure sentiment thresholds is to use
+    ClassifierConfig with params:
+
+    ```python
+    config = ClassifierConfig(
+        labels=["positive", "neutral", "negative", "unknown"],
+        cost=1,
+        params={
+            "positive_threshold": 0.05,
+            "negative_threshold": -0.05,
+        }
+    )
+    ```
+    """
 
     positive: float = 0.05
     negative: float = -0.05
@@ -73,7 +90,7 @@ class SentimentClassifier(BaseClassifier):
         Args:
             name: The name of the classifier
             description: Description of the classifier
-            thresholds: Sentiment threshold configuration
+            thresholds: Sentiment threshold configuration (for backward compatibility)
             analyzer: Custom sentiment analyzer implementation
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
@@ -81,13 +98,6 @@ class SentimentClassifier(BaseClassifier):
         # Store analyzer for later use if provided
         if analyzer is not None:
             self._analyzer = analyzer
-
-        # Initialize thresholds from provided value or config params
-        if thresholds:
-            self._thresholds = thresholds
-        else:
-            # Will be initialized from config params via properties
-            self._thresholds = None
 
         # Create config if not provided
         if config is None:
@@ -139,15 +149,11 @@ class SentimentClassifier(BaseClassifier):
     @property
     def positive_threshold(self) -> float:
         """Get the positive sentiment threshold."""
-        if hasattr(self, "_thresholds") and self._thresholds:
-            return self._thresholds.positive
         return self.config.params.get("positive_threshold", 0.05)
 
     @property
     def negative_threshold(self) -> float:
         """Get the negative sentiment threshold."""
-        if hasattr(self, "_thresholds") and self._thresholds:
-            return self._thresholds.negative
         return self.config.params.get("negative_threshold", -0.05)
 
     def _get_sentiment_label(self, compound_score: float) -> str:
@@ -233,7 +239,7 @@ class SentimentClassifier(BaseClassifier):
             analyzer: Custom sentiment analyzer implementation
             name: Name of the classifier
             description: Description of the classifier
-            thresholds: Custom sentiment thresholds
+            thresholds: Custom sentiment thresholds (for backward compatibility)
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
@@ -244,6 +250,21 @@ class SentimentClassifier(BaseClassifier):
         if not isinstance(analyzer, SentimentAnalyzer):
             raise ValueError(
                 f"Analyzer must implement SentimentAnalyzer protocol, got {type(analyzer)}"
+            )
+
+        # If thresholds is provided but config is not, create config from thresholds
+        if thresholds is not None and config is None:
+            # Extract params from thresholds
+            params = {
+                "positive_threshold": thresholds.positive,
+                "negative_threshold": thresholds.negative,
+            }
+
+            # Create config with params
+            config = ClassifierConfig(
+                labels=cls.DEFAULT_LABELS,
+                cost=cls.DEFAULT_COST,
+                params=params,
             )
 
         # Create instance with validated analyzer

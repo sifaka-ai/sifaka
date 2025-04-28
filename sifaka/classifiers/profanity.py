@@ -317,7 +317,7 @@ class ProfanityClassifier(BaseClassifier):
             checker: Custom profanity checker implementation
             name: Name of the classifier
             description: Description of the classifier
-            profanity_config: Custom profanity configuration
+            profanity_config: Custom profanity configuration (for backward compatibility)
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
@@ -328,6 +328,22 @@ class ProfanityClassifier(BaseClassifier):
         if not isinstance(checker, ProfanityChecker):
             raise ValueError(
                 f"Checker must implement ProfanityChecker protocol, got {type(checker)}"
+            )
+
+        # If profanity_config is provided but config is not, create config from profanity_config
+        if profanity_config is not None and config is None:
+            # Extract params from profanity_config
+            params = {
+                "custom_words": list(profanity_config.custom_words),
+                "censor_char": profanity_config.censor_char,
+                "min_confidence": profanity_config.min_confidence,
+            }
+
+            # Create config with params
+            config = ClassifierConfig(
+                labels=cls.DEFAULT_LABELS,
+                cost=cls.DEFAULT_COST,
+                params=params,
             )
 
         # Create instance with validated checker

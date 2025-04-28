@@ -22,7 +22,27 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class SpamConfig:
-    """Configuration for spam classification."""
+    """
+    Configuration for spam classification.
+
+    Note: This class is provided for backward compatibility.
+    The preferred way to configure spam detection is to use
+    ClassifierConfig with params:
+
+    ```python
+    config = ClassifierConfig(
+        labels=["ham", "spam"],
+        cost=1.5,
+        params={
+            "min_confidence": 0.7,
+            "max_features": 1000,
+            "random_state": 42,
+            "model_path": "/path/to/model.pkl",
+            "use_bigrams": True,
+        }
+    )
+    ```
+    """
 
     min_confidence: float = 0.7  # Minimum confidence threshold
     max_features: int = 1000  # Max features for vectorization
@@ -49,7 +69,6 @@ class SpamClassifier(BaseClassifier):
     """
 
     # Private attributes
-    _spam_config: SpamConfig = PrivateAttr(default_factory=SpamConfig)
     _sklearn_feature_extraction_text: Any = PrivateAttr(default=None)
     _sklearn_naive_bayes: Any = PrivateAttr(default=None)
     _sklearn_pipeline: Any = PrivateAttr(default=None)
@@ -71,7 +90,7 @@ class SpamClassifier(BaseClassifier):
         Args:
             name: The name of the classifier
             description: Description of the classifier
-            spam_config: Spam classification configuration
+            spam_config: Spam classification configuration (for backward compatibility)
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
@@ -91,13 +110,12 @@ class SpamClassifier(BaseClassifier):
             # Create config with remaining kwargs
             config = ClassifierConfig(labels=["ham", "spam"], cost=1.5, params=params, **kwargs)
 
-        # Initialize base class and set spam config
+        # Initialize base class
         super().__init__(name=name, description=description, config=config)
-        if spam_config:
-            self._spam_config = spam_config
 
         # Try to load model if path is provided
-        if self._spam_config.model_path and os.path.exists(self._spam_config.model_path):
+        model_path = self.config.params.get("model_path")
+        if model_path and os.path.exists(model_path):
             self.warm_up()
 
     def _is_initialized(self) -> bool:
@@ -127,13 +145,18 @@ class SpamClassifier(BaseClassifier):
         if not self._is_initialized():
             self._load_dependencies()
 
-            if self._spam_config.model_path and os.path.exists(self._spam_config.model_path):
-                self._load_model(self._spam_config.model_path)
+            model_path = self.config.params.get("model_path")
+            if model_path and os.path.exists(model_path):
+                self._load_model(model_path)
             else:
+                # Get parameters from config
+                max_features = self.config.params.get("max_features", 1000)
+                use_bigrams = self.config.params.get("use_bigrams", True)
+
                 # Create TF-IDF vectorizer
-                ngram_range = (1, 2) if self._spam_config.use_bigrams else (1, 1)
+                ngram_range = (1, 2) if use_bigrams else (1, 1)
                 self._vectorizer = self._sklearn_feature_extraction_text.TfidfVectorizer(
-                    max_features=self._spam_config.max_features,
+                    max_features=max_features,
                     stop_words="english",
                     ngram_range=ngram_range,
                 )
@@ -197,8 +220,9 @@ class SpamClassifier(BaseClassifier):
         self._pipeline.fit(texts, label_indices)
 
         # Save the model if path is provided
-        if self._spam_config.model_path:
-            self._save_model(self._spam_config.model_path)
+        model_path = self.config.params.get("model_path")
+        if model_path:
+            self._save_model(model_path)
 
         return self
 
@@ -285,13 +309,31 @@ class SpamClassifier(BaseClassifier):
             labels: List of labels ("ham" or "spam")
             name: Name of the classifier
             description: Description of the classifier
-            spam_config: Spam classification configuration
+            spam_config: Spam classification configuration (for backward compatibility)
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Trained SpamClassifier
         """
+        # If spam_config is provided but config is not, create config from spam_config
+        if spam_config is not None and config is None:
+            # Extract params from spam_config
+            params = {
+                "min_confidence": spam_config.min_confidence,
+                "max_features": spam_config.max_features,
+                "random_state": spam_config.random_state,
+                "model_path": spam_config.model_path,
+                "use_bigrams": spam_config.use_bigrams,
+            }
+
+            # Create config with params
+            config = ClassifierConfig(
+                labels=["ham", "spam"],
+                cost=1.5,
+                params=params,
+            )
+
         # Create instance with provided configuration
         classifier = cls(
             name=name, description=description, spam_config=spam_config, config=config, **kwargs

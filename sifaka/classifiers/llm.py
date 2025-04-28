@@ -38,7 +38,26 @@ class LLMProvider(Protocol):
 
 @dataclass(frozen=True)
 class LLMPromptConfig:
-    """Configuration for LLM prompts."""
+    """
+    Configuration for LLM prompts.
+
+    Note: This class is provided for backward compatibility.
+    The preferred way to configure LLM prompts is to use
+    ClassifierConfig with params:
+
+    ```python
+    config = ClassifierConfig(
+        labels=["label1", "label2", ...],
+        cost=5,
+        params={
+            "system_prompt": "You are a classifier...",
+            "user_prompt_template": "Classify the following text: {text}...",
+            "temperature": 0.1,
+            "max_retries": 3,
+        }
+    )
+    ```
+    """
 
     system_prompt: Optional[str] = None
     user_prompt_template: Optional[str] = None
@@ -94,16 +113,13 @@ class LLMClassifier(BaseClassifier):
             description: Description of the classifier
             model: The LLM provider to use
             labels: List of possible labels/classes
-            prompt_config: Configuration for LLM prompts
+            prompt_config: Configuration for LLM prompts (for backward compatibility)
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
         # Validate and store model
         self._validate_model(model)
         self._model = model
-
-        # Store prompt config
-        self._prompt_config = prompt_config or self._create_default_prompt_config(labels)
 
         # Create config if not provided
         if config is None:
@@ -131,21 +147,23 @@ class LLMClassifier(BaseClassifier):
             raise ValueError(f"Model must implement LLMProvider protocol, got {type(model)}")
         return True
 
-    def _create_default_prompt_config(self, labels: List[str]) -> LLMPromptConfig:
+    def _create_default_prompt_config(self, labels: List[str]) -> dict:
         """Create default prompt configuration."""
-        return LLMPromptConfig(
-            system_prompt=(
+        return {
+            "system_prompt": (
                 f"You are a classifier that assigns one of the following labels: {', '.join(labels)}. "
                 "Respond with a JSON object containing 'label' and 'confidence' (0-1) fields."
             ),
-            user_prompt_template=(
+            "user_prompt_template": (
                 "Classify the following text:\n\n{text}\n\n"
                 "Respond with a JSON object containing:\n"
                 "- label: one of {labels}\n"
                 "- confidence: number between 0 and 1\n"
                 "- explanation: brief explanation of the classification"
             ),
-        )
+            "temperature": 0.1,
+            "max_retries": 3,
+        }
 
     def _parse_llm_response(self, response: str) -> LLMResponse:
         """
@@ -217,15 +235,24 @@ class LLMClassifier(BaseClassifier):
         Returns:
             ClassificationResult with LLM's prediction
         """
-        prompt = self._prompt_config.user_prompt_template.format(
-            text=text, labels=self.config.labels
+        # Get parameters from config
+        prompt_template = self.config.params.get(
+            "user_prompt_template",
+            "Classify the following text:\n\n{text}\n\nRespond with a JSON object containing:\n- label: one of {labels}\n- confidence: number between 0 and 1\n- explanation: brief explanation of the classification",
         )
+        system_prompt = self.config.params.get(
+            "system_prompt",
+            f"You are a classifier that assigns one of the following labels: {', '.join(self.config.labels)}. Respond with a JSON object containing 'label' and 'confidence' (0-1) fields.",
+        )
+        temperature = self.config.params.get("temperature", 0.1)
+
+        prompt = prompt_template.format(text=text, labels=self.config.labels)
 
         try:
             response = self._model.generate(
                 prompt,
-                system_prompt=self._prompt_config.system_prompt,
-                temperature=self._prompt_config.temperature,
+                system_prompt=system_prompt,
+                temperature=temperature,
             )
 
             result = self._parse_llm_response(response)
@@ -269,7 +296,7 @@ class LLMClassifier(BaseClassifier):
             name: Name of the classifier
             description: Description of the classifier
             labels: List of possible labels/classes
-            prompt_config: Custom prompt configuration
+            prompt_config: Custom prompt configuration (for backward compatibility)
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
@@ -282,6 +309,23 @@ class LLMClassifier(BaseClassifier):
 
         if not isinstance(model, LLMProvider):
             raise ValueError(f"Model must implement LLMProvider protocol, got {type(model)}")
+
+        # If prompt_config is provided but config is not, create config from prompt_config
+        if prompt_config is not None and config is None:
+            # Extract params from prompt_config
+            params = {
+                "system_prompt": prompt_config.system_prompt,
+                "user_prompt_template": prompt_config.user_prompt_template,
+                "temperature": prompt_config.temperature,
+                "max_retries": prompt_config.max_retries,
+            }
+
+            # Create config with params
+            config = ClassifierConfig(
+                labels=labels,
+                cost=cls.DEFAULT_COST,
+                params=params,
+            )
 
         # Create instance with validated model
         instance = cls(
