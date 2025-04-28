@@ -3,9 +3,18 @@ Formatting and style rules for Sifaka.
 
 This module provides rules for validating text formatting, including length,
 paragraph structure, writing style, and general formatting patterns.
+
+.. deprecated:: 1.0.0
+   This module is deprecated and will be removed in version 2.0.0.
+   Use the following modules instead:
+
+   - :mod:`sifaka.rules.formatting.length` for length validation
+   - :mod:`sifaka.rules.formatting.style` for style validation
+   - :mod:`sifaka.rules.formatting.whitespace` for whitespace validation
 """
 
 import re
+import warnings
 from dataclasses import dataclass, field
 from typing import (
     Any,
@@ -18,6 +27,13 @@ from typing import (
 )
 
 from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
+
+warnings.warn(
+    "The formatting module is deprecated and will be removed in version 2.0.0. "
+    "Use the modules in sifaka.rules.formatting instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 @dataclass(frozen=True)

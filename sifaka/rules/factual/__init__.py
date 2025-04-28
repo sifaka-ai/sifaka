@@ -35,13 +35,59 @@ Example:
 
 import warnings
 
-# Re-export everything from the new package
-from sifaka.rules.factual import *
+# Re-export classes for backward compatibility
+from sifaka.rules.factual.accuracy import (
+    DefaultFactualAccuracyValidator,
+    FactualAccuracyConfig,
+    FactualAccuracyRule,
+    create_factual_accuracy_rule,
+)
+from sifaka.rules.factual.base import BaseFactualValidator, FactualValidator
+from sifaka.rules.factual.citation import (
+    CitationConfig,
+    CitationRule,
+    DefaultCitationValidator,
+    create_citation_rule,
+)
+from sifaka.rules.factual.confidence import (
+    ConfidenceConfig,
+    ConfidenceRule,
+    DefaultConfidenceValidator,
+    create_confidence_rule,
+)
+from sifaka.rules.factual.consistency import (
+    DefaultFactualConsistencyValidator,
+    FactualConsistencyConfig,
+    FactualConsistencyRule,
+    create_factual_consistency_rule,
+)
 
 warnings.warn(
-    "The factual.py module is deprecated and will be removed in version 2.0.0. "
+    "The factual module is deprecated and will be removed in version 2.0.0. "
     "Use sifaka.rules.factual.consistency, sifaka.rules.factual.confidence, "
     "sifaka.rules.factual.citation, and sifaka.rules.factual.accuracy instead.",
     DeprecationWarning,
     stacklevel=2,
 )
+
+# Export public classes and functions
+__all__ = [
+    "FactualConsistencyRule",
+    "FactualConsistencyConfig",
+    "DefaultFactualConsistencyValidator",
+    "ConfidenceRule",
+    "ConfidenceConfig",
+    "DefaultConfidenceValidator",
+    "CitationRule",
+    "CitationConfig",
+    "DefaultCitationValidator",
+    "FactualAccuracyRule",
+    "FactualAccuracyConfig",
+    "DefaultFactualAccuracyValidator",
+    "BaseFactualValidator",
+    "FactualValidator",
+    "create_factual_consistency_rule",
+    "create_confidence_rule",
+    "create_citation_rule",
+    "create_factual_accuracy_rule",
+]
