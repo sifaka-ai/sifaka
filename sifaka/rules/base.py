@@ -71,6 +71,48 @@ class RuleValidator(Protocol[T]):
     def validation_type(self) -> type[T]: ...
 
 
+class BaseValidator(Generic[T]):
+    """Base class for validators that implements the RuleValidator protocol."""
+
+    def validate(self, output: T, **kwargs) -> "RuleResult":
+        """
+        Validate the output.
+
+        Args:
+            output: The output to validate
+            **kwargs: Additional validation context
+
+        Returns:
+            Validation result
+        """
+        # This is a placeholder implementation that should be overridden
+        # by subclasses. We're using _ to indicate unused parameters.
+        _ = output, kwargs
+        raise NotImplementedError("Subclasses must implement validate method")
+
+    def can_validate(self, output: T) -> bool:
+        """
+        Check if this validator can validate the output.
+
+        Args:
+            output: The output to check
+
+        Returns:
+            True if this validator can validate the output
+        """
+        return isinstance(output, self.validation_type)
+
+    @property
+    def validation_type(self) -> type[T]:
+        """
+        Get the type this validator can validate.
+
+        Returns:
+            The type this validator can validate
+        """
+        return str  # Default to string, override in subclasses
+
+
 @runtime_checkable
 class RuleResultHandler(Protocol[R]):
     """Protocol for handling rule validation results."""
@@ -124,6 +166,9 @@ class RuleConfig:
     priority: RulePriority = RulePriority.MEDIUM
     cache_size: int = 0
     cost: int = 1
+    params: Dict[str, Any] = field(default_factory=dict)
+
+    # Keep metadata for backward compatibility
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -132,9 +177,25 @@ class RuleConfig:
         if self.cost < 0:
             raise ConfigurationError("Cost must be non-negative")
 
+        # For backward compatibility, if metadata is provided but params is empty,
+        # copy metadata to params
+        if self.metadata and not self.params:
+            object.__setattr__(self, "params", dict(self.metadata))
+
     def with_options(self, **kwargs: Any) -> "RuleConfig":
         """Create a new config with updated options."""
         return RuleConfig(**{**self.__dict__, **kwargs})
+
+    def with_params(self, **kwargs: Any) -> "RuleConfig":
+        """Create a new config with updated parameters."""
+        new_params = {**self.params, **kwargs}
+        return RuleConfig(
+            priority=self.priority,
+            cache_size=self.cache_size,
+            cost=self.cost,
+            params=new_params,
+            metadata=self.metadata,
+        )
 
 
 class Rule(Generic[T, R, V, H], ABC):
@@ -155,8 +216,8 @@ class Rule(Generic[T, R, V, H], ABC):
         self,
         name: str,
         description: str,
-        validator: Optional[V] = None,
         config: Optional[RuleConfig] = None,
+        validator: Optional[V] = None,
         result_handler: Optional[H] = None,
     ) -> None:
         """
@@ -165,15 +226,15 @@ class Rule(Generic[T, R, V, H], ABC):
         Args:
             name: The name of the rule
             description: Description of the rule
-            validator: Optional validator implementation
             config: Rule configuration
+            validator: Optional validator implementation
             result_handler: Optional handler for validation results
         """
         self._name: Final[str] = name
         self._description: Final[str] = description
         self._config: Final[RuleConfig] = config or RuleConfig()
 
-        # Validate and set validator if provided
+        # Set validator (either provided or create default)
         if validator is not None:
             if not isinstance(validator, RuleValidator):
                 raise ConfigurationError(
@@ -181,22 +242,8 @@ class Rule(Generic[T, R, V, H], ABC):
                 )
             self._validator: Final[V] = validator
         else:
-            # Create a default validator that delegates to _validate_impl
-            class DefaultValidator(RuleValidator[T]):
-                def __init__(self, rule: Rule) -> None:
-                    self._rule = rule
-
-                def validate(self, output: T, **kwargs) -> RuleResult:
-                    return self._rule._validate_impl(output, **kwargs)
-
-                def can_validate(self, output: T) -> bool:
-                    return isinstance(output, str)
-
-                @property
-                def validation_type(self) -> type[T]:
-                    return str
-
-            self._validator = DefaultValidator(self)
+            # Create a default validator
+            self._validator = self._create_default_validator()
 
         # Validate and set handler if provided
         if result_handler is not None:
@@ -210,9 +257,15 @@ class Rule(Generic[T, R, V, H], ABC):
 
         # Initialize cache if enabled
         if self._config.cache_size > 0:
-            self._validate_cached = lru_cache(maxsize=self._config.cache_size)(self._validate_impl)
-        else:
-            self._validate_cached = self._validate_impl
+            self._validator_validate = self._validator.validate
+            self._validator.validate = lru_cache(maxsize=self._config.cache_size)(
+                self._validator_validate
+            )
+
+    @abstractmethod
+    def _create_default_validator(self) -> V:
+        """Create a default validator for this rule."""
+        pass
 
     @property
     def name(self) -> str:
@@ -236,22 +289,6 @@ class Rule(Generic[T, R, V, H], ABC):
         hasher.update(str(self._config).encode())
         hasher.update(str(sorted(kwargs.items())).encode())
         return hasher.hexdigest()
-
-    @abstractmethod
-    def _validate_impl(self, output: T, **kwargs) -> R:
-        """
-        Implement the validation logic.
-
-        Args:
-            output: The output to validate
-            **kwargs: Additional validation context
-
-        Returns:
-            Validation result
-
-        Raises:
-            ValidationError: If validation fails
-        """
 
     def validate(self, output: T, **kwargs) -> R:
         """
@@ -284,12 +321,8 @@ class Rule(Generic[T, R, V, H], ABC):
             raise ValidationError(f"Validator cannot handle input: {output}")
 
         try:
-            # Get from cache or validate
-            if self._config.cache_size > 0:
-                self._get_cache_key(output, **kwargs)
-                result = self._validate_cached(output, **kwargs)
-            else:
-                result = self._validate_impl(output, **kwargs)
+            # Use the validator (caching is handled at the validator level)
+            result = self._validator.validate(output, **kwargs)
 
             # Handle result if handler is provided
             if self._result_handler is not None:
@@ -304,7 +337,34 @@ class Rule(Generic[T, R, V, H], ABC):
             raise ValidationError(f"Validation failed: {str(e)}") from e
 
 
-class FunctionRule(Rule[str, RuleResult, RuleValidator[str], RuleResultHandler[RuleResult]]):
+class FunctionValidator(BaseValidator[str]):
+    """Validator that wraps a function for validation."""
+
+    def __init__(self, func: Callable) -> None:
+        """Initialize with a validation function."""
+        self._func = func
+
+    def validate(self, output: str, **kwargs) -> RuleResult:
+        """Validate using the wrapped function."""
+        result = self._func(output, **kwargs)
+
+        if isinstance(result, bool):
+            return RuleResult(
+                passed=result, message="" if result else f"Rule {self._func.__name__} failed"
+            )
+        elif isinstance(result, RuleResult):
+            return result
+        elif isinstance(result, tuple):
+            passed, message, *rest = result
+            metadata = rest[0] if rest else {}
+            return RuleResult(passed=passed, message=message, metadata=metadata)
+        else:
+            raise ValidationError(
+                f"Function {self._func.__name__} returned invalid type: {type(result)}"
+            )
+
+
+class FunctionRule(Rule[str, RuleResult, FunctionValidator, RuleResultHandler[RuleResult]]):
     """
     A rule that wraps a function for simple validation.
 
@@ -325,51 +385,16 @@ class FunctionRule(Rule[str, RuleResult, RuleValidator[str], RuleResultHandler[R
         config: Optional[RuleConfig] = None,
     ) -> None:
         """Initialize a function-based rule."""
+        self._func = func
         super().__init__(
             name=name,
             description=description or func.__doc__ or "",
-            validator=self._create_validator(func),
             config=config,
         )
-        self._func = func
 
-    def _create_validator(self, func: Callable) -> RuleValidator[str]:
-        """Create a validator from the function."""
-
-        class FunctionValidator(RuleValidator[str]):
-            def __init__(self, func: Callable) -> None:
-                self._func = func
-
-            def validate(self, output: str, **kwargs) -> RuleResult:
-                result = self._func(output, **kwargs)
-
-                if isinstance(result, bool):
-                    return RuleResult(
-                        passed=result, message="" if result else f"Rule {func.__name__} failed"
-                    )
-                elif isinstance(result, RuleResult):
-                    return result
-                elif isinstance(result, tuple):
-                    passed, message, *rest = result
-                    metadata = rest[0] if rest else {}
-                    return RuleResult(passed=passed, message=message, metadata=metadata)
-                else:
-                    raise ValidationError(
-                        f"Function {func.__name__} returned invalid type: {type(result)}"
-                    )
-
-            def can_validate(self, output: str) -> bool:
-                return isinstance(output, str)
-
-            @property
-            def validation_type(self) -> type[str]:
-                return str
-
-        return FunctionValidator(func)
-
-    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
-        """Implement validation using the wrapped function."""
-        return self._validator.validate(output, **kwargs)
+    def _create_default_validator(self) -> FunctionValidator:
+        """Create a default validator from the function."""
+        return FunctionValidator(self._func)
 
 
 @runtime_checkable
@@ -403,7 +428,11 @@ __all__ = [
     "RuleResult",
     "RuleProtocol",
     "RuleValidator",
+    "BaseValidator",
     "RuleResultHandler",
+    "FunctionValidator",
+    "FunctionRule",
     "ValidationError",
     "ConfigurationError",
+    "RulePriority",
 ]

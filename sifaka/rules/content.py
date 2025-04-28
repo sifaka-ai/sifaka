@@ -17,14 +17,15 @@ from typing import (
 from typing_extensions import TypeGuard
 
 from sifaka.rules.base import (
+    BaseValidator,
     ConfigurationError,
     Rule,
     RuleConfig,
     RuleResult,
     RuleResultHandler,
-    RuleValidator,
     ValidationError,
 )
+
 
 @runtime_checkable
 class ContentAnalyzer(Protocol):
@@ -33,12 +34,14 @@ class ContentAnalyzer(Protocol):
     def analyze(self, text: str) -> Dict[str, Any]: ...
     def can_analyze(self, text: str) -> bool: ...
 
+
 @runtime_checkable
 class ToneAnalyzer(Protocol):
     """Protocol for tone analysis components."""
 
     def analyze_tone(self, text: str) -> Dict[str, float]: ...
     def get_supported_tones(self) -> List[str]: ...
+
 
 @dataclass(frozen=True)
 class ProhibitedTerms:
@@ -59,6 +62,7 @@ class ProhibitedTerms:
         """Create new instance with updated case sensitivity."""
         return ProhibitedTerms(terms=self.terms, case_sensitive=case_sensitive)
 
+
 @dataclass(frozen=True)
 class ToneIndicators:
     """Immutable container for tone indicators."""
@@ -69,6 +73,7 @@ class ToneIndicators:
     def __post_init__(self) -> None:
         if not self.positive and not self.negative:
             raise ConfigurationError("At least one indicator set must be non-empty")
+
 
 @dataclass(frozen=True)
 class ProhibitedContentConfig(RuleConfig):
@@ -95,6 +100,7 @@ class ProhibitedContentConfig(RuleConfig):
         super().__post_init__()
         if not self.terms:
             raise ValueError("Must provide at least one prohibited term")
+
 
 @dataclass(frozen=True)
 class ToneConfig(RuleConfig):
@@ -185,7 +191,8 @@ class ToneConfig(RuleConfig):
                     f"Tone {tone} must have non-empty positive and negative indicators"
                 )
 
-class ContentValidator(RuleValidator[str]):
+
+class ContentValidator(BaseValidator[str]):
     """Base validator for content-based rules."""
 
     def __init__(self, analyzer: ContentAnalyzer) -> None:
@@ -201,14 +208,6 @@ class ContentValidator(RuleValidator[str]):
             )
         return True
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of input this validator accepts."""
-        return str
-
-    def can_validate(self, output: str) -> bool:
-        """Check if this validator can handle the input."""
-        return isinstance(output, str) and self._analyzer.can_analyze(output)
 
 class ProhibitedContentValidator(ContentValidator):
     """Validator that checks for prohibited content."""
@@ -253,6 +252,7 @@ class ProhibitedContentValidator(ContentValidator):
 
         except Exception as e:
             raise ValidationError(f"Content validation failed: {str(e)}") from e
+
 
 class ToneConsistencyValidator(ContentValidator):
     """Validator that checks tone consistency."""
@@ -322,6 +322,7 @@ class ToneConsistencyValidator(ContentValidator):
         except Exception as e:
             raise ValidationError(f"Tone validation failed: {str(e)}") from e
 
+
 class DefaultContentAnalyzer:
     """Default implementation of ContentAnalyzer."""
 
@@ -336,6 +337,7 @@ class DefaultContentAnalyzer:
     def can_analyze(self, text: str) -> bool:
         """Check if text can be analyzed."""
         return isinstance(text, str)
+
 
 class DefaultToneAnalyzer:
     """Default implementation of ToneAnalyzer."""
@@ -353,7 +355,8 @@ class DefaultToneAnalyzer:
         """Get list of supported tones."""
         return ["formal", "informal", "technical", "casual"]
 
-class DefaultProhibitedContentValidator(RuleValidator[str]):
+
+class DefaultProhibitedContentValidator(BaseValidator[str]):
     """Default implementation of prohibited content validation."""
 
     def __init__(self, config: ProhibitedContentConfig) -> None:
@@ -365,7 +368,7 @@ class DefaultProhibitedContentValidator(RuleValidator[str]):
         """Get the validator configuration."""
         return self._config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate text for prohibited content."""
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
@@ -397,16 +400,8 @@ class DefaultProhibitedContentValidator(RuleValidator[str]):
             },
         )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if this validator can handle the input."""
-        return isinstance(output, str)
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of input this validator can handle."""
-        return str
-
-class DefaultToneValidator(RuleValidator[str]):
+class DefaultToneValidator(BaseValidator[str]):
     """Default implementation of tone validation."""
 
     def __init__(self, config: ToneConfig) -> None:
@@ -418,7 +413,7 @@ class DefaultToneValidator(RuleValidator[str]):
         """Get the validator configuration."""
         return self._config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate text for tone consistency."""
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
@@ -470,26 +465,18 @@ class DefaultToneValidator(RuleValidator[str]):
             },
         )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if this validator can handle the input."""
-        return isinstance(output, str)
-
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of input this validator can handle."""
-        return str
 
 class ProhibitedContentRule(
-    Rule[str, RuleResult, ProhibitedContentValidator, RuleResultHandler[RuleResult]]
+    Rule[str, RuleResult, DefaultProhibitedContentValidator, RuleResultHandler[RuleResult]]
 ):
     """Rule that checks for prohibited content in the output."""
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        validator: Optional[RuleValidator[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        name: str = "prohibited_content_rule",
+        description: str = "Checks for prohibited content",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[DefaultProhibitedContentValidator] = None,
     ) -> None:
         """
         Initialize the prohibited content rule.
@@ -497,39 +484,42 @@ class ProhibitedContentRule(
         Args:
             name: The name of the rule
             description: Description of the rule
+            config: Rule configuration
             validator: Optional custom validator implementation
-            config: Optional configuration dictionary
         """
-        # Create config object first
-        prohibited_config = ProhibitedContentConfig(**(config or {}))
-
-        # Create default validator if none provided
-        validator = validator or DefaultProhibitedContentValidator(prohibited_config)
+        # Store parameters for creating the default validator
+        self._rule_params = {}
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._rule_params = params_source
 
         # Initialize base class
         super().__init__(
             name=name,
             description=description,
+            config=config,
             validator=validator,
-            config=prohibited_config,
             result_handler=None,
         )
 
-    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
-        """Validate output for prohibited content."""
-        return self._validator.validate(output)
+    def _create_default_validator(self) -> DefaultProhibitedContentValidator:
+        """Create a default validator from config."""
+        prohibited_config = ProhibitedContentConfig(**self._rule_params)
+        return DefaultProhibitedContentValidator(prohibited_config)
+
 
 class ToneConsistencyRule(
-    Rule[str, RuleResult, ToneConsistencyValidator, RuleResultHandler[RuleResult]]
+    Rule[str, RuleResult, DefaultToneValidator, RuleResultHandler[RuleResult]]
 ):
     """Rule that checks for tone consistency."""
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        validator: Optional[RuleValidator[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        name: str = "tone_consistency_rule",
+        description: str = "Checks for tone consistency",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[DefaultToneValidator] = None,
     ) -> None:
         """
         Initialize the tone consistency rule.
@@ -537,27 +527,30 @@ class ToneConsistencyRule(
         Args:
             name: The name of the rule
             description: Description of the rule
+            config: Rule configuration
             validator: Optional custom validator implementation
-            config: Optional configuration dictionary
         """
-        # Create config object first
-        tone_config = ToneConfig(**(config or {}))
-
-        # Create default validator if none provided
-        validator = validator or DefaultToneValidator(tone_config)
+        # Store parameters for creating the default validator
+        self._rule_params = {}
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._rule_params = params_source
 
         # Initialize base class
         super().__init__(
             name=name,
             description=description,
+            config=config,
             validator=validator,
-            config=tone_config,
             result_handler=None,
         )
 
-    def _validate_impl(self, output: str, **kwargs) -> RuleResult:
-        """Validate output tone consistency."""
-        return self._validator.validate(output)
+    def _create_default_validator(self) -> DefaultToneValidator:
+        """Create a default validator from config."""
+        tone_config = ToneConfig(**self._rule_params)
+        return DefaultToneValidator(tone_config)
+
 
 def create_prohibited_content_rule(
     name: str = "prohibited_content_rule",
@@ -592,11 +585,15 @@ def create_prohibited_content_rule(
             "cost": 1.0,
         }
 
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config)
+
     return ProhibitedContentRule(
         name=name,
         description=description,
-        config=config,
+        config=rule_config,
     )
+
 
 def create_tone_consistency_rule(
     name: str = "tone_consistency_rule",
@@ -683,11 +680,15 @@ def create_tone_consistency_rule(
             "cost": 1.0,
         }
 
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config)
+
     return ToneConsistencyRule(
         name=name,
         description=description,
-        config=config,
+        config=rule_config,
     )
+
 
 # Export public classes and functions
 __all__ = [

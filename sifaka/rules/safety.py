@@ -3,14 +3,10 @@ Safety-related rules for Sifaka.
 """
 
 from dataclasses import dataclass, field
-from typing import (
-    Any,
-    Dict,
-    List,
-    Optional
-)
+from typing import Any, Dict, List, Optional
 
-from sifaka.rules.base import Rule, RuleConfig, RuleResult, RuleValidator
+from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
+
 
 @dataclass(frozen=True)
 class ToxicityConfig(RuleConfig):
@@ -42,6 +38,7 @@ class ToxicityConfig(RuleConfig):
             raise ValueError("Threshold must be between 0.0 and 1.0")
         if not self.indicators:
             raise ValueError("Must provide at least one toxicity indicator")
+
 
 @dataclass(frozen=True)
 class BiasConfig(RuleConfig):
@@ -95,6 +92,7 @@ class BiasConfig(RuleConfig):
             if not indicators:
                 raise ValueError(f"Category {category} must have at least one indicator")
 
+
 @dataclass(frozen=True)
 class HarmfulContentConfig(RuleConfig):
     """Configuration for harmful content validation."""
@@ -144,7 +142,8 @@ class HarmfulContentConfig(RuleConfig):
             if not indicators:
                 raise ValueError(f"Category {category} must have at least one indicator")
 
-class DefaultToxicityValidator(RuleValidator[str]):
+
+class DefaultToxicityValidator(BaseValidator[str]):
     """Default implementation of toxicity validation."""
 
     def __init__(self, config: ToxicityConfig) -> None:
@@ -156,7 +155,7 @@ class DefaultToxicityValidator(RuleValidator[str]):
         """Get the validator configuration."""
         return self._config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate text for toxicity."""
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
@@ -181,16 +180,8 @@ class DefaultToxicityValidator(RuleValidator[str]):
             metadata={"toxicity_score": toxicity_score},
         )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if this validator can handle the input."""
-        return isinstance(output, str)
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of input this validator can handle."""
-        return str
-
-class DefaultBiasValidator(RuleValidator[str]):
+class DefaultBiasValidator(BaseValidator[str]):
     """Default implementation of bias validation."""
 
     def __init__(self, config: BiasConfig) -> None:
@@ -202,7 +193,7 @@ class DefaultBiasValidator(RuleValidator[str]):
         """Get the validator configuration."""
         return self._config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate text for bias."""
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
@@ -250,16 +241,8 @@ class DefaultBiasValidator(RuleValidator[str]):
             },
         )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if this validator can handle the input."""
-        return isinstance(output, str)
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of input this validator can handle."""
-        return str
-
-class DefaultHarmfulContentValidator(RuleValidator[str]):
+class DefaultHarmfulContentValidator(BaseValidator[str]):
     """Default implementation of harmful content validation."""
 
     def __init__(self, config: HarmfulContentConfig) -> None:
@@ -271,7 +254,7 @@ class DefaultHarmfulContentValidator(RuleValidator[str]):
         """Get the validator configuration."""
         return self._config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate text for harmful content."""
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
@@ -303,24 +286,16 @@ class DefaultHarmfulContentValidator(RuleValidator[str]):
             },
         )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if this validator can handle the input."""
-        return isinstance(output, str)
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of input this validator can handle."""
-        return str
-
-class ToxicityRule(Rule):
+class ToxicityRule(Rule[str, RuleResult, DefaultToxicityValidator, Any]):
     """Rule for validating text toxicity."""
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        validator: Optional[RuleValidator[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        name: str = "toxicity_rule",
+        description: str = "Validates text for toxic content",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[DefaultToxicityValidator] = None,
     ) -> None:
         """
         Initialize the rule with toxicity validation.
@@ -328,31 +303,34 @@ class ToxicityRule(Rule):
         Args:
             name: The name of the rule
             description: Description of the rule
+            config: Rule configuration
             validator: Optional custom validator implementation
-            config: Optional configuration dictionary
         """
-        # Create config object first
-        toxicity_config = ToxicityConfig(**(config or {}))
-
-        # Create default validator if none provided
-        validator = validator or DefaultToxicityValidator(toxicity_config)
+        # Store parameters for creating the default validator
+        self._rule_params = {}
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._rule_params = params_source
 
         # Initialize base class
-        super().__init__(name=name, description=description, validator=validator)
+        super().__init__(name=name, description=description, config=config, validator=validator)
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Validate output toxicity."""
-        return self._validator.validate(output)
+    def _create_default_validator(self) -> DefaultToxicityValidator:
+        """Create a default validator from config."""
+        rule_config = ToxicityConfig(**self._rule_params)
+        return DefaultToxicityValidator(rule_config)
 
-class BiasRule(Rule):
+
+class BiasRule(Rule[str, RuleResult, DefaultBiasValidator, Any]):
     """Rule for validating text bias."""
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        validator: Optional[RuleValidator[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        name: str = "bias_rule",
+        description: str = "Validates text for biased content",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[DefaultBiasValidator] = None,
     ) -> None:
         """
         Initialize the rule with bias validation.
@@ -360,31 +338,34 @@ class BiasRule(Rule):
         Args:
             name: The name of the rule
             description: Description of the rule
+            config: Rule configuration
             validator: Optional custom validator implementation
-            config: Optional configuration dictionary
         """
-        # Create config object first
-        bias_config = BiasConfig(**(config or {}))
-
-        # Create default validator if none provided
-        validator = validator or DefaultBiasValidator(bias_config)
+        # Store parameters for creating the default validator
+        self._rule_params = {}
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._rule_params = params_source
 
         # Initialize base class
-        super().__init__(name=name, description=description, validator=validator)
+        super().__init__(name=name, description=description, config=config, validator=validator)
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Validate output bias."""
-        return self._validator.validate(output)
+    def _create_default_validator(self) -> DefaultBiasValidator:
+        """Create a default validator from config."""
+        rule_config = BiasConfig(**self._rule_params)
+        return DefaultBiasValidator(rule_config)
 
-class HarmfulContentRule(Rule):
+
+class HarmfulContentRule(Rule[str, RuleResult, DefaultHarmfulContentValidator, Any]):
     """Rule for validating harmful content."""
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        validator: Optional[RuleValidator[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        name: str = "harmful_content_rule",
+        description: str = "Validates text for harmful content",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[DefaultHarmfulContentValidator] = None,
     ) -> None:
         """
         Initialize the rule with harmful content validation.
@@ -392,21 +373,24 @@ class HarmfulContentRule(Rule):
         Args:
             name: The name of the rule
             description: Description of the rule
+            config: Rule configuration
             validator: Optional custom validator implementation
-            config: Optional configuration dictionary
         """
-        # Create config object first
-        harmful_config = HarmfulContentConfig(**(config or {}))
-
-        # Create default validator if none provided
-        validator = validator or DefaultHarmfulContentValidator(harmful_config)
+        # Store parameters for creating the default validator
+        self._rule_params = {}
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._rule_params = params_source
 
         # Initialize base class
-        super().__init__(name=name, description=description, validator=validator)
+        super().__init__(name=name, description=description, config=config, validator=validator)
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Validate output harmful content."""
-        return self._validator.validate(output)
+    def _create_default_validator(self) -> DefaultHarmfulContentValidator:
+        """Create a default validator from config."""
+        rule_config = HarmfulContentConfig(**self._rule_params)
+        return DefaultHarmfulContentValidator(rule_config)
+
 
 def create_toxicity_rule(
     name: str = "toxicity_rule",
@@ -444,11 +428,15 @@ def create_toxicity_rule(
             "cost": 1.0,
         }
 
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config)
+
     return ToxicityRule(
         name=name,
         description=description,
-        config=config,
+        config=rule_config,
     )
+
 
 def create_bias_rule(
     name: str = "bias_rule",
@@ -504,11 +492,15 @@ def create_bias_rule(
             "cost": 1.0,
         }
 
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config)
+
     return BiasRule(
         name=name,
         description=description,
-        config=config,
+        config=rule_config,
     )
+
 
 def create_harmful_content_rule(
     name: str = "harmful_content_rule",
@@ -563,11 +555,15 @@ def create_harmful_content_rule(
             "cost": 1.0,
         }
 
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config)
+
     return HarmfulContentRule(
         name=name,
         description=description,
-        config=config,
+        config=rule_config,
     )
+
 
 # Export public classes and functions
 __all__ = [

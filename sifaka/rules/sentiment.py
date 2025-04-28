@@ -8,7 +8,7 @@ including positive/negative sentiment detection and emotional content analysis.
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Protocol, Set, runtime_checkable
 
-from sifaka.rules.base import Rule, RuleConfig, RuleResult, RuleValidator
+from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
 
 
 @dataclass(frozen=True)
@@ -55,6 +55,7 @@ class SentimentConfig(RuleConfig):
         if not self.negative_words:
             raise ValueError("Must provide at least one negative word")
 
+
 @dataclass(frozen=True)
 class EmotionalContentConfig(RuleConfig):
     """Configuration for emotional content validation."""
@@ -84,6 +85,7 @@ class EmotionalContentConfig(RuleConfig):
             if not indicators:
                 raise ValueError(f"Category {category} must have at least one indicator")
 
+
 @runtime_checkable
 class SentimentValidator(Protocol):
     """Protocol for sentiment validation."""
@@ -96,6 +98,7 @@ class SentimentValidator(Protocol):
     def validate(self, text: str) -> RuleResult:
         """Validate text sentiment."""
         ...
+
 
 @runtime_checkable
 class EmotionalContentValidator(Protocol):
@@ -110,7 +113,8 @@ class EmotionalContentValidator(Protocol):
         """Validate emotional content."""
         ...
 
-class DefaultSentimentValidator(RuleValidator[str]):
+
+class DefaultSentimentValidator(BaseValidator[str]):
     """Default implementation of sentiment validation."""
 
     def __init__(self, config: SentimentConfig) -> None:
@@ -122,7 +126,7 @@ class DefaultSentimentValidator(RuleValidator[str]):
         """Get the validator configuration."""
         return self._config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate text sentiment."""
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
@@ -156,16 +160,8 @@ class DefaultSentimentValidator(RuleValidator[str]):
             },
         )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if this validator can handle the input."""
-        return isinstance(output, str)
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of input this validator can handle."""
-        return str
-
-class DefaultEmotionalContentValidator(RuleValidator[str]):
+class DefaultEmotionalContentValidator(BaseValidator[str]):
     """Default implementation of emotional content validation."""
 
     def __init__(self, config: EmotionalContentConfig) -> None:
@@ -177,7 +173,7 @@ class DefaultEmotionalContentValidator(RuleValidator[str]):
         """Get the validator configuration."""
         return self._config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate emotional content."""
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
@@ -218,24 +214,16 @@ class DefaultEmotionalContentValidator(RuleValidator[str]):
             },
         )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if this validator can handle the input."""
-        return isinstance(output, str)
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of input this validator can handle."""
-        return str
-
-class SentimentRule(Rule):
+class SentimentRule(Rule[str, RuleResult, DefaultSentimentValidator, Any]):
     """Rule for validating text sentiment."""
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        validator: Optional[RuleValidator[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        name: str = "sentiment_rule",
+        description: str = "Validates text sentiment",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[DefaultSentimentValidator] = None,
     ) -> None:
         """
         Initialize the rule with sentiment validation.
@@ -243,31 +231,34 @@ class SentimentRule(Rule):
         Args:
             name: The name of the rule
             description: Description of the rule
+            config: Rule configuration
             validator: Optional custom validator implementation
-            config: Optional configuration dictionary
         """
-        # Create config object first
-        sentiment_config = SentimentConfig(**(config or {}))
-
-        # Create default validator if none provided
-        validator = validator or DefaultSentimentValidator(sentiment_config)
+        # Store parameters for creating the default validator
+        self._rule_params = {}
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._rule_params = params_source
 
         # Initialize base class
-        super().__init__(name=name, description=description, validator=validator)
+        super().__init__(name=name, description=description, config=config, validator=validator)
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Validate output sentiment."""
-        return self._validator.validate(output)
+    def _create_default_validator(self) -> DefaultSentimentValidator:
+        """Create a default validator from config."""
+        sentiment_config = SentimentConfig(**self._rule_params)
+        return DefaultSentimentValidator(sentiment_config)
 
-class EmotionalContentRule(Rule):
+
+class EmotionalContentRule(Rule[str, RuleResult, DefaultEmotionalContentValidator, Any]):
     """Rule for validating emotional content."""
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        validator: Optional[RuleValidator[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        name: str = "emotional_content_rule",
+        description: str = "Validates emotional content",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[DefaultEmotionalContentValidator] = None,
     ) -> None:
         """
         Initialize the rule with emotional content validation.
@@ -275,21 +266,24 @@ class EmotionalContentRule(Rule):
         Args:
             name: The name of the rule
             description: Description of the rule
+            config: Rule configuration
             validator: Optional custom validator implementation
-            config: Optional configuration dictionary
         """
-        # Create config object first
-        emotional_config = EmotionalContentConfig(**(config or {}))
-
-        # Create default validator if none provided
-        validator = validator or DefaultEmotionalContentValidator(emotional_config)
+        # Store parameters for creating the default validator
+        self._rule_params = {}
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._rule_params = params_source
 
         # Initialize base class
-        super().__init__(name=name, description=description, validator=validator)
+        super().__init__(name=name, description=description, config=config, validator=validator)
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Validate output emotional content."""
-        return self._validator.validate(output)
+    def _create_default_validator(self) -> DefaultEmotionalContentValidator:
+        """Create a default validator from config."""
+        emotional_config = EmotionalContentConfig(**self._rule_params)
+        return DefaultEmotionalContentValidator(emotional_config)
+
 
 def create_sentiment_rule(
     name: str = "sentiment_rule",
@@ -336,11 +330,15 @@ def create_sentiment_rule(
             "cost": 1.0,
         }
 
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config)
+
     return SentimentRule(
         name=name,
         description=description,
-        config=config,
+        config=rule_config,
     )
+
 
 def create_emotional_content_rule(
     name: str = "emotional_content_rule",
@@ -373,11 +371,15 @@ def create_emotional_content_rule(
             "cost": 1.0,
         }
 
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config)
+
     return EmotionalContentRule(
         name=name,
         description=description,
-        config=config,
+        config=rule_config,
     )
+
 
 # Export public classes and functions
 __all__ = [

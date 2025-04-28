@@ -8,9 +8,10 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional
 
-from sifaka.rules.base import Rule, RuleConfig, RuleResult, RuleValidator
+from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
 
 FormatType = Literal["markdown", "plain_text", "json"]
+
 
 @dataclass(frozen=True)
 class MarkdownConfig(RuleConfig):
@@ -32,6 +33,7 @@ class MarkdownConfig(RuleConfig):
         if self.min_elements < 0:
             raise ValueError("min_elements must be non-negative")
 
+
 @dataclass(frozen=True)
 class JsonConfig(RuleConfig):
     """Configuration for JSON format validation."""
@@ -45,6 +47,7 @@ class JsonConfig(RuleConfig):
     def __post_init__(self) -> None:
         """Validate configuration."""
         super().__post_init__()
+
 
 @dataclass(frozen=True)
 class PlainTextConfig(RuleConfig):
@@ -65,7 +68,8 @@ class PlainTextConfig(RuleConfig):
         if self.max_length is not None and self.max_length < self.min_length:
             raise ValueError("max_length must be greater than or equal to min_length")
 
-class DefaultMarkdownValidator(RuleValidator[str]):
+
+class DefaultMarkdownValidator(BaseValidator[str]):
     """Default implementation of markdown validation."""
 
     def __init__(self, config: MarkdownConfig) -> None:
@@ -77,7 +81,7 @@ class DefaultMarkdownValidator(RuleValidator[str]):
         """Get the validator configuration."""
         return self._config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate markdown format."""
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
@@ -94,16 +98,8 @@ class DefaultMarkdownValidator(RuleValidator[str]):
             },
         )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if this validator can handle the input."""
-        return isinstance(output, str)
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of input this validator can handle."""
-        return str
-
-class DefaultJsonValidator(RuleValidator[str]):
+class DefaultJsonValidator(BaseValidator[str]):
     """Default implementation of JSON validation."""
 
     def __init__(self, config: JsonConfig) -> None:
@@ -115,7 +111,7 @@ class DefaultJsonValidator(RuleValidator[str]):
         """Get the validator configuration."""
         return self._config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate JSON format."""
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
@@ -141,16 +137,8 @@ class DefaultJsonValidator(RuleValidator[str]):
                 metadata={"error": str(e), "position": e.pos},
             )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if this validator can handle the input."""
-        return isinstance(output, str)
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of input this validator can handle."""
-        return str
-
-class DefaultPlainTextValidator(RuleValidator[str]):
+class DefaultPlainTextValidator(BaseValidator[str]):
     """Default implementation of plain text validation."""
 
     def __init__(self, config: PlainTextConfig) -> None:
@@ -162,7 +150,7 @@ class DefaultPlainTextValidator(RuleValidator[str]):
         """Get the validator configuration."""
         return self._config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate plain text format."""
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
@@ -207,25 +195,17 @@ class DefaultPlainTextValidator(RuleValidator[str]):
             },
         )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if this validator can handle the input."""
-        return isinstance(output, str)
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of input this validator can handle."""
-        return str
-
-class FormatRule(Rule):
+class FormatRule(Rule[str, RuleResult, BaseValidator[str], Any]):
     """Rule that checks text format."""
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        format_type: FormatType,
-        validator: Optional[RuleValidator[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        name: str = "format_rule",
+        description: str = "Validates text format",
+        format_type: FormatType = "plain_text",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[BaseValidator[str]] = None,
     ) -> None:
         """
         Initialize the format rule.
@@ -234,34 +214,38 @@ class FormatRule(Rule):
             name: The name of the rule
             description: Description of the rule
             format_type: Type of format to validate
+            config: Rule configuration
             validator: Optional custom validator implementation
-            config: Optional configuration dictionary
         """
-        # Create config object based on format type
-        if format_type == "markdown":
-            format_config = MarkdownConfig(**(config or {}))
-            validator = validator or DefaultMarkdownValidator(format_config)
-        elif format_type == "json":
-            format_config = JsonConfig(**(config or {}))
-            validator = validator or DefaultJsonValidator(format_config)
-        else:  # plain_text
-            format_config = PlainTextConfig(**(config or {}))
-            validator = validator or DefaultPlainTextValidator(format_config)
-
-        # Store format type
+        # Store format type and parameters for creating the default validator
         self._format_type = format_type
+        self._rule_params = {}
+
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._rule_params = params_source
 
         # Initialize base class
-        super().__init__(name=name, description=description, validator=validator)
+        super().__init__(name=name, description=description, config=config, validator=validator)
 
     @property
     def format_type(self) -> FormatType:
         """Get the format type."""
         return self._format_type
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Validate output format."""
-        return self._validator.validate(output)
+    def _create_default_validator(self) -> BaseValidator[str]:
+        """Create a default validator based on format type."""
+        if self._format_type == "markdown":
+            format_config = MarkdownConfig(**self._rule_params)
+            return DefaultMarkdownValidator(format_config)
+        elif self._format_type == "json":
+            format_config = JsonConfig(**self._rule_params)
+            return DefaultJsonValidator(format_config)
+        else:  # plain_text
+            format_config = PlainTextConfig(**self._rule_params)
+            return DefaultPlainTextValidator(format_config)
+
 
 def create_markdown_rule(
     name: str = "markdown_rule",
@@ -279,12 +263,16 @@ def create_markdown_rule(
     Returns:
         Configured FormatRule instance
     """
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config or {})
+
     return FormatRule(
         name=name,
         description=description,
         format_type="markdown",
-        config=config,
+        config=rule_config,
     )
+
 
 def create_json_rule(
     name: str = "json_rule",
@@ -302,12 +290,16 @@ def create_json_rule(
     Returns:
         Configured FormatRule instance
     """
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config or {})
+
     return FormatRule(
         name=name,
         description=description,
         format_type="json",
-        config=config,
+        config=rule_config,
     )
+
 
 def create_plain_text_rule(
     name: str = "plain_text_rule",
@@ -325,12 +317,16 @@ def create_plain_text_rule(
     Returns:
         Configured FormatRule instance
     """
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config or {})
+
     return FormatRule(
         name=name,
         description=description,
         format_type="plain_text",
-        config=config,
+        config=rule_config,
     )
+
 
 # Export public classes and functions
 __all__ = [

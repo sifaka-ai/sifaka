@@ -24,7 +24,8 @@ from typing import (
     runtime_checkable,
 )
 
-from sifaka.rules.base import Rule, RuleConfig, RuleResult, RuleValidator
+from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
+
 
 @dataclass(frozen=True)
 class MedicalConfig(RuleConfig):
@@ -63,6 +64,7 @@ class MedicalConfig(RuleConfig):
         if not self.warning_terms:
             raise ValueError("Must provide at least one warning term")
 
+
 @dataclass(frozen=True)
 class LegalCitationConfig(RuleConfig):
     """Configuration for legal citation validation."""
@@ -93,6 +95,7 @@ class LegalCitationConfig(RuleConfig):
             raise ValueError("min_citations must be non-negative")
         if self.max_citations < self.min_citations:
             raise ValueError("max_citations must be greater than or equal to min_citations")
+
 
 @dataclass(frozen=True)
 class LegalTermsConfig(RuleConfig):
@@ -143,6 +146,7 @@ class LegalTermsConfig(RuleConfig):
             raise ValueError("prohibited_terms must be a set")
         if not all(isinstance(t, str) for t in self.prohibited_terms):
             raise ValueError("prohibited_terms must contain only strings")
+
 
 @dataclass(frozen=True)
 class LegalConfig(RuleConfig):
@@ -195,6 +199,7 @@ class LegalConfig(RuleConfig):
         if not self.disclaimers:
             raise ValueError("Must provide at least one disclaimer pattern")
 
+
 @runtime_checkable
 class MedicalValidator(Protocol):
     """Protocol for medical content validation."""
@@ -202,6 +207,7 @@ class MedicalValidator(Protocol):
     def validate(self, text: str) -> RuleResult: ...
     @property
     def config(self) -> MedicalConfig: ...
+
 
 @runtime_checkable
 class LegalValidator(Protocol):
@@ -211,6 +217,7 @@ class LegalValidator(Protocol):
     @property
     def config(self) -> LegalConfig: ...
 
+
 @runtime_checkable
 class LegalCitationValidator(Protocol):
     """Protocol for legal citation validation."""
@@ -218,6 +225,7 @@ class LegalCitationValidator(Protocol):
     def validate(self, text: str) -> RuleResult: ...
     @property
     def config(self) -> LegalCitationConfig: ...
+
 
 @runtime_checkable
 class LegalTermsValidator(Protocol):
@@ -227,15 +235,16 @@ class LegalTermsValidator(Protocol):
     @property
     def config(self) -> LegalTermsConfig: ...
 
-class MedicalRule(Rule):
+
+class MedicalRule(Rule[str, RuleResult, DefaultMedicalValidator, Any]):
     """Rule that checks for medical content accuracy and safety."""
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        validator: Optional[RuleValidator[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        name: str = "medical_rule",
+        description: str = "Checks for medical content accuracy and safety",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[DefaultMedicalValidator] = None,
     ) -> None:
         """
         Initialize the medical rule.
@@ -243,31 +252,34 @@ class MedicalRule(Rule):
         Args:
             name: The name of the rule
             description: Description of the rule
+            config: Rule configuration
             validator: Optional custom validator implementation
-            config: Optional configuration dictionary
         """
-        # Create config object first
-        medical_config = MedicalConfig(**(config or {}))
-
-        # Create default validator if none provided
-        validator = validator or DefaultMedicalValidator(medical_config)
+        # Store parameters for creating the default validator
+        self._rule_params = {}
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._rule_params = params_source
 
         # Initialize base class
-        super().__init__(name=name, description=description, validator=validator)
+        super().__init__(name=name, description=description, config=config, validator=validator)
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Validate output medical content."""
-        return self._validator.validate(output)
+    def _create_default_validator(self) -> DefaultMedicalValidator:
+        """Create a default validator from config."""
+        medical_config = MedicalConfig(**self._rule_params)
+        return DefaultMedicalValidator(medical_config)
 
-class LegalRule(Rule):
+
+class LegalRule(Rule[str, RuleResult, DefaultLegalValidator, Any]):
     """Rule that validates legal content."""
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        validator: Optional[RuleValidator[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        name: str = "legal_rule",
+        description: str = "Validates legal content",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[DefaultLegalValidator] = None,
     ) -> None:
         """
         Initialize the legal rule.
@@ -275,31 +287,34 @@ class LegalRule(Rule):
         Args:
             name: The name of the rule
             description: Description of the rule
+            config: Rule configuration
             validator: Optional custom validator implementation
-            config: Optional configuration dictionary
         """
-        # Create config object first
-        legal_config = LegalConfig(**(config or {}))
-
-        # Create default validator if none provided
-        validator = validator or DefaultLegalValidator(legal_config)
+        # Store parameters for creating the default validator
+        self._rule_params = {}
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._rule_params = params_source
 
         # Initialize base class
-        super().__init__(name=name, description=description, validator=validator)
+        super().__init__(name=name, description=description, config=config, validator=validator)
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Validate output legal content."""
-        return self._validator.validate(output)
+    def _create_default_validator(self) -> DefaultLegalValidator:
+        """Create a default validator from config."""
+        legal_config = LegalConfig(**self._rule_params)
+        return DefaultLegalValidator(legal_config)
 
-class LegalCitationRule(Rule):
+
+class LegalCitationRule(Rule[str, RuleResult, DefaultLegalCitationValidator, Any]):
     """Rule that checks for legal citations."""
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        validator: Optional[RuleValidator[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        name: str = "legal_citation_rule",
+        description: str = "Checks for legal citations",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[DefaultLegalCitationValidator] = None,
     ) -> None:
         """
         Initialize the legal citation rule.
@@ -307,31 +322,34 @@ class LegalCitationRule(Rule):
         Args:
             name: The name of the rule
             description: Description of the rule
+            config: Rule configuration
             validator: Optional custom validator implementation
-            config: Optional configuration dictionary
         """
-        # Create config object first
-        citation_config = LegalCitationConfig(**(config or {}))
-
-        # Create default validator if none provided
-        validator = validator or DefaultLegalCitationValidator(citation_config)
+        # Store parameters for creating the default validator
+        self._rule_params = {}
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._rule_params = params_source
 
         # Initialize base class
-        super().__init__(name=name, description=description, validator=validator)
+        super().__init__(name=name, description=description, config=config, validator=validator)
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Validate legal citations in output."""
-        return self._validator.validate(output)
+    def _create_default_validator(self) -> DefaultLegalCitationValidator:
+        """Create a default validator from config."""
+        citation_config = LegalCitationConfig(**self._rule_params)
+        return DefaultLegalCitationValidator(citation_config)
 
-class LegalTermsRule(Rule):
+
+class LegalTermsRule(Rule[str, RuleResult, DefaultLegalTermsValidator, Any]):
     """Rule that validates legal terminology."""
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        validator: Optional[RuleValidator[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        name: str = "legal_terms_rule",
+        description: str = "Validates legal terminology",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[DefaultLegalTermsValidator] = None,
     ) -> None:
         """
         Initialize the legal terms rule.
@@ -339,21 +357,24 @@ class LegalTermsRule(Rule):
         Args:
             name: The name of the rule
             description: Description of the rule
+            config: Rule configuration
             validator: Optional custom validator implementation
-            config: Optional configuration dictionary
         """
-        # Create config object first
-        terms_config = LegalTermsConfig(**(config or {}))
-
-        # Create default validator if none provided
-        validator = validator or DefaultLegalTermsValidator(terms_config)
+        # Store parameters for creating the default validator
+        self._rule_params = {}
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._rule_params = params_source
 
         # Initialize base class
-        super().__init__(name=name, description=description, validator=validator)
+        super().__init__(name=name, description=description, config=config, validator=validator)
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Validate legal terminology in output."""
-        return self._validator.validate(output)
+    def _create_default_validator(self) -> DefaultLegalTermsValidator:
+        """Create a default validator from config."""
+        terms_config = LegalTermsConfig(**self._rule_params)
+        return DefaultLegalTermsValidator(terms_config)
+
 
 def create_medical_rule(
     name: str = "medical_rule",
@@ -395,11 +416,15 @@ def create_medical_rule(
             "cost": 1.0,
         }
 
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config)
+
     return MedicalRule(
         name=name,
         description=description,
-        config=config,
+        config=rule_config,
     )
+
 
 def create_legal_rule(
     name: str = "legal_rule",
@@ -433,11 +458,15 @@ def create_legal_rule(
             "cost": 1.0,
         }
 
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config)
+
     return LegalRule(
         name=name,
         description=description,
-        config=config,
+        config=rule_config,
     )
+
 
 @dataclass(frozen=True)
 class PythonConfig(RuleConfig):
@@ -486,6 +515,7 @@ class PythonConfig(RuleConfig):
         if not self.performance_patterns:
             raise ValueError("Must provide at least one performance pattern")
 
+
 @runtime_checkable
 class PythonValidator(Protocol):
     """Protocol for Python code validation."""
@@ -493,6 +523,7 @@ class PythonValidator(Protocol):
     def validate(self, text: str) -> RuleResult: ...
     @property
     def config(self) -> PythonConfig: ...
+
 
 class PythonRule(Rule):
     """Rule that checks Python code quality and best practices."""
@@ -525,6 +556,7 @@ class PythonRule(Rule):
     def _validate_impl(self, output: str) -> RuleResult:
         """Validate output Python code."""
         return self._validator.validate(output)
+
 
 @dataclass(frozen=True)
 class ConsistencyConfig(RuleConfig):
@@ -573,6 +605,7 @@ class ConsistencyConfig(RuleConfig):
         if not self.contradiction_indicators:
             raise ValueError("Must provide at least one contradiction indicator")
 
+
 @runtime_checkable
 class ConsistencyValidator(Protocol):
     """Protocol for consistency validation."""
@@ -580,6 +613,7 @@ class ConsistencyValidator(Protocol):
     def validate(self, text: str) -> RuleResult: ...
     @property
     def config(self) -> ConsistencyConfig: ...
+
 
 class ConsistencyRule(Rule):
     """Rule that checks for consistency in text."""
@@ -613,7 +647,8 @@ class ConsistencyRule(Rule):
         """Validate output consistency."""
         return self._validator.validate(output)
 
-class DefaultMedicalValidator(RuleValidator[str]):
+
+class DefaultMedicalValidator(BaseValidator[str]):
     """Default implementation of medical content validation."""
 
     def __init__(self, config: MedicalConfig) -> None:
@@ -625,7 +660,7 @@ class DefaultMedicalValidator(RuleValidator[str]):
         """Get the validator configuration."""
         return self._config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate text for medical content."""
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
@@ -687,16 +722,8 @@ class DefaultMedicalValidator(RuleValidator[str]):
             },
         )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if this validator can handle the input."""
-        return isinstance(output, str)
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of input this validator can handle."""
-        return str
-
-class DefaultLegalValidator(RuleValidator[str]):
+class DefaultLegalValidator(BaseValidator[str]):
     """Default implementation of legal content validation."""
 
     def __init__(self, config: LegalConfig) -> None:
@@ -710,7 +737,7 @@ class DefaultLegalValidator(RuleValidator[str]):
         """Get the validator configuration."""
         return self._config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate legal content."""
         if not isinstance(text, str):
             raise ValueError("Text must be a string")
@@ -751,16 +778,8 @@ class DefaultLegalValidator(RuleValidator[str]):
                 metadata={"error": str(e)},
             )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if validator can handle the output."""
-        return isinstance(output, str)
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of output this validator can handle."""
-        return str
-
-class DefaultLegalCitationValidator(RuleValidator[str]):
+class DefaultLegalCitationValidator(BaseValidator[str]):
     """Default implementation of legal citation validation."""
 
     def __init__(self, config: LegalCitationConfig) -> None:
@@ -773,7 +792,7 @@ class DefaultLegalCitationValidator(RuleValidator[str]):
         """Get the validator configuration."""
         return self._config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate legal citations."""
         if not isinstance(text, str):
             raise ValueError("Text must be a string")
@@ -852,16 +871,8 @@ class DefaultLegalCitationValidator(RuleValidator[str]):
                 metadata={"error": str(e)},
             )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if validator can handle the output."""
-        return isinstance(output, str)
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of output this validator can handle."""
-        return str
-
-class DefaultLegalTermsValidator(RuleValidator[str]):
+class DefaultLegalTermsValidator(BaseValidator[str]):
     """Default implementation of legal terms validation."""
 
     def __init__(self, config: LegalTermsConfig) -> None:
@@ -873,7 +884,7 @@ class DefaultLegalTermsValidator(RuleValidator[str]):
         """Get the validator configuration."""
         return self._config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate legal terms."""
         if not isinstance(text, str):
             raise ValueError("Text must be a string")
@@ -937,14 +948,6 @@ class DefaultLegalTermsValidator(RuleValidator[str]):
                 metadata={"error": str(e)},
             )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if validator can handle the output."""
-        return isinstance(output, str)
-
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of output this validator can handle."""
-        return str
 
 def create_python_rule(
     name: str = "python_rule",
@@ -962,11 +965,15 @@ def create_python_rule(
     Returns:
         A configured PythonRule
     """
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config or {})
+
     return PythonRule(
         name=name,
         description=description,
-        config=config,
+        config=rule_config,
     )
+
 
 def create_consistency_rule(
     name: str = "consistency_rule",
@@ -984,11 +991,15 @@ def create_consistency_rule(
     Returns:
         A configured ConsistencyRule
     """
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config or {})
+
     return ConsistencyRule(
         name=name,
         description=description,
-        config=config,
+        config=rule_config,
     )
+
 
 def create_legal_citation_rule(
     name: str = "legal_citation_rule",
@@ -1013,11 +1024,15 @@ def create_legal_citation_rule(
     Returns:
         A configured LegalCitationRule
     """
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config or {})
+
     return LegalCitationRule(
         name=name,
         description=description,
-        config=config,
+        config=rule_config,
     )
+
 
 def create_legal_terms_rule(
     name: str = "legal_terms_rule",
@@ -1043,11 +1058,15 @@ def create_legal_terms_rule(
     Returns:
         A configured LegalTermsRule
     """
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config or {})
+
     return LegalTermsRule(
         name=name,
         description=description,
-        config=config,
+        config=rule_config,
     )
+
 
 # Export public classes and functions
 __all__ = [

@@ -6,9 +6,9 @@ including symmetry detection and repetition analysis.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
-from sifaka.rules.base import Rule, RuleConfig, RuleResult
+from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
 
 
 @dataclass(frozen=True)
@@ -37,6 +37,7 @@ class SymmetryConfig:
             raise ValueError("Priority must be non-negative")
         if self.cost < 0:
             raise ValueError("Cost must be non-negative")
+
 
 @dataclass(frozen=True)
 class RepetitionConfig:
@@ -67,54 +68,45 @@ class RepetitionConfig:
         if self.cost < 0:
             raise ValueError("Cost must be non-negative")
 
-class SymmetryRule(Rule):
-    """Rule that validates text symmetry patterns."""
 
-    def __init__(
-        self,
-        name: str = "symmetry_validator",
-        description: str = "Validates text symmetry patterns",
-        config: Optional[RuleConfig] = None,
-    ) -> None:
-        """Initialize the symmetry rule."""
-        super().__init__(name=name, description=description, config=config)
-        self._symmetry_config = SymmetryConfig(
-            mirror_mode=self.config.metadata.get("mirror_mode", "horizontal"),
-            preserve_whitespace=self.config.metadata.get("preserve_whitespace", True),
-            preserve_case=self.config.metadata.get("preserve_case", True),
-            ignore_punctuation=self.config.metadata.get("ignore_punctuation", False),
-            symmetry_threshold=self.config.metadata.get("symmetry_threshold", 1.0),
-            cache_size=self.config.cache_size,
-            priority=self.config.priority.value,
-            cost=self.config.cost,
-        )
+class SymmetryValidator(BaseValidator[str]):
+    """Validator for text symmetry patterns."""
 
-    def _validate_impl(self, text: str) -> RuleResult:
+    def __init__(self, config: SymmetryConfig) -> None:
+        """Initialize with symmetry configuration."""
+        self._config = config
+
+    @property
+    def config(self) -> SymmetryConfig:
+        """Get the validator configuration."""
+        return self._config
+
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate text symmetry."""
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
         # Process text according to configuration
         processed_text = text
-        if not self._symmetry_config.preserve_case:
+        if not self.config.preserve_case:
             processed_text = processed_text.lower()
-        if self._symmetry_config.ignore_punctuation:
+        if self.config.ignore_punctuation:
             processed_text = "".join(c for c in processed_text if c.isalnum() or c.isspace())
 
         lines = processed_text.split("\n")
         symmetry_score = 0.0
 
-        if self._symmetry_config.mirror_mode in {"horizontal", "both"}:
+        if self.config.mirror_mode in {"horizontal", "both"}:
             # Check horizontal symmetry
             for line in lines:
-                if not self._symmetry_config.preserve_whitespace:
+                if not self.config.preserve_whitespace:
                     line = line.strip()
                 reversed_line = line[::-1]
                 similarity = self._calculate_similarity(line, reversed_line)
                 symmetry_score += similarity
             symmetry_score /= len(lines) if lines else 1
 
-        if self._symmetry_config.mirror_mode in {"vertical", "both"}:
+        if self.config.mirror_mode in {"vertical", "both"}:
             # Check vertical symmetry
             reversed_lines = lines[::-1]
             vertical_score = (
@@ -124,12 +116,12 @@ class SymmetryRule(Rule):
                 else 0
             )
 
-            if self._symmetry_config.mirror_mode == "both":
+            if self.config.mirror_mode == "both":
                 symmetry_score = (symmetry_score + vertical_score) / 2
             else:
                 symmetry_score = vertical_score
 
-        is_symmetric = symmetry_score >= self._symmetry_config.symmetry_threshold
+        is_symmetric = symmetry_score >= self.config.symmetry_threshold
 
         return RuleResult(
             passed=is_symmetric,
@@ -140,7 +132,7 @@ class SymmetryRule(Rule):
             ),
             metadata={
                 "symmetry_score": symmetry_score,
-                "mirror_mode": self._symmetry_config.mirror_mode,
+                "mirror_mode": self.config.mirror_mode,
                 "original_text": text,
                 "processed_text": processed_text,
             },
@@ -155,55 +147,79 @@ class SymmetryRule(Rule):
         matches = sum(1 for a, b in zip(text1, text2) if a == b)
         return matches / max(len(text1), len(text2))
 
-class RepetitionRule(Rule):
-    """Rule that detects repetitive patterns in text."""
+
+class SymmetryRule(Rule[str, RuleResult, SymmetryValidator, Any]):
+    """Rule that validates text symmetry patterns."""
 
     def __init__(
         self,
-        name: str = "repetition_detector",
-        description: str = "Detects repetitive patterns in text",
+        name: str = "symmetry_validator",
+        description: str = "Validates text symmetry patterns",
         config: Optional[RuleConfig] = None,
+        validator: Optional[SymmetryValidator] = None,
     ) -> None:
-        """Initialize the repetition rule."""
-        super().__init__(name=name, description=description, config=config)
-        self._repetition_config = RepetitionConfig(
-            pattern_type=self.config.metadata.get("pattern_type", "repeat"),
-            pattern_length=self.config.metadata.get("pattern_length", 2),
-            custom_pattern=self.config.metadata.get("custom_pattern"),
-            case_sensitive=self.config.metadata.get("case_sensitive", True),
-            allow_overlap=self.config.metadata.get("allow_overlap", False),
-            cache_size=self.config.cache_size,
-            priority=self.config.priority.value,
-            cost=self.config.cost,
-        )
+        """Initialize the symmetry rule."""
+        # Store symmetry parameters for creating the default validator
+        self._symmetry_params = {}
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._symmetry_params = {
+                "mirror_mode": params_source.get("mirror_mode", "horizontal"),
+                "preserve_whitespace": params_source.get("preserve_whitespace", True),
+                "preserve_case": params_source.get("preserve_case", True),
+                "ignore_punctuation": params_source.get("ignore_punctuation", False),
+                "symmetry_threshold": params_source.get("symmetry_threshold", 1.0),
+                "cache_size": config.cache_size,
+                "priority": config.priority.value,
+                "cost": config.cost,
+            }
 
-    def _validate_impl(self, text: str) -> RuleResult:
+        # Initialize base class
+        super().__init__(name=name, description=description, config=config, validator=validator)
+
+    def _create_default_validator(self) -> SymmetryValidator:
+        """Create a default validator from config."""
+        symmetry_config = SymmetryConfig(**self._symmetry_params)
+        return SymmetryValidator(symmetry_config)
+
+
+class RepetitionValidator(BaseValidator[str]):
+    """Validator for repetitive patterns in text."""
+
+    def __init__(self, config: RepetitionConfig) -> None:
+        """Initialize with repetition configuration."""
+        self._config = config
+
+    @property
+    def config(self) -> RepetitionConfig:
+        """Get the validator configuration."""
+        return self._config
+
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate text for repetitive patterns."""
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
         # Process text according to configuration
-        if not self._repetition_config.case_sensitive:
+        if not self.config.case_sensitive:
             text = text.lower()
 
         matches = []
         match_count = 0
 
-        if (
-            self._repetition_config.pattern_type == "custom"
-            and self._repetition_config.custom_pattern
-        ):
+        if self.config.pattern_type == "custom" and self.config.custom_pattern:
             # Use custom pattern
-            pattern = self._repetition_config.custom_pattern
+            pattern = self.config.custom_pattern
             matches = self._find_pattern_matches(text, pattern)
             match_count = len(matches)
         else:
             # Find repeating or alternating patterns
-            for i in range(len(text) - self._repetition_config.pattern_length + 1):
-                if not self._repetition_config.allow_overlap and any(i < end for _, end in matches):
+            for i in range(len(text) - self.config.pattern_length + 1):
+                if not self.config.allow_overlap and any(i < end for _, end in matches):
                     continue
 
-                pattern = text[i : i + self._repetition_config.pattern_length]
+                pattern = text[i : i + self.config.pattern_length]
                 if self._is_valid_pattern(text, pattern, i):
                     matches.append((i, i + len(pattern)))
                     match_count += 1
@@ -216,17 +232,17 @@ class RepetitionRule(Rule):
                 "matches_found": [
                     text[start:end] for start, end in matches[:10]
                 ],  # Limit to first 10
-                "pattern_type": self._repetition_config.pattern_type,
-                "pattern_length": self._repetition_config.pattern_length,
+                "pattern_type": self.config.pattern_type,
+                "pattern_length": self.config.pattern_length,
             },
         )
 
     def _is_valid_pattern(self, text: str, pattern: str, start_pos: int) -> bool:
         """Check if a pattern is valid according to configuration."""
-        if self._repetition_config.pattern_type == "repeat":
+        if self.config.pattern_type == "repeat":
             # Look for exact repetitions
             return text.count(pattern) > 1
-        elif self._repetition_config.pattern_type == "alternate":
+        elif self.config.pattern_type == "alternate":
             # Look for alternating patterns
             if len(text) < start_pos + len(pattern) * 2:
                 return False
@@ -243,5 +259,52 @@ class RepetitionRule(Rule):
             if pos == -1:
                 break
             matches.append((pos, pos + len(pattern)))
-            start = pos + (1 if self._repetition_config.allow_overlap else len(pattern))
+            start = pos + (1 if self.config.allow_overlap else len(pattern))
         return matches
+
+
+class RepetitionRule(Rule[str, RuleResult, RepetitionValidator, Any]):
+    """Rule that detects repetitive patterns in text."""
+
+    def __init__(
+        self,
+        name: str = "repetition_detector",
+        description: str = "Detects repetitive patterns in text",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[RepetitionValidator] = None,
+    ) -> None:
+        """Initialize the repetition rule."""
+        # Store repetition parameters for creating the default validator
+        self._repetition_params = {}
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._repetition_params = {
+                "pattern_type": params_source.get("pattern_type", "repeat"),
+                "pattern_length": params_source.get("pattern_length", 2),
+                "custom_pattern": params_source.get("custom_pattern"),
+                "case_sensitive": params_source.get("case_sensitive", True),
+                "allow_overlap": params_source.get("allow_overlap", False),
+                "cache_size": config.cache_size,
+                "priority": config.priority.value,
+                "cost": config.cost,
+            }
+
+        # Initialize base class
+        super().__init__(name=name, description=description, config=config, validator=validator)
+
+    def _create_default_validator(self) -> RepetitionValidator:
+        """Create a default validator from config."""
+        repetition_config = RepetitionConfig(**self._repetition_params)
+        return RepetitionValidator(repetition_config)
+
+
+# Export public classes and functions
+__all__ = [
+    "SymmetryRule",
+    "RepetitionRule",
+    "SymmetryConfig",
+    "RepetitionConfig",
+    "SymmetryValidator",
+    "RepetitionValidator",
+]

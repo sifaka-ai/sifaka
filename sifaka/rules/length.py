@@ -5,15 +5,10 @@ This module provides rules for validating text length, supporting both character
 """
 
 from dataclasses import dataclass
-from typing import (
-    Any,
-    Dict,
-    Optional,
-    Protocol,
-    runtime_checkable
-)
+from typing import Any, Dict, Optional, Protocol, runtime_checkable
 
-from sifaka.rules.base import Rule, RuleResult, RuleValidator
+from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
+
 
 @dataclass(frozen=True)
 class LengthConfig:
@@ -46,6 +41,7 @@ class LengthConfig:
                 if self.min_length > self.max_length:
                     raise ValueError("min_length cannot be greater than max_length")
 
+
 @runtime_checkable
 class LengthValidator(Protocol):
     """Protocol for length validation components."""
@@ -55,7 +51,8 @@ class LengthValidator(Protocol):
 
     def validate(self, text: str) -> RuleResult: ...
 
-class DefaultLengthValidator(RuleValidator[str]):
+
+class DefaultLengthValidator(BaseValidator[str]):
     """Default implementation of length validation."""
 
     def __init__(self, config: LengthConfig) -> None:
@@ -73,12 +70,13 @@ class DefaultLengthValidator(RuleValidator[str]):
             return len(text.split())
         return len(text)
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """
         Validate that the text length is within acceptable bounds.
 
         Args:
             text: The text to validate
+            **kwargs: Additional validation context
 
         Returns:
             RuleResult with validation results
@@ -137,24 +135,16 @@ class DefaultLengthValidator(RuleValidator[str]):
             metadata=metadata,
         )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if this validator can handle the input."""
-        return isinstance(output, str)
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of input this validator can handle."""
-        return str
-
-class LengthRule(Rule):
+class LengthRule(Rule[str, RuleResult, DefaultLengthValidator, Any]):
     """Rule that checks if the text length falls within specified bounds."""
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        validator: Optional[LengthValidator] = None,
-        config: Optional[Dict[str, Any]] = None,
+        name: str = "length_rule",
+        description: str = "Checks if text length is within bounds",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[DefaultLengthValidator] = None,
     ) -> None:
         """
         Initialize the rule with length constraints.
@@ -162,29 +152,22 @@ class LengthRule(Rule):
         Args:
             name: The name of the rule
             description: Description of the rule
+            config: Rule configuration
             validator: Custom length validator implementation
-            config: Length validation configuration dictionary
         """
-        # Create the config object first
-        length_config = LengthConfig(**(config or {}))
-
-        # Create default validator if none provided
-        validator = validator or DefaultLengthValidator(length_config)
+        # Store length parameters for creating the default validator
+        self._length_params = {}
+        if config and config.params:
+            self._length_params = config.params
 
         # Initialize base class
-        super().__init__(name=name, description=description, validator=validator)
+        super().__init__(name=name, description=description, config=config, validator=validator)
 
-    def _validate_impl(self, text: str) -> RuleResult:
-        """
-        Validate that the text length is within acceptable bounds.
+    def _create_default_validator(self) -> DefaultLengthValidator:
+        """Create a default validator from config."""
+        length_config = LengthConfig(**self._length_params)
+        return DefaultLengthValidator(length_config)
 
-        Args:
-            text: The text to validate
-
-        Returns:
-            RuleResult with validation results
-        """
-        return self._validator.validate(text)
 
 def create_length_rule(
     name: str = "length_rule",
@@ -202,12 +185,15 @@ def create_length_rule(
     Returns:
         Configured LengthRule instance
     """
-    length_config = LengthConfig(**(config or {}))
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config or {})
+
     return LengthRule(
         name=name,
         description=description,
-        config=length_config,
+        config=rule_config,
     )
+
 
 # Export public classes and functions
 __all__ = [

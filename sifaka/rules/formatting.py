@@ -17,7 +17,8 @@ from typing import (
     runtime_checkable,
 )
 
-from sifaka.rules.base import Rule, RuleConfig, RuleResult, RuleValidator
+from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
+
 
 @dataclass(frozen=True)
 class LengthConfig(RuleConfig):
@@ -47,6 +48,7 @@ class LengthConfig(RuleConfig):
             raise ValueError("priority must be non-negative")
         if self.cost < 0:
             raise ValueError("cost must be non-negative")
+
 
 @dataclass(frozen=True)
 class ParagraphConfig(RuleConfig):
@@ -80,6 +82,7 @@ class ParagraphConfig(RuleConfig):
         if self.cost < 0:
             raise ValueError("cost must be non-negative")
 
+
 @dataclass(frozen=True)
 class StyleConfig(RuleConfig):
     """Configuration for writing style validation."""
@@ -111,6 +114,7 @@ class StyleConfig(RuleConfig):
             raise ValueError("priority must be non-negative")
         if self.cost < 0:
             raise ValueError("cost must be non-negative")
+
 
 @dataclass(frozen=True)
 class FormattingConfig(RuleConfig):
@@ -144,6 +148,7 @@ class FormattingConfig(RuleConfig):
         if self.cost < 0:
             raise ValueError("cost must be non-negative")
 
+
 @runtime_checkable
 class LengthValidator(Protocol):
     """Protocol for text length validation."""
@@ -151,6 +156,7 @@ class LengthValidator(Protocol):
     def validate(self, text: str) -> RuleResult: ...
     @property
     def config(self) -> LengthConfig: ...
+
 
 @runtime_checkable
 class ParagraphValidator(Protocol):
@@ -160,6 +166,7 @@ class ParagraphValidator(Protocol):
     @property
     def config(self) -> ParagraphConfig: ...
 
+
 @runtime_checkable
 class StyleValidator(Protocol):
     """Protocol for writing style validation."""
@@ -167,6 +174,7 @@ class StyleValidator(Protocol):
     def validate(self, text: str) -> RuleResult: ...
     @property
     def config(self) -> StyleConfig: ...
+
 
 @runtime_checkable
 class FormattingValidator(Protocol):
@@ -176,7 +184,8 @@ class FormattingValidator(Protocol):
     @property
     def config(self) -> FormattingConfig: ...
 
-class DefaultLengthValidator(RuleValidator[str]):
+
+class DefaultLengthValidator(BaseValidator[str]):
     """Default implementation of text length validation."""
 
     def __init__(self, config: LengthConfig) -> None:
@@ -188,7 +197,7 @@ class DefaultLengthValidator(RuleValidator[str]):
         """Get the validator configuration."""
         return self._config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate text length."""
         if not isinstance(text, str):
             raise ValueError("Text must be a string")
@@ -239,16 +248,8 @@ class DefaultLengthValidator(RuleValidator[str]):
             },
         )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if this validator can handle the input."""
-        return isinstance(output, str)
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of input this validator can handle."""
-        return str
-
-class DefaultParagraphValidator(RuleValidator[str]):
+class DefaultParagraphValidator(BaseValidator[str]):
     """Default implementation of paragraph structure validation."""
 
     def __init__(self, config: ParagraphConfig) -> None:
@@ -261,7 +262,7 @@ class DefaultParagraphValidator(RuleValidator[str]):
         """Get the validator configuration."""
         return self._config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate paragraph structure."""
         if not isinstance(text, str):
             raise ValueError("Text must be a string")
@@ -320,16 +321,8 @@ class DefaultParagraphValidator(RuleValidator[str]):
             },
         )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if this validator can handle the input."""
-        return isinstance(output, str)
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of input this validator can handle."""
-        return str
-
-class DefaultStyleValidator(RuleValidator[str]):
+class DefaultStyleValidator(BaseValidator[str]):
     """Default implementation of writing style validation."""
 
     def __init__(self, config: StyleConfig) -> None:
@@ -341,7 +334,7 @@ class DefaultStyleValidator(RuleValidator[str]):
         """Get the validator configuration."""
         return self._config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate writing style."""
         if not isinstance(text, str):
             raise ValueError("Text must be a string")
@@ -380,16 +373,8 @@ class DefaultStyleValidator(RuleValidator[str]):
             },
         )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if this validator can handle the input."""
-        return isinstance(output, str)
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of input this validator can handle."""
-        return str
-
-class DefaultFormattingValidator(RuleValidator[str]):
+class DefaultFormattingValidator(BaseValidator[str]):
     """Default implementation of text formatting validation."""
 
     def __init__(self, config: FormattingConfig) -> None:
@@ -404,7 +389,7 @@ class DefaultFormattingValidator(RuleValidator[str]):
         """Get the validator configuration."""
         return self._config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate text formatting."""
         if not isinstance(text, str):
             raise ValueError("Text must be a string")
@@ -440,24 +425,16 @@ class DefaultFormattingValidator(RuleValidator[str]):
             },
         )
 
-    def can_validate(self, output: str) -> bool:
-        """Check if this validator can handle the input."""
-        return isinstance(output, str)
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of input this validator can handle."""
-        return str
-
-class LengthRule(Rule):
+class LengthRule(Rule[str, RuleResult, DefaultLengthValidator, Any]):
     """Rule for validating text length."""
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        validator: Optional[RuleValidator[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        name: str = "length_rule",
+        description: str = "Validates text length",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[DefaultLengthValidator] = None,
     ) -> None:
         """
         Initialize the rule with length validation.
@@ -465,31 +442,34 @@ class LengthRule(Rule):
         Args:
             name: The name of the rule
             description: Description of the rule
+            config: Rule configuration
             validator: Optional custom validator implementation
-            config: Optional configuration dictionary
         """
-        # Create config object first
-        length_config = LengthConfig(**(config or {}))
-
-        # Create default validator if none provided
-        validator = validator or DefaultLengthValidator(length_config)
+        # Store parameters for creating the default validator
+        self._rule_params = {}
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._rule_params = params_source
 
         # Initialize base class
-        super().__init__(name=name, description=description, validator=validator)
+        super().__init__(name=name, description=description, config=config, validator=validator)
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Validate output length."""
-        return self._validator.validate(output)
+    def _create_default_validator(self) -> DefaultLengthValidator:
+        """Create a default validator from config."""
+        length_config = LengthConfig(**self._rule_params)
+        return DefaultLengthValidator(length_config)
 
-class ParagraphRule(Rule):
+
+class ParagraphRule(Rule[str, RuleResult, DefaultParagraphValidator, Any]):
     """Rule for validating paragraph structure."""
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        validator: Optional[RuleValidator[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        name: str = "paragraph_rule",
+        description: str = "Validates paragraph structure",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[DefaultParagraphValidator] = None,
     ) -> None:
         """
         Initialize the rule with paragraph validation.
@@ -497,31 +477,34 @@ class ParagraphRule(Rule):
         Args:
             name: The name of the rule
             description: Description of the rule
+            config: Rule configuration
             validator: Optional custom validator implementation
-            config: Optional configuration dictionary
         """
-        # Create config object first
-        paragraph_config = ParagraphConfig(**(config or {}))
-
-        # Create default validator if none provided
-        validator = validator or DefaultParagraphValidator(paragraph_config)
+        # Store parameters for creating the default validator
+        self._rule_params = {}
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._rule_params = params_source
 
         # Initialize base class
-        super().__init__(name=name, description=description, validator=validator)
+        super().__init__(name=name, description=description, config=config, validator=validator)
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Validate output paragraph structure."""
-        return self._validator.validate(output)
+    def _create_default_validator(self) -> DefaultParagraphValidator:
+        """Create a default validator from config."""
+        paragraph_config = ParagraphConfig(**self._rule_params)
+        return DefaultParagraphValidator(paragraph_config)
 
-class StyleRule(Rule):
+
+class StyleRule(Rule[str, RuleResult, DefaultStyleValidator, Any]):
     """Rule for validating writing style."""
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        validator: Optional[RuleValidator[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        name: str = "style_rule",
+        description: str = "Validates writing style",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[DefaultStyleValidator] = None,
     ) -> None:
         """
         Initialize the rule with style validation.
@@ -529,31 +512,34 @@ class StyleRule(Rule):
         Args:
             name: The name of the rule
             description: Description of the rule
+            config: Rule configuration
             validator: Optional custom validator implementation
-            config: Optional configuration dictionary
         """
-        # Create config object first
-        style_config = StyleConfig(**(config or {}))
-
-        # Create default validator if none provided
-        validator = validator or DefaultStyleValidator(style_config)
+        # Store parameters for creating the default validator
+        self._rule_params = {}
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._rule_params = params_source
 
         # Initialize base class
-        super().__init__(name=name, description=description, validator=validator)
+        super().__init__(name=name, description=description, config=config, validator=validator)
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Validate output writing style."""
-        return self._validator.validate(output)
+    def _create_default_validator(self) -> DefaultStyleValidator:
+        """Create a default validator from config."""
+        style_config = StyleConfig(**self._rule_params)
+        return DefaultStyleValidator(style_config)
 
-class FormattingRule(Rule):
+
+class FormattingRule(Rule[str, RuleResult, DefaultFormattingValidator, Any]):
     """Rule for validating text formatting."""
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        validator: Optional[RuleValidator[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        name: str = "formatting_rule",
+        description: str = "Validates text formatting",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[DefaultFormattingValidator] = None,
     ) -> None:
         """
         Initialize the rule with formatting validation.
@@ -561,21 +547,24 @@ class FormattingRule(Rule):
         Args:
             name: The name of the rule
             description: Description of the rule
+            config: Rule configuration
             validator: Optional custom validator implementation
-            config: Optional configuration dictionary
         """
-        # Create config object first
-        formatting_config = FormattingConfig(**(config or {}))
-
-        # Create default validator if none provided
-        validator = validator or DefaultFormattingValidator(formatting_config)
+        # Store parameters for creating the default validator
+        self._rule_params = {}
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._rule_params = params_source
 
         # Initialize base class
-        super().__init__(name=name, description=description, validator=validator)
+        super().__init__(name=name, description=description, config=config, validator=validator)
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Validate output formatting."""
-        return self._validator.validate(output)
+    def _create_default_validator(self) -> DefaultFormattingValidator:
+        """Create a default validator from config."""
+        formatting_config = FormattingConfig(**self._rule_params)
+        return DefaultFormattingValidator(formatting_config)
+
 
 def create_length_rule(
     name: str = "length_rule",
@@ -604,11 +593,15 @@ def create_length_rule(
             "cost": 1.0,
         }
 
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config)
+
     return LengthRule(
         name=name,
         description=description,
-        config=config,
+        config=rule_config,
     )
+
 
 def create_paragraph_rule(
     name: str = "paragraph_rule",
@@ -638,11 +631,15 @@ def create_paragraph_rule(
             "cost": 1.0,
         }
 
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config)
+
     return ParagraphRule(
         name=name,
         description=description,
-        config=config,
+        config=rule_config,
     )
+
 
 def create_style_rule(
     name: str = "style_rule",
@@ -674,11 +671,15 @@ def create_style_rule(
             "cost": 1.0,
         }
 
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config)
+
     return StyleRule(
         name=name,
         description=description,
-        config=config,
+        config=rule_config,
     )
+
 
 def create_formatting_rule(
     name: str = "formatting_rule",
@@ -710,11 +711,15 @@ def create_formatting_rule(
             "cost": 1.0,
         }
 
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config)
+
     return FormattingRule(
         name=name,
         description=description,
-        config=config,
+        config=rule_config,
     )
+
 
 # Export public classes and functions
 __all__ = [

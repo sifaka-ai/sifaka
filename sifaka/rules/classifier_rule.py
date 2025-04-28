@@ -21,15 +21,16 @@ from sifaka.classifiers.base import (
     ClassifierProtocol,
 )
 from sifaka.rules.base import (
+    BaseValidator,
     ConfigurationError,
     Rule,
     RuleConfig,
     RuleResult,
-    RuleValidator,
     ValidationError,
 )
 
 T = TypeVar("T", bound=ClassificationResult)
+
 
 @runtime_checkable
 class ClassifierProtocol(Protocol):
@@ -40,6 +41,7 @@ class ClassifierProtocol(Protocol):
     def name(self) -> str: ...
     @property
     def description(self) -> str: ...
+
 
 @dataclass(frozen=True)
 class ClassifierRuleConfig(RuleConfig):
@@ -72,7 +74,8 @@ class ClassifierRuleConfig(RuleConfig):
         """Create a new config with updated valid labels."""
         return self.with_options(valid_labels=labels)
 
-class DefaultClassifierValidator(RuleValidator[str]):
+
+class DefaultClassifierValidator(BaseValidator[str]):
     """Default validator that uses a classifier to validate text."""
 
     def __init__(
@@ -136,15 +139,6 @@ class DefaultClassifierValidator(RuleValidator[str]):
         """Get the configuration."""
         return self._config
 
-    @property
-    def validation_type(self) -> type[str]:
-        """Get the type of input this validator accepts."""
-        return str
-
-    def can_validate(self, output: str) -> bool:
-        """Check if this validator can handle the input."""
-        return isinstance(output, str)
-
     def validate(self, output: str, **kwargs) -> RuleResult:
         """
         Validate text using the classifier.
@@ -169,7 +163,9 @@ class DefaultClassifierValidator(RuleValidator[str]):
             # Build metadata
             metadata = {
                 "classifier_name": self._classifier.name,
-                "classifier_result": result.dict(),
+                "classifier_result": (
+                    result.model_dump() if hasattr(result, "model_dump") else result.dict()
+                ),
                 "threshold": self._config.threshold,
                 "valid_labels": self._config.valid_labels,
             }
@@ -185,15 +181,16 @@ class DefaultClassifierValidator(RuleValidator[str]):
         except Exception as e:
             raise ValidationError(f"Classification failed: {str(e)}") from e
 
-class ClassifierRule(Rule):
+
+class ClassifierRule(Rule[str, RuleResult, DefaultClassifierValidator, Any]):
     """Rule that uses a classifier to validate text."""
 
     def __init__(
         self,
-        name: str,
-        description: str,
-        validator: Optional[RuleValidator[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        name: str = "classifier_rule",
+        description: str = "Validates text using a classifier",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[DefaultClassifierValidator] = None,
         classifier: Optional[ClassifierProtocol] = None,
         validation_fn: Optional[Callable[[ClassificationResult], bool]] = None,
     ) -> None:
@@ -203,29 +200,36 @@ class ClassifierRule(Rule):
         Args:
             name: The name of the rule
             description: Description of the rule
+            config: Rule configuration
             validator: Optional custom validator implementation
-            config: Optional configuration dictionary
             classifier: Optional classifier to use if no validator provided
             validation_fn: Optional validation function if no validator provided
 
         Raises:
             ConfigurationError: If neither validator nor classifier is provided
         """
-        # Create config object first
-        rule_config = ClassifierRuleConfig(**(config or {}))
+        # Store classifier and validation function for creating the default validator
+        self._classifier = classifier
+        self._validation_fn = validation_fn
 
-        # Create default validator if none provided
-        if validator is None:
-            if classifier is None:
-                raise ConfigurationError("Must provide either validator or classifier")
-            validator = DefaultClassifierValidator(rule_config, classifier, validation_fn)
+        # Store rule parameters
+        self._rule_params = {}
+        if config:
+            # For backward compatibility, check both params and metadata
+            params_source = config.params if config.params else config.metadata
+            self._rule_params = params_source
 
         # Initialize base class
-        super().__init__(name=name, description=description, validator=validator)
+        super().__init__(name=name, description=description, config=config, validator=validator)
 
-    def _validate_impl(self, output: str) -> RuleResult:
-        """Validate output using the classifier."""
-        return self._validator.validate(output)
+    def _create_default_validator(self) -> DefaultClassifierValidator:
+        """Create a default validator from config."""
+        if self._classifier is None:
+            raise ConfigurationError("Must provide a classifier")
+
+        rule_config = ClassifierRuleConfig(**self._rule_params)
+        return DefaultClassifierValidator(rule_config, self._classifier, self._validation_fn)
+
 
 def create_classifier_rule(
     name: str = "classifier_rule",
@@ -256,13 +260,17 @@ def create_classifier_rule(
             "cost": 1.0,
         }
 
+    # Convert the dictionary config to RuleConfig with params
+    rule_config = RuleConfig(params=config)
+
     return ClassifierRule(
         name=name,
         description=description,
-        config=config,
+        config=rule_config,
         classifier=classifier,
         validation_fn=validation_fn,
     )
+
 
 # Export public classes and functions
 __all__ = [
