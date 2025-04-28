@@ -26,7 +26,7 @@ if parent_dir not in sys.path:
 
 from sifaka.classifiers.readability import ReadabilityClassifier
 from sifaka.classifiers.sentiment import SentimentClassifier
-from sifaka.rules import RepetitionRule
+from sifaka.rules.pattern_rules import RepetitionRule
 from sifaka.rules.adapters import ClassifierRuleAdapter
 from sifaka.rules.base import RuleConfig, RulePriority
 from sifaka.utils.logging import get_logger
@@ -114,12 +114,12 @@ def main():
                 logger.info(f"Flesch Reading Ease: {metrics['flesch_reading_ease']:.1f}")
 
         # Readability rule validation
-        readability_validation = readability_rule._validate_impl(text)
+        readability_validation = readability_rule.validate(text)
         logger.info(f"\nReadability Rule - Passed: {readability_validation.passed}")
         logger.info(f"Message: {readability_validation.message}")
 
         # Repetition analysis
-        repetition_result = repetition_rule._validate_impl(text)
+        repetition_result = repetition_rule.validate(text)
         logger.info(f"\nRepetition Check - Passed: {repetition_result.passed}")
         logger.info(f"Message: {repetition_result.message}")
 

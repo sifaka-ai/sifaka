@@ -140,11 +140,6 @@ class ReadabilityClassifier(BaseClassifier):
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        # Store readability config and analyzer for later use
-        self._readability_config = readability_config or ReadabilityConfig()
-        self._analyzer = analyzer
-        self._initialized = False
-
         # Create config if not provided
         if config is None:
             # Extract params from kwargs if present
@@ -162,8 +157,13 @@ class ReadabilityClassifier(BaseClassifier):
                 labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, params=params, **kwargs
             )
 
-        # Initialize base class
+        # Initialize base class first
         super().__init__(name=name, description=description, config=config)
+
+        # Store readability config and analyzer for later use
+        self._readability_config = readability_config or ReadabilityConfig()
+        self._analyzer = analyzer
+        self._initialized = False
 
     def _validate_analyzer(self, analyzer: Any) -> TypeGuard[ReadabilityAnalyzer]:
         """Validate that an analyzer implements the required protocol."""

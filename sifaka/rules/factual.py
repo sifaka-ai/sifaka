@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set
 
-from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
+from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult, RuleValidator
 
 
 @dataclass(frozen=True)

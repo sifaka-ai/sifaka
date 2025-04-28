@@ -87,6 +87,7 @@ SAMPLES = {
     },
 }
 
+
 def setup_classifiers():
     """Set up classifiers for content validation."""
     classifiers = {}
@@ -180,6 +181,7 @@ def setup_classifiers():
         min_confidence=0.3,
     )
 
+    # Initialize bias detector with minimal configuration
     classifiers["bias"] = BiasDetector(
         name="bias_detector",
         description="Detects various forms of bias in text",
@@ -240,6 +242,7 @@ def setup_classifiers():
 
     return classifiers
 
+
 def setup_critic(api_key):
     """Set up content critic using OpenAI."""
     if not api_key:
@@ -264,6 +267,7 @@ def setup_critic(api_key):
             max_tokens=1000,
         ),
     )
+
 
 def validate_content(text: str, classifiers: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -355,6 +359,7 @@ def validate_content(text: str, classifiers: Dict[str, Any]) -> Dict[str, Any]:
 
     return validation_results
 
+
 def validate_improvements(improved_content, classifiers, expected_genre):
     """Validate if the improved content fixed the issues."""
     improved_genre = classifiers["genre"].classify(improved_content).label
@@ -377,6 +382,7 @@ def validate_improvements(improved_content, classifiers, expected_genre):
     if improved_bias == "neutral":
         logger.info("✓ Bias issue fixed")
 
+
 def test_validation(classifiers):
     """Test the enhanced content validation with various examples."""
     test_cases = [
@@ -398,6 +404,7 @@ def test_validation(classifiers):
                 logger.info(f"- {explanation}")
         else:
             logger.info("Content passed all validation checks")
+
 
 def main():
     """Run the comprehensive content validation example."""
@@ -450,6 +457,7 @@ def main():
     test_validation(classifiers)
 
     logger.info("\nComprehensive content validation example completed.")
+
 
 if __name__ == "__main__":
     main()

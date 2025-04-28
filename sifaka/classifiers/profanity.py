@@ -91,7 +91,7 @@ class ProfanityClassifier(BaseClassifier):
     """
 
     # Class-level constants
-    DEFAULT_LABELS: Final[List[str]] = ["clean", "profane"]
+    DEFAULT_LABELS: Final[List[str]] = ["clean", "profane", "unknown"]
     DEFAULT_COST: Final[int] = 1  # Low cost for dictionary-based check
 
     def __init__(
@@ -171,6 +171,27 @@ class ProfanityClassifier(BaseClassifier):
         except Exception as e:
             raise RuntimeError(f"Failed to load profanity checker: {e}")
 
+    @property
+    def custom_words(self) -> Set[str]:
+        """Get the custom profanity words."""
+        if hasattr(self, "_profanity_config") and self._profanity_config:
+            return self._profanity_config.custom_words
+        custom_words = self.config.params.get("custom_words", [])
+        return set(custom_words) if isinstance(custom_words, list) else set()
+
+    @property
+    def censor_char(self) -> str:
+        """Get the censoring character."""
+        if hasattr(self, "_profanity_config") and self._profanity_config:
+            return self._profanity_config.censor_char
+        return self.config.params.get("censor_char", "*")
+
+    def add_custom_words(self, words: Set[str]) -> None:
+        """Add custom words to the profanity list."""
+        self.warm_up()
+        if self._checker:
+            self._checker.add_censor_words(words)
+
     def warm_up(self) -> None:
         """Initialize the profanity checker if needed."""
         if not self._initialized:
@@ -190,10 +211,8 @@ class ProfanityClassifier(BaseClassifier):
         censored = self._checker.censor(text)
         total_words = len(text.split())
         censored_count = sum(
-            1
-            for original, censored in zip(text, censored)
-            if censored == self._profanity_config.censor_char
-        ) // max(len(self._profanity_config.censor_char), 1)
+            1 for _, censored_char in zip(text, censored) if censored_char == self.censor_char
+        ) // max(len(self.censor_char), 1)
 
         return CensorResult(
             original_text=text,
@@ -215,18 +234,8 @@ class ProfanityClassifier(BaseClassifier):
         self.warm_up()
 
         try:
-            # Empty string handling
-            if not text.strip():
-                return ClassificationResult(
-                    label="clean",
-                    confidence=1.0,
-                    metadata={
-                        "contains_profanity": False,
-                        "censored_text": text,
-                        "censored_word_count": 0,
-                        "total_word_count": 0,
-                    },
-                )
+            # Note: Empty text is handled by BaseClassifier.classify
+            # so we don't need to handle it here
 
             # Check for profanity and censor text
             contains_profanity = self._checker.contains_profanity(text)

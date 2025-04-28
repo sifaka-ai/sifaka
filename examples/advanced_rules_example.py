@@ -412,7 +412,7 @@ class CompositeValidator(RuleValidator[str]):
 
 
 class FinancialContentRule(Rule):
-    """Rule for validating financial content regulatory compliance."""
+    """Rule for validating financial content."""
 
     def __init__(
         self,
@@ -421,24 +421,30 @@ class FinancialContentRule(Rule):
         config: Optional[RuleConfig] = None,
     ):
         """Initialize the financial content rule."""
-        validator = FinancialContentValidator()
-
         if config is None:
             config = RuleConfig(
                 priority=RulePriority.HIGH,
-                cache_size=100,
                 cost=2.0,
+                metadata={"domain": "financial"},
             )
+        super().__init__(name=name, description=description, config=config)
 
-        super().__init__(name=name, description=description, config=config, validator=validator)
+    def _create_default_validator(self) -> RuleValidator[str]:
+        """Create the default validator for financial content."""
+        return FinancialContentValidator()
 
     def _validate_impl(self, output: str, **kwargs) -> RuleResult:
-        """Validate using the financial content validator."""
+        """Implement validation logic for financial content."""
         return self._validator.validate(output, **kwargs)
+
+    @property
+    def validator(self) -> RuleValidator[str]:
+        """Get the validator instance."""
+        return self._validator
 
 
 class MedicalContentRule(Rule):
-    """Rule for validating medical content compliance."""
+    """Rule for validating medical content."""
 
     def __init__(
         self,
@@ -448,20 +454,27 @@ class MedicalContentRule(Rule):
         medical_terms_file: Optional[str] = None,
     ):
         """Initialize the medical content rule."""
-        validator = MedicalContentValidator(medical_terms_file=medical_terms_file)
-
+        self._medical_terms_file = medical_terms_file
         if config is None:
             config = RuleConfig(
                 priority=RulePriority.HIGH,
-                cache_size=100,
                 cost=2.0,
+                metadata={"domain": "medical"},
             )
+        super().__init__(name=name, description=description, config=config)
 
-        super().__init__(name=name, description=description, config=config, validator=validator)
+    def _create_default_validator(self) -> RuleValidator[str]:
+        """Create the default validator for medical content."""
+        return MedicalContentValidator(medical_terms_file=self._medical_terms_file)
 
     def _validate_impl(self, output: str, **kwargs) -> RuleResult:
-        """Validate using the medical content validator."""
+        """Implement validation logic for medical content."""
         return self._validator.validate(output, **kwargs)
+
+    @property
+    def validator(self) -> RuleValidator[str]:
+        """Get the validator instance."""
+        return self._validator
 
 
 class LegalPatternValidator(RuleValidator[str]):
@@ -523,7 +536,7 @@ class LegalPatternValidator(RuleValidator[str]):
 
 
 class LegalPatternRule(Rule):
-    """Rule for checking legal compliance patterns."""
+    """Rule for validating legal content patterns."""
 
     def __init__(
         self,
@@ -532,24 +545,30 @@ class LegalPatternRule(Rule):
         config: Optional[RuleConfig] = None,
     ):
         """Initialize the legal pattern rule."""
-        validator = LegalPatternValidator()
-
         if config is None:
             config = RuleConfig(
-                priority=RulePriority.MEDIUM,
-                cache_size=100,
-                cost=1.0,
+                priority=RulePriority.HIGH,
+                cost=2.0,
+                metadata={"domain": "legal"},
             )
+        super().__init__(name=name, description=description, config=config)
 
-        super().__init__(name=name, description=description, config=config, validator=validator)
+    def _create_default_validator(self) -> RuleValidator[str]:
+        """Create the default validator for legal patterns."""
+        return LegalPatternValidator()
 
     def _validate_impl(self, output: str, **kwargs) -> RuleResult:
-        """Validate using the legal pattern validator."""
+        """Implement validation logic for legal patterns."""
         return self._validator.validate(output, **kwargs)
+
+    @property
+    def validator(self) -> RuleValidator[str]:
+        """Get the validator instance."""
+        return self._validator
 
 
 class CompositeRule(Rule):
-    """Rule that combines multiple rules with configurable logic."""
+    """Rule that combines multiple rules into one."""
 
     def __init__(
         self,
@@ -559,32 +578,52 @@ class CompositeRule(Rule):
         require_all: bool = True,
         config: Optional[RuleConfig] = None,
     ):
-        """Initialize with a list of rules."""
+        """
+        Initialize the composite rule.
+
+        Args:
+            name: Name of the rule
+            description: Description of the rule
+            rules: List of rules to combine
+            require_all: If True, all rules must pass for this rule to pass
+            config: Optional rule configuration
+        """
         if not rules:
             raise ValueError("Must provide at least one rule")
 
-        # Create a composite validator from rule validators
-        validators = [rule._validator for rule in rules]
-        validator = CompositeValidator(validators, require_all=require_all)
-
-        if config is None:
-            # Use highest priority from child rules
-            priority = max((rule.config.priority for rule in rules), key=lambda x: x.value)
-            cost = sum(rule.config.cost for rule in rules)
-
-            config = RuleConfig(
-                priority=priority,
-                cache_size=100,
-                cost=cost,
-            )
-
-        super().__init__(name=name, description=description, config=config, validator=validator)
         self._rules = rules
         self._require_all = require_all
 
+        # Use highest priority and cost from child rules
+        if config is None:
+            max_priority = max((rule.config.priority for rule in rules), key=lambda p: p.value)
+            total_cost = sum(rule.config.cost for rule in rules)
+            config = RuleConfig(
+                priority=max_priority,
+                cost=total_cost,
+                metadata={
+                    "rule_count": len(rules),
+                    "require_all": require_all,
+                    "child_rules": [rule.name for rule in rules],
+                },
+            )
+
+        super().__init__(name=name, description=description, config=config)
+
+    def _create_default_validator(self) -> RuleValidator[str]:
+        """Create the default validator for composite rules."""
+        return CompositeValidator(
+            [rule.validator for rule in self._rules], require_all=self._require_all
+        )
+
     def _validate_impl(self, output: str, **kwargs) -> RuleResult:
-        """Validate using the composite validator."""
+        """Implement validation logic for composite rules."""
         return self._validator.validate(output, **kwargs)
+
+    @property
+    def validator(self) -> RuleValidator[str]:
+        """Get the validator instance."""
+        return self._validator
 
 
 def setup_critic():

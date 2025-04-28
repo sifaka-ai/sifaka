@@ -1,6 +1,5 @@
 """Tests for length rules."""
 
-
 import pytest
 
 from sifaka.rules.base import RuleResult
@@ -11,6 +10,7 @@ from sifaka.rules.length import (
     LengthValidator,
     create_length_rule,
 )
+
 
 @pytest.fixture
 def length_config() -> LengthConfig:
@@ -24,21 +24,30 @@ def length_config() -> LengthConfig:
         cost=1.5,
     )
 
+
 @pytest.fixture
 def length_validator(length_config: LengthConfig) -> LengthValidator:
     """Create a test length validator."""
     return DefaultLengthValidator(length_config)
 
+
 @pytest.fixture
-def length_rule(
-    length_validator: LengthValidator,
-) -> LengthRule:
+def length_rule() -> LengthRule:
     """Create a test length rule."""
-    return LengthRule(
+    config = {
+        "min_length": 10,
+        "max_length": 100,
+        "unit": "characters",
+        "cache_size": 10,
+        "priority": 2,
+        "cost": 1.5,
+    }
+    return create_length_rule(
         name="Test Length Rule",
         description="Test length validation",
-        validator=length_validator,
+        config=config,
     )
+
 
 def test_length_config_validation():
     """Test length configuration validation."""
@@ -51,10 +60,10 @@ def test_length_config_validation():
     with pytest.raises(ValueError, match="min_length must be non-negative"):
         LengthConfig(min_length=-1)
 
-    with pytest.raises(ValueError, match="max_length must be greater than min_length"):
+    with pytest.raises(ValueError, match="min_length cannot be greater than max_length"):
         LengthConfig(min_length=100, max_length=10)
 
-    with pytest.raises(ValueError, match="unit must be one of"):
+    with pytest.raises(ValueError, match="unit must be either 'characters' or 'words'"):
         LengthConfig(unit="invalid")
 
     # Test exact length validation
@@ -66,35 +75,37 @@ def test_length_config_validation():
     ):
         LengthConfig(exact_length=50, min_length=10)
 
+
 def test_length_validation(length_rule: LengthRule):
     """Test length validation."""
     # Test valid length
     text = "This is a valid length text for testing."
     result = length_rule.validate(text)
     assert result.passed
-    assert result.metadata["length"] >= length_rule.validator.config.min_length
+    assert result.metadata["length"] >= 10  # Assuming min_length is 10
 
     # Test too short
     text = "Too short"
     result = length_rule.validate(text)
     assert not result.passed
     assert "below minimum" in result.message
-    assert result.metadata["length"] < length_rule.validator.config.min_length
+    assert result.metadata["length"] < 10  # Assuming min_length is 10
 
     # Test too long
-    text = "x" * (length_rule.validator.config.max_length + 1)
+    text = "x" * 101  # Assuming max_length is 100
     result = length_rule.validate(text)
     assert not result.passed
     assert "exceeds maximum" in result.message
-    assert result.metadata["length"] > length_rule.validator.config.max_length
+    assert result.metadata["length"] > 100  # Assuming max_length is 100
+
 
 def test_word_length_validation():
     """Test validation with word length."""
-    config = LengthConfig(
-        min_length=3,
-        max_length=10,
-        unit="words",
-    )
+    config = {
+        "min_length": 3,
+        "max_length": 10,
+        "unit": "words",
+    }
     rule = create_length_rule(
         name="Word Length Rule",
         description="Test word length validation",
@@ -121,13 +132,14 @@ def test_word_length_validation():
     assert "exceeds maximum" in result.message
     assert result.metadata["length"] == 11
 
+
 def test_exact_length_validation():
     """Test validation with exact length requirement."""
-    config = LengthConfig(
-        exact_length=10,
-        min_length=50,  # These will be ignored due to exact_length
-        max_length=5000,  # These will be ignored due to exact_length
-    )
+    config = {
+        "exact_length": 10,
+        "min_length": 50,  # These will be ignored due to exact_length
+        "max_length": 5000,  # These will be ignored due to exact_length
+    }
     rule = create_length_rule(
         name="Exact Length Rule",
         description="Test exact length validation",
@@ -151,6 +163,7 @@ def test_exact_length_validation():
     result = rule.validate(text)
     assert not result.passed
     assert "does not match required count" in result.message
+
 
 def test_edge_cases(length_rule: LengthRule):
     """Test edge cases and error handling."""
@@ -176,19 +189,21 @@ def test_edge_cases(length_rule: LengthRule):
     assert isinstance(result, RuleResult)
     assert result.metadata["length"] == len(text)
 
+
 def test_error_handling(length_rule: LengthRule):
     """Test error handling for invalid inputs."""
     # Test None input
-    with pytest.raises(ValueError, match="Text must be a string"):
+    with pytest.raises(TypeError, match="Output must be of type"):
         length_rule.validate(None)  # type: ignore
 
     # Test non-string input
-    with pytest.raises(ValueError, match="Text must be a string"):
+    with pytest.raises(TypeError, match="Output must be of type"):
         length_rule.validate(123)  # type: ignore
 
     # Test list input
-    with pytest.raises(ValueError, match="Text must be a string"):
+    with pytest.raises(TypeError, match="Output must be of type"):
         length_rule.validate(["not", "a", "string"])  # type: ignore
+
 
 def test_factory_function():
     """Test factory function for creating length rules."""
@@ -198,26 +213,30 @@ def test_factory_function():
         description="Test validation",
     )
     assert rule.name == "Test Rule"
-    assert isinstance(rule.validator, DefaultLengthValidator)
+    # We can't access validator directly anymore, so we'll test functionality instead
+    result = rule.validate("This is a test")
+    assert isinstance(result, RuleResult)
 
     # Test rule creation with custom config
-    config = LengthConfig(min_length=20, max_length=200)
+    config = {"min_length": 20, "max_length": 200}
     rule = create_length_rule(
         name="Custom Rule",
         description="Custom validation",
         config=config,
     )
-    assert rule.validator.config.min_length == 20
-    assert rule.validator.config.max_length == 200
+    # We can't access validator.config directly anymore, so we'll test functionality instead
+    result = rule.validate("x" * 19)  # Just below min_length
+    assert not result.passed
+    assert "below minimum" in result.message
+
+    result = rule.validate("x" * 20)  # Exactly min_length
+    assert result.passed
 
     # Test rule creation with custom validator
-    validator = DefaultLengthValidator(LengthConfig())
-    rule = create_length_rule(
-        name="Validator Rule",
-        description="Validator test",
-        validator=validator,
-    )
-    assert rule.validator is validator
+    # This test is no longer applicable with the new API
+    # The create_length_rule function doesn't accept a validator parameter
+    pass
+
 
 def test_consistent_results(length_rule: LengthRule):
     """Test that validation results are consistent."""

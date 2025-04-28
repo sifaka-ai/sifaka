@@ -4,173 +4,88 @@ OpenAI Integration Example for Sifaka.
 
 This example demonstrates:
 1. Setting up an OpenAI model provider
-2. Configuring various validation rules
-3. Analyzing text against these rules
-4. Using a critic to improve text based on violations
+2. Configuring validation rules
+3. Using pattern rules to analyze and improve text
 
 Usage:
     python openai_example.py
 
 Requirements:
-    - Python environment with Sifaka installed (use pyenv environment "sifaka")
+    - Python environment with Sifaka installed
     - OpenAI API key in OPENAI_API_KEY environment variable
 """
 
-import os
-import sys
-
-# Add parent directory to system path for imports
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
-try:
-    from dotenv import load_dotenv
-except ImportError:
-    print("Missing dotenv package. Install with: pip install python-dotenv")
-    sys.exit(1)
-
-from sifaka.classifiers.language import LanguageClassifier
-from sifaka.classifiers.readability import ReadabilityClassifier
-from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.models import OpenAIProvider
-from sifaka.models.base import ModelConfig
-from sifaka.rules import LengthRule, ProhibitedContentRule, RepetitionRule
-from sifaka.rules.adapters import ClassifierRuleAdapter
-from sifaka.rules.base import RuleConfig, RulePriority
-from sifaka.utils.logging import get_logger
+from sifaka.rules import ProhibitedContentRule
+from sifaka.rules.pattern_rules import SymmetryRule, RepetitionRule
+from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
+from sifaka.rules.base import RuleConfig
+from dotenv import load_dotenv
 
-# Initialize logger from Sifaka
-logger = get_logger(__name__)
+# Load environment variables
+load_dotenv()
 
+# Initialize OpenAI provider
+openai_model = OpenAIProvider(model_name="gpt-4-turbo-preview")
 
-def main():
-    """Run the OpenAI example with pattern analysis."""
-    # Load environment variables
-    load_dotenv()
+# Create rules
+prohibited_terms = ProhibitedContentRule(
+    name="content_filter",
+    description="Checks for prohibited or inappropriate content",
+    config=RuleConfig(
+        params={
+            "prohibited_terms": ["hate", "violence", "profanity"],
+            "case_sensitive": False,
+        }
+    ),
+)
 
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        logger.error("OPENAI_API_KEY environment variable not set")
-        sys.exit(1)
+symmetry_rule = SymmetryRule(
+    name="symmetry_checker",
+    description="Checks for symmetrical patterns in text",
+    config=RuleConfig(),
+)
 
-    logger.info("Starting OpenAI integration example...")
+repetition_rule = RepetitionRule(
+    name="repetition_checker",
+    description="Checks for repetitive patterns in text",
+    config=RuleConfig(),
+)
 
-    # Initialize OpenAI provider
-    openai_provider = OpenAIProvider(
-        model_name="gpt-4-turbo-preview",
-        config=ModelConfig(
-            api_key=api_key,
-            temperature=0.7,
-            max_tokens=1000,
-        ),
-    )
+# Create a critic for improving outputs that fail validation
+critic_config = PromptCriticConfig(
+    name="openai_critic",
+    description="A critic that uses OpenAI to improve text",
+    system_prompt="You are an expert editor that improves text.",
+    temperature=0.7,
+    max_tokens=1000,
+)
 
-    # Create rules with proper configurations
-    logger.info("Creating validation rules...")
+critic = PromptCritic(config=critic_config, model=openai_model)
 
-    length_rule = LengthRule(
-        name="length_validator",
-        description="Validates text length between 100 and 500 characters",
-        config=RuleConfig(
-            metadata={
-                "min_length": 100,
-                "max_length": 500,
-                "unit": "characters",
-            },
-            priority=RulePriority.HIGH,
-            cost=0.1,
-        ),
-    )
+# Example text to validate and improve
+text = "Write a professional email about a project update that avoids any inappropriate content."
 
-    content_rule = ProhibitedContentRule(
-        name="content_filter",
-        description="Checks for prohibited or inappropriate content",
-        config=RuleConfig(
-            metadata={
-                "prohibited_terms": ["hate", "violence", "profanity"],
-                "case_sensitive": False,
-            },
-            priority=RulePriority.HIGH,
-            cost=0.1,
-        ),
-    )
+# Apply rules and get results
+rules = [prohibited_terms, symmetry_rule, repetition_rule]
+results = []
+violations = []
 
-    # Create a readability classifier rule adapter
-    readability_rule = ClassifierRuleAdapter(
-        classifier_cls=ReadabilityClassifier,
-        rule_config=RuleConfig(
-            priority=RulePriority.MEDIUM,
-            cost=1.0,
-        ),
-    )
+for rule in rules:
+    result = rule.validate(text)
+    results.append(result)
+    print(f"\nRule: {rule.name}")
+    print(f"Passed: {result.passed}")
+    print(f"Message: {result.message}")
 
-    # Create a language classifier rule adapter
-    language_rule = ClassifierRuleAdapter(
-        classifier_cls=LanguageClassifier,
-        rule_config=RuleConfig(
-            priority=RulePriority.MEDIUM,
-            cost=1.0,
-        ),
-    )
+    if not result.passed:
+        violations.append({"rule": rule.name, "message": result.message})
 
-    repetition_rule = RepetitionRule(
-        name="repetition_detector",
-        description="Detects repetitive patterns in text",
-        config=RuleConfig(
-            metadata={
-                "pattern_type": "repeat",
-                "pattern_length": 2,
-                "case_sensitive": True,
-                "allow_overlap": False,
-            },
-            priority=RulePriority.MEDIUM,
-            cost=1.0,
-        ),
-    )
-
-    # Create a critic with the OpenAI provider
-    critic = PromptCritic(
-        model=openai_provider,
-        config=PromptCriticConfig(
-            name="openai_critic",
-            description="A critic that uses OpenAI to improve text",
-            system_prompt="You are an expert editor that improves text.",
-            temperature=0.7,
-            max_tokens=1000,
-        ),
-    )
-
-    # Example text to validate
-    text = "This is a short test text. It needs to be longer to pass the length rule."
-    logger.info(f"Analyzing text: '{text}'")
-
-    # Validate text with each rule and collect violations
-    all_rules = [length_rule, content_rule, readability_rule, language_rule, repetition_rule]
-    violations = []
-
-    for rule in all_rules:
-        logger.info(f"Validating with {rule.name}...")
-        result = rule._validate_impl(text)
-        logger.info(f"Passed: {result.passed}, Message: {result.message}")
-
-        if not result.passed:
-            violations.append(
-                {"rule": rule.name, "message": result.message, "metadata": result.metadata}
-            )
-
-    # If there are violations, use the critic to improve the text
-    if violations:
-        logger.info(f"Found {len(violations)} violations. Using critic to improve text...")
-        improved_text = critic.improve(text, violations)
-        logger.info(f"Original text: '{text}'")
-        logger.info(f"Improved text: '{improved_text}'")
-    else:
-        logger.info("No violations found.")
-
-    logger.info("OpenAI integration example completed.")
-
-
-if __name__ == "__main__":
-    main()
+# If any rule failed, use the critic to improve
+if violations:
+    print("\nImproving text with critic...")
+    improved_text = critic.improve(text, violations)
+    print(f"\nOriginal text: {text}")
+    print(f"Improved text: {improved_text}")
+else:
+    print("\nAll rules passed!")

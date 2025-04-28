@@ -1,29 +1,35 @@
 """Tests for the base classifier."""
 
-from typing import List
+from typing import Optional
 
 import pytest
 from pydantic import ValidationError
 
-from sifaka.classifiers.base import ClassificationResult, Classifier
+from sifaka.classifiers.base import (
+    BaseClassifier,
+    ClassificationResult,
+    ClassifierConfig,
+)
 
 
-class TestClassifier(Classifier):
-    """Test implementation of Classifier."""
+class TestClassifier(BaseClassifier):
+    """Test implementation of BaseClassifier."""
 
-    def __init__(self, **data):
-        data.setdefault("name", "test")
-        data.setdefault("description", "test classifier")
-        data.setdefault("labels", ["positive", "negative"])
-        super().__init__(**data)
+    def __init__(
+        self,
+        name: str = "test",
+        description: str = "test classifier",
+        config: Optional[ClassifierConfig] = None,
+    ):
+        """Initialize test classifier."""
+        if config is None:
+            config = ClassifierConfig(labels=["positive", "negative"])
+        super().__init__(name=name, description=description, config=config)
 
-    def classify(self, text: str) -> ClassificationResult:
+    def _classify_impl(self, _: str) -> ClassificationResult:
         """Return mock classification result."""
         return ClassificationResult(label="positive", confidence=0.8, metadata={"test": True})
 
-    def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
-        """Return mock batch classification results."""
-        return [self.classify(text) for text in texts]
 
 def test_classification_result_initialization():
     """Test initialization of ClassificationResult."""
@@ -44,7 +50,8 @@ def test_classification_result_initialization():
     with pytest.raises(ValidationError):
         ClassificationResult(label="test", confidence=-0.5)
 
-class MockClassifier(Classifier):
+
+class MockClassifier(BaseClassifier):
     """Mock classifier for testing."""
 
     def __init__(
@@ -53,31 +60,24 @@ class MockClassifier(Classifier):
         description: str = "Mock classifier for testing",
         labels: list[str] = None,
         min_confidence: float = 0.5,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ):
         """Initialize mock classifier."""
-        super().__init__(
-            name=name,
-            description=description,
-            labels=labels or ["unknown", "test"],
-            min_confidence=min_confidence,
-            **kwargs,
-        )
+        if config is None:
+            config = ClassifierConfig(
+                labels=labels or ["unknown", "test"], min_confidence=min_confidence, **kwargs
+            )
+        super().__init__(name=name, description=description, config=config)
 
-    def classify(self, text: str) -> ClassificationResult:
+    def _classify_impl(self, text: str) -> ClassificationResult:
         """Mock classification implementation."""
-        if not isinstance(text, str):
-            raise ValueError("Input must be a string")
-
         if not text:
             return ClassificationResult(
                 label="unknown", confidence=0.0, metadata={"empty_input": True}
             )
         return ClassificationResult(label="test", confidence=1.0, metadata={"test": True})
 
-    def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
-        """Mock batch classification implementation."""
-        return [self.classify(text) for text in texts]
 
 def test_classifier_initialization():
     """Test initialization of base classifier."""
@@ -90,15 +90,24 @@ def test_classifier_initialization():
     )
     assert classifier.name == "test"
     assert classifier.description == "test classifier"
-    assert classifier.labels == ["label1", "label2"]
+    assert classifier.config.labels == ["label1", "label2"]
     assert classifier.min_confidence == 0.5
 
-    # Test invalid min_confidence
-    with pytest.raises(ValidationError):
-        MockClassifier(name="test", min_confidence=1.5)
+    # Test with config
+    config = ClassifierConfig(labels=["label3", "label4"], min_confidence=0.7)
+    classifier = MockClassifier(name="test2", description="test classifier 2", config=config)
+    assert classifier.name == "test2"
+    assert classifier.description == "test classifier 2"
+    assert classifier.config.labels == ["label3", "label4"]
+    assert classifier.min_confidence == 0.7
 
-    with pytest.raises(ValidationError):
-        MockClassifier(name="test", min_confidence=-0.5)
+    # Test invalid min_confidence
+    with pytest.raises(ValueError):
+        ClassifierConfig(labels=["test"], min_confidence=1.5)
+
+    with pytest.raises(ValueError):
+        ClassifierConfig(labels=["test"], min_confidence=-0.5)
+
 
 def test_classifier_classify():
     """Test Classifier classify method."""
@@ -122,6 +131,7 @@ def test_classifier_classify():
     # Test with unicode
     result = classifier.classify("Hello 世界")
     assert isinstance(result, ClassificationResult)
+
 
 def test_classifier_batch_classify():
     """Test Classifier batch_classify method."""
@@ -156,12 +166,14 @@ def test_classifier_batch_classify():
     for result in results:
         assert isinstance(result, ClassificationResult)
 
+
 def test_classifier_warm_up():
     """Test Classifier warm_up method."""
     classifier = TestClassifier()
 
     # Test that warm_up can be called without error
     classifier.warm_up()
+
 
 def test_edge_cases():
     """Test edge cases."""
@@ -190,6 +202,7 @@ def test_edge_cases():
         assert len(results) == 1
         assert isinstance(results[0], ClassificationResult)
 
+
 def test_error_handling():
     """Test error handling for invalid inputs."""
     classifier = MockClassifier()
@@ -214,7 +227,9 @@ def test_error_handling():
     result = classifier.classify("")
     assert result.label == "unknown"
     assert result.confidence == 0.0
-    assert "empty_input" in result.metadata
+    assert "reason" in result.metadata
+    assert result.metadata["reason"] == "empty_input"
+
 
 def test_consistent_results():
     """Test consistency of classification results."""

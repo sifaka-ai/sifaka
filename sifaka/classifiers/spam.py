@@ -6,7 +6,9 @@ import importlib
 import os
 import pickle
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
+
+from pydantic import Field, PrivateAttr
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -46,6 +48,15 @@ class SpamClassifier(BaseClassifier):
     pip install scikit-learn
     """
 
+    # Private attributes
+    _spam_config: SpamConfig = PrivateAttr(default_factory=SpamConfig)
+    _sklearn_feature_extraction_text: Any = PrivateAttr(default=None)
+    _sklearn_naive_bayes: Any = PrivateAttr(default=None)
+    _sklearn_pipeline: Any = PrivateAttr(default=None)
+    _vectorizer: Any = PrivateAttr(default=None)
+    _model: Any = PrivateAttr(default=None)
+    _pipeline: Any = PrivateAttr(default=None)
+
     def __init__(
         self,
         name: str = "spam_classifier",
@@ -64,32 +75,34 @@ class SpamClassifier(BaseClassifier):
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        # Store spam config
-        self._spam_config = spam_config or SpamConfig()
-
-        # Initialize other attributes
-        self._vectorizer = None
-        self._model = None
-        self._pipeline = None
-        self._initialized = False
-
         # Create config if not provided
         if config is None:
             # Extract params from kwargs if present
             params = kwargs.pop("params", {})
 
             # Add spam config to params
-            params["min_confidence"] = self._spam_config.min_confidence
-            params["max_features"] = self._spam_config.max_features
-            params["random_state"] = self._spam_config.random_state
-            params["model_path"] = self._spam_config.model_path
-            params["use_bigrams"] = self._spam_config.use_bigrams
+            if spam_config:
+                params["min_confidence"] = spam_config.min_confidence
+                params["max_features"] = spam_config.max_features
+                params["random_state"] = spam_config.random_state
+                params["model_path"] = spam_config.model_path
+                params["use_bigrams"] = spam_config.use_bigrams
 
             # Create config with remaining kwargs
             config = ClassifierConfig(labels=["ham", "spam"], cost=1.5, params=params, **kwargs)
 
-        # Initialize base class
+        # Initialize base class and set spam config
         super().__init__(name=name, description=description, config=config)
+        if spam_config:
+            self._spam_config = spam_config
+
+        # Try to load model if path is provided
+        if self._spam_config.model_path and os.path.exists(self._spam_config.model_path):
+            self.warm_up()
+
+    def _is_initialized(self) -> bool:
+        """Check if the classifier is initialized."""
+        return self._pipeline is not None
 
     def _load_dependencies(self) -> None:
         """Load scikit-learn dependencies."""
@@ -111,7 +124,7 @@ class SpamClassifier(BaseClassifier):
 
     def warm_up(self) -> None:
         """Initialize the model if needed."""
-        if not self._initialized:
+        if not self._is_initialized():
             self._load_dependencies()
 
             if self._spam_config.model_path and os.path.exists(self._spam_config.model_path):
@@ -135,8 +148,6 @@ class SpamClassifier(BaseClassifier):
                         ("classifier", self._model),
                     ]
                 )
-
-            self._initialized = True
 
     def _save_model(self, path: str) -> None:
         """Save the model to a file."""
@@ -199,34 +210,25 @@ class SpamClassifier(BaseClassifier):
             text: The text to classify
 
         Returns:
-            ClassificationResult with spam detection result and confidence
+            ClassificationResult with prediction details
         """
-        if not self._pipeline:
-            raise RuntimeError(
-                "Model not initialized. You must either provide a model_path or call fit() before classification."
-            )
+        if not self._is_initialized():
+            self.warm_up()
 
-        # Predict probability
+        # Get prediction probabilities
         proba = self._pipeline.predict_proba([text])[0]
 
-        # Get dominant class
-        pred_class = int(proba[1] >= 0.5)  # 1 if spam probability >= 0.5, else 0
-        confidence = float(proba[pred_class])
+        # Get predicted label index and confidence
+        label_idx = proba.argmax()
+        confidence = float(proba[label_idx])
 
-        # Create metadata
-        metadata = {
-            "probabilities": {
-                "ham": float(proba[0]),
-                "spam": float(proba[1]),
-            },
-            "threshold": 0.5,
-            "is_confident": confidence >= self._spam_config.min_confidence,
-        }
+        # Get label from index
+        label = self.config.labels[label_idx]
 
         return ClassificationResult(
-            label=self.config.labels[pred_class],
+            label=label,
             confidence=confidence,
-            metadata=metadata,
+            metadata={"probabilities": {l: float(p) for l, p in zip(self.config.labels, proba)}},
         )
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
@@ -241,33 +243,24 @@ class SpamClassifier(BaseClassifier):
         """
         self.validate_batch_input(texts)
 
-        if not self._pipeline:
-            raise RuntimeError(
-                "Model not initialized. You must either provide a model_path or call fit() before classification."
-            )
+        if not self._is_initialized():
+            self.warm_up()
 
         # Predict probabilities for all texts
         probas = self._pipeline.predict_proba(texts)
 
         results = []
         for proba in probas:
-            pred_class = int(proba[1] >= 0.5)
-            confidence = float(proba[pred_class])
-
-            metadata = {
-                "probabilities": {
-                    "ham": float(proba[0]),
-                    "spam": float(proba[1]),
-                },
-                "threshold": 0.5,
-                "is_confident": confidence >= self._spam_config.min_confidence,
-            }
+            label_idx = proba.argmax()
+            confidence = float(proba[label_idx])
 
             results.append(
                 ClassificationResult(
-                    label=self.config.labels[pred_class],
+                    label=self.config.labels[label_idx],
                     confidence=confidence,
-                    metadata=metadata,
+                    metadata={
+                        "probabilities": {l: float(p) for l, p in zip(self.config.labels, proba)}
+                    },
                 )
             )
 

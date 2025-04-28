@@ -9,11 +9,10 @@ from typing import (
     Optional,
     Protocol,
     TypeVar,
-    list,
     runtime_checkable,
 )
 
-from typing_extensions import TypeGuard
+from typing_extensions import TypeGuard, List
 
 from sifaka.classifiers.base import (
     ClassificationResult,
@@ -169,7 +168,7 @@ class ClassifierRule(Rule[str, RuleResult, DefaultClassifierValidator, Any]):
         classifier: Optional[ClassifierProtocol] = None,
         validation_fn: Optional[Callable[[ClassificationResult], bool]] = None,
         threshold: float = 0.5,
-        valid_labels: Optional[list] = None,
+        valid_labels: Optional[List[str]] = None,
     ) -> None:
         """
         Initialize a classifier rule.
@@ -229,7 +228,7 @@ class ClassifierRule(Rule[str, RuleResult, DefaultClassifierValidator, Any]):
         return self.config.params.get("threshold", 0.5)
 
     @property
-    def valid_labels(self) -> list:
+    def valid_labels(self) -> List[str]:
         """Get the list of valid labels."""
         return self.config.params.get("valid_labels", [])
 
@@ -246,7 +245,7 @@ def create_classifier_rule(
     classifier: Optional[ClassifierProtocol] = None,
     validation_fn: Optional[Callable[[ClassificationResult], bool]] = None,
     threshold: float = 0.5,
-    valid_labels: Optional[list] = None,
+    valid_labels: Optional[List[str]] = None,
 ) -> ClassifierRule:
     """
     Create a classifier rule with configuration.

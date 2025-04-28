@@ -3,36 +3,31 @@
 Spam Classification Example using Sifaka.
 
 This example demonstrates:
-1. Creating and configuring a spam classifier
+1. Creating and configuring a spam classifier with proper configuration
 2. Training on sample ham/spam data
 3. Classifying new messages
-4. Using ClassifierRuleAdapter
+4. Using ClassifierRuleAdapter for rule-based validation
+5. Model persistence and loading
 
 Usage:
     python spam_classifier_example.py
 
 Requirements:
-    - Python environment with Sifaka installed (use pyenv environment "sifaka")
+    - Python environment with Sifaka installed
+    - scikit-learn (automatically handled by SpamClassifier)
 """
 
 import logging
 import os
-import sys
-import tempfile
 from pathlib import Path
-
-# Add parent directory to system path for imports
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
+import tempfile
 
 from sifaka.classifiers.spam import SpamClassifier, SpamConfig
 from sifaka.rules.adapters import ClassifierRuleAdapter
 from sifaka.rules.base import RuleConfig, RulePriority
 from sifaka.utils.logging import LogConfig, configure_logging, get_logger, log_operation
 
-# Configure logging with colors and structured output
+# Configure logging
 configure_logging(
     LogConfig(
         name="spam_example",
@@ -43,10 +38,9 @@ configure_logging(
     )
 )
 
-# Initialize logger
 logger = get_logger(__name__)
 
-# Sample data for training (reduced)
+# Sample data for training
 SAMPLE_HAM = [
     "Hey, are we still meeting for coffee tomorrow?",
     "Please submit your report by Friday.",
@@ -73,41 +67,32 @@ TEST_MESSAGES = [
 
 
 @log_operation()
-def create_classifier(model_path: str, is_training: bool = True) -> SpamClassifier:
-    """Create a spam classifier with the specified configuration.
+def create_classifier(model_path: str) -> SpamClassifier:
+    """Create a properly configured spam classifier.
 
     Args:
         model_path: Path to save/load the model
-        is_training: Whether the classifier is being created for training
 
     Returns:
         Configured SpamClassifier instance
     """
-    name = "email_spam_classifier" if is_training else "loaded_spam_classifier"
-    description = (
-        "Classifies emails as spam or ham" if is_training else "Loaded pre-trained spam classifier"
-    )
-
+    # Create spam configuration with optimal settings
     spam_config = SpamConfig(
-        min_confidence=0.7,
-        max_features=500,
-        use_bigrams=True,
+        min_confidence=0.8,  # Higher threshold for more reliable predictions
+        max_features=2000,  # Increased feature set for better accuracy
+        use_bigrams=True,  # Enable bigrams for better context understanding
         model_path=model_path,
+        random_state=42,  # For reproducibility
     )
 
+    # Create classifier with configuration
     classifier = SpamClassifier(
-        name=name,
-        description=description,
+        name="email_spam_classifier",
+        description="Classifies emails as spam or ham using Naive Bayes",
         spam_config=spam_config,
     )
 
-    logger.structured(
-        logging.INFO,
-        "Classifier created",
-        name=name,
-        description=description,
-        config=spam_config.__dict__,
-    )
+    logger.structured(logging.INFO, "Classifier created", config=spam_config.__dict__)
 
     return classifier
 
@@ -145,15 +130,18 @@ def test_rule_adapter(classifier: SpamClassifier, messages: list[str]) -> None:
         classifier: Trained SpamClassifier instance
         messages: List of messages to test
     """
+    # Create rule adapter with high priority for spam detection
     spam_rule = ClassifierRuleAdapter(
         classifier=classifier,
-        rule_config=RuleConfig(priority=RulePriority.HIGH, cost=1.5),
+        rule_config=RuleConfig(
+            priority=RulePriority.HIGH, cost=1.5  # Higher cost for spam violations
+        ),
     )
 
     for i, text in enumerate(messages, 1):
         try:
             with logger.operation_context(f"Testing rule adapter on message {i}"):
-                result = spam_rule._validate_impl(text)
+                result = spam_rule.validate(text)  # Use public validate method
                 logger.structured(
                     logging.INFO,
                     "Rule validation result",
@@ -181,43 +169,48 @@ def main():
     with logger.operation_context("Spam Classification Example"):
         # Prepare training data
         texts = SAMPLE_HAM + SAMPLE_SPAM
-        labels = ["ham"] * len(SAMPLE_HAM) + ["spam"] * len(
-            SAMPLE_SPAM
-        )  # "ham" for legitimate, "spam" for spam
+        labels = ["ham"] * len(SAMPLE_HAM) + ["spam"] * len(SAMPLE_SPAM)
 
         # Create temporary file for model storage
         temp_dir = Path(tempfile.gettempdir())
         model_path = str(temp_dir / "spam_classifier_model.pkl")
 
         try:
-            # Configure and train spam classifier
+            # Create and train classifier
             with logger.operation_context("Training classifier"):
-                classifier = create_classifier(model_path, is_training=True)
+                classifier = create_classifier(model_path)
+                classifier.warm_up()  # Initialize the classifier
                 classifier.fit(texts, labels)
                 logger.success("Classifier training completed")
 
             # Classify test messages
             classify_messages(classifier, TEST_MESSAGES)
 
-            # Demonstrate loading saved model
-            with logger.operation_context("Loading saved model"):
-                loaded_classifier = create_classifier(model_path, is_training=False)
-                loaded_classifier.warm_up()
-                logger.success("Model loaded successfully")
-
-            # Test with rule adapter
+            # Test rule-based validation
             test_rule_adapter(classifier, TEST_MESSAGES)
 
+            # Demonstrate loading saved model
+            with logger.operation_context("Loading saved model"):
+                loaded_classifier = SpamClassifier.create_pretrained(
+                    texts=texts,
+                    labels=labels,
+                    name="pretrained_spam_classifier",
+                    description="Pre-trained spam classifier",
+                    spam_config=SpamConfig(model_path=model_path),
+                )
+                loaded_classifier.warm_up()  # Initialize the loaded classifier
+                logger.success("Pre-trained classifier loaded successfully")
+
+                # Verify loaded model works
+                classify_messages(loaded_classifier, TEST_MESSAGES[:2])
+
         except Exception as e:
-            logger.error(f"An error occurred during example execution: {str(e)}")
+            logger.error(f"Error in spam classification example: {str(e)}")
         finally:
             # Clean up temporary model file
-            try:
-                if os.path.exists(model_path):
-                    os.remove(model_path)
-                    logger.success(f"Cleaned up temporary model file: {model_path}")
-            except Exception as e:
-                logger.warning(f"Failed to clean up temporary model file: {str(e)}")
+            if os.path.exists(model_path):
+                os.remove(model_path)
+                logger.info(f"Cleaned up temporary model file: {model_path}")
 
 
 if __name__ == "__main__":

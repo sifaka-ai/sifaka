@@ -24,7 +24,26 @@ from typing import (
     runtime_checkable,
 )
 
-from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
+from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult, RuleValidator
+
+
+# Forward declarations for validator classes
+class DefaultMedicalValidator(BaseValidator[str]): ...
+
+
+class DefaultLegalValidator(BaseValidator[str]): ...
+
+
+class DefaultLegalCitationValidator(BaseValidator[str]): ...
+
+
+class DefaultLegalTermsValidator(BaseValidator[str]): ...
+
+
+class DefaultPythonValidator: ...
+
+
+class DefaultConsistencyValidator: ...
 
 
 @dataclass(frozen=True)

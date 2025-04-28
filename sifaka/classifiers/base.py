@@ -113,38 +113,23 @@ class BaseClassifier(ABC, BaseModel):
     A classifier provides predictions that can be used by rules.
     """
 
-    def __init__(
-        self,
-        name: str,
-        description: str,
-        config: Optional[ClassifierConfig] = None,
-    ) -> None:
-        """
-        Initialize a classifier.
+    name: str = Field(description="Name of the classifier")
+    description: str = Field(description="Description of the classifier")
+    config: ClassifierConfig
 
-        Args:
-            name: The name of the classifier
-            description: Description of the classifier
-            config: Optional classifier configuration
-        """
-        super().__init__(
-            name=name,
-            description=description,
-            config=config or ClassifierConfig(labels=[]),
-        )
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        from_attributes=True,
+        validate_assignment=True,
+    )
 
-        # Initialize cache if enabled
+    def model_post_init(self, __context: Any) -> None:
+        """Initialize cache if enabled."""
         if self.config.cache_size > 0:
             self._classify_impl_original = self._classify_impl
             self._classify_impl = lru_cache(maxsize=self.config.cache_size)(
                 self._classify_impl_original
             )
-
-    name: str = Field(description="Name of the classifier")
-    description: str = Field(description="Description of the classifier")
-    config: ClassifierConfig
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
     def min_confidence(self) -> float:

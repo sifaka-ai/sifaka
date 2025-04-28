@@ -31,12 +31,13 @@ except ImportError:
     print("Missing dotenv package. Install with: pip install python-dotenv")
     sys.exit(1)
 
-from sifaka.classifiers.readability import ReadabilityClassifier
+from sifaka.classifiers.readability import ReadabilityClassifier, ReadabilityConfig
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.models import OpenAIProvider
 from sifaka.models.base import ModelConfig
 from sifaka.rules.sentiment import create_emotional_content_rule, create_sentiment_rule
 from sifaka.utils.logging import get_logger
+from sifaka.classifiers.base import ClassifierConfig
 
 # Initialize logger from Sifaka
 logger = get_logger(__name__)
@@ -95,7 +96,22 @@ def main():
 
     # 3. Create readability classifier
     readability_classifier = ReadabilityClassifier(
-        name="readability_analyzer", description="Analyzes text complexity"
+        name="readability_analyzer",
+        description="Analyzes text complexity",
+        config=ClassifierConfig(
+            labels=["elementary", "middle", "high", "college", "graduate"],
+            cost=1,
+            params={
+                "min_confidence": 0.5,
+                "grade_level_bounds": {
+                    "elementary": (0.0, 6.0),
+                    "middle": (6.0, 9.0),
+                    "high": (9.0, 12.0),
+                    "college": (12.0, 16.0),
+                    "graduate": (16.0, float("inf")),
+                },
+            },
+        ),
     )
 
     # 4. Create content critic

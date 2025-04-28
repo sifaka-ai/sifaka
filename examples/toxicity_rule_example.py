@@ -111,11 +111,12 @@ class ToxicityRule(Rule):
             toxicity_config=self.toxicity_config,
         )
 
-        # Create a validator using our classifier
-        validator = ToxicityValidator(self.classifier)
-
         # Initialize the base class with our validator
-        super().__init__(name=name, description=description, config=config, validator=validator)
+        super().__init__(name=name, description=description, config=config)
+
+    def _create_default_validator(self) -> RuleValidator:
+        """Create a default validator using our classifier."""
+        return ToxicityValidator(self.classifier)
 
     def _validate_impl(self, output: str, **kwargs) -> RuleResult:
         """Validate output using the toxicity validator."""

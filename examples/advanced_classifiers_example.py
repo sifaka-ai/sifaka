@@ -79,6 +79,7 @@ TEST_DOCUMENTS = [
     "That immigrant neighborhood is driving down property values and increasing crime rates across the city.",
 ]
 
+
 def prepare_data(samples_dict):
     """Prepare training data from samples dictionary."""
     texts = []
@@ -89,6 +90,7 @@ def prepare_data(samples_dict):
         labels.extend([label] * len(samples))
 
     return texts, labels
+
 
 def main():
     """Run the advanced classifiers example."""
@@ -108,7 +110,7 @@ def main():
         labels=list(GENRE_SAMPLES.keys()),
         min_confidence=0.6,
         cost=2.0,
-        additional_config={
+        params={
             "max_features": 1000,
             "use_ngrams": True,
         },
@@ -159,20 +161,21 @@ def main():
         logger.info(f"\nDocument {i+1}: '{doc[:50]}...'")
 
         # Test genre rule
-        genre_result = genre_rule._validate_impl(doc)
+        genre_result = genre_rule.validate(doc)
         logger.info(f"Genre Rule - Passed: {genre_result.passed}, Message: {genre_result.message}")
         if "classification_result" in genre_result.metadata:
             cls_result = genre_result.metadata["classification_result"]
             logger.info(f"Genre: {cls_result.label} (confidence: {cls_result.confidence:.2f})")
 
         # Test bias rule
-        bias_result = bias_rule._validate_impl(doc)
+        bias_result = bias_rule.validate(doc)
         logger.info(f"Bias Rule - Passed: {bias_result.passed}, Message: {bias_result.message}")
         if "classification_result" in bias_result.metadata:
             cls_result = bias_result.metadata["classification_result"]
             logger.info(f"Bias: {cls_result.label} (confidence: {cls_result.confidence:.2f})")
 
     logger.info("\nAdvanced classifiers example completed.")
+
 
 if __name__ == "__main__":
     main()

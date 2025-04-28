@@ -4,9 +4,9 @@ Topic Classification Example using Sifaka.
 
 This example demonstrates:
 1. Creating and configuring a topic classifier
-2. Training the model on a corpus of documents
+2. Training the model on a labeled corpus of documents
 3. Classifying new documents into topics
-4. Using a classifier rule adapter
+4. Using proper topic configuration and validation
 
 Usage:
     python topic_classifier_example.py
@@ -17,6 +17,7 @@ Requirements:
 
 import os
 import sys
+from typing import Dict, List, Tuple
 
 # Add parent directory to system path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -26,140 +27,152 @@ if parent_dir not in sys.path:
 
 from dotenv import load_dotenv
 
-from sifaka.classifiers import ClassifierConfig
+from sifaka.classifiers import ClassificationResult, ClassifierConfig
 from sifaka.classifiers.topic import TopicClassifier, TopicConfig
 from sifaka.utils.logging import get_logger
 
 # Initialize logger from Sifaka
 logger = get_logger(__name__)
 
-# Sample corpus for training (reduced set)
-SAMPLE_CORPUS = [
-    # Technology documents
-    "Machine learning algorithms are used to process and analyze data. Neural networks and deep learning are revolutionizing AI applications.",
-    "Cloud computing provides scalable infrastructure and services. AWS, Azure, and Google Cloud are major providers in this space.",
-    "Blockchain technology enables secure and transparent transactions without intermediaries. Cryptocurrencies like Bitcoin use blockchain.",
-    # Health documents
-    "Proper nutrition is essential for health, including balanced intake of proteins, carbohydrates, vitamins, and minerals.",
-    "Regular exercise improves cardiovascular health, reduces stress, and helps maintain healthy weight and muscle mass.",
-    "Mental health is as important as physical health, encompassing emotional, psychological, and social well-being.",
-    # Finance documents
-    "Investment strategies include diversification, asset allocation, and risk management to optimize portfolio returns.",
-    "Stock markets allow investors to buy and sell shares of publicly traded companies based on performance expectations.",
-    "Banking systems facilitate transactions, savings, loans, and other financial services for individuals and businesses.",
-    # Education documents
-    "Educational methodologies include student-centered learning, project-based instruction, and flipped classroom models.",
-    "Higher education institutions offer undergraduate and graduate degrees, conducting research and advancing knowledge.",
-    "Educational technology enhances learning experiences through interactive content, adaptive learning, and analytics.",
-]
+# Define topic categories and their training data
+TOPIC_DATA: Dict[str, List[str]] = {
+    "technology": [
+        "Machine learning algorithms are used to process and analyze data. Neural networks and deep learning are revolutionizing AI applications.",
+        "Cloud computing provides scalable infrastructure and services. AWS, Azure, and Google Cloud are major providers in this space.",
+        "Blockchain technology enables secure and transparent transactions without intermediaries. Cryptocurrencies like Bitcoin use blockchain.",
+    ],
+    "health": [
+        "Proper nutrition is essential for health, including balanced intake of proteins, carbohydrates, vitamins, and minerals.",
+        "Regular exercise improves cardiovascular health, reduces stress, and helps maintain healthy weight and muscle mass.",
+        "Mental health is as important as physical health, encompassing emotional, psychological, and social well-being.",
+    ],
+    "finance": [
+        "Investment strategies include diversification, asset allocation, and risk management to optimize portfolio returns.",
+        "Stock markets allow investors to buy and sell shares of publicly traded companies based on performance expectations.",
+        "Banking systems facilitate transactions, savings, loans, and other financial services for individuals and businesses.",
+    ],
+    "education": [
+        "Educational methodologies include student-centered learning, project-based instruction, and flipped classroom models.",
+        "Higher education institutions offer undergraduate and graduate degrees, conducting research and advancing knowledge.",
+        "Educational technology enhances learning experiences through interactive content, adaptive learning, and analytics.",
+    ],
+}
 
 # Test documents for classification
 TEST_DOCUMENTS = [
     "Deep learning and neural networks are transforming how we process large datasets in cloud environments.",
     "A balanced diet with proper vitamins and regular exercise is key to maintaining good physical and mental health.",
     "Diversifying your investment portfolio across different asset classes can help manage risk in volatile markets.",
+    "Modern educational platforms combine AI-driven personalization with collaborative learning tools.",
 ]
 
-def create_topic_classifier():
-    """Create and configure the topic classifier."""
-    classifier = TopicClassifier(
-        name="document_topic_classifier",
-        description="Classifies documents into subject topics",
-        topic_config=TopicConfig(
-            num_topics=4,
-            min_confidence=0.2,
-            max_features=500,
-            top_words_per_topic=5,
-        ),
-        config=ClassifierConfig(
-            labels=["technology", "politics", "sports", "general"],
-            cost=2.0,
-            min_confidence=0.2,
-        ),
-    )
 
-    # Sample training data
-    training_data = [
-        # Technology examples
-        "The new AI model demonstrates remarkable performance in natural language processing tasks.",
-        "Cloud computing services have revolutionized how businesses store and process data.",
-        "The latest smartphone features include advanced facial recognition and 5G connectivity.",
-        # Politics examples
-        "The Senate passed a new bill addressing climate change and renewable energy.",
-        "Local elections saw record turnout as voters expressed concerns about education policy.",
-        "International diplomacy efforts focus on maintaining regional stability.",
-        # Sports examples
-        "The championship game went into overtime with a dramatic finish.",
-        "Athletes prepare for the upcoming international competition with intensive training.",
-        "The team's strategy paid off with a decisive victory in the finals.",
-        # General examples
-        "Weather forecasts predict mild temperatures and clear skies for the weekend.",
-        "Community events bring together people from diverse backgrounds.",
-        "Recent studies show changing trends in consumer behavior.",
-    ]
+def prepare_training_data() -> Tuple[List[str], List[str]]:
+    """Prepare training data and labels from the topic data dictionary."""
+    documents = []
+    labels = []
+    for topic, texts in TOPIC_DATA.items():
+        documents.extend(texts)
+        labels.extend([topic] * len(texts))
+    return documents, labels
 
-    # Train the classifier
-    classifier.fit(training_data)
-    return classifier
 
-def main():
-    """Run the topic classification example."""
-    # Load environment variables
-    load_dotenv()
+def create_topic_classifier() -> TopicClassifier:
+    """Create and configure the topic classifier with proper topic configuration."""
+    try:
+        # Create topic-specific configuration
+        topic_config = TopicConfig(
+            num_topics=5,  # Number of topics to extract
+            min_confidence=0.2,  # Minimum confidence threshold
+            max_features=1000,  # Max features for vectorization
+            random_state=42,  # For reproducibility
+            top_words_per_topic=10,  # Number of top words per topic
+        )
 
-    # Set up logging
-    logger = get_logger(__name__)
-    logger.info("Starting topic classification example...")
+        # Create base classifier config
+        base_config = ClassifierConfig(
+            labels=[f"topic_{i}" for i in range(topic_config.num_topics)],
+            cost=1.0,
+            min_confidence=topic_config.min_confidence,
+            params={
+                "num_topics": topic_config.num_topics,
+                "max_features": topic_config.max_features,
+                "random_state": topic_config.random_state,
+                "top_words_per_topic": topic_config.top_words_per_topic,
+            },
+        )
 
-    # Create and train topic classifier
-    logger.info("Creating and training topic classifier...")
-    topic_classifier = create_topic_classifier()
+        # Create classifier instance
+        classifier = TopicClassifier(
+            name="document_topic_classifier",
+            description="Classifies documents into subject topics",
+            config=base_config,
+        )
 
-    # Print discovered topics
-    logger.info("Discovered topics:")
-    for i, topic_label in enumerate(topic_classifier.config.labels):
-        logger.info(f"Topic {i + 1}: {topic_label}")
+        # Set topic config directly
+        classifier._topic_config = topic_config
 
-    # Example texts to classify
-    example_texts = [
-        # Technology
-        """The latest smartphone features a revolutionary AI chip that enhances
-        photo quality and battery life. The neural processing unit can handle
-        complex machine learning tasks locally.""",
-        # Politics
-        """The Senate will vote on the new infrastructure bill next week.
-        Opposition leaders have criticized the proposed budget allocation
-        and environmental impact assessments.""",
-        # Sports
-        """In a thrilling match, the underdog team scored in the final minutes
-        to secure their place in the championship. The crowd erupted as the
-        winning goal found the back of the net.""",
-        # Mixed content
-        """While technology companies debate AI regulation, athletes prepare
-        for the upcoming tournament. Meanwhile, lawmakers discuss climate
-        change policies.""",
-    ]
+        # Prepare and validate training data
+        documents, labels = prepare_training_data()
+        if not documents or not labels:
+            raise ValueError("No training data available")
 
-    # Test classifier on examples
-    logger.info("\nTesting classifier on examples...")
-    for i, text in enumerate(example_texts, 1):
-        logger.info(f"\nExample {i}:")
-        logger.info(f"Text: {text[:100]}...")
+        # Train classifier
+        classifier.fit(documents)  # TopicClassifier.fit only takes texts, not labels
+        return classifier
 
-        # Classify text
-        result = topic_classifier.classify(text)
+    except Exception as e:
+        logger.error(f"Error creating topic classifier: {str(e)}")
+        raise
 
-        # Print results
-        logger.info(f"Detected topic: {result.label}")
-        logger.info(f"Confidence: {result.confidence:.2f}")
 
-        # Print top features if available
-        if result.metadata and "top_features" in result.metadata:
+def process_classification_result(result: ClassificationResult, text: str) -> None:
+    """Process and display classification result with proper formatting."""
+    logger.info(f"\nText: {text[:100]}...")
+    logger.info(f"Detected topic: {result.label}")
+    logger.info(f"Confidence: {result.confidence:.2f}")
+
+    if result.metadata:
+        if "top_features" in result.metadata:
             logger.info("\nTop features:")
             for feature, score in result.metadata["top_features"].items():
                 logger.info(f"  {feature}: {score:.3f}")
 
-    logger.info("\nTopic classification example completed.")
+        if "topic_scores" in result.metadata:
+            logger.info("\nTopic scores:")
+            for topic, score in result.metadata["topic_scores"].items():
+                logger.info(f"  {topic}: {score:.3f}")
+
+
+def main():
+    """Run the topic classification example with proper error handling."""
+    try:
+        # Load environment variables
+        load_dotenv()
+        logger.info("Starting topic classification example...")
+
+        # Create and train topic classifier
+        logger.info("Creating and training topic classifier...")
+        topic_classifier = create_topic_classifier()
+
+        # Print classifier information
+        logger.info("\nClassifier configuration:")
+        logger.info(f"Available topics: {', '.join(topic_classifier.config.labels)}")
+        logger.info(f"Minimum confidence: {topic_classifier.config.min_confidence}")
+
+        # Test classifier on examples
+        logger.info("\nTesting classifier on examples...")
+        for i, text in enumerate(TEST_DOCUMENTS, 1):
+            logger.info(f"\nExample {i}:")
+            result = topic_classifier.classify(text)
+            process_classification_result(result, text)
+
+        logger.info("\nTopic classification example completed successfully.")
+
+    except Exception as e:
+        logger.error(f"Error in topic classification example: {str(e)}")
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

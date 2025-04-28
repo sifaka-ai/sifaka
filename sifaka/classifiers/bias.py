@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -117,35 +117,20 @@ class BiasDetector(BaseClassifier):
     pip install scikit-learn
     """
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     # Class constants
     DEFAULT_COST: float = 2.5
-
-    # Additional Pydantic fields
-    bias_config: BiasConfig = Field(
-        default_factory=lambda: BiasConfig(),
-        description="Bias detection configuration",
-    )
 
     def __init__(
         self,
         name: str = "bias_detector",
         description: str = "Detects various forms of bias in text",
-        bias_config: Optional[BiasConfig] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> None:
-        """
-        Initialize the bias detector.
-
-        Args:
-            name: The name of the classifier
-            description: Description of the classifier
-            bias_config: Bias detection configuration
-            config: Optional classifier configuration
-            **kwargs: Additional configuration parameters
-        """
-        # Create or use provided bias config
-        self.bias_config = bias_config or BiasConfig()
+        """Initialize the bias detector."""
+        super().__init__(name=name, description=description, config=config)
 
         # Initialize other attributes
         self._vectorizer = None
@@ -153,30 +138,7 @@ class BiasDetector(BaseClassifier):
         self._pipeline = None
         self._explanations = {}
         self._initialized = False
-
-        # Create config if not provided
-        if config is None:
-            # Extract params from kwargs if present
-            params = kwargs.pop("params", {})
-
-            # Add bias config to params
-            params["min_confidence"] = self.bias_config.min_confidence
-            params["max_features"] = self.bias_config.max_features
-            params["random_state"] = self.bias_config.random_state
-            params["model_path"] = self.bias_config.model_path
-            params["bias_types"] = self.bias_config.bias_types
-
-            # Create config with remaining kwargs
-            config = ClassifierConfig(
-                labels=self.bias_config.bias_types,
-                cost=self.DEFAULT_COST,
-                min_confidence=self.bias_config.min_confidence,
-                params=params,
-                **kwargs,
-            )
-
-        # Initialize base class
-        super().__init__(name=name, description=description, config=config)
+        self._bias_config = BiasConfig()  # Use a private attribute instead of Pydantic field
 
     def _load_dependencies(self) -> None:
         """Load scikit-learn dependencies."""
@@ -202,19 +164,19 @@ class BiasDetector(BaseClassifier):
         if not self._initialized:
             self._load_dependencies()
 
-            if self.bias_config.model_path and os.path.exists(self.bias_config.model_path):
-                self._load_model(self.bias_config.model_path)
+            if self._bias_config.model_path and os.path.exists(self._bias_config.model_path):
+                self._load_model(self._bias_config.model_path)
             else:
                 # Create TF-IDF vectorizer with custom analyzer to catch bias keywords
                 self._vectorizer = self._sklearn_feature_extraction_text.TfidfVectorizer(
-                    max_features=self.bias_config.max_features,
+                    max_features=self._bias_config.max_features,
                     stop_words="english",
                     ngram_range=(1, 2),
                 )
 
                 # Create SVM model with probability estimates
                 svm = self._sklearn_svm.LinearSVC(
-                    random_state=self.bias_config.random_state,
+                    random_state=self._bias_config.random_state,
                     class_weight="balanced",
                     max_iter=10000,
                 )
@@ -236,98 +198,77 @@ class BiasDetector(BaseClassifier):
             self._initialized = True
 
     def _extract_bias_features(self, text: str) -> Dict[str, float]:
-        """
-        Extract bias-specific features from text.
-
-        Args:
-            text: Text to analyze
-
-        Returns:
-            Dictionary of bias features and their scores
-        """
+        """Extract bias-related features from text."""
         features = {}
-
-        # Check for bias keywords in each category
-        for bias_type, keywords in self.bias_config.bias_keywords.items():
-            count = 0
-            for keyword in keywords:
-                # Case-insensitive matching
-                count += len(re.findall(r"\b" + re.escape(keyword) + r"\b", text, re.IGNORECASE))
-
-            # Normalize by text length
-            features[f"bias_{bias_type}_count"] = count / (len(text.split()) + 1)
-
+        for bias_type, keywords in self._bias_config.bias_keywords.items():
+            count = sum(1 for kw in keywords if re.search(rf"\b{kw}\b", text.lower()))
+            features[f"bias_{bias_type}"] = count / len(keywords)
         return features
 
     def _save_model(self, path: str) -> None:
-        """Save the model to a file."""
-        try:
-            model_data = {
-                "pipeline": self._pipeline,
-                "explanations": self._explanations,
-            }
-
-            with open(path, "wb") as f:
-                pickle.dump(model_data, f)
-            logger.info(f"Model saved to {path}")
-        except Exception as e:
-            logger.error(f"Failed to save model: {e}")
-
-    def _load_model(self, path: str) -> None:
-        """Load the model from a file."""
-        try:
-            with open(path, "rb") as f:
-                model_data = pickle.load(f)
-
-                # Extract model data
-                self._pipeline = model_data["pipeline"]
-                self._explanations = model_data.get("explanations", {})
-
-                # Extract vectorizer and model from pipeline
-                self._vectorizer = self._pipeline.named_steps["vectorizer"]
-                self._model = self._pipeline.named_steps["classifier"]
-
-            logger.info(f"Model loaded from {path}")
-        except Exception as e:
-            logger.error(f"Failed to load model: {e}")
-            raise RuntimeError(f"Failed to load model: {e}")
-
-    def fit(self, texts: List[str], labels: List[str]) -> "BiasDetector":
-        """
-        Fit the bias detector on a corpus of texts.
-
-        Args:
-            texts: List of texts to fit the model on
-            labels: List of bias labels
-
-        Returns:
-            self: The fitted classifier
-        """
-        if len(texts) != len(labels):
-            raise ValueError("Number of texts and labels must match")
-
-        # Validate that all labels are in the configured bias types
-        invalid_labels = set(labels) - set(self.bias_config.bias_types)
-        if invalid_labels:
-            raise ValueError(
-                f"Invalid labels found: {invalid_labels}. Must be one of {self.bias_config.bias_types}"
+        """Save the trained model to disk."""
+        if not self._initialized:
+            raise RuntimeError("Model not initialized")
+        with open(path, "wb") as f:
+            pickle.dump(
+                {
+                    "vectorizer": self._vectorizer,
+                    "model": self._model,
+                    "pipeline": self._pipeline,
+                    "bias_config": self._bias_config,
+                },
+                f,
             )
 
-        self.warm_up()
+    def _load_model(self, path: str) -> None:
+        """Load a trained model from disk."""
+        with open(path, "rb") as f:
+            data = pickle.load(f)
+            self._vectorizer = data["vectorizer"]
+            self._model = data["model"]
+            self._pipeline = data["pipeline"]
+            self._bias_config = data["bias_config"]
+            self._initialized = True
 
-        # Create label mapping
-        label_mapping = {label: i for i, label in enumerate(self.bias_config.bias_types)}
-        numeric_labels = [label_mapping[label] for label in labels]
+    def fit(self, texts: List[str], labels: List[str]) -> "BiasDetector":
+        """Train the bias detector."""
+        if not texts or not labels:
+            raise ValueError("Empty training data")
 
-        # Fit the pipeline
-        self._pipeline.fit(texts, numeric_labels)
+        # Load scikit-learn dependencies
+        self._load_dependencies()
 
-        # Extract feature coefficients for explanations
+        # Create vectorizer
+        self._vectorizer = self._sklearn_feature_extraction_text.TfidfVectorizer(
+            max_features=self._bias_config.max_features,
+            stop_words="english",
+        )
+
+        # Create and train SVM classifier
+        self._model = self._sklearn_svm.SVC(
+            kernel="linear",
+            probability=True,
+            random_state=self._bias_config.random_state,
+        )
+
+        # Create pipeline
+        self._pipeline = self._sklearn_pipeline.Pipeline(
+            [
+                ("vectorizer", self._vectorizer),
+                ("classifier", self._model),
+            ]
+        )
+
+        # Fit pipeline
+        self._pipeline.fit(texts, labels)
+        self._initialized = True
+
+        # Extract feature explanations
         self._extract_explanations()
 
-        # Save the model if path is provided
-        if self.bias_config.model_path:
-            self._save_model(self.bias_config.model_path)
+        # Save model if path specified
+        if self._bias_config.model_path:
+            self._save_model(self._bias_config.model_path)
 
         return self
 
@@ -346,7 +287,7 @@ class BiasDetector(BaseClassifier):
 
                 # For each class, extract the top features
                 self._explanations = {}
-                for i, bias_type in enumerate(self.bias_config.bias_types):
+                for i, bias_type in enumerate(self._bias_config.bias_types):
                     # Skip if this is beyond the number of classes in the model
                     if i >= coefficients.shape[0]:
                         continue
@@ -370,42 +311,25 @@ class BiasDetector(BaseClassifier):
             logger.warning(f"Could not extract explanations: {e}")
 
     def _classify_impl(self, text: str) -> ClassificationResult:
-        """
-        Implement bias detection logic.
+        """Implement classification logic."""
+        if not self._initialized:
+            raise RuntimeError("Model not initialized")
 
-        Args:
-            text: The text to classify
-
-        Returns:
-            ClassificationResult with bias label and confidence
-        """
-        if not self._pipeline:
-            raise RuntimeError(
-                "Model not initialized. You must either provide a model_path or call fit() before classification."
-            )
+        # Get prediction and probability
+        label = self._pipeline.predict([text])[0]
+        probs = self._pipeline.predict_proba([text])[0]
+        confidence = max(probs)
 
         # Extract bias features
         bias_features = self._extract_bias_features(text)
 
-        # Get model predictions
-        proba = self._pipeline.predict_proba([text])[0]
-        all_probs = {self.config.labels[i]: float(prob) for i, prob in enumerate(proba)}
-
-        # Get the most likely bias type
-        label = max(all_probs.items(), key=lambda x: x[1])[0]
-        confidence = all_probs[label]
-
-        metadata = {
-            "probabilities": all_probs,
-            "threshold": self.bias_config.min_confidence,
-            "is_confident": confidence >= self.bias_config.min_confidence,
-            "bias_features": bias_features,
-        }
-
         return ClassificationResult(
             label=label,
             confidence=confidence,
-            metadata=metadata,
+            metadata={
+                "features": bias_features,
+                "explanations": self._explanations.get(label, {}),
+            },
         )
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
@@ -441,8 +365,8 @@ class BiasDetector(BaseClassifier):
 
             metadata = {
                 "probabilities": all_probs,
-                "threshold": self.bias_config.min_confidence,
-                "is_confident": confidence >= self.bias_config.min_confidence,
+                "threshold": self._bias_config.min_confidence,
+                "is_confident": confidence >= self._bias_config.min_confidence,
                 "bias_features": bias_features,
             }
 
@@ -493,7 +417,7 @@ class BiasDetector(BaseClassifier):
             "contributing_features": explanation.get("positive", {}),
             "countering_features": explanation.get("negative", {}),
             "bias_specific_features": bias_features,
-            "examples": self.bias_config.bias_keywords.get(bias_type, []),
+            "examples": self._bias_config.bias_keywords.get(bias_type, []),
         }
 
     @classmethod
@@ -523,9 +447,7 @@ class BiasDetector(BaseClassifier):
             Trained BiasDetector
         """
         # Create instance with provided configuration
-        classifier = cls(
-            name=name, description=description, bias_config=bias_config, config=config, **kwargs
-        )
+        classifier = cls(name=name, description=description, config=config, **kwargs)
 
         # Train the classifier and return it
         return classifier.fit(texts, labels)

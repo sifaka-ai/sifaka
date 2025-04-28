@@ -6,8 +6,6 @@ import importlib
 from dataclasses import dataclass
 from typing import List, Optional
 
-from pydantic import Field
-
 from sifaka.classifiers.base import (
     BaseClassifier,
     ClassificationResult,
@@ -51,11 +49,6 @@ class TopicClassifier(BaseClassifier):
     pip install scikit-learn
     """
 
-    topic_config: TopicConfig = Field(
-        default_factory=TopicConfig,
-        description="Topic classification configuration",
-    )
-
     def __init__(
         self,
         name: str = "topic_classifier",
@@ -74,8 +67,32 @@ class TopicClassifier(BaseClassifier):
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        # Store topic config
-        self.topic_config = topic_config or TopicConfig()
+        # Create config if not provided
+        if config is None:
+            # Extract params from kwargs if present
+            params = kwargs.pop("params", {})
+
+            # Store topic config
+            self._topic_config = topic_config or TopicConfig()
+
+            # Add topic config to params
+            params["num_topics"] = self._topic_config.num_topics
+            params["min_confidence"] = self._topic_config.min_confidence
+            params["max_features"] = self._topic_config.max_features
+            params["random_state"] = self._topic_config.random_state
+            params["top_words_per_topic"] = self._topic_config.top_words_per_topic
+
+            # Create config with remaining kwargs
+            config = ClassifierConfig(
+                labels=[f"topic_{i}" for i in range(self._topic_config.num_topics)],
+                cost=2.0,  # Default cost
+                min_confidence=self._topic_config.min_confidence,
+                params=params,
+                **kwargs,
+            )
+
+        # Initialize base class
+        super().__init__(name=name, description=description, config=config)
 
         # Initialize other attributes
         self._vectorizer = None
@@ -84,29 +101,10 @@ class TopicClassifier(BaseClassifier):
         self._topic_words = None
         self._initialized = False
 
-        # Create config if not provided
-        if config is None:
-            # Extract params from kwargs if present
-            params = kwargs.pop("params", {})
-
-            # Add topic config to params
-            params["num_topics"] = self.topic_config.num_topics
-            params["min_confidence"] = self.topic_config.min_confidence
-            params["max_features"] = self.topic_config.max_features
-            params["random_state"] = self.topic_config.random_state
-            params["top_words_per_topic"] = self.topic_config.top_words_per_topic
-
-            # Create config with remaining kwargs
-            config = ClassifierConfig(
-                labels=[f"topic_{i}" for i in range(self.topic_config.num_topics)],
-                cost=2.0,  # Default cost
-                min_confidence=self.topic_config.min_confidence,
-                params=params,
-                **kwargs,
-            )
-
-        # Initialize base class
-        super().__init__(name=name, description=description, config=config)
+    @property
+    def topic_config(self) -> TopicConfig:
+        """Get the topic configuration."""
+        return self._topic_config
 
     def _load_dependencies(self) -> None:
         """Load scikit-learn dependencies."""

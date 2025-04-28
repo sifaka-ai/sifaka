@@ -6,11 +6,53 @@ This module provides rules for validating text format including markdown, JSON, 
 
 import json
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Protocol, Set, Union, runtime_checkable
 
 from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
 
 FormatType = Literal["markdown", "plain_text", "json"]
+
+
+@runtime_checkable
+class FormatValidator(Protocol):
+    """Protocol for format validation components."""
+
+    @property
+    def config(self) -> "FormatConfig": ...
+
+    def validate(self, text: str, **kwargs) -> RuleResult: ...
+
+
+@dataclass(frozen=True)
+class FormatConfig(RuleConfig):
+    """Configuration for format validation."""
+
+    required_format: FormatType = "plain_text"
+    # Markdown specific settings
+    markdown_elements: Set[str] = field(default_factory=lambda: {"headers", "lists", "code_blocks"})
+    # JSON specific settings
+    json_schema: Dict[str, Any] = field(default_factory=dict)
+    # Plain text specific settings
+    min_length: int = 1
+    max_length: Optional[int] = None
+    # Common settings
+    cache_size: int = 100
+    priority: int = 1
+    cost: float = 1.0
+
+    def __post_init__(self) -> None:
+        """Validate configuration."""
+        super().__post_init__()
+        if self.required_format not in ["markdown", "plain_text", "json"]:
+            raise ValueError(
+                f"required_format must be one of: markdown, plain_text, json, got {self.required_format}"
+            )
+        if not isinstance(self.markdown_elements, set):
+            raise ValueError("markdown_elements must be a set of strings")
+        if self.min_length < 0:
+            raise ValueError("min_length must be non-negative")
+        if self.max_length is not None and self.max_length < self.min_length:
+            raise ValueError("max_length must be greater than or equal to min_length")
 
 
 @dataclass(frozen=True)
@@ -328,16 +370,125 @@ def create_plain_text_rule(
     )
 
 
+# Add DefaultFormatValidator class
+class DefaultFormatValidator(BaseValidator[str]):
+    """Default implementation of format validation."""
+
+    def __init__(self, config: FormatConfig) -> None:
+        """Initialize with configuration."""
+        self._config = config
+        self._validators = {
+            "markdown": DefaultMarkdownValidator(
+                MarkdownConfig(
+                    **{
+                        "required_elements": list(config.markdown_elements),
+                        "min_elements": 1,
+                        "cache_size": config.cache_size,
+                        "priority": config.priority,
+                        "cost": config.cost,
+                    }
+                )
+            ),
+            "json": DefaultJsonValidator(
+                JsonConfig(
+                    **{
+                        "strict": True,
+                        "allow_empty": False,
+                        "cache_size": config.cache_size,
+                        "priority": config.priority,
+                        "cost": config.cost,
+                    }
+                )
+            ),
+            "plain_text": DefaultPlainTextValidator(
+                PlainTextConfig(
+                    **{
+                        "min_length": config.min_length,
+                        "max_length": config.max_length,
+                        "allow_empty": False,
+                        "cache_size": config.cache_size,
+                        "priority": config.priority,
+                        "cost": config.cost,
+                    }
+                )
+            ),
+        }
+
+    @property
+    def config(self) -> FormatConfig:
+        """Get the validator configuration."""
+        return self._config
+
+    def validate(self, text: str, **kwargs) -> RuleResult:
+        """Validate text format based on the required format type."""
+        if not isinstance(text, str):
+            raise ValueError("Text must be a string")
+
+        if not text.strip():
+            return RuleResult(
+                passed=False,
+                message="Empty text",
+                metadata={"error": "empty_string"},
+            )
+
+        # Delegate to the appropriate validator based on format type
+        validator = self._validators[self.config.required_format]
+        return validator.validate(text, **kwargs)
+
+
+# Function to create a format rule with any configuration
+def create_format_rule(
+    name: str = "format_rule",
+    description: str = "Validates text format",
+    config: Optional[Union[FormatConfig, Dict[str, Any]]] = None,
+) -> FormatRule:
+    """
+    Create a format rule with configuration.
+
+    Args:
+        name: The name of the rule
+        description: Description of the rule
+        config: Optional FormatConfig or configuration dictionary
+
+    Returns:
+        Configured FormatRule instance
+    """
+    # Convert dictionary config to FormatConfig if needed
+    if isinstance(config, dict):
+        format_config = FormatConfig(**config)
+    elif config is None:
+        format_config = FormatConfig()
+    else:
+        format_config = config
+
+    # Create a validator directly
+    validator = DefaultFormatValidator(format_config)
+
+    # Create rule config with params
+    rule_config = RuleConfig(params={})
+
+    return FormatRule(
+        name=name,
+        description=description,
+        format_type=format_config.required_format,
+        config=rule_config,
+        validator=validator,
+    )
+
+
 # Export public classes and functions
 __all__ = [
     "FormatRule",
     "FormatType",
+    "FormatConfig",
     "MarkdownConfig",
     "JsonConfig",
     "PlainTextConfig",
+    "DefaultFormatValidator",
     "DefaultMarkdownValidator",
     "DefaultJsonValidator",
     "DefaultPlainTextValidator",
+    "create_format_rule",
     "create_markdown_rule",
     "create_json_rule",
     "create_plain_text_rule",

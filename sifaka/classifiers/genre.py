@@ -6,9 +6,9 @@ import importlib
 import os
 import pickle
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
-from pydantic import Field
+from pydantic import BaseModel, Field, model_validator, ConfigDict
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -73,76 +73,58 @@ class GenreClassifier(BaseClassifier):
     # Class constants
     DEFAULT_COST: float = 2.0
 
-    # Additional Pydantic fields
-    genre_config: GenreConfig = Field(
-        default_factory=lambda: GenreConfig(),
-        description="Genre classification configuration",
+    # Model fields
+    genre_config: GenreConfig = Field(default_factory=GenreConfig)
+    vectorizer: Optional[Any] = Field(default=None)
+    model: Optional[Any] = Field(default=None)
+    pipeline: Optional[Any] = Field(default=None)
+    feature_importances: Optional[Dict[str, Dict[str, float]]] = Field(default=None)
+    initialized: bool = Field(default=False)
+    custom_labels: Optional[List[str]] = Field(default=None)
+    sklearn_feature_extraction_text: Optional[Any] = Field(default=None)
+    sklearn_ensemble: Optional[Any] = Field(default=None)
+    sklearn_pipeline: Optional[Any] = Field(default=None)
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        from_attributes=True,
+        validate_assignment=True,
     )
 
-    def __init__(
-        self,
-        name: str = "genre_classifier",
-        description: str = "Classifies text into different genres",
-        genre_config: Optional[GenreConfig] = None,
-        config: Optional[ClassifierConfig] = None,
-        **kwargs,
-    ) -> None:
-        """
-        Initialize the genre classifier.
-
-        Args:
-            name: The name of the classifier
-            description: Description of the classifier
-            genre_config: Genre classification configuration
-            config: Optional classifier configuration
-            **kwargs: Additional configuration parameters
-        """
-        # Store genre config
-        self.genre_config = genre_config or GenreConfig()
-
-        # Initialize other attributes
-        self._vectorizer = None
-        self._model = None
-        self._pipeline = None
-        self._feature_importances = None
-        self._initialized = False
-        self._custom_labels = None
+    def model_post_init(self, __context: Any) -> None:
+        """Initialize the model after Pydantic initialization."""
+        super().model_post_init(__context)
 
         # Create config if not provided
-        if config is None:
-            # Extract params from kwargs if present
-            params = kwargs.pop("params", {})
-
+        if not self.config:
             # Add genre config to params
-            params["min_confidence"] = self.genre_config.min_confidence
-            params["max_features"] = self.genre_config.max_features
-            params["random_state"] = self.genre_config.random_state
-            params["model_path"] = self.genre_config.model_path
-            params["use_ngrams"] = self.genre_config.use_ngrams
-            params["n_estimators"] = self.genre_config.n_estimators
-            params["default_genres"] = self.genre_config.default_genres
+            params = {
+                "min_confidence": self.genre_config.min_confidence,
+                "max_features": self.genre_config.max_features,
+                "random_state": self.genre_config.random_state,
+                "model_path": self.genre_config.model_path,
+                "use_ngrams": self.genre_config.use_ngrams,
+                "n_estimators": self.genre_config.n_estimators,
+                "default_genres": self.genre_config.default_genres,
+            }
 
-            # Create config with remaining kwargs
-            config = ClassifierConfig(
+            # Create config
+            self.config = ClassifierConfig(
                 labels=self.genre_config.default_genres,
                 cost=self.DEFAULT_COST,
                 min_confidence=self.genre_config.min_confidence,
                 params=params,
-                **kwargs,
             )
-
-        # Initialize base class
-        super().__init__(name=name, description=description, config=config)
 
     def _load_dependencies(self) -> None:
         """Load scikit-learn dependencies."""
         try:
             # Import necessary scikit-learn modules
-            self._sklearn_feature_extraction_text = importlib.import_module(
+            self.sklearn_feature_extraction_text = importlib.import_module(
                 "sklearn.feature_extraction.text"
             )
-            self._sklearn_ensemble = importlib.import_module("sklearn.ensemble")
-            self._sklearn_pipeline = importlib.import_module("sklearn.pipeline")
+            self.sklearn_ensemble = importlib.import_module("sklearn.ensemble")
+            self.sklearn_pipeline = importlib.import_module("sklearn.pipeline")
             return True
         except ImportError:
             raise ImportError(
@@ -154,7 +136,7 @@ class GenreClassifier(BaseClassifier):
 
     def warm_up(self) -> None:
         """Initialize the model if needed."""
-        if not self._initialized:
+        if not self.initialized:
             self._load_dependencies()
 
             if self.genre_config.model_path and os.path.exists(self.genre_config.model_path):
@@ -162,35 +144,35 @@ class GenreClassifier(BaseClassifier):
             else:
                 # Create TF-IDF vectorizer
                 ngram_range = (1, 3) if self.genre_config.use_ngrams else (1, 1)
-                self._vectorizer = self._sklearn_feature_extraction_text.TfidfVectorizer(
+                self.vectorizer = self.sklearn_feature_extraction_text.TfidfVectorizer(
                     max_features=self.genre_config.max_features,
                     stop_words="english",
                     ngram_range=ngram_range,
                 )
 
                 # Create RandomForest model
-                self._model = self._sklearn_ensemble.RandomForestClassifier(
+                self.model = self.sklearn_ensemble.RandomForestClassifier(
                     n_estimators=self.genre_config.n_estimators,
                     random_state=self.genre_config.random_state,
                 )
 
                 # Create pipeline
-                self._pipeline = self._sklearn_pipeline.Pipeline(
+                self.pipeline = self.sklearn_pipeline.Pipeline(
                     [
-                        ("vectorizer", self._vectorizer),
-                        ("classifier", self._model),
+                        ("vectorizer", self.vectorizer),
+                        ("classifier", self.model),
                     ]
                 )
 
-            self._initialized = True
+            self.initialized = True
 
     def _save_model(self, path: str) -> None:
         """Save the model to a file."""
         try:
             model_data = {
-                "pipeline": self._pipeline,
-                "labels": self._custom_labels or self.genre_config.default_genres,
-                "feature_importances": self._feature_importances,
+                "pipeline": self.pipeline,
+                "labels": self.custom_labels or self.genre_config.default_genres,
+                "feature_importances": self.feature_importances,
             }
 
             with open(path, "wb") as f:
@@ -206,20 +188,20 @@ class GenreClassifier(BaseClassifier):
                 model_data = pickle.load(f)
 
                 # Extract model data
-                self._pipeline = model_data["pipeline"]
-                self._custom_labels = model_data.get("labels")
-                self._feature_importances = model_data.get("feature_importances")
+                self.pipeline = model_data["pipeline"]
+                self.custom_labels = model_data.get("labels")
+                self.feature_importances = model_data.get("feature_importances")
 
                 # Update config with loaded labels if available
-                if self._custom_labels:
+                if self.custom_labels:
                     self._config = ClassifierConfig(
-                        labels=self._custom_labels,
+                        labels=self.custom_labels,
                         cost=self.DEFAULT_COST,
                     )
 
                 # Extract vectorizer and model from pipeline
-                self._vectorizer = self._pipeline.named_steps["vectorizer"]
-                self._model = self._pipeline.named_steps["classifier"]
+                self.vectorizer = self.pipeline.named_steps["vectorizer"]
+                self.model = self.pipeline.named_steps["classifier"]
 
             logger.info(f"Model loaded from {path}")
         except Exception as e:
@@ -250,7 +232,7 @@ class GenreClassifier(BaseClassifier):
         numeric_labels = [label_mapping[label] for label in labels]
 
         # Store custom labels
-        self._custom_labels = unique_labels
+        self.custom_labels = unique_labels
 
         # Update config with custom labels
         self._config = ClassifierConfig(
@@ -259,10 +241,10 @@ class GenreClassifier(BaseClassifier):
         )
 
         # Fit the pipeline
-        self._pipeline.fit(texts, numeric_labels)
+        self.pipeline.fit(texts, numeric_labels)
 
         # Extract feature importances
-        self._feature_importances = self._extract_feature_importances()
+        self.feature_importances = self._extract_feature_importances()
 
         # Save the model if path is provided
         if self.genre_config.model_path:
@@ -270,14 +252,14 @@ class GenreClassifier(BaseClassifier):
 
         return self
 
-    def _extract_feature_importances(self) -> Dict[str, float]:
+    def _extract_feature_importances(self) -> Dict[str, Dict[str, float]]:
         """Extract and return the most important features for each genre."""
-        if not self._model or not hasattr(self._model, "feature_importances_"):
+        if not self.model or not hasattr(self.model, "feature_importances_"):
             return {}
 
         try:
-            feature_names = self._vectorizer.get_feature_names_out()
-            importances = self._model.feature_importances_
+            feature_names = self.vectorizer.get_feature_names_out()
+            importances = self.model.feature_importances_
 
             # Get the top features
             top_features = {}
@@ -302,13 +284,13 @@ class GenreClassifier(BaseClassifier):
         Returns:
             ClassificationResult with genre label and confidence
         """
-        if not self._pipeline:
+        if not self.pipeline:
             raise RuntimeError(
                 "Model not initialized. You must either provide a model_path or call fit() before classification."
             )
 
         # Predict probability
-        proba = self._pipeline.predict_proba([text])[0]
+        proba = self.pipeline.predict_proba([text])[0]
 
         # Get dominant class
         dominant_class_idx = proba.argmax()
@@ -320,10 +302,10 @@ class GenreClassifier(BaseClassifier):
         # Get top features for explanation
         top_features = {}
         if (
-            self._feature_importances
-            and self._config.labels[dominant_class_idx] in self._feature_importances
+            self.feature_importances
+            and self._config.labels[dominant_class_idx] in self.feature_importances
         ):
-            top_features = self._feature_importances[self._config.labels[dominant_class_idx]]
+            top_features = self.feature_importances[self._config.labels[dominant_class_idx]]
 
         metadata = {
             "probabilities": all_probs,
@@ -350,13 +332,13 @@ class GenreClassifier(BaseClassifier):
         """
         self.validate_batch_input(texts)
 
-        if not self._pipeline:
+        if not self.pipeline:
             raise RuntimeError(
                 "Model not initialized. You must either provide a model_path or call fit() before classification."
             )
 
         # Predict probabilities for all texts
-        probas = self._pipeline.predict_proba(texts)
+        probas = self.pipeline.predict_proba(texts)
 
         results = []
         for proba in probas:
@@ -368,10 +350,10 @@ class GenreClassifier(BaseClassifier):
             # Get top features for explanation
             top_features = {}
             if (
-                self._feature_importances
-                and self._config.labels[dominant_class_idx] in self._feature_importances
+                self.feature_importances
+                and self._config.labels[dominant_class_idx] in self.feature_importances
             ):
-                top_features = self._feature_importances[self._config.labels[dominant_class_idx]]
+                top_features = self.feature_importances[self._config.labels[dominant_class_idx]]
 
             metadata = {
                 "probabilities": all_probs,

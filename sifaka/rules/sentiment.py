@@ -10,6 +10,67 @@ from typing import Any, Dict, List, Optional, Protocol, Set, runtime_checkable
 
 from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
 
+# Default sets of positive and negative words for sentiment analysis
+DEFAULT_POSITIVE_WORDS = frozenset(
+    {
+        "good",
+        "great",
+        "excellent",
+        "amazing",
+        "wonderful",
+        "fantastic",
+        "awesome",
+        "brilliant",
+        "outstanding",
+        "positive",
+        "happy",
+        "joy",
+        "love",
+        "like",
+        "best",
+        "beautiful",
+        "perfect",
+        "nice",
+        "superb",
+    }
+)
+
+DEFAULT_NEGATIVE_WORDS = frozenset(
+    {
+        "bad",
+        "poor",
+        "terrible",
+        "awful",
+        "horrible",
+        "disappointing",
+        "unacceptable",
+        "mediocre",
+        "negative",
+        "sad",
+        "hate",
+        "dislike",
+        "worst",
+        "ugly",
+        "failure",
+        "wrong",
+        "problem",
+        "difficult",
+        "hard",
+    }
+)
+
+# Default emotion categories for emotional content analysis
+DEFAULT_EMOTION_CATEGORIES = {
+    "joy": ["happy", "delighted", "excited", "joyful", "cheerful", "pleased", "content"],
+    "sadness": ["sad", "depressed", "unhappy", "gloomy", "miserable", "heartbroken", "down"],
+    "anger": ["angry", "furious", "outraged", "mad", "irritated", "annoyed", "hostile"],
+    "fear": ["afraid", "scared", "terrified", "anxious", "worried", "nervous", "frightened"],
+    "surprise": ["surprised", "amazed", "astonished", "shocked", "stunned", "startled"],
+    "disgust": ["disgusted", "repulsed", "revolted", "appalled", "nauseated"],
+    "trust": ["trusting", "confident", "secure", "faithful", "reliable", "dependable"],
+    "anticipation": ["anticipating", "expecting", "looking forward", "hopeful", "eager"],
+}
+
 
 @dataclass(frozen=True)
 class SentimentConfig(RuleConfig):
@@ -289,6 +350,12 @@ def create_sentiment_rule(
     name: str = "sentiment_rule",
     description: str = "Validates text sentiment",
     config: Optional[Dict[str, Any]] = None,
+    threshold: float = 0.6,
+    positive_words: Optional[Set[str]] = None,
+    negative_words: Optional[Set[str]] = None,
+    cache_size: int = 100,
+    priority: int = 1,
+    cost: float = 1.0,
 ) -> SentimentRule:
     """
     Create a sentiment rule with configuration.
@@ -297,37 +364,24 @@ def create_sentiment_rule(
         name: The name of the rule
         description: Description of the rule
         config: Optional configuration dictionary
+        threshold: Sentiment threshold (0.0 to 1.0)
+        positive_words: Set of positive sentiment words
+        negative_words: Set of negative sentiment words
+        cache_size: Size of the validation cache
+        priority: Rule priority
+        cost: Rule cost
 
     Returns:
         Configured SentimentRule instance
     """
     if config is None:
         config = {
-            "threshold": 0.6,
-            "positive_words": {
-                "good",
-                "great",
-                "excellent",
-                "amazing",
-                "wonderful",
-                "fantastic",
-                "awesome",
-                "brilliant",
-                "outstanding",
-            },
-            "negative_words": {
-                "bad",
-                "poor",
-                "terrible",
-                "awful",
-                "horrible",
-                "disappointing",
-                "unacceptable",
-                "mediocre",
-            },
-            "cache_size": 100,
-            "priority": 1,
-            "cost": 1.0,
+            "threshold": threshold,
+            "positive_words": positive_words or DEFAULT_POSITIVE_WORDS,
+            "negative_words": negative_words or DEFAULT_NEGATIVE_WORDS,
+            "cache_size": cache_size,
+            "priority": priority,
+            "cost": cost,
         }
 
     # Convert the dictionary config to RuleConfig with params
@@ -344,6 +398,12 @@ def create_emotional_content_rule(
     name: str = "emotional_content_rule",
     description: str = "Validates emotional content",
     config: Optional[Dict[str, Any]] = None,
+    categories: Optional[Dict[str, List[str]]] = None,
+    min_emotion_score: float = 0.3,
+    max_emotion_score: float = 0.8,
+    cache_size: int = 100,
+    priority: int = 1,
+    cost: float = 1.0,
 ) -> EmotionalContentRule:
     """
     Create an emotional content rule with configuration.
@@ -352,23 +412,25 @@ def create_emotional_content_rule(
         name: The name of the rule
         description: Description of the rule
         config: Optional configuration dictionary
+        categories: Dictionary of emotion categories and their indicator words
+        min_emotion_score: Minimum emotion score threshold
+        max_emotion_score: Maximum emotion score threshold
+        cache_size: Size of the validation cache
+        priority: Rule priority
+        cost: Rule cost
 
     Returns:
         Configured EmotionalContentRule instance
     """
     if config is None:
+        default_categories = categories or DEFAULT_EMOTION_CATEGORIES
         config = {
-            "categories": {
-                "joy": ["happy", "delighted", "excited", "joyful", "cheerful"],
-                "sadness": ["sad", "depressed", "unhappy", "gloomy", "miserable"],
-                "anger": ["angry", "furious", "outraged", "mad", "irritated"],
-                "fear": ["afraid", "scared", "terrified", "anxious", "worried"],
-            },
-            "min_emotion_score": 0.3,
-            "max_emotion_score": 0.8,
-            "cache_size": 100,
-            "priority": 1,
-            "cost": 1.0,
+            "categories": default_categories,
+            "min_emotion_score": min_emotion_score,
+            "max_emotion_score": max_emotion_score,
+            "cache_size": cache_size,
+            "priority": priority,
+            "cost": cost,
         }
 
     # Convert the dictionary config to RuleConfig with params
@@ -391,4 +453,7 @@ __all__ = [
     "DefaultEmotionalContentValidator",
     "create_sentiment_rule",
     "create_emotional_content_rule",
+    "DEFAULT_POSITIVE_WORDS",
+    "DEFAULT_NEGATIVE_WORDS",
+    "DEFAULT_EMOTION_CATEGORIES",
 ]

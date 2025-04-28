@@ -103,13 +103,7 @@ class ToxicityClassifier(BaseClassifier):
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        # Store toxicity config and model for later use
-        self._toxicity_config = toxicity_config or ToxicityConfig()
-        self._model = model
-        self._detoxify = None
-        self._initialized = False
-
-        # Create config if not provided
+        # Initialize base class first
         if config is None:
             # Extract params from kwargs if present
             params = kwargs.pop("params", {})
@@ -128,6 +122,12 @@ class ToxicityClassifier(BaseClassifier):
 
         # Initialize base class
         super().__init__(name=name, description=description, config=config)
+
+        # Store toxicity config and model for later use
+        self._toxicity_config = toxicity_config or ToxicityConfig()
+        self._model = model
+        self._detoxify = None
+        self._initialized = False
 
     def _validate_model(self, model: Any) -> TypeGuard[ToxicityModel]:
         """Validate that a model implements the required protocol."""

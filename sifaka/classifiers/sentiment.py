@@ -52,9 +52,11 @@ class SentimentClassifier(BaseClassifier):
     pip install sifaka[sentiment]
     """
 
-    # Class-level constants
-    DEFAULT_LABELS: Final[List[str]] = ["positive", "neutral", "negative"]
+    # Class-level constants and attributes
+    DEFAULT_LABELS: Final[List[str]] = ["positive", "neutral", "negative", "unknown"]
     DEFAULT_COST: Final[int] = 1  # Low cost for lexicon-based analysis
+    _initialized: bool = False
+    _analyzer: Optional[SentimentAnalyzer] = None
 
     def __init__(
         self,
@@ -76,10 +78,16 @@ class SentimentClassifier(BaseClassifier):
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        # Store thresholds and analyzer for later use
-        self._thresholds = thresholds or SentimentThresholds()
-        self._analyzer = analyzer
-        self._initialized = False
+        # Store analyzer for later use if provided
+        if analyzer is not None:
+            self._analyzer = analyzer
+
+        # Initialize thresholds from provided value or config params
+        if thresholds:
+            self._thresholds = thresholds
+        else:
+            # Will be initialized from config params via properties
+            self._thresholds = None
 
         # Create config if not provided
         if config is None:
@@ -128,11 +136,25 @@ class SentimentClassifier(BaseClassifier):
             self._analyzer = self._analyzer or self._load_vader()
             self._initialized = True
 
+    @property
+    def positive_threshold(self) -> float:
+        """Get the positive sentiment threshold."""
+        if hasattr(self, "_thresholds") and self._thresholds:
+            return self._thresholds.positive
+        return self.config.params.get("positive_threshold", 0.05)
+
+    @property
+    def negative_threshold(self) -> float:
+        """Get the negative sentiment threshold."""
+        if hasattr(self, "_thresholds") and self._thresholds:
+            return self._thresholds.negative
+        return self.config.params.get("negative_threshold", -0.05)
+
     def _get_sentiment_label(self, compound_score: float) -> str:
         """Get sentiment label based on compound score."""
-        if compound_score >= self._thresholds.positive:
+        if compound_score >= self.positive_threshold:
             return "positive"
-        elif compound_score <= self._thresholds.negative:
+        elif compound_score <= self.negative_threshold:
             return "negative"
         return "neutral"
 
@@ -151,7 +173,7 @@ class SentimentClassifier(BaseClassifier):
         # Handle empty or whitespace-only text
         if not text.strip():
             return ClassificationResult(
-                label="neutral",
+                label="unknown",
                 confidence=0.0,
                 metadata={
                     "compound_score": 0.0,
@@ -183,7 +205,7 @@ class SentimentClassifier(BaseClassifier):
         except Exception as e:
             logger.error("Failed to classify text sentiment: %s", e)
             return ClassificationResult(
-                label="neutral",
+                label="unknown",
                 confidence=0.0,
                 metadata={
                     "error": str(e),

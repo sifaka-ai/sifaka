@@ -2,7 +2,7 @@
 OpenAI model provider implementation.
 """
 
-from typing import Optional
+from typing import Optional, Any
 
 import openai
 import tiktoken
@@ -12,6 +12,7 @@ from sifaka.models.base import APIClient, ModelConfig, ModelProvider, TokenCount
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
 
 class OpenAIClient(APIClient):
     """OpenAI API client implementation."""
@@ -35,6 +36,7 @@ class OpenAIClient(APIClient):
             logger.error(f"OpenAI API error: {str(e)}")
             raise
 
+
 class OpenAITokenCounter(TokenCounter):
     """Token counter using tiktoken for OpenAI models."""
 
@@ -55,34 +57,49 @@ class OpenAITokenCounter(TokenCounter):
             logger.error(f"Error counting tokens: {str(e)}")
             raise
 
-class OpenAIProvider(ModelProvider):
-    """
-    OpenAI model provider implementation.
 
-    This provider supports GPT-3.5 and GPT-4 models with configurable parameters
-    and built-in token counting.
-    """
+class OpenAIProvider:
+    """Provider for OpenAI language models."""
 
     def __init__(
         self,
-        model_name: str = "gpt-3.5-turbo",
+        model_name: str = "gpt-4-turbo",
         config: Optional[ModelConfig] = None,
-        api_client: Optional[APIClient] = None,
-        token_counter: Optional[TokenCounter] = None,
     ) -> None:
         """Initialize the OpenAI provider."""
-        super().__init__(
-            model_name=model_name,
-            config=config,
-            api_client=api_client,
-            token_counter=token_counter,
-        )
-        logger.info(f"Initialized OpenAI provider with model {model_name}")
+        self._model_name = model_name
+        self._config = config or ModelConfig()
 
-    def _create_default_client(self) -> APIClient:
-        """Create a default OpenAI client."""
-        return OpenAIClient(api_key=self.config.api_key)
+        # Initialize OpenAI client
+        try:
+            self._client = OpenAI(api_key=self._config.api_key)
+            logger.info(f"Initialized OpenAI provider with model {model_name}")
+        except ImportError:
+            raise ImportError("OpenAI package is required. Install with: pip install openai")
 
-    def _create_default_token_counter(self) -> TokenCounter:
-        """Create a default token counter for the current model."""
-        return OpenAITokenCounter(model=self.model_name)
+    def generate(self, prompt: str) -> str:
+        """Generate text from a prompt."""
+        try:
+            response = self._client.chat.completions.create(
+                model=self._model_name,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=self._config.temperature,
+                max_tokens=self._config.max_tokens,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            raise RuntimeError(f"Failed to generate text: {e}")
+
+    def invoke(self, prompt: str) -> Any:
+        """Invoke the model with a prompt and return structured output."""
+        return self.generate(prompt)
+
+    @property
+    def model_name(self) -> str:
+        """Get the model name."""
+        return self._model_name
+
+    @property
+    def config(self) -> ModelConfig:
+        """Get the model configuration."""
+        return self._config
