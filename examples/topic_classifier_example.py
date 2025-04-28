@@ -24,12 +24,11 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
+from dotenv import load_dotenv
+
 from sifaka.classifiers import ClassifierConfig
-from sifaka.rules.adapters import ClassifierRuleAdapter
-from sifaka.rules.base import RuleConfig, RulePriority
 from sifaka.classifiers.topic import TopicClassifier, TopicConfig
 from sifaka.utils.logging import get_logger
-from dotenv import load_dotenv
 
 # Initialize logger from Sifaka
 logger = get_logger(__name__)
@@ -60,7 +59,6 @@ TEST_DOCUMENTS = [
     "A balanced diet with proper vitamins and regular exercise is key to maintaining good physical and mental health.",
     "Diversifying your investment portfolio across different asset classes can help manage risk in volatile markets.",
 ]
-
 
 def create_topic_classifier():
     """Create and configure the topic classifier."""
@@ -103,7 +101,6 @@ def create_topic_classifier():
     # Train the classifier
     classifier.fit(training_data)
     return classifier
-
 
 def main():
     """Run the topic classification example."""
@@ -163,7 +160,6 @@ def main():
                 logger.info(f"  {feature}: {score:.3f}")
 
     logger.info("\nTopic classification example completed.")
-
 
 if __name__ == "__main__":
     main()

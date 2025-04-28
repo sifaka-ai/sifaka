@@ -14,12 +14,18 @@ torch>=2.2.1
 transformers>=4.38.2
 vaderSentiment>=3.3.2
 
+# Benchmarking and performance
+numpy>=1.26.0
+psutil>=5.9.5
+tqdm>=4.66.2
+asyncio>=3.4.3
+
 # Utilities
 python-dotenv>=1.0.1
-tqdm>=4.66.2
 requests>=2.31.0
 httpx>=0.27.0
 tenacity>=8.2.3
+statistics>=3.12.0  # Standard library but explicitly listed for clarity
 
 # Optional integrations
 langgraph>=0.0.19  # Optional: for LangGraph integration

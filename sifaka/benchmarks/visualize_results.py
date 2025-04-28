@@ -9,10 +9,10 @@ This module provides tools to create:
 5. Summary reports in markdown format
 """
 
-from datetime import datetime
 import json
 import os
-from typing import Dict, Any
+from datetime import datetime
+from typing import Any, Dict
 
 import matplotlib.pyplot as plt
 import pandas as pd

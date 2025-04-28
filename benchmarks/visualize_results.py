@@ -9,11 +9,12 @@ This module provides functions to create:
 """
 
 import json
-from typing import Dict, Any, List
+from pathlib import Path
+from typing import Any, Dict
+
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-from pathlib import Path
 
 
 class BenchmarkVisualizer:
@@ -178,7 +179,6 @@ class BenchmarkVisualizer:
         self.create_summary_report()
         self.save_results_json()
 
-
 def main():
     """Example usage of the visualizer."""
     # Load results from a benchmark run
@@ -191,7 +191,6 @@ def main():
     # Create visualizations
     visualizer = BenchmarkVisualizer(results)
     visualizer.create_all_visualizations()
-
 
 if __name__ == "__main__":
     main()

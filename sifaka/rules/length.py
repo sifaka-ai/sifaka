@@ -4,11 +4,16 @@ Length validation rules for Sifaka.
 This module provides rules for validating text length, supporting both character and word count validation.
 """
 
-from typing import Dict, Any, Protocol, runtime_checkable, Final, Optional, Type
 from dataclasses import dataclass
+from typing import (
+    Any,
+    Dict,
+    Optional,
+    Protocol,
+    runtime_checkable
+)
 
 from sifaka.rules.base import Rule, RuleResult, RuleValidator
-
 
 @dataclass(frozen=True)
 class LengthConfig:
@@ -41,7 +46,6 @@ class LengthConfig:
                 if self.min_length > self.max_length:
                     raise ValueError("min_length cannot be greater than max_length")
 
-
 @runtime_checkable
 class LengthValidator(Protocol):
     """Protocol for length validation components."""
@@ -50,7 +54,6 @@ class LengthValidator(Protocol):
     def config(self) -> LengthConfig: ...
 
     def validate(self, text: str) -> RuleResult: ...
-
 
 class DefaultLengthValidator(RuleValidator[str]):
     """Default implementation of length validation."""
@@ -143,7 +146,6 @@ class DefaultLengthValidator(RuleValidator[str]):
         """Get the type of input this validator can handle."""
         return str
 
-
 class LengthRule(Rule):
     """Rule that checks if the text length falls within specified bounds."""
 
@@ -184,7 +186,6 @@ class LengthRule(Rule):
         """
         return self._validator.validate(text)
 
-
 def create_length_rule(
     name: str = "length_rule",
     description: str = "Validates text length",
@@ -207,7 +208,6 @@ def create_length_rule(
         description=description,
         config=length_config,
     )
-
 
 # Export public classes and functions
 __all__ = [

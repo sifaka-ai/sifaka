@@ -12,11 +12,17 @@ Architecture Notes:
 - Follows single responsibility principle with clear separation of concerns
 """
 
-from typing import Dict, Any, Protocol, runtime_checkable, Final, Set, Optional, Type
 from dataclasses import dataclass
+from typing import (
+    Any,
+    Dict,
+    Optional,
+    Protocol,
+    Set,
+    runtime_checkable
+)
 
 from sifaka.rules.base import Rule, RuleResult, RuleValidator
-
 
 @dataclass(frozen=True)
 class ProhibitedContentConfig:
@@ -42,7 +48,6 @@ class ProhibitedContentConfig:
         if not all(term.strip() for term in self.prohibited_terms):
             raise ValueError("prohibited terms cannot be empty or whitespace-only")
 
-
 @runtime_checkable
 class ProhibitedContentValidator(Protocol):
     """Protocol for prohibited content validation components."""
@@ -51,7 +56,6 @@ class ProhibitedContentValidator(Protocol):
     def config(self) -> ProhibitedContentConfig: ...
 
     def validate(self, text: str) -> RuleResult: ...
-
 
 class DefaultProhibitedContentValidator(RuleValidator[str]):
     """Default implementation of prohibited content validation."""
@@ -128,7 +132,6 @@ class DefaultProhibitedContentValidator(RuleValidator[str]):
         """Get the type of input this validator can handle."""
         return str
 
-
 class ProhibitedContentRule(Rule):
     """Rule that checks if the text contains any prohibited terms."""
 
@@ -169,7 +172,6 @@ class ProhibitedContentRule(Rule):
         """
         return self._validator.validate(text)
 
-
 def create_prohibited_content_rule(
     name: str = "prohibited_content_rule",
     description: str = "Validates text for prohibited content",
@@ -192,7 +194,6 @@ def create_prohibited_content_rule(
         description=description,
         config=prohibited_config,
     )
-
 
 # Export public classes and functions
 __all__ = [

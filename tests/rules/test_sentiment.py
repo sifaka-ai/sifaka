@@ -1,20 +1,18 @@
 """Tests for sentiment rules."""
 
 import pytest
-from typing import Dict, List, Set
 
 from sifaka.rules.sentiment import (
-    SentimentConfig,
-    EmotionalContentConfig,
-    SentimentRule,
-    EmotionalContentRule,
-    create_sentiment_rule,
-    create_emotional_content_rule,
-    DEFAULT_POSITIVE_WORDS,
-    DEFAULT_NEGATIVE_WORDS,
     DEFAULT_EMOTION_CATEGORIES,
+    DEFAULT_NEGATIVE_WORDS,
+    DEFAULT_POSITIVE_WORDS,
+    EmotionalContentConfig,
+    EmotionalContentRule,
+    SentimentConfig,
+    SentimentRule,
+    create_emotional_content_rule,
+    create_sentiment_rule,
 )
-from sifaka.rules.base import RuleResult
 
 
 @pytest.fixture
@@ -28,7 +26,6 @@ def sentiment_config() -> SentimentConfig:
         priority=1,
         cost=1.0,
     )
-
 
 @pytest.fixture
 def emotional_content_config() -> EmotionalContentConfig:
@@ -45,7 +42,6 @@ def emotional_content_config() -> EmotionalContentConfig:
         priority=1,
         cost=1.0,
     )
-
 
 def test_sentiment_config_validation():
     """Test sentiment configuration validation."""
@@ -110,7 +106,6 @@ def test_sentiment_config_validation():
             cost=-1,
         )
 
-
 def test_emotional_content_config_validation():
     """Test emotional content configuration validation."""
     # Valid configuration
@@ -162,7 +157,6 @@ def test_emotional_content_config_validation():
             cost=-1,
         )
 
-
 def test_sentiment_rule_validation(sentiment_config):
     """Test sentiment rule validation."""
     rule = create_sentiment_rule(
@@ -206,7 +200,6 @@ def test_sentiment_rule_validation(sentiment_config):
     with pytest.raises(ValueError, match="Input must be a string"):
         rule._validate_impl(123)  # type: ignore
 
-
 def test_emotional_content_rule_validation(emotional_content_config):
     """Test emotional content rule validation."""
     rule = create_emotional_content_rule(
@@ -247,7 +240,6 @@ def test_emotional_content_rule_validation(emotional_content_config):
     with pytest.raises(ValueError, match="Input must be a string"):
         rule._validate_impl(123)  # type: ignore
 
-
 def test_create_sentiment_rule():
     """Test sentiment rule factory function."""
     # Test with default configuration
@@ -270,7 +262,6 @@ def test_create_sentiment_rule():
     assert isinstance(custom_rule, SentimentRule)
     assert custom_rule.name == "custom_sentiment"
     assert custom_rule.description == "Custom sentiment rule"
-
 
 def test_create_emotional_content_rule():
     """Test emotional content rule factory function."""
@@ -299,7 +290,6 @@ def test_create_emotional_content_rule():
     assert custom_rule.name == "custom_emotional"
     assert custom_rule.description == "Custom emotional content rule"
 
-
 def test_default_word_sets():
     """Test default word sets for sentiment analysis."""
     assert isinstance(DEFAULT_POSITIVE_WORDS, frozenset)
@@ -311,7 +301,6 @@ def test_default_word_sets():
     assert len(DEFAULT_NEGATIVE_WORDS) > 0
     assert "bad" in DEFAULT_NEGATIVE_WORDS
     assert "terrible" in DEFAULT_NEGATIVE_WORDS
-
 
 def test_default_emotion_categories():
     """Test default emotion categories."""

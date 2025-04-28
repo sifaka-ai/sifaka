@@ -31,11 +31,11 @@ except ImportError:
     print("Missing dotenv package. Install with: pip install python-dotenv")
     sys.exit(1)
 
-from sifaka.models import OpenAIProvider
-from sifaka.models.base import ModelConfig
-from sifaka.rules.sentiment import create_sentiment_rule, create_emotional_content_rule
 from sifaka.classifiers.readability import ReadabilityClassifier
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
+from sifaka.models import OpenAIProvider
+from sifaka.models.base import ModelConfig
+from sifaka.rules.sentiment import create_emotional_content_rule, create_sentiment_rule
 from sifaka.utils.logging import get_logger
 
 # Initialize logger from Sifaka

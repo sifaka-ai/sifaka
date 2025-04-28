@@ -6,7 +6,6 @@ Please import from sifaka.rules.domain instead.
 """
 
 import warnings
-from typing import Dict, Any, List, Set, Optional
 
 # Issue deprecation warning
 warnings.warn(
@@ -18,14 +17,14 @@ warnings.warn(
 
 # Import everything from domain
 from sifaka.rules.domain import (
-    LegalCitationConfig,
-    LegalTermsConfig,
-    LegalCitationValidator,
-    LegalTermsValidator,
     DefaultLegalCitationValidator,
     DefaultLegalTermsValidator,
+    LegalCitationConfig,
     LegalCitationRule,
+    LegalCitationValidator,
+    LegalTermsConfig,
     LegalTermsRule,
+    LegalTermsValidator,
     create_legal_citation_rule,
     create_legal_terms_rule,
 )

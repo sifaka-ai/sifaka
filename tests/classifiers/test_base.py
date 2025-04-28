@@ -1,10 +1,11 @@
 """Tests for the base classifier."""
 
+from typing import List
+
 import pytest
-from typing import Dict, Any, List, Union
 from pydantic import ValidationError
 
-from sifaka.classifiers.base import Classifier, ClassificationResult
+from sifaka.classifiers.base import ClassificationResult, Classifier
 
 
 class TestClassifier(Classifier):
@@ -24,7 +25,6 @@ class TestClassifier(Classifier):
         """Return mock batch classification results."""
         return [self.classify(text) for text in texts]
 
-
 def test_classification_result_initialization():
     """Test initialization of ClassificationResult."""
     # Test valid initialization
@@ -43,7 +43,6 @@ def test_classification_result_initialization():
 
     with pytest.raises(ValidationError):
         ClassificationResult(label="test", confidence=-0.5)
-
 
 class MockClassifier(Classifier):
     """Mock classifier for testing."""
@@ -80,7 +79,6 @@ class MockClassifier(Classifier):
         """Mock batch classification implementation."""
         return [self.classify(text) for text in texts]
 
-
 def test_classifier_initialization():
     """Test initialization of base classifier."""
     # Test valid initialization
@@ -101,7 +99,6 @@ def test_classifier_initialization():
 
     with pytest.raises(ValidationError):
         MockClassifier(name="test", min_confidence=-0.5)
-
 
 def test_classifier_classify():
     """Test Classifier classify method."""
@@ -125,7 +122,6 @@ def test_classifier_classify():
     # Test with unicode
     result = classifier.classify("Hello 世界")
     assert isinstance(result, ClassificationResult)
-
 
 def test_classifier_batch_classify():
     """Test Classifier batch_classify method."""
@@ -160,14 +156,12 @@ def test_classifier_batch_classify():
     for result in results:
         assert isinstance(result, ClassificationResult)
 
-
 def test_classifier_warm_up():
     """Test Classifier warm_up method."""
     classifier = TestClassifier()
 
     # Test that warm_up can be called without error
     classifier.warm_up()
-
 
 def test_edge_cases():
     """Test edge cases."""
@@ -196,7 +190,6 @@ def test_edge_cases():
         assert len(results) == 1
         assert isinstance(results[0], ClassificationResult)
 
-
 def test_error_handling():
     """Test error handling for invalid inputs."""
     classifier = MockClassifier()
@@ -222,7 +215,6 @@ def test_error_handling():
     assert result.label == "unknown"
     assert result.confidence == 0.0
     assert "empty_input" in result.metadata
-
 
 def test_consistent_results():
     """Test consistency of classification results."""

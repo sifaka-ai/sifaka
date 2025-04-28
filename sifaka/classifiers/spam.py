@@ -2,19 +2,20 @@
 Spam classifier using scikit-learn's Naive Bayes.
 """
 
-from typing import List, Dict, Any, Optional, Tuple
 import importlib
-import logging
-import pickle
 import os
-from dataclasses import dataclass, field
-from pydantic import Field, ConfigDict
+import pickle
+from dataclasses import dataclass
+from typing import List, Optional
 
-from sifaka.classifiers.base import BaseClassifier, ClassificationResult, ClassifierConfig
+from sifaka.classifiers.base import (
+    BaseClassifier,
+    ClassificationResult,
+    ClassifierConfig,
+)
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
 
 @dataclass(frozen=True)
 class SpamConfig:
@@ -32,7 +33,6 @@ class SpamConfig:
             raise ValueError("min_confidence must be between 0.0 and 1.0")
         if self.max_features <= 0:
             raise ValueError("max_features must be positive")
-
 
 class SpamClassifier(BaseClassifier):
     """

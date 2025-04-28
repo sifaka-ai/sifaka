@@ -2,18 +2,30 @@
 Language classifier using langdetect.
 """
 
-from typing import List, Dict, Any, Optional, Protocol, runtime_checkable, Final, TypeVar, Sequence
-from typing_extensions import TypeGuard
 import importlib
-import logging
-from dataclasses import dataclass, field
 from abc import abstractmethod
+from dataclasses import dataclass
+from typing import (
+    Any,
+    Dict,
+    Final,
+    List,
+    Optional,
+    Protocol,
+    Sequence,
+    runtime_checkable,
+)
 
-from sifaka.classifiers.base import BaseClassifier, ClassificationResult, ClassifierConfig
+from typing_extensions import TypeGuard
+
+from sifaka.classifiers.base import (
+    BaseClassifier,
+    ClassificationResult,
+    ClassifierConfig,
+)
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
 
 @runtime_checkable
 class LanguageDetector(Protocol):
@@ -23,7 +35,6 @@ class LanguageDetector(Protocol):
     def detect_langs(self, text: str) -> Sequence[Any]: ...
     @abstractmethod
     def detect(self, text: str) -> str: ...
-
 
 @dataclass(frozen=True)
 class LanguageConfig:
@@ -40,7 +51,6 @@ class LanguageConfig:
         if self.seed < 0:
             raise ValueError("seed must be non-negative")
 
-
 @dataclass(frozen=True)
 class LanguageInfo:
     """Information about a supported language."""
@@ -49,7 +59,6 @@ class LanguageInfo:
     name: str
     native_name: Optional[str] = None
     script: Optional[str] = None
-
 
 class LanguageClassifier(BaseClassifier):
     """

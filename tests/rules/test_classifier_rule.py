@@ -1,25 +1,21 @@
 """Tests for the ClassifierRule."""
 
 import pytest
-from typing import Dict, Any, List, Protocol, runtime_checkable
-from dataclasses import dataclass
 
+from sifaka.classifiers.base import ClassificationResult
+from sifaka.rules.base import (
+    ConfigurationError,
+    RulePriority,
+    RuleResultHandler,
+    ValidationError,
+)
 from sifaka.rules.classifier_rule import (
+    ClassifierProtocol,
     ClassifierRule,
     ClassifierRuleConfig,
     ClassifierValidator,
-    ClassifierProtocol,
     RuleResult,
 )
-from sifaka.classifiers.base import ClassificationResult
-from sifaka.rules.base import (
-    RuleConfig,
-    RuleResultHandler,
-    RulePriority,
-    ValidationError,
-    ConfigurationError,
-)
-
 
 class MockClassifier:
     """Mock classifier for testing."""
@@ -60,7 +56,6 @@ class MockClassifier:
             metadata={"mock": True},
         )
 
-
 class MockHandler(RuleResultHandler[RuleResult]):
     """Mock handler for testing."""
 
@@ -77,18 +72,15 @@ class MockHandler(RuleResultHandler[RuleResult]):
     def can_handle(self, result: RuleResult) -> bool:
         return isinstance(result, RuleResult)
 
-
 @pytest.fixture
 def mock_classifier() -> MockClassifier:
     """Fixture for creating a mock classifier."""
     return MockClassifier()
 
-
 @pytest.fixture
 def mock_handler() -> MockHandler:
     """Fixture for creating a mock handler."""
     return MockHandler()
-
 
 @pytest.fixture
 def config() -> ClassifierRuleConfig:
@@ -102,7 +94,6 @@ def config() -> ClassifierRuleConfig:
         metadata={"test": True},
     )
 
-
 @pytest.fixture
 def validator(mock_classifier: MockClassifier, config: ClassifierRuleConfig) -> ClassifierValidator:
     """Fixture for creating a classifier validator."""
@@ -111,7 +102,6 @@ def validator(mock_classifier: MockClassifier, config: ClassifierRuleConfig) -> 
         validation_fn=lambda r: r.confidence >= config.threshold and r.label in config.valid_labels,
         config=config,
     )
-
 
 @pytest.fixture
 def rule(
@@ -130,7 +120,6 @@ def rule(
         result_handler=mock_handler,
     )
 
-
 def test_classifier_protocol():
     """Test ClassifierProtocol implementation."""
     classifier = MockClassifier()
@@ -143,7 +132,6 @@ def test_classifier_protocol():
 
     bad_classifier = BadClassifier()
     assert not isinstance(bad_classifier, ClassifierProtocol)
-
 
 def test_classifier_rule_config():
     """Test ClassifierRuleConfig validation and behavior."""
@@ -169,7 +157,6 @@ def test_classifier_rule_config():
     config3 = config.with_labels(["negative"])
     assert config3.threshold == config.threshold
     assert config3.valid_labels == ["negative"]
-
 
 def test_classifier_validator(mock_classifier: MockClassifier, config: ClassifierRuleConfig):
     """Test ClassifierValidator initialization and validation."""
@@ -207,7 +194,6 @@ def test_classifier_validator(mock_classifier: MockClassifier, config: Classifie
     with pytest.raises(ValidationError):
         validator.validate("test")
 
-
 def test_classifier_rule_validation(rule: ClassifierRule):
     """Test ClassifierRule validation."""
     # Test valid text
@@ -235,13 +221,11 @@ def test_classifier_rule_validation(rule: ClassifierRule):
     assert len(rule._result_handler.handled_results) == 3
     assert not rule._result_handler.should_continue(result)
 
-
 def test_classifier_rule_properties(rule: ClassifierRule):
     """Test ClassifierRule property access."""
     assert rule.classifier.name == "mock_classifier"
     assert rule.threshold == 0.7
     assert rule.valid_labels == ["positive"]
-
 
 def test_classifier_rule_with_custom_validation(
     mock_classifier: MockClassifier,
@@ -270,7 +254,6 @@ def test_classifier_rule_with_custom_validation(
     assert not result.passed
     assert result.score == 0.94
 
-
 def test_classifier_rule_edge_cases(rule: ClassifierRule):
     """Test ClassifierRule edge cases."""
     # Test whitespace
@@ -287,7 +270,6 @@ def test_classifier_rule_edge_cases(rule: ClassifierRule):
     special_chars = "!@#$%^&*()"
     result = rule.validate(special_chars)
     assert isinstance(result, RuleResult)
-
 
 def test_consistent_results(rule: ClassifierRule):
     """Test consistency of validation results."""

@@ -29,7 +29,7 @@ try:
 except ImportError:
     print("Missing dotenv package. Install with: pip install python-dotenv")
 
-from sifaka.rules import LengthRule, ProhibitedContentRule, SymmetryRule, RepetitionRule
+from sifaka.rules import LengthRule, ProhibitedContentRule, RepetitionRule, SymmetryRule
 from sifaka.rules.base import RuleConfig, RulePriority
 from sifaka.utils.logging import get_logger
 

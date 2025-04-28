@@ -17,7 +17,6 @@ Requirements:
 
 import os
 import sys
-from typing import Dict, Any, List, Tuple
 
 # Add parent directory to system path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -25,11 +24,10 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from sifaka.classifiers import ClassifierConfig
+from sifaka.classifiers.bias import BiasDetector
+from sifaka.classifiers.genre import GenreClassifier
 from sifaka.rules.adapters import ClassifierRuleAdapter
 from sifaka.rules.base import RuleConfig, RulePriority
-from sifaka.classifiers.genre import GenreClassifier, GenreConfig
-from sifaka.classifiers.bias import BiasDetector, BiasConfig
 from sifaka.utils.logging import get_logger
 
 # Initialize logger from Sifaka
@@ -81,7 +79,6 @@ TEST_DOCUMENTS = [
     "That immigrant neighborhood is driving down property values and increasing crime rates across the city.",
 ]
 
-
 def prepare_data(samples_dict):
     """Prepare training data from samples dictionary."""
     texts = []
@@ -92,7 +89,6 @@ def prepare_data(samples_dict):
         labels.extend([label] * len(samples))
 
     return texts, labels
-
 
 def main():
     """Run the advanced classifiers example."""
@@ -177,7 +173,6 @@ def main():
             logger.info(f"Bias: {cls_result.label} (confidence: {cls_result.confidence:.2f})")
 
     logger.info("\nAdvanced classifiers example completed.")
-
 
 if __name__ == "__main__":
     main()

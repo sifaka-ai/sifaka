@@ -23,8 +23,7 @@ Requirements:
 
 import os
 import sys
-import tempfile
-from typing import Dict, Any
+from typing import Any, Dict
 
 # Add parent directory to system path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -35,23 +34,21 @@ except ImportError:
     print("The anthropic package is required. Install with: pip install anthropic")
     sys.exit(1)
 
-from sifaka.classifiers.genre import GenreClassifier, GenreConfig
-from sifaka.classifiers.topic import TopicClassifier, TopicConfig
-from sifaka.classifiers.toxicity import ToxicityClassifier, ToxicityConfig, ToxicityThresholds
-from sifaka.classifiers.bias import BiasDetector, BiasConfig
+from sifaka.classifiers.base import ClassifierConfig
+from sifaka.classifiers.bias import BiasConfig, BiasDetector
+from sifaka.classifiers.toxicity import (
+    ToxicityClassifier,
+    ToxicityConfig,
+    ToxicityThresholds,
+)
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.models import OpenAIProvider
 from sifaka.models.base import ModelConfig
-from sifaka.utils.logging import get_logger
 from sifaka.rules.safety import (
-    create_harmful_content_rule,
     create_bias_rule,
-    HarmfulContentConfig,
+    create_harmful_content_rule,
 )
-from sifaka.rules.base import Rule, RuleConfig, RulePriority
-from sifaka.rules.domain import RuleResult
-from sifaka.rules.pattern_rules import SymmetryRule, RepetitionRule
-from sifaka.classifiers.base import ClassifierConfig
+from sifaka.utils.logging import get_logger
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -89,7 +86,6 @@ SAMPLES = {
         ],
     },
 }
-
 
 def setup_classifiers():
     """Set up classifiers for content validation."""
@@ -244,7 +240,6 @@ def setup_classifiers():
 
     return classifiers
 
-
 def setup_critic(api_key):
     """Set up content critic using OpenAI."""
     if not api_key:
@@ -269,7 +264,6 @@ def setup_critic(api_key):
             max_tokens=1000,
         ),
     )
-
 
 def validate_content(text: str, classifiers: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -361,7 +355,6 @@ def validate_content(text: str, classifiers: Dict[str, Any]) -> Dict[str, Any]:
 
     return validation_results
 
-
 def validate_improvements(improved_content, classifiers, expected_genre):
     """Validate if the improved content fixed the issues."""
     improved_genre = classifiers["genre"].classify(improved_content).label
@@ -383,7 +376,6 @@ def validate_improvements(improved_content, classifiers, expected_genre):
     # Check if bias was fixed
     if improved_bias == "neutral":
         logger.info("✓ Bias issue fixed")
-
 
 def test_validation(classifiers):
     """Test the enhanced content validation with various examples."""
@@ -407,7 +399,6 @@ def test_validation(classifiers):
         else:
             logger.info("Content passed all validation checks")
 
-
 def main():
     """Run the comprehensive content validation example."""
     # Check for API keys
@@ -425,7 +416,7 @@ def main():
 
     # Initialize classifiers and critic
     classifiers = setup_classifiers()
-    critic = setup_critic(openai_api_key)
+    setup_critic(openai_api_key)
 
     # Generate content with Claude
     client = anthropic.Anthropic(api_key=anthropic_api_key)
@@ -459,7 +450,6 @@ def main():
     test_validation(classifiers)
 
     logger.info("\nComprehensive content validation example completed.")
-
 
 if __name__ == "__main__":
     main()

@@ -2,10 +2,11 @@
 Fact-checking rules for Sifaka.
 """
 
-from typing import Dict, Any, List, Set, Optional, Final
-from dataclasses import dataclass, field
-from sifaka.rules.base import Rule, RuleResult, RuleConfig, RuleValidator
 import re
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Set
+
+from sifaka.rules.base import Rule, RuleConfig, RuleResult, RuleValidator
 
 
 @dataclass(frozen=True)
@@ -39,7 +40,6 @@ class FactualConsistencyConfig(RuleConfig):
         if not self.contradiction_indicators:
             raise ValueError("Must provide at least one contradiction indicator")
 
-
 @dataclass(frozen=True)
 class ConfidenceConfig(RuleConfig):
     """Configuration for confidence rules."""
@@ -64,7 +64,6 @@ class ConfidenceConfig(RuleConfig):
         if not all(indicators for indicators in self.confidence_indicators.values()):
             raise ValueError("Each confidence level must have at least one indicator")
 
-
 @dataclass(frozen=True)
 class CitationConfig(RuleConfig):
     """Configuration for citation rules."""
@@ -88,7 +87,6 @@ class CitationConfig(RuleConfig):
         if not self.citation_patterns:
             raise ValueError("Must provide at least one citation pattern")
 
-
 @dataclass(frozen=True)
 class FactualAccuracyConfig(RuleConfig):
     """Configuration for factual accuracy rules."""
@@ -110,7 +108,6 @@ class FactualAccuracyConfig(RuleConfig):
             raise ValueError("Must provide at least one knowledge base entry")
         if not all(facts for facts in self.knowledge_base.values()):
             raise ValueError("Each knowledge base entry must have at least one fact")
-
 
 class DefaultFactualConsistencyValidator(RuleValidator[str]):
     """Default implementation of factual consistency validation."""
@@ -171,7 +168,6 @@ class DefaultFactualConsistencyValidator(RuleValidator[str]):
         """Get the type of input this validator can handle."""
         return str
 
-
 class DefaultConfidenceValidator(RuleValidator[str]):
     """Default implementation of confidence validation."""
 
@@ -226,7 +222,6 @@ class DefaultConfidenceValidator(RuleValidator[str]):
         """Get the type of input this validator can handle."""
         return str
 
-
 class DefaultCitationValidator(RuleValidator[str]):
     """Default implementation of citation validation."""
 
@@ -277,7 +272,6 @@ class DefaultCitationValidator(RuleValidator[str]):
         """Get the type of input this validator can handle."""
         return str
 
-
 class DefaultFactualAccuracyValidator(RuleValidator[str]):
     """Default implementation of factual accuracy validation."""
 
@@ -327,7 +321,6 @@ class DefaultFactualAccuracyValidator(RuleValidator[str]):
         """Get the type of input this validator can handle."""
         return str
 
-
 class FactualConsistencyRule(Rule):
     """Rule that checks for factual consistency within the text."""
 
@@ -359,7 +352,6 @@ class FactualConsistencyRule(Rule):
     def _validate_impl(self, output: str) -> RuleResult:
         """Validate output for factual consistency."""
         return self._validator.validate(output)
-
 
 class ConfidenceRule(Rule):
     """Rule that checks for confidence indicators in the text."""
@@ -393,7 +385,6 @@ class ConfidenceRule(Rule):
         """Validate output for confidence indicators."""
         return self._validator.validate(output)
 
-
 class CitationRule(Rule):
     """Rule that checks for citations in the text."""
 
@@ -425,7 +416,6 @@ class CitationRule(Rule):
     def _validate_impl(self, output: str) -> RuleResult:
         """Validate output for citations."""
         return self._validator.validate(output)
-
 
 class FactualAccuracyRule(Rule):
     """Rule that checks for factual accuracy in the text."""
@@ -459,7 +449,6 @@ class FactualAccuracyRule(Rule):
         """Validate output for factual accuracy."""
         return self._validator.validate(output)
 
-
 def create_factual_consistency_rule(
     name: str = "factual_consistency_rule",
     description: str = "Validates text for factual consistency",
@@ -481,7 +470,6 @@ def create_factual_consistency_rule(
         description=description,
         config=config,
     )
-
 
 def create_confidence_rule(
     name: str = "confidence_rule",
@@ -505,7 +493,6 @@ def create_confidence_rule(
         config=config,
     )
 
-
 def create_citation_rule(
     name: str = "citation_rule",
     description: str = "Validates text for citations",
@@ -528,7 +515,6 @@ def create_citation_rule(
         config=config,
     )
 
-
 def create_factual_accuracy_rule(
     name: str = "factual_accuracy_rule",
     description: str = "Validates text for factual accuracy",
@@ -550,7 +536,6 @@ def create_factual_accuracy_rule(
         description=description,
         config=config,
     )
-
 
 # Export public classes and functions
 __all__ = [

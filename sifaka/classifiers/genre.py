@@ -2,19 +2,22 @@
 Genre classifier using scikit-learn's RandomForest.
 """
 
-from typing import List, Dict, Any, Optional, Set
 import importlib
-import logging
-import pickle
 import os
+import pickle
 from dataclasses import dataclass, field
+from typing import Dict, List, Optional
 
 from pydantic import Field
-from sifaka.classifiers.base import BaseClassifier, ClassificationResult, ClassifierConfig
+
+from sifaka.classifiers.base import (
+    BaseClassifier,
+    ClassificationResult,
+    ClassifierConfig,
+)
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
 
 @dataclass(frozen=True)
 class GenreConfig:
@@ -53,7 +56,6 @@ class GenreConfig:
             raise ValueError("n_estimators must be positive")
         if not self.default_genres:
             raise ValueError("default_genres cannot be empty")
-
 
 class GenreClassifier(BaseClassifier):
     """

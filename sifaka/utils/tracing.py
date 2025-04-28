@@ -2,17 +2,26 @@
 Tracing utilities for Sifaka.
 """
 
-from typing import Dict, Any, List, Optional, Protocol, runtime_checkable, TypeVar, Generic
-from typing_extensions import TypedDict, NotRequired
+import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-import json
-from abc import ABC, abstractmethod
+from typing import (
+    Any,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    TypeVar,
+    runtime_checkable,
+)
+
+from typing_extensions import NotRequired, TypedDict
+
 from .logging import get_logger
 
 logger = get_logger(__name__)
-
 
 class TraceEvent(TypedDict):
     """A trace event."""
@@ -22,7 +31,6 @@ class TraceEvent(TypedDict):
     data: Dict[str, Any]
     component: NotRequired[str]
 
-
 class TraceData(TypedDict):
     """Type definition for trace data."""
 
@@ -30,7 +38,6 @@ class TraceData(TypedDict):
     start_time: str
     end_time: Optional[str]
     events: List[TraceEvent]
-
 
 @runtime_checkable
 class TraceStorage(Protocol):
@@ -48,7 +55,6 @@ class TraceStorage(Protocol):
         """Delete a trace from storage."""
         ...
 
-
 @runtime_checkable
 class TraceFormatter(Protocol):
     """Protocol for trace formatters."""
@@ -56,7 +62,6 @@ class TraceFormatter(Protocol):
     def format_trace(self, data: TraceData) -> str:
         """Format a trace for output."""
         ...
-
 
 @dataclass(frozen=True)
 class TraceConfig:
@@ -74,7 +79,6 @@ class TraceConfig:
             raise ValueError("max_events must be positive")
         if not isinstance(self.in_memory, bool):
             raise ValueError("in_memory must be a boolean")
-
 
 class FileTraceStorage(TraceStorage):
     """File-based trace storage implementation."""
@@ -108,7 +112,6 @@ class FileTraceStorage(TraceStorage):
             trace_path.unlink()
             logger.debug("Deleted trace file: %s", trace_path)
 
-
 class MemoryTraceStorage(TraceStorage):
     """In-memory trace storage implementation."""
 
@@ -133,7 +136,6 @@ class MemoryTraceStorage(TraceStorage):
             del self.traces[trace_id]
             logger.debug("Deleted trace from memory: %s", trace_id)
 
-
 class JSONTraceFormatter(TraceFormatter):
     """JSON trace formatter implementation."""
 
@@ -141,9 +143,7 @@ class JSONTraceFormatter(TraceFormatter):
         """Format a trace as JSON."""
         return json.dumps(data, indent=2)
 
-
 T = TypeVar("T", bound=TraceStorage)
-
 
 @dataclass
 class Tracer(Generic[T]):

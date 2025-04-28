@@ -5,17 +5,17 @@ This module provides a critic that uses language models to evaluate,
 validate, and improve text outputs based on rule violations.
 """
 
-from typing import Dict, Any, List, Protocol, runtime_checkable, Final
-from dataclasses import dataclass
 import time
+from dataclasses import dataclass
+from typing import Any, Dict, Final, List, Protocol, runtime_checkable
 
 from .base import (
     BaseCritic,
     CriticConfig,
     CriticMetadata,
-    TextValidator,
-    TextImprover,
     TextCritic,
+    TextImprover,
+    TextValidator,
 )
 
 

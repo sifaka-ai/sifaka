@@ -99,33 +99,27 @@ Example with channel:
     ```
 """
 
+from dataclasses import dataclass, field
 from typing import (
-    Dict,
     Any,
+    Callable,
+    Dict,
+    Generic,
     List,
     Optional,
-    Union,
-    Callable,
-    TypeVar,
-    Generic,
     Protocol,
+    TypeVar,
     runtime_checkable,
-    cast,
-    TypeGuard,
-    Tuple,
 )
-from dataclasses import dataclass, field
-from abc import ABC, abstractmethod
+
 from langchain.graphs import StateGraph
-from langchain.schema import BaseMessage
+
 from sifaka.rules.base import Rule, RuleResult
-from sifaka.models.base import ModelProvider
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 StateType = TypeVar("StateType")
 NodeType = TypeVar("NodeType")
-
 
 @runtime_checkable
 class GraphValidator(Protocol[StateType]):
@@ -134,7 +128,6 @@ class GraphValidator(Protocol[StateType]):
     def validate(self, state: StateType) -> RuleResult: ...
     def can_validate(self, state: StateType) -> bool: ...
 
-
 @runtime_checkable
 class GraphProcessor(Protocol[StateType]):
     """Protocol for graph state processing."""
@@ -142,14 +135,12 @@ class GraphProcessor(Protocol[StateType]):
     def process(self, state: StateType) -> StateType: ...
     def can_process(self, state: StateType) -> bool: ...
 
-
 @runtime_checkable
 class GraphNode(Protocol[StateType, NodeType]):
     """Protocol for graph nodes."""
 
     def run(self, state: StateType) -> NodeType: ...
     def can_run(self, state: StateType) -> bool: ...
-
 
 @dataclass
 class GraphConfig(Generic[StateType]):
@@ -165,7 +156,6 @@ class GraphConfig(Generic[StateType]):
             raise ValueError("validators must be a list")
         if not isinstance(self.processors, list):
             raise ValueError("processors must be a list")
-
 
 class SifakaGraph(Generic[StateType, NodeType]):
     """
@@ -277,7 +267,6 @@ class SifakaGraph(Generic[StateType, NodeType]):
         """Run the graph (callable interface)."""
         return self.run(inputs, **kwargs)
 
-
 class RuleBasedValidator(GraphValidator[Dict[str, Any]]):
     """A validator that uses Sifaka rules."""
 
@@ -298,7 +287,6 @@ class RuleBasedValidator(GraphValidator[Dict[str, Any]]):
     def can_validate(self, state: Dict[str, Any]) -> bool:
         """Check if can validate the state."""
         return isinstance(state, dict)
-
 
 class SifakaNode(GraphNode[StateType, NodeType]):
     """
@@ -345,7 +333,6 @@ class SifakaNode(GraphNode[StateType, NodeType]):
         """Check if the node can run on the state."""
         return True
 
-
 def wrap_graph(
     graph: StateGraph,
     config: Optional[GraphConfig[StateType]] = None,
@@ -361,7 +348,6 @@ def wrap_graph(
         The wrapped graph
     """
     return SifakaGraph(graph=graph, config=config or GraphConfig())
-
 
 def wrap_node(
     node: Callable[[StateType], NodeType],
@@ -380,7 +366,6 @@ def wrap_node(
         The wrapped node
     """
     return SifakaNode(node=node, validators=validators, processors=processors)
-
 
 # Export public classes and functions
 __all__ = [

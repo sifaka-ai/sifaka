@@ -6,9 +6,9 @@ including symmetry detection and repetition analysis.
 """
 
 from dataclasses import dataclass
-from typing import Dict, Optional, Protocol, runtime_checkable
+from typing import Optional
 
-from sifaka.rules.base import Rule, RuleResult, RuleConfig
+from sifaka.rules.base import Rule, RuleConfig, RuleResult
 
 
 @dataclass(frozen=True)
@@ -38,7 +38,6 @@ class SymmetryConfig:
         if self.cost < 0:
             raise ValueError("Cost must be non-negative")
 
-
 @dataclass(frozen=True)
 class RepetitionConfig:
     """Configuration for pattern repetition detection."""
@@ -67,7 +66,6 @@ class RepetitionConfig:
             raise ValueError("Priority must be non-negative")
         if self.cost < 0:
             raise ValueError("Cost must be non-negative")
-
 
 class SymmetryRule(Rule):
     """Rule that validates text symmetry patterns."""
@@ -156,7 +154,6 @@ class SymmetryRule(Rule):
             return 0.0
         matches = sum(1 for a, b in zip(text1, text2) if a == b)
         return matches / max(len(text1), len(text2))
-
 
 class RepetitionRule(Rule):
     """Rule that detects repetitive patterns in text."""

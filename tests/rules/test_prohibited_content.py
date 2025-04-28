@@ -1,18 +1,15 @@
 """Tests for prohibited content rules."""
 
+
 import pytest
-from typing import Dict, Any, List, Set, Protocol, runtime_checkable, Final
-from dataclasses import dataclass, field
 
 from sifaka.rules.prohibited_content import (
-    ProhibitedContentRule,
-    ProhibitedContentConfig,
-    ProhibitedContentValidator,
     DefaultProhibitedContentValidator,
+    ProhibitedContentConfig,
+    ProhibitedContentRule,
+    ProhibitedContentValidator,
     create_prohibited_content_rule,
 )
-from sifaka.rules.base import RuleResult
-
 
 @pytest.fixture
 def prohibited_config() -> ProhibitedContentConfig:
@@ -25,12 +22,10 @@ def prohibited_config() -> ProhibitedContentConfig:
         cost=1.5,
     )
 
-
 @pytest.fixture
 def prohibited_validator(prohibited_config: ProhibitedContentConfig) -> ProhibitedContentValidator:
     """Create a test prohibited content validator."""
     return DefaultProhibitedContentValidator(prohibited_config)
-
 
 @pytest.fixture
 def prohibited_rule(
@@ -42,7 +37,6 @@ def prohibited_rule(
         description="Test prohibited content validation",
         validator=prohibited_validator,
     )
-
 
 def test_prohibited_config_validation():
     """Test prohibited content configuration validation."""
@@ -66,7 +60,6 @@ def test_prohibited_config_validation():
     config = ProhibitedContentConfig(prohibited_terms=["bad", "worse"])
     assert isinstance(config.prohibited_terms, frozenset)
 
-
 def test_prohibited_validation(prohibited_rule: ProhibitedContentRule):
     """Test prohibited content validation."""
     # Test content without prohibited terms
@@ -89,7 +82,6 @@ def test_prohibited_validation(prohibited_rule: ProhibitedContentRule):
     assert not result.passed
     assert set(result.metadata["found_terms"]) == {"bad", "worse"}
     assert result.metadata["total_terms"] == 2
-
 
 def test_case_sensitivity():
     """Test case sensitivity in validation."""
@@ -115,7 +107,6 @@ def test_case_sensitivity():
     assert not result.passed  # Should fail because case matches
     assert set(result.metadata["found_terms"]) == {"Bad", "WORSE"}
     assert result.metadata["case_sensitive"]
-
 
 def test_edge_cases(prohibited_rule: ProhibitedContentRule):
     """Test edge cases and error handling."""
@@ -143,7 +134,6 @@ def test_edge_cases(prohibited_rule: ProhibitedContentRule):
     assert result.passed
     assert not result.metadata["found_terms"]
 
-
 def test_error_handling(prohibited_rule: ProhibitedContentRule):
     """Test error handling for invalid inputs."""
     # Test None input
@@ -157,7 +147,6 @@ def test_error_handling(prohibited_rule: ProhibitedContentRule):
     # Test list input
     with pytest.raises(ValueError, match="Text must be a string"):
         prohibited_rule.validate(["not", "a", "string"])  # type: ignore
-
 
 def test_factory_function():
     """Test factory function for creating prohibited content rules."""
@@ -191,7 +180,6 @@ def test_factory_function():
         validator=validator,
     )
     assert rule.validator is validator
-
 
 def test_consistent_results(prohibited_rule: ProhibitedContentRule):
     """Test that validation results are consistent."""

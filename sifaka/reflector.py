@@ -35,11 +35,11 @@ import warnings
 from typing import Dict, Optional
 
 from sifaka.rules.pattern_rules import (
-    SymmetryConfig,
     RepetitionConfig,
-    SymmetryRule,
     RepetitionRule,
     RuleResult,
+    SymmetryConfig,
+    SymmetryRule,
 )
 
 

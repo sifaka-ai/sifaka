@@ -1,10 +1,11 @@
 """Tests for prompt-based critics."""
 
+from typing import Any, Dict
+
 import pytest
-from typing import Dict, Any
-from unittest.mock import MagicMock, AsyncMock
 from pydantic import ValidationError
-from sifaka.critics.prompt import PromptCritic, DefaultPromptFactory
+
+from sifaka.critics.prompt import DefaultPromptFactory, PromptCritic
 from sifaka.critics.protocols import LLMProvider, PromptFactory
 
 
@@ -40,7 +41,6 @@ class MockLLMProvider(LLMProvider):
             raise ValueError("LLM invocation failed")
         return self.response
 
-
 class CustomPromptFactory(PromptFactory):
     """Custom prompt factory for testing."""
 
@@ -61,24 +61,20 @@ class CustomPromptFactory(PromptFactory):
         self.create_improvement_called += 1
         return f"Custom improvement: {text} with {feedback}"
 
-
 @pytest.fixture
 def llm_provider():
     """Create a mock LLM provider."""
     return MockLLMProvider()
-
 
 @pytest.fixture
 def prompt_factory():
     """Create a default prompt factory."""
     return DefaultPromptFactory()
 
-
 @pytest.fixture
 def custom_prompt_factory():
     """Create a custom prompt factory."""
     return CustomPromptFactory()
-
 
 @pytest.fixture
 def prompt_critic(llm_provider, prompt_factory):
@@ -90,7 +86,6 @@ def prompt_critic(llm_provider, prompt_factory):
         prompt_factory=prompt_factory,
     )
 
-
 # Initialization tests
 def test_prompt_critic_initialization(prompt_critic, llm_provider, prompt_factory):
     """Test that PromptCritic can be initialized with valid parameters."""
@@ -99,13 +94,11 @@ def test_prompt_critic_initialization(prompt_critic, llm_provider, prompt_factor
     assert prompt_critic.llm_provider == llm_provider
     assert isinstance(prompt_critic.prompt_factory, DefaultPromptFactory)
 
-
 def test_prompt_critic_missing_llm():
     """Test that PromptCritic requires an LLM provider."""
     with pytest.raises(ValidationError) as exc_info:
         PromptCritic(name="test_critic", description="A test critic")
     assert "Field required" in str(exc_info.value)
-
 
 # Validation tests
 def test_prompt_critic_validate(prompt_critic, llm_provider):
@@ -115,7 +108,6 @@ def test_prompt_critic_validate(prompt_critic, llm_provider):
     assert llm_provider.invoke_called == 1
     assert "Validate" in llm_provider.last_prompt
     assert "test text" in llm_provider.last_prompt
-
 
 def test_prompt_critic_validate_failure(llm_provider, prompt_factory):
     """Test validation with failing LLM."""
@@ -131,7 +123,6 @@ def test_prompt_critic_validate_failure(llm_provider, prompt_factory):
         critic.validate("test text")
     assert failing_llm.invoke_called == 1
 
-
 def test_prompt_critic_validate_invalid_response(llm_provider, prompt_factory):
     """Test validation with invalid LLM response."""
     invalid_llm = MockLLMProvider(response={"valid": False})
@@ -143,7 +134,6 @@ def test_prompt_critic_validate_invalid_response(llm_provider, prompt_factory):
     )
 
     assert critic.validate("test text") is False
-
 
 # Critique tests
 def test_prompt_critic_critique(prompt_critic, llm_provider):
@@ -157,7 +147,6 @@ def test_prompt_critic_critique(prompt_critic, llm_provider):
     assert llm_provider.invoke_called == 1
     assert "Critique" in llm_provider.last_prompt
     assert "test text" in llm_provider.last_prompt
-
 
 def test_prompt_critic_critique_custom_response(llm_provider, prompt_factory):
     """Test critique with custom LLM response."""
@@ -178,7 +167,6 @@ def test_prompt_critic_critique_custom_response(llm_provider, prompt_factory):
     result = critic.critique("perfect text")
     assert result == custom_response
 
-
 # Improvement tests
 def test_prompt_critic_improve(prompt_critic, llm_provider):
     """Test that PromptCritic's improve method works as expected."""
@@ -188,7 +176,6 @@ def test_prompt_critic_improve(prompt_critic, llm_provider):
     assert "Improve" in llm_provider.last_prompt
     assert "test text" in llm_provider.last_prompt
     assert "test feedback" in llm_provider.last_prompt
-
 
 def test_prompt_critic_improve_failure(llm_provider, prompt_factory):
     """Test improvement with failing LLM."""
@@ -203,7 +190,6 @@ def test_prompt_critic_improve_failure(llm_provider, prompt_factory):
     with pytest.raises(ValueError, match="LLM invocation failed"):
         critic.improve("test text", "test feedback")
     assert failing_llm.invoke_called == 1
-
 
 # Async tests
 @pytest.mark.asyncio
@@ -229,7 +215,6 @@ async def test_prompt_critic_async_methods(prompt_critic, llm_provider):
     assert result == "Improved text"
     assert llm_provider.ainvoke_called == 3
     assert "Improve" in llm_provider.last_prompt
-
 
 @pytest.mark.asyncio
 async def test_prompt_critic_async_failures(llm_provider, prompt_factory):
@@ -257,7 +242,6 @@ async def test_prompt_critic_async_failures(llm_provider, prompt_factory):
         await critic.aimprove("test text", "test feedback")
     assert failing_llm.ainvoke_called == 3
 
-
 # Prompt factory tests
 def test_default_prompt_factory():
     """Test DefaultPromptFactory methods."""
@@ -278,7 +262,6 @@ def test_default_prompt_factory():
     assert "test text" in improvement_prompt
     assert "test feedback" in improvement_prompt
     assert "Improve" in improvement_prompt
-
 
 def test_prompt_critic_with_custom_factory(llm_provider, custom_prompt_factory):
     """Test PromptCritic with a custom prompt factory."""

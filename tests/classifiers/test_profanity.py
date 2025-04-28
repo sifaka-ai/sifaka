@@ -1,11 +1,12 @@
 """Tests for the profanity classifier."""
 
-import pytest
-from typing import Dict, Any, List, Set
+from typing import Set
 from unittest.mock import MagicMock, patch
 
-from sifaka.classifiers.profanity import ProfanityClassifier
+import pytest
+
 from sifaka.classifiers.base import ClassificationResult
+from sifaka.classifiers.profanity import ProfanityClassifier
 
 
 class MockProfanity:
@@ -37,12 +38,10 @@ class MockProfanity:
         """Add custom words to censor."""
         self.custom_words.update(words)
 
-
 @pytest.fixture
 def mock_profanity():
     """Create a mock Profanity instance."""
     return MockProfanity()
-
 
 @pytest.fixture
 def profanity_classifier(mock_profanity):
@@ -55,7 +54,6 @@ def profanity_classifier(mock_profanity):
         classifier = ProfanityClassifier()
         classifier.warm_up()
         return classifier
-
 
 def test_initialization():
     """Test ProfanityClassifier initialization."""
@@ -83,7 +81,6 @@ def test_initialization():
     assert custom_classifier.censor_char == "#"
     assert custom_classifier.config == {"param": "value"}
 
-
 def test_warm_up(profanity_classifier, mock_profanity):
     """Test warm_up functionality."""
     assert profanity_classifier._profanity == mock_profanity
@@ -98,7 +95,6 @@ def test_warm_up(profanity_classifier, mock_profanity):
         classifier = ProfanityClassifier()
         with pytest.raises(RuntimeError):
             classifier.warm_up()
-
 
 def test_classification(profanity_classifier):
     """Test text classification."""
@@ -135,7 +131,6 @@ def test_classification(profanity_classifier):
     assert not result.metadata["contains_profanity"]
     assert result.metadata["censored_word_count"] == 0
 
-
 def test_custom_words(profanity_classifier):
     """Test custom word functionality."""
     # Add custom words
@@ -154,7 +149,6 @@ def test_custom_words(profanity_classifier):
     more_words = {"custom3", "custom4"}
     profanity_classifier.add_custom_words(more_words)
     assert custom_words | more_words <= profanity_classifier.custom_words
-
 
 def test_batch_classification(profanity_classifier):
     """Test batch text classification."""
@@ -186,7 +180,6 @@ def test_batch_classification(profanity_classifier):
         assert isinstance(result.metadata["censored_text"], str)
         assert isinstance(result.metadata["censored_word_count"], int)
 
-
 def test_edge_cases(profanity_classifier):
     """Test edge cases."""
     edge_cases = {
@@ -211,7 +204,6 @@ def test_edge_cases(profanity_classifier):
         assert isinstance(result.metadata["censored_text"], str)
         assert isinstance(result.metadata["censored_word_count"], int)
 
-
 def test_error_handling(profanity_classifier):
     """Test error handling."""
     invalid_inputs = [None, 123, [], {}]
@@ -222,7 +214,6 @@ def test_error_handling(profanity_classifier):
 
         with pytest.raises(Exception):
             profanity_classifier.batch_classify([invalid_input])
-
 
 def test_consistent_results(profanity_classifier):
     """Test consistency of classification results."""
@@ -251,7 +242,6 @@ def test_consistent_results(profanity_classifier):
                 assert r1.label == r2.label
                 assert r1.confidence == r2.confidence
                 assert r1.metadata == r2.metadata
-
 
 def test_censoring(profanity_classifier):
     """Test text censoring functionality."""

@@ -4,41 +4,32 @@ Rule implementation that uses pluggable classifiers.
 
 from dataclasses import dataclass, field
 from typing import (
-    List,
-    Optional,
+    Any,
     Callable,
     Dict,
-    Any,
-    TypeVar,
-    Generic,
-    cast,
+    List,
+    Optional,
     Protocol,
+    TypeVar,
     runtime_checkable,
-    Final,
-    Union,
-    Type,
 )
+
 from typing_extensions import TypeGuard
 
 from sifaka.classifiers.base import (
-    Classifier,
     ClassificationResult,
-    ClassifierConfig,
     ClassifierProtocol,
 )
 from sifaka.rules.base import (
+    ConfigurationError,
     Rule,
+    RuleConfig,
     RuleResult,
     RuleValidator,
-    RuleResultHandler,
-    RuleConfig,
     ValidationError,
-    ConfigurationError,
 )
 
-
 T = TypeVar("T", bound=ClassificationResult)
-
 
 @runtime_checkable
 class ClassifierProtocol(Protocol):
@@ -49,7 +40,6 @@ class ClassifierProtocol(Protocol):
     def name(self) -> str: ...
     @property
     def description(self) -> str: ...
-
 
 @dataclass(frozen=True)
 class ClassifierRuleConfig(RuleConfig):
@@ -81,7 +71,6 @@ class ClassifierRuleConfig(RuleConfig):
     def with_labels(self, labels: List[str]) -> "ClassifierRuleConfig":
         """Create a new config with updated valid labels."""
         return self.with_options(valid_labels=labels)
-
 
 class DefaultClassifierValidator(RuleValidator[str]):
     """Default validator that uses a classifier to validate text."""
@@ -196,7 +185,6 @@ class DefaultClassifierValidator(RuleValidator[str]):
         except Exception as e:
             raise ValidationError(f"Classification failed: {str(e)}") from e
 
-
 class ClassifierRule(Rule):
     """Rule that uses a classifier to validate text."""
 
@@ -239,7 +227,6 @@ class ClassifierRule(Rule):
         """Validate output using the classifier."""
         return self._validator.validate(output)
 
-
 def create_classifier_rule(
     name: str = "classifier_rule",
     description: str = "Validates text using a classifier",
@@ -276,7 +263,6 @@ def create_classifier_rule(
         classifier=classifier,
         validation_fn=validation_fn,
     )
-
 
 # Export public classes and functions
 __all__ = [

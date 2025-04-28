@@ -15,12 +15,13 @@ Requirements:
     - Anthropic API key set as ANTHROPIC_API_KEY environment variable
 """
 
-import os
-import sys
-import random
 import argparse
-from typing import Dict, Any, List, Tuple, Optional
+import os
+import random
+import sys
 from dataclasses import dataclass, field
+from typing import List, Optional
+
 from pydantic import Field
 
 # Add parent directory to system path for imports
@@ -31,8 +32,8 @@ if parent_dir not in sys.path:
 
 try:
     import anthropic
-    from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.ensemble import RandomForestClassifier
+    from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.pipeline import Pipeline
 except ImportError as e:
     print(f"Missing required dependency: {e}")
@@ -93,7 +94,6 @@ TEST_PROMPTS = [
     "Explain the concept of artificial intelligence",
 ]
 
-
 @dataclass(frozen=True)
 class LanguageConfig:
     """Configuration for language classification."""
@@ -102,7 +102,6 @@ class LanguageConfig:
     max_features: int = 2000
     random_state: int = 42
     supported_languages: List[str] = field(default_factory=lambda: ["english", "spanish", "french"])
-
 
 class LanguageClassifier(BaseClassifier):
     """A classifier that detects the language of text."""
@@ -191,7 +190,6 @@ class LanguageClassifier(BaseClassifier):
             metadata=metadata,
         )
 
-
 class ClaudeGenerator:
     """Text generator using Claude API."""
 
@@ -216,7 +214,6 @@ class ClaudeGenerator:
         except Exception as e:
             logger.error(f"Error generating text with Claude: {e}")
             return f"Error generating text: {str(e)}"
-
 
 def main():
     """Run the language critic example."""
@@ -303,7 +300,6 @@ def main():
     logger.info("-" * 40)
 
     logger.info("\nLanguage critic example completed.")
-
 
 if __name__ == "__main__":
     main()

@@ -31,18 +31,17 @@ except ImportError:
     print("Missing dotenv package. Install with: pip install python-dotenv")
     sys.exit(1)
 
-from sifaka.models import OpenAIProvider, AnthropicProvider
-from sifaka.models.base import ModelConfig
-from sifaka.rules.safety import create_toxicity_rule, create_harmful_content_rule
-from sifaka.rules.content import create_prohibited_content_rule
+from sifaka.chain import Chain
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
-from sifaka.chain import Chain, ChainResult
+from sifaka.models import AnthropicProvider, OpenAIProvider
+from sifaka.models.base import ModelConfig
 from sifaka.rules.base import Rule, RulePriority
+from sifaka.rules.content import create_prohibited_content_rule
+from sifaka.rules.safety import create_harmful_content_rule, create_toxicity_rule
 from sifaka.utils.logging import get_logger
 
 # Initialize logger
 logger = get_logger(__name__)
-
 
 def create_safety_rules() -> List[Rule]:
     """Create a set of safety rules for content moderation."""
@@ -211,7 +210,6 @@ def create_safety_rules() -> List[Rule]:
         ),
     ]
 
-
 def setup_providers() -> Dict:
     """Set up LLM providers and their critics."""
     providers = {}
@@ -260,7 +258,6 @@ def setup_providers() -> Dict:
 
     return {"providers": providers, "critics": critics}
 
-
 def validate_content(text, provider_name, provider, critic, rules):
     """Validate and potentially improve content using a provider."""
     logger.info(f"\nValidating with {provider_name.upper()}:")
@@ -291,7 +288,6 @@ def validate_content(text, provider_name, provider, critic, rules):
         logger.error(f"Validation failed: {e}")
     except Exception as e:
         logger.error(f"Error during validation: {e}")
-
 
 def main():
     """Run the multi-provider safety example."""
@@ -327,7 +323,6 @@ def main():
             )
 
     logger.info("\nMulti-provider safety example completed.")
-
 
 if __name__ == "__main__":
     main()

@@ -1,10 +1,12 @@
 """Tests for base critic functionality."""
 
+from typing import Any, Dict
+
 import pytest
-from typing import Dict, Any
 from pydantic import ValidationError
+
 from sifaka.critics.base import Critic
-from sifaka.critics.protocols import TextValidator, TextCritic, TextImprover
+from sifaka.critics.protocols import TextCritic, TextImprover, TextValidator
 
 
 class MockValidator(TextValidator):

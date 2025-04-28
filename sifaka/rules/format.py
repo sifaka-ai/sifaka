@@ -4,14 +4,13 @@ Format validation rules for Sifaka.
 This module provides rules for validating text format including markdown, JSON, and plain text.
 """
 
-from typing import Dict, Any, List, Optional, Union, Literal
-from dataclasses import dataclass, field
 import json
-from sifaka.rules.base import Rule, RuleResult, RuleConfig, RuleValidator
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Literal, Optional
 
+from sifaka.rules.base import Rule, RuleConfig, RuleResult, RuleValidator
 
 FormatType = Literal["markdown", "plain_text", "json"]
-
 
 @dataclass(frozen=True)
 class MarkdownConfig(RuleConfig):
@@ -33,7 +32,6 @@ class MarkdownConfig(RuleConfig):
         if self.min_elements < 0:
             raise ValueError("min_elements must be non-negative")
 
-
 @dataclass(frozen=True)
 class JsonConfig(RuleConfig):
     """Configuration for JSON format validation."""
@@ -47,7 +45,6 @@ class JsonConfig(RuleConfig):
     def __post_init__(self) -> None:
         """Validate configuration."""
         super().__post_init__()
-
 
 @dataclass(frozen=True)
 class PlainTextConfig(RuleConfig):
@@ -67,7 +64,6 @@ class PlainTextConfig(RuleConfig):
             raise ValueError("min_length must be non-negative")
         if self.max_length is not None and self.max_length < self.min_length:
             raise ValueError("max_length must be greater than or equal to min_length")
-
 
 class DefaultMarkdownValidator(RuleValidator[str]):
     """Default implementation of markdown validation."""
@@ -106,7 +102,6 @@ class DefaultMarkdownValidator(RuleValidator[str]):
     def validation_type(self) -> type[str]:
         """Get the type of input this validator can handle."""
         return str
-
 
 class DefaultJsonValidator(RuleValidator[str]):
     """Default implementation of JSON validation."""
@@ -154,7 +149,6 @@ class DefaultJsonValidator(RuleValidator[str]):
     def validation_type(self) -> type[str]:
         """Get the type of input this validator can handle."""
         return str
-
 
 class DefaultPlainTextValidator(RuleValidator[str]):
     """Default implementation of plain text validation."""
@@ -222,7 +216,6 @@ class DefaultPlainTextValidator(RuleValidator[str]):
         """Get the type of input this validator can handle."""
         return str
 
-
 class FormatRule(Rule):
     """Rule that checks text format."""
 
@@ -270,7 +263,6 @@ class FormatRule(Rule):
         """Validate output format."""
         return self._validator.validate(output)
 
-
 def create_markdown_rule(
     name: str = "markdown_rule",
     description: str = "Validates markdown format",
@@ -293,7 +285,6 @@ def create_markdown_rule(
         format_type="markdown",
         config=config,
     )
-
 
 def create_json_rule(
     name: str = "json_rule",
@@ -318,7 +309,6 @@ def create_json_rule(
         config=config,
     )
 
-
 def create_plain_text_rule(
     name: str = "plain_text_rule",
     description: str = "Validates plain text format",
@@ -341,7 +331,6 @@ def create_plain_text_rule(
         format_type="plain_text",
         config=config,
     )
-
 
 # Export public classes and functions
 __all__ = [

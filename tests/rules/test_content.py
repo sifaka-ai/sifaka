@@ -1,23 +1,24 @@
 """Tests for the content rules."""
 
-import pytest
-from typing import Dict, Any, List, Protocol, runtime_checkable, Optional
-from dataclasses import dataclass
-
-from sifaka.rules.content import (
-    ProhibitedContentRule,
-    ToneConsistencyRule,
-    ContentAnalyzer,
-    ToneAnalyzer,
-    ProhibitedTerms,
-    ToneIndicators,
-    ToneConfig,
-    RuleConfig,
-    RuleResult,
-    ValidationError,
-    ConfigurationError,
+from typing import (
+    Any,
+    Dict,
+    List
 )
 
+import pytest
+
+from sifaka.rules.content import (
+    ConfigurationError,
+    ContentAnalyzer,
+    ProhibitedContentRule,
+    ProhibitedTerms,
+    RuleConfig,
+    ToneAnalyzer,
+    ToneConfig,
+    ToneConsistencyRule,
+    ToneIndicators,
+)
 
 class MockContentAnalyzer:
     """Mock content analyzer for testing."""
@@ -34,7 +35,6 @@ class MockContentAnalyzer:
         """Check if text can be analyzed."""
         return isinstance(text, str)
 
-
 class MockToneAnalyzer:
     """Mock tone analyzer for testing."""
 
@@ -50,18 +50,15 @@ class MockToneAnalyzer:
         """Get supported tones."""
         return ["formal", "informal"]
 
-
 @pytest.fixture
 def content_analyzer() -> MockContentAnalyzer:
     """Fixture for creating a mock content analyzer."""
     return MockContentAnalyzer()
 
-
 @pytest.fixture
 def tone_analyzer() -> MockToneAnalyzer:
     """Fixture for creating a mock tone analyzer."""
     return MockToneAnalyzer()
-
 
 @pytest.fixture
 def prohibited_terms() -> ProhibitedTerms:
@@ -70,7 +67,6 @@ def prohibited_terms() -> ProhibitedTerms:
         terms=frozenset(["bad", "inappropriate"]),
         case_sensitive=False,
     )
-
 
 @pytest.fixture
 def tone_indicators() -> Dict[str, ToneIndicators]:
@@ -98,7 +94,6 @@ def tone_indicators() -> Dict[str, ToneIndicators]:
         )
     }
 
-
 @pytest.fixture
 def tone_config(tone_indicators: Dict[str, ToneIndicators]) -> ToneConfig:
     """Fixture for creating tone config."""
@@ -111,7 +106,6 @@ def tone_config(tone_indicators: Dict[str, ToneIndicators]) -> ToneConfig:
         cost=2,
         metadata={"test": True},
     )
-
 
 @pytest.fixture
 def prohibited_rule(
@@ -127,7 +121,6 @@ def prohibited_rule(
         analyzer=content_analyzer,
         config=RuleConfig(cache_size=10, cost=2),
     )
-
 
 @pytest.fixture
 def tone_rule(
@@ -151,7 +144,6 @@ def tone_rule(
         config=RuleConfig(cache_size=10, cost=2),
     )
 
-
 def test_content_analyzer_protocol():
     """Test ContentAnalyzer protocol implementation."""
     analyzer = MockContentAnalyzer()
@@ -165,7 +157,6 @@ def test_content_analyzer_protocol():
     bad_analyzer = BadAnalyzer()
     assert not isinstance(bad_analyzer, ContentAnalyzer)
 
-
 def test_tone_analyzer_protocol():
     """Test ToneAnalyzer protocol implementation."""
     analyzer = MockToneAnalyzer()
@@ -178,7 +169,6 @@ def test_tone_analyzer_protocol():
 
     bad_analyzer = BadAnalyzer()
     assert not isinstance(bad_analyzer, ToneAnalyzer)
-
 
 def test_prohibited_terms():
     """Test ProhibitedTerms initialization and behavior."""
@@ -202,7 +192,6 @@ def test_prohibited_terms():
     assert case_sensitive.case_sensitive
     assert case_sensitive.terms == terms.terms
 
-
 def test_tone_indicators():
     """Test ToneIndicators initialization and behavior."""
     # Test valid initialization
@@ -224,7 +213,6 @@ def test_tone_indicators():
     )
     assert "good" in indicators.positive
     assert not indicators.negative
-
 
 def test_tone_config():
     """Test ToneConfig initialization and behavior."""
@@ -278,7 +266,6 @@ def test_tone_config():
     assert new_config.expected_tone == config.expected_tone
     assert new_config.indicators == config.indicators
 
-
 def test_prohibited_content_validation(prohibited_rule: ProhibitedContentRule):
     """Test prohibited content rule validation."""
     # Test clean text
@@ -308,7 +295,6 @@ def test_prohibited_content_validation(prohibited_rule: ProhibitedContentRule):
     # Test invalid input
     with pytest.raises(TypeError):
         prohibited_rule.validate(123)  # type: ignore
-
 
 def test_tone_consistency_validation(tone_rule: ToneConsistencyRule):
     """Test tone consistency rule validation."""
@@ -345,7 +331,6 @@ def test_tone_consistency_validation(tone_rule: ToneConsistencyRule):
     assert not result.passed
     assert "available_tones" in result.metadata
 
-
 def test_error_handling():
     """Test error handling in content rules."""
     # Test invalid prohibited terms
@@ -368,7 +353,6 @@ def test_error_handling():
             terms=["bad"],
             analyzer="not an analyzer",  # type: ignore
         )
-
 
 def test_consistent_results(
     prohibited_rule: ProhibitedContentRule,

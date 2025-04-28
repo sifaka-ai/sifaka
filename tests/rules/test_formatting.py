@@ -1,33 +1,30 @@
 """Tests for formatting rules."""
 
+
 import pytest
-from typing import Dict, Any, List, Set, Protocol, runtime_checkable, Final
-from dataclasses import dataclass, field
 
 from sifaka.rules.formatting import (
-    LengthRule,
-    ParagraphRule,
-    StyleRule,
-    FormattingRule,
-    LengthConfig,
-    ParagraphConfig,
-    StyleConfig,
-    FormattingConfig,
-    LengthValidator,
-    ParagraphValidator,
-    StyleValidator,
-    FormattingValidator,
+    DefaultFormattingValidator,
     DefaultLengthValidator,
     DefaultParagraphValidator,
     DefaultStyleValidator,
-    DefaultFormattingValidator,
+    FormattingConfig,
+    FormattingRule,
+    FormattingValidator,
+    LengthConfig,
+    LengthRule,
+    LengthValidator,
+    ParagraphConfig,
+    ParagraphRule,
+    ParagraphValidator,
+    StyleConfig,
+    StyleRule,
+    StyleValidator,
+    create_formatting_rule,
     create_length_rule,
     create_paragraph_rule,
     create_style_rule,
-    create_formatting_rule,
 )
-from sifaka.rules.base import RuleResult
-
 
 @pytest.fixture
 def length_config() -> LengthConfig:
@@ -40,7 +37,6 @@ def length_config() -> LengthConfig:
         priority=2,
         cost=1.5,
     )
-
 
 @pytest.fixture
 def paragraph_config() -> ParagraphConfig:
@@ -55,7 +51,6 @@ def paragraph_config() -> ParagraphConfig:
         cost=1.5,
     )
 
-
 @pytest.fixture
 def style_config() -> StyleConfig:
     """Create a test style configuration."""
@@ -66,7 +61,6 @@ def style_config() -> StyleConfig:
         priority=2,
         cost=1.5,
     )
-
 
 @pytest.fixture
 def formatting_config() -> FormattingConfig:
@@ -80,30 +74,25 @@ def formatting_config() -> FormattingConfig:
         cost=1.5,
     )
 
-
 @pytest.fixture
 def length_validator(length_config: LengthConfig) -> LengthValidator:
     """Create a test length validator."""
     return DefaultLengthValidator(length_config)
-
 
 @pytest.fixture
 def paragraph_validator(paragraph_config: ParagraphConfig) -> ParagraphValidator:
     """Create a test paragraph validator."""
     return DefaultParagraphValidator(paragraph_config)
 
-
 @pytest.fixture
 def style_validator(style_config: StyleConfig) -> StyleValidator:
     """Create a test style validator."""
     return DefaultStyleValidator(style_config)
 
-
 @pytest.fixture
 def formatting_validator(formatting_config: FormattingConfig) -> FormattingValidator:
     """Create a test formatting validator."""
     return DefaultFormattingValidator(formatting_config)
-
 
 def test_length_config_validation():
     """Test length configuration validation."""
@@ -121,7 +110,6 @@ def test_length_config_validation():
 
     with pytest.raises(ValueError, match="unit must be one of"):
         LengthConfig(unit="invalid")
-
 
 def test_paragraph_config_validation():
     """Test paragraph configuration validation."""
@@ -142,7 +130,6 @@ def test_paragraph_config_validation():
     with pytest.raises(ValueError, match="max_sentences must be greater than min_sentences"):
         ParagraphConfig(min_sentences=5, max_sentences=2)
 
-
 def test_style_config_validation():
     """Test style configuration validation."""
     # Test valid configuration
@@ -159,7 +146,6 @@ def test_style_config_validation():
 
     with pytest.raises(ValueError, match="min_style_score must be between 0 and 1"):
         StyleConfig(min_style_score=1.5)
-
 
 def test_length_validation(length_validator: LengthValidator):
     """Test length validation."""
@@ -186,7 +172,6 @@ def test_length_validation(length_validator: LengthValidator):
     result = rule.validate(text)
     assert not result.passed
     assert "Text length exceeds maximum" in result.message
-
 
 def test_paragraph_validation(paragraph_validator: ParagraphValidator):
     """Test paragraph validation."""
@@ -215,7 +200,6 @@ def test_paragraph_validation(paragraph_validator: ParagraphValidator):
     assert not result.passed
     assert "Sentence exceeds maximum words" in result.message
 
-
 def test_style_validation(style_validator: StyleValidator):
     """Test style validation."""
     rule = StyleRule(
@@ -235,7 +219,6 @@ def test_style_validation(style_validator: StyleValidator):
     result = rule.validate(text)
     assert not result.passed
     assert "Style score below minimum" in result.message
-
 
 def test_formatting_validation(formatting_validator: FormattingValidator):
     """Test formatting validation."""
@@ -262,7 +245,6 @@ def test_formatting_validation(formatting_validator: FormattingValidator):
     result = rule.validate(text)
     assert not result.passed
     assert "Too many pattern matches" in result.message
-
 
 def test_factory_functions():
     """Test factory functions for creating rules."""
@@ -294,7 +276,6 @@ def test_factory_functions():
     )
     assert isinstance(formatting_rule.validator, DefaultFormattingValidator)
 
-
 def test_edge_cases():
     """Test edge cases and error handling."""
     rule = create_length_rule(
@@ -314,7 +295,6 @@ def test_edge_cases():
     # Test None input
     with pytest.raises(ValueError, match="Text must be a string"):
         rule.validate(None)  # type: ignore
-
 
 def test_consistent_results():
     """Test that validation results are consistent."""

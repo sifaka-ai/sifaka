@@ -3,18 +3,25 @@ Base classes for Sifaka classifiers.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, Union, List, Protocol, TypeVar, runtime_checkable, Type
-from typing_extensions import TypeGuard
-from pydantic import BaseModel, ConfigDict, Field, model_validator
 from dataclasses import dataclass
+from typing import (
+    Any,
+    Dict,
+    List,
+    Protocol,
+    Type,
+    TypeVar,
+    runtime_checkable,
+)
 
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from typing_extensions import TypeGuard
 
 @runtime_checkable
 class TextProcessor(Protocol):
     """Protocol for text processing components."""
 
     def process(self, text: str) -> Dict[str, Any]: ...
-
 
 @runtime_checkable
 class ClassifierProtocol(Protocol):
@@ -28,7 +35,6 @@ class ClassifierProtocol(Protocol):
     def description(self) -> str: ...
     @property
     def min_confidence(self) -> float: ...
-
 
 @dataclass(frozen=True)
 class ClassifierConfig:
@@ -49,7 +55,6 @@ class ClassifierConfig:
             raise ValueError("cost must be non-negative")
         if not 0.0 <= self.min_confidence <= 1.0:
             raise ValueError("min_confidence must be between 0 and 1")
-
 
 class ClassificationResult(BaseModel):
     """
@@ -80,9 +85,7 @@ class ClassificationResult(BaseModel):
             label=self.label, confidence=self.confidence, metadata=new_metadata
         )
 
-
 T = TypeVar("T", bound="BaseClassifier")
-
 
 class BaseClassifier(ABC, BaseModel):
     """
@@ -165,7 +168,6 @@ class BaseClassifier(ABC, BaseModel):
         """
         Optional warm-up method for classifiers that need initialization.
         """
-        pass
 
     @classmethod
     def create(cls: Type[T], name: str, description: str, labels: List[str], **config_kwargs) -> T:
@@ -183,7 +185,6 @@ class BaseClassifier(ABC, BaseModel):
         """
         config = ClassifierConfig(labels=labels, **config_kwargs)
         return cls(name=name, description=description, config=config)
-
 
 # Type alias for external usage
 Classifier = BaseClassifier

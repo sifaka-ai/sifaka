@@ -1,11 +1,11 @@
 """Tests for the readability classifier."""
 
-import pytest
-from typing import Dict, Any, List
 from unittest.mock import MagicMock, patch
 
-from sifaka.classifiers.readability import ReadabilityClassifier
+import pytest
+
 from sifaka.classifiers.base import ClassificationResult
+from sifaka.classifiers.readability import ReadabilityClassifier
 
 
 @pytest.fixture
@@ -30,7 +30,6 @@ def mock_textstat():
 
     return mock
 
-
 @pytest.fixture
 def readability_classifier(mock_textstat):
     """Create a ReadabilityClassifier instance with mocked textstat."""
@@ -38,7 +37,6 @@ def readability_classifier(mock_textstat):
         classifier = ReadabilityClassifier()
         classifier.warm_up()  # Initialize with mock
         return classifier
-
 
 def test_initialization():
     """Test ReadabilityClassifier initialization."""
@@ -62,7 +60,6 @@ def test_initialization():
     assert custom_classifier.min_confidence == 0.7
     assert custom_classifier.config == {"param": "value"}
 
-
 def test_warm_up(readability_classifier, mock_textstat):
     """Test warm_up functionality."""
     assert readability_classifier._textstat == mock_textstat
@@ -78,7 +75,6 @@ def test_warm_up(readability_classifier, mock_textstat):
         with pytest.raises(RuntimeError):
             classifier.warm_up()
 
-
 def test_grade_level_conversion(readability_classifier):
     """Test grade level conversion."""
     test_cases = [
@@ -92,7 +88,6 @@ def test_grade_level_conversion(readability_classifier):
 
     for grade, expected_level in test_cases:
         assert readability_classifier._get_grade_level(grade) == expected_level
-
 
 def test_flesch_interpretation(readability_classifier):
     """Test Flesch Reading Ease score interpretation."""
@@ -111,7 +106,6 @@ def test_flesch_interpretation(readability_classifier):
     for score, expected_interpretation in test_cases:
         assert readability_classifier._get_flesch_interpretation(score) == expected_interpretation
 
-
 def test_rix_index_calculation(readability_classifier, mock_textstat):
     """Test RIX index calculation."""
     # Test normal text
@@ -125,7 +119,6 @@ def test_rix_index_calculation(readability_classifier, mock_textstat):
 
     # Test text with no sentences
     assert readability_classifier._calculate_rix_index("word word") == 0
-
 
 def test_advanced_stats_calculation(readability_classifier):
     """Test advanced statistics calculation."""
@@ -146,7 +139,6 @@ def test_advanced_stats_calculation(readability_classifier):
     # Test empty text
     empty_stats = readability_classifier._calculate_advanced_stats("")
     assert isinstance(empty_stats, dict)
-
 
 def test_confidence_calculation(readability_classifier):
     """Test confidence calculation."""
@@ -179,7 +171,6 @@ def test_confidence_calculation(readability_classifier):
     empty_metrics = {"lexicon_count": 0}
     assert readability_classifier._calculate_confidence(empty_metrics) == 0.0
 
-
 def test_classification(readability_classifier):
     """Test text classification."""
     # Test normal text
@@ -211,7 +202,6 @@ def test_classification(readability_classifier):
     assert isinstance(result, ClassificationResult)
     assert result.label in ["college", "graduate"]  # Should be rated as advanced
 
-
 def test_batch_classification(readability_classifier):
     """Test batch text classification."""
     texts = [
@@ -230,7 +220,6 @@ def test_batch_classification(readability_classifier):
         assert result.label in readability_classifier.labels
         assert 0 <= result.confidence <= 1
         assert isinstance(result.metadata, dict)
-
 
 def test_edge_cases(readability_classifier):
     """Test edge cases."""
@@ -255,7 +244,6 @@ def test_edge_cases(readability_classifier):
         assert 0 <= result.confidence <= 1
         assert isinstance(result.metadata, dict)
 
-
 def test_error_handling(readability_classifier):
     """Test error handling."""
     invalid_inputs = [None, 123, [], {}]
@@ -266,7 +254,6 @@ def test_error_handling(readability_classifier):
 
         with pytest.raises(Exception):
             readability_classifier.batch_classify([invalid_input])
-
 
 def test_consistent_results(readability_classifier):
     """Test consistency of classification results."""

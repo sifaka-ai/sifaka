@@ -1,24 +1,20 @@
 """Tests for legal rules."""
 
+
 import pytest
-from typing import Dict, Any, List, Set, Protocol, runtime_checkable, Final
-from dataclasses import dataclass, field
-import re
 
 from sifaka.rules.legal import (
-    LegalCitationRule,
-    LegalTermsRule,
-    LegalCitationConfig,
-    LegalTermsConfig,
-    LegalCitationValidator,
-    LegalTermsValidator,
     DefaultLegalCitationValidator,
     DefaultLegalTermsValidator,
+    LegalCitationConfig,
+    LegalCitationRule,
+    LegalCitationValidator,
+    LegalTermsConfig,
+    LegalTermsRule,
+    LegalTermsValidator,
     create_legal_citation_rule,
     create_legal_terms_rule,
 )
-from sifaka.rules.base import RuleResult
-
 
 @pytest.fixture
 def citation_config() -> LegalCitationConfig:
@@ -36,7 +32,6 @@ def citation_config() -> LegalCitationConfig:
         cost=1.5,
     )
 
-
 @pytest.fixture
 def terms_config() -> LegalTermsConfig:
     """Create a test terms configuration."""
@@ -51,18 +46,15 @@ def terms_config() -> LegalTermsConfig:
         cost=1.5,
     )
 
-
 @pytest.fixture
 def citation_validator(citation_config: LegalCitationConfig) -> LegalCitationValidator:
     """Create a test citation validator."""
     return DefaultLegalCitationValidator(citation_config)
 
-
 @pytest.fixture
 def terms_validator(terms_config: LegalTermsConfig) -> LegalTermsValidator:
     """Create a test terms validator."""
     return DefaultLegalTermsValidator(terms_config)
-
 
 @pytest.fixture
 def citation_rule(
@@ -75,7 +67,6 @@ def citation_rule(
         validator=citation_validator,
     )
 
-
 @pytest.fixture
 def terms_rule(
     terms_validator: LegalTermsValidator,
@@ -86,7 +77,6 @@ def terms_rule(
         description="Test legal terms validation",
         validator=terms_validator,
     )
-
 
 def test_citation_config_validation():
     """Test citation configuration validation."""
@@ -112,7 +102,6 @@ def test_citation_config_validation():
     ):
         LegalCitationConfig(min_citations=5, max_citations=1)
 
-
 def test_terms_config_validation():
     """Test terms configuration validation."""
     # Test valid configuration
@@ -134,7 +123,6 @@ def test_terms_config_validation():
     with pytest.raises(ValueError, match="warning_terms must be a set"):
         LegalTermsConfig(warning_terms=["invalid"])  # type: ignore
 
-
 def test_citation_validation(citation_rule: LegalCitationRule):
     """Test citation validation."""
     # Test valid citations
@@ -154,7 +142,6 @@ def test_citation_validation(citation_rule: LegalCitationRule):
     result = citation_rule.validate(text)
     assert not result.passed
     assert "maximum allowed" in result.message
-
 
 def test_terms_validation(terms_rule: LegalTermsRule):
     """Test terms validation."""
@@ -176,7 +163,6 @@ def test_terms_validation(terms_rule: LegalTermsRule):
     assert not result.passed
     assert "Found prohibited legal terms" in result.message
 
-
 def test_factory_functions():
     """Test factory functions for creating rules."""
     # Test citation rule creation
@@ -196,7 +182,6 @@ def test_factory_functions():
     )
     assert terms_rule.name == "Test Terms Rule"
     assert terms_rule.validator.config.case_sensitive
-
 
 def test_edge_cases():
     """Test edge cases and error handling."""
@@ -218,7 +203,6 @@ def test_edge_cases():
     result = rule.validate(text)
     assert not result.passed
     assert result.metadata["total_citations"] == 0
-
 
 def test_consistent_results():
     """Test that validation results are consistent."""

@@ -1,19 +1,17 @@
 """Tests for reflector rules."""
 
 import pytest
-from typing import Dict, Optional
 
 from sifaka.reflector import (
-    ReflectionConfig,
-    PatternConfig,
-    ReflectionRule,
-    PatternRule,
-    create_reflection_rule,
-    create_pattern_rule,
-    DEFAULT_REFLECTION_CONFIGS,
     DEFAULT_PATTERN_CONFIGS,
+    DEFAULT_REFLECTION_CONFIGS,
+    PatternConfig,
+    PatternRule,
+    ReflectionConfig,
+    ReflectionRule,
+    create_pattern_rule,
+    create_reflection_rule,
 )
-from sifaka.rules.base import RuleResult
 
 
 @pytest.fixture
@@ -30,7 +28,6 @@ def reflection_config() -> ReflectionConfig:
         cost=1.0,
     )
 
-
 @pytest.fixture
 def pattern_config() -> PatternConfig:
     """Create a test pattern configuration."""
@@ -44,7 +41,6 @@ def pattern_config() -> PatternConfig:
         priority=1,
         cost=1.0,
     )
-
 
 def test_reflection_config_validation():
     """Test reflection configuration validation."""
@@ -78,7 +74,6 @@ def test_reflection_config_validation():
     # Invalid cost
     with pytest.raises(ValueError, match="Cost must be non-negative"):
         ReflectionConfig(cost=-1)
-
 
 def test_pattern_config_validation():
     """Test pattern configuration validation."""
@@ -118,7 +113,6 @@ def test_pattern_config_validation():
     with pytest.raises(ValueError, match="Cost must be non-negative"):
         PatternConfig(cost=-1)
 
-
 def test_horizontal_reflection_validation():
     """Test horizontal reflection validation."""
     rule = create_reflection_rule(
@@ -155,7 +149,6 @@ def test_horizontal_reflection_validation():
     assert result.passed
     assert result.metadata["symmetry_score"] == 1.0
 
-
 def test_vertical_reflection_validation():
     """Test vertical reflection validation."""
     rule = create_reflection_rule(
@@ -179,7 +172,6 @@ def test_vertical_reflection_validation():
     assert result.passed
     assert result.metadata["symmetry_score"] == 1.0
 
-
 def test_both_reflection_validation():
     """Test both horizontal and vertical reflection validation."""
     rule = create_reflection_rule(
@@ -197,7 +189,6 @@ def test_both_reflection_validation():
     result = rule._validate_impl("wow\ndad\nmon")
     assert not result.passed
     assert result.metadata["symmetry_score"] < 1.0
-
 
 def test_pattern_repeat_validation():
     """Test repeat pattern validation."""
@@ -231,7 +222,6 @@ def test_pattern_repeat_validation():
     assert result.passed
     assert len(result.metadata["matches_found"]) > 1
 
-
 def test_pattern_alternate_validation():
     """Test alternate pattern validation."""
     rule = create_pattern_rule(
@@ -261,7 +251,6 @@ def test_pattern_alternate_validation():
     )
     result = rule_case_insensitive._validate_impl("AbAbAb")
     assert result.passed
-
 
 def test_pattern_custom_validation():
     """Test custom pattern validation."""
@@ -293,7 +282,6 @@ def test_pattern_custom_validation():
     result = rule_case_insensitive._validate_impl("say HELLO world")
     assert result.passed
 
-
 def test_default_configs():
     """Test default configurations."""
     # Test reflection configs
@@ -318,7 +306,6 @@ def test_default_configs():
     assert char_config["pattern_type"] == "alternate"
     assert char_config["pattern_length"] == 1
 
-
 def test_invalid_input_type():
     """Test invalid input type handling."""
     reflection_rule = create_reflection_rule(
@@ -335,7 +322,6 @@ def test_invalid_input_type():
     )
     with pytest.raises(ValueError, match="Input must be a string"):
         pattern_rule._validate_impl(123)  # type: ignore
-
 
 def test_factory_functions():
     """Test factory functions for creating rules."""

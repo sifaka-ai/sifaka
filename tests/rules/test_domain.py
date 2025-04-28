@@ -1,26 +1,26 @@
 """Tests for the domain rules."""
 
-import pytest
-from typing import Dict, Any, List, Set, Protocol, runtime_checkable, Final
-from dataclasses import dataclass, field
 import re
-
-from sifaka.rules.domain import (
-    MedicalRule,
-    LegalRule,
-    PythonRule,
-    ConsistencyRule,
-    MedicalConfig,
-    LegalConfig,
-    PythonConfig,
-    ConsistencyConfig,
-    MedicalValidator,
-    LegalValidator,
-    PythonValidator,
-    ConsistencyValidator,
+from dataclasses import dataclass, field
+from typing import (
+    Dict,
+    List,
+    Set
 )
-from sifaka.rules.base import RuleResult, RuleConfig, RuleValidator
 
+import pytest
+
+from sifaka.rules.base import RuleResult
+from sifaka.rules.domain import (
+    ConsistencyConfig,
+    LegalConfig,
+    LegalRule,
+    LegalValidator,
+    MedicalConfig,
+    MedicalRule,
+    MedicalValidator,
+    PythonConfig,
+)
 
 # Test configurations
 @dataclass(frozen=True)
@@ -34,7 +34,6 @@ class TestMedicalConfig(MedicalConfig):
     cache_size: int = 100
     priority: int = 1
     cost: float = 1.0
-
 
 @dataclass(frozen=True)
 class TestLegalConfig(LegalConfig):
@@ -68,7 +67,6 @@ class TestLegalConfig(LegalConfig):
     priority: int = 1
     cost: float = 1.0
 
-
 @dataclass(frozen=True)
 class TestPythonConfig(PythonConfig):
     """Test configuration for Python rules."""
@@ -92,7 +90,6 @@ class TestPythonConfig(PythonConfig):
     priority: int = 1
     cost: float = 1.0
 
-
 @dataclass(frozen=True)
 class TestConsistencyConfig(ConsistencyConfig):
     """Test configuration for consistency rules."""
@@ -106,7 +103,6 @@ class TestConsistencyConfig(ConsistencyConfig):
     cache_size: int = 100
     priority: int = 1
     cost: float = 1.0
-
 
 # Test validators
 class TestMedicalValidator(MedicalValidator):
@@ -148,7 +144,6 @@ class TestMedicalValidator(MedicalValidator):
             message="Medical content validation passed",
             metadata={"warning_terms_found": found_warning_terms},
         )
-
 
 class TestLegalValidator(LegalValidator):
     """Test implementation of LegalValidator."""
@@ -201,43 +196,36 @@ class TestLegalValidator(LegalValidator):
 
         return RuleResult(passed=passed, message=message, metadata=metadata)
 
-
 # Fixtures
 @pytest.fixture
 def medical_config() -> TestMedicalConfig:
     """Create a test medical configuration."""
     return TestMedicalConfig()
 
-
 @pytest.fixture
 def legal_config() -> TestLegalConfig:
     """Create a test legal configuration."""
     return TestLegalConfig()
-
 
 @pytest.fixture
 def python_config() -> TestPythonConfig:
     """Create a test Python configuration."""
     return TestPythonConfig()
 
-
 @pytest.fixture
 def consistency_config() -> TestConsistencyConfig:
     """Create a test consistency configuration."""
     return TestConsistencyConfig()
-
 
 @pytest.fixture
 def medical_validator(medical_config: TestMedicalConfig) -> TestMedicalValidator:
     """Create a test medical validator."""
     return TestMedicalValidator(config=medical_config)
 
-
 @pytest.fixture
 def legal_validator(legal_config: TestLegalConfig) -> TestLegalValidator:
     """Create a test legal validator."""
     return TestLegalValidator(config=legal_config)
-
 
 @pytest.fixture
 def medical_rule(
@@ -251,7 +239,6 @@ def medical_rule(
         validator=medical_validator,
     )
 
-
 @pytest.fixture
 def legal_rule(legal_config: TestLegalConfig, legal_validator: TestLegalValidator) -> LegalRule:
     """Create a test legal rule."""
@@ -262,7 +249,6 @@ def legal_rule(legal_config: TestLegalConfig, legal_validator: TestLegalValidato
         validator=legal_validator,
     )
 
-
 # Tests
 def test_medical_rule_initialization(medical_rule: MedicalRule):
     """Test medical rule initialization."""
@@ -272,7 +258,6 @@ def test_medical_rule_initialization(medical_rule: MedicalRule):
     assert isinstance(medical_rule.validator, TestMedicalValidator)
     assert medical_rule.config.disclaimer_required is True
     assert "medication" in medical_rule.config.warning_terms
-
 
 def test_medical_rule_validation(medical_rule: MedicalRule):
     """Test medical rule validation."""
@@ -297,7 +282,6 @@ def test_medical_rule_validation(medical_rule: MedicalRule):
     assert "medication" in result.metadata["warning_terms_found"]
     assert len(result.metadata.get("issues", [])) == 0
 
-
 def test_legal_rule_initialization(legal_rule: LegalRule):
     """Test legal rule initialization."""
     assert legal_rule.name == "test_legal"
@@ -306,7 +290,6 @@ def test_legal_rule_initialization(legal_rule: LegalRule):
     assert isinstance(legal_rule.validator, TestLegalValidator)
     assert legal_rule.config.disclaimer_required is True
     assert "court" in legal_rule.config.legal_terms["jurisdiction"]
-
 
 def test_legal_rule_validation(legal_rule: LegalRule):
     """Test legal rule validation."""
@@ -331,7 +314,6 @@ def test_legal_rule_validation(legal_rule: LegalRule):
     assert "123 U.S. 456" in result.metadata["citations"]
     assert result.metadata["has_disclaimer"] is True
 
-
 def test_edge_cases():
     """Test edge cases for domain rules."""
     # Test with empty config
@@ -350,7 +332,6 @@ def test_edge_cases():
     with pytest.raises(ValueError):
         empty_medical_rule.validate(None)
 
-
 def test_error_handling():
     """Test error handling in domain rules."""
     # Test with invalid config
@@ -365,7 +346,6 @@ def test_error_handling():
     medical_validator = TestMedicalValidator(config=medical_config)
     with pytest.raises(ValueError):
         medical_validator.validate(123)
-
 
 def test_consistent_results():
     """Test that results are consistent across multiple validations."""

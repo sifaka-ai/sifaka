@@ -2,20 +2,28 @@
 Bias detector using scikit-learn's SVM classifier.
 """
 
-from typing import List, Dict, Any, Optional, Tuple, Set
 import importlib
-import logging
-import pickle
 import os
+import pickle
 import re
 from dataclasses import dataclass, field
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional
+)
 
 from pydantic import Field
-from sifaka.classifiers.base import BaseClassifier, ClassificationResult, ClassifierConfig
+
+from sifaka.classifiers.base import (
+    BaseClassifier,
+    ClassificationResult,
+    ClassifierConfig,
+)
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
 
 @dataclass(frozen=True)
 class BiasConfig:
@@ -90,7 +98,6 @@ class BiasConfig:
             raise ValueError("bias_types cannot be empty")
         if "neutral" not in self.bias_types:
             raise ValueError("'neutral' must be included in bias_types")
-
 
 class BiasDetector(BaseClassifier):
     """

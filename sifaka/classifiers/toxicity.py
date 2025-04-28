@@ -2,19 +2,30 @@
 Toxicity classifier using the Detoxify model.
 """
 
-from typing import List, Dict, Any, Optional, Protocol, runtime_checkable, Final, TypeVar
-from typing_extensions import TypeGuard
 import importlib
-import logging
-from dataclasses import dataclass
 from abc import abstractmethod
-import numpy as np
+from dataclasses import dataclass
+from typing import (
+    Any,
+    Dict,
+    Final,
+    List,
+    Optional,
+    Protocol,
+    runtime_checkable,
+)
 
-from sifaka.classifiers.base import BaseClassifier, ClassificationResult, ClassifierConfig
+import numpy as np
+from typing_extensions import TypeGuard
+
+from sifaka.classifiers.base import (
+    BaseClassifier,
+    ClassificationResult,
+    ClassifierConfig,
+)
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
 
 @runtime_checkable
 class ToxicityModel(Protocol):
@@ -22,7 +33,6 @@ class ToxicityModel(Protocol):
 
     @abstractmethod
     def predict(self, text: str | List[str]) -> Dict[str, np.ndarray | float]: ...
-
 
 @dataclass(frozen=True)
 class ToxicityThresholds:
@@ -38,7 +48,6 @@ class ToxicityThresholds:
         if self.general > self.severe_toxic:
             raise ValueError("General threshold should not be higher than severe threshold")
 
-
 @dataclass(frozen=True)
 class ToxicityConfig:
     """Configuration for toxicity classifier."""
@@ -49,7 +58,6 @@ class ToxicityConfig:
     def __post_init__(self) -> None:
         if self.model_name not in ["original", "unbiased", "multilingual"]:
             raise ValueError("Model name must be one of: original, unbiased, multilingual")
-
 
 class ToxicityClassifier(BaseClassifier):
     """

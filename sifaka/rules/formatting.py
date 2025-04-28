@@ -5,12 +5,19 @@ This module provides rules for validating text formatting, including length,
 paragraph structure, writing style, and general formatting patterns.
 """
 
-from typing import Dict, Any, List, Protocol, runtime_checkable, Final, TypeVar, Set, Optional
-from typing_extensions import TypeGuard
-from dataclasses import dataclass, field
 import re
-from sifaka.rules.base import Rule, RuleResult, RuleConfig, RuleValidator
+from dataclasses import dataclass, field
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Set,
+    runtime_checkable,
+)
 
+from sifaka.rules.base import Rule, RuleConfig, RuleResult, RuleValidator
 
 @dataclass(frozen=True)
 class LengthConfig(RuleConfig):
@@ -40,7 +47,6 @@ class LengthConfig(RuleConfig):
             raise ValueError("priority must be non-negative")
         if self.cost < 0:
             raise ValueError("cost must be non-negative")
-
 
 @dataclass(frozen=True)
 class ParagraphConfig(RuleConfig):
@@ -74,7 +80,6 @@ class ParagraphConfig(RuleConfig):
         if self.cost < 0:
             raise ValueError("cost must be non-negative")
 
-
 @dataclass(frozen=True)
 class StyleConfig(RuleConfig):
     """Configuration for writing style validation."""
@@ -106,7 +111,6 @@ class StyleConfig(RuleConfig):
             raise ValueError("priority must be non-negative")
         if self.cost < 0:
             raise ValueError("cost must be non-negative")
-
 
 @dataclass(frozen=True)
 class FormattingConfig(RuleConfig):
@@ -140,7 +144,6 @@ class FormattingConfig(RuleConfig):
         if self.cost < 0:
             raise ValueError("cost must be non-negative")
 
-
 @runtime_checkable
 class LengthValidator(Protocol):
     """Protocol for text length validation."""
@@ -148,7 +151,6 @@ class LengthValidator(Protocol):
     def validate(self, text: str) -> RuleResult: ...
     @property
     def config(self) -> LengthConfig: ...
-
 
 @runtime_checkable
 class ParagraphValidator(Protocol):
@@ -158,7 +160,6 @@ class ParagraphValidator(Protocol):
     @property
     def config(self) -> ParagraphConfig: ...
 
-
 @runtime_checkable
 class StyleValidator(Protocol):
     """Protocol for writing style validation."""
@@ -167,7 +168,6 @@ class StyleValidator(Protocol):
     @property
     def config(self) -> StyleConfig: ...
 
-
 @runtime_checkable
 class FormattingValidator(Protocol):
     """Protocol for general text formatting validation."""
@@ -175,7 +175,6 @@ class FormattingValidator(Protocol):
     def validate(self, text: str) -> RuleResult: ...
     @property
     def config(self) -> FormattingConfig: ...
-
 
 class DefaultLengthValidator(RuleValidator[str]):
     """Default implementation of text length validation."""
@@ -248,7 +247,6 @@ class DefaultLengthValidator(RuleValidator[str]):
     def validation_type(self) -> type[str]:
         """Get the type of input this validator can handle."""
         return str
-
 
 class DefaultParagraphValidator(RuleValidator[str]):
     """Default implementation of paragraph structure validation."""
@@ -331,7 +329,6 @@ class DefaultParagraphValidator(RuleValidator[str]):
         """Get the type of input this validator can handle."""
         return str
 
-
 class DefaultStyleValidator(RuleValidator[str]):
     """Default implementation of writing style validation."""
 
@@ -391,7 +388,6 @@ class DefaultStyleValidator(RuleValidator[str]):
     def validation_type(self) -> type[str]:
         """Get the type of input this validator can handle."""
         return str
-
 
 class DefaultFormattingValidator(RuleValidator[str]):
     """Default implementation of text formatting validation."""
@@ -453,7 +449,6 @@ class DefaultFormattingValidator(RuleValidator[str]):
         """Get the type of input this validator can handle."""
         return str
 
-
 class LengthRule(Rule):
     """Rule for validating text length."""
 
@@ -485,7 +480,6 @@ class LengthRule(Rule):
     def _validate_impl(self, output: str) -> RuleResult:
         """Validate output length."""
         return self._validator.validate(output)
-
 
 class ParagraphRule(Rule):
     """Rule for validating paragraph structure."""
@@ -519,7 +513,6 @@ class ParagraphRule(Rule):
         """Validate output paragraph structure."""
         return self._validator.validate(output)
 
-
 class StyleRule(Rule):
     """Rule for validating writing style."""
 
@@ -552,7 +545,6 @@ class StyleRule(Rule):
         """Validate output writing style."""
         return self._validator.validate(output)
 
-
 class FormattingRule(Rule):
     """Rule for validating text formatting."""
 
@@ -584,7 +576,6 @@ class FormattingRule(Rule):
     def _validate_impl(self, output: str) -> RuleResult:
         """Validate output formatting."""
         return self._validator.validate(output)
-
 
 def create_length_rule(
     name: str = "length_rule",
@@ -619,7 +610,6 @@ def create_length_rule(
         config=config,
     )
 
-
 def create_paragraph_rule(
     name: str = "paragraph_rule",
     description: str = "Validates paragraph structure",
@@ -653,7 +643,6 @@ def create_paragraph_rule(
         description=description,
         config=config,
     )
-
 
 def create_style_rule(
     name: str = "style_rule",
@@ -691,7 +680,6 @@ def create_style_rule(
         config=config,
     )
 
-
 def create_formatting_rule(
     name: str = "formatting_rule",
     description: str = "Validates text formatting",
@@ -727,7 +715,6 @@ def create_formatting_rule(
         description=description,
         config=config,
     )
-
 
 # Export public classes and functions
 __all__ = [

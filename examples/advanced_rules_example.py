@@ -31,6 +31,9 @@ except ImportError:
     print("Missing dotenv package. Install with: pip install python-dotenv")
     sys.exit(1)
 
+from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
+from sifaka.models import OpenAIProvider
+from sifaka.models.base import ModelConfig
 from sifaka.rules.base import (
     Rule,
     RuleConfig,
@@ -38,9 +41,6 @@ from sifaka.rules.base import (
     RuleResult,
     RuleValidator,
 )
-from sifaka.models import OpenAIProvider
-from sifaka.models.base import ModelConfig
-from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.utils.logging import get_logger
 
 # Initialize logger
@@ -112,7 +112,7 @@ class FinancialContentValidator(RuleValidator[str]):
 
         # Check for required terms
         found_terms = [t for t in self.required_terms if t in output_lower]
-        missing_terms = self.required_terms - set(found_terms)
+        self.required_terms - set(found_terms)
 
         # Check for prohibited terms
         prohibited_found = [t for t in self.prohibited_terms if t in output_lower]

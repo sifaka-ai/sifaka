@@ -1,24 +1,20 @@
 """Tests for factual rules."""
 
-import pytest
-from typing import Dict, List, Set
 from dataclasses import dataclass
+
+import pytest
+
 from sifaka.rules.base import RuleResult
 from sifaka.rules.factual import (
-    FactualConsistencyConfig,
-    FactualConsistencyValidator,
-    FactualConsistencyRule,
-    ConfidenceConfig,
-    ConfidenceValidator,
-    ConfidenceRule,
     CitationConfig,
-    CitationValidator,
     CitationRule,
+    ConfidenceConfig,
+    ConfidenceRule,
     FactualAccuracyConfig,
-    FactualAccuracyValidator,
     FactualAccuracyRule,
+    FactualConsistencyConfig,
+    FactualConsistencyRule,
 )
-
 
 @dataclass
 class MockFactualConsistencyValidator:
@@ -36,7 +32,6 @@ class MockFactualConsistencyValidator:
                     metadata={"indicator": indicator},
                 )
         return RuleResult(passed=True, message="No contradictions found")
-
 
 @dataclass
 class MockConfidenceValidator:
@@ -57,7 +52,6 @@ class MockConfidenceValidator:
             message="Confidence check complete",
             metadata={"levels": found_levels},
         )
-
 
 @dataclass
 class MockCitationValidator:
@@ -86,7 +80,6 @@ class MockCitationValidator:
             metadata={"citations": citations},
         )
 
-
 @dataclass
 class MockFactualAccuracyValidator:
     """Mock validator for testing factual accuracy."""
@@ -106,7 +99,6 @@ class MockFactualAccuracyValidator:
             metadata={"inaccuracies": inaccuracies},
         )
 
-
 @pytest.fixture
 def factual_consistency_config() -> FactualConsistencyConfig:
     """Create a test configuration for factual consistency."""
@@ -117,7 +109,6 @@ def factual_consistency_config() -> FactualConsistencyConfig:
         priority=2,
         cost=1.5,
     )
-
 
 @pytest.fixture
 def confidence_config() -> ConfidenceConfig:
@@ -132,7 +123,6 @@ def confidence_config() -> ConfidenceConfig:
         cost=1.5,
     )
 
-
 @pytest.fixture
 def citation_config() -> CitationConfig:
     """Create a test configuration for citations."""
@@ -143,7 +133,6 @@ def citation_config() -> CitationConfig:
         priority=2,
         cost=1.5,
     )
-
 
 @pytest.fixture
 def factual_accuracy_config() -> FactualAccuracyConfig:
@@ -157,7 +146,6 @@ def factual_accuracy_config() -> FactualAccuracyConfig:
         priority=2,
         cost=1.5,
     )
-
 
 def test_factual_consistency_config_validation():
     """Test factual consistency configuration validation."""
@@ -173,7 +161,6 @@ def test_factual_consistency_config_validation():
     with pytest.raises(ValueError, match="cost must be non-negative"):
         FactualConsistencyConfig(cost=-1.0)
 
-
 def test_confidence_config_validation():
     """Test confidence configuration validation."""
     with pytest.raises(ValueError, match="confidence_indicators must be a Dict"):
@@ -181,7 +168,6 @@ def test_confidence_config_validation():
 
     with pytest.raises(ValueError, match="cache_size must be positive"):
         ConfidenceConfig(cache_size=0)
-
 
 def test_citation_config_validation():
     """Test citation configuration validation."""
@@ -191,7 +177,6 @@ def test_citation_config_validation():
     with pytest.raises(ValueError, match="cache_size must be positive"):
         CitationConfig(cache_size=0)
 
-
 def test_factual_accuracy_config_validation():
     """Test factual accuracy configuration validation."""
     with pytest.raises(ValueError, match="knowledge_base must be a Dict"):
@@ -199,7 +184,6 @@ def test_factual_accuracy_config_validation():
 
     with pytest.raises(ValueError, match="cache_size must be positive"):
         FactualAccuracyConfig(cache_size=0)
-
 
 def test_factual_consistency_rule(factual_consistency_config: FactualConsistencyConfig):
     """Test factual consistency rule validation."""
@@ -222,7 +206,6 @@ def test_factual_consistency_rule(factual_consistency_config: FactualConsistency
     assert result.passed
     assert "No contradictions found" in result.message
 
-
 def test_confidence_rule(confidence_config: ConfidenceConfig):
     """Test confidence rule validation."""
     validator = MockConfidenceValidator(config=confidence_config)
@@ -244,7 +227,6 @@ def test_confidence_rule(confidence_config: ConfidenceConfig):
     assert result.passed
     assert not result.metadata["levels"]
 
-
 def test_citation_rule(citation_config: CitationConfig):
     """Test citation rule validation."""
     validator = MockCitationValidator(config=citation_config)
@@ -265,7 +247,6 @@ def test_citation_rule(citation_config: CitationConfig):
     assert not result.passed
     assert "No citations found" in result.message
 
-
 def test_factual_accuracy_rule(factual_accuracy_config: FactualAccuracyConfig):
     """Test factual accuracy rule validation."""
     validator = MockFactualAccuracyValidator(config=factual_accuracy_config)
@@ -285,7 +266,6 @@ def test_factual_accuracy_rule(factual_accuracy_config: FactualAccuracyConfig):
     result = rule.validate("The earth is flat")
     assert not result.passed
     assert "earth" in result.metadata["inaccuracies"]
-
 
 def test_rule_type_validation():
     """Test type validation for rules."""

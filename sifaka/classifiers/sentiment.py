@@ -2,14 +2,18 @@
 Sentiment classifier using VADER.
 """
 
-from typing import List, Dict, Any, Optional, Protocol, runtime_checkable, Final
-from typing_extensions import TypeGuard
 import importlib
-import logging
-from dataclasses import dataclass
 from abc import abstractmethod
+from dataclasses import dataclass
+from typing import Any, Dict, Final, List, Optional, Protocol, runtime_checkable
 
-from sifaka.classifiers.base import BaseClassifier, ClassificationResult, ClassifierConfig
+from typing_extensions import TypeGuard
+
+from sifaka.classifiers.base import (
+    BaseClassifier,
+    ClassificationResult,
+    ClassifierConfig,
+)
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)

@@ -8,19 +8,22 @@ This module provides tools to measure:
 4. Caching effectiveness
 """
 
+import asyncio
+import cProfile
 import gc
-import time
 import statistics
-from typing import Dict, Any, Callable
-from memory_profiler import profile
-import psutil
+import time
+from typing import Any, Callable, Dict
+
 import numpy as np
+import psutil
 from tqdm import tqdm
 
-from sifaka.classifiers.readability import ReadabilityClassifier
-from sifaka.classifiers.sentiment import SentimentClassifier
 from sifaka.classifiers.language import LanguageClassifier
 from sifaka.classifiers.profanity import ProfanityClassifier
+from sifaka.classifiers.readability import ReadabilityClassifier
+from sifaka.classifiers.sentiment import SentimentClassifier
+from sifaka.rules.content import ContentAnalyzer
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)

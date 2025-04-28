@@ -1,11 +1,11 @@
 """Tests for the language classifier."""
 
-import pytest
-from typing import Dict, Any, List
 from unittest.mock import MagicMock, patch
 
-from sifaka.classifiers.language import LanguageClassifier
+import pytest
+
 from sifaka.classifiers.base import ClassificationResult
+from sifaka.classifiers.language import LanguageClassifier
 
 
 @pytest.fixture
@@ -27,7 +27,6 @@ def mock_detect():
 
     return detect
 
-
 @pytest.fixture
 def language_classifier(mock_detect):
     """Create a LanguageClassifier instance with mocked langdetect."""
@@ -40,7 +39,6 @@ def language_classifier(mock_detect):
         classifier = LanguageClassifier()
         classifier.warm_up()
         return classifier
-
 
 def test_initialization():
     """Test LanguageClassifier initialization."""
@@ -64,7 +62,6 @@ def test_initialization():
     assert custom_classifier.min_confidence == 0.2
     assert custom_classifier.config == {"param": "value"}
 
-
 def test_warm_up(language_classifier, mock_detect):
     """Test warm_up functionality."""
     assert language_classifier._detect is not None
@@ -80,7 +77,6 @@ def test_warm_up(language_classifier, mock_detect):
         with pytest.raises(RuntimeError):
             classifier.warm_up()
 
-
 def test_language_names():
     """Test language name mapping."""
     classifier = LanguageClassifier()
@@ -93,7 +89,6 @@ def test_language_names():
 
     # Test unknown language code
     assert classifier.get_language_name("xx") == "Unknown"
-
 
 def test_classification(language_classifier):
     """Test text classification."""
@@ -135,7 +130,6 @@ def test_classification(language_classifier):
     assert result.confidence == 0.0
     assert "error" in result.metadata
 
-
 def test_batch_classification(language_classifier):
     """Test batch text classification."""
     texts = [
@@ -165,7 +159,6 @@ def test_batch_classification(language_classifier):
         assert "language_name" in result.metadata
         assert isinstance(result.metadata["all_languages"], dict)
 
-
 def test_edge_cases(language_classifier):
     """Test edge cases."""
     edge_cases = {
@@ -191,7 +184,6 @@ def test_edge_cases(language_classifier):
         else:
             assert "language_name" in result.metadata
             assert "all_languages" in result.metadata
-
 
 def test_error_handling(language_classifier):
     """Test error handling for invalid inputs."""
@@ -237,7 +229,6 @@ def test_error_handling(language_classifier):
     assert "error" in result.metadata
     assert "No language detected" in result.metadata["error"]
 
-
 def test_consistent_results(language_classifier):
     """Test consistency of classification results."""
     test_texts = {
@@ -265,7 +256,6 @@ def test_consistent_results(language_classifier):
                 assert r1.label == r2.label
                 assert r1.confidence == r2.confidence
                 assert r1.metadata == r2.metadata
-
 
 def test_confidence_thresholds(language_classifier):
     """Test different confidence thresholds."""

@@ -5,11 +5,12 @@ This module defines the core interfaces and base implementations for critics
 that analyze and improve text outputs based on rule violations.
 """
 
-from typing import Dict, Any, List, Protocol, runtime_checkable, TypeVar, Final
-from typing_extensions import TypeGuard
-from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from enum import Enum, auto
+from typing import Any, Dict, Final, List, Protocol, TypeVar, runtime_checkable
+
+from typing_extensions import TypeGuard
 
 
 class CriticResult(str, Enum):
@@ -147,17 +148,14 @@ class BaseCritic(ABC):
     @abstractmethod
     def validate(self, text: str) -> bool:
         """Validate text against quality standards."""
-        pass
 
     @abstractmethod
     def improve(self, text: str, violations: List[Dict[str, Any]]) -> str:
         """Improve text based on violations."""
-        pass
 
     @abstractmethod
     def critique(self, text: str) -> CriticMetadata:
         """Critique text and provide feedback."""
-        pass
 
     def process(self, text: str, violations: List[Dict[str, Any]]) -> CriticOutput:
         """Process text and return improved version with metadata."""

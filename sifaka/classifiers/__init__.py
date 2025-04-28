@@ -51,22 +51,22 @@ Usage Example:
 """
 
 from .base import (
-    Classifier,
     ClassificationResult,
+    Classifier,
     ClassifierConfig,
     ClassifierProtocol,
     TextProcessor,
 )
-from .sentiment import SentimentClassifier
-from .profanity import ProfanityClassifier
-from .readability import ReadabilityClassifier
-from .toxicity import ToxicityClassifier
+from .bias import BiasConfig, BiasDetector
+from .genre import GenreClassifier, GenreConfig
 from .language import LanguageClassifier
 from .llm import LLMClassifier
-from .topic import TopicClassifier, TopicConfig
+from .profanity import ProfanityClassifier
+from .readability import ReadabilityClassifier
+from .sentiment import SentimentClassifier
 from .spam import SpamClassifier, SpamConfig
-from .genre import GenreClassifier, GenreConfig
-from .bias import BiasDetector, BiasConfig
+from .topic import TopicClassifier, TopicConfig
+from .toxicity import ToxicityClassifier
 
 __all__ = [
     # Base

@@ -5,8 +5,9 @@ This module provides rules for wrapping and formatting text output,
 including prefix/suffix addition, text encapsulation, and template-based wrapping.
 """
 
-from typing import Dict, List, Optional, Protocol, runtime_checkable, Final, Any
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Any, Dict, Final, Optional, Protocol, runtime_checkable
+
 from sifaka.rules.base import Rule, RuleResult, RuleValidator
 
 
@@ -34,7 +35,6 @@ class WrapperConfig:
         if self.cost < 0:
             raise ValueError("Cost must be non-negative")
 
-
 @dataclass(frozen=True)
 class CodeBlockConfig:
     """Configuration for code block wrapping."""
@@ -60,7 +60,6 @@ class CodeBlockConfig:
         if self.cost < 0:
             raise ValueError("Cost must be non-negative")
 
-
 @runtime_checkable
 class WrapperValidator(Protocol):
     """Protocol for text wrapping validation."""
@@ -74,7 +73,6 @@ class WrapperValidator(Protocol):
         """Validate wrapped text."""
         ...
 
-
 @runtime_checkable
 class CodeBlockValidator(Protocol):
     """Protocol for code block validation."""
@@ -87,7 +85,6 @@ class CodeBlockValidator(Protocol):
     def validate(self, text: str) -> RuleResult:
         """Validate code block."""
         ...
-
 
 class DefaultWrapperValidator(RuleValidator[str]):
     """Default implementation of text wrapping validation."""
@@ -147,7 +144,6 @@ class DefaultWrapperValidator(RuleValidator[str]):
     def validation_type(self) -> type[str]:
         """Get the type of input this validator can handle."""
         return str
-
 
 class DefaultCodeBlockValidator(RuleValidator[str]):
     """Default implementation of code block validation."""
@@ -214,7 +210,6 @@ class DefaultCodeBlockValidator(RuleValidator[str]):
         """Get the type of input this validator can handle."""
         return str
 
-
 class WrapperRule(Rule):
     """Rule for wrapping text with prefix, suffix, or template."""
 
@@ -246,7 +241,6 @@ class WrapperRule(Rule):
     def _validate_impl(self, output: str) -> RuleResult:
         """Validate output wrapping."""
         return self._validator.validate(output)
-
 
 class CodeBlockRule(Rule):
     """Rule for formatting and validating code blocks."""
@@ -280,7 +274,6 @@ class CodeBlockRule(Rule):
         """Validate output code block."""
         return self._validator.validate(output)
 
-
 # Default templates for common use cases
 DEFAULT_TEMPLATES: Final[Dict[str, str]] = {
     "quote": "> {content}",
@@ -307,7 +300,6 @@ DEFAULT_LANGUAGE_CONFIGS: Final[Dict[str, Dict[str, Any]]] = {
         "add_syntax_markers": False,
     },
 }
-
 
 def create_wrapper_rule(
     name: str = "wrapper_rule",
@@ -343,7 +335,6 @@ def create_wrapper_rule(
         config=config,
     )
 
-
 def create_code_block_rule(
     name: str = "code_block_rule",
     description: str = "Validates code block formatting",
@@ -376,7 +367,6 @@ def create_code_block_rule(
         description=description,
         config=config,
     )
-
 
 # Export public classes and functions
 __all__ = [

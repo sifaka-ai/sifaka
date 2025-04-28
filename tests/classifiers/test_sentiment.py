@@ -1,11 +1,12 @@
 """Tests for the sentiment classifier."""
 
-import pytest
-from typing import Dict, Any, List
+from typing import Dict
 from unittest.mock import MagicMock, patch
 
-from sifaka.classifiers.sentiment import SentimentClassifier
+import pytest
+
 from sifaka.classifiers.base import ClassificationResult
+from sifaka.classifiers.sentiment import SentimentClassifier
 
 
 class MockVaderAnalyzer:
@@ -36,12 +37,10 @@ class MockVaderAnalyzer:
 
         return scores
 
-
 @pytest.fixture
 def mock_vader():
     """Create a mock VADER analyzer instance."""
     return MockVaderAnalyzer()
-
 
 @pytest.fixture
 def sentiment_classifier(mock_vader):
@@ -54,7 +53,6 @@ def sentiment_classifier(mock_vader):
         classifier = SentimentClassifier()
         classifier.warm_up()
         return classifier
-
 
 def test_initialization():
     """Test SentimentClassifier initialization."""
@@ -81,7 +79,6 @@ def test_initialization():
     assert custom_classifier.threshold_neg == -0.1
     assert custom_classifier.config == {"param": "value"}
 
-
 def test_warm_up(sentiment_classifier, mock_vader):
     """Test warm_up functionality."""
     assert sentiment_classifier._analyzer == mock_vader
@@ -97,7 +94,6 @@ def test_warm_up(sentiment_classifier, mock_vader):
         with pytest.raises(RuntimeError):
             classifier.warm_up()
 
-
 def test_sentiment_label_mapping(sentiment_classifier):
     """Test sentiment label mapping."""
     test_cases = [
@@ -112,7 +108,6 @@ def test_sentiment_label_mapping(sentiment_classifier):
 
     for score, expected_label in test_cases:
         assert sentiment_classifier._get_sentiment_label(score) == expected_label
-
 
 def test_classification(sentiment_classifier):
     """Test text classification."""
@@ -157,7 +152,6 @@ def test_classification(sentiment_classifier):
     assert result.confidence == 0.0
     assert result.metadata["compound_score"] == 0.0
 
-
 def test_batch_classification(sentiment_classifier):
     """Test batch text classification."""
     texts = [
@@ -189,7 +183,6 @@ def test_batch_classification(sentiment_classifier):
         assert isinstance(result.metadata["neg_score"], float)
         assert isinstance(result.metadata["neu_score"], float)
 
-
 def test_edge_cases(sentiment_classifier):
     """Test edge cases."""
     edge_cases = {
@@ -216,7 +209,6 @@ def test_edge_cases(sentiment_classifier):
         assert isinstance(result.metadata["neg_score"], float)
         assert isinstance(result.metadata["neu_score"], float)
 
-
 def test_error_handling(sentiment_classifier):
     """Test error handling."""
     invalid_inputs = [None, 123, [], {}]
@@ -227,7 +219,6 @@ def test_error_handling(sentiment_classifier):
 
         with pytest.raises(Exception):
             sentiment_classifier.batch_classify([invalid_input])
-
 
 def test_consistent_results(sentiment_classifier):
     """Test consistency of classification results."""
@@ -256,7 +247,6 @@ def test_consistent_results(sentiment_classifier):
                 assert r1.label == r2.label
                 assert r1.confidence == r2.confidence
                 assert r1.metadata == r2.metadata
-
 
 def test_threshold_sensitivity():
     """Test sensitivity to different threshold values."""

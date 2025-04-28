@@ -1,19 +1,15 @@
 """Tests for format rules."""
 
+
 import pytest
-import json
-from typing import Dict, Any, List, Set, Protocol, runtime_checkable, Final
-from dataclasses import dataclass, field
 
 from sifaka.rules.format import (
-    FormatRule,
-    FormatConfig,
-    FormatValidator,
     DefaultFormatValidator,
+    FormatConfig,
+    FormatRule,
+    FormatValidator,
     create_format_rule,
 )
-from sifaka.rules.base import RuleResult
-
 
 @pytest.fixture
 def format_config() -> FormatConfig:
@@ -34,12 +30,10 @@ def format_config() -> FormatConfig:
         cost=1.5,
     )
 
-
 @pytest.fixture
 def format_validator(format_config: FormatConfig) -> FormatValidator:
     """Create a test format validator."""
     return DefaultFormatValidator(format_config)
-
 
 @pytest.fixture
 def format_rule(
@@ -51,7 +45,6 @@ def format_rule(
         description="Test format validation",
         validator=format_validator,
     )
-
 
 def test_format_config_validation():
     """Test format configuration validation."""
@@ -69,7 +62,6 @@ def test_format_config_validation():
 
     with pytest.raises(ValueError, match="markdown_elements must be a set"):
         FormatConfig(markdown_elements=["invalid"])  # type: ignore
-
 
 def test_markdown_validation(format_rule: FormatRule):
     """Test markdown format validation."""
@@ -96,7 +88,6 @@ def hello():
     result = format_rule.validate(text)
     assert not result.passed
     assert "Missing required markdown elements" in result.message
-
 
 def test_json_validation(format_rule: FormatRule):
     """Test JSON format validation."""
@@ -135,7 +126,6 @@ def test_json_validation(format_rule: FormatRule):
     assert not result.passed
     assert "Schema validation failed" in result.message
 
-
 def test_plain_text_validation(format_rule: FormatRule):
     """Test plain text format validation."""
     # Configure rule for plain text validation
@@ -166,7 +156,6 @@ def test_plain_text_validation(format_rule: FormatRule):
     assert not result.passed
     assert "Text length exceeds maximum" in result.message
 
-
 def test_factory_function():
     """Test factory function for creating format rules."""
     # Test rule creation with default config
@@ -184,7 +173,6 @@ def test_factory_function():
         config=FormatConfig(required_format="json"),
     )
     assert rule.validator.config.required_format == "json"
-
 
 def test_edge_cases():
     """Test edge cases and error handling."""
@@ -205,7 +193,6 @@ def test_edge_cases():
     # Test None input
     with pytest.raises(ValueError, match="Text must be a string"):
         rule.validate(None)  # type: ignore
-
 
 def test_consistent_results():
     """Test that validation results are consistent."""

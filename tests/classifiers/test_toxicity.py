@@ -1,9 +1,10 @@
-import pytest
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 from unittest.mock import MagicMock, patch
 
-from sifaka.classifiers.toxicity import ToxicityClassifier
+import pytest
+
 from sifaka.classifiers.base import ClassificationResult
+from sifaka.classifiers.toxicity import ToxicityClassifier
 
 
 class MockDetoxify:

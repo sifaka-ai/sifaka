@@ -18,37 +18,34 @@ Requirements:
     - OpenAI or Anthropic API key set in environment variables
 """
 
+import json
 import os
 import sys
-import json
-import logging
-from typing import List, Dict, Any, Union
+from typing import Any, Dict, List, Union
 
 # Add parent directory to system path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
-    from pydantic import BaseModel, Field, ConfigDict, ValidationError
-    from langchain.prompts import PromptTemplate
-    from langchain.output_parsers import PydanticOutputParser
-    from langchain_core.runnables import RunnablePassthrough
     from dotenv import load_dotenv
+    from langchain.output_parsers import PydanticOutputParser
+    from langchain.prompts import PromptTemplate
+    from pydantic import BaseModel, ConfigDict, Field, ValidationError
 except ImportError:
     print("Missing required packages. Install with: pip install pydantic langchain dotenv")
     sys.exit(1)
 
+from sifaka.critics.base import CriticMetadata
+from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.integrations.langchain import ChainConfig, wrap_chain
 from sifaka.models import AnthropicProvider, OpenAIProvider
 from sifaka.models.base import ModelConfig, ModelProvider
-from sifaka.rules import SymmetryRule, RepetitionRule
+from sifaka.rules import RepetitionRule, SymmetryRule
 from sifaka.rules.base import RuleConfig, RulePriority
-from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
-from sifaka.critics.base import CriticMetadata
 from sifaka.utils.logging import get_logger
 
 # Initialize logger
 logger = get_logger(__name__)
-
 
 class MovieReview(BaseModel):
     """Structured movie review model with validation constraints."""
@@ -68,7 +65,6 @@ class MovieReview(BaseModel):
         max_length=250,
     )
     recommended: bool = Field(..., description="Whether the movie is recommended")
-
 
 class ReviewCritic:
     """Critic for analyzing and improving movie reviews."""
@@ -186,7 +182,6 @@ class ReviewCritic:
             "is_balanced": len(issues) == 0,
         }
 
-
 def analyze_text(text: str) -> Dict[str, Any]:
     """Analyze text using Sifaka's pattern detection rules."""
     # Configure symmetry rule
@@ -232,7 +227,6 @@ def analyze_text(text: str) -> Dict[str, Any]:
         },
     }
 
-
 def setup_model():
     """Set up the LLM provider based on available API keys."""
     # Check for Anthropic API key first
@@ -258,7 +252,6 @@ def setup_model():
     # No API keys found
     logger.error("No API key found for Anthropic or OpenAI")
     sys.exit(1)
-
 
 def setup_chain(model_provider):
     """Set up the LangChain pipeline with Pydantic validation."""
@@ -296,7 +289,6 @@ def setup_chain(model_provider):
 
     # Wrap with Sifaka for validation
     return wrap_chain(chain=chain, config=ChainConfig(output_parser=parser, critique=True))
-
 
 def process_review(movie_title, chain, critic):
     """Generate and process a review for a movie."""
@@ -388,7 +380,6 @@ def process_review(movie_title, chain, critic):
         logger.error("Failed to generate review: %s", str(e))
         return None
 
-
 def main():
     """Run the Pydantic integration example."""
     # Load environment variables
@@ -407,7 +398,6 @@ def main():
         process_review(movie, chain, critic)
 
     logger.info("\nPydantic integration example completed")
-
 
 if __name__ == "__main__":
     main()

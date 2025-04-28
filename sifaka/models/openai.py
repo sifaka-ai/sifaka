@@ -2,15 +2,16 @@
 OpenAI model provider implementation.
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional
+
 import openai
-from openai import OpenAI
 import tiktoken
-from sifaka.models.base import ModelProvider, ModelConfig, APIClient, TokenCounter
+from openai import OpenAI
+
+from sifaka.models.base import APIClient, ModelConfig, ModelProvider, TokenCounter
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
 
 class OpenAIClient(APIClient):
     """OpenAI API client implementation."""
@@ -34,7 +35,6 @@ class OpenAIClient(APIClient):
             logger.error(f"OpenAI API error: {str(e)}")
             raise
 
-
 class OpenAITokenCounter(TokenCounter):
     """Token counter using tiktoken for OpenAI models."""
 
@@ -54,7 +54,6 @@ class OpenAITokenCounter(TokenCounter):
         except Exception as e:
             logger.error(f"Error counting tokens: {str(e)}")
             raise
-
 
 class OpenAIProvider(ModelProvider):
     """

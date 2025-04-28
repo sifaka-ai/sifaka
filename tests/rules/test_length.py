@@ -1,18 +1,16 @@
 """Tests for length rules."""
 
-import pytest
-from typing import Dict, Any, List, Set, Protocol, runtime_checkable, Final
-from dataclasses import dataclass, field
 
+import pytest
+
+from sifaka.rules.base import RuleResult
 from sifaka.rules.length import (
-    LengthRule,
-    LengthConfig,
-    LengthValidator,
     DefaultLengthValidator,
+    LengthConfig,
+    LengthRule,
+    LengthValidator,
     create_length_rule,
 )
-from sifaka.rules.base import RuleResult
-
 
 @pytest.fixture
 def length_config() -> LengthConfig:
@@ -26,12 +24,10 @@ def length_config() -> LengthConfig:
         cost=1.5,
     )
 
-
 @pytest.fixture
 def length_validator(length_config: LengthConfig) -> LengthValidator:
     """Create a test length validator."""
     return DefaultLengthValidator(length_config)
-
 
 @pytest.fixture
 def length_rule(
@@ -43,7 +39,6 @@ def length_rule(
         description="Test length validation",
         validator=length_validator,
     )
-
 
 def test_length_config_validation():
     """Test length configuration validation."""
@@ -71,7 +66,6 @@ def test_length_config_validation():
     ):
         LengthConfig(exact_length=50, min_length=10)
 
-
 def test_length_validation(length_rule: LengthRule):
     """Test length validation."""
     # Test valid length
@@ -93,7 +87,6 @@ def test_length_validation(length_rule: LengthRule):
     assert not result.passed
     assert "exceeds maximum" in result.message
     assert result.metadata["length"] > length_rule.validator.config.max_length
-
 
 def test_word_length_validation():
     """Test validation with word length."""
@@ -128,7 +121,6 @@ def test_word_length_validation():
     assert "exceeds maximum" in result.message
     assert result.metadata["length"] == 11
 
-
 def test_exact_length_validation():
     """Test validation with exact length requirement."""
     config = LengthConfig(
@@ -160,7 +152,6 @@ def test_exact_length_validation():
     assert not result.passed
     assert "does not match required count" in result.message
 
-
 def test_edge_cases(length_rule: LengthRule):
     """Test edge cases and error handling."""
     # Test empty text
@@ -185,7 +176,6 @@ def test_edge_cases(length_rule: LengthRule):
     assert isinstance(result, RuleResult)
     assert result.metadata["length"] == len(text)
 
-
 def test_error_handling(length_rule: LengthRule):
     """Test error handling for invalid inputs."""
     # Test None input
@@ -199,7 +189,6 @@ def test_error_handling(length_rule: LengthRule):
     # Test list input
     with pytest.raises(ValueError, match="Text must be a string"):
         length_rule.validate(["not", "a", "string"])  # type: ignore
-
 
 def test_factory_function():
     """Test factory function for creating length rules."""
@@ -229,7 +218,6 @@ def test_factory_function():
         validator=validator,
     )
     assert rule.validator is validator
-
 
 def test_consistent_results(length_rule: LengthRule):
     """Test that validation results are consistent."""

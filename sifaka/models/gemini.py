@@ -2,14 +2,15 @@
 Google Gemini model provider implementation.
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional
+
 import google.generativeai as genai
 import tiktoken
-from sifaka.models.base import ModelProvider, ModelConfig, APIClient, TokenCounter
+
+from sifaka.models.base import APIClient, ModelConfig, ModelProvider, TokenCounter
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
 
 class GeminiClient(APIClient):
     """Gemini API client implementation."""
@@ -38,7 +39,6 @@ class GeminiClient(APIClient):
             logger.error(f"Gemini API error: {str(e)}")
             raise
 
-
 class GeminiTokenCounter(TokenCounter):
     """Token counter using tiktoken for Gemini models."""
 
@@ -59,7 +59,6 @@ class GeminiTokenCounter(TokenCounter):
         except Exception as e:
             logger.error(f"Error counting tokens: {str(e)}")
             raise
-
 
 class GeminiProvider(ModelProvider):
     """

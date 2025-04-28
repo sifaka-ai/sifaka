@@ -5,9 +5,10 @@ This module provides rules for analyzing and validating text sentiment,
 including positive/negative sentiment detection and emotional content analysis.
 """
 
-from typing import Dict, List, Set, Protocol, runtime_checkable, Final, Optional, Any
 from dataclasses import dataclass, field
-from sifaka.rules.base import Rule, RuleResult, RuleValidator, RuleConfig
+from typing import Any, Dict, List, Optional, Protocol, Set, runtime_checkable
+
+from sifaka.rules.base import Rule, RuleConfig, RuleResult, RuleValidator
 
 
 @dataclass(frozen=True)
@@ -54,7 +55,6 @@ class SentimentConfig(RuleConfig):
         if not self.negative_words:
             raise ValueError("Must provide at least one negative word")
 
-
 @dataclass(frozen=True)
 class EmotionalContentConfig(RuleConfig):
     """Configuration for emotional content validation."""
@@ -84,7 +84,6 @@ class EmotionalContentConfig(RuleConfig):
             if not indicators:
                 raise ValueError(f"Category {category} must have at least one indicator")
 
-
 @runtime_checkable
 class SentimentValidator(Protocol):
     """Protocol for sentiment validation."""
@@ -98,7 +97,6 @@ class SentimentValidator(Protocol):
         """Validate text sentiment."""
         ...
 
-
 @runtime_checkable
 class EmotionalContentValidator(Protocol):
     """Protocol for emotional content validation."""
@@ -111,7 +109,6 @@ class EmotionalContentValidator(Protocol):
     def validate(self, text: str) -> RuleResult:
         """Validate emotional content."""
         ...
-
 
 class DefaultSentimentValidator(RuleValidator[str]):
     """Default implementation of sentiment validation."""
@@ -167,7 +164,6 @@ class DefaultSentimentValidator(RuleValidator[str]):
     def validation_type(self) -> type[str]:
         """Get the type of input this validator can handle."""
         return str
-
 
 class DefaultEmotionalContentValidator(RuleValidator[str]):
     """Default implementation of emotional content validation."""
@@ -231,7 +227,6 @@ class DefaultEmotionalContentValidator(RuleValidator[str]):
         """Get the type of input this validator can handle."""
         return str
 
-
 class SentimentRule(Rule):
     """Rule for validating text sentiment."""
 
@@ -264,7 +259,6 @@ class SentimentRule(Rule):
         """Validate output sentiment."""
         return self._validator.validate(output)
 
-
 class EmotionalContentRule(Rule):
     """Rule for validating emotional content."""
 
@@ -296,7 +290,6 @@ class EmotionalContentRule(Rule):
     def _validate_impl(self, output: str) -> RuleResult:
         """Validate output emotional content."""
         return self._validator.validate(output)
-
 
 def create_sentiment_rule(
     name: str = "sentiment_rule",
@@ -349,7 +342,6 @@ def create_sentiment_rule(
         config=config,
     )
 
-
 def create_emotional_content_rule(
     name: str = "emotional_content_rule",
     description: str = "Validates emotional content",
@@ -386,7 +378,6 @@ def create_emotional_content_rule(
         description=description,
         config=config,
     )
-
 
 # Export public classes and functions
 __all__ = [

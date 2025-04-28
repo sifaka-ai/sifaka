@@ -24,18 +24,14 @@ if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
 from sifaka.rules import (
-    LegalRule,
-    LegalCitationRule,
-    LegalTermsRule,
-    create_legal_rule,
     create_legal_citation_rule,
+    create_legal_rule,
     create_legal_terms_rule,
 )
 from sifaka.utils.logging import get_logger
 
 # Initialize logger from Sifaka
 logger = get_logger(__name__)
-
 
 def main():
     """Run the legal rules example."""
@@ -126,7 +122,6 @@ def main():
     logger.info(f"Terminology Rule - Passed: {invalid_terms.passed}")
 
     logger.info("\nLegal rules example completed.")
-
 
 if __name__ == "__main__":
     main()

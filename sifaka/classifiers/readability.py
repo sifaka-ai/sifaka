@@ -2,20 +2,30 @@
 Readability classifier that analyzes text complexity.
 """
 
-from typing import Dict, Any, List, Optional, Protocol, runtime_checkable, Final, TypeVar
-from typing_extensions import TypeGuard
 import importlib
-import logging
 import statistics
-from dataclasses import dataclass, field
 from abc import abstractmethod
+from dataclasses import dataclass, field
+from typing import (
+    Any,
+    Dict,
+    Final,
+    List,
+    Optional,
+    Protocol,
+    runtime_checkable,
+)
 
-from sifaka.classifiers.base import BaseClassifier, ClassificationResult, ClassifierConfig
+from typing_extensions import TypeGuard
+
+from sifaka.classifiers.base import (
+    BaseClassifier,
+    ClassificationResult,
+    ClassifierConfig,
+)
 from sifaka.utils.logging import get_logger
-import textstat
 
 logger = get_logger(__name__)
-
 
 @runtime_checkable
 class ReadabilityAnalyzer(Protocol):
@@ -41,7 +51,6 @@ class ReadabilityAnalyzer(Protocol):
     def automated_readability_index(self, text: str) -> float: ...
     @abstractmethod
     def dale_chall_readability_score(self, text: str) -> float: ...
-
 
 @dataclass(frozen=True)
 class ReadabilityConfig:
@@ -71,7 +80,6 @@ class ReadabilityConfig:
                 raise ValueError(f"Grade level bounds must be non-overlapping")
             prev_upper = upper
 
-
 @dataclass(frozen=True)
 class ReadabilityMetrics:
     """Container for readability metrics."""
@@ -92,7 +100,6 @@ class ReadabilityMetrics:
     vocabulary_diversity: float
     unique_word_count: int
     difficult_words: int
-
 
 class ReadabilityClassifier(BaseClassifier):
     """

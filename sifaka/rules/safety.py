@@ -2,10 +2,15 @@
 Safety-related rules for Sifaka.
 """
 
-from typing import Dict, Any, List, Optional, Protocol, runtime_checkable, Final
 from dataclasses import dataclass, field
-from sifaka.rules.base import Rule, RuleResult, RuleValidator, RuleConfig
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional
+)
 
+from sifaka.rules.base import Rule, RuleConfig, RuleResult, RuleValidator
 
 @dataclass(frozen=True)
 class ToxicityConfig(RuleConfig):
@@ -37,7 +42,6 @@ class ToxicityConfig(RuleConfig):
             raise ValueError("Threshold must be between 0.0 and 1.0")
         if not self.indicators:
             raise ValueError("Must provide at least one toxicity indicator")
-
 
 @dataclass(frozen=True)
 class BiasConfig(RuleConfig):
@@ -91,7 +95,6 @@ class BiasConfig(RuleConfig):
             if not indicators:
                 raise ValueError(f"Category {category} must have at least one indicator")
 
-
 @dataclass(frozen=True)
 class HarmfulContentConfig(RuleConfig):
     """Configuration for harmful content validation."""
@@ -141,7 +144,6 @@ class HarmfulContentConfig(RuleConfig):
             if not indicators:
                 raise ValueError(f"Category {category} must have at least one indicator")
 
-
 class DefaultToxicityValidator(RuleValidator[str]):
     """Default implementation of toxicity validation."""
 
@@ -187,7 +189,6 @@ class DefaultToxicityValidator(RuleValidator[str]):
     def validation_type(self) -> type[str]:
         """Get the type of input this validator can handle."""
         return str
-
 
 class DefaultBiasValidator(RuleValidator[str]):
     """Default implementation of bias validation."""
@@ -258,7 +259,6 @@ class DefaultBiasValidator(RuleValidator[str]):
         """Get the type of input this validator can handle."""
         return str
 
-
 class DefaultHarmfulContentValidator(RuleValidator[str]):
     """Default implementation of harmful content validation."""
 
@@ -312,7 +312,6 @@ class DefaultHarmfulContentValidator(RuleValidator[str]):
         """Get the type of input this validator can handle."""
         return str
 
-
 class ToxicityRule(Rule):
     """Rule for validating text toxicity."""
 
@@ -344,7 +343,6 @@ class ToxicityRule(Rule):
     def _validate_impl(self, output: str) -> RuleResult:
         """Validate output toxicity."""
         return self._validator.validate(output)
-
 
 class BiasRule(Rule):
     """Rule for validating text bias."""
@@ -378,7 +376,6 @@ class BiasRule(Rule):
         """Validate output bias."""
         return self._validator.validate(output)
 
-
 class HarmfulContentRule(Rule):
     """Rule for validating harmful content."""
 
@@ -410,7 +407,6 @@ class HarmfulContentRule(Rule):
     def _validate_impl(self, output: str) -> RuleResult:
         """Validate output harmful content."""
         return self._validator.validate(output)
-
 
 def create_toxicity_rule(
     name: str = "toxicity_rule",
@@ -453,7 +449,6 @@ def create_toxicity_rule(
         description=description,
         config=config,
     )
-
 
 def create_bias_rule(
     name: str = "bias_rule",
@@ -515,7 +510,6 @@ def create_bias_rule(
         config=config,
     )
 
-
 def create_harmful_content_rule(
     name: str = "harmful_content_rule",
     description: str = "Validates text for harmful content",
@@ -574,7 +568,6 @@ def create_harmful_content_rule(
         description=description,
         config=config,
     )
-
 
 # Export public classes and functions
 __all__ = [

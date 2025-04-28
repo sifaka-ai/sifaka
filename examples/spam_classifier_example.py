@@ -15,11 +15,11 @@ Requirements:
     - Python environment with Sifaka installed (use pyenv environment "sifaka")
 """
 
+import logging
 import os
 import sys
 import tempfile
 from pathlib import Path
-import logging
 
 # Add parent directory to system path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -27,10 +27,10 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
+from sifaka.classifiers.spam import SpamClassifier, SpamConfig
 from sifaka.rules.adapters import ClassifierRuleAdapter
 from sifaka.rules.base import RuleConfig, RulePriority
-from sifaka.classifiers.spam import SpamClassifier, SpamConfig
-from sifaka.utils.logging import get_logger, log_operation, LogConfig, configure_logging
+from sifaka.utils.logging import LogConfig, configure_logging, get_logger, log_operation
 
 # Configure logging with colors and structured output
 configure_logging(

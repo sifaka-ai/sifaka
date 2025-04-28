@@ -2,18 +2,28 @@
 LLM-based classifier implementation.
 """
 
-from typing import List, Dict, Any, Optional, Protocol, runtime_checkable, Final, TypeVar
-from typing_extensions import TypeGuard
 import json
-from dataclasses import dataclass, field
 from abc import abstractmethod
+from dataclasses import dataclass
+from typing import (
+    Any,
+    Final,
+    List,
+    Optional,
+    Protocol,
+    runtime_checkable,
+)
 
-from sifaka.classifiers.base import BaseClassifier, ClassificationResult, ClassifierConfig
-from sifaka.models.base import ModelProvider
+from typing_extensions import TypeGuard
+
+from sifaka.classifiers.base import (
+    BaseClassifier,
+    ClassificationResult,
+    ClassifierConfig,
+)
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
 
 @runtime_checkable
 class LLMProvider(Protocol):
@@ -23,7 +33,6 @@ class LLMProvider(Protocol):
     def generate(
         self, prompt: str, system_prompt: Optional[str] = None, temperature: float = 0.7
     ) -> str: ...
-
 
 @dataclass(frozen=True)
 class LLMPromptConfig:
@@ -40,7 +49,6 @@ class LLMPromptConfig:
         if self.max_retries < 0:
             raise ValueError("max_retries must be non-negative")
 
-
 @dataclass(frozen=True)
 class LLMResponse:
     """Container for parsed LLM responses."""
@@ -53,7 +61,6 @@ class LLMResponse:
     def __post_init__(self) -> None:
         if not 0.0 <= self.confidence <= 1.0:
             object.__setattr__(self, "confidence", max(0.0, min(1.0, self.confidence)))
-
 
 class LLMClassifier(BaseClassifier):
     """

@@ -11,25 +11,20 @@ including:
 Each domain has specialized validators and configurations.
 """
 
+import re
+from dataclasses import dataclass, field
 from typing import (
-    Dict,
     Any,
+    Dict,
     List,
     Optional,
+    Protocol,
     Set,
     Tuple,
-    Protocol,
     runtime_checkable,
-    Final,
-    TypeVar,
 )
-from typing_extensions import TypeGuard
-from dataclasses import dataclass, field
-from pydantic import Field
-from sifaka.rules.base import Rule, RuleResult, RuleConfig, RuleValidator
-import re
-import ast
 
+from sifaka.rules.base import Rule, RuleConfig, RuleResult, RuleValidator
 
 @dataclass(frozen=True)
 class MedicalConfig(RuleConfig):
@@ -68,7 +63,6 @@ class MedicalConfig(RuleConfig):
         if not self.warning_terms:
             raise ValueError("Must provide at least one warning term")
 
-
 @dataclass(frozen=True)
 class LegalCitationConfig(RuleConfig):
     """Configuration for legal citation validation."""
@@ -99,7 +93,6 @@ class LegalCitationConfig(RuleConfig):
             raise ValueError("min_citations must be non-negative")
         if self.max_citations < self.min_citations:
             raise ValueError("max_citations must be greater than or equal to min_citations")
-
 
 @dataclass(frozen=True)
 class LegalTermsConfig(RuleConfig):
@@ -150,7 +143,6 @@ class LegalTermsConfig(RuleConfig):
             raise ValueError("prohibited_terms must be a set")
         if not all(isinstance(t, str) for t in self.prohibited_terms):
             raise ValueError("prohibited_terms must contain only strings")
-
 
 @dataclass(frozen=True)
 class LegalConfig(RuleConfig):
@@ -203,7 +195,6 @@ class LegalConfig(RuleConfig):
         if not self.disclaimers:
             raise ValueError("Must provide at least one disclaimer pattern")
 
-
 @runtime_checkable
 class MedicalValidator(Protocol):
     """Protocol for medical content validation."""
@@ -211,7 +202,6 @@ class MedicalValidator(Protocol):
     def validate(self, text: str) -> RuleResult: ...
     @property
     def config(self) -> MedicalConfig: ...
-
 
 @runtime_checkable
 class LegalValidator(Protocol):
@@ -221,7 +211,6 @@ class LegalValidator(Protocol):
     @property
     def config(self) -> LegalConfig: ...
 
-
 @runtime_checkable
 class LegalCitationValidator(Protocol):
     """Protocol for legal citation validation."""
@@ -230,7 +219,6 @@ class LegalCitationValidator(Protocol):
     @property
     def config(self) -> LegalCitationConfig: ...
 
-
 @runtime_checkable
 class LegalTermsValidator(Protocol):
     """Protocol for legal terms validation."""
@@ -238,7 +226,6 @@ class LegalTermsValidator(Protocol):
     def validate(self, text: str) -> RuleResult: ...
     @property
     def config(self) -> LegalTermsConfig: ...
-
 
 class MedicalRule(Rule):
     """Rule that checks for medical content accuracy and safety."""
@@ -272,7 +259,6 @@ class MedicalRule(Rule):
         """Validate output medical content."""
         return self._validator.validate(output)
 
-
 class LegalRule(Rule):
     """Rule that validates legal content."""
 
@@ -304,7 +290,6 @@ class LegalRule(Rule):
     def _validate_impl(self, output: str) -> RuleResult:
         """Validate output legal content."""
         return self._validator.validate(output)
-
 
 class LegalCitationRule(Rule):
     """Rule that checks for legal citations."""
@@ -338,7 +323,6 @@ class LegalCitationRule(Rule):
         """Validate legal citations in output."""
         return self._validator.validate(output)
 
-
 class LegalTermsRule(Rule):
     """Rule that validates legal terminology."""
 
@@ -370,7 +354,6 @@ class LegalTermsRule(Rule):
     def _validate_impl(self, output: str) -> RuleResult:
         """Validate legal terminology in output."""
         return self._validator.validate(output)
-
 
 def create_medical_rule(
     name: str = "medical_rule",
@@ -418,7 +401,6 @@ def create_medical_rule(
         config=config,
     )
 
-
 def create_legal_rule(
     name: str = "legal_rule",
     description: str = "Validates text for legal content",
@@ -456,7 +438,6 @@ def create_legal_rule(
         description=description,
         config=config,
     )
-
 
 @dataclass(frozen=True)
 class PythonConfig(RuleConfig):
@@ -505,7 +486,6 @@ class PythonConfig(RuleConfig):
         if not self.performance_patterns:
             raise ValueError("Must provide at least one performance pattern")
 
-
 @runtime_checkable
 class PythonValidator(Protocol):
     """Protocol for Python code validation."""
@@ -513,7 +493,6 @@ class PythonValidator(Protocol):
     def validate(self, text: str) -> RuleResult: ...
     @property
     def config(self) -> PythonConfig: ...
-
 
 class PythonRule(Rule):
     """Rule that checks Python code quality and best practices."""
@@ -546,7 +525,6 @@ class PythonRule(Rule):
     def _validate_impl(self, output: str) -> RuleResult:
         """Validate output Python code."""
         return self._validator.validate(output)
-
 
 @dataclass(frozen=True)
 class ConsistencyConfig(RuleConfig):
@@ -595,7 +573,6 @@ class ConsistencyConfig(RuleConfig):
         if not self.contradiction_indicators:
             raise ValueError("Must provide at least one contradiction indicator")
 
-
 @runtime_checkable
 class ConsistencyValidator(Protocol):
     """Protocol for consistency validation."""
@@ -603,7 +580,6 @@ class ConsistencyValidator(Protocol):
     def validate(self, text: str) -> RuleResult: ...
     @property
     def config(self) -> ConsistencyConfig: ...
-
 
 class ConsistencyRule(Rule):
     """Rule that checks for consistency in text."""
@@ -636,7 +612,6 @@ class ConsistencyRule(Rule):
     def _validate_impl(self, output: str) -> RuleResult:
         """Validate output consistency."""
         return self._validator.validate(output)
-
 
 class DefaultMedicalValidator(RuleValidator[str]):
     """Default implementation of medical content validation."""
@@ -721,7 +696,6 @@ class DefaultMedicalValidator(RuleValidator[str]):
         """Get the type of input this validator can handle."""
         return str
 
-
 class DefaultLegalValidator(RuleValidator[str]):
     """Default implementation of legal content validation."""
 
@@ -785,7 +759,6 @@ class DefaultLegalValidator(RuleValidator[str]):
     def validation_type(self) -> type[str]:
         """Get the type of output this validator can handle."""
         return str
-
 
 class DefaultLegalCitationValidator(RuleValidator[str]):
     """Default implementation of legal citation validation."""
@@ -888,7 +861,6 @@ class DefaultLegalCitationValidator(RuleValidator[str]):
         """Get the type of output this validator can handle."""
         return str
 
-
 class DefaultLegalTermsValidator(RuleValidator[str]):
     """Default implementation of legal terms validation."""
 
@@ -974,7 +946,6 @@ class DefaultLegalTermsValidator(RuleValidator[str]):
         """Get the type of output this validator can handle."""
         return str
 
-
 def create_python_rule(
     name: str = "python_rule",
     description: str = "Validates Python code",
@@ -997,7 +968,6 @@ def create_python_rule(
         config=config,
     )
 
-
 def create_consistency_rule(
     name: str = "consistency_rule",
     description: str = "Validates content consistency",
@@ -1019,7 +989,6 @@ def create_consistency_rule(
         description=description,
         config=config,
     )
-
 
 def create_legal_citation_rule(
     name: str = "legal_citation_rule",
@@ -1050,7 +1019,6 @@ def create_legal_citation_rule(
         config=config,
     )
 
-
 def create_legal_terms_rule(
     name: str = "legal_terms_rule",
     description: str = "Validates legal terms",
@@ -1080,7 +1048,6 @@ def create_legal_terms_rule(
         description=description,
         config=config,
     )
-
 
 # Export public classes and functions
 __all__ = [

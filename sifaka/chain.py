@@ -5,16 +5,15 @@ This module provides the Chain class which orchestrates the validation and impro
 flow between models, rules, and critics.
 """
 
-from typing import List, Optional, Protocol, TypeVar, Generic
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Generic, List, Optional, TypeVar
 
-from .models.base import ModelProvider
-from .rules import Rule, RuleResult
 from .critics import PromptCritic
 from .critics.prompt import CriticMetadata
+from .models.base import ModelProvider
+from .rules import Rule, RuleResult
 
 OutputType = TypeVar("OutputType")
-
 
 @dataclass
 class ChainResult(Generic[OutputType]):
@@ -23,7 +22,6 @@ class ChainResult(Generic[OutputType]):
     output: OutputType
     rule_results: List[RuleResult]
     critique_details: Optional[dict] = None
-
 
 class Chain(Generic[OutputType]):
     """

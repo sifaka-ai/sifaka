@@ -2,16 +2,17 @@
 Anthropic model provider implementation.
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional
+
 import anthropic
-from anthropic import Anthropic
 import tiktoken
+from anthropic import Anthropic
 from langchain_anthropic import ChatAnthropic
-from sifaka.models.base import ModelProvider, ModelConfig, APIClient, TokenCounter
+
+from sifaka.models.base import APIClient, ModelConfig, ModelProvider, TokenCounter
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
 
 class AnthropicClient(APIClient):
     """Anthropic API client implementation."""
@@ -35,7 +36,6 @@ class AnthropicClient(APIClient):
             logger.error(f"Anthropic API error: {str(e)}")
             raise
 
-
 class AnthropicTokenCounter(TokenCounter):
     """Token counter using tiktoken for Anthropic models."""
 
@@ -56,7 +56,6 @@ class AnthropicTokenCounter(TokenCounter):
         except Exception as e:
             logger.error(f"Error counting tokens: {str(e)}")
             raise
-
 
 class AnthropicProvider(ModelProvider):
     """

@@ -1,8 +1,11 @@
-from typing import Any, Dict, Optional, Type, TypeVar, Union, cast
+from typing import (
+    Optional,
+    Type,
+    Union
+)
 
 from ..classifiers.base import Classifier, ClassifierConfig
 from .base import Rule, RuleConfig, RuleResult
-
 
 class ClassifierRuleAdapter(Rule[str, RuleResult, None, None]):
     """Adapter to use a classifier as a validation rule."""

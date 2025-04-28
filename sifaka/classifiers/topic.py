@@ -2,19 +2,20 @@
 Topic classifier using scikit-learn's LDA.
 """
 
-from typing import List, Dict, Any, Optional, Union
 import importlib
-import logging
-from dataclasses import dataclass, field
-import numpy as np
-from typing_extensions import TypeGuard
+from dataclasses import dataclass
+from typing import List, Optional
+
 from pydantic import Field
 
-from sifaka.classifiers.base import BaseClassifier, ClassificationResult, ClassifierConfig
+from sifaka.classifiers.base import (
+    BaseClassifier,
+    ClassificationResult,
+    ClassifierConfig,
+)
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
 
 @dataclass(frozen=True)
 class TopicConfig:
@@ -36,7 +37,6 @@ class TopicConfig:
             raise ValueError("max_features must be positive")
         if self.top_words_per_topic <= 0:
             raise ValueError("top_words_per_topic must be positive")
-
 
 class TopicClassifier(BaseClassifier):
     """

@@ -1,20 +1,18 @@
 """Tests for safety rules."""
 
 import pytest
-from typing import Dict, List
 
 from sifaka.rules.safety import (
-    ToxicityConfig,
     BiasConfig,
-    HarmfulContentConfig,
-    ToxicityRule,
     BiasRule,
+    HarmfulContentConfig,
     HarmfulContentRule,
-    create_toxicity_rule,
+    ToxicityConfig,
+    ToxicityRule,
     create_bias_rule,
     create_harmful_content_rule,
+    create_toxicity_rule,
 )
-from sifaka.rules.base import RuleResult
 
 
 @pytest.fixture
@@ -27,7 +25,6 @@ def toxicity_config() -> ToxicityConfig:
         priority=1,
         cost=1.0,
     )
-
 
 @pytest.fixture
 def bias_config() -> BiasConfig:
@@ -43,7 +40,6 @@ def bias_config() -> BiasConfig:
         cost=1.0,
     )
 
-
 @pytest.fixture
 def harmful_content_config() -> HarmfulContentConfig:
     """Create a test harmful content configuration."""
@@ -56,7 +52,6 @@ def harmful_content_config() -> HarmfulContentConfig:
         priority=1,
         cost=1.0,
     )
-
 
 def test_toxicity_config_validation():
     """Test toxicity configuration validation."""
@@ -85,7 +80,6 @@ def test_toxicity_config_validation():
     with pytest.raises(ValueError, match="Cost must be non-negative"):
         ToxicityConfig(threshold=0.5, indicators=["toxic"], cost=-1)
 
-
 def test_bias_config_validation():
     """Test bias configuration validation."""
     # Valid configuration
@@ -105,7 +99,6 @@ def test_bias_config_validation():
     with pytest.raises(ValueError, match="Category gender must have at least one indicator"):
         BiasConfig(threshold=0.5, categories={"gender": []})
 
-
 def test_harmful_content_config_validation():
     """Test harmful content configuration validation."""
     # Valid configuration
@@ -119,7 +112,6 @@ def test_harmful_content_config_validation():
     # Empty category indicators
     with pytest.raises(ValueError, match="Category violence must have at least one indicator"):
         HarmfulContentConfig(categories={"violence": []})
-
 
 def test_toxicity_rule_validation(toxicity_config):
     """Test toxicity rule validation."""
@@ -148,7 +140,6 @@ def test_toxicity_rule_validation(toxicity_config):
     with pytest.raises(ValueError, match="Input must be a string"):
         rule._validate_impl(123)  # type: ignore
 
-
 def test_bias_rule_validation(bias_config):
     """Test bias rule validation."""
     rule = create_bias_rule(
@@ -174,7 +165,6 @@ def test_bias_rule_validation(bias_config):
     # Test invalid input type
     with pytest.raises(ValueError, match="Input must be a string"):
         rule._validate_impl(123)  # type: ignore
-
 
 def test_harmful_content_rule_validation(harmful_content_config):
     """Test harmful content rule validation."""
@@ -202,7 +192,6 @@ def test_harmful_content_rule_validation(harmful_content_config):
     with pytest.raises(ValueError, match="Input must be a string"):
         rule._validate_impl(123)  # type: ignore
 
-
 def test_create_toxicity_rule():
     """Test toxicity rule factory function."""
     rule = create_toxicity_rule(
@@ -213,7 +202,6 @@ def test_create_toxicity_rule():
     assert rule.name == "test_toxicity"
     assert rule.description == "Test toxicity rule"
 
-
 def test_create_bias_rule():
     """Test bias rule factory function."""
     rule = create_bias_rule(
@@ -223,7 +211,6 @@ def test_create_bias_rule():
     assert isinstance(rule, BiasRule)
     assert rule.name == "test_bias"
     assert rule.description == "Test bias rule"
-
 
 def test_create_harmful_content_rule():
     """Test harmful content rule factory function."""

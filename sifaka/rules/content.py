@@ -2,22 +2,29 @@
 Content validation rules for Sifaka.
 """
 
-from typing import List, Dict, Any, Optional, Protocol, runtime_checkable, TypeVar, Final, Sequence
-from typing_extensions import TypeGuard
 from dataclasses import dataclass, field
-from pydantic import BaseModel, Field, ConfigDict
-import re
-
-from sifaka.rules.base import (
-    Rule,
-    RuleResult,
-    RuleConfig,
-    RuleValidator,
-    RuleResultHandler,
-    ValidationError,
-    ConfigurationError,
+from typing import (
+    Any,
+    Dict,
+    Final,
+    List,
+    Optional,
+    Protocol,
+    Sequence,
+    runtime_checkable,
 )
 
+from typing_extensions import TypeGuard
+
+from sifaka.rules.base import (
+    ConfigurationError,
+    Rule,
+    RuleConfig,
+    RuleResult,
+    RuleResultHandler,
+    RuleValidator,
+    ValidationError,
+)
 
 @runtime_checkable
 class ContentAnalyzer(Protocol):
@@ -26,14 +33,12 @@ class ContentAnalyzer(Protocol):
     def analyze(self, text: str) -> Dict[str, Any]: ...
     def can_analyze(self, text: str) -> bool: ...
 
-
 @runtime_checkable
 class ToneAnalyzer(Protocol):
     """Protocol for tone analysis components."""
 
     def analyze_tone(self, text: str) -> Dict[str, float]: ...
     def get_supported_tones(self) -> List[str]: ...
-
 
 @dataclass(frozen=True)
 class ProhibitedTerms:
@@ -54,7 +59,6 @@ class ProhibitedTerms:
         """Create new instance with updated case sensitivity."""
         return ProhibitedTerms(terms=self.terms, case_sensitive=case_sensitive)
 
-
 @dataclass(frozen=True)
 class ToneIndicators:
     """Immutable container for tone indicators."""
@@ -65,7 +69,6 @@ class ToneIndicators:
     def __post_init__(self) -> None:
         if not self.positive and not self.negative:
             raise ConfigurationError("At least one indicator set must be non-empty")
-
 
 @dataclass(frozen=True)
 class ProhibitedContentConfig(RuleConfig):
@@ -92,7 +95,6 @@ class ProhibitedContentConfig(RuleConfig):
         super().__post_init__()
         if not self.terms:
             raise ValueError("Must provide at least one prohibited term")
-
 
 @dataclass(frozen=True)
 class ToneConfig(RuleConfig):
@@ -183,7 +185,6 @@ class ToneConfig(RuleConfig):
                     f"Tone {tone} must have non-empty positive and negative indicators"
                 )
 
-
 class ContentValidator(RuleValidator[str]):
     """Base validator for content-based rules."""
 
@@ -208,7 +209,6 @@ class ContentValidator(RuleValidator[str]):
     def can_validate(self, output: str) -> bool:
         """Check if this validator can handle the input."""
         return isinstance(output, str) and self._analyzer.can_analyze(output)
-
 
 class ProhibitedContentValidator(ContentValidator):
     """Validator that checks for prohibited content."""
@@ -253,7 +253,6 @@ class ProhibitedContentValidator(ContentValidator):
 
         except Exception as e:
             raise ValidationError(f"Content validation failed: {str(e)}") from e
-
 
 class ToneConsistencyValidator(ContentValidator):
     """Validator that checks tone consistency."""
@@ -323,7 +322,6 @@ class ToneConsistencyValidator(ContentValidator):
         except Exception as e:
             raise ValidationError(f"Tone validation failed: {str(e)}") from e
 
-
 class DefaultContentAnalyzer:
     """Default implementation of ContentAnalyzer."""
 
@@ -338,7 +336,6 @@ class DefaultContentAnalyzer:
     def can_analyze(self, text: str) -> bool:
         """Check if text can be analyzed."""
         return isinstance(text, str)
-
 
 class DefaultToneAnalyzer:
     """Default implementation of ToneAnalyzer."""
@@ -355,7 +352,6 @@ class DefaultToneAnalyzer:
     def get_supported_tones(self) -> List[str]:
         """Get list of supported tones."""
         return ["formal", "informal", "technical", "casual"]
-
 
 class DefaultProhibitedContentValidator(RuleValidator[str]):
     """Default implementation of prohibited content validation."""
@@ -410,7 +406,6 @@ class DefaultProhibitedContentValidator(RuleValidator[str]):
         """Get the type of input this validator can handle."""
         return str
 
-
 class DefaultToneValidator(RuleValidator[str]):
     """Default implementation of tone validation."""
 
@@ -436,7 +431,7 @@ class DefaultToneValidator(RuleValidator[str]):
             positive_matches = sum(1 for term in indicators["positive"] if term in text_lower)
             negative_matches = sum(1 for term in indicators["negative"] if term in text_lower)
 
-            total_indicators = len(indicators["positive"]) + len(indicators["negative"])
+            len(indicators["positive"]) + len(indicators["negative"])
             positive_score = (
                 positive_matches / len(indicators["positive"]) if indicators["positive"] else 0
             )
@@ -484,7 +479,6 @@ class DefaultToneValidator(RuleValidator[str]):
         """Get the type of input this validator can handle."""
         return str
 
-
 class ProhibitedContentRule(
     Rule[str, RuleResult, ProhibitedContentValidator, RuleResultHandler[RuleResult]]
 ):
@@ -524,7 +518,6 @@ class ProhibitedContentRule(
     def _validate_impl(self, output: str, **kwargs) -> RuleResult:
         """Validate output for prohibited content."""
         return self._validator.validate(output)
-
 
 class ToneConsistencyRule(
     Rule[str, RuleResult, ToneConsistencyValidator, RuleResultHandler[RuleResult]]
@@ -566,7 +559,6 @@ class ToneConsistencyRule(
         """Validate output tone consistency."""
         return self._validator.validate(output)
 
-
 def create_prohibited_content_rule(
     name: str = "prohibited_content_rule",
     description: str = "Validates text for prohibited content",
@@ -605,7 +597,6 @@ def create_prohibited_content_rule(
         description=description,
         config=config,
     )
-
 
 def create_tone_consistency_rule(
     name: str = "tone_consistency_rule",
@@ -697,7 +688,6 @@ def create_tone_consistency_rule(
         description=description,
         config=config,
     )
-
 
 # Export public classes and functions
 __all__ = [

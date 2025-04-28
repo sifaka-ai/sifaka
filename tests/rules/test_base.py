@@ -1,21 +1,19 @@
 """Tests for base rule functionality."""
 
+from typing import Protocol, runtime_checkable
+
 import pytest
-from typing import Any, Dict, Optional, Protocol, runtime_checkable
-from dataclasses import dataclass
 
 from sifaka.rules.base import (
-    Rule,
-    RuleResult,
-    RuleConfig,
-    RuleValidator,
-    RuleResultHandler,
-    RulePriority,
-    ValidationError,
     ConfigurationError,
-    Validatable,
+    Rule,
+    RuleConfig,
+    RulePriority,
+    RuleResult,
+    RuleResultHandler,
+    RuleValidator,
+    ValidationError,
 )
-
 
 @runtime_checkable
 class MockValidator(Protocol):
@@ -25,7 +23,6 @@ class MockValidator(Protocol):
     def can_validate(self, output: str) -> bool: ...
     @property
     def validation_type(self) -> type[str]: ...
-
 
 class SimpleValidator(RuleValidator[str]):
     """Simple validator for testing."""
@@ -44,7 +41,6 @@ class SimpleValidator(RuleValidator[str]):
     def validation_type(self) -> type[str]:
         return str
 
-
 class SimpleHandler(RuleResultHandler[RuleResult]):
     """Simple handler for testing."""
 
@@ -61,25 +57,21 @@ class SimpleHandler(RuleResultHandler[RuleResult]):
     def can_handle(self, result: RuleResult) -> bool:
         return isinstance(result, RuleResult)
 
-
 class SimpleRule(Rule[str, RuleResult, RuleValidator[str], RuleResultHandler[RuleResult]]):
     """Simple rule implementation for testing."""
 
     def _validate_impl(self, output: str, **kwargs) -> RuleResult:
         return self._validator.validate(output, **kwargs)
 
-
 @pytest.fixture
 def validator() -> SimpleValidator:
     """Fixture for creating a simple validator."""
     return SimpleValidator()
 
-
 @pytest.fixture
 def handler() -> SimpleHandler:
     """Fixture for creating a simple handler."""
     return SimpleHandler()
-
 
 @pytest.fixture
 def config() -> RuleConfig:
@@ -91,7 +83,6 @@ def config() -> RuleConfig:
         metadata={"test": True},
     )
 
-
 @pytest.fixture
 def rule(validator: SimpleValidator, handler: SimpleHandler, config: RuleConfig) -> SimpleRule:
     """Fixture for creating a simple rule."""
@@ -102,7 +93,6 @@ def rule(validator: SimpleValidator, handler: SimpleHandler, config: RuleConfig)
         config=config,
         result_handler=handler,
     )
-
 
 def test_rule_result():
     """Test RuleResult initialization and behavior."""
@@ -134,7 +124,6 @@ def test_rule_result():
     assert result2.passed == result.passed
     assert result2.message == result.message
     assert result2.score == result.score
-
 
 def test_rule_config():
     """Test RuleConfig initialization and behavior."""
@@ -169,7 +158,6 @@ def test_rule_config():
     assert config2.priority == config.priority
     assert config2.cost == config.cost
     assert config2.metadata == config.metadata
-
 
 def test_rule_initialization(
     validator: SimpleValidator, handler: SimpleHandler, config: RuleConfig
@@ -206,7 +194,6 @@ def test_rule_initialization(
             result_handler="not a handler",  # type: ignore
         )
 
-
 def test_rule_validation(rule: SimpleRule):
     """Test Rule validation."""
     # Test valid input
@@ -232,7 +219,6 @@ def test_rule_validation(rule: SimpleRule):
     assert len(rule._result_handler.handled_results) == 3
     assert not rule._result_handler.should_continue(result)
 
-
 def test_rule_caching(config: RuleConfig):
     """Test Rule result caching."""
     # Create rule with caching
@@ -255,7 +241,6 @@ def test_rule_caching(config: RuleConfig):
     # Test cache with kwargs
     result4 = rule.validate("test", extra="param")
     assert result4 is not result1  # Different kwargs should bypass cache
-
 
 def test_function_rule():
     """Test FunctionRule behavior."""

@@ -31,14 +31,14 @@ except ImportError:
     print("Missing dotenv package. Install with: pip install python-dotenv")
     sys.exit(1)
 
-from sifaka.rules import LengthRule, ProhibitedContentRule, RepetitionRule
-from sifaka.rules.adapters import ClassifierRuleAdapter
-from sifaka.classifiers.readability import ReadabilityClassifier
 from sifaka.classifiers.language import LanguageClassifier
-from sifaka.rules.base import RuleConfig, RulePriority
+from sifaka.classifiers.readability import ReadabilityClassifier
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.models import OpenAIProvider
 from sifaka.models.base import ModelConfig
+from sifaka.rules import LengthRule, ProhibitedContentRule, RepetitionRule
+from sifaka.rules.adapters import ClassifierRuleAdapter
+from sifaka.rules.base import RuleConfig, RulePriority
 from sifaka.utils.logging import get_logger
 
 # Initialize logger from Sifaka

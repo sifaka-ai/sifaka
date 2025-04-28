@@ -2,7 +2,11 @@
 
 import sys
 import traceback
-from sifaka.benchmarks.benchmark_classifiers import ClassifierBenchmark, print_benchmark_results
+
+from sifaka.benchmarks.benchmark_classifiers import (
+    ClassifierBenchmark,
+    print_benchmark_results,
+)
 
 
 def main():

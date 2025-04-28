@@ -12,19 +12,24 @@ This module provides tools to measure:
 import asyncio
 import cProfile
 import gc
-import time
 import statistics
-from typing import List, Dict, Any, Callable
-from memory_profiler import profile
-import psutil
+import time
+from typing import Any, Callable, Dict
+
 import numpy as np
+import psutil
 from tqdm import tqdm
 
-from sifaka.classifiers.readability import ReadabilityClassifier
-from sifaka.classifiers.sentiment import SentimentClassifier
 from sifaka.classifiers.language import LanguageClassifier
 from sifaka.classifiers.profanity import ProfanityClassifier
-from sifaka.providers.anthropic import AnthropicProvider
+from sifaka.classifiers.readability import ReadabilityClassifier
+from sifaka.classifiers.sentiment import SentimentClassifier
+from sifaka.classifiers.toxicity import ToxicityClassifier
+from sifaka.classifiers.spam import SpamClassifier
+from sifaka.classifiers.bias import BiasDetector
+from sifaka.classifiers.topic import TopicClassifier
+from sifaka.classifiers.genre import GenreClassifier
+from sifaka.classifiers.llm import LLMClassifier
 from sifaka.examples.combined_classifiers import ContentAnalyzer
 from sifaka.utils.logging import get_logger
 
@@ -107,9 +112,40 @@ class ClassifierBenchmark:
             name="benchmark_profanity",
             description="Benchmark profanity classifier",
         )
+        self.toxicity = ToxicityClassifier(
+            name="benchmark_toxicity",
+            description="Benchmark toxicity classifier",
+        )
+        self.spam = SpamClassifier(
+            name="benchmark_spam",
+            description="Benchmark spam classifier",
+        )
+        self.bias = BiasDetector(
+            name="benchmark_bias",
+            description="Benchmark bias detector",
+        )
+        self.topic = TopicClassifier(
+            name="benchmark_topic",
+            description="Benchmark topic classifier",
+        )
+        self.genre = GenreClassifier(
+            name="benchmark_genre",
+            description="Benchmark genre classifier",
+        )
+        # LLMClassifier requires an API key, so we'll initialize it separately when needed
 
         # Warm up all classifiers
-        classifiers = [self.readability, self.sentiment, self.language, self.profanity]
+        classifiers = [
+            self.readability,
+            self.sentiment,
+            self.language,
+            self.profanity,
+            self.toxicity,
+            self.spam,
+            self.bias,
+            self.topic,
+            self.genre,
+        ]
         for classifier in classifiers:
             classifier.warm_up()
 
@@ -256,10 +292,20 @@ class ClassifierBenchmark:
             "sentiment": self.benchmark_single_classifier(self.sentiment),
             "language": self.benchmark_single_classifier(self.language),
             "profanity": self.benchmark_single_classifier(self.profanity),
+            "toxicity": self.benchmark_single_classifier(self.toxicity),
+            "spam": self.benchmark_single_classifier(self.spam),
+            "bias": self.benchmark_single_classifier(self.bias),
+            "topic": self.benchmark_single_classifier(self.topic),
+            "genre": self.benchmark_single_classifier(self.genre),
         }
 
         if api_key:
             results["pipeline"] = self.benchmark_pipeline(api_key)
+            # Initialize and benchmark LLM classifier if API key is provided
+            self.llm = LLMClassifier(
+                name="benchmark_llm", description="Benchmark LLM classifier", api_key=api_key
+            )
+            results["llm"] = self.benchmark_single_classifier(self.llm)
 
         return results
 

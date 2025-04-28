@@ -3,24 +3,23 @@ Sifaka: A framework for building reliable and reflective AI systems.
 """
 
 import warnings
-from typing import List
 
-from sifaka.models import AnthropicProvider, OpenAIProvider
-from sifaka.rules import (
-    Rule,
-    LengthRule,
-    ProhibitedContentRule,
-    SentimentRule,
-    ToxicityRule,
-    FormatRule,
-    SymmetryRule,
-    RepetitionRule,
-)
-from sifaka.critics import PromptCritic
 from sifaka.chain import Chain
+from sifaka.critics import PromptCritic
+from sifaka.models import AnthropicProvider, OpenAIProvider
 
 # Import deprecated Reflector for backward compatibility
 from sifaka.reflector import Reflector
+from sifaka.rules import (
+    FormatRule,
+    LengthRule,
+    ProhibitedContentRule,
+    RepetitionRule,
+    Rule,
+    SentimentRule,
+    SymmetryRule,
+    ToxicityRule,
+)
 
 # Version information
 __version__ = "1.0.0"

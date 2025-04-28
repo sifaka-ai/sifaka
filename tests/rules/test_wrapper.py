@@ -1,19 +1,17 @@
 """Tests for wrapper rules."""
 
 import pytest
-from typing import Dict, Optional
 
 from sifaka.rules.wrapper import (
-    WrapperConfig,
-    CodeBlockConfig,
-    WrapperRule,
-    CodeBlockRule,
-    create_wrapper_rule,
-    create_code_block_rule,
-    DEFAULT_TEMPLATES,
     DEFAULT_LANGUAGE_CONFIGS,
+    DEFAULT_TEMPLATES,
+    CodeBlockConfig,
+    CodeBlockRule,
+    WrapperConfig,
+    WrapperRule,
+    create_code_block_rule,
+    create_wrapper_rule,
 )
-from sifaka.rules.base import RuleResult
 
 
 @pytest.fixture
@@ -30,7 +28,6 @@ def wrapper_config() -> WrapperConfig:
         cost=1.0,
     )
 
-
 @pytest.fixture
 def code_block_config() -> CodeBlockConfig:
     """Create a test code block configuration."""
@@ -43,7 +40,6 @@ def code_block_config() -> CodeBlockConfig:
         priority=1,
         cost=1.0,
     )
-
 
 def test_wrapper_config_validation():
     """Test wrapper configuration validation."""
@@ -72,7 +68,6 @@ def test_wrapper_config_validation():
     with pytest.raises(ValueError, match="Cost must be non-negative"):
         WrapperConfig(cost=-1)
 
-
 def test_code_block_config_validation():
     """Test code block configuration validation."""
     # Valid configuration
@@ -99,7 +94,6 @@ def test_code_block_config_validation():
     # Invalid cost
     with pytest.raises(ValueError, match="Cost must be non-negative"):
         CodeBlockConfig(language="python", cost=-1)
-
 
 def test_wrapper_rule_validation(wrapper_config):
     """Test wrapper rule validation."""
@@ -144,7 +138,6 @@ def test_wrapper_rule_validation(wrapper_config):
     with pytest.raises(ValueError, match="Input must be a string"):
         rule._validate_impl(123)  # type: ignore
 
-
 def test_code_block_rule_validation(code_block_config):
     """Test code block rule validation."""
     rule = create_code_block_rule(
@@ -185,7 +178,6 @@ def test_code_block_rule_validation(code_block_config):
     with pytest.raises(ValueError, match="Input must be a string"):
         rule._validate_impl(123)  # type: ignore
 
-
 def test_create_wrapper_rule():
     """Test wrapper rule factory function."""
     # Test with default configuration
@@ -208,7 +200,6 @@ def test_create_wrapper_rule():
     assert isinstance(custom_rule, WrapperRule)
     assert custom_rule.name == "custom_wrapper"
     assert custom_rule.description == "Custom wrapper rule"
-
 
 def test_create_code_block_rule():
     """Test code block rule factory function."""
@@ -234,7 +225,6 @@ def test_create_code_block_rule():
     assert custom_rule.name == "custom_code_block"
     assert custom_rule.description == "Custom code block rule"
 
-
 def test_default_templates():
     """Test default templates."""
     assert isinstance(DEFAULT_TEMPLATES, dict)
@@ -248,7 +238,6 @@ def test_default_templates():
     assert DEFAULT_TEMPLATES["quote"].format(content=text) == "> Hello World"
     assert DEFAULT_TEMPLATES["bold"].format(content=text) == "**Hello World**"
     assert DEFAULT_TEMPLATES["code"].format(content=text) == "`Hello World`"
-
 
 def test_default_language_configs():
     """Test default language configurations."""
@@ -270,7 +259,6 @@ def test_default_language_configs():
     assert md_config["indent_size"] == 2
     assert md_config["add_syntax_markers"] is False
 
-
 def test_template_based_wrapping():
     """Test wrapping with different templates."""
     for template_name, template in DEFAULT_TEMPLATES.items():
@@ -283,7 +271,6 @@ def test_template_based_wrapping():
         assert result.passed
         assert result.metadata["used_template"]
         assert "Test content" in result.metadata["wrapped_text"]
-
 
 def test_language_specific_formatting():
     """Test formatting with different language configurations."""

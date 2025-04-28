@@ -2,29 +2,27 @@
 Tests for the LangGraph integration.
 """
 
-from typing import Dict, Any, List, Optional
-from unittest.mock import MagicMock, patch
+from typing import Any, Dict
+from unittest.mock import MagicMock
 
 import pytest
-from langgraph.graph import Graph, StateGraph
 from langgraph.channels import AnyValue
+from langgraph.graph import Graph, StateGraph
 from langgraph.prebuilt import ToolNode
 
+from sifaka.critics.base import Critic
 from sifaka.integrations.langgraph import (
+    SifakaChannel,
     SifakaGraph,
     SifakaStateGraph,
     SifakaToolNode,
-    SifakaChannel,
+    wrap_channel,
     wrap_graph,
     wrap_state_graph,
     wrap_tool_node,
-    wrap_channel,
-    wrap_rule,
-    wrap_critic,
 )
+
 from sifaka.rules.base import Rule, RuleResult
-from sifaka.critics.base import Critic
-from sifaka.models.base import ModelProvider
 from sifaka.utils.tracing import Tracer
 
 

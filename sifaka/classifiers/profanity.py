@@ -2,18 +2,29 @@
 Profanity classifier using better_profanity.
 """
 
-from typing import List, Dict, Any, Optional, Protocol, runtime_checkable, Final, TypeVar, Set
-from typing_extensions import TypeGuard
 import importlib
-import logging
-from dataclasses import dataclass, field
 from abc import abstractmethod
+from dataclasses import dataclass, field
+from typing import (
+    Any,
+    Final,
+    List,
+    Optional,
+    Protocol,
+    Set,
+    runtime_checkable,
+)
 
-from sifaka.classifiers.base import BaseClassifier, ClassificationResult, ClassifierConfig
+from typing_extensions import TypeGuard
+
+from sifaka.classifiers.base import (
+    BaseClassifier,
+    ClassificationResult,
+    ClassifierConfig,
+)
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
 
 @runtime_checkable
 class ProfanityChecker(Protocol):
@@ -36,7 +47,6 @@ class ProfanityChecker(Protocol):
     @abstractmethod
     def censor_char(self, char: str) -> None: ...
 
-
 @dataclass(frozen=True)
 class ProfanityConfig:
     """Configuration for profanity detection."""
@@ -51,7 +61,6 @@ class ProfanityConfig:
         if not 0.0 <= self.min_confidence <= 1.0:
             raise ValueError("min_confidence must be between 0.0 and 1.0")
 
-
 @dataclass(frozen=True)
 class CensorResult:
     """Result of text censoring operation."""
@@ -65,7 +74,6 @@ class CensorResult:
     def profanity_ratio(self) -> float:
         """Calculate ratio of profane words to total words."""
         return self.censored_word_count / max(self.total_word_count, 1)
-
 
 class ProfanityClassifier(BaseClassifier):
     """

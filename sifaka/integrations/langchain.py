@@ -2,39 +2,33 @@
 LangChain integration for Sifaka.
 """
 
+from dataclasses import dataclass, field
 from typing import (
-    Dict,
     Any,
+    Dict,
+    Generic,
     List,
     Optional,
-    Union,
-    Callable,
-    TypeVar,
-    Generic,
     Protocol,
-    runtime_checkable,
+    TypeVar,
+    Union,
     cast,
-    TypeGuard,
+    runtime_checkable,
 )
-from dataclasses import dataclass, field
-from abc import ABC, abstractmethod
+
 from langchain.chains import LLMChain
-from langchain.text_splitter import TextSplitter
-from langchain_core.memory import BaseMemory
 from langchain_core.callbacks import BaseCallbackHandler
+from langchain_core.memory import BaseMemory
 from langchain_core.output_parsers import BaseOutputParser
-from langchain_core.documents import Document
-from langchain_core.vectorstores import VectorStore
 from langchain_core.runnables import RunnableSequence
+
 from sifaka.rules.base import Rule, RuleResult
-from sifaka.models.base import ModelProvider
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 T = TypeVar("T")
 OutputType = TypeVar("OutputType")
 ChainType = Union[LLMChain, RunnableSequence]
-
 
 @runtime_checkable
 class ChainValidator(Protocol[OutputType]):
@@ -43,14 +37,12 @@ class ChainValidator(Protocol[OutputType]):
     def validate(self, output: OutputType) -> RuleResult: ...
     def can_validate(self, output: OutputType) -> bool: ...
 
-
 @runtime_checkable
 class ChainOutputProcessor(Protocol[OutputType]):
     """Protocol for chain output processing."""
 
     def process(self, output: OutputType) -> OutputType: ...
     def can_process(self, output: OutputType) -> bool: ...
-
 
 @runtime_checkable
 class ChainMemory(Protocol):
@@ -61,7 +53,6 @@ class ChainMemory(Protocol):
     def clear(self) -> None: ...
     @property
     def memory_variables(self) -> List[str]: ...
-
 
 @dataclass
 class ChainConfig(Generic[OutputType]):
@@ -80,7 +71,6 @@ class ChainConfig(Generic[OutputType]):
             raise ValueError("output_parser must be an instance of BaseOutputParser")
         if self.memory and not isinstance(self.memory, (BaseMemory, ChainMemory)):
             raise ValueError("memory must implement ChainMemory protocol")
-
 
 class SifakaChain(Generic[OutputType]):
     """
@@ -221,7 +211,6 @@ class SifakaChain(Generic[OutputType]):
         """Alias for run."""
         return self.run(inputs, **kwargs)
 
-
 def wrap_chain(
     chain: ChainType,
     config: Optional[ChainConfig[OutputType]] = None,
@@ -237,7 +226,6 @@ def wrap_chain(
         A Sifaka chain
     """
     return SifakaChain(chain=chain, config=config or ChainConfig())
-
 
 class RuleBasedValidator(ChainValidator[str]):
     """A validator that uses Sifaka rules."""
@@ -257,7 +245,6 @@ class RuleBasedValidator(ChainValidator[str]):
     def can_validate(self, output: str) -> bool:
         """Check if can validate the output."""
         return isinstance(output, str)
-
 
 class SifakaMemory(ChainMemory):
     """
@@ -317,7 +304,6 @@ class SifakaMemory(ChainMemory):
         """Clear the memory."""
         self._memory.clear()
 
-
 def wrap_memory(
     memory: BaseMemory,
     validators: Optional[List[ChainValidator[Any]]] = None,
@@ -335,7 +321,6 @@ def wrap_memory(
         The wrapped memory
     """
     return SifakaMemory(memory=memory, validators=validators, processors=processors)
-
 
 # Export public classes and functions
 __all__ = [

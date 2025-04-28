@@ -2,15 +2,15 @@
 Base protocols and types for model providers.
 """
 
-from typing import Dict, Any, Optional, Protocol, TypeVar, runtime_checkable
-from dataclasses import dataclass
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from datetime import datetime
-from sifaka.utils.tracing import Tracer, TraceEvent
+from typing import Any, Dict, Optional, Protocol, TypeVar, runtime_checkable
+
 from sifaka.utils.logging import get_logger
+from sifaka.utils.tracing import Tracer
 
 logger = get_logger(__name__)
-
 
 @dataclass(frozen=True)
 class ModelConfig:
@@ -28,7 +28,6 @@ class ModelConfig:
         if self.max_tokens < 1:
             raise ValueError("max_tokens must be positive")
 
-
 @runtime_checkable
 class APIClient(Protocol):
     """Protocol for API clients that handle direct communication with LLM services."""
@@ -37,7 +36,6 @@ class APIClient(Protocol):
         """Send a prompt to the LLM service and return the response."""
         ...
 
-
 @runtime_checkable
 class TokenCounter(Protocol):
     """Protocol for token counting functionality."""
@@ -45,7 +43,6 @@ class TokenCounter(Protocol):
     def count_tokens(self, text: str) -> int:
         """Count the number of tokens in the given text."""
         ...
-
 
 @runtime_checkable
 class LanguageModel(Protocol):
@@ -59,7 +56,6 @@ class LanguageModel(Protocol):
     def generate(self, prompt: str) -> str:
         """Generate text from a prompt."""
         ...
-
 
 class ModelProvider(ABC):
     """
@@ -207,7 +203,6 @@ class ModelProvider(ABC):
             )
 
             raise RuntimeError(f"Error generating text with {self.model_name}: {error_msg}") from e
-
 
 # Type variable for generic model provider types
 T = TypeVar("T", bound=ModelProvider)
