@@ -134,8 +134,6 @@ import warnings
 
 from .base import FunctionRule, Rule, RuleResult, RuleConfig
 
-# Deprecated - use adapters instead
-from .classifier_rule import ClassifierRule as _DeprecatedClassifierRule
 from .domain import (
     ConsistencyRule,
     LegalCitationRule,
@@ -156,27 +154,16 @@ from .factual import (
     FactualAccuracyRule,
     FactualConsistencyRule,
 )
-from .format import FormatRule
-from .formatting import FormattingRule, StyleRule
-from .length import LengthRule
+from .formatting.length import LengthRule, create_length_rule
 from .content.prohibited import ProhibitedContentRule
 from .safety import BiasRule, HarmfulContentRule, ToxicityRule
 from .sentiment import EmotionalContentRule, SentimentRule
 
-# Import from the new adapters module
+# Import from the adapters module
 from .adapters import (
     ClassifierAdapter,
-    ClassifierRule as AdaptersClassifierRule,
+    ClassifierRule,
     create_classifier_rule,
-)
-
-# Emit deprecation warning for old ClassifierRule
-ClassifierRule = _DeprecatedClassifierRule  # Keep backward compatibility
-warnings.warn(
-    "Direct import from classifier_rule is deprecated. "
-    "Use rules.adapters.ClassifierRule instead.",
-    DeprecationWarning,
-    stacklevel=2,
 )
 
 __all__ = [
@@ -189,14 +176,14 @@ __all__ = [
     "ToxicityRule",
     "BiasRule",
     "HarmfulContentRule",
-    # Classifier (both deprecated and new)
+    # Classifier
     "ClassifierRule",
     "ClassifierAdapter",
     "create_classifier_rule",
     # Content
     "ProhibitedContentRule",
-    "FormatRule",
     "LengthRule",
+    "create_length_rule",
     # Domain
     "LegalRule",
     "MedicalRule",
@@ -219,7 +206,4 @@ __all__ = [
     # Sentiment
     "SentimentRule",
     "EmotionalContentRule",
-    # Formatting
-    "StyleRule",
-    "FormattingRule",
 ]

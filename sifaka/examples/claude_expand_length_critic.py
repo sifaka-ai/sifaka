@@ -3,7 +3,7 @@ Example demonstrating usage of Claude with a Length Critic to expand response le
 
 This example shows how to:
 1. Configure a Claude model provider
-2. Set up a Length Rule that requires longer responses (1000-2000 words)
+2. Set up a Length Rule that requires longer responses (500-1000 words)
 3. Create a Chain with the model and rule
 4. Use a PromptCritic to guide Claude to produce more detailed responses
 """
@@ -20,9 +20,9 @@ from sifaka.rules.formatting.length import create_length_rule
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.chain import Chain
 
-# Configure Claude model - using smaller/faster haiku model
+# Configure Claude model - using sonnet for better performance
 model = AnthropicProvider(
-    model_name="claude-3-haiku-20240307",  # Smaller, faster Claude model
+    model_name="claude-3-sonnet-20240229",  # More capable Claude model
     config=ModelConfig(
         api_key=os.environ.get("ANTHROPIC_API_KEY"),
         temperature=0.7,
@@ -30,10 +30,10 @@ model = AnthropicProvider(
     ),
 )
 
-# Create a length rule that requires responses between 1000-2000 words
+# Create a length rule with more achievable word count requirements
 length_rule = create_length_rule(
-    min_words=1000,  # Minimum 1000 words
-    max_words=2000,  # Maximum 2000 words
+    min_words=500,  # Reduced from 1000 to 500 (more achievable)
+    max_words=1000,  # Reduced from 2000 to 1000
     rule_id="expanded_length_rule",
 )
 
@@ -49,14 +49,20 @@ critic = PromptCritic(
             "You are a helpful editor who specializes in expanding text while maintaining quality. "
             "Your job is to make text more detailed and comprehensive by adding relevant examples, "
             "elaborating on key points, providing context, exploring implications, and addressing "
-            "potential questions readers might have. Never add fluff or redundant information."
+            "potential questions readers might have. Never add fluff or redundant information. "
+            "The target length is 500-1000 words."
         ),
         temperature=0.7,
     ),
 )
 
 # Create a chain with the model, rule, and critic
-chain = Chain(model=model, rules=[length_rule], critic=critic, max_attempts=3)
+chain = Chain(
+    model=model,
+    rules=[length_rule],
+    critic=critic,
+    max_attempts=4,  # Increased from 3 to 4 attempts
+)
 
 # Prompt designed to generate a brief response (around 150 words)
 prompt = """

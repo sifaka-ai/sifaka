@@ -5,7 +5,7 @@ This module provides validators and rules for checking text length constraints.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Any
 
 from sifaka.rules.base import Rule, RuleResult
 
@@ -95,19 +95,63 @@ class DefaultLengthValidator(LengthValidator):
         return not errors, errors
 
 
+class LengthRuleValidator:
+    """Validator adapter that implements RuleValidator protocol for LengthValidator."""
+
+    def __init__(self, validator: LengthValidator):
+        """Initialize with a LengthValidator."""
+        self.validator = validator
+
+    def validate(self, output: str, **kwargs) -> RuleResult:
+        """Validate the output using the wrapped validator."""
+        is_valid, errors = self.validator.validate(output)
+        return RuleResult(
+            passed=is_valid,
+            message=errors[0] if errors else "Text length validation successful",
+            metadata={
+                "char_count": len(output),
+                "word_count": len(output.split()),
+                "errors": errors,
+            },
+        )
+
+    def can_validate(self, output: str) -> bool:
+        """Check if this validator can validate the output."""
+        return isinstance(output, str)
+
+    @property
+    def validation_type(self) -> type:
+        """Get the type this validator can validate."""
+        return str
+
+
 class LengthRule(Rule):
     """Rule for validating text length constraints."""
 
-    def __init__(self, validator: LengthValidator, config: Optional[Dict] = None, **kwargs):
+    def __init__(
+        self,
+        validator: LengthValidator,
+        name: str = "length_rule",
+        description: str = "Validates text length",
+        config: Optional[Dict] = None,
+        **kwargs,
+    ):
         """Initialize the length rule.
 
         Args:
             validator: The validator to use for length validation
+            name: The name of the rule
+            description: Description of the rule
             config: Additional configuration for the rule
             **kwargs: Additional keyword arguments for the rule
         """
-        super().__init__(config=config, **kwargs)
-        self.validator = validator
+        self._length_validator = validator
+        self._rule_id = kwargs.pop("rule_id", name)  # Extract rule_id if present, default to name
+        super().__init__(name=name, description=description, config=config, **kwargs)
+
+    def _create_default_validator(self) -> LengthRuleValidator:
+        """Create a default validator adapter for this rule."""
+        return LengthRuleValidator(self._length_validator)
 
     def evaluate(self, text: str) -> RuleResult:
         """Evaluate text against length constraints.
@@ -118,14 +162,14 @@ class LengthRule(Rule):
         Returns:
             RuleResult containing validation results
         """
-        is_valid, errors = self.validator.validate(text)
+        is_valid, errors = self._length_validator.validate(text)
         return RuleResult(
             passed=is_valid,
-            rule_id=self.id,
-            errors=errors,
+            message=errors[0] if errors else "Text length validation successful",
             metadata={
                 "char_count": len(text),
                 "word_count": len(text.split()),
+                "rule_id": self._rule_id,
             },
         )
 
@@ -159,8 +203,11 @@ def create_length_rule(
     )
     validator = DefaultLengthValidator(config)
 
+    # Use rule_id as name if provided, otherwise use "length_rule"
+    name = rule_id if rule_id else "length_rule"
+
     return LengthRule(
         validator=validator,
-        id=rule_id or "length",
+        name=name,
         **kwargs,
     )

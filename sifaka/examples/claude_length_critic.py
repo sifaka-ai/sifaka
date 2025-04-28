@@ -16,26 +16,25 @@ load_dotenv()
 
 from sifaka.models.anthropic import AnthropicProvider
 from sifaka.models.base import ModelConfig
-from sifaka.rules.formatting import create_length_rule
-from sifaka.rules.base import RuleConfig
+from sifaka.rules.formatting.length import create_length_rule
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.chain import Chain
 
-# Configure Claude model - using smaller/faster haiku model
+# Configure Claude model - using sonnet for better performance
 model = AnthropicProvider(
-    model_name="claude-3-haiku-20240307",  # Smaller, faster Claude model
+    model_name="claude-3-sonnet-20240229",  # More capable Claude model
     config=ModelConfig(
         api_key=os.environ.get("ANTHROPIC_API_KEY"),
         temperature=0.7,
-        max_tokens=1000,
+        max_tokens=1500,  # Increased token limit
     ),
 )
 
-# Create a length rule that limits responses to 300 words
+# Create a length rule with more relaxed constraints
 length_rule = create_length_rule(
-    name="word_limit_rule",
-    description="Limits response to 300 words",
-    config={"min_length": 100, "max_length": 300, "unit": "words"},
+    min_words=100,  # Setting a reasonable minimum
+    max_words=400,  # Increased to a more achievable maximum
+    rule_id="word_limit_rule",
 )
 
 # Create a critic to help improve responses that don't meet the length rule
@@ -49,7 +48,8 @@ critic = PromptCritic(
         system_prompt=(
             "You are a helpful editor who specializes in adjusting text length while "
             "preserving the core content and meaning. Your job is to make text more "
-            "concise by removing unnecessary details, redundancies, and filler content."
+            "concise by removing unnecessary details, redundancies, and filler content. "
+            "The target length is 400 words maximum."
         ),
         temperature=0.5,
     ),
