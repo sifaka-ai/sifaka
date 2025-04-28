@@ -7,7 +7,6 @@ Content validation rules for Sifaka.
 
    - :mod:`sifaka.rules.content.prohibited` for prohibited content validation
    - :mod:`sifaka.rules.content.tone` for tone consistency validation
-   - :mod:`sifaka.rules.content.prohibited_content` for new prohibited content validation
    - :mod:`sifaka.rules.content.safety` for safety validation
    - :mod:`sifaka.rules.content.sentiment` for sentiment analysis
 
@@ -16,7 +15,6 @@ Migration guide:
    - Old: from sifaka.rules.content import ProhibitedContentRule, ToneConsistencyRule
    - New: from sifaka.rules.content.prohibited import ProhibitedContentRule
          from sifaka.rules.content.tone import ToneConsistencyRule
-         from sifaka.rules.content.prohibited_content import ProhibitedContentRule  # New submodule
          from sifaka.rules.content.safety import ToxicityRule, BiasRule, HarmfulContentRule  # Safety module
          from sifaka.rules.content.sentiment import SentimentRule, EmotionalContentRule  # Sentiment module
 
@@ -59,18 +57,6 @@ from sifaka.rules.content.tone import (
     ToneConsistencyValidator,
     ToneIndicators,
     create_tone_consistency_rule,
-)
-
-# New imports from prohibited_content submodule
-from sifaka.rules.content.prohibited_content import (
-    AdvancedProhibitedContentValidator as NewAdvancedProhibitedContentValidator,
-    DefaultProhibitedContentAnalyzer,
-    DefaultProhibitedContentValidator as NewDefaultProhibitedContentValidator,
-    ProhibitedContentAnalyzer,
-    ProhibitedContentConfig as NewProhibitedContentConfig,
-    ProhibitedContentRule as NewProhibitedContentRule,
-    ProhibitedContentValidator as NewProhibitedContentValidator,
-    create_prohibited_content_rule as new_create_prohibited_content_rule,
 )
 
 # New imports from safety module
@@ -117,8 +103,7 @@ from sifaka.rules.content.sentiment import (
 warnings.warn(
     "The content module is deprecated and will be removed in version 2.0.0. "
     "Use sifaka.rules.content.prohibited, sifaka.rules.content.tone, "
-    "sifaka.rules.content.prohibited_content, sifaka.rules.content.safety, "
-    "and sifaka.rules.content.sentiment instead.",
+    "sifaka.rules.content.safety, and sifaka.rules.content.sentiment instead.",
     DeprecationWarning,
     stacklevel=2,
 )
@@ -143,15 +128,6 @@ __all__ = [
     "ToneIndicators",
     "DefaultContentAnalyzer",
     "DefaultToneAnalyzer",
-    # New exports with aliases to avoid name conflicts
-    "NewProhibitedContentRule",
-    "NewProhibitedContentConfig",
-    "NewProhibitedContentValidator",
-    "ProhibitedContentAnalyzer",
-    "NewDefaultProhibitedContentValidator",
-    "NewAdvancedProhibitedContentValidator",
-    "DefaultProhibitedContentAnalyzer",
-    "new_create_prohibited_content_rule",
     # Safety module exports
     "ToxicityRule",
     "ToxicityConfig",

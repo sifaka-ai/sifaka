@@ -5,19 +5,18 @@ This package provides validators and rules for checking various text formatting
 constraints including style, whitespace, and other formatting standards.
 
 .. deprecated:: 1.0.0
-   This module is deprecated and will be removed in version 2.0.0.
-   Use the following modules instead:
+   The monolithic formatting approach is deprecated and will be removed in version 2.0.0.
+   Use the following module-specific imports instead:
 
    - :mod:`sifaka.rules.formatting.format` for format validation
    - :mod:`sifaka.rules.formatting.style` for style and structure validation
    - :mod:`sifaka.rules.formatting.length` for text length validation
+   - :mod:`sifaka.rules.formatting.whitespace` for whitespace validation
 
 Migration guide:
 1. Replace imports:
-   - Old: from sifaka.rules.format import FormatRule, FormatConfig
-         from sifaka.rules.formatting import LengthRule, StyleRule, etc.
-   - New: from sifaka.rules.formatting.format import FormatRule, FormatConfig
-         from sifaka.rules.formatting.length import LengthRule
+   - Old: from sifaka.rules.formatting import LengthRule, StyleRule, etc.
+   - New: from sifaka.rules.formatting.length import LengthRule
          from sifaka.rules.formatting.style import StyleRule
          etc.
 
@@ -28,12 +27,12 @@ Migration guide:
 
 Example:
     Old code:
-    >>> from sifaka.rules.format import FormatRule
-    >>> rule = FormatRule()
+    >>> from sifaka.rules.formatting import StyleRule
+    >>> rule = StyleRule()
 
     New code:
-    >>> from sifaka.rules.formatting.format import FormatRule
-    >>> rule = FormatRule()
+    >>> from sifaka.rules.formatting.style import StyleRule
+    >>> rule = StyleRule()
 """
 
 import warnings
@@ -88,9 +87,10 @@ from sifaka.rules.formatting.whitespace import (
 )
 
 warnings.warn(
-    "The format and formatting modules are deprecated and will be removed in version 2.0.0. "
-    "Use sifaka.rules.formatting.format, sifaka.rules.formatting.style, "
-    "and sifaka.rules.formatting.length instead.",
+    "Importing directly from sifaka.rules.formatting is deprecated and will be removed in version 2.0.0. "
+    "Use specific module imports instead: "
+    "sifaka.rules.formatting.format, sifaka.rules.formatting.style, "
+    "sifaka.rules.formatting.length, and sifaka.rules.formatting.whitespace.",
     DeprecationWarning,
     stacklevel=2,
 )

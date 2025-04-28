@@ -21,13 +21,10 @@ Available Rules:
    - LengthRule: Validates text length
    - ProhibitedContentRule: Checks for prohibited terms
    - FormatRule: Validates text format
-   - ParagraphRule: Validates paragraph structure
-   - StyleRule: Validates text style
-   - FormattingRule: Validates text formatting
 
-3. Pattern Rules:
-   - SymmetryRule: Checks for text symmetry
-   - RepetitionRule: Detects repeated patterns
+3. Formatting Rules:
+   - FormattingRule: Validates text formatting
+   - StyleRule: Validates text style
 
 4. Safety Rules:
    - ToxicityRule: Checks for toxic content
@@ -54,10 +51,6 @@ Available Rules:
 
 8. Adapter Rules:
    - ClassifierRule: Converts classifiers to rules
-
-9. Wrapper Rules:
-   - WrapperRule: Base wrapper for rules
-   - CodeBlockRule: Validates code blocks
 
 Usage Example:
     from sifaka.chain import Chain
@@ -164,18 +157,16 @@ from .factual import (
     FactualConsistencyRule,
 )
 from .format import FormatRule
-from .formatting import FormattingRule, ParagraphRule, StyleRule
+from .formatting import FormattingRule, StyleRule
 from .length import LengthRule
-from .pattern_rules import RepetitionRule, SymmetryRule
-from .prohibited_content import ProhibitedContentRule
+from .content.prohibited import ProhibitedContentRule
 from .safety import BiasRule, HarmfulContentRule, ToxicityRule
 from .sentiment import EmotionalContentRule, SentimentRule
-from .wrapper import CodeBlockRule, WrapperRule
 
 # Import from the new adapters module
 from .adapters import (
     ClassifierAdapter,
-    ClassifierRule,
+    ClassifierRule as AdaptersClassifierRule,
     create_classifier_rule,
 )
 
@@ -205,9 +196,6 @@ __all__ = [
     "ProhibitedContentRule",
     "FormatRule",
     "LengthRule",
-    # Pattern
-    "SymmetryRule",
-    "RepetitionRule",
     # Domain
     "LegalRule",
     "MedicalRule",
@@ -231,10 +219,6 @@ __all__ = [
     "SentimentRule",
     "EmotionalContentRule",
     # Formatting
-    "ParagraphRule",
     "StyleRule",
     "FormattingRule",
-    # Wrapper
-    "WrapperRule",
-    "CodeBlockRule",
 ]

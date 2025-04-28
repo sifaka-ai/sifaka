@@ -2,12 +2,35 @@
 Length validation rules for Sifaka.
 
 This module provides rules for validating text length, supporting both character and word count validation.
+
+.. deprecated:: 1.0.0
+   This module is deprecated and will be removed in version 2.0.0.
+   Use :mod:`sifaka.rules.formatting.length` instead.
+
+Migration guide:
+1. Replace imports:
+   - Old: from sifaka.rules.length import LengthRule, LengthConfig, etc.
+   - New: from sifaka.rules.formatting.length import LengthRule, LengthConfig, etc.
+
+2. Update configuration:
+   - The new module uses a different parameter structure
+   - See the documentation for sifaka.rules.formatting.length for details
 """
 
+import warnings
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Protocol, runtime_checkable
 
 from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
+
+
+# Display deprecation warning when module is imported
+warnings.warn(
+    "The sifaka.rules.length module is deprecated and will be removed in version 2.0.0. "
+    "Use sifaka.rules.formatting.length instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 @dataclass(frozen=True)
@@ -57,6 +80,12 @@ class DefaultLengthValidator(BaseValidator[str]):
 
     def __init__(self, config: LengthConfig) -> None:
         """Initialize the validator with configuration."""
+        warnings.warn(
+            "DefaultLengthValidator from sifaka.rules.length is deprecated. "
+            "Use sifaka.rules.formatting.length.DefaultLengthValidator instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._config = config
 
     @property
@@ -155,6 +184,13 @@ class LengthRule(Rule[str, RuleResult, DefaultLengthValidator, Any]):
             config: Rule configuration
             validator: Custom length validator implementation
         """
+        warnings.warn(
+            "LengthRule from sifaka.rules.length is deprecated. "
+            "Use sifaka.rules.formatting.length.LengthRule instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         # Store length parameters for creating the default validator
         self._length_params = {}
         if config and config.params:
@@ -185,6 +221,13 @@ def create_length_rule(
     Returns:
         Configured LengthRule instance
     """
+    warnings.warn(
+        "create_length_rule from sifaka.rules.length is deprecated. "
+        "Use sifaka.rules.formatting.length.create_length_rule instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
     # Convert the dictionary config to RuleConfig with params
     rule_config = RuleConfig(params=config or {})
 
