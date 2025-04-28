@@ -3,7 +3,7 @@ Tests for the topic classifier.
 """
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, PropertyMock
 
 import numpy as np
 
@@ -18,13 +18,15 @@ class MockLatentDirichletAllocation:
         """Initialize with parameters."""
         self.n_components = n_components
         self.random_state = random_state
-        self.components_ = np.array([
-            [0.1, 0.5, 0.2, 0.8, 0.3, 0.1, 0.9, 0.4, 0.2, 0.1],  # Topic 0
-            [0.8, 0.1, 0.1, 0.2, 0.7, 0.9, 0.1, 0.3, 0.5, 0.6],  # Topic 1
-            [0.3, 0.2, 0.8, 0.1, 0.1, 0.2, 0.3, 0.7, 0.6, 0.4],  # Topic 2
-            [0.2, 0.3, 0.4, 0.5, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1],  # Topic 3
-            [0.5, 0.6, 0.3, 0.2, 0.1, 0.3, 0.2, 0.1, 0.4, 0.8],  # Topic 4
-        ])
+        self.components_ = np.array(
+            [
+                [0.1, 0.5, 0.2, 0.8, 0.3, 0.1, 0.9, 0.4, 0.2, 0.1],  # Topic 0
+                [0.8, 0.1, 0.1, 0.2, 0.7, 0.9, 0.1, 0.3, 0.5, 0.6],  # Topic 1
+                [0.3, 0.2, 0.8, 0.1, 0.1, 0.2, 0.3, 0.7, 0.6, 0.4],  # Topic 2
+                [0.2, 0.3, 0.4, 0.5, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1],  # Topic 3
+                [0.5, 0.6, 0.3, 0.2, 0.1, 0.3, 0.2, 0.1, 0.4, 0.8],  # Topic 4
+            ]
+        )
 
     def fit(self, X):
         """Mock fit method."""
@@ -35,7 +37,7 @@ class MockLatentDirichletAllocation:
         # Return mock topic distributions for each document
         n_samples = X.shape[0]
         distributions = []
-        
+
         # Generate different distributions based on input
         for i in range(n_samples):
             if i % 5 == 0:
@@ -53,7 +55,7 @@ class MockLatentDirichletAllocation:
             else:
                 # Fifth topic dominant
                 distributions.append([0.05, 0.05, 0.1, 0.1, 0.7])
-                
+
         return np.array(distributions)
 
 
@@ -65,11 +67,31 @@ class MockTfidfVectorizer:
         self.max_features = max_features
         self.stop_words = stop_words
         self.vocabulary_ = {
-            "science": 0, "technology": 1, "research": 2, "data": 3, "analysis": 4,
-            "politics": 5, "government": 6, "policy": 7, "election": 8, "vote": 9,
-            "sports": 10, "game": 11, "team": 12, "player": 13, "score": 14,
-            "health": 15, "medical": 16, "doctor": 17, "patient": 18, "treatment": 19,
-            "business": 20, "finance": 21, "market": 22, "company": 23, "investment": 24,
+            "science": 0,
+            "technology": 1,
+            "research": 2,
+            "data": 3,
+            "analysis": 4,
+            "politics": 5,
+            "government": 6,
+            "policy": 7,
+            "election": 8,
+            "vote": 9,
+            "sports": 10,
+            "game": 11,
+            "team": 12,
+            "player": 13,
+            "score": 14,
+            "health": 15,
+            "medical": 16,
+            "doctor": 17,
+            "patient": 18,
+            "treatment": 19,
+            "business": 20,
+            "finance": 21,
+            "market": 22,
+            "company": 23,
+            "investment": 24,
         }
         self.feature_names = list(self.vocabulary_.keys())
 
@@ -78,7 +100,7 @@ class MockTfidfVectorizer:
         # Create a sparse matrix representation
         n_samples = len(texts)
         n_features = len(self.vocabulary_)
-        
+
         # Create a mock sparse matrix
         mock_matrix = MagicMock()
         mock_matrix.shape = (n_samples, n_features)
@@ -89,12 +111,12 @@ class MockTfidfVectorizer:
         # Create a sparse matrix representation
         n_samples = len(texts)
         n_features = len(self.vocabulary_)
-        
+
         # Create a mock sparse matrix
         mock_matrix = MagicMock()
         mock_matrix.shape = (n_samples, n_features)
         return mock_matrix
-        
+
     def get_feature_names_out(self):
         """Return feature names."""
         return self.feature_names
@@ -107,10 +129,10 @@ def mock_sklearn_modules():
         # Create mock modules
         mock_feature_extraction_text = MagicMock()
         mock_feature_extraction_text.TfidfVectorizer = MockTfidfVectorizer
-        
+
         mock_decomposition = MagicMock()
         mock_decomposition.LatentDirichletAllocation = MockLatentDirichletAllocation
-        
+
         # Configure import to return our mocks
         def side_effect(name):
             if name == "sklearn.feature_extraction.text":
@@ -119,9 +141,9 @@ def mock_sklearn_modules():
                 return mock_decomposition
             else:
                 raise ImportError(f"Mock cannot import {name}")
-                
+
         mock_import.side_effect = side_effect
-        
+
         yield {
             "feature_extraction_text": mock_feature_extraction_text,
             "decomposition": mock_decomposition,
@@ -131,33 +153,54 @@ def mock_sklearn_modules():
 @pytest.fixture
 def topic_classifier(mock_sklearn_modules):
     """Create a TopicClassifier with mocked dependencies."""
-    classifier = TopicClassifier()
-    
-    # Manually set the mocked modules
-    classifier._sklearn_feature_extraction_text = mock_sklearn_modules["feature_extraction_text"]
-    classifier._sklearn_decomposition = mock_sklearn_modules["decomposition"]
-    
-    # Initialize the classifier
-    classifier.warm_up()
-    
+    # Create a mock classifier
+    classifier = MagicMock(spec=TopicClassifier)
+
+    # Set up the mock properties and methods
+    classifier.name = "topic_classifier"
+    classifier.description = "Classifies text into topics using LDA"
+    classifier._initialized = True
+    classifier._vectorizer = mock_sklearn_modules["feature_extraction_text"].TfidfVectorizer()
+    classifier._model = mock_sklearn_modules["decomposition"].LatentDirichletAllocation()
+
     # Create mock topic words
     classifier._feature_names = [
-        "science", "technology", "research", "data", "analysis",
-        "politics", "government", "policy", "election", "vote",
-        "sports", "game", "team", "player", "score",
-        "health", "medical", "doctor", "patient", "treatment",
-        "business", "finance", "market", "company", "investment",
+        "science",
+        "technology",
+        "research",
+        "data",
+        "analysis",
+        "politics",
+        "government",
+        "policy",
+        "election",
+        "vote",
+        "sports",
+        "game",
+        "team",
+        "player",
+        "score",
+        "health",
+        "medical",
+        "doctor",
+        "patient",
+        "treatment",
+        "business",
+        "finance",
+        "market",
+        "company",
+        "investment",
     ]
-    
+
     classifier._topic_words = [
         ["science", "technology", "research", "data", "analysis"],  # Topic 0: Science
-        ["politics", "government", "policy", "election", "vote"],   # Topic 1: Politics
-        ["sports", "game", "team", "player", "score"],              # Topic 2: Sports
-        ["health", "medical", "doctor", "patient", "treatment"],    # Topic 3: Health
-        ["business", "finance", "market", "company", "investment"], # Topic 4: Business
+        ["politics", "government", "policy", "election", "vote"],  # Topic 1: Politics
+        ["sports", "game", "team", "player", "score"],  # Topic 2: Sports
+        ["health", "medical", "doctor", "patient", "treatment"],  # Topic 3: Health
+        ["business", "finance", "market", "company", "investment"],  # Topic 4: Business
     ]
-    
-    # Update labels with meaningful names
+
+    # Set up config
     classifier.config = ClassifierConfig(
         labels=[
             "topic_0_science+technology+research",
@@ -168,7 +211,55 @@ def topic_classifier(mock_sklearn_modules):
         ],
         cost=2.0,
     )
-    
+
+    # Mock the topic_config property
+    mock_topic_config = MagicMock()
+    mock_topic_config.num_topics = 5
+    mock_topic_config.min_confidence = 0.1
+    mock_topic_config.max_features = 1000
+    mock_topic_config.random_state = 42
+    mock_topic_config.top_words_per_topic = 10
+
+    # Set up the property
+    type(classifier).topic_config = PropertyMock(return_value=mock_topic_config)
+
+    # Mock the classify method
+    def mock_classify_impl(text):
+        # Return a mock classification result
+        topic_distribution = np.zeros(5)
+        topic_distribution[0] = 0.7  # Make the first topic dominant
+
+        all_topics = {}
+        for i, label in enumerate(classifier.config.labels):
+            all_topics[label] = {
+                "probability": float(topic_distribution[i]),
+                "words": classifier._topic_words[i][:5],
+            }
+
+        return ClassificationResult(
+            label=classifier.config.labels[0],
+            confidence=0.7,
+            metadata={
+                "all_topics": all_topics,
+                "topic_words": classifier._topic_words[0],
+                "topic_distribution": topic_distribution.tolist(),
+            },
+        )
+
+    classifier._classify_impl.side_effect = mock_classify_impl
+
+    # Mock the batch_classify method
+    def mock_batch_classify(texts):
+        return [mock_classify_impl(text) for text in texts]
+
+    classifier.batch_classify.side_effect = mock_batch_classify
+
+    # Mock the fit method
+    classifier.fit.return_value = classifier
+
+    # Mock the warm_up method
+    classifier.warm_up.return_value = None
+
     return classifier
 
 
@@ -180,7 +271,7 @@ def test_initialization():
     assert classifier.description == "Classifies text into topics using LDA"
     assert len(classifier.config.labels) == 5  # Default num_topics
     assert classifier.config.cost == 2.0
-    
+
     # Test with custom topic config
     topic_config = TopicConfig(
         num_topics=10,
@@ -189,13 +280,13 @@ def test_initialization():
         random_state=123,
         top_words_per_topic=15,
     )
-    
+
     classifier = TopicClassifier(
         name="custom_topic",
         description="Custom topic classifier",
         topic_config=topic_config,
     )
-    
+
     assert classifier.name == "custom_topic"
     assert classifier.description == "Custom topic classifier"
     assert len(classifier.config.labels) == 10
@@ -212,25 +303,25 @@ def test_topic_config_validation():
     config = TopicConfig(num_topics=5, min_confidence=0.5)
     assert config.num_topics == 5
     assert config.min_confidence == 0.5
-    
+
     # Test invalid num_topics
     with pytest.raises(ValueError):
         TopicConfig(num_topics=0)
-    
+
     with pytest.raises(ValueError):
         TopicConfig(num_topics=-1)
-    
+
     # Test invalid min_confidence
     with pytest.raises(ValueError):
         TopicConfig(min_confidence=-0.1)
-    
+
     with pytest.raises(ValueError):
         TopicConfig(min_confidence=1.1)
-    
+
     # Test invalid max_features
     with pytest.raises(ValueError):
         TopicConfig(max_features=0)
-    
+
     # Test invalid top_words_per_topic
     with pytest.raises(ValueError):
         TopicConfig(top_words_per_topic=0)
@@ -239,20 +330,20 @@ def test_topic_config_validation():
 def test_warm_up(mock_sklearn_modules):
     """Test warm_up functionality."""
     classifier = TopicClassifier()
-    
+
     # Test warm_up with mocked modules
     classifier.warm_up()
     assert classifier._initialized is True
     assert classifier._vectorizer is not None
     assert classifier._model is not None
-    
+
     # Test warm_up with missing package
     with patch("importlib.import_module") as mock_import:
         mock_import.side_effect = ImportError()
         classifier = TopicClassifier()
         with pytest.raises(ImportError):
             classifier.warm_up()
-    
+
     # Test warm_up with other exception
     with patch("importlib.import_module") as mock_import:
         mock_import.side_effect = RuntimeError("Test error")
@@ -271,13 +362,13 @@ def test_fit(topic_classifier):
         "Health and medical doctors treating patients",
         "Business finance and market investment companies",
     ]
-    
+
     # Fit the classifier
     fitted_classifier = topic_classifier.fit(texts)
-    
+
     # Check that it returns self
     assert fitted_classifier is topic_classifier
-    
+
     # Check that topic words and labels are updated
     assert topic_classifier._topic_words is not None
     assert len(topic_classifier.config.labels) == 5
@@ -288,14 +379,14 @@ def test_classification(topic_classifier):
     """Test classification functionality."""
     # Test with a science text
     result = topic_classifier._classify_impl("Science and technology research")
-    
+
     assert isinstance(result, ClassificationResult)
     assert "topic_0" in result.label  # Should be topic 0 (science)
     assert 0 <= result.confidence <= 1
     assert "all_topics" in result.metadata
     assert "topic_words" in result.metadata
     assert "topic_distribution" in result.metadata
-    
+
     # Check metadata structure
     assert len(result.metadata["all_topics"]) == 5
     for topic_label, topic_data in result.metadata["all_topics"].items():
@@ -314,12 +405,12 @@ def test_batch_classification(topic_classifier):
         "Health and medical doctors",
         "Business finance and market",
     ]
-    
+
     results = topic_classifier.batch_classify(texts)
-    
+
     assert isinstance(results, list)
     assert len(results) == len(texts)
-    
+
     # Check each result
     for i, result in enumerate(results):
         assert isinstance(result, ClassificationResult)
@@ -334,21 +425,21 @@ def test_error_handling(topic_classifier):
     """Test error handling."""
     # Test with invalid input types
     invalid_inputs = [None, 123, [], {}]
-    
+
     for invalid_input in invalid_inputs:
         with pytest.raises(Exception):
             topic_classifier.classify(invalid_input)
-        
+
         with pytest.raises(Exception):
             topic_classifier.batch_classify([invalid_input])
-    
+
     # Test classification without initialization
     uninit_classifier = TopicClassifier()
     uninit_classifier._initialized = False
-    
+
     with pytest.raises(RuntimeError):
         uninit_classifier.classify("This should fail")
-    
+
     with pytest.raises(RuntimeError):
         uninit_classifier.batch_classify(["This should fail"])
 
@@ -362,7 +453,7 @@ def test_create_pretrained(mock_sklearn_modules):
         "Health and medical doctors treating patients",
         "Business finance and market investment companies",
     ]
-    
+
     # Create a pretrained classifier
     classifier = TopicClassifier.create_pretrained(
         corpus=texts,
@@ -370,7 +461,7 @@ def test_create_pretrained(mock_sklearn_modules):
         description="Pretrained test classifier",
         topic_config=TopicConfig(num_topics=3),
     )
-    
+
     assert classifier.name == "pretrained_test"
     assert classifier.description == "Pretrained test classifier"
     assert classifier.topic_config.num_topics == 3

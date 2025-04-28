@@ -5,10 +5,11 @@
 - ✅ Catch hallucinations before they reach users
 - ✅ Enforce rules and tone consistency
 - ✅ Provide transparency and auditability
+- ✅ Analyze text characteristics and patterns
 
 [![PyPI version](https://badge.fury.io/py/sifaka.svg)](https://badge.fury.io/py/sifaka)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
 ## 📚 Table of Contents
 - [Quick Start](#quick-start)
@@ -24,7 +25,6 @@
 ## Quick Start
 
 ```python
-# Simple validation example
 from sifaka.chain import Chain
 from sifaka.models import OpenAIProvider
 from sifaka.rules import LengthRule, ProhibitedContentRule
@@ -79,10 +79,10 @@ print(result.passed_validation)  # True if all rules passed
 
 ## Core Components
 
-Sifaka has three main components:
+Sifaka has four main components:
 
 ### 1. Chain
-The orchestrator that manages the validation and improvement cycle.
+The orchestrator that manages the validation and improvement cycle:
 
 ```python
 from sifaka.chain import Chain
@@ -96,7 +96,7 @@ chain = Chain(
 ```
 
 ### 2. Rules
-Enforce constraints on content with specialized validators.
+Enforce constraints on content with specialized validators:
 
 ```python
 from sifaka.rules import (
@@ -116,44 +116,37 @@ from sifaka.rules import (
 # Pattern Rules Example
 from sifaka.rules.base import RuleConfig, RulePriority
 
-# Symmetry rule for detecting palindromes and text patterns
 symmetry_rule = SymmetryRule(
     name="symmetry_check",
     description="Checks for text symmetry patterns",
     config=RuleConfig(
         priority=RulePriority.MEDIUM,
-        cache_size=100,
-        cost=1.0,
         metadata={
-            "mirror_mode": "both",          # horizontal, vertical, or both
-            "symmetry_threshold": 0.8,       # similarity threshold (0.0 to 1.0)
-            "preserve_whitespace": True,     # consider spaces in symmetry
-            "preserve_case": True,           # case-sensitive check
-            "ignore_punctuation": True,      # ignore punctuation marks
-        },
-    ),
+            "symmetry_threshold": 0.8,
+            "preserve_whitespace": True,
+            "preserve_case": True,
+            "ignore_punctuation": True,
+        }
+    )
 )
 
-# Repetition rule for detecting repeated patterns
 repetition_rule = RepetitionRule(
     name="repetition_check",
     description="Detects repetitive patterns",
     config=RuleConfig(
         priority=RulePriority.MEDIUM,
-        cache_size=100,
-        cost=1.0,
         metadata={
-            "pattern_type": "repeat",       # repeat, alternate, or custom
-            "pattern_length": 3,            # minimum pattern length
-            "case_sensitive": True,         # case-sensitive matching
-            "allow_overlap": False,         # allow overlapping patterns
-        },
-    ),
+            "pattern_type": "repeat",
+            "pattern_length": 3,
+            "case_sensitive": True,
+            "allow_overlap": False,
+        }
+    )
 )
 ```
 
 ### 3. Critics
-Analyze and improve content based on rule failures.
+Analyze and improve content based on rule failures:
 
 ```python
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
@@ -168,169 +161,109 @@ critic = PromptCritic(
 ```
 
 ### 4. Classifiers
-Analyze text characteristics without enforcing rules.
+Analyze text characteristics for various properties:
 
 ```python
 from sifaka.classifiers import (
     SentimentClassifier,     # Analyze sentiment
     ReadabilityClassifier,   # Assess reading level
-    ToxicityClassifier       # Detect toxic content
+    ToxicityClassifier,      # Detect toxic content
+    BiasDetector,            # Detect bias in text
+    GenreClassifier          # Classify text genre
 )
 
-# Use directly
-classifier = SentimentClassifier()
-result = classifier.classify("This is amazing!")
-print(result.label)  # "positive"
+# Direct usage
+sentiment = SentimentClassifier()
+result = sentiment.classify("This is amazing!")
+print(result.label)         # "positive"
+print(result.confidence)    # confidence score
 
-# Or with a rule
+# With readability metrics
+readability = ReadabilityClassifier()
+result = readability.classify("Simple text to analyze.")
+print(result.label)         # "elementary"
+print(result.metadata)      # Contains Flesch-Kincaid scores
+
+# Or use with a rule
 from sifaka.rules import ClassifierRule
 sentiment_rule = ClassifierRule(classifier=SentimentClassifier())
 ```
 
 ## Key Features
 
-### Validation Modes
+### 1. Text Analysis
+- Sentiment analysis with confidence scores
+- Readability assessment with Flesch-Kincaid metrics
+- Genre classification
+- Bias detection
+- Emotional content analysis
+
+### 2. Pattern Detection
+- Symmetry analysis
+- Repetition detection
+- Structure validation
+- Custom pattern matching
+
+### 3. Content Validation
+- Length constraints
+- Prohibited content filtering
+- Format validation
+- Toxicity detection
+- Bias checking
+
+### 4. Content Improvement
+- Automated content refinement
+- Rule-based improvements
+- Tone consistency enforcement
+- Reading level adjustment
+
+### 5. Validation Modes
 - **Validation-only**: Fail fast with strict rule enforcement
 - **Critic Mode**: Attempt to improve content that fails validation
-
-### Rule Categories
-- **Content Rules**: Length, prohibited terms, formatting
-- **Pattern Rules**: Symmetry, repetition, structure
-  - Symmetry detection for palindromes and visual patterns
-  - Repetition analysis for text structure
-  - Configurable thresholds and matching options
-- **Safety Rules**: Toxicity, bias, harmful content
-- **Domain Rules**: Legal, medical, code validation
-
-### Provider Support
-- OpenAI (GPT-3.5, GPT-4)
-- Anthropic (Claude)
-- LLaMA, Mistral, etc.
-- Custom providers
 
 ## Installation
 
 ```bash
-pip install sifaka
-```
+# Requirements
+Python 3.11 or higher
 
-For optional dependencies:
-```bash
-pip install sifaka[openai]     # OpenAI support
-pip install sifaka[anthropic]  # Anthropic support
-pip install sifaka[all]        # All providers
+# Basic installation
+pip install sifaka
+
+# With toxicity detection
+pip install sifaka[toxicity]
+
+# With all extras
+pip install sifaka[all]
 ```
 
 ## Usage Examples
 
-### Basic Validation
+The `examples/` directory contains several example scripts:
 
-```python
-from sifaka.chain import Chain
-from sifaka.models import OpenAIProvider
-from sifaka.rules import LengthRule
+1. `usage.py`: Basic usage demonstrating:
+   - Sentiment analysis
+   - Emotional content analysis
+   - Readability analysis
+   - Text improvement
 
-chain = Chain(
-    model=OpenAIProvider(model_name="gpt-4", config={"api_key": "YOUR_API_KEY"}),
-    rules=[
-        LengthRule(
-            name="length_check",
-            config={
-                "min_length": 50,
-                "max_length": 200,
-                "unit": "characters",
-                "priority": 2,
-                "cost": 1.5,
-            }
-        )
-    ],
-    max_attempts=1  # Validation only
-)
+2. `advanced_classifiers_example.py`: Advanced usage showing:
+   - Genre classification
+   - Bias detection
+   - Rule adapter functionality
 
-result = chain.run("Write a short summary of quantum mechanics.")
-```
+3. `combined_classifiers.py`: Integration example with:
+   - Multiple classifier combination
+   - Pattern detection
+   - Rule validation
+   - Metrics analysis
 
-### Content Improvement
-
-```python
-from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
-
-critic = PromptCritic(
-    model=provider,
-    config=PromptCriticConfig(
-        name="editor",
-        system_prompt="You are an expert editor specialized in scientific writing."
-    )
-)
-
-chain = Chain(
-    model=provider,
-    rules=[length_rule, style_rule],
-    critic=critic,
-    max_attempts=3
-)
-
-result = chain.run("Explain the theory of relativity.")
-```
-
-## Migration Guide
-
-### From 0.x to 1.0
-
-The main changes in 1.0 include:
-
-1. Deprecation of the `Reflector` class in favor of specialized pattern rules:
-```python
-# OLD (0.x): Using Reflector
-from sifaka.reflector import Reflector
-
-reflector = Reflector(
-    reflection_config=ReflectionConfig(
-        mirror_mode="both",
-        symmetry_threshold=0.8
-    )
-)
-
-# NEW (1.0+): Using specialized pattern rules
-from sifaka.rules import SymmetryRule, RepetitionRule
-from sifaka.rules.base import RuleConfig, RulePriority
-
-symmetry_rule = SymmetryRule(
-    name="symmetry_check",
-    config=RuleConfig(
-        priority=RulePriority.MEDIUM,
-        metadata={
-            "mirror_mode": "both",
-            "symmetry_threshold": 0.8
-        }
-    )
-)
-
-chain = Chain(model=provider, rules=[symmetry_rule])
-```
-
-2. Updated configuration structure for all rules:
-```python
-# OLD (0.x)
-length_rule = LengthRule(name="length", min_length=50, max_length=500)
-
-# NEW (1.0+)
-length_rule = LengthRule(
-    name="length",
-    config={
-        "min_length": 50,
-        "max_length": 500,
-        "unit": "characters",
-        "priority": 2,
-        "cost": 1.5,
-    }
-)
-```
+⚠️ **Note**: The `Reflector` class is deprecated and will be removed in version 2.0.0. Use `SymmetryRule` and `RepetitionRule` from `sifaka.rules.pattern_rules` instead.
 
 ## Contributing
 
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
