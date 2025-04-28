@@ -27,6 +27,7 @@ from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+
 @runtime_checkable
 class ReadabilityAnalyzer(Protocol):
     """Protocol for readability analysis engines."""
@@ -51,6 +52,7 @@ class ReadabilityAnalyzer(Protocol):
     def automated_readability_index(self, text: str) -> float: ...
     @abstractmethod
     def dale_chall_readability_score(self, text: str) -> float: ...
+
 
 @dataclass(frozen=True)
 class ReadabilityConfig:
@@ -80,6 +82,7 @@ class ReadabilityConfig:
                 raise ValueError(f"Grade level bounds must be non-overlapping")
             prev_upper = upper
 
+
 @dataclass(frozen=True)
 class ReadabilityMetrics:
     """Container for readability metrics."""
@@ -100,6 +103,7 @@ class ReadabilityMetrics:
     vocabulary_diversity: float
     unique_word_count: int
     difficult_words: int
+
 
 class ReadabilityClassifier(BaseClassifier):
     """
@@ -122,6 +126,7 @@ class ReadabilityClassifier(BaseClassifier):
         description: str = "Analyzes text readability",
         readability_config: Optional[ReadabilityConfig] = None,
         analyzer: Optional[ReadabilityAnalyzer] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> None:
         """
@@ -132,14 +137,33 @@ class ReadabilityClassifier(BaseClassifier):
             description: Description of the classifier
             readability_config: Configuration for readability analysis
             analyzer: Custom readability analyzer implementation
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        config = ClassifierConfig(labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, **kwargs)
-        super().__init__(name=name, description=description, config=config)
-
+        # Store readability config and analyzer for later use
         self._readability_config = readability_config or ReadabilityConfig()
         self._analyzer = analyzer
         self._initialized = False
+
+        # Create config if not provided
+        if config is None:
+            # Extract params from kwargs if present
+            params = kwargs.pop("params", {})
+
+            # Add readability config to params if provided
+            if readability_config is not None:
+                params["min_confidence"] = readability_config.min_confidence
+                params["grade_level_bounds"] = {
+                    k: (v[0], float(v[1])) for k, v in readability_config.grade_level_bounds.items()
+                }
+
+            # Create config with remaining kwargs
+            config = ClassifierConfig(
+                labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, params=params, **kwargs
+            )
+
+        # Initialize base class
+        super().__init__(name=name, description=description, config=config)
 
     def _validate_analyzer(self, analyzer: Any) -> TypeGuard[ReadabilityAnalyzer]:
         """Validate that an analyzer implements the required protocol."""
@@ -330,6 +354,7 @@ class ReadabilityClassifier(BaseClassifier):
         name: str = "custom_readability_classifier",
         description: str = "Custom readability analyzer",
         readability_config: Optional[ReadabilityConfig] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "ReadabilityClassifier":
         """
@@ -340,17 +365,26 @@ class ReadabilityClassifier(BaseClassifier):
             name: Name of the classifier
             description: Description of the classifier
             readability_config: Custom readability configuration
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Configured ReadabilityClassifier instance
         """
+        # Validate analyzer first
+        if not isinstance(analyzer, ReadabilityAnalyzer):
+            raise ValueError(
+                f"Analyzer must implement ReadabilityAnalyzer protocol, got {type(analyzer)}"
+            )
+
+        # Create instance with validated analyzer
         instance = cls(
             name=name,
             description=description,
             readability_config=readability_config,
             analyzer=analyzer,
+            config=config,
             **kwargs,
         )
-        instance._validate_analyzer(analyzer)
+
         return instance

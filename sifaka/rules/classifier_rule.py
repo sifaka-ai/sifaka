@@ -2,15 +2,14 @@
 Rule implementation that uses pluggable classifiers.
 """
 
-from dataclasses import dataclass, field
 from typing import (
     Any,
     Callable,
     Dict,
-    List,
     Optional,
     Protocol,
     TypeVar,
+    list,
     runtime_checkable,
 )
 
@@ -43,36 +42,8 @@ class ClassifierProtocol(Protocol):
     def description(self) -> str: ...
 
 
-@dataclass(frozen=True)
-class ClassifierRuleConfig(RuleConfig):
-    """Immutable configuration for classifier rules."""
-
-    threshold: float = 0.5
-    valid_labels: List[str] = field(default_factory=list)
-    classifier_name: str = ""
-    classifier_config: Optional[Dict[str, Any]] = None
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        if not 0 <= self.threshold <= 1:
-            raise ConfigurationError("Threshold must be between 0 and 1")
-        if self.cache_size < 0:
-            raise ValueError("Cache size must be non-negative")
-        if self.priority < 0:
-            raise ValueError("Priority must be non-negative")
-        if self.cost < 0:
-            raise ValueError("Cost must be non-negative")
-
-    def with_threshold(self, threshold: float) -> "ClassifierRuleConfig":
-        """Create a new config with updated threshold."""
-        return self.with_options(threshold=threshold)
-
-    def with_labels(self, labels: List[str]) -> "ClassifierRuleConfig":
-        """Create a new config with updated valid labels."""
-        return self.with_options(valid_labels=labels)
+# We don't need a separate ClassifierRuleConfig class anymore
+# Instead, we'll use RuleConfig with params for consistency
 
 
 class DefaultClassifierValidator(BaseValidator[str]):
@@ -80,7 +51,7 @@ class DefaultClassifierValidator(BaseValidator[str]):
 
     def __init__(
         self,
-        config: ClassifierRuleConfig,
+        config: RuleConfig,
         classifier: Optional[ClassifierProtocol] = None,
         validation_fn: Optional[Callable[[ClassificationResult], bool]] = None,
     ) -> None:
@@ -99,11 +70,12 @@ class DefaultClassifierValidator(BaseValidator[str]):
 
         # Create or validate classifier
         if classifier is None:
-            if not config.classifier_name:
+            classifier_name = config.params.get("classifier_name", "")
+            if not classifier_name:
                 raise ConfigurationError(
-                    "Must provide either classifier or classifier_name in config"
+                    "Must provide either classifier or classifier_name in config params"
                 )
-            # Here you would create the classifier based on config.classifier_name and config.classifier_config
+            # Here you would create the classifier based on config.params.get("classifier_name")
             # For now we'll raise an error since we don't have the factory logic
             raise NotImplementedError("Classifier creation from config not implemented")
         else:
@@ -123,9 +95,12 @@ class DefaultClassifierValidator(BaseValidator[str]):
 
     def _default_validation_fn(self, result: ClassificationResult) -> bool:
         """Default validation function using threshold and valid labels."""
-        if result.confidence < self.config.threshold:
+        threshold = self._config.params.get("threshold", 0.5)
+        valid_labels = self._config.params.get("valid_labels", [])
+
+        if result.confidence < threshold:
             return False
-        if self.config.valid_labels and result.label not in self.config.valid_labels:
+        if valid_labels and result.label not in valid_labels:
             return False
         return True
 
@@ -135,17 +110,17 @@ class DefaultClassifierValidator(BaseValidator[str]):
         return self._classifier
 
     @property
-    def config(self) -> ClassifierRuleConfig:
+    def config(self) -> RuleConfig:
         """Get the configuration."""
         return self._config
 
-    def validate(self, output: str, **kwargs) -> RuleResult:
+    def validate(self, output: str, **_) -> RuleResult:
         """
         Validate text using the classifier.
 
         Args:
             output: The text to validate
-            **kwargs: Additional validation context
+            **_: Additional validation context (unused)
 
         Returns:
             RuleResult with validation results
@@ -164,10 +139,10 @@ class DefaultClassifierValidator(BaseValidator[str]):
             metadata = {
                 "classifier_name": self._classifier.name,
                 "classifier_result": (
-                    result.model_dump() if hasattr(result, "model_dump") else result.dict()
+                    result.model_dump() if hasattr(result, "model_dump") else vars(result)
                 ),
-                "threshold": self._config.threshold,
-                "valid_labels": self._config.valid_labels,
+                "threshold": self._config.params.get("threshold", 0.5),
+                "valid_labels": self._config.params.get("valid_labels", []),
             }
 
             # Return result
@@ -193,6 +168,8 @@ class ClassifierRule(Rule[str, RuleResult, DefaultClassifierValidator, Any]):
         validator: Optional[DefaultClassifierValidator] = None,
         classifier: Optional[ClassifierProtocol] = None,
         validation_fn: Optional[Callable[[ClassificationResult], bool]] = None,
+        threshold: float = 0.5,
+        valid_labels: Optional[list] = None,
     ) -> None:
         """
         Initialize a classifier rule.
@@ -204,6 +181,8 @@ class ClassifierRule(Rule[str, RuleResult, DefaultClassifierValidator, Any]):
             validator: Optional custom validator implementation
             classifier: Optional classifier to use if no validator provided
             validation_fn: Optional validation function if no validator provided
+            threshold: Confidence threshold for validation (0-1)
+            valid_labels: List of valid labels for validation
 
         Raises:
             ConfigurationError: If neither validator nor classifier is provided
@@ -212,12 +191,27 @@ class ClassifierRule(Rule[str, RuleResult, DefaultClassifierValidator, Any]):
         self._classifier = classifier
         self._validation_fn = validation_fn
 
-        # Store rule parameters
-        self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            params_source = config.params if config.params else config.metadata
-            self._rule_params = params_source
+        # Create config if not provided
+        if config is None:
+            params = {
+                "threshold": threshold,
+                "valid_labels": valid_labels or [],
+            }
+            config = RuleConfig(params=params)
+        elif threshold != 0.5 or valid_labels is not None:
+            # If config is provided but threshold or valid_labels are also provided,
+            # update the config params
+            params = dict(config.params)
+            if threshold != 0.5:
+                params["threshold"] = threshold
+            if valid_labels is not None:
+                params["valid_labels"] = valid_labels
+            config = RuleConfig(
+                priority=config.priority,
+                cache_size=config.cache_size,
+                cost=config.cost,
+                params=params,
+            )
 
         # Initialize base class
         super().__init__(name=name, description=description, config=config, validator=validator)
@@ -227,8 +221,22 @@ class ClassifierRule(Rule[str, RuleResult, DefaultClassifierValidator, Any]):
         if self._classifier is None:
             raise ConfigurationError("Must provide a classifier")
 
-        rule_config = ClassifierRuleConfig(**self._rule_params)
-        return DefaultClassifierValidator(rule_config, self._classifier, self._validation_fn)
+        return DefaultClassifierValidator(self.config, self._classifier, self._validation_fn)
+
+    @property
+    def threshold(self) -> float:
+        """Get the confidence threshold."""
+        return self.config.params.get("threshold", 0.5)
+
+    @property
+    def valid_labels(self) -> list:
+        """Get the list of valid labels."""
+        return self.config.params.get("valid_labels", [])
+
+    @property
+    def classifier(self) -> ClassifierProtocol:
+        """Get the classifier."""
+        return self._classifier
 
 
 def create_classifier_rule(
@@ -237,6 +245,8 @@ def create_classifier_rule(
     config: Optional[Dict[str, Any]] = None,
     classifier: Optional[ClassifierProtocol] = None,
     validation_fn: Optional[Callable[[ClassificationResult], bool]] = None,
+    threshold: float = 0.5,
+    valid_labels: Optional[list] = None,
 ) -> ClassifierRule:
     """
     Create a classifier rule with configuration.
@@ -247,21 +257,25 @@ def create_classifier_rule(
         config: Optional configuration dictionary
         classifier: Optional classifier to use
         validation_fn: Optional validation function
+        threshold: Confidence threshold for validation (0-1)
+        valid_labels: List of valid labels for validation
 
     Returns:
         Configured ClassifierRule instance
     """
-    if config is None:
-        config = {
-            "threshold": 0.5,
-            "valid_labels": [],
-            "cache_size": 100,
-            "priority": 1,
-            "cost": 1.0,
-        }
+    # Create params dictionary from config or defaults
+    params = {}
+    if config:
+        params.update(config)
 
-    # Convert the dictionary config to RuleConfig with params
-    rule_config = RuleConfig(params=config)
+    # Override with explicit parameters if provided
+    if threshold != 0.5:
+        params["threshold"] = threshold
+    if valid_labels is not None:
+        params["valid_labels"] = valid_labels
+
+    # Create rule config
+    rule_config = RuleConfig(params=params)
 
     return ClassifierRule(
         name=name,
@@ -275,7 +289,6 @@ def create_classifier_rule(
 # Export public classes and functions
 __all__ = [
     "ClassifierRule",
-    "ClassifierRuleConfig",
     "ClassifierProtocol",
     "DefaultClassifierValidator",
     "create_classifier_rule",

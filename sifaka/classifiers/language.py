@@ -27,6 +27,7 @@ from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+
 @runtime_checkable
 class LanguageDetector(Protocol):
     """Protocol for language detection engines."""
@@ -35,6 +36,7 @@ class LanguageDetector(Protocol):
     def detect_langs(self, text: str) -> Sequence[Any]: ...
     @abstractmethod
     def detect(self, text: str) -> str: ...
+
 
 @dataclass(frozen=True)
 class LanguageConfig:
@@ -51,6 +53,7 @@ class LanguageConfig:
         if self.seed < 0:
             raise ValueError("seed must be non-negative")
 
+
 @dataclass(frozen=True)
 class LanguageInfo:
     """Information about a supported language."""
@@ -59,6 +62,7 @@ class LanguageInfo:
     name: str
     native_name: Optional[str] = None
     script: Optional[str] = None
+
 
 class LanguageClassifier(BaseClassifier):
     """
@@ -138,6 +142,7 @@ class LanguageClassifier(BaseClassifier):
         description: str = "Detects text language",
         lang_config: Optional[LanguageConfig] = None,
         detector: Optional[LanguageDetector] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> None:
         """
@@ -148,16 +153,36 @@ class LanguageClassifier(BaseClassifier):
             description: Description of the classifier
             lang_config: Language detection configuration
             detector: Custom language detector implementation
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        config = ClassifierConfig(
-            labels=list(self.LANGUAGE_NAMES.keys()), cost=self.DEFAULT_COST, **kwargs
-        )
-        super().__init__(name=name, description=description, config=config)
-
+        # Store language config and detector for later use
         self._lang_config = lang_config or LanguageConfig()
         self._detector = detector
         self._initialized = False
+
+        # Create config if not provided
+        if config is None:
+            # Extract params from kwargs if present
+            params = kwargs.pop("params", {})
+
+            # Add language config to params if provided
+            if lang_config is not None:
+                params["min_confidence"] = lang_config.min_confidence
+                params["seed"] = lang_config.seed
+                params["fallback_lang"] = lang_config.fallback_lang
+                params["fallback_confidence"] = lang_config.fallback_confidence
+
+            # Create config with remaining kwargs
+            config = ClassifierConfig(
+                labels=list(self.LANGUAGE_NAMES.keys()),
+                cost=self.DEFAULT_COST,
+                params=params,
+                **kwargs,
+            )
+
+        # Initialize base class
+        super().__init__(name=name, description=description, config=config)
 
     def _validate_detector(self, detector: Any) -> TypeGuard[LanguageDetector]:
         """Validate that a detector implements the required protocol."""
@@ -292,6 +317,7 @@ class LanguageClassifier(BaseClassifier):
         name: str = "custom_language_classifier",
         description: str = "Custom language detector",
         lang_config: Optional[LanguageConfig] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "LanguageClassifier":
         """
@@ -302,13 +328,26 @@ class LanguageClassifier(BaseClassifier):
             name: Name of the classifier
             description: Description of the classifier
             lang_config: Custom language configuration
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Configured LanguageClassifier instance
         """
+        # Validate detector first
+        if not isinstance(detector, LanguageDetector):
+            raise ValueError(
+                f"Detector must implement LanguageDetector protocol, got {type(detector)}"
+            )
+
+        # Create instance with validated detector
         instance = cls(
-            name=name, description=description, lang_config=lang_config, detector=detector, **kwargs
+            name=name,
+            description=description,
+            lang_config=lang_config,
+            detector=detector,
+            config=config,
+            **kwargs,
         )
-        instance._validate_detector(detector)
+
         return instance

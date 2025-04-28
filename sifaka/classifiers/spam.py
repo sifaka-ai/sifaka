@@ -17,6 +17,7 @@ from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+
 @dataclass(frozen=True)
 class SpamConfig:
     """Configuration for spam classification."""
@@ -34,6 +35,7 @@ class SpamConfig:
         if self.max_features <= 0:
             raise ValueError("max_features must be positive")
 
+
 class SpamClassifier(BaseClassifier):
     """
     A spam classifier using Naive Bayes from scikit-learn.
@@ -49,6 +51,7 @@ class SpamClassifier(BaseClassifier):
         name: str = "spam_classifier",
         description: str = "Detects spam content in text",
         spam_config: Optional[SpamConfig] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> None:
         """
@@ -58,18 +61,35 @@ class SpamClassifier(BaseClassifier):
             name: The name of the classifier
             description: Description of the classifier
             spam_config: Spam classification configuration
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        # Initialize parent class first
-        config = ClassifierConfig(labels=["ham", "spam"], cost=1.5, **kwargs)
-        super().__init__(name=name, description=description, config=config)
+        # Store spam config
+        self._spam_config = spam_config or SpamConfig()
 
-        # Initialize private attributes using object.__setattr__ to bypass Pydantic
-        object.__setattr__(self, "_spam_config", spam_config or SpamConfig())
-        object.__setattr__(self, "_vectorizer", None)
-        object.__setattr__(self, "_model", None)
-        object.__setattr__(self, "_pipeline", None)
-        object.__setattr__(self, "_initialized", False)
+        # Initialize other attributes
+        self._vectorizer = None
+        self._model = None
+        self._pipeline = None
+        self._initialized = False
+
+        # Create config if not provided
+        if config is None:
+            # Extract params from kwargs if present
+            params = kwargs.pop("params", {})
+
+            # Add spam config to params
+            params["min_confidence"] = self._spam_config.min_confidence
+            params["max_features"] = self._spam_config.max_features
+            params["random_state"] = self._spam_config.random_state
+            params["model_path"] = self._spam_config.model_path
+            params["use_bigrams"] = self._spam_config.use_bigrams
+
+            # Create config with remaining kwargs
+            config = ClassifierConfig(labels=["ham", "spam"], cost=1.5, params=params, **kwargs)
+
+        # Initialize base class
+        super().__init__(name=name, description=description, config=config)
 
     def _load_dependencies(self) -> None:
         """Load scikit-learn dependencies."""
@@ -230,7 +250,7 @@ class SpamClassifier(BaseClassifier):
         probas = self._pipeline.predict_proba(texts)
 
         results = []
-        for i, proba in enumerate(probas):
+        for proba in probas:
             pred_class = int(proba[1] >= 0.5)
             confidence = float(proba[pred_class])
 
@@ -261,6 +281,7 @@ class SpamClassifier(BaseClassifier):
         name: str = "pretrained_spam_classifier",
         description: str = "Pre-trained spam classifier",
         spam_config: Optional[SpamConfig] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "SpamClassifier":
         """
@@ -272,10 +293,16 @@ class SpamClassifier(BaseClassifier):
             name: Name of the classifier
             description: Description of the classifier
             spam_config: Spam classification configuration
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Trained SpamClassifier
         """
-        classifier = cls(name=name, description=description, spam_config=spam_config, **kwargs)
+        # Create instance with provided configuration
+        classifier = cls(
+            name=name, description=description, spam_config=spam_config, config=config, **kwargs
+        )
+
+        # Train the classifier and return it
         return classifier.fit(texts, labels)

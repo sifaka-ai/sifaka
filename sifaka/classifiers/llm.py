@@ -25,6 +25,7 @@ from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+
 @runtime_checkable
 class LLMProvider(Protocol):
     """Protocol for LLM providers."""
@@ -33,6 +34,7 @@ class LLMProvider(Protocol):
     def generate(
         self, prompt: str, system_prompt: Optional[str] = None, temperature: float = 0.7
     ) -> str: ...
+
 
 @dataclass(frozen=True)
 class LLMPromptConfig:
@@ -49,6 +51,7 @@ class LLMPromptConfig:
         if self.max_retries < 0:
             raise ValueError("max_retries must be non-negative")
 
+
 @dataclass(frozen=True)
 class LLMResponse:
     """Container for parsed LLM responses."""
@@ -61,6 +64,7 @@ class LLMResponse:
     def __post_init__(self) -> None:
         if not 0.0 <= self.confidence <= 1.0:
             object.__setattr__(self, "confidence", max(0.0, min(1.0, self.confidence)))
+
 
 class LLMClassifier(BaseClassifier):
     """
@@ -79,6 +83,7 @@ class LLMClassifier(BaseClassifier):
         model: LLMProvider,
         labels: List[str],
         prompt_config: Optional[LLMPromptConfig] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> None:
         """
@@ -90,14 +95,35 @@ class LLMClassifier(BaseClassifier):
             model: The LLM provider to use
             labels: List of possible labels/classes
             prompt_config: Configuration for LLM prompts
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        config = ClassifierConfig(labels=labels, cost=self.DEFAULT_COST, **kwargs)
-        super().__init__(name=name, description=description, config=config)
-
+        # Validate and store model
         self._validate_model(model)
         self._model = model
+
+        # Store prompt config
         self._prompt_config = prompt_config or self._create_default_prompt_config(labels)
+
+        # Create config if not provided
+        if config is None:
+            # Extract params from kwargs if present
+            params = kwargs.pop("params", {})
+
+            # Add prompt config to params if provided
+            if prompt_config is not None:
+                params["system_prompt"] = prompt_config.system_prompt
+                params["user_prompt_template"] = prompt_config.user_prompt_template
+                params["temperature"] = prompt_config.temperature
+                params["max_retries"] = prompt_config.max_retries
+
+            # Create config with remaining kwargs
+            config = ClassifierConfig(
+                labels=labels, cost=self.DEFAULT_COST, params=params, **kwargs
+            )
+
+        # Initialize base class
+        super().__init__(name=name, description=description, config=config)
 
     def _validate_model(self, model: Any) -> TypeGuard[LLMProvider]:
         """Validate that a model implements the required protocol."""
@@ -232,6 +258,7 @@ class LLMClassifier(BaseClassifier):
         description: str = "Custom LLM classifier",
         labels: List[str] = None,
         prompt_config: Optional[LLMPromptConfig] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "LLMClassifier":
         """
@@ -243,21 +270,28 @@ class LLMClassifier(BaseClassifier):
             description: Description of the classifier
             labels: List of possible labels/classes
             prompt_config: Custom prompt configuration
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Configured LLMClassifier instance
         """
+        # Validate inputs
         if not labels:
             raise ValueError("labels must be provided")
 
+        if not isinstance(model, LLMProvider):
+            raise ValueError(f"Model must implement LLMProvider protocol, got {type(model)}")
+
+        # Create instance with validated model
         instance = cls(
             name=name,
             description=description,
             model=model,
             labels=labels,
             prompt_config=prompt_config,
+            config=config,
             **kwargs,
         )
-        instance._validate_model(model)
+
         return instance

@@ -17,6 +17,7 @@ from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+
 @dataclass(frozen=True)
 class TopicConfig:
     """Configuration for topic classification."""
@@ -38,6 +39,7 @@ class TopicConfig:
         if self.top_words_per_topic <= 0:
             raise ValueError("top_words_per_topic must be positive")
 
+
 class TopicClassifier(BaseClassifier):
     """
     A topic classifier using Latent Dirichlet Allocation from scikit-learn.
@@ -58,8 +60,8 @@ class TopicClassifier(BaseClassifier):
         self,
         name: str = "topic_classifier",
         description: str = "Classifies text into topics using LDA",
-        config: Optional[ClassifierConfig] = None,
         topic_config: Optional[TopicConfig] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> None:
         """
@@ -68,31 +70,43 @@ class TopicClassifier(BaseClassifier):
         Args:
             name: The name of the classifier
             description: Description of the classifier
-            config: Classifier configuration
             topic_config: Topic classification configuration
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        # Labels will be dynamically generated after model fitting
-        if config is None:
-            config = ClassifierConfig(
-                labels=[f"topic_{i}" for i in range((topic_config or TopicConfig()).num_topics)],
-                cost=2.0,  # Default cost
-                min_confidence=(topic_config or TopicConfig()).min_confidence,
-                **kwargs,
-            )
+        # Store topic config
+        self.topic_config = topic_config or TopicConfig()
 
-        # Initialize base class first
-        super().__init__(name=name, description=description, config=config)
-
-        # Set topic config after base initialization
-        if topic_config is not None:
-            self.topic_config = topic_config
-
+        # Initialize other attributes
         self._vectorizer = None
         self._model = None
         self._feature_names = None
         self._topic_words = None
         self._initialized = False
+
+        # Create config if not provided
+        if config is None:
+            # Extract params from kwargs if present
+            params = kwargs.pop("params", {})
+
+            # Add topic config to params
+            params["num_topics"] = self.topic_config.num_topics
+            params["min_confidence"] = self.topic_config.min_confidence
+            params["max_features"] = self.topic_config.max_features
+            params["random_state"] = self.topic_config.random_state
+            params["top_words_per_topic"] = self.topic_config.top_words_per_topic
+
+            # Create config with remaining kwargs
+            config = ClassifierConfig(
+                labels=[f"topic_{i}" for i in range(self.topic_config.num_topics)],
+                cost=2.0,  # Default cost
+                min_confidence=self.topic_config.min_confidence,
+                params=params,
+                **kwargs,
+            )
+
+        # Initialize base class
+        super().__init__(name=name, description=description, config=config)
 
     def _load_dependencies(self) -> None:
         """Load scikit-learn dependencies."""
@@ -148,7 +162,7 @@ class TopicClassifier(BaseClassifier):
 
         # Extract the words that define each topic
         self._topic_words = []
-        for topic_idx, topic in enumerate(self._model.components_):
+        for _, topic in enumerate(self._model.components_):
             top_features_ind = topic.argsort()[: -self.topic_config.top_words_per_topic - 1 : -1]
             top_features = [self._feature_names[i] for i in top_features_ind]
             self._topic_words.append(top_features)
@@ -232,7 +246,7 @@ class TopicClassifier(BaseClassifier):
         topic_distributions = self._model.transform(X)
 
         results = []
-        for i, distribution in enumerate(topic_distributions):
+        for distribution in topic_distributions:
             dominant_topic_idx = distribution.argmax()
             confidence = float(distribution[dominant_topic_idx])
 
@@ -266,6 +280,7 @@ class TopicClassifier(BaseClassifier):
         name: str = "pretrained_topic_classifier",
         description: str = "Pre-trained topic classifier",
         topic_config: Optional[TopicConfig] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "TopicClassifier":
         """
@@ -276,10 +291,16 @@ class TopicClassifier(BaseClassifier):
             name: Name of the classifier
             description: Description of the classifier
             topic_config: Topic classification configuration
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Trained TopicClassifier
         """
-        classifier = cls(name=name, description=description, topic_config=topic_config, **kwargs)
+        # Create instance with provided configuration
+        classifier = cls(
+            name=name, description=description, topic_config=topic_config, config=config, **kwargs
+        )
+
+        # Train the classifier and return it
         return classifier.fit(corpus)

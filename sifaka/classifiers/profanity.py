@@ -26,6 +26,7 @@ from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+
 @runtime_checkable
 class ProfanityChecker(Protocol):
     """Protocol for profanity checking engines."""
@@ -47,6 +48,7 @@ class ProfanityChecker(Protocol):
     @abstractmethod
     def censor_char(self, char: str) -> None: ...
 
+
 @dataclass(frozen=True)
 class ProfanityConfig:
     """Configuration for profanity detection."""
@@ -61,6 +63,7 @@ class ProfanityConfig:
         if not 0.0 <= self.min_confidence <= 1.0:
             raise ValueError("min_confidence must be between 0.0 and 1.0")
 
+
 @dataclass(frozen=True)
 class CensorResult:
     """Result of text censoring operation."""
@@ -74,6 +77,7 @@ class CensorResult:
     def profanity_ratio(self) -> float:
         """Calculate ratio of profane words to total words."""
         return self.censored_word_count / max(self.total_word_count, 1)
+
 
 class ProfanityClassifier(BaseClassifier):
     """
@@ -96,6 +100,7 @@ class ProfanityClassifier(BaseClassifier):
         description: str = "Detects profanity and inappropriate language",
         profanity_config: Optional[ProfanityConfig] = None,
         checker: Optional[ProfanityChecker] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> None:
         """
@@ -106,14 +111,32 @@ class ProfanityClassifier(BaseClassifier):
             description: Description of the classifier
             profanity_config: Configuration for profanity detection
             checker: Custom profanity checker implementation
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        config = ClassifierConfig(labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, **kwargs)
-        super().__init__(name=name, description=description, config=config)
-
+        # Store profanity config and checker for later use
         self._profanity_config = profanity_config or ProfanityConfig()
         self._checker = checker
         self._initialized = False
+
+        # Create config if not provided
+        if config is None:
+            # Extract params from kwargs if present
+            params = kwargs.pop("params", {})
+
+            # Add profanity config to params if provided
+            if profanity_config is not None:
+                params["custom_words"] = list(profanity_config.custom_words)
+                params["censor_char"] = profanity_config.censor_char
+                params["min_confidence"] = profanity_config.min_confidence
+
+            # Create config with remaining kwargs
+            config = ClassifierConfig(
+                labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, params=params, **kwargs
+            )
+
+        # Initialize base class
+        super().__init__(name=name, description=description, config=config)
 
     def _validate_checker(self, checker: Any) -> TypeGuard[ProfanityChecker]:
         """Validate that a checker implements the required protocol."""
@@ -245,6 +268,7 @@ class ProfanityClassifier(BaseClassifier):
         name: str = "custom_profanity_classifier",
         description: str = "Custom profanity checker",
         profanity_config: Optional[ProfanityConfig] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "ProfanityClassifier":
         """
@@ -255,17 +279,26 @@ class ProfanityClassifier(BaseClassifier):
             name: Name of the classifier
             description: Description of the classifier
             profanity_config: Custom profanity configuration
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Configured ProfanityClassifier instance
         """
+        # Validate checker first
+        if not isinstance(checker, ProfanityChecker):
+            raise ValueError(
+                f"Checker must implement ProfanityChecker protocol, got {type(checker)}"
+            )
+
+        # Create instance with validated checker
         instance = cls(
             name=name,
             description=description,
             profanity_config=profanity_config,
             checker=checker,
+            config=config,
             **kwargs,
         )
-        instance._validate_checker(checker)
+
         return instance

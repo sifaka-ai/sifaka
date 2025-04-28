@@ -4,10 +4,12 @@ Base classes for Sifaka classifiers.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import (
     Any,
     Dict,
     List,
+    Optional,
     Protocol,
     Type,
     TypeVar,
@@ -17,11 +19,13 @@ from typing import (
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import TypeGuard
 
+
 @runtime_checkable
 class TextProcessor(Protocol):
     """Protocol for text processing components."""
 
     def process(self, text: str) -> Dict[str, Any]: ...
+
 
 @runtime_checkable
 class ClassifierProtocol(Protocol):
@@ -36,6 +40,7 @@ class ClassifierProtocol(Protocol):
     @property
     def min_confidence(self) -> float: ...
 
+
 @dataclass(frozen=True)
 class ClassifierConfig:
     """Immutable configuration for classifiers."""
@@ -44,7 +49,7 @@ class ClassifierConfig:
     cache_size: int = 0
     cost: int = 1
     min_confidence: float = 0.5
-    additional_config: Dict[str, Any] = Field(default_factory=dict)
+    params: Dict[str, Any] = Field(default_factory=dict)
 
     def __post_init__(self):
         if not isinstance(self.labels, list) or not all(isinstance(l, str) for l in self.labels):
@@ -55,6 +60,18 @@ class ClassifierConfig:
             raise ValueError("cost must be non-negative")
         if not 0.0 <= self.min_confidence <= 1.0:
             raise ValueError("min_confidence must be between 0 and 1")
+
+    def with_params(self, **kwargs: Any) -> "ClassifierConfig":
+        """Create a new config with updated parameters."""
+        new_params = {**self.params, **kwargs}
+        return ClassifierConfig(
+            labels=self.labels,
+            cache_size=self.cache_size,
+            cost=self.cost,
+            min_confidence=self.min_confidence,
+            params=new_params,
+        )
+
 
 class ClassificationResult(BaseModel):
     """
@@ -85,7 +102,9 @@ class ClassificationResult(BaseModel):
             label=self.label, confidence=self.confidence, metadata=new_metadata
         )
 
+
 T = TypeVar("T", bound="BaseClassifier")
+
 
 class BaseClassifier(ABC, BaseModel):
     """
@@ -94,11 +113,43 @@ class BaseClassifier(ABC, BaseModel):
     A classifier provides predictions that can be used by rules.
     """
 
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        config: Optional[ClassifierConfig] = None,
+    ) -> None:
+        """
+        Initialize a classifier.
+
+        Args:
+            name: The name of the classifier
+            description: Description of the classifier
+            config: Optional classifier configuration
+        """
+        super().__init__(
+            name=name,
+            description=description,
+            config=config or ClassifierConfig(labels=[]),
+        )
+
+        # Initialize cache if enabled
+        if self.config.cache_size > 0:
+            self._classify_impl_original = self._classify_impl
+            self._classify_impl = lru_cache(maxsize=self.config.cache_size)(
+                self._classify_impl_original
+            )
+
     name: str = Field(description="Name of the classifier")
     description: str = Field(description="Description of the classifier")
     config: ClassifierConfig
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @property
+    def min_confidence(self) -> float:
+        """Get the minimum confidence threshold."""
+        return self.config.min_confidence
 
     def validate_input(self, text: str) -> TypeGuard[str]:
         """Validate input text."""
@@ -168,6 +219,7 @@ class BaseClassifier(ABC, BaseModel):
         """
         Optional warm-up method for classifiers that need initialization.
         """
+        pass
 
     @classmethod
     def create(cls: Type[T], name: str, description: str, labels: List[str], **config_kwargs) -> T:
@@ -183,8 +235,15 @@ class BaseClassifier(ABC, BaseModel):
         Returns:
             New classifier instance
         """
-        config = ClassifierConfig(labels=labels, **config_kwargs)
+        # Extract params from config_kwargs if present
+        params = config_kwargs.pop("params", {})
+
+        # Create config with remaining kwargs
+        config = ClassifierConfig(labels=labels, params=params, **config_kwargs)
+
+        # Create instance
         return cls(name=name, description=description, config=config)
+
 
 # Type alias for external usage
 Classifier = BaseClassifier

@@ -62,6 +62,7 @@ class SentimentClassifier(BaseClassifier):
         description: str = "Analyzes text sentiment using VADER",
         thresholds: Optional[SentimentThresholds] = None,
         analyzer: Optional[SentimentAnalyzer] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> None:
         """
@@ -72,14 +73,31 @@ class SentimentClassifier(BaseClassifier):
             description: Description of the classifier
             thresholds: Sentiment threshold configuration
             analyzer: Custom sentiment analyzer implementation
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        config = ClassifierConfig(labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, **kwargs)
-        super().__init__(name=name, description=description, config=config)
-
+        # Store thresholds and analyzer for later use
         self._thresholds = thresholds or SentimentThresholds()
         self._analyzer = analyzer
         self._initialized = False
+
+        # Create config if not provided
+        if config is None:
+            # Extract params from kwargs if present
+            params = kwargs.pop("params", {})
+
+            # Add thresholds to params if provided
+            if thresholds is not None:
+                params["positive_threshold"] = thresholds.positive
+                params["negative_threshold"] = thresholds.negative
+
+            # Create config with remaining kwargs
+            config = ClassifierConfig(
+                labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, params=params, **kwargs
+            )
+
+        # Initialize base class
+        super().__init__(name=name, description=description, config=config)
 
     def _validate_analyzer(self, analyzer: Any) -> TypeGuard[SentimentAnalyzer]:
         """Validate that an analyzer implements the required protocol."""
@@ -183,6 +201,7 @@ class SentimentClassifier(BaseClassifier):
         name: str = "custom_sentiment_classifier",
         description: str = "Custom sentiment analyzer",
         thresholds: Optional[SentimentThresholds] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "SentimentClassifier":
         """
@@ -193,13 +212,26 @@ class SentimentClassifier(BaseClassifier):
             name: Name of the classifier
             description: Description of the classifier
             thresholds: Custom sentiment thresholds
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Configured SentimentClassifier instance
         """
+        # Validate analyzer first
+        if not isinstance(analyzer, SentimentAnalyzer):
+            raise ValueError(
+                f"Analyzer must implement SentimentAnalyzer protocol, got {type(analyzer)}"
+            )
+
+        # Create instance with validated analyzer
         instance = cls(
-            name=name, description=description, thresholds=thresholds, analyzer=analyzer, **kwargs
+            name=name,
+            description=description,
+            thresholds=thresholds,
+            analyzer=analyzer,
+            config=config,
+            **kwargs,
         )
-        instance._validate_analyzer(analyzer)
+
         return instance

@@ -27,12 +27,14 @@ from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+
 @runtime_checkable
 class ToxicityModel(Protocol):
     """Protocol for toxicity detection models."""
 
     @abstractmethod
     def predict(self, text: str | List[str]) -> Dict[str, np.ndarray | float]: ...
+
 
 @dataclass(frozen=True)
 class ToxicityThresholds:
@@ -48,6 +50,7 @@ class ToxicityThresholds:
         if self.general > self.severe_toxic:
             raise ValueError("General threshold should not be higher than severe threshold")
 
+
 @dataclass(frozen=True)
 class ToxicityConfig:
     """Configuration for toxicity classifier."""
@@ -58,6 +61,7 @@ class ToxicityConfig:
     def __post_init__(self) -> None:
         if self.model_name not in ["original", "unbiased", "multilingual"]:
             raise ValueError("Model name must be one of: original, unbiased, multilingual")
+
 
 class ToxicityClassifier(BaseClassifier):
     """
@@ -85,6 +89,7 @@ class ToxicityClassifier(BaseClassifier):
         description: str = "Detects toxic content using Detoxify",
         toxicity_config: Optional[ToxicityConfig] = None,
         model: Optional[ToxicityModel] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> None:
         """
@@ -95,15 +100,34 @@ class ToxicityClassifier(BaseClassifier):
             description: Description of the classifier
             toxicity_config: Configuration for toxicity detection
             model: Custom toxicity model implementation
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        config = ClassifierConfig(labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, **kwargs)
-        super().__init__(name=name, description=description, config=config)
-
+        # Store toxicity config and model for later use
         self._toxicity_config = toxicity_config or ToxicityConfig()
         self._model = model
         self._detoxify = None
         self._initialized = False
+
+        # Create config if not provided
+        if config is None:
+            # Extract params from kwargs if present
+            params = kwargs.pop("params", {})
+
+            # Add toxicity config to params if provided
+            if toxicity_config is not None:
+                params["model_name"] = toxicity_config.model_name
+                params["general_threshold"] = toxicity_config.thresholds.general
+                params["severe_toxic_threshold"] = toxicity_config.thresholds.severe_toxic
+                params["threat_threshold"] = toxicity_config.thresholds.threat
+
+            # Create config with remaining kwargs
+            config = ClassifierConfig(
+                labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, params=params, **kwargs
+            )
+
+        # Initialize base class
+        super().__init__(name=name, description=description, config=config)
 
     def _validate_model(self, model: Any) -> TypeGuard[ToxicityModel]:
         """Validate that a model implements the required protocol."""
@@ -229,6 +253,7 @@ class ToxicityClassifier(BaseClassifier):
         name: str = "custom_toxicity_classifier",
         description: str = "Custom toxicity model",
         toxicity_config: Optional[ToxicityConfig] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "ToxicityClassifier":
         """
@@ -239,17 +264,24 @@ class ToxicityClassifier(BaseClassifier):
             name: Name of the classifier
             description: Description of the classifier
             toxicity_config: Custom toxicity configuration
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Configured ToxicityClassifier instance
         """
+        # Validate model first
+        if not isinstance(model, ToxicityModel):
+            raise ValueError(f"Model must implement ToxicityModel protocol, got {type(model)}")
+
+        # Create instance with validated model
         instance = cls(
             name=name,
             description=description,
             toxicity_config=toxicity_config,
             model=model,
+            config=config,
             **kwargs,
         )
-        instance._validate_model(model)
+
         return instance

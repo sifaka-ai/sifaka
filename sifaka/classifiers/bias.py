@@ -7,12 +7,7 @@ import os
 import pickle
 import re
 from dataclasses import dataclass, field
-from typing import (
-    Any,
-    Dict,
-    List,
-    Optional
-)
+from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
@@ -24,6 +19,7 @@ from sifaka.classifiers.base import (
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
 
 @dataclass(frozen=True)
 class BiasConfig:
@@ -99,6 +95,7 @@ class BiasConfig:
         if "neutral" not in self.bias_types:
             raise ValueError("'neutral' must be included in bias_types")
 
+
 class BiasDetector(BaseClassifier):
     """
     A bias detector using Support Vector Machines from scikit-learn.
@@ -133,6 +130,7 @@ class BiasDetector(BaseClassifier):
         self,
         name: str = "bias_detector",
         description: str = "Detects various forms of bias in text",
+        bias_config: Optional[BiasConfig] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> None:
@@ -142,35 +140,12 @@ class BiasDetector(BaseClassifier):
         Args:
             name: The name of the classifier
             description: Description of the classifier
-            config: Classifier configuration
+            bias_config: Bias detection configuration
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        # Extract bias-specific config from kwargs or use defaults
-        bias_kwargs = {}
-        for key in ["max_features", "model_path"]:
-            if key in kwargs.get("additional_config", {}):
-                bias_kwargs[key] = kwargs["additional_config"].pop(key)
-
-        # Create bias config
-        bias_config = BiasConfig(
-            min_confidence=kwargs.get("min_confidence", 0.7),
-            **bias_kwargs,
-        )
-
-        # If config is not provided, create one from bias_config values
-        if config is None:
-            config = ClassifierConfig(
-                labels=bias_config.bias_types,
-                cost=self.DEFAULT_COST,
-                min_confidence=bias_config.min_confidence,
-                **kwargs,
-            )
-
-        # Initialize base class
-        super().__init__(name=name, description=description, config=config)
-
-        # Set bias config
-        self.bias_config = bias_config
+        # Create or use provided bias config
+        self.bias_config = bias_config or BiasConfig()
 
         # Initialize other attributes
         self._vectorizer = None
@@ -178,6 +153,30 @@ class BiasDetector(BaseClassifier):
         self._pipeline = None
         self._explanations = {}
         self._initialized = False
+
+        # Create config if not provided
+        if config is None:
+            # Extract params from kwargs if present
+            params = kwargs.pop("params", {})
+
+            # Add bias config to params
+            params["min_confidence"] = self.bias_config.min_confidence
+            params["max_features"] = self.bias_config.max_features
+            params["random_state"] = self.bias_config.random_state
+            params["model_path"] = self.bias_config.model_path
+            params["bias_types"] = self.bias_config.bias_types
+
+            # Create config with remaining kwargs
+            config = ClassifierConfig(
+                labels=self.bias_config.bias_types,
+                cost=self.DEFAULT_COST,
+                min_confidence=self.bias_config.min_confidence,
+                params=params,
+                **kwargs,
+            )
+
+        # Initialize base class
+        super().__init__(name=name, description=description, config=config)
 
     def _load_dependencies(self) -> None:
         """Load scikit-learn dependencies."""
@@ -505,6 +504,7 @@ class BiasDetector(BaseClassifier):
         name: str = "pretrained_bias_detector",
         description: str = "Pre-trained bias detector",
         bias_config: Optional[BiasConfig] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "BiasDetector":
         """
@@ -516,10 +516,16 @@ class BiasDetector(BaseClassifier):
             name: Name of the classifier
             description: Description of the classifier
             bias_config: Bias detection configuration
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Trained BiasDetector
         """
-        classifier = cls(name=name, description=description, bias_config=bias_config, **kwargs)
+        # Create instance with provided configuration
+        classifier = cls(
+            name=name, description=description, bias_config=bias_config, config=config, **kwargs
+        )
+
+        # Train the classifier and return it
         return classifier.fit(texts, labels)

@@ -19,6 +19,7 @@ from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+
 @dataclass(frozen=True)
 class GenreConfig:
     """Configuration for genre classification."""
@@ -57,6 +58,7 @@ class GenreConfig:
         if not self.default_genres:
             raise ValueError("default_genres cannot be empty")
 
+
 class GenreClassifier(BaseClassifier):
     """
     A genre classifier using RandomForest from scikit-learn.
@@ -81,6 +83,7 @@ class GenreClassifier(BaseClassifier):
         self,
         name: str = "genre_classifier",
         description: str = "Classifies text into different genres",
+        genre_config: Optional[GenreConfig] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> None:
@@ -90,35 +93,12 @@ class GenreClassifier(BaseClassifier):
         Args:
             name: The name of the classifier
             description: Description of the classifier
-            config: Classifier configuration
+            genre_config: Genre classification configuration
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        # Extract genre-specific config from kwargs or use defaults
-        genre_kwargs = {}
-        for key in ["max_features", "use_ngrams", "n_estimators", "model_path"]:
-            if key in kwargs.get("additional_config", {}):
-                genre_kwargs[key] = kwargs["additional_config"].pop(key)
-
-        # Create genre config
-        genre_config = GenreConfig(
-            min_confidence=kwargs.get("min_confidence", 0.6),
-            **genre_kwargs,
-        )
-
-        # If config is not provided, create one from genre_config values
-        if config is None:
-            config = ClassifierConfig(
-                labels=genre_config.default_genres,
-                cost=self.DEFAULT_COST,
-                min_confidence=genre_config.min_confidence,
-                **kwargs,
-            )
-
-        # Initialize base class
-        super().__init__(name=name, description=description, config=config)
-
-        # Set genre config
-        self.genre_config = genre_config
+        # Store genre config
+        self.genre_config = genre_config or GenreConfig()
 
         # Initialize other attributes
         self._vectorizer = None
@@ -127,6 +107,32 @@ class GenreClassifier(BaseClassifier):
         self._feature_importances = None
         self._initialized = False
         self._custom_labels = None
+
+        # Create config if not provided
+        if config is None:
+            # Extract params from kwargs if present
+            params = kwargs.pop("params", {})
+
+            # Add genre config to params
+            params["min_confidence"] = self.genre_config.min_confidence
+            params["max_features"] = self.genre_config.max_features
+            params["random_state"] = self.genre_config.random_state
+            params["model_path"] = self.genre_config.model_path
+            params["use_ngrams"] = self.genre_config.use_ngrams
+            params["n_estimators"] = self.genre_config.n_estimators
+            params["default_genres"] = self.genre_config.default_genres
+
+            # Create config with remaining kwargs
+            config = ClassifierConfig(
+                labels=self.genre_config.default_genres,
+                cost=self.DEFAULT_COST,
+                min_confidence=self.genre_config.min_confidence,
+                params=params,
+                **kwargs,
+            )
+
+        # Initialize base class
+        super().__init__(name=name, description=description, config=config)
 
     def _load_dependencies(self) -> None:
         """Load scikit-learn dependencies."""
@@ -275,7 +281,7 @@ class GenreClassifier(BaseClassifier):
 
             # Get the top features
             top_features = {}
-            for i, label in enumerate(self._config.labels):
+            for label in self._config.labels:
                 # For RandomForest, we need to extract class-specific importances differently
                 # Here we use the overall feature importance as a simplification
                 top_indices = importances.argsort()[-20:][::-1]
@@ -353,7 +359,7 @@ class GenreClassifier(BaseClassifier):
         probas = self._pipeline.predict_proba(texts)
 
         results = []
-        for i, proba in enumerate(probas):
+        for proba in probas:
             dominant_class_idx = proba.argmax()
             confidence = float(proba[dominant_class_idx])
 
@@ -392,6 +398,7 @@ class GenreClassifier(BaseClassifier):
         name: str = "pretrained_genre_classifier",
         description: str = "Pre-trained genre classifier",
         genre_config: Optional[GenreConfig] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "GenreClassifier":
         """
@@ -403,10 +410,16 @@ class GenreClassifier(BaseClassifier):
             name: Name of the classifier
             description: Description of the classifier
             genre_config: Genre classification configuration
+            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Trained GenreClassifier
         """
-        classifier = cls(name=name, description=description, genre_config=genre_config, **kwargs)
+        # Create instance with provided configuration
+        classifier = cls(
+            name=name, description=description, genre_config=genre_config, config=config, **kwargs
+        )
+
+        # Train the classifier and return it
         return classifier.fit(texts, labels)

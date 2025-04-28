@@ -1,4 +1,4 @@
-from typing import Any, Optional, Type, Union
+from typing import Any, Dict, Optional, Type, Union
 
 from ..classifiers.base import Classifier, ClassifierConfig
 from .base import BaseValidator, Rule, RuleConfig, RuleResult
@@ -16,20 +16,31 @@ class ClassifierAdapter(BaseValidator[str]):
         """Get the classifier."""
         return self._classifier
 
-    def validate(self, output: str, **kwargs) -> RuleResult:
-        """Validate output using the classifier."""
+    def validate(self, output: str, **_) -> RuleResult:
+        """
+        Validate output using the classifier.
+
+        Args:
+            output: The text to validate
+            **_: Additional validation context (unused)
+
+        Returns:
+            RuleResult with validation results
+        """
         try:
             result = self.classifier.classify(output)
             return RuleResult(
                 passed=True,
-                message=f"Classification successful: {result}",
+                message=f"Classification successful: {result.label}",
                 metadata={"classification_result": result},
+                score=result.confidence,
             )
         except Exception as e:
             return RuleResult(
                 passed=False,
                 message=f"Classification failed: {str(e)}",
                 metadata={"error": str(e)},
+                score=0.0,
             )
 
 
@@ -39,7 +50,7 @@ class ClassifierRuleAdapter(Rule[str, RuleResult, ClassifierAdapter, Any]):
     def __init__(
         self,
         classifier: Union[Type[Classifier], Classifier],
-        config: Optional[ClassifierConfig] = None,
+        classifier_config: Optional[Dict[str, Any]] = None,
         rule_config: Optional[RuleConfig] = None,
     ) -> None:
         """
@@ -47,14 +58,30 @@ class ClassifierRuleAdapter(Rule[str, RuleResult, ClassifierAdapter, Any]):
 
         Args:
             classifier: Either a Classifier class or instance
-            config: Optional classifier configuration (only used if classifier is a class)
+            classifier_config: Optional classifier configuration dictionary (only used if classifier is a class)
             rule_config: Optional rule configuration
         """
         # Store the classifier for creating the validator
         if isinstance(classifier, type):
-            # If classifier is a class, instantiate it
+            # If classifier is a class, instantiate it with config
             classifier_name = classifier.__name__
-            self._classifier_instance = classifier(config=config)
+
+            # Create classifier config if provided
+            if classifier_config:
+                # Extract labels if provided
+                labels = classifier_config.pop("labels", [])
+                # Create config with remaining params
+                config = ClassifierConfig(labels=labels, params=classifier_config)
+                self._classifier_instance = classifier(
+                    name=f"{classifier_name.lower()}",
+                    description=f"{classifier_name} classifier",
+                    config=config,
+                )
+            else:
+                # Create with default config
+                self._classifier_instance = classifier(
+                    name=f"{classifier_name.lower()}", description=f"{classifier_name} classifier"
+                )
         else:
             # If classifier is an instance, use it directly
             classifier_name = classifier.__class__.__name__
@@ -66,6 +93,11 @@ class ClassifierRuleAdapter(Rule[str, RuleResult, ClassifierAdapter, Any]):
             description=f"Rule adapter for {classifier_name}",
             config=rule_config,
         )
+
+    @property
+    def classifier(self) -> Classifier:
+        """Get the classifier instance."""
+        return self._classifier_instance
 
     def _create_default_validator(self) -> ClassifierAdapter:
         """Create a default validator using the classifier."""
