@@ -3,12 +3,34 @@ Sentiment analysis rules for Sifaka.
 
 This module provides rules for analyzing and validating text sentiment,
 including positive/negative sentiment detection and emotional content analysis.
+
+.. deprecated:: 1.0.0
+   This module is deprecated and will be removed in version 2.0.0.
+   Use :mod:`sifaka.rules.content.sentiment` instead.
+
+Migration guide:
+1. Replace imports:
+   - Old: from sifaka.rules.sentiment import SentimentRule, EmotionalContentRule
+   - New: from sifaka.rules.content.sentiment import SentimentRule, EmotionalContentRule
+
+2. Update configuration:
+   - The new module uses the same class names but with slightly different structure
+   - See the module documentation for details
 """
 
+import warnings
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Protocol, Set, runtime_checkable
 
 from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
+
+# Emit deprecation warning
+warnings.warn(
+    "The sifaka.rules.sentiment module is deprecated and will be removed in version 2.0.0. "
+    "Use sifaka.rules.content.sentiment instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 # Default sets of positive and negative words for sentiment analysis
 DEFAULT_POSITIVE_WORDS = frozenset(

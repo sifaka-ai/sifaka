@@ -1,34 +1,116 @@
 """
-Safety-related rules for Sifaka.
+Safety-related content validation rules for Sifaka.
 
-.. deprecated:: 1.0.0
-   This module is deprecated and will be removed in version 2.0.0.
-   Use :mod:`sifaka.rules.content.safety` instead.
-
-Migration guide:
-1. Replace imports:
-   - Old: from sifaka.rules.safety import ToxicityRule, BiasRule, HarmfulContentRule
-   - New: from sifaka.rules.content.safety import ToxicityRule, BiasRule, HarmfulContentRule
-
-2. Update configuration:
-   - The new module uses the same class names but with slightly different structure
-   - See the module documentation for details
+This module provides rules for validating text against various safety concerns,
+including toxicity, bias, and harmful content.
 """
 
-import warnings
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Final, List, Optional
 
-from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
-
-
-# Emit deprecation warning
-warnings.warn(
-    "The sifaka.rules.safety module is deprecated and will be removed in version 2.0.0. "
-    "Use sifaka.rules.content.safety instead.",
-    DeprecationWarning,
-    stacklevel=2,
+from sifaka.rules.base import (
+    BaseValidator,
+    ConfigurationError,
+    Rule,
+    RuleConfig,
+    RuleResult,
+    RuleResultHandler,
+    ValidationError,
 )
+from sifaka.rules.content.base import ContentAnalyzer, ContentValidator, DefaultContentAnalyzer
+
+
+@dataclass(frozen=True)
+class ToxicityIndicators:
+    """Immutable container for toxicity indicators configuration."""
+
+    indicators: frozenset[str]
+    threshold: float = 0.5
+
+    def __post_init__(self) -> None:
+        if not self.indicators:
+            raise ConfigurationError("Toxicity indicators list cannot be empty")
+        if not 0.0 <= self.threshold <= 1.0:
+            raise ConfigurationError("Threshold must be between 0.0 and 1.0")
+
+    def with_indicators(self, indicators: List[str]) -> "ToxicityIndicators":
+        """Create new instance with updated indicators."""
+        return ToxicityIndicators(indicators=frozenset(indicators), threshold=self.threshold)
+
+    def with_threshold(self, threshold: float) -> "ToxicityIndicators":
+        """Create new instance with updated threshold."""
+        return ToxicityIndicators(indicators=self.indicators, threshold=threshold)
+
+
+@dataclass(frozen=True)
+class BiasCategories:
+    """Immutable container for bias categories configuration."""
+
+    categories: Dict[str, frozenset[str]]
+    threshold: float = 0.3
+
+    def __post_init__(self) -> None:
+        if not self.categories:
+            raise ConfigurationError("Bias categories cannot be empty")
+        if not 0.0 <= self.threshold <= 1.0:
+            raise ConfigurationError("Threshold must be between 0.0 and 1.0")
+
+        # Convert to frozenset if not already
+        categories_copy = {}
+        for category, indicators in self.categories.items():
+            if not indicators:
+                raise ConfigurationError(f"Category {category} must have at least one indicator")
+            if not isinstance(indicators, frozenset):
+                categories_copy[category] = frozenset(indicators)
+            else:
+                categories_copy[category] = indicators
+
+        if categories_copy:
+            object.__setattr__(self, "categories", categories_copy)
+
+    def with_categories(self, categories: Dict[str, List[str]]) -> "BiasCategories":
+        """Create new instance with updated categories."""
+        categories_copy = {}
+        for category, indicators in categories.items():
+            categories_copy[category] = frozenset(indicators)
+
+        return BiasCategories(categories=categories_copy, threshold=self.threshold)
+
+    def with_threshold(self, threshold: float) -> "BiasCategories":
+        """Create new instance with updated threshold."""
+        return BiasCategories(categories=self.categories, threshold=threshold)
+
+
+@dataclass(frozen=True)
+class HarmfulCategories:
+    """Immutable container for harmful content categories configuration."""
+
+    categories: Dict[str, frozenset[str]]
+
+    def __post_init__(self) -> None:
+        if not self.categories:
+            raise ConfigurationError("Harmful content categories cannot be empty")
+
+        # Convert to frozenset if not already
+        categories_copy = {}
+        for category, indicators in self.categories.items():
+            if not indicators:
+                raise ConfigurationError(f"Category {category} must have at least one indicator")
+            if not isinstance(indicators, frozenset):
+                categories_copy[category] = frozenset(indicators)
+            else:
+                categories_copy[category] = indicators
+
+        if categories_copy:
+            object.__setattr__(self, "categories", categories_copy)
+
+    def with_categories(self, categories: Dict[str, List[str]]) -> "HarmfulCategories":
+        """Create new instance with updated categories."""
+        categories_copy = {}
+        for category, indicators in categories.items():
+            categories_copy[category] = frozenset(indicators)
+
+        return HarmfulCategories(categories=categories_copy)
 
 
 @dataclass(frozen=True)
@@ -61,6 +143,20 @@ class ToxicityConfig(RuleConfig):
             raise ValueError("Threshold must be between 0.0 and 1.0")
         if not self.indicators:
             raise ValueError("Must provide at least one toxicity indicator")
+
+        # For consistency, copy configuration values to params
+        if not self.params:
+            object.__setattr__(
+                self,
+                "params",
+                {
+                    "threshold": self.threshold,
+                    "indicators": self.indicators,
+                    "cache_size": self.cache_size,
+                    "priority": self.priority,
+                    "cost": self.cost,
+                },
+            )
 
 
 @dataclass(frozen=True)
@@ -115,6 +211,20 @@ class BiasConfig(RuleConfig):
             if not indicators:
                 raise ValueError(f"Category {category} must have at least one indicator")
 
+        # For consistency, copy configuration values to params
+        if not self.params:
+            object.__setattr__(
+                self,
+                "params",
+                {
+                    "threshold": self.threshold,
+                    "categories": self.categories,
+                    "cache_size": self.cache_size,
+                    "priority": self.priority,
+                    "cost": self.cost,
+                },
+            )
+
 
 @dataclass(frozen=True)
 class HarmfulContentConfig(RuleConfig):
@@ -165,6 +275,197 @@ class HarmfulContentConfig(RuleConfig):
             if not indicators:
                 raise ValueError(f"Category {category} must have at least one indicator")
 
+        # For consistency, copy configuration values to params
+        if not self.params:
+            object.__setattr__(
+                self,
+                "params",
+                {
+                    "categories": self.categories,
+                    "cache_size": self.cache_size,
+                    "priority": self.priority,
+                    "cost": self.cost,
+                },
+            )
+
+
+class ToxicityValidator(ContentValidator):
+    """Validator that checks for toxic content."""
+
+    def __init__(
+        self,
+        indicators: ToxicityIndicators,
+        analyzer: Optional[ContentAnalyzer] = None,
+    ) -> None:
+        """Initialize the validator."""
+        super().__init__(analyzer or DefaultContentAnalyzer())
+        self._indicators: Final[ToxicityIndicators] = indicators
+
+    def validate(self, output: str, **kwargs) -> RuleResult:
+        """Validate that the output does not contain toxic content."""
+        try:
+            if not isinstance(output, str):
+                raise TypeError("Output must be a string")
+
+            output_lower = output.lower()
+            toxic_indicators = [
+                indicator
+                for indicator in self._indicators.indicators
+                if indicator.lower() in output_lower
+            ]
+
+            toxicity_score = len(toxic_indicators) / len(self._indicators.indicators)
+
+            if toxicity_score > self._indicators.threshold:
+                return RuleResult(
+                    passed=False,
+                    message=f"Output contains toxic content (score: {toxicity_score:.2f})",
+                    metadata={
+                        "toxicity_score": toxicity_score,
+                        "toxic_indicators": toxic_indicators,
+                        "analysis": self._analyzer.analyze(output),
+                    },
+                )
+
+            return RuleResult(
+                passed=True,
+                message="No toxic content detected",
+                metadata={
+                    "toxicity_score": toxicity_score,
+                    "analysis": self._analyzer.analyze(output),
+                },
+            )
+
+        except Exception as e:
+            raise ValidationError(f"Toxicity validation failed: {str(e)}") from e
+
+
+class BiasValidator(ContentValidator):
+    """Validator that checks for biased content."""
+
+    def __init__(
+        self,
+        categories: BiasCategories,
+        analyzer: Optional[ContentAnalyzer] = None,
+    ) -> None:
+        """Initialize the validator."""
+        super().__init__(analyzer or DefaultContentAnalyzer())
+        self._categories: Final[BiasCategories] = categories
+
+    def validate(self, output: str, **kwargs) -> RuleResult:
+        """Validate that the output does not contain biased content."""
+        try:
+            if not isinstance(output, str):
+                raise TypeError("Output must be a string")
+
+            output_lower = output.lower()
+            bias_scores: Dict[str, float] = {}
+            detected_biases: Dict[str, List[str]] = {}
+
+            for category, indicators in self._categories.categories.items():
+                found_indicators = [
+                    indicator for indicator in indicators if indicator.lower() in output_lower
+                ]
+                if found_indicators:
+                    bias_scores[category] = len(found_indicators) / len(indicators)
+                    detected_biases[category] = found_indicators
+
+            analysis = self._analyzer.analyze(output)
+
+            if not bias_scores:
+                return RuleResult(
+                    passed=True,
+                    message="No biased content detected",
+                    metadata={
+                        "bias_scores": {},
+                        "detected_biases": {},
+                        "analysis": analysis,
+                    },
+                )
+
+            overall_bias_score = sum(bias_scores.values()) / len(self._categories.categories)
+
+            if overall_bias_score > self._categories.threshold:
+                return RuleResult(
+                    passed=False,
+                    message=f"Output contains biased content (score: {overall_bias_score:.2f})",
+                    metadata={
+                        "bias_scores": bias_scores,
+                        "detected_biases": detected_biases,
+                        "overall_score": overall_bias_score,
+                        "analysis": analysis,
+                    },
+                )
+
+            return RuleResult(
+                passed=True,
+                message="No significant bias detected",
+                metadata={
+                    "bias_scores": bias_scores,
+                    "detected_biases": detected_biases,
+                    "overall_score": overall_bias_score,
+                    "analysis": analysis,
+                },
+            )
+
+        except Exception as e:
+            raise ValidationError(f"Bias validation failed: {str(e)}") from e
+
+
+class HarmfulContentValidator(ContentValidator):
+    """Validator that checks for harmful content."""
+
+    def __init__(
+        self,
+        categories: HarmfulCategories,
+        analyzer: Optional[ContentAnalyzer] = None,
+    ) -> None:
+        """Initialize the validator."""
+        super().__init__(analyzer or DefaultContentAnalyzer())
+        self._categories: Final[HarmfulCategories] = categories
+
+    def validate(self, output: str, **kwargs) -> RuleResult:
+        """Validate that the output does not contain harmful content."""
+        try:
+            if not isinstance(output, str):
+                raise TypeError("Output must be a string")
+
+            output_lower = output.lower()
+            harmful_content: Dict[str, List[str]] = {}
+
+            for category, indicators in self._categories.categories.items():
+                found_indicators = [
+                    indicator for indicator in indicators if indicator.lower() in output_lower
+                ]
+                if found_indicators:
+                    harmful_content[category] = found_indicators
+
+            analysis = self._analyzer.analyze(output)
+
+            if harmful_content:
+                return RuleResult(
+                    passed=False,
+                    message="Output contains harmful content",
+                    metadata={
+                        "harmful_content": harmful_content,
+                        "categories_found": list(harmful_content.keys()),
+                        "analysis": analysis,
+                    },
+                )
+
+            return RuleResult(
+                passed=True,
+                message="No harmful content detected",
+                metadata={
+                    "harmful_content": {},
+                    "categories_found": [],
+                    "analysis": analysis,
+                },
+            )
+
+        except Exception as e:
+            raise ValidationError(f"Harmful content validation failed: {str(e)}") from e
+
 
 class DefaultToxicityValidator(BaseValidator[str]):
     """Default implementation of toxicity validation."""
@@ -183,14 +484,18 @@ class DefaultToxicityValidator(BaseValidator[str]):
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
+        # Get configuration from params for consistency
+        threshold = self.config.params.get("threshold", self.config.threshold)
+        indicators = self.config.params.get("indicators", self.config.indicators)
+
         text_lower = text.lower()
         toxic_indicators = [
-            indicator for indicator in self.config.indicators if indicator in text_lower
+            indicator for indicator in indicators if indicator.lower() in text_lower
         ]
 
-        toxicity_score = len(toxic_indicators) / len(self.config.indicators)
+        toxicity_score = len(toxic_indicators) / len(indicators) if indicators else 0
 
-        if toxicity_score > self.config.threshold:
+        if toxicity_score > threshold:
             return RuleResult(
                 passed=False,
                 message=f"Output contains toxic content (score: {toxicity_score:.2f})",
@@ -221,12 +526,18 @@ class DefaultBiasValidator(BaseValidator[str]):
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
+        # Get configuration from params for consistency
+        threshold = self.config.params.get("threshold", self.config.threshold)
+        categories = self.config.params.get("categories", self.config.categories)
+
         text_lower = text.lower()
         bias_scores: Dict[str, float] = {}
         detected_biases: Dict[str, List[str]] = {}
 
-        for category, indicators in self.config.categories.items():
-            found_indicators = [indicator for indicator in indicators if indicator in text_lower]
+        for category, indicators in categories.items():
+            found_indicators = [
+                indicator for indicator in indicators if indicator.lower() in text_lower
+            ]
             if found_indicators:
                 bias_scores[category] = len(found_indicators) / len(indicators)
                 detected_biases[category] = found_indicators
@@ -241,9 +552,9 @@ class DefaultBiasValidator(BaseValidator[str]):
                 },
             )
 
-        overall_bias_score = sum(bias_scores.values()) / len(self.config.categories)
+        overall_bias_score = sum(bias_scores.values()) / len(categories)
 
-        if overall_bias_score > self.config.threshold:
+        if overall_bias_score > threshold:
             return RuleResult(
                 passed=False,
                 message=f"Output contains biased content (score: {overall_bias_score:.2f})",
@@ -282,11 +593,16 @@ class DefaultHarmfulContentValidator(BaseValidator[str]):
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
+        # Get configuration from params for consistency
+        categories = self.config.params.get("categories", self.config.categories)
+
         text_lower = text.lower()
         harmful_content: Dict[str, List[str]] = {}
 
-        for category, indicators in self.config.categories.items():
-            found_indicators = [indicator for indicator in indicators if indicator in text_lower]
+        for category, indicators in categories.items():
+            found_indicators = [
+                indicator for indicator in indicators if indicator.lower() in text_lower
+            ]
             if found_indicators:
                 harmful_content[category] = found_indicators
 
@@ -310,7 +626,7 @@ class DefaultHarmfulContentValidator(BaseValidator[str]):
         )
 
 
-class ToxicityRule(Rule[str, RuleResult, DefaultToxicityValidator, Any]):
+class ToxicityRule(Rule[str, RuleResult, DefaultToxicityValidator, RuleResultHandler[RuleResult]]):
     """Rule for validating text toxicity."""
 
     def __init__(
@@ -333,11 +649,17 @@ class ToxicityRule(Rule[str, RuleResult, DefaultToxicityValidator, Any]):
         self._rule_params = {}
         if config:
             # For backward compatibility, check both params and metadata
-            params_source = config.params if config.params else config.metadata
-            self._rule_params = params_source
+            # Always prefer params over metadata for consistency
+            self._rule_params = config.params if config.params else config.metadata
 
         # Initialize base class
-        super().__init__(name=name, description=description, config=config, validator=validator)
+        super().__init__(
+            name=name,
+            description=description,
+            config=config,
+            validator=validator,
+            result_handler=None,
+        )
 
     def _create_default_validator(self) -> DefaultToxicityValidator:
         """Create a default validator from config."""
@@ -345,7 +667,7 @@ class ToxicityRule(Rule[str, RuleResult, DefaultToxicityValidator, Any]):
         return DefaultToxicityValidator(rule_config)
 
 
-class BiasRule(Rule[str, RuleResult, DefaultBiasValidator, Any]):
+class BiasRule(Rule[str, RuleResult, DefaultBiasValidator, RuleResultHandler[RuleResult]]):
     """Rule for validating text bias."""
 
     def __init__(
@@ -368,11 +690,17 @@ class BiasRule(Rule[str, RuleResult, DefaultBiasValidator, Any]):
         self._rule_params = {}
         if config:
             # For backward compatibility, check both params and metadata
-            params_source = config.params if config.params else config.metadata
-            self._rule_params = params_source
+            # Always prefer params over metadata for consistency
+            self._rule_params = config.params if config.params else config.metadata
 
         # Initialize base class
-        super().__init__(name=name, description=description, config=config, validator=validator)
+        super().__init__(
+            name=name,
+            description=description,
+            config=config,
+            validator=validator,
+            result_handler=None,
+        )
 
     def _create_default_validator(self) -> DefaultBiasValidator:
         """Create a default validator from config."""
@@ -380,7 +708,9 @@ class BiasRule(Rule[str, RuleResult, DefaultBiasValidator, Any]):
         return DefaultBiasValidator(rule_config)
 
 
-class HarmfulContentRule(Rule[str, RuleResult, DefaultHarmfulContentValidator, Any]):
+class HarmfulContentRule(
+    Rule[str, RuleResult, DefaultHarmfulContentValidator, RuleResultHandler[RuleResult]]
+):
     """Rule for validating harmful content."""
 
     def __init__(
@@ -403,11 +733,17 @@ class HarmfulContentRule(Rule[str, RuleResult, DefaultHarmfulContentValidator, A
         self._rule_params = {}
         if config:
             # For backward compatibility, check both params and metadata
-            params_source = config.params if config.params else config.metadata
-            self._rule_params = params_source
+            # Always prefer params over metadata for consistency
+            self._rule_params = config.params if config.params else config.metadata
 
         # Initialize base class
-        super().__init__(name=name, description=description, config=config, validator=validator)
+        super().__init__(
+            name=name,
+            description=description,
+            config=config,
+            validator=validator,
+            result_handler=None,
+        )
 
     def _create_default_validator(self) -> DefaultHarmfulContentValidator:
         """Create a default validator from config."""
@@ -586,20 +922,3 @@ def create_harmful_content_rule(
         description=description,
         config=rule_config,
     )
-
-
-# Export public classes and functions
-__all__ = [
-    "ToxicityRule",
-    "ToxicityConfig",
-    "DefaultToxicityValidator",
-    "BiasRule",
-    "BiasConfig",
-    "DefaultBiasValidator",
-    "HarmfulContentRule",
-    "HarmfulContentConfig",
-    "DefaultHarmfulContentValidator",
-    "create_toxicity_rule",
-    "create_bias_rule",
-    "create_harmful_content_rule",
-]

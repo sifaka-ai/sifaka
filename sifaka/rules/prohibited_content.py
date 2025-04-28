@@ -4,6 +4,19 @@ Prohibited content validation rules for Sifaka.
 This module provides rules for validating text against prohibited content, supporting both
 case-sensitive and case-insensitive matching of prohibited terms.
 
+.. deprecated:: 1.0.0
+   This module is deprecated and will be removed in version 2.0.0.
+   Use :mod:`sifaka.rules.content.prohibited` instead.
+
+Migration guide:
+1. Replace imports:
+   - Old: from sifaka.rules.prohibited_content import ProhibitedContentRule
+   - New: from sifaka.rules.content.prohibited import ProhibitedContentRule
+
+2. Update configuration:
+   - The new module uses the same class names but with slightly different structure
+   - See the module documentation for details
+
 Architecture Notes:
 - Uses immutable configuration via dataclasses
 - Implements Protocol-based validation for dependency injection
@@ -12,10 +25,20 @@ Architecture Notes:
 - Follows single responsibility principle with clear separation of concerns
 """
 
+import warnings
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Protocol, Set, runtime_checkable
 
 from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult, Any
+
+
+# Emit deprecation warning
+warnings.warn(
+    "The sifaka.rules.prohibited_content module is deprecated and will be removed in version 2.0.0. "
+    "Use sifaka.rules.content.prohibited instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 @dataclass(frozen=True)
@@ -195,6 +218,13 @@ def create_prohibited_content_rule(
     Returns:
         Configured ProhibitedContentRule instance
     """
+    warnings.warn(
+        "create_prohibited_content_rule is deprecated. "
+        "Use sifaka.rules.content.prohibited.create_prohibited_content_rule instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
     rule_config = None
 
     # Handle different config types
