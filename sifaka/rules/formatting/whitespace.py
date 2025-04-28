@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-from sifaka.rules.rule import Rule, RuleResult
+from sifaka.rules.base import Rule, RuleResult
 
 
 @dataclass

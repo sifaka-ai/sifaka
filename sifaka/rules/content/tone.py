@@ -3,7 +3,7 @@ Tone consistency validation rules for Sifaka.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Final, List, Optional, frozenset
+from typing import Any, Dict, Final, List, Optional
 
 from sifaka.rules.base import (
     BaseValidator,

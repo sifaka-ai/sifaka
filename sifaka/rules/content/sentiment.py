@@ -6,7 +6,7 @@ including positive/negative sentiment detection and emotional content analysis.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Final, List, Optional, Set, frozenset
+from typing import Any, Dict, Final, List, Optional, Set
 
 from sifaka.rules.base import (
     BaseValidator,

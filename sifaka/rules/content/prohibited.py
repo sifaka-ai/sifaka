@@ -3,7 +3,7 @@ Prohibited content validation rules for Sifaka.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Final, List, Optional, Sequence, TypeGuard, frozenset
+from typing import Any, Dict, Final, List, Optional, Sequence, TypeGuard
 
 from typing_extensions import TypeGuard
 

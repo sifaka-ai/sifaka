@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Dict, List, Optional, Tuple, Union
 
-from sifaka.rules.rule import Rule, RuleResult
+from sifaka.rules.base import Rule, RuleResult
 
 
 class CapitalizationStyle(Enum):
@@ -40,6 +40,23 @@ class StyleConfig:
     allowed_end_chars: Optional[List[str]] = None
     disallowed_chars: Optional[List[str]] = None
     strip_whitespace: bool = True
+
+
+@dataclass
+class FormattingConfig:
+    """Configuration for text formatting validation.
+
+    Attributes:
+        style_config: Configuration for style validation
+        strip_whitespace: Whether to strip whitespace before validation
+        normalize_whitespace: Whether to normalize consecutive whitespace
+        remove_extra_lines: Whether to remove extra blank lines
+    """
+
+    style_config: Optional[StyleConfig] = None
+    strip_whitespace: bool = True
+    normalize_whitespace: bool = False
+    remove_extra_lines: bool = False
 
 
 class StyleValidator:
@@ -260,5 +277,136 @@ def create_style_rule(
     return StyleRule(
         validator=validator,
         id=rule_id or "style",
+        **kwargs,
+    )
+
+
+class FormattingValidator:
+    """Base class for text formatting validators."""
+
+    def __init__(self, config: FormattingConfig):
+        """Initialize validator with a configuration.
+
+        Args:
+            config: Formatting validation configuration
+        """
+        self.config = config
+
+    def validate(self, text: str) -> Tuple[bool, List[str]]:
+        """Validate text against formatting constraints.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            Tuple containing:
+                - Boolean indicating if validation passed
+                - List of error messages if validation failed
+        """
+        raise NotImplementedError("Subclasses must implement validate method")
+
+
+class DefaultFormattingValidator(FormattingValidator):
+    """Default implementation of text formatting validator."""
+
+    def validate(self, text: str) -> Tuple[bool, List[str]]:
+        """Validate text against formatting constraints.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            Tuple containing:
+                - Boolean indicating if validation passed
+                - List of error messages if validation failed
+        """
+        if not text:
+            return True, []
+
+        errors = []
+
+        # Apply transformations if configured
+        if self.config.strip_whitespace:
+            text = text.strip()
+
+        if self.config.normalize_whitespace:
+            text = re.sub(r"\s+", " ", text)
+
+        if self.config.remove_extra_lines:
+            text = re.sub(r"\n{3,}", "\n\n", text)
+
+        # Validate against style config if provided
+        if self.config.style_config:
+            style_validator = DefaultStyleValidator(self.config.style_config)
+            is_valid, style_errors = style_validator.validate(text)
+            if not is_valid:
+                errors.extend(style_errors)
+
+        return not errors, errors
+
+
+class FormattingRule(Rule):
+    """Rule for validating text formatting constraints."""
+
+    def __init__(self, validator: FormattingValidator, config: Optional[Dict] = None, **kwargs):
+        """Initialize the formatting rule.
+
+        Args:
+            validator: The validator to use for formatting validation
+            config: Additional configuration for the rule
+            **kwargs: Additional keyword arguments for the rule
+        """
+        super().__init__(config=config, **kwargs)
+        self.validator = validator
+
+    def evaluate(self, text: str) -> RuleResult:
+        """Evaluate text against formatting constraints.
+
+        Args:
+            text: The text to evaluate
+
+        Returns:
+            RuleResult containing validation results
+        """
+        is_valid, errors = self.validator.validate(text)
+        return RuleResult(
+            passed=is_valid,
+            rule_id=self.id,
+            errors=errors,
+        )
+
+
+def create_formatting_rule(
+    style_config: Optional[StyleConfig] = None,
+    strip_whitespace: bool = True,
+    normalize_whitespace: bool = False,
+    remove_extra_lines: bool = False,
+    rule_id: Optional[str] = None,
+    **kwargs,
+) -> FormattingRule:
+    """Create a formatting validation rule with the specified constraints.
+
+    Args:
+        style_config: Configuration for style validation
+        strip_whitespace: Whether to strip whitespace before validation
+        normalize_whitespace: Whether to normalize consecutive whitespace
+        remove_extra_lines: Whether to remove extra blank lines
+        rule_id: Identifier for the rule
+        **kwargs: Additional keyword arguments for the rule
+
+    Returns:
+        Configured FormattingRule
+    """
+    config = FormattingConfig(
+        style_config=style_config,
+        strip_whitespace=strip_whitespace,
+        normalize_whitespace=normalize_whitespace,
+        remove_extra_lines=remove_extra_lines,
+    )
+    validator = DefaultFormattingValidator(config)
+
+    return FormattingRule(
+        validator=validator,
+        id=rule_id or "formatting",
         **kwargs,
     )

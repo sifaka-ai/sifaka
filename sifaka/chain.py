@@ -15,6 +15,7 @@ from .rules import Rule, RuleResult
 
 OutputType = TypeVar("OutputType")
 
+
 @dataclass
 class ChainResult(Generic[OutputType]):
     """Result from running a chain, including the output and validation details."""
@@ -22,6 +23,7 @@ class ChainResult(Generic[OutputType]):
     output: OutputType
     rule_results: List[RuleResult]
     critique_details: Optional[dict] = None
+
 
 class Chain(Generic[OutputType]):
     """
@@ -81,16 +83,29 @@ class Chain(Generic[OutputType]):
                 if not result.passed:
                     all_passed = False
 
-            # If validation passed or no critic, return result
-            if all_passed or (not self.critic and attempts == 0):
+            # If validation passed, return result
+            if all_passed:
+                # Handle different critique formats properly
+                critique_details = None
+                if last_critique:
+                    if isinstance(last_critique, CriticMetadata):
+                        critique_details = last_critique.__dict__
+                    elif isinstance(last_critique, dict):
+                        critique_details = last_critique
+
                 return ChainResult(
                     output=output,
                     rule_results=rule_results,
-                    critique_details=last_critique.__dict__ if last_critique else None,
+                    critique_details=critique_details,
                 )
 
+            # If validation failed but we have no critic, raise error
+            if not self.critic:
+                error_messages = [r.message for r in rule_results if not r.passed]
+                raise ValueError(f"Validation failed. Errors:\n" + "\n".join(error_messages))
+
             # If we have a critic and validation failed, try to improve
-            if self.critic and attempts < self.max_attempts - 1:
+            if attempts < self.max_attempts - 1:
                 critique = self.critic.critique(output)
                 last_critique = critique
                 if isinstance(critique, CriticMetadata):
@@ -101,7 +116,7 @@ class Chain(Generic[OutputType]):
                 attempts += 1
                 continue
 
-            # If we're out of attempts, raise error
+            # If we're out of attempts or no critic, raise error
             error_messages = [r.message for r in rule_results if not r.passed]
             raise ValueError(
                 f"Validation failed after {attempts + 1} attempts. Errors:\n"

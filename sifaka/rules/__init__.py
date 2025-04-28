@@ -132,7 +132,7 @@ Usage Example:
 
 import warnings
 
-from .base import FunctionRule, Rule, RuleResult
+from .base import FunctionRule, Rule, RuleResult, RuleConfig
 
 # Deprecated - use adapters instead
 from .classifier_rule import ClassifierRule as _DeprecatedClassifierRule
@@ -183,6 +183,7 @@ __all__ = [
     # Base
     "Rule",
     "RuleResult",
+    "RuleConfig",
     "FunctionRule",
     # Safety
     "ToxicityRule",

@@ -7,7 +7,7 @@ This module provides validators and rules for checking text length constraints.
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union
 
-from sifaka.rules.rule import Rule, RuleResult
+from sifaka.rules.base import Rule, RuleResult
 
 
 @dataclass

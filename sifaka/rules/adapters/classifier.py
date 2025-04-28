@@ -8,7 +8,7 @@ use it as a rule in validation pipelines.
 
 from typing import Any, Callable, Dict, Final, List, Optional, Type, Union
 
-from sifaka.classifiers.base import Classification, Classifier, ClassifierConfig
+from sifaka.classifiers.base import ClassificationResult, Classifier, ClassifierConfig
 from sifaka.rules.adapters.base import Adaptable, BaseAdapter
 from sifaka.rules.base import (
     ConfigurationError,
@@ -28,7 +28,7 @@ class ClassifierAdapter(BaseAdapter):
         classifier: Classifier,
         threshold: float = 0.5,
         valid_labels: Optional[List[str]] = None,
-        validation_fn: Optional[Callable[[Classification], bool]] = None,
+        validation_fn: Optional[Callable[[ClassificationResult], bool]] = None,
     ) -> None:
         """
         Initialize with a classifier.
@@ -59,7 +59,7 @@ class ClassifierAdapter(BaseAdapter):
         """Get the valid labels."""
         return self._valid_labels
 
-    def _default_validation_fn(self, result: Classification) -> bool:
+    def _default_validation_fn(self, result: ClassificationResult) -> bool:
         """
         Default validation logic.
 
@@ -114,6 +114,8 @@ class ClassifierAdapter(BaseAdapter):
                 "classification": (
                     result.model_dump() if hasattr(result, "model_dump") else vars(result)
                 ),
+                # Add the result object directly to metadata
+                "result": result,
             }
 
             return RuleResult(
@@ -139,7 +141,7 @@ class ClassifierRule(Rule[str, RuleResult, ClassifierAdapter, RuleResultHandler[
         rule_config: Optional[RuleConfig] = None,
         threshold: float = 0.5,
         valid_labels: Optional[List[str]] = None,
-        validation_fn: Optional[Callable[[Classification], bool]] = None,
+        validation_fn: Optional[Callable[[ClassificationResult], bool]] = None,
     ) -> None:
         """
         Initialize with a classifier.
@@ -269,7 +271,7 @@ def create_classifier_rule(
     rule_config: Optional[Dict[str, Any]] = None,
     threshold: float = 0.5,
     valid_labels: Optional[List[str]] = None,
-    validation_fn: Optional[Callable[[Classification], bool]] = None,
+    validation_fn: Optional[Callable[[ClassificationResult], bool]] = None,
 ) -> ClassifierRule:
     """
     Create a classifier rule.
