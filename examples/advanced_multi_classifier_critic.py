@@ -5,7 +5,7 @@ This example demonstrates a system where:
 1. All available classifiers are used to analyze a 2,500-word text
 2. Each classifier is converted to a rule
 3. A custom BatchedCritic consolidates feedback from all failing rules
-4. Claude 3.5 Sonnet is used to revise text based on batched feedback
+4. A faster model (GPT-3.5-turbo) is used to revise text based on batched feedback
 5. The process continues until all rules pass or max attempts are reached
 """
 
@@ -16,10 +16,10 @@ from typing import Dict, List, Optional, Tuple, Any
 
 from dotenv import load_dotenv
 
-# Load environment variables from .env file (containing ANTHROPIC_API_KEY)
+# Load environment variables from .env file (containing API keys)
 load_dotenv()
 
-from sifaka.models.anthropic import AnthropicProvider
+from sifaka.models.openai import OpenAIProvider
 from sifaka.models.base import ModelConfig
 from sifaka.classifiers import (
     SentimentClassifier,
@@ -117,6 +117,50 @@ YOUR VALIDATION:"""
 
         rule_violations_text = "\n".join(rule_details)
 
+        # Check for length violation
+        has_length_violation = any(
+            "too few words" in violation.get("message", "") for violation in rule_violations
+        )
+        length_instruction = ""
+        if has_length_violation:
+            # Extract current word count and required minimum from the violation message
+            for violation in rule_violations:
+                message = violation.get("message", "")
+                if "too few words" in message:
+                    # Try to extract the current and required word counts
+                    import re
+
+                    word_counts = re.findall(r"\d+", message)
+                    if len(word_counts) >= 2:
+                        current_count = word_counts[0]
+                        required_count = word_counts[1]
+                        words_needed = int(required_count) - int(current_count)
+                        length_instruction = f"""7. LENGTH REQUIREMENT:
+- Current word count: {current_count} words
+- REQUIRED minimum: {required_count} words
+- You need to add at least {words_needed} more words
+- Add relevant examples, data points, and detailed explanations
+- Expand EACH section with more depth and detail"""
+                    break
+
+        # Check for readability violation
+        has_readability_violation = any(
+            "readability" in violation.get("rule_name", "").lower()
+            or "complex" in violation.get("message", "")
+            for violation in rule_violations
+        )
+        readability_instruction = ""
+        if has_readability_violation:
+            readability_instruction = """8. READABILITY IMPROVEMENT REQUIRED:
+- Simplify complex language and jargon
+- Use shorter sentences (15-20 words max)
+- Break up long paragraphs
+- Use simpler words where possible
+- Aim for a high school reading level (grades 8-10)
+- Include clear topic sentences
+- Use active voice instead of passive voice
+- Add explanations for technical terms"""
+
         return f"""TASK: Improve the following text to address all rule violations.
 
 TEXT TO IMPROVE:
@@ -128,15 +172,22 @@ RULE VIOLATIONS:
 IMPORTANT INSTRUCTIONS:
 1. Address ALL rule violations while preserving the original message
 2. Make necessary edits to fix each identified issue
-3. Return only the improved text with no explanations or annotations
+3. Return the text with the title included at the beginning
 4. Maintain the overall structure and key information
 5. Focus on fixing the specific issues mentioned in the rule violations
-6. Ensure the text remains at roughly 2,500 words
+6. Ensure the text is at least 1000 words, preferably around 1,500 words
+{length_instruction}
+{readability_instruction}
 
-FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-IMPROVED_TEXT: [Your improved text here]
+OUTPUT FORMAT REQUIREMENTS:
+- Start your response with the title of the article
+- Include the full improved text with no preamble, markers, or explanations
+- Do not write "IMPROVED_TEXT:" or any markers - just begin with the title
+- Do not include explanations about your changes
 
-YOUR IMPROVED TEXT:"""
+Title: [Your title here]
+
+[Your full improved text here]"""
 
 
 # Custom BatchedCritic that consolidates feedback from multiple rules
@@ -173,7 +224,12 @@ class BatchedCritic(PromptCritic):
                     "Your job is to analyze text, identify issues, and provide clear feedback "
                     "on how to improve it. When improving text, you should address all rule "
                     "violations while preserving the original meaning and maintaining appropriate "
-                    "length."
+                    "length.\n\n"
+                    "IMPORTANT: When asked to increase the length of a text, you MUST add substantial "
+                    "new content, examples, details, and elaboration to significantly expand the text. "
+                    "Length requirements are NON-NEGOTIABLE and MUST be met. If asked to expand text to "
+                    "a specific word count, you should diligently work to reach that target by adding "
+                    "meaningful, relevant content that enhances the original text."
                 ),
                 temperature=0.3,  # Lower temperature for more consistent results
                 max_tokens=4000,  # Allow for longer responses
@@ -218,21 +274,69 @@ class BatchedCritic(PromptCritic):
         # Create improvement prompt with all violations
         improvement_prompt = self.prompt_factory.create_improvement_prompt(text, violations)
 
+        # Debug output
+        print("\n=== DEBUG: IMPROVEMENT PROMPT ===")
+        print(improvement_prompt)
+
         # Get improved text from model
         response = self._model.generate(improvement_prompt)
 
-        # Extract improved text
+        # Debug output
+        print("\n=== DEBUG: MODEL RESPONSE ===")
+        print(response[:500] + "..." if len(response) > 500 else response)
+        print(f"Response length: {len(response)} chars, {len(response.split())} words")
+
+        # Extract improved text - handle different possible formats
         if isinstance(response, str):
-            if "IMPROVED_TEXT:" in response:
-                # Extract text after the marker
-                improved_text = response.split("IMPROVED_TEXT:", 1)[1].strip()
-                return improved_text
-            return response  # Return full response if no marker
+            # First check for common markers
+            markers = ["IMPROVED_TEXT:", "YOUR IMPROVED TEXT:", "Title:", "#", "The ", "A "]
+
+            for marker in markers:
+                if marker in response:
+                    # Extract text after the marker - but don't extract if it's just part of a sentence
+                    # Only extract if it appears to be at the start of a line
+                    if marker in ["Title:", "#", "The ", "A "]:
+                        # Check if it's at the beginning of a line
+                        lines = response.split("\n")
+                        for i, line in enumerate(lines):
+                            if line.strip().startswith(marker):
+                                # Extract from this line onwards
+                                improved_text = "\n".join(lines[i:])
+                                print(
+                                    f"Extracted improved text using marker '{marker}' at line {i}: {len(improved_text.split())} words"
+                                )
+                                return improved_text
+                    else:
+                        # For explicit markers like "IMPROVED_TEXT:", split normally
+                        improved_text = response.split(marker, 1)[1].strip()
+                        print(
+                            f"Extracted improved text using marker '{marker}': {len(improved_text.split())} words"
+                        )
+                        return improved_text
+
+            # If we get here, no markers were definitively found
+            # Try to extract the article content based on structure
+            lines = response.split("\n")
+            # Look for lines that might be a title (starts with # or has fewer than 8 words)
+            for i, line in enumerate(lines):
+                line = line.strip()
+                if line.startswith("#") or (len(line.split()) < 8 and len(line) > 10 and i < 10):
+                    # This looks like a title - extract from here
+                    article_text = "\n".join(lines[i:])
+                    print(
+                        f"Extracted article starting from line {i}: {len(article_text.split())} words"
+                    )
+                    return article_text
+
+            # If all extraction attempts fail, use the full response
+            print("No extraction markers found, using full response")
+            return response
 
         elif isinstance(response, dict) and "improved_text" in response:
             return response["improved_text"]
 
         # Fallback
+        print("Fallback: Converting response to string")
         return response if isinstance(response, str) else str(response)
 
 
@@ -320,48 +424,6 @@ class BatchedFeedbackChain(Chain):
         raise RuntimeError("Unexpected end of chain execution")
 
 
-# Create a simplified mock profanity classifier
-class SimpleProfanityClassifier(BaseClassifier):
-    """A simple mock profanity classifier for demonstration purposes."""
-
-    def __init__(
-        self,
-        name: str = "simple_profanity_classifier",
-        description: str = "Simple profanity detection for examples",
-        config: ClassifierConfig = None,
-    ):
-        if config is None:
-            config = ClassifierConfig(
-                labels=["clean", "profane"],
-                params={"profane_words": ["f***", "stupid", "garbage", "scam"]},
-            )
-        super().__init__(name=name, description=description, config=config)
-
-    def _classify_impl(self, text: str) -> ClassificationResult:
-        """Simple implementation that checks for bad words."""
-        profane_words = self.config.params.get("profane_words", [])
-
-        # Convert to lowercase for case-insensitive matching
-        text_lower = text.lower()
-
-        # Check if any profane words are in the text
-        found_words = [word for word in profane_words if word.lower() in text_lower]
-        contains_profanity = len(found_words) > 0
-
-        # Calculate confidence based on count of profane words found
-        confidence = min(1.0, len(found_words) / 10) if contains_profanity else 0.0
-
-        return ClassificationResult(
-            label="profane" if contains_profanity else "clean",
-            confidence=confidence if contains_profanity else 1.0 - confidence,
-            metadata={
-                "contains_profanity": contains_profanity,
-                "found_words": found_words,
-                "word_count": len(text.split()),
-            },
-        )
-
-
 def create_all_classifier_rules() -> List[Rule]:
     """Create rules using all available classifiers."""
     rules = []
@@ -430,12 +492,12 @@ def create_all_classifier_rules() -> List[Rule]:
     )
     rules.append(language_rule)
 
-    # 4. Length rule - enforce approximately 2,500 words
+    # 4. Length rule - enforce approximately 1,500 words
     length_rule = create_length_rule(
-        min_words=2300,
+        min_words=900,
         max_words=2700,
         rule_id="length_rule",
-        description="Ensures text is approximately 2,500 words",
+        description="Ensures text is approximately 1,200 words",
     )
     rules.append(length_rule)
 
@@ -445,23 +507,23 @@ def create_all_classifier_rules() -> List[Rule]:
 def run_advanced_example():
     """Run the advanced multi-classifier example with batched critic."""
 
-    # Configure Claude 3.5 Sonnet model for text generation
-    claude_model = AnthropicProvider(
-        model_name="claude-3-sonnet-20240229",  # Use Claude 3.5 Sonnet
+    # Configure OpenAI model for text generation
+    openai_model = OpenAIProvider(
+        model_name="gpt-4-turbo",  # Use GPT-4 for better completions
         config=ModelConfig(
-            api_key=os.environ.get("ANTHROPIC_API_KEY"),
+            api_key=os.environ.get("OPENAI_API_KEY"),
             temperature=0.7,
-            max_tokens=4000,  # Allow for longer responses
+            max_tokens=4000,  # Maximum allowed for GPT-4-turbo
         ),
     )
 
-    # Configure Claude 3.5 Sonnet model for the critic (more capabilities)
-    critic_model = AnthropicProvider(
-        model_name="claude-3-sonnet-20240229",  # Use Claude 3.5 Sonnet
+    # Configure OpenAI model for the critic (more capabilities)
+    critic_model = OpenAIProvider(
+        model_name="gpt-4-turbo",  # Use GPT-4 for better reasoning
         config=ModelConfig(
-            api_key=os.environ.get("ANTHROPIC_API_KEY"),
+            api_key=os.environ.get("OPENAI_API_KEY"),
             temperature=0.3,  # Lower temperature for more consistent feedback
-            max_tokens=4000,
+            max_tokens=4000,  # Maximum allowed for GPT-4-turbo
         ),
     )
 
@@ -479,19 +541,26 @@ def run_advanced_example():
 
     # Create chain with all rules and batched critic
     chain = BatchedFeedbackChain(
-        model=claude_model,
+        model=openai_model,
         rules=rules,
         batched_critic=batched_critic,
-        max_attempts=5,
+        max_attempts=2,
         verbose=True,
     )
 
-    # Random topic prompt for Claude to generate 2,500 words
+    # Random topic prompt for OpenAI to generate 2,500 words
     prompt = """
-    Write a comprehensive 2,500-word article on a topic of your choice.
-    Choose something you find interesting and that would be engaging for a general audience.
-    The article should be informative, well-structured, and accessible.
-    Include appropriate headings, examples, and a conclusion.
+    Write a comprehensive article on a topic of your choice.
+
+    IMPORTANT REQUIREMENTS:
+    1. The article MUST be at least 1000 words long, preferably around 1200-1500 words
+    2. Use moderate readability suitable for a general audience (high school level)
+    3. Use simple, clear language and avoid overly complex terms
+    4. Use shorter sentences (15-20 words) and paragraphs
+    5. Include headings, subheadings, and examples
+    6. Ensure a well-structured flow with introduction and conclusion
+
+    Choose something interesting and engaging for a general audience.
     """
 
     print("\n=== Starting Advanced Multi-Classifier Example ===")
