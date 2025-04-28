@@ -3,10 +3,9 @@ Benchmarking suite for Sifaka classifiers.
 
 This module provides tools to measure:
 1. Individual classifier performance
-2. Combined classifier pipeline performance
-3. Memory usage
-4. Throughput and latency
-5. Caching effectiveness
+2. Memory usage
+3. Throughput and latency
+4. Caching effectiveness
 """
 
 import asyncio
@@ -14,23 +13,17 @@ import cProfile
 import gc
 import statistics
 import time
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 import psutil
 from tqdm import tqdm
 
-from sifaka.classifiers.language import LanguageClassifier
-from sifaka.classifiers.profanity import ProfanityClassifier
-from sifaka.classifiers.readability import ReadabilityClassifier
-from sifaka.classifiers.sentiment import SentimentClassifier
-from sifaka.classifiers.toxicity import ToxicityClassifier
-from sifaka.classifiers.spam import SpamClassifier
-from sifaka.classifiers.bias import BiasDetector
-from sifaka.classifiers.topic import TopicClassifier
-from sifaka.classifiers.genre import GenreClassifier
-from sifaka.classifiers.llm import LLMClassifier
-from sifaka.examples.combined_classifiers import ContentAnalyzer
+from sifaka.classifiers.language import LanguageClassifier, LanguageConfig
+from sifaka.classifiers.profanity import ProfanityClassifier, ProfanityConfig
+from sifaka.classifiers.readability import ReadabilityClassifier, ReadabilityConfig
+from sifaka.classifiers.sentiment import SentimentClassifier, SentimentThresholds
+from sifaka.rules.content import ContentAnalyzer
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -39,16 +32,28 @@ logger = get_logger(__name__)
 class ClassifierBenchmark:
     """Benchmark suite for classifier performance measurement."""
 
-    def __init__(self, num_samples: int = 1000, warm_up_rounds: int = 3):
+    def __init__(
+        self,
+        num_samples: int = 1000,
+        warm_up_rounds: int = 3,
+        classifiers: Optional[List[str]] = None,
+    ):
         """
         Initialize the benchmark suite.
 
         Args:
             num_samples: Number of text samples to use
             warm_up_rounds: Number of warm-up rounds before measurement
+            classifiers: List of classifier names to benchmark. If None, all classifiers are used.
         """
         self.num_samples = num_samples
         self.warm_up_rounds = warm_up_rounds
+        self.classifiers_to_run = classifiers or [
+            "readability",
+            "sentiment",
+            "language",
+            "profanity",
+        ]
         self._generate_test_data()
         self._init_classifiers()
 
@@ -96,58 +101,60 @@ class ClassifierBenchmark:
 
     def _init_classifiers(self) -> None:
         """Initialize all classifiers."""
-        self.readability = ReadabilityClassifier(
-            name="benchmark_readability",
-            description="Benchmark readability classifier",
-        )
-        self.sentiment = SentimentClassifier(
-            name="benchmark_sentiment",
-            description="Benchmark sentiment classifier",
-        )
-        self.language = LanguageClassifier(
-            name="benchmark_language",
-            description="Benchmark language classifier",
-        )
-        self.profanity = ProfanityClassifier(
-            name="benchmark_profanity",
-            description="Benchmark profanity classifier",
-        )
-        self.toxicity = ToxicityClassifier(
-            name="benchmark_toxicity",
-            description="Benchmark toxicity classifier",
-        )
-        self.spam = SpamClassifier(
-            name="benchmark_spam",
-            description="Benchmark spam classifier",
-        )
-        self.bias = BiasDetector(
-            name="benchmark_bias",
-            description="Benchmark bias detector",
-        )
-        self.topic = TopicClassifier(
-            name="benchmark_topic",
-            description="Benchmark topic classifier",
-        )
-        self.genre = GenreClassifier(
-            name="benchmark_genre",
-            description="Benchmark genre classifier",
-        )
-        # LLMClassifier requires an API key, so we'll initialize it separately when needed
+        self.classifiers = {}
+
+        if "readability" in self.classifiers_to_run:
+            readability_config = ReadabilityConfig(
+                min_confidence=0.5,
+                grade_level_bounds={
+                    "elementary": (0.0, 6.0),
+                    "middle": (6.0, 9.0),
+                    "high": (9.0, 12.0),
+                    "college": (12.0, 16.0),
+                    "graduate": (16.0, float("inf")),
+                },
+            )
+            self.classifiers["readability"] = ReadabilityClassifier(
+                name="benchmark_readability",
+                description="Benchmark readability classifier",
+                readability_config=readability_config,
+            )
+
+        if "sentiment" in self.classifiers_to_run:
+            self.classifiers["sentiment"] = SentimentClassifier(
+                name="benchmark_sentiment",
+                description="Benchmark sentiment classifier",
+                thresholds=SentimentThresholds(positive=0.05, negative=-0.05),
+            )
+
+        if "language" in self.classifiers_to_run:
+            lang_config = LanguageConfig(
+                min_confidence=0.1, seed=0, fallback_lang="en", fallback_confidence=0.0
+            )
+            self.classifiers["language"] = LanguageClassifier(
+                name="benchmark_language",
+                description="Benchmark language classifier",
+                lang_config=lang_config,
+            )
+
+        if "profanity" in self.classifiers_to_run:
+            profanity_config = ProfanityConfig(
+                custom_words={"bad", "inappropriate", "offensive"},
+                censor_char="*",
+                min_confidence=0.5,
+            )
+            self.classifiers["profanity"] = ProfanityClassifier(
+                name="benchmark_profanity",
+                description="Benchmark profanity classifier",
+                profanity_config=profanity_config,
+            )
 
         # Warm up all classifiers
-        classifiers = [
-            self.readability,
-            self.sentiment,
-            self.language,
-            self.profanity,
-            self.toxicity,
-            self.spam,
-            self.bias,
-            self.topic,
-            self.genre,
-        ]
-        for classifier in classifiers:
-            classifier.warm_up()
+        for classifier in self.classifiers.values():
+            try:
+                classifier.warm_up()
+            except Exception as e:
+                logger.warning(f"Failed to warm up {classifier.name}: {str(e)}")
 
     def _measure_memory(self, func: Callable) -> Dict[str, float]:
         """Measure memory usage of a function."""
@@ -183,46 +190,74 @@ class ClassifierBenchmark:
         Returns:
             Dictionary with benchmark results
         """
-        # Warm up
-        for _ in range(self.warm_up_rounds):
-            classifier.classify(self.test_data[0])
+        try:
+            # Warm up
+            for _ in range(self.warm_up_rounds):
+                classifier.classify(self.test_data[0])
 
-        # Measure performance
-        latencies = []
-        results = []
+            # Measure performance
+            latencies = []
+            results = []
+            errors = 0
 
-        for text in tqdm(self.test_data[:sample_size], desc=f"Benchmarking {classifier.name}"):
-            start_time = time.perf_counter()
-            result = classifier.classify(text)
-            end_time = time.perf_counter()
+            for text in tqdm(
+                self.test_data[:sample_size],
+                desc=f"Benchmarking {classifier.name}",
+                leave=False,
+            ):
+                try:
+                    start_time = time.perf_counter()
+                    result = classifier.classify(text)
+                    end_time = time.perf_counter()
 
-            latencies.append(end_time - start_time)
-            results.append(result)
+                    latencies.append(end_time - start_time)
+                    results.append(result)
+                except Exception as e:
+                    logger.warning(
+                        f"Error in {classifier.name} for text: {text[:50]}... - {str(e)}"
+                    )
+                    errors += 1
 
-        # Calculate statistics
-        stats = {
-            "mean_latency": statistics.mean(latencies),
-            "median_latency": statistics.median(latencies),
-            "p95_latency": np.percentile(latencies, 95),
-            "p99_latency": np.percentile(latencies, 99),
-            "min_latency": min(latencies),
-            "max_latency": max(latencies),
-            "std_dev": statistics.stdev(latencies),
-            "throughput": sample_size / sum(latencies),
-            "sample_size": sample_size,
-        }
+            if not latencies:
+                return {
+                    "error": f"All {sample_size} classifications failed",
+                    "classifier": classifier.name,
+                }
 
-        # Measure memory usage
-        mem_stats = self._measure_memory(
-            lambda: [classifier.classify(text) for text in self.test_data[:10]]
-        )
-        stats.update(mem_stats)
+            # Calculate statistics
+            stats = {
+                "classifier": classifier.name,
+                "mean_latency": statistics.mean(latencies),
+                "median_latency": statistics.median(latencies),
+                "p95_latency": np.percentile(latencies, 95),
+                "p99_latency": np.percentile(latencies, 99),
+                "min_latency": min(latencies),
+                "max_latency": max(latencies),
+                "std_dev": statistics.stdev(latencies),
+                "throughput": (sample_size - errors) / sum(latencies),
+                "sample_size": sample_size,
+                "errors": errors,
+                "success_rate": (sample_size - errors) / sample_size,
+            }
 
-        # Measure cache effectiveness (if applicable)
-        if hasattr(classifier, "_word_cache"):
-            stats["cache_size"] = len(classifier._word_cache)
+            # Measure memory usage
+            mem_stats = self._measure_memory(
+                lambda: [classifier.classify(text) for text in self.test_data[:10]]
+            )
+            stats.update(mem_stats)
 
-        return stats
+            # Measure cache effectiveness (if applicable)
+            if hasattr(classifier, "_word_cache"):
+                stats["cache_size"] = len(classifier._word_cache)
+                stats["cache_hits"] = getattr(classifier, "_cache_hits", 0)
+                stats["cache_misses"] = getattr(classifier, "_cache_misses", 0)
+
+            return stats
+        except Exception as e:
+            return {
+                "error": str(e),
+                "classifier": classifier.name,
+            }
 
     def benchmark_pipeline(self, api_key: str, sample_size: int = 50) -> Dict[str, Any]:
         """
@@ -277,57 +312,64 @@ class ClassifierBenchmark:
 
         return stats
 
-    def run_all_benchmarks(self, api_key: str = None) -> Dict[str, Any]:
+    def run_all_benchmarks(self) -> Dict[str, Any]:
         """
-        Run all benchmarks and return results.
-
-        Args:
-            api_key: Optional API key for LLM provider
+        Run benchmarks for all initialized classifiers.
 
         Returns:
-            Dictionary with all benchmark results
+            Dictionary with benchmark results for each classifier
         """
-        results = {
-            "readability": self.benchmark_single_classifier(self.readability),
-            "sentiment": self.benchmark_single_classifier(self.sentiment),
-            "language": self.benchmark_single_classifier(self.language),
-            "profanity": self.benchmark_single_classifier(self.profanity),
-            "toxicity": self.benchmark_single_classifier(self.toxicity),
-            "spam": self.benchmark_single_classifier(self.spam),
-            "bias": self.benchmark_single_classifier(self.bias),
-            "topic": self.benchmark_single_classifier(self.topic),
-            "genre": self.benchmark_single_classifier(self.genre),
-        }
-
-        if api_key:
-            results["pipeline"] = self.benchmark_pipeline(api_key)
-            # Initialize and benchmark LLM classifier if API key is provided
-            self.llm = LLMClassifier(
-                name="benchmark_llm", description="Benchmark LLM classifier", api_key=api_key
-            )
-            results["llm"] = self.benchmark_single_classifier(self.llm)
-
+        results = {}
+        for name, classifier in self.classifiers.items():
+            try:
+                results[name] = self.benchmark_single_classifier(classifier)
+            except Exception as e:
+                results[name] = {
+                    "error": str(e),
+                    "classifier": name,
+                }
         return results
 
 
 def print_benchmark_results(results: Dict[str, Any]) -> None:
-    """Print benchmark results in a readable format."""
-    print("\n=== Sifaka Classifier Benchmarks ===\n")
+    """
+    Print benchmark results in a formatted way.
+
+    Args:
+        results: Dictionary with benchmark results
+    """
+    print("\nBenchmark Results:")
+    print("=" * 80)
 
     for classifier_name, stats in results.items():
-        print(f"\n{classifier_name.upper()} Classifier:")
+        print(f"\n{classifier_name}:")
         print("-" * 40)
+
+        if "error" in stats:
+            print(f"Error: {stats['error']}")
+            continue
+
         print(f"Throughput: {stats['throughput']:.2f} texts/second")
-        print(f"Mean Latency: {stats['mean_latency']*1000:.2f}ms")
-        print(f"P95 Latency: {stats['p95_latency']*1000:.2f}ms")
-        print(f"P99 Latency: {stats['p99_latency']*1000:.2f}ms")
-        print(f"Memory Usage: {stats['memory_diff_mb']:.2f}MB")
+        print(f"Success rate: {stats['success_rate']*100:.1f}%")
+        print(f"Latency (seconds):")
+        print(f"  Mean: {stats['mean_latency']:.4f}")
+        print(f"  Median: {stats['median_latency']:.4f}")
+        print(f"  P95: {stats['p95_latency']:.4f}")
+        print(f"  P99: {stats['p99_latency']:.4f}")
+        print(f"Memory usage:")
+        print(f"  Before: {stats['memory_before_mb']:.1f} MB")
+        print(f"  After: {stats['memory_after_mb']:.1f} MB")
+        print(f"  Difference: {stats['memory_diff_mb']:.1f} MB")
+
         if "cache_size" in stats:
-            print(f"Cache Size: {stats['cache_size']} entries")
+            print(f"Cache statistics:")
+            print(f"  Size: {stats['cache_size']}")
+            if "cache_hits" in stats:
+                print(f"  Hits: {stats['cache_hits']}")
+                print(f"  Misses: {stats['cache_misses']}")
 
 
-def main():
-    """Run benchmarks with example usage."""
+if __name__ == "__main__":
     # Initialize benchmark suite
     benchmark = ClassifierBenchmark(num_samples=1000)
 
@@ -340,10 +382,6 @@ def main():
     # Optional: Run with profiler
     profiler = cProfile.Profile()
     profiler.enable()
-    benchmark.benchmark_single_classifier(benchmark.readability, sample_size=100)
+    benchmark.benchmark_single_classifier(benchmark.classifiers["readability"], sample_size=100)
     profiler.disable()
     profiler.print_stats(sort="cumulative")
-
-
-if __name__ == "__main__":
-    main()

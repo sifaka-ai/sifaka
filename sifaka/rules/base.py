@@ -28,6 +28,7 @@ R = TypeVar("R", bound="RuleResult")  # Result type
 V = TypeVar("V", bound="RuleValidator")  # Validator type
 H = TypeVar("H", bound="RuleResultHandler")  # Handler type
 
+
 class ValidationError(Exception):
     """Base exception for validation errors."""
 
@@ -44,6 +45,7 @@ class RulePriority(Enum):
     HIGH = auto()
     CRITICAL = auto()
 
+
 @runtime_checkable
 class Validatable(Protocol[T]):
     """Protocol for objects that can be validated."""
@@ -52,6 +54,7 @@ class Validatable(Protocol[T]):
     def validate(self) -> None: ...
     @property
     def validation_errors(self) -> list[str]: ...
+
 
 @runtime_checkable
 class RuleValidator(Protocol[T]):
@@ -67,6 +70,7 @@ class RuleValidator(Protocol[T]):
     @abstractmethod
     def validation_type(self) -> type[T]: ...
 
+
 @runtime_checkable
 class RuleResultHandler(Protocol[R]):
     """Protocol for handling rule validation results."""
@@ -79,6 +83,7 @@ class RuleResultHandler(Protocol[R]):
 
     @abstractmethod
     def can_handle(self, result: R) -> bool: ...
+
 
 @dataclass(frozen=True)
 class RuleResult:
@@ -111,6 +116,7 @@ class RuleResult:
             score=self.score,
         )
 
+
 @dataclass(frozen=True)
 class RuleConfig:
     """Immutable configuration for rules."""
@@ -129,6 +135,7 @@ class RuleConfig:
     def with_options(self, **kwargs: Any) -> "RuleConfig":
         """Create a new config with updated options."""
         return RuleConfig(**{**self.__dict__, **kwargs})
+
 
 class Rule(Generic[T, R, V, H], ABC):
     """
@@ -174,7 +181,22 @@ class Rule(Generic[T, R, V, H], ABC):
                 )
             self._validator: Final[V] = validator
         else:
-            self._validator = None
+            # Create a default validator that delegates to _validate_impl
+            class DefaultValidator(RuleValidator[T]):
+                def __init__(self, rule: Rule) -> None:
+                    self._rule = rule
+
+                def validate(self, output: T, **kwargs) -> RuleResult:
+                    return self._rule._validate_impl(output, **kwargs)
+
+                def can_validate(self, output: T) -> bool:
+                    return isinstance(output, str)
+
+                @property
+                def validation_type(self) -> type[T]:
+                    return str
+
+            self._validator = DefaultValidator(self)
 
         # Validate and set handler if provided
         if result_handler is not None:
@@ -281,6 +303,7 @@ class Rule(Generic[T, R, V, H], ABC):
             # Convert to ValidationError
             raise ValidationError(f"Validation failed: {str(e)}") from e
 
+
 class FunctionRule(Rule[str, RuleResult, RuleValidator[str], RuleResultHandler[RuleResult]]):
     """
     A rule that wraps a function for simple validation.
@@ -348,6 +371,7 @@ class FunctionRule(Rule[str, RuleResult, RuleValidator[str], RuleResultHandler[R
         """Implement validation using the wrapped function."""
         return self._validator.validate(output, **kwargs)
 
+
 @runtime_checkable
 class RuleProtocol(Protocol):
     """Protocol defining the interface for rules."""
@@ -370,6 +394,7 @@ class RuleProtocol(Protocol):
     def config(self) -> "RuleConfig":
         """Get rule configuration."""
         ...
+
 
 # Export these types
 __all__ = [
