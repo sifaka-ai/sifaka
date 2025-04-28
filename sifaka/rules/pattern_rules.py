@@ -1,14 +1,48 @@
 """
 Pattern-based validation rules for Sifaka.
 
-This module provides specialized rules for detecting and validating patterns in text,
-including symmetry detection and repetition analysis.
+.. deprecated:: 1.0.0
+   This module is deprecated and will be removed in version 2.0.0.
+   Use the following modules instead:
+
+   - :mod:`sifaka.rules.patterns.symmetry` for symmetry pattern validation
+   - :mod:`sifaka.rules.patterns.repetition` for repetition pattern validation
+
+Migration guide:
+1. Replace imports:
+   - Old: from sifaka.rules.pattern_rules import SymmetryConfig, SymmetryValidator, SymmetryRule
+   - New: from sifaka.rules.patterns.symmetry import SymmetryConfig, SymmetryValidator, SymmetryRule
+
+   - Old: from sifaka.rules.pattern_rules import RepetitionConfig, RepetitionValidator, RepetitionRule
+   - New: from sifaka.rules.patterns.repetition import RepetitionConfig, RepetitionValidator, RepetitionRule
+
+2. Update configuration:
+   - Symmetry and repetition configurations are now separate classes
+   - Each has its own set of parameters and validation logic
+   - See the respective module documentation for details
+
+Example:
+    Old code:
+    >>> from sifaka.rules.pattern_rules import SymmetryRule
+    >>> rule = SymmetryRule()
+
+    New code:
+    >>> from sifaka.rules.patterns.symmetry import SymmetryRule
+    >>> rule = SymmetryRule()
 """
 
+import warnings
 from dataclasses import dataclass
 from typing import Any, Optional
 
 from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
+
+warnings.warn(
+    "The pattern_rules module is deprecated and will be removed in version 2.0.0. "
+    "Use sifaka.rules.patterns.symmetry and sifaka.rules.patterns.repetition instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 @dataclass(frozen=True)
