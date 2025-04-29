@@ -90,6 +90,7 @@ from sifaka.classifiers.base import ClassifierConfig
 # Create a toxicity classifier with custom thresholds
 classifier = ToxicityClassifier(
     config=ClassifierConfig(
+        labels=["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate", "non_toxic"],
         params={
             "general_threshold": 0.6,
             "severe_toxic_threshold": 0.8,
@@ -214,15 +215,16 @@ import os
 # Configure OpenAI model for content generation
 model = OpenAIProvider(
     model_name="gpt-4",
-    config={
-        "api_key": os.environ.get("OPENAI_API_KEY"),
-        "temperature": 0.7
-    }
+    config=ModelConfig(
+        api_key=os.environ.get("OPENAI_API_KEY"),
+        temperature=0.7
+    )
 )
 
 # Configure toxicity classifier
 classifier = ToxicityClassifier(
     config=ClassifierConfig(
+        labels=["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate", "non_toxic"],
         params={
             "general_threshold": 0.5,
             "severe_toxic_threshold": 0.7,
