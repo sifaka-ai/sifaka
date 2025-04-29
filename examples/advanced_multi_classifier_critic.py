@@ -31,6 +31,7 @@ from sifaka.classifiers import (
     SpamClassifier,
     TopicClassifier,
     ToxicityClassifier,
+    LLMClassifier,
     ClassifierConfig,
 )
 from sifaka.classifiers.base import (
@@ -431,7 +432,7 @@ class BatchedFeedbackChain(Chain):
         raise RuntimeError("Unexpected end of chain execution")
 
 
-def create_all_classifier_rules() -> List[Rule]:
+def create_all_classifier_rules(openai_model=None) -> List[Rule]:
     """Create rules using all available classifiers."""
     rules = []
 
@@ -771,7 +772,7 @@ def create_all_classifier_rules() -> List[Rule]:
     except Exception as e:
         print(f"Could not add toxicity rule: {str(e)}")
 
-    # 11. Length rule - enforce fewer words (EVEN EASIER)
+    # 12. Length rule - enforce fewer words (EVEN EASIER)
     length_rule = create_length_rule(
         min_words=500,  # Further reduced from 700
         max_words=2700,
@@ -808,7 +809,7 @@ def run_advanced_example():
 
     # Create rules from all classifiers
     print("Setting up classifier rules...")
-    rules = create_all_classifier_rules()
+    rules = create_all_classifier_rules(openai_model)  # Pass the model to the function
     print(f"Created {len(rules)} rules")
 
     # Create batched critic
