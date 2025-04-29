@@ -54,6 +54,7 @@ critic = PromptCritic(
     llm_provider=claude_model,
     config=PromptCriticConfig(
         name="length_critic",
+        description="A critic that helps adjust text length",
         system_prompt="You are an editor who specializes in adjusting text length."
     )
 )
@@ -182,6 +183,7 @@ critic = PromptCritic(
     llm_provider=model,
     config=PromptCriticConfig(
         name="length_critic",
+        description="A critic that helps condense text while preserving meaning",
         system_prompt=(
             "You are an editor who specializes in making text more concise "
             "while preserving core content and meaning."
@@ -204,7 +206,19 @@ This example uses a toxicity classifier with a rule to ensure content safety:
 from sifaka.classifiers.toxicity import ToxicityClassifier
 from sifaka.classifiers.base import ClassifierConfig
 from sifaka.rules.content.safety import create_toxicity_rule
+from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
+from sifaka.models import OpenAIProvider
 from sifaka.chain import Chain
+import os
+
+# Configure OpenAI model for content generation
+model = OpenAIProvider(
+    model_name="gpt-4",
+    config={
+        "api_key": os.environ.get("OPENAI_API_KEY"),
+        "temperature": 0.7
+    }
+)
 
 # Configure toxicity classifier
 classifier = ToxicityClassifier(
@@ -227,6 +241,19 @@ toxicity_rule = create_toxicity_rule(
             "profanity",
         ]
     }
+)
+
+# Create critic to help improve content that violates toxicity rules
+critic = PromptCritic(
+    llm_provider=model,
+    config=PromptCriticConfig(
+        name="content_safety_critic",
+        description="A critic that helps ensure content is appropriate and non-toxic",
+        system_prompt=(
+            "You are an editor who specializes in ensuring content is appropriate, "
+            "respectful, and free from offensive or harmful language."
+        )
+    )
 )
 
 # Create chain with model, rule, and critic
