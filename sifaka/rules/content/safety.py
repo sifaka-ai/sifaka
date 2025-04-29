@@ -34,8 +34,8 @@ Usage Example:
     result = toxicity_rule.validate("This is a test.")
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, Final, List, Optional
+from dataclasses import dataclass
+from typing import Dict, Final, List, Optional
 
 from sifaka.rules.base import (
     BaseValidator,

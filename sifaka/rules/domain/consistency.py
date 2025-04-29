@@ -25,8 +25,7 @@ Usage Example:
     result = rule.validate("This text is consistent and was written carefully.")
 
     # Alternative: Create with explicit RuleConfig
-    from sifaka.rules.base import RuleConfig
-
+    from sifaka.rules.base import BaseValidator, RuleConfig, Any
     rule = ConsistencyRule(
         config=RuleConfig(
             params={

@@ -2,6 +2,52 @@
 Format validation rules for Sifaka.
 
 This module provides rules for validating text format including markdown, JSON, and plain text.
+
+Configuration Pattern:
+    This module follows the standard Sifaka configuration pattern:
+    - All rule-specific configuration is stored in RuleConfig.params
+    - The FormatConfig, MarkdownConfig, JsonConfig, and PlainTextConfig classes extend RuleConfig
+      and provide type-safe access to parameters
+    - Factory functions (create_format_rule, create_markdown_rule, etc.) handle configuration
+
+Usage Example:
+    from sifaka.rules.formatting.format import create_markdown_rule, create_json_rule, create_plain_text_rule
+
+    # Create a markdown rule
+    markdown_rule = create_markdown_rule(
+        config={
+            "required_elements": ["#", "*", "`"],
+            "min_elements": 2
+        }
+    )
+
+    # Create a JSON rule
+    json_rule = create_json_rule(
+        config={
+            "strict": True,
+            "allow_empty": False
+        }
+    )
+
+    # Create a plain text rule
+    plain_text_rule = create_plain_text_rule(
+        config={
+            "min_length": 10,
+            "max_length": 1000
+        }
+    )
+
+    # Alternative: Create with explicit RuleConfig
+    from sifaka.rules.base import BaseValidator, RuleConfig, Any
+    rule = FormatRule(
+        format_type="plain_text",
+        config=RuleConfig(
+            params={
+                "min_length": 10,
+                "max_length": 1000
+            }
+        )
+    )
 """
 
 import json
@@ -263,10 +309,8 @@ class FormatRule(Rule[str, RuleResult, BaseValidator[str], Any]):
         self._format_type = format_type
         self._rule_params = {}
 
-        if config:
-            # For backward compatibility, check both params and metadata
-            params_source = config.params if config.params else config.metadata
-            self._rule_params = params_source
+        if config and config.params:
+            self._rule_params = config.params
 
         # Initialize base class
         super().__init__(name=name, description=description, config=config, validator=validator)

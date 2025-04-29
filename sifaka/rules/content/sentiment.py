@@ -3,6 +3,49 @@ Sentiment analysis content validation rules for Sifaka.
 
 This module provides rules for analyzing and validating text sentiment,
 including positive/negative sentiment detection and emotional content analysis.
+
+Configuration Pattern:
+    This module follows the standard Sifaka configuration pattern:
+    - All rule-specific configuration is stored in RuleConfig.params
+    - The SentimentConfig and EmotionalContentConfig classes extend RuleConfig and provide type-safe access to parameters
+    - Factory functions (create_sentiment_rule, create_emotional_content_rule) handle configuration
+
+Usage Example:
+    from sifaka.rules.content.sentiment import create_sentiment_rule, create_emotional_content_rule
+
+    # Create a sentiment rule using the factory function
+    sentiment_rule = create_sentiment_rule(
+        config={
+            "threshold": 0.7,
+            "positive_words": ["good", "great", "excellent"],
+            "negative_words": ["bad", "poor", "terrible"]
+        }
+    )
+
+    # Create an emotional content rule
+    emotional_rule = create_emotional_content_rule(
+        config={
+            "categories": {
+                "joy": ["happy", "delighted", "excited"],
+                "sadness": ["sad", "depressed", "unhappy"]
+            },
+            "min_emotion_score": 0.3,
+            "max_emotion_score": 0.8
+        }
+    )
+
+    # Alternative: Create with explicit RuleConfig
+    from sifaka.rules.base import RuleConfig
+
+    rule = SentimentRule(
+        config=RuleConfig(
+            params={
+                "threshold": 0.7,
+                "positive_words": ["good", "great", "excellent"],
+                "negative_words": ["bad", "poor", "terrible"]
+            }
+        )
+    )
 """
 
 from dataclasses import dataclass, field
@@ -539,10 +582,8 @@ class SentimentRule(
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            # Always prefer params over metadata for consistency
-            self._rule_params = config.params if config.params else config.metadata
+        if config and config.params:
+            self._rule_params = config.params
 
         # Initialize base class
         super().__init__(
@@ -582,10 +623,8 @@ class EmotionalContentRule(
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            # Always prefer params over metadata for consistency
-            self._rule_params = config.params if config.params else config.metadata
+        if config and config.params:
+            self._rule_params = config.params
 
         # Initialize base class
         super().__init__(

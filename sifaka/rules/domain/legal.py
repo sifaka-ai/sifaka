@@ -3,6 +3,14 @@ Legal domain-specific validation rules for Sifaka.
 
 This module provides validators and rules for checking legal content, citations, and terminology.
 
+Configuration Pattern:
+    This module follows the standard Sifaka configuration pattern:
+    - All rule-specific configuration is stored in RuleConfig.params
+    - The LegalConfig, LegalCitationConfig, and LegalTermsConfig classes extend RuleConfig
+      and provide type-safe access to parameters
+    - Factory functions (create_legal_rule, create_legal_citation_rule, create_legal_terms_rule)
+      handle configuration
+
 Usage Example:
     from sifaka.rules.domain.legal import create_legal_rule, create_legal_citation_rule, create_legal_terms_rule
 
@@ -30,6 +38,20 @@ Usage Example:
 
     # Validate text
     result = legal_rule.validate("This legal document is subject to the jurisdiction of the court.")
+
+    # Alternative: Create with explicit RuleConfig
+    from sifaka.rules.base import BaseValidator, RuleConfig, Any
+    rule = LegalRule(
+        config=RuleConfig(
+            params={
+                "disclaimer_required": True,
+                "legal_terms": {
+                    "jurisdiction": ["court", "venue", "forum"],
+                    "liability": ["liability", "responsibility", "duty"]
+                }
+            }
+        )
+    )
 """
 
 import re
@@ -478,10 +500,8 @@ class LegalRule(Rule[str, RuleResult, DefaultLegalValidator, Any]):
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            params_source = config.params if config.params else config.metadata
-            self._rule_params = params_source
+        if config and config.params:
+            self._rule_params = config.params
 
         # Initialize base class
         super().__init__(
@@ -521,10 +541,8 @@ class LegalCitationRule(Rule[str, RuleResult, DefaultLegalCitationValidator, Any
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            params_source = config.params if config.params else config.metadata
-            self._rule_params = params_source
+        if config and config.params:
+            self._rule_params = config.params
 
         # Initialize base class
         super().__init__(
@@ -564,10 +582,8 @@ class LegalTermsRule(Rule[str, RuleResult, DefaultLegalTermsValidator, Any]):
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            params_source = config.params if config.params else config.metadata
-            self._rule_params = params_source
+        if config and config.params:
+            self._rule_params = config.params
 
         # Initialize base class
         super().__init__(

@@ -22,8 +22,7 @@ Usage Example:
     result = rule.validate("def hello_world(): print('Hello, world!')")
 
     # Alternative: Create with explicit RuleConfig
-    from sifaka.rules.base import RuleConfig
-
+    from sifaka.rules.base import BaseValidator, RuleConfig, Any
     rule = PythonRule(
         config=RuleConfig(
             params={

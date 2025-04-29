@@ -22,8 +22,7 @@ Usage Example:
     result = rule.validate("This is consistent. However, this contradicts the previous statement.")
 
     # Alternative: Create with explicit RuleConfig
-    from sifaka.rules.base import RuleConfig
-
+    from sifaka.rules.base import BaseValidator, RuleConfig, Any
     rule = FactualConsistencyRule(
         config=RuleConfig(
             params={

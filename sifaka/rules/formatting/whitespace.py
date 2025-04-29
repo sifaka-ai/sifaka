@@ -9,8 +9,7 @@ import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-from sifaka.rules.base import Rule, RuleResult
-
+from sifaka.rules.base import BaseValidator, Rule, RuleResult, Any
 
 @dataclass
 class WhitespaceConfig:

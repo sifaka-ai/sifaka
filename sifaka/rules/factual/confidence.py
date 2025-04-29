@@ -25,8 +25,7 @@ Usage Example:
     result = rule.validate("This is definitely the right approach.")
 
     # Alternative: Create with explicit RuleConfig
-    from sifaka.rules.base import RuleConfig
-
+    from sifaka.rules.base import BaseValidator, RuleConfig, Any
     rule = ConfidenceRule(
         config=RuleConfig(
             params={

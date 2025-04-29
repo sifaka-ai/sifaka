@@ -3,6 +3,12 @@ Factual accuracy validation rules for Sifaka.
 
 This module provides validators and rules for checking factual accuracy in text.
 
+Configuration Pattern:
+    This module follows the standard Sifaka configuration pattern:
+    - All rule-specific configuration is stored in RuleConfig.params
+    - The FactualAccuracyConfig class extends RuleConfig and provides type-safe access to parameters
+    - Factory functions (create_factual_accuracy_rule, create_factual_accuracy_validator) handle configuration
+
 Usage Example:
     from sifaka.rules.factual.accuracy import create_factual_accuracy_rule
 
@@ -16,6 +22,19 @@ Usage Example:
 
     # Validate text
     result = rule.validate("The Earth is spherical and gravity is 9.8 m/s².")
+
+    # Alternative: Create with explicit RuleConfig
+    from sifaka.rules.base import BaseValidator, RuleConfig, Any
+    rule = FactualAccuracyRule(
+        config=RuleConfig(
+            params={
+                "knowledge_base": {
+                    "earth_shape": {"round", "spherical", "geoid"},
+                    "gravity": {"9.8 m/s²", "9.8 meters per second squared"}
+                }
+            }
+        )
+    )
 """
 
 from dataclasses import dataclass, field
@@ -125,10 +144,8 @@ class FactualAccuracyRule(Rule[str, RuleResult, DefaultFactualAccuracyValidator,
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            params_source = config.params if config.params else config.metadata
-            self._rule_params = params_source
+        if config and config.params:
+            self._rule_params = config.params
 
         # Initialize base class
         super().__init__(

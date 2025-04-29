@@ -233,7 +233,6 @@ class BiasDetector(BaseClassifier):
                     cost=self.config.cost,
                     min_confidence=self.config.min_confidence,
                     params=data["config_params"],
-                    metadata=self.config.metadata,
                 )
 
             self._initialized = True

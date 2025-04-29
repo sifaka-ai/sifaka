@@ -26,8 +26,7 @@ Usage Example:
     result = rule.validate("This treatment may help with symptoms. Consult your doctor for medical advice.")
 
     # Alternative: Create with explicit RuleConfig
-    from sifaka.rules.base import RuleConfig
-
+    from sifaka.rules.base import BaseValidator, RuleConfig, Any
     rule = MedicalRule(
         config=RuleConfig(
             params={

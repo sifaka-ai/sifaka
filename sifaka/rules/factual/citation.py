@@ -3,6 +3,12 @@ Citation validation rules for Sifaka.
 
 This module provides validators and rules for checking citations in text.
 
+Configuration Pattern:
+    This module follows the standard Sifaka configuration pattern:
+    - All rule-specific configuration is stored in RuleConfig.params
+    - The CitationConfig class extends RuleConfig and provides type-safe access to parameters
+    - Factory functions (create_citation_rule, create_citation_validator) handle configuration
+
 Usage Example:
     from sifaka.rules.factual.citation import create_citation_rule
 
@@ -17,6 +23,20 @@ Usage Example:
 
     # Validate text
     result = rule.validate("According to Smith (2020), this approach is effective.")
+
+    # Alternative: Create with explicit RuleConfig
+    from sifaka.rules.base import BaseValidator, RuleConfig, Any
+    rule = CitationRule(
+        config=RuleConfig(
+            params={
+                "citation_patterns": [
+                    r"\[[\d]+\]",  # [1], [2], etc.
+                    r"\([A-Za-z]+, \d{4}\)",  # (Smith, 2020)
+                ],
+                "required_citations": True
+            }
+        )
+    )
 """
 
 import re
@@ -129,10 +149,8 @@ class CitationRule(Rule[str, RuleResult, DefaultCitationValidator, Any]):
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            params_source = config.params if config.params else config.metadata
-            self._rule_params = params_source
+        if config and config.params:
+            self._rule_params = config.params
 
         # Initialize base class
         super().__init__(
