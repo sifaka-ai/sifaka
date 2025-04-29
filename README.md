@@ -84,21 +84,21 @@ result = chain.run("Write about artificial intelligence")
 The diagram below illustrates the flow within the `Chain.run` method:
 
 ```mermaid
-flowchart TD
-    A[Input Prompt] --> B(Chain.run);
+flowchart LR
+    A[Input Prompt] --> B(Chain.run)
     subgraph Attempt Loop [Max Attempts]
-        B --> C{Generate Output w/ Model Provider};
-        C --> D[Output];
-        D --> E{Validate Output w/ Rules};
-        E -- Rule Results --> F{All Rules Passed?};
-        F -- No --> G{Critic Available & Attempts Left?};
-        G -- Yes --> H{Generate Feedback w/ Critic};
-        H --> I[Feedback];
-        I --> J{Combine Original Prompt + Feedback};
-        J --> C;  // Loop back to generate new output
+        B --> C{Generate Output w/ Model Provider}
+        C --> D[Output]
+        D --> E{Validate Output w/ Rules}
+        E -- Rule Results --> F{All Rules Passed?}
+        F -- No --> G{Critic Available & Attempts Left?}
+        G -- Yes --> H{Generate Feedback w/ Critic}
+        H --> I[Feedback]
+        I --> J{Combine Original Prompt + Feedback}
+        J --> C
     end
-    F -- Yes --> K[✅ Final Output];
-    G -- No --> L[❌ Error / Last Failed Output];
+    F -- Yes --> K[✅ Final Output]
+    G -- No --> L[❌ Error / Last Failed Output]
 ```
 
 ### 4. Classifiers
