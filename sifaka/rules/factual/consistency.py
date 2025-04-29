@@ -3,6 +3,12 @@ Factual consistency validation rules for Sifaka.
 
 This module provides validators and rules for checking factual consistency in text.
 
+Configuration Pattern:
+    This module follows the standard Sifaka configuration pattern:
+    - All rule-specific configuration is stored in RuleConfig.params
+    - The FactualConsistencyConfig class extends RuleConfig and provides type-safe access to parameters
+    - Factory functions (create_factual_consistency_rule, create_factual_consistency_validator) handle configuration
+
 Usage Example:
     from sifaka.rules.factual.consistency import create_factual_consistency_rule
 
@@ -14,6 +20,18 @@ Usage Example:
 
     # Validate text
     result = rule.validate("This is consistent. However, this contradicts the previous statement.")
+
+    # Alternative: Create with explicit RuleConfig
+    from sifaka.rules.base import RuleConfig
+
+    rule = FactualConsistencyRule(
+        config=RuleConfig(
+            params={
+                "contradiction_indicators": ["but", "however", "although"],
+                "confidence_threshold": 0.8
+            }
+        )
+    )
 """
 
 from dataclasses import dataclass, field
@@ -142,10 +160,8 @@ class FactualConsistencyRule(Rule[str, RuleResult, DefaultFactualConsistencyVali
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            params_source = config.params if config.params else config.metadata
-            self._rule_params = params_source
+        if config and config.params:
+            self._rule_params = config.params
 
         # Initialize base class
         super().__init__(

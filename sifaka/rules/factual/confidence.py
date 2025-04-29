@@ -3,6 +3,12 @@ Confidence validation rules for Sifaka.
 
 This module provides validators and rules for checking confidence indicators in text.
 
+Configuration Pattern:
+    This module follows the standard Sifaka configuration pattern:
+    - All rule-specific configuration is stored in RuleConfig.params
+    - The ConfidenceConfig class extends RuleConfig and provides type-safe access to parameters
+    - Factory functions (create_confidence_rule, create_confidence_validator) handle configuration
+
 Usage Example:
     from sifaka.rules.factual.confidence import create_confidence_rule
 
@@ -17,6 +23,21 @@ Usage Example:
 
     # Validate text
     result = rule.validate("This is definitely the right approach.")
+
+    # Alternative: Create with explicit RuleConfig
+    from sifaka.rules.base import RuleConfig
+
+    rule = ConfidenceRule(
+        config=RuleConfig(
+            params={
+                "confidence_indicators": {
+                    "high": ["definitely", "certainly", "always"],
+                    "medium": ["likely", "probably", "usually"],
+                    "low": ["maybe", "possibly", "sometimes"]
+                }
+            }
+        )
+    )
 """
 
 from dataclasses import dataclass, field
@@ -133,10 +154,8 @@ class ConfidenceRule(Rule[str, RuleResult, DefaultConfidenceValidator, Any]):
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            params_source = config.params if config.params else config.metadata
-            self._rule_params = params_source
+        if config and config.params:
+            self._rule_params = config.params
 
         # Initialize base class
         super().__init__(

@@ -3,6 +3,12 @@ Consistency validation rules for Sifaka.
 
 This module provides validators and rules for checking consistency in text.
 
+Configuration Pattern:
+    This module follows the standard Sifaka configuration pattern:
+    - All rule-specific configuration is stored in RuleConfig.params
+    - The ConsistencyConfig class extends RuleConfig and provides type-safe access to parameters
+    - Factory functions (create_consistency_rule, create_consistency_validator) handle configuration
+
 Usage Example:
     from sifaka.rules.domain.consistency import create_consistency_rule
 
@@ -17,6 +23,21 @@ Usage Example:
 
     # Validate text
     result = rule.validate("This text is consistent and was written carefully.")
+
+    # Alternative: Create with explicit RuleConfig
+    from sifaka.rules.base import RuleConfig
+
+    rule = ConsistencyRule(
+        config=RuleConfig(
+            params={
+                "consistency_patterns": {
+                    "present": r"\\b(?:is|are|am)\\b",
+                    "past": r"\\b(?:was|were)\\b"
+                },
+                "repetition_threshold": 0.2
+            }
+        )
+    )
 """
 
 import re
@@ -208,10 +229,8 @@ class ConsistencyRule(Rule):
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            params_source = config.params if config.params else config.metadata
-            self._rule_params = params_source
+        if config and config.params:
+            self._rule_params = config.params
 
         # Initialize base class
         super().__init__(

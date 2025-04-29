@@ -3,6 +3,12 @@ Medical domain-specific validation rules for Sifaka.
 
 This module provides validators and rules for checking medical content.
 
+Configuration Pattern:
+    This module follows the standard Sifaka configuration pattern:
+    - All rule-specific configuration is stored in RuleConfig.params
+    - The MedicalConfig class extends RuleConfig and provides type-safe access to parameters
+    - Factory functions (create_medical_rule, create_medical_validator) handle configuration
+
 Usage Example:
     from sifaka.rules.domain.medical import create_medical_rule
 
@@ -18,6 +24,22 @@ Usage Example:
 
     # Validate text
     result = rule.validate("This treatment may help with symptoms. Consult your doctor for medical advice.")
+
+    # Alternative: Create with explicit RuleConfig
+    from sifaka.rules.base import RuleConfig
+
+    rule = MedicalRule(
+        config=RuleConfig(
+            params={
+                "medical_terms": {
+                    "diagnosis": ["diagnosis", "diagnose", "diagnosed"],
+                    "treatment": ["treatment", "therapy"]
+                },
+                "warning_terms": {"diagnosis", "treatment", "cure"},
+                "disclaimer_required": True
+            }
+        )
+    )
 """
 
 import re
@@ -188,10 +210,8 @@ class MedicalRule(Rule[str, RuleResult, DefaultMedicalValidator, Any]):
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            params_source = config.params if config.params else config.metadata
-            self._rule_params = params_source
+        if config and config.params:
+            self._rule_params = config.params
 
         # Initialize base class
         super().__init__(
