@@ -30,6 +30,7 @@ from sifaka.classifiers import (
     ProfanityClassifier,
     SpamClassifier,
     TopicClassifier,
+    ToxicityClassifier,
     ClassifierConfig,
 )
 from sifaka.classifiers.base import (
@@ -730,7 +731,47 @@ def create_all_classifier_rules() -> List[Rule]:
     rules.append(topic_rule)
     print("Added topic rule")
 
-    # 10. Length rule - enforce fewer words (EVEN EASIER)
+    # 10. ToxicityClassifier - ensure content is not toxic (NEW)
+    try:
+        toxicity_classifier = ToxicityClassifier(
+            name="toxicity_classifier",
+            description="Detects toxic content in text",
+            config=ClassifierConfig(
+                labels=[
+                    "toxic",
+                    "severe_toxic",
+                    "obscene",
+                    "threat",
+                    "insult",
+                    "identity_hate",
+                    "non_toxic",
+                ],
+                params={
+                    "model_name": "original",
+                    "general_threshold": 0.05,  # Very low threshold to detect actual toxic content
+                    "severe_toxic_threshold": 0.1,  # Very low threshold to detect actual toxic content
+                    "threat_threshold": 0.1,  # Very low threshold to detect actual toxic content
+                },
+            ),
+        )
+
+        # Use the standard classifier rule but with a very low threshold
+        # The toxicity scores are naturally very low for non-toxic content
+        toxicity_rule = create_classifier_rule(
+            classifier=toxicity_classifier,
+            name="toxicity_rule",
+            description="Ensures text is not toxic",
+            threshold=0.01,  # Very low threshold
+            valid_labels=["non_toxic"],
+        )
+        rules.append(toxicity_rule)
+        print("Added toxicity rule")
+    except ImportError:
+        print("Skipping toxicity rule (detoxify package not installed)")
+    except Exception as e:
+        print(f"Could not add toxicity rule: {str(e)}")
+
+    # 11. Length rule - enforce fewer words (EVEN EASIER)
     length_rule = create_length_rule(
         min_words=500,  # Further reduced from 700
         max_words=2700,
