@@ -81,6 +81,11 @@ class StyleValidator(BaseValidator[str]):
         Returns:
             Validation result
         """
+        # Handle empty text
+        empty_result = self.handle_empty_text(text)
+        if empty_result:
+            return empty_result
+
         raise NotImplementedError("Subclasses must implement validate method")
 
 
@@ -97,6 +102,11 @@ class DefaultStyleValidator(StyleValidator):
         Returns:
             Validation result
         """
+        # Handle empty text
+        empty_result = self.handle_empty_text(text)
+        if empty_result:
+            return empty_result
+
         if self.config.strip_whitespace:
             text = text.strip()
 
@@ -316,6 +326,11 @@ class FormattingValidator(BaseValidator[str]):
         Returns:
             Validation result
         """
+        # Handle empty text
+        empty_result = self.handle_empty_text(text)
+        if empty_result:
+            return empty_result
+
         raise NotImplementedError("Subclasses must implement validate method")
 
 
@@ -332,8 +347,10 @@ class DefaultFormattingValidator(FormattingValidator):
         Returns:
             Validation result
         """
-        if not text:
-            return RuleResult(passed=True, message="Empty text passed validation")
+        # Handle empty text
+        empty_result = self.handle_empty_text(text)
+        if empty_result:
+            return empty_result
 
         errors = []
         original_text = text

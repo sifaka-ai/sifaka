@@ -78,6 +78,9 @@ class BaseValidator(Generic[T]):
         """
         Validate the output.
 
+        This method handles common validation logic, including empty text handling.
+        Subclasses should override this method to implement their validation logic.
+
         Args:
             output: The output to validate
             **kwargs: Additional validation context
@@ -85,10 +88,36 @@ class BaseValidator(Generic[T]):
         Returns:
             Validation result
         """
+        # Handle empty text for string validators
+        if isinstance(output, str) and not output.strip():
+            return RuleResult(
+                passed=True,  # Default to passing for empty text
+                message="Empty text validation skipped",
+                metadata={"reason": "empty_input"},
+            )
+
         # This is a placeholder implementation that should be overridden
         # by subclasses. We're using _ to indicate unused parameters.
         _ = output, kwargs
         raise NotImplementedError("Subclasses must implement validate method")
+
+    def handle_empty_text(self, text: str) -> Optional["RuleResult"]:
+        """
+        Handle empty text validation.
+
+        Args:
+            text: The text to check
+
+        Returns:
+            RuleResult if text is empty, None otherwise
+        """
+        if not text.strip():
+            return RuleResult(
+                passed=True,
+                message="Empty text validation skipped",
+                metadata={"reason": "empty_input"},
+            )
+        return None
 
     def can_validate(self, output: T) -> bool:
         """
@@ -353,6 +382,11 @@ class FunctionValidator(BaseValidator[str]):
 
     def validate(self, output: str, **kwargs) -> RuleResult:
         """Validate using the wrapped function."""
+        # Handle empty text
+        empty_result = self.handle_empty_text(output)
+        if empty_result:
+            return empty_result
+
         result = self._func(output, **kwargs)
 
         if isinstance(result, bool):

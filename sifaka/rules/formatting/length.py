@@ -49,6 +49,11 @@ class LengthValidator(BaseValidator[str]):
         Returns:
             Validation result
         """
+        # Handle empty text
+        empty_result = self.handle_empty_text(text)
+        if empty_result:
+            return empty_result
+
         raise NotImplementedError("Subclasses must implement validate method")
 
 
@@ -65,6 +70,11 @@ class DefaultLengthValidator(LengthValidator):
         Returns:
             Validation result
         """
+        # Handle empty text
+        empty_result = self.handle_empty_text(text)
+        if empty_result:
+            return empty_result
+
         errors = []
 
         # Character length validation
