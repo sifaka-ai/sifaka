@@ -332,6 +332,7 @@ This example uses the ReflexionCritic to improve text by learning from past feed
 ```python
 from sifaka.critics.reflexion import ReflexionCritic, ReflexionCriticConfig
 from sifaka.models.openai import OpenAIProvider
+from sifaka.models.base import ModelConfig
 from sifaka.rules.formatting.length import create_length_rule
 from sifaka.chain import Chain
 import os
@@ -339,7 +340,11 @@ import os
 # Configure OpenAI model
 model = OpenAIProvider(
     model_name="gpt-3.5-turbo",
-    api_key=os.environ.get("OPENAI_API_KEY"),
+    config=ModelConfig(
+        api_key=os.environ.get("OPENAI_API_KEY"),
+        temperature=0.7,
+        max_tokens=1500,
+    )
 )
 
 # Create a reflexion critic
@@ -361,7 +366,7 @@ reflexion_critic = ReflexionCritic(
 length_rule = create_length_rule(
     min_words=50,
     max_words=100,
-    name="word_length_rule",
+    rule_id="word_length_rule",
     description="Ensures text is between 50-100 words",
 )
 
