@@ -586,6 +586,7 @@ def create_all_classifier_rules() -> List[Rule]:
         valid_labels=["clean"],
     )
     rules.append(profanity_rule)
+    print("Added profanity rule")
 
     # 7. GenreClassifier - ensure content is of an appropriate genre (ALREADY INCLUDED & EASY)
     # Create with pretrained data to ensure the model is initialized

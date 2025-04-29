@@ -6,9 +6,7 @@ import importlib
 import os
 import pickle
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
-
-from pydantic import Field, PrivateAttr
+from typing import Any, Dict, List, Optional, Final
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -68,13 +66,18 @@ class SpamClassifier(BaseClassifier):
     pip install scikit-learn
     """
 
-    # Private attributes
-    _sklearn_feature_extraction_text: Any = PrivateAttr(default=None)
-    _sklearn_naive_bayes: Any = PrivateAttr(default=None)
-    _sklearn_pipeline: Any = PrivateAttr(default=None)
-    _vectorizer: Any = PrivateAttr(default=None)
-    _model: Any = PrivateAttr(default=None)
-    _pipeline: Any = PrivateAttr(default=None)
+    # Class-level constants
+    DEFAULT_LABELS: Final[List[str]] = ["ham", "spam"]
+    DEFAULT_COST: Final[int] = 1.5  # Slightly higher cost for ML-based model
+
+    # Class-level attributes for state management
+    _initialized: bool = False
+    _sklearn_feature_extraction_text: Optional[Any] = None
+    _sklearn_naive_bayes: Optional[Any] = None
+    _sklearn_pipeline: Optional[Any] = None
+    _vectorizer: Optional[Any] = None
+    _model: Optional[Any] = None
+    _pipeline: Optional[Any] = None
 
     def __init__(
         self,
@@ -108,7 +111,9 @@ class SpamClassifier(BaseClassifier):
                 params["use_bigrams"] = spam_config.use_bigrams
 
             # Create config with remaining kwargs
-            config = ClassifierConfig(labels=["ham", "spam"], cost=1.5, params=params, **kwargs)
+            config = ClassifierConfig(
+                labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, params=params, **kwargs
+            )
 
         # Initialize base class
         super().__init__(name=name, description=description, config=config)
@@ -120,9 +125,9 @@ class SpamClassifier(BaseClassifier):
 
     def _is_initialized(self) -> bool:
         """Check if the classifier is initialized."""
-        return self._pipeline is not None
+        return self._initialized
 
-    def _load_dependencies(self) -> None:
+    def _load_dependencies(self) -> bool:
         """Load scikit-learn dependencies."""
         try:
             # Import necessary scikit-learn modules
@@ -171,6 +176,8 @@ class SpamClassifier(BaseClassifier):
                         ("classifier", self._model),
                     ]
                 )
+
+            self._initialized = True
 
     def _save_model(self, path: str) -> None:
         """Save the model to a file."""
@@ -329,8 +336,8 @@ class SpamClassifier(BaseClassifier):
 
             # Create config with params
             config = ClassifierConfig(
-                labels=["ham", "spam"],
-                cost=1.5,
+                labels=cls.DEFAULT_LABELS,
+                cost=cls.DEFAULT_COST,
                 params=params,
             )
 

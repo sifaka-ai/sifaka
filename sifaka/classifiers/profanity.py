@@ -110,6 +110,9 @@ class ProfanityClassifier(BaseClassifier):
     # Class-level constants
     DEFAULT_LABELS: Final[List[str]] = ["clean", "profane", "unknown"]
     DEFAULT_COST: Final[int] = 1  # Low cost for dictionary-based check
+    # Class-level attributes for state management
+    _initialized: bool = False
+    _checker: Optional[ProfanityChecker] = None
 
     def __init__(
         self,
@@ -131,9 +134,9 @@ class ProfanityClassifier(BaseClassifier):
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        # Store checker for later use
-        self._checker = checker
-        self._initialized = False
+        # Store checker for later use if provided
+        if checker is not None:
+            self._checker = checker
 
         # We'll use config.params for all configuration, so we don't need to store profanity_config separately
 
