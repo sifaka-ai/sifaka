@@ -45,6 +45,10 @@ length_rule = create_length_rule(
 
 Critics analyze and provide feedback on model outputs:
 
+#### PromptCritic
+
+The standard critic that provides feedback based on a single prompt:
+
 ```python
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.models.anthropic import AnthropicProvider
@@ -56,6 +60,27 @@ critic = PromptCritic(
         name="length_critic",
         description="A critic that helps adjust text length",
         system_prompt="You are an editor who specializes in adjusting text length."
+    )
+)
+```
+
+#### ReflexionCritic
+
+A critic that maintains a memory of past improvements and uses these reflections to guide future improvements:
+
+```python
+from sifaka.critics.reflexion import ReflexionCritic, ReflexionCriticConfig
+from sifaka.models.anthropic import AnthropicProvider
+
+# Create a reflexion critic that uses Claude
+reflexion_critic = ReflexionCritic(
+    llm_provider=claude_model,
+    config=ReflexionCriticConfig(
+        name="reflexion_critic",
+        description="A critic that learns from past feedback",
+        system_prompt="You are an editor who learns from past feedback to improve future edits.",
+        memory_buffer_size=5,  # Store up to 5 reflections
+        reflection_depth=1     # Perform 1 level of reflection
     )
 )
 ```
@@ -298,6 +323,70 @@ For complete, runnable examples, see the `/examples` directory:
 - `claude_length_critic.py`: Demonstrates reducing text length
 - `claude_expand_length_critic.py`: Demonstrates expanding text length
 - `toxicity_filtering.py`: Demonstrates content safety validation
+- `reflexion_critic_example.py`: Demonstrates using the ReflexionCritic to improve text through learning from past feedback
+
+### Example 3: Reflexion-Based Learning
+
+This example uses the ReflexionCritic to improve text by learning from past feedback:
+
+```python
+from sifaka.critics.reflexion import ReflexionCritic, ReflexionCriticConfig
+from sifaka.models.openai import OpenAIProvider
+from sifaka.rules.formatting.length import create_length_rule
+from sifaka.chain import Chain
+import os
+
+# Configure OpenAI model
+model = OpenAIProvider(
+    model_name="gpt-3.5-turbo",
+    api_key=os.environ.get("OPENAI_API_KEY"),
+)
+
+# Create a reflexion critic
+reflexion_critic = ReflexionCritic(
+    llm_provider=model,
+    config=ReflexionCriticConfig(
+        name="reflexion_critic",
+        description="A critic that learns from past feedback",
+        system_prompt=(
+            "You are an expert editor who learns from past feedback to improve future edits. "
+            "Focus on identifying patterns in feedback and applying those lessons to new tasks."
+        ),
+        memory_buffer_size=5,  # Store up to 5 reflections
+        reflection_depth=1     # Perform 1 level of reflection
+    )
+)
+
+# Create a length rule
+length_rule = create_length_rule(
+    min_words=50,
+    max_words=100,
+    name="word_length_rule",
+    description="Ensures text is between 50-100 words",
+)
+
+# Create a chain with the model, rule, and reflexion critic
+chain = Chain(
+    model=model,
+    rules=[length_rule],
+    critic=reflexion_critic,
+    max_attempts=3,
+)
+
+# Process a series of prompts and observe how the critic improves over time
+prompts = [
+    "Explain the concept of machine learning in detail.",
+    "Describe the process of photosynthesis in plants.",
+    "Explain how the internet works.",
+]
+
+for prompt in prompts:
+    result = chain.run(prompt)
+    print(f"Output (Word Count: {len(result.output.split())}): {result.output}\n")
+
+# The reflexion critic's memory buffer now contains reflections that will
+# guide future improvements, making it more effective over time
+```
 
 ## License
 
