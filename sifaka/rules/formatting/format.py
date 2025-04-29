@@ -9,50 +9,47 @@ Configuration Pattern:
     - The FormatConfig, MarkdownConfig, JsonConfig, and PlainTextConfig classes extend RuleConfig
       and provide type-safe access to parameters
     - Factory functions (create_format_rule, create_markdown_rule, etc.) handle configuration
+    - Validator factory functions (create_format_validator, create_markdown_validator, etc.)
+      create standalone validators
 
 Usage Example:
     from sifaka.rules.formatting.format import create_markdown_rule, create_json_rule, create_plain_text_rule
 
     # Create a markdown rule
     markdown_rule = create_markdown_rule(
-        config={
-            "required_elements": ["#", "*", "`"],
-            "min_elements": 2
-        }
+        required_elements=["#", "*", "`"],
+        min_elements=2
     )
 
     # Create a JSON rule
     json_rule = create_json_rule(
-        config={
-            "strict": True,
-            "allow_empty": False
-        }
+        strict=True,
+        allow_empty=False
     )
 
     # Create a plain text rule
     plain_text_rule = create_plain_text_rule(
-        config={
-            "min_length": 10,
-            "max_length": 1000
-        }
+        min_length=10,
+        max_length=1000
     )
 
-    # Alternative: Create with explicit RuleConfig
-    from sifaka.rules.base import BaseValidator, RuleConfig, Any
-    rule = FormatRule(
-        format_type="plain_text",
-        config=RuleConfig(
-            params={
-                "min_length": 10,
-                "max_length": 1000
-            }
-        )
+    # Create a format rule with specific format type
+    format_rule = create_format_rule(
+        required_format="markdown",
+        markdown_elements={"headers", "lists", "code_blocks"}
+    )
+
+    # Create standalone validators
+    from sifaka.rules.formatting.format import create_markdown_validator
+    validator = create_markdown_validator(
+        required_elements=["#", "*", "`"],
+        min_elements=2
     )
 """
 
 import json
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Literal, Optional, Protocol, Set, Union, runtime_checkable
+from typing import Any, Dict, List, Literal, Optional, Protocol, Set, runtime_checkable
 
 from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
 
@@ -333,84 +330,271 @@ class FormatRule(Rule[str, RuleResult, BaseValidator[str], Any]):
             return DefaultPlainTextValidator(format_config)
 
 
+def create_markdown_validator(
+    required_elements: Optional[List[str]] = None,
+    min_elements: Optional[int] = None,
+    **kwargs,
+) -> DefaultMarkdownValidator:
+    """
+    Create a markdown validator with the specified configuration.
+
+    This factory function creates a configured markdown validator instance.
+    It's useful when you need a validator without creating a full rule.
+
+    Args:
+        required_elements: List of markdown elements required in the text
+        min_elements: Minimum number of required elements that must be present
+        **kwargs: Additional keyword arguments for the config
+
+    Returns:
+        Configured markdown validator
+    """
+    # Extract RuleConfig parameters from kwargs
+    rule_config_params = {}
+    for param in ["priority", "cache_size", "cost", "params"]:
+        if param in kwargs:
+            rule_config_params[param] = kwargs.pop(param)
+
+    # Create config with default or provided values
+    config_params = {}
+    if required_elements is not None:
+        config_params["required_elements"] = required_elements
+    if min_elements is not None:
+        config_params["min_elements"] = min_elements
+
+    # Add any remaining config parameters
+    config_params.update(rule_config_params)
+
+    # Create the config
+    config = MarkdownConfig(**config_params)
+
+    # Return configured validator
+    return DefaultMarkdownValidator(config)
+
+
+def create_json_validator(
+    strict: Optional[bool] = None,
+    allow_empty: Optional[bool] = None,
+    **kwargs,
+) -> DefaultJsonValidator:
+    """
+    Create a JSON validator with the specified configuration.
+
+    This factory function creates a configured JSON validator instance.
+    It's useful when you need a validator without creating a full rule.
+
+    Args:
+        strict: Whether to enforce strict JSON validation
+        allow_empty: Whether to allow empty JSON strings
+        **kwargs: Additional keyword arguments for the config
+
+    Returns:
+        Configured JSON validator
+    """
+    # Extract RuleConfig parameters from kwargs
+    rule_config_params = {}
+    for param in ["priority", "cache_size", "cost", "params"]:
+        if param in kwargs:
+            rule_config_params[param] = kwargs.pop(param)
+
+    # Create config with default or provided values
+    config_params = {}
+    if strict is not None:
+        config_params["strict"] = strict
+    if allow_empty is not None:
+        config_params["allow_empty"] = allow_empty
+
+    # Add any remaining config parameters
+    config_params.update(rule_config_params)
+
+    # Create the config
+    config = JsonConfig(**config_params)
+
+    # Return configured validator
+    return DefaultJsonValidator(config)
+
+
+def create_plain_text_validator(
+    min_length: Optional[int] = None,
+    max_length: Optional[int] = None,
+    allow_empty: Optional[bool] = None,
+    **kwargs,
+) -> DefaultPlainTextValidator:
+    """
+    Create a plain text validator with the specified configuration.
+
+    This factory function creates a configured plain text validator instance.
+    It's useful when you need a validator without creating a full rule.
+
+    Args:
+        min_length: Minimum text length allowed
+        max_length: Maximum text length allowed
+        allow_empty: Whether to allow empty text
+        **kwargs: Additional keyword arguments for the config
+
+    Returns:
+        Configured plain text validator
+    """
+    # Extract RuleConfig parameters from kwargs
+    rule_config_params = {}
+    for param in ["priority", "cache_size", "cost", "params"]:
+        if param in kwargs:
+            rule_config_params[param] = kwargs.pop(param)
+
+    # Create config with default or provided values
+    config_params = {}
+    if min_length is not None:
+        config_params["min_length"] = min_length
+    if max_length is not None:
+        config_params["max_length"] = max_length
+    if allow_empty is not None:
+        config_params["allow_empty"] = allow_empty
+
+    # Add any remaining config parameters
+    config_params.update(rule_config_params)
+
+    # Create the config
+    config = PlainTextConfig(**config_params)
+
+    # Return configured validator
+    return DefaultPlainTextValidator(config)
+
+
 def create_markdown_rule(
     name: str = "markdown_rule",
     description: str = "Validates markdown format",
-    config: Optional[Dict[str, Any]] = None,
+    required_elements: Optional[List[str]] = None,
+    min_elements: Optional[int] = None,
+    **kwargs,
 ) -> FormatRule:
     """
     Create a markdown format rule with configuration.
 
+    This factory function creates a configured FormatRule instance for markdown validation.
+    It uses create_markdown_validator internally to create the validator.
+
     Args:
         name: The name of the rule
         description: Description of the rule
-        config: Optional configuration dictionary
+        required_elements: List of markdown elements required in the text
+        min_elements: Minimum number of required elements that must be present
+        **kwargs: Additional keyword arguments for the rule
 
     Returns:
         Configured FormatRule instance
     """
-    # Convert the dictionary config to RuleConfig with params
-    rule_config = RuleConfig(params=config or {})
+    # Create validator using the validator factory
+    validator = create_markdown_validator(
+        required_elements=required_elements,
+        min_elements=min_elements,
+        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+    )
 
+    # Extract rule-specific kwargs
+    rule_kwargs = {
+        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
+    }
+
+    # Create and return rule
     return FormatRule(
         name=name,
         description=description,
         format_type="markdown",
-        config=rule_config,
+        validator=validator,
+        **rule_kwargs,
     )
 
 
 def create_json_rule(
     name: str = "json_rule",
     description: str = "Validates JSON format",
-    config: Optional[Dict[str, Any]] = None,
+    strict: Optional[bool] = None,
+    allow_empty: Optional[bool] = None,
+    **kwargs,
 ) -> FormatRule:
     """
     Create a JSON format rule with configuration.
 
+    This factory function creates a configured FormatRule instance for JSON validation.
+    It uses create_json_validator internally to create the validator.
+
     Args:
         name: The name of the rule
         description: Description of the rule
-        config: Optional configuration dictionary
+        strict: Whether to enforce strict JSON validation
+        allow_empty: Whether to allow empty JSON strings
+        **kwargs: Additional keyword arguments for the rule
 
     Returns:
         Configured FormatRule instance
     """
-    # Convert the dictionary config to RuleConfig with params
-    rule_config = RuleConfig(params=config or {})
+    # Create validator using the validator factory
+    validator = create_json_validator(
+        strict=strict,
+        allow_empty=allow_empty,
+        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+    )
 
+    # Extract rule-specific kwargs
+    rule_kwargs = {
+        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
+    }
+
+    # Create and return rule
     return FormatRule(
         name=name,
         description=description,
         format_type="json",
-        config=rule_config,
+        validator=validator,
+        **rule_kwargs,
     )
 
 
 def create_plain_text_rule(
     name: str = "plain_text_rule",
     description: str = "Validates plain text format",
-    config: Optional[Dict[str, Any]] = None,
+    min_length: Optional[int] = None,
+    max_length: Optional[int] = None,
+    allow_empty: Optional[bool] = None,
+    **kwargs,
 ) -> FormatRule:
     """
     Create a plain text format rule with configuration.
 
+    This factory function creates a configured FormatRule instance for plain text validation.
+    It uses create_plain_text_validator internally to create the validator.
+
     Args:
         name: The name of the rule
         description: Description of the rule
-        config: Optional configuration dictionary
+        min_length: Minimum text length allowed
+        max_length: Maximum text length allowed
+        allow_empty: Whether to allow empty text
+        **kwargs: Additional keyword arguments for the rule
 
     Returns:
         Configured FormatRule instance
     """
-    # Convert the dictionary config to RuleConfig with params
-    rule_config = RuleConfig(params=config or {})
+    # Create validator using the validator factory
+    validator = create_plain_text_validator(
+        min_length=min_length,
+        max_length=max_length,
+        allow_empty=allow_empty,
+        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+    )
 
+    # Extract rule-specific kwargs
+    rule_kwargs = {
+        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
+    }
+
+    # Create and return rule
     return FormatRule(
         name=name,
         description=description,
         format_type="plain_text",
-        config=rule_config,
+        validator=validator,
+        **rule_kwargs,
     )
 
 
@@ -480,43 +664,115 @@ class DefaultFormatValidator(BaseValidator[str]):
         return validator.validate(text, **kwargs)
 
 
+def create_format_validator(
+    required_format: Optional[FormatType] = None,
+    markdown_elements: Optional[Set[str]] = None,
+    json_schema: Optional[Dict[str, Any]] = None,
+    min_length: Optional[int] = None,
+    max_length: Optional[int] = None,
+    **kwargs,
+) -> DefaultFormatValidator:
+    """
+    Create a format validator with the specified configuration.
+
+    This factory function creates a configured format validator instance.
+    It's useful when you need a validator without creating a full rule.
+
+    Args:
+        required_format: Type of format to validate (markdown, json, plain_text)
+        markdown_elements: Set of markdown elements to check for
+        json_schema: JSON schema for validation
+        min_length: Minimum text length allowed
+        max_length: Maximum text length allowed
+        **kwargs: Additional keyword arguments for the config
+
+    Returns:
+        Configured format validator
+    """
+    # Extract RuleConfig parameters from kwargs
+    rule_config_params = {}
+    for param in ["priority", "cache_size", "cost", "params"]:
+        if param in kwargs:
+            rule_config_params[param] = kwargs.pop(param)
+
+    # Create config with default or provided values
+    config_params = {}
+    if required_format is not None:
+        config_params["required_format"] = required_format
+    if markdown_elements is not None:
+        config_params["markdown_elements"] = markdown_elements
+    if json_schema is not None:
+        config_params["json_schema"] = json_schema
+    if min_length is not None:
+        config_params["min_length"] = min_length
+    if max_length is not None:
+        config_params["max_length"] = max_length
+
+    # Add any remaining config parameters
+    config_params.update(rule_config_params)
+
+    # Create the config
+    config = FormatConfig(**config_params)
+
+    # Return configured validator
+    return DefaultFormatValidator(config)
+
+
 # Function to create a format rule with any configuration
 def create_format_rule(
     name: str = "format_rule",
     description: str = "Validates text format",
-    config: Optional[Union[FormatConfig, Dict[str, Any]]] = None,
+    required_format: Optional[FormatType] = None,
+    markdown_elements: Optional[Set[str]] = None,
+    json_schema: Optional[Dict[str, Any]] = None,
+    min_length: Optional[int] = None,
+    max_length: Optional[int] = None,
+    **kwargs,
 ) -> FormatRule:
     """
     Create a format rule with configuration.
 
+    This factory function creates a configured FormatRule instance.
+    It uses create_format_validator internally to create the validator.
+
     Args:
         name: The name of the rule
         description: Description of the rule
-        config: Optional FormatConfig or configuration dictionary
+        required_format: Type of format to validate (markdown, json, plain_text)
+        markdown_elements: Set of markdown elements to check for
+        json_schema: JSON schema for validation
+        min_length: Minimum text length allowed
+        max_length: Maximum text length allowed
+        **kwargs: Additional keyword arguments for the rule
 
     Returns:
         Configured FormatRule instance
     """
-    # Convert dictionary config to FormatConfig if needed
-    if isinstance(config, dict):
-        format_config = FormatConfig(**config)
-    elif config is None:
-        format_config = FormatConfig()
-    else:
-        format_config = config
+    # Create validator using the validator factory
+    validator = create_format_validator(
+        required_format=required_format,
+        markdown_elements=markdown_elements,
+        json_schema=json_schema,
+        min_length=min_length,
+        max_length=max_length,
+        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+    )
 
-    # Create a validator directly
-    validator = DefaultFormatValidator(format_config)
+    # Extract rule-specific kwargs
+    rule_kwargs = {
+        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
+    }
 
-    # Create rule config with params
-    rule_config = RuleConfig(params={})
+    # Get the format type from the validator config
+    format_type = validator.config.required_format
 
+    # Create and return rule
     return FormatRule(
         name=name,
         description=description,
-        format_type=format_config.required_format,
-        config=rule_config,
+        format_type=format_type,
         validator=validator,
+        **rule_kwargs,
     )
 
 
@@ -528,12 +784,16 @@ PlainTextValidator = DefaultPlainTextValidator
 
 # Export public classes and functions
 __all__ = [
+    # Rule classes
     "FormatRule",
+    # Type definitions
     "FormatType",
+    # Config classes
     "FormatConfig",
     "MarkdownConfig",
     "JsonConfig",
     "PlainTextConfig",
+    # Validator classes
     "FormatValidator",
     "DefaultFormatValidator",
     "MarkdownValidator",
@@ -542,6 +802,12 @@ __all__ = [
     "DefaultJsonValidator",
     "PlainTextValidator",
     "DefaultPlainTextValidator",
+    # Validator factory functions
+    "create_format_validator",
+    "create_markdown_validator",
+    "create_json_validator",
+    "create_plain_text_validator",
+    # Rule factory functions
     "create_format_rule",
     "create_markdown_rule",
     "create_json_rule",
