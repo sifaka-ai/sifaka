@@ -4,7 +4,6 @@ Profanity classifier using better_profanity.
 
 import importlib
 from abc import abstractmethod
-from dataclasses import dataclass, field
 from typing import (
     Any,
     Final,
@@ -49,46 +48,20 @@ class ProfanityChecker(Protocol):
     def censor_char(self, char: str) -> None: ...
 
 
-@dataclass(frozen=True)
-class ProfanityConfig:
-    """
-    Configuration for profanity detection.
-
-    Note: This class is provided for backward compatibility.
-    The preferred way to configure profanity detection is to use
-    ClassifierConfig with params:
-
-    ```python
-    config = ClassifierConfig(
-        labels=["clean", "profane", "unknown"],
-        params={
-            "custom_words": ["word1", "word2"],
-            "censor_char": "*",
-            "min_confidence": 0.7
-        }
-    )
-    ```
-    """
-
-    custom_words: Set[str] = field(default_factory=frozenset)
-    censor_char: str = "*"
-    min_confidence: float = 0.5
-
-    def __post_init__(self) -> None:
-        if len(self.censor_char) != 1:
-            raise ValueError("censor_char must be a single character")
-        if not 0.0 <= self.min_confidence <= 1.0:
-            raise ValueError("min_confidence must be between 0.0 and 1.0")
-
-
-@dataclass(frozen=True)
 class CensorResult:
     """Result of text censoring operation."""
 
-    original_text: str
-    censored_text: str
-    censored_word_count: int
-    total_word_count: int
+    def __init__(
+        self,
+        original_text: str,
+        censored_text: str,
+        censored_word_count: int,
+        total_word_count: int,
+    ):
+        self.original_text = original_text
+        self.censored_text = censored_text
+        self.censored_word_count = censored_word_count
+        self.total_word_count = total_word_count
 
     @property
     def profanity_ratio(self) -> float:
@@ -110,12 +83,14 @@ class ProfanityClassifier(BaseClassifier):
     # Class-level constants
     DEFAULT_LABELS: Final[List[str]] = ["clean", "profane", "unknown"]
     DEFAULT_COST: Final[int] = 1  # Low cost for dictionary-based check
+    # Class-level attributes for state management
+    _initialized: bool = False
+    _checker: Optional[ProfanityChecker] = None
 
     def __init__(
         self,
         name: str = "profanity_classifier",
         description: str = "Detects profanity and inappropriate language",
-        profanity_config: Optional[ProfanityConfig] = None,
         checker: Optional[ProfanityChecker] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
@@ -126,32 +101,18 @@ class ProfanityClassifier(BaseClassifier):
         Args:
             name: The name of the classifier
             description: Description of the classifier
-            profanity_config: Configuration for profanity detection
             checker: Custom profanity checker implementation
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        # Store checker for later use
-        self._checker = checker
-        self._initialized = False
-
-        # We'll use config.params for all configuration, so we don't need to store profanity_config separately
+        # Store checker for later use if provided
+        if checker is not None:
+            self._checker = checker
 
         # Create config if not provided
         if config is None:
             # Extract params from kwargs if present
             params = kwargs.pop("params", {})
-
-            # Add profanity config to params if provided
-            if profanity_config is not None:
-                # Store all profanity config values in params for consistency
-                params.update(
-                    {
-                        "custom_words": list(profanity_config.custom_words),
-                        "censor_char": profanity_config.censor_char,
-                        "min_confidence": profanity_config.min_confidence,
-                    }
-                )
 
             # Create config with remaining kwargs
             config = ClassifierConfig(
@@ -306,7 +267,6 @@ class ProfanityClassifier(BaseClassifier):
         checker: ProfanityChecker,
         name: str = "custom_profanity_classifier",
         description: str = "Custom profanity checker",
-        profanity_config: Optional[ProfanityConfig] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "ProfanityClassifier":
@@ -317,7 +277,6 @@ class ProfanityClassifier(BaseClassifier):
             checker: Custom profanity checker implementation
             name: Name of the classifier
             description: Description of the classifier
-            profanity_config: Custom profanity configuration
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
@@ -330,11 +289,16 @@ class ProfanityClassifier(BaseClassifier):
                 f"Checker must implement ProfanityChecker protocol, got {type(checker)}"
             )
 
+        # Create config if not provided
+        if config is None:
+            config = ClassifierConfig(
+                labels=cls.DEFAULT_LABELS, cost=cls.DEFAULT_COST, params=kwargs.pop("params", {})
+            )
+
         # Create instance with validated checker
         instance = cls(
             name=name,
             description=description,
-            profanity_config=profanity_config,
             checker=checker,
             config=config,
             **kwargs,

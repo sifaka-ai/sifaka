@@ -31,9 +31,6 @@ Available Classifiers:
    - TopicClassifier: Identifies topics in text using LDA
    - GenreClassifier: Categorizes text into genres (news, fiction, academic, etc.)
 
-4. Model-Based:
-   - LLMClassifier: Uses LLMs for customizable classification tasks
-
 Usage Example:
     from sifaka.classifiers import SentimentClassifier, ReadabilityClassifier
 
@@ -57,15 +54,14 @@ from .base import (
     ClassifierProtocol,
     TextProcessor,
 )
-from .bias import BiasConfig, BiasDetector
-from .genre import GenreClassifier, GenreConfig
+from .bias import BiasDetector
+from .genre import GenreClassifier
 from .language import LanguageClassifier
-from .llm import LLMClassifier
 from .profanity import ProfanityClassifier
 from .readability import ReadabilityClassifier
 from .sentiment import SentimentClassifier
-from .spam import SpamClassifier, SpamConfig
-from .topic import TopicClassifier, TopicConfig
+from .spam import SpamClassifier
+from .topic import TopicClassifier
 from .toxicity import ToxicityClassifier
 
 __all__ = [
@@ -80,16 +76,10 @@ __all__ = [
     "ProfanityClassifier",
     "ToxicityClassifier",
     "SpamClassifier",
-    "SpamConfig",
     "BiasDetector",
-    "BiasConfig",
     # Text Properties
     "ReadabilityClassifier",
     "LanguageClassifier",
     "TopicClassifier",
-    "TopicConfig",
     "GenreClassifier",
-    "GenreConfig",
-    # Model-Based
-    "LLMClassifier",
 ]

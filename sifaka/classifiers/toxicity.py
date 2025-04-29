@@ -4,7 +4,6 @@ Toxicity classifier using the Detoxify model.
 
 import importlib
 from abc import abstractmethod
-from dataclasses import dataclass
 from typing import (
     Any,
     Dict,
@@ -36,52 +35,6 @@ class ToxicityModel(Protocol):
     def predict(self, text: str | List[str]) -> Dict[str, np.ndarray | float]: ...
 
 
-@dataclass(frozen=True)
-class ToxicityThresholds:
-    """Immutable thresholds for toxicity classification."""
-
-    severe_toxic: float = 0.7
-    threat: float = 0.7
-    general: float = 0.5
-
-    def __post_init__(self) -> None:
-        if not all(0.0 <= t <= 1.0 for t in [self.severe_toxic, self.threat, self.general]):
-            raise ValueError("All thresholds must be between 0.0 and 1.0")
-        if self.general > self.severe_toxic:
-            raise ValueError("General threshold should not be higher than severe threshold")
-
-
-@dataclass(frozen=True)
-class ToxicityConfig:
-    """
-    Configuration for toxicity classifier.
-
-    Note: This class is provided for backward compatibility.
-    The preferred way to configure toxicity detection is to use
-    ClassifierConfig with params:
-
-    ```python
-    config = ClassifierConfig(
-        labels=["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"],
-        cost=2,
-        params={
-            "model_name": "original",
-            "general_threshold": 0.5,
-            "severe_toxic_threshold": 0.7,
-            "threat_threshold": 0.7,
-        }
-    )
-    ```
-    """
-
-    model_name: str = "original"
-    thresholds: ToxicityThresholds = ToxicityThresholds()
-
-    def __post_init__(self) -> None:
-        if self.model_name not in ["original", "unbiased", "multilingual"]:
-            raise ValueError("Model name must be one of: original, unbiased, multilingual")
-
-
 class ToxicityClassifier(BaseClassifier):
     """
     A lightweight toxicity classifier using the Detoxify model.
@@ -102,11 +55,15 @@ class ToxicityClassifier(BaseClassifier):
     ]
     DEFAULT_COST: Final[int] = 2  # Moderate cost for local ML model
 
+    # Default thresholds
+    DEFAULT_SEVERE_TOXIC_THRESHOLD: Final[float] = 0.7
+    DEFAULT_THREAT_THRESHOLD: Final[float] = 0.7
+    DEFAULT_GENERAL_THRESHOLD: Final[float] = 0.5
+
     def __init__(
         self,
         name: str = "toxicity_classifier",
         description: str = "Detects toxic content using Detoxify",
-        toxicity_config: Optional[ToxicityConfig] = None,
         model: Optional[ToxicityModel] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
@@ -117,7 +74,6 @@ class ToxicityClassifier(BaseClassifier):
         Args:
             name: The name of the classifier
             description: Description of the classifier
-            toxicity_config: Configuration for toxicity detection
             model: Custom toxicity model implementation
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
@@ -127,12 +83,15 @@ class ToxicityClassifier(BaseClassifier):
             # Extract params from kwargs if present
             params = kwargs.pop("params", {})
 
-            # Add toxicity config to params if provided
-            if toxicity_config is not None:
-                params["model_name"] = toxicity_config.model_name
-                params["general_threshold"] = toxicity_config.thresholds.general
-                params["severe_toxic_threshold"] = toxicity_config.thresholds.severe_toxic
-                params["threat_threshold"] = toxicity_config.thresholds.threat
+            # Ensure we have model_name and thresholds
+            if "model_name" not in params:
+                params["model_name"] = "original"
+            if "general_threshold" not in params:
+                params["general_threshold"] = self.DEFAULT_GENERAL_THRESHOLD
+            if "severe_toxic_threshold" not in params:
+                params["severe_toxic_threshold"] = self.DEFAULT_SEVERE_TOXIC_THRESHOLD
+            if "threat_threshold" not in params:
+                params["threat_threshold"] = self.DEFAULT_THREAT_THRESHOLD
 
             # Create config with remaining kwargs
             config = ClassifierConfig(
@@ -146,8 +105,6 @@ class ToxicityClassifier(BaseClassifier):
         self._model = model
         self._detoxify = None
         self._initialized = False
-
-        # We'll use config.params for all configuration instead of a separate _toxicity_config
 
     def _validate_model(self, model: Any) -> TypeGuard[ToxicityModel]:
         """Validate that a model implements the required protocol."""
@@ -182,9 +139,13 @@ class ToxicityClassifier(BaseClassifier):
     def _get_toxicity_label(self, scores: Dict[str, float]) -> tuple[str, float]:
         """Get toxicity label and confidence based on scores."""
         # Get thresholds from config.params
-        severe_toxic_threshold = self.config.params.get("severe_toxic_threshold", 0.7)
-        threat_threshold = self.config.params.get("threat_threshold", 0.7)
-        general_threshold = self.config.params.get("general_threshold", 0.5)
+        severe_toxic_threshold = self.config.params.get(
+            "severe_toxic_threshold", self.DEFAULT_SEVERE_TOXIC_THRESHOLD
+        )
+        threat_threshold = self.config.params.get("threat_threshold", self.DEFAULT_THREAT_THRESHOLD)
+        general_threshold = self.config.params.get(
+            "general_threshold", self.DEFAULT_GENERAL_THRESHOLD
+        )
 
         # Check for severe toxicity or threats first
         if scores.get("severe_toxic", 0) >= severe_toxic_threshold:
@@ -196,9 +157,17 @@ class ToxicityClassifier(BaseClassifier):
         max_category = max(scores.items(), key=lambda x: x[1])
         label, confidence = max_category
 
-        # Only return if it meets the general threshold
+        # Only return toxic label if it meets the general threshold
         if confidence >= general_threshold:
             return label, confidence
+
+        # Special case: If all toxicity scores are extremely low (e.g., < 0.01),
+        # this is clearly non-toxic content, so return high confidence for non_toxic
+        max_toxicity_score = max(scores.values()) if scores else 0.0
+        if max_toxicity_score < 0.01:
+            # If content is extremely non-toxic, return high confidence (0.95)
+            return "non_toxic", 0.95
+
         return "non_toxic", confidence
 
     def _classify_impl(self, text: str) -> ClassificationResult:
@@ -278,7 +247,6 @@ class ToxicityClassifier(BaseClassifier):
         model: ToxicityModel,
         name: str = "custom_toxicity_classifier",
         description: str = "Custom toxicity model",
-        toxicity_config: Optional[ToxicityConfig] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "ToxicityClassifier":
@@ -289,7 +257,6 @@ class ToxicityClassifier(BaseClassifier):
             model: Custom toxicity model implementation
             name: Name of the classifier
             description: Description of the classifier
-            toxicity_config: Custom toxicity configuration (for backward compatibility)
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
@@ -300,15 +267,20 @@ class ToxicityClassifier(BaseClassifier):
         if not isinstance(model, ToxicityModel):
             raise ValueError(f"Model must implement ToxicityModel protocol, got {type(model)}")
 
-        # If toxicity_config is provided but config is not, create config from toxicity_config
-        if toxicity_config is not None and config is None:
-            # Extract params from toxicity_config
-            params = {
-                "model_name": toxicity_config.model_name,
-                "general_threshold": toxicity_config.thresholds.general,
-                "severe_toxic_threshold": toxicity_config.thresholds.severe_toxic,
-                "threat_threshold": toxicity_config.thresholds.threat,
-            }
+        # Create default config if not provided
+        if config is None:
+            # Extract params from kwargs if present
+            params = kwargs.pop("params", {})
+
+            # Ensure we have model_name and thresholds
+            if "model_name" not in params:
+                params["model_name"] = "original"
+            if "general_threshold" not in params:
+                params["general_threshold"] = cls.DEFAULT_GENERAL_THRESHOLD
+            if "severe_toxic_threshold" not in params:
+                params["severe_toxic_threshold"] = cls.DEFAULT_SEVERE_TOXIC_THRESHOLD
+            if "threat_threshold" not in params:
+                params["threat_threshold"] = cls.DEFAULT_THREAT_THRESHOLD
 
             # Create config with params
             config = ClassifierConfig(
@@ -321,7 +293,6 @@ class ToxicityClassifier(BaseClassifier):
         instance = cls(
             name=name,
             description=description,
-            toxicity_config=toxicity_config,
             model=model,
             config=config,
             **kwargs,

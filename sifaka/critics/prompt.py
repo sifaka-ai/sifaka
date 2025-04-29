@@ -38,7 +38,7 @@ class LanguageModel(Protocol):
 
 @dataclass(frozen=True)
 class PromptCriticConfig(CriticConfig):
-    """Configuration for prompt critics."""
+    """Configuration for the prompt critic."""
 
     system_prompt: str = "You are an expert editor that improves text."
     temperature: float = 0.7
@@ -110,8 +110,6 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
 
         self._model = llm_provider
         self._prompt_factory = prompt_factory or DefaultPromptFactory()
-        self.name = name
-        self.description = description
         self.llm_provider = llm_provider
         self.prompt_factory = self._prompt_factory
 
@@ -265,9 +263,10 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
                     return False
             elif isinstance(response, str):
                 # Try to parse structured response
-                if "VALID: true" in response.lower():
+                response_lower = response.lower()
+                if "valid: true" in response_lower:
                     return True
-                elif "VALID: false" in response.lower():
+                elif "valid: false" in response_lower:
                     return False
                 else:
                     # Fall back to critique if validation fails
@@ -531,7 +530,7 @@ class DefaultPromptFactory:
 # Function to create a prompt critic
 def create_prompt_critic(
     model: LanguageModel,
-    name: str = "prompt_critic",
+    name: str = "factory_critic",
     description: str = "Evaluates and improves text using language models",
     system_prompt: str = DEFAULT_SYSTEM_PROMPT,
     temperature: float = 0.7,
@@ -561,4 +560,4 @@ def create_prompt_critic(
         max_tokens=max_tokens,
         min_confidence=min_confidence,
     )
-    return PromptCritic(config=config, model=model)
+    return PromptCritic(config=config, model=model, name=name, description=description)

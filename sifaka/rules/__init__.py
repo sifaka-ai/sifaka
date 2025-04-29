@@ -21,13 +21,10 @@ Available Rules:
    - LengthRule: Validates text length
    - ProhibitedContentRule: Checks for prohibited terms
    - FormatRule: Validates text format
-   - ParagraphRule: Validates paragraph structure
-   - StyleRule: Validates text style
-   - FormattingRule: Validates text formatting
 
-3. Pattern Rules:
-   - SymmetryRule: Checks for text symmetry
-   - RepetitionRule: Detects repeated patterns
+3. Formatting Rules:
+   - FormattingRule: Validates text formatting
+   - StyleRule: Validates text style
 
 4. Safety Rules:
    - ToxicityRule: Checks for toxic content
@@ -52,9 +49,8 @@ Available Rules:
    - SentimentRule: Analyzes text sentiment
    - EmotionalContentRule: Validates emotional content
 
-8. Wrapper Rules:
-   - WrapperRule: Base wrapper for rules
-   - CodeBlockRule: Validates code blocks
+8. Adapter Rules:
+   - ClassifierRule: Converts classifiers to rules
 
 Usage Example:
     from sifaka.chain import Chain
@@ -134,8 +130,10 @@ Usage Example:
                 print(f"- {rule_name}: {rule_result.message}")
 """
 
-from .base import FunctionRule, Rule, RuleResult
-from .classifier_rule import ClassifierRule
+import warnings
+
+from .base import FunctionRule, Rule, RuleResult, RuleConfig
+
 from .domain import (
     ConsistencyRule,
     LegalCitationRule,
@@ -156,19 +154,23 @@ from .factual import (
     FactualAccuracyRule,
     FactualConsistencyRule,
 )
-from .format import FormatRule
-from .formatting import FormattingRule, ParagraphRule, StyleRule
-from .length import LengthRule
-from .pattern_rules import RepetitionRule, SymmetryRule
-from .prohibited_content import ProhibitedContentRule
-from .safety import BiasRule, HarmfulContentRule, ToxicityRule
-from .sentiment import EmotionalContentRule, SentimentRule
-from .wrapper import CodeBlockRule, WrapperRule
+from .formatting.length import LengthRule, create_length_rule
+from .content.prohibited import ProhibitedContentRule
+from .content.safety import BiasRule, HarmfulContentRule, ToxicityRule
+from .content.sentiment import EmotionalContentRule, SentimentRule
+
+# Import from the adapters module
+from .adapters import (
+    ClassifierAdapter,
+    ClassifierRule,
+    create_classifier_rule,
+)
 
 __all__ = [
     # Base
     "Rule",
     "RuleResult",
+    "RuleConfig",
     "FunctionRule",
     # Safety
     "ToxicityRule",
@@ -176,13 +178,12 @@ __all__ = [
     "HarmfulContentRule",
     # Classifier
     "ClassifierRule",
+    "ClassifierAdapter",
+    "create_classifier_rule",
     # Content
     "ProhibitedContentRule",
-    "FormatRule",
     "LengthRule",
-    # Pattern
-    "SymmetryRule",
-    "RepetitionRule",
+    "create_length_rule",
     # Domain
     "LegalRule",
     "MedicalRule",
@@ -205,11 +206,4 @@ __all__ = [
     # Sentiment
     "SentimentRule",
     "EmotionalContentRule",
-    # Formatting
-    "ParagraphRule",
-    "StyleRule",
-    "FormattingRule",
-    # Wrapper
-    "WrapperRule",
-    "CodeBlockRule",
 ]

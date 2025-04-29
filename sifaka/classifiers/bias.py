@@ -1,15 +1,14 @@
 """
-Bias detector using scikit-learn's SVM classifier.
+Bias detection classifier using support vector machines.
 """
 
-import importlib
 import os
-import pickle
 import re
-from dataclasses import dataclass, field
+import pickle
+import importlib
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -19,101 +18,6 @@ from sifaka.classifiers.base import (
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-@dataclass(frozen=True)
-class BiasConfig:
-    """
-    Configuration for bias detection.
-
-    Note: This class is provided for backward compatibility.
-    The preferred way to configure bias detection is to use
-    ClassifierConfig with params:
-
-    ```python
-    config = ClassifierConfig(
-        labels=["gender", "racial", "political", "neutral"],
-        cost=2.5,
-        params={
-            "min_confidence": 0.7,
-            "max_features": 3000,
-            "random_state": 42,
-            "model_path": "/path/to/model.pkl",
-            "bias_types": ["gender", "racial", "political", "neutral"],
-        }
-    )
-    ```
-    """
-
-    min_confidence: float = 0.7  # Minimum confidence threshold
-    max_features: int = 3000  # Max features for vectorization
-    random_state: int = 42  # For reproducibility
-    model_path: Optional[str] = None  # Path to save/load the model
-
-    # Default bias types to detect
-    bias_types: List[str] = field(
-        default_factory=lambda: [
-            "gender",
-            "racial",
-            "political",
-            "age",
-            "socioeconomic",
-            "religious",
-            "cultural",
-            "educational",
-            "geographical",
-            "neutral",
-        ]
-    )
-
-    # Additional keywords for each bias category to enhance detection
-    bias_keywords: Dict[str, List[str]] = field(
-        default_factory=lambda: {
-            "gender": ["man", "woman", "male", "female", "gender", "sex", "sexual"],
-            "racial": [
-                "race",
-                "ethnic",
-                "minority",
-                "white",
-                "black",
-                "asian",
-                "hispanic",
-                "indigenous",
-            ],
-            "political": [
-                "conservative",
-                "liberal",
-                "right-wing",
-                "left-wing",
-                "republican",
-                "democrat",
-            ],
-            "age": ["young", "old", "elderly", "teen", "millennial", "boomer", "generation"],
-            "socioeconomic": ["rich", "poor", "wealthy", "poverty", "class", "income", "privilege"],
-            "religious": ["christian", "muslim", "jewish", "hindu", "atheist", "faith", "belief"],
-            "cultural": ["western", "eastern", "traditional", "modern", "heritage", "customs"],
-            "educational": [
-                "educated",
-                "uneducated",
-                "academic",
-                "intellectual",
-                "school",
-                "college",
-            ],
-            "geographical": ["urban", "rural", "city", "country", "coastal", "inland", "regional"],
-        }
-    )
-
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        if not 0.0 <= self.min_confidence <= 1.0:
-            raise ValueError("min_confidence must be between 0.0 and 1.0")
-        if self.max_features <= 0:
-            raise ValueError("max_features must be positive")
-        if not self.bias_types:
-            raise ValueError("bias_types cannot be empty")
-        if "neutral" not in self.bias_types:
-            raise ValueError("'neutral' must be included in bias_types")
 
 
 class BiasDetector(BaseClassifier):
@@ -142,6 +46,56 @@ class BiasDetector(BaseClassifier):
     # Class constants
     DEFAULT_COST: float = 2.5
 
+    # Default bias types to detect
+    DEFAULT_BIAS_TYPES: List[str] = [
+        "gender",
+        "racial",
+        "political",
+        "age",
+        "socioeconomic",
+        "religious",
+        "cultural",
+        "educational",
+        "geographical",
+        "neutral",
+    ]
+
+    # Default keywords for each bias category to enhance detection
+    DEFAULT_BIAS_KEYWORDS: Dict[str, List[str]] = {
+        "gender": ["man", "woman", "male", "female", "gender", "sex", "sexual"],
+        "racial": [
+            "race",
+            "ethnic",
+            "minority",
+            "white",
+            "black",
+            "asian",
+            "hispanic",
+            "indigenous",
+        ],
+        "political": [
+            "conservative",
+            "liberal",
+            "right-wing",
+            "left-wing",
+            "republican",
+            "democrat",
+        ],
+        "age": ["young", "old", "elderly", "teen", "millennial", "boomer", "generation"],
+        "socioeconomic": ["rich", "poor", "wealthy", "poverty", "class", "income", "privilege"],
+        "religious": ["christian", "muslim", "jewish", "hindu", "atheist", "faith", "belief"],
+        "cultural": ["western", "eastern", "traditional", "modern", "heritage", "customs"],
+        "educational": [
+            "educated",
+            "uneducated",
+            "academic",
+            "intellectual",
+            "school",
+            "college",
+        ],
+        "geographical": ["urban", "rural", "city", "country", "coastal", "inland", "regional"],
+    }
+
     def __init__(
         self,
         name: str = "bias_detector",
@@ -150,6 +104,23 @@ class BiasDetector(BaseClassifier):
         **kwargs,
     ) -> None:
         """Initialize the bias detector."""
+        # Create default config if not provided
+        if config is None:
+            params = kwargs.pop("params", {})
+
+            # Add default bias types and keywords if not provided
+            if "bias_types" not in params:
+                params["bias_types"] = self.DEFAULT_BIAS_TYPES
+            if "bias_keywords" not in params:
+                params["bias_keywords"] = self.DEFAULT_BIAS_KEYWORDS
+
+            config = ClassifierConfig(
+                labels=params.get("bias_types", self.DEFAULT_BIAS_TYPES),
+                cost=self.DEFAULT_COST,
+                min_confidence=params.get("min_confidence", 0.7),
+                params=params,
+            )
+
         super().__init__(name=name, description=description, config=config)
 
         # Initialize other attributes
@@ -158,8 +129,6 @@ class BiasDetector(BaseClassifier):
         self._pipeline = None
         self._explanations = {}
         self._initialized = False
-
-        # We'll use config.params for all configuration instead of a separate _bias_config
 
     def _load_dependencies(self) -> None:
         """Load scikit-learn dependencies."""
@@ -475,7 +444,6 @@ class BiasDetector(BaseClassifier):
         labels: List[str],
         name: str = "pretrained_bias_detector",
         description: str = "Pre-trained bias detector",
-        bias_config: Optional[BiasConfig] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "BiasDetector":
@@ -487,29 +455,26 @@ class BiasDetector(BaseClassifier):
             labels: List of bias type labels
             name: Name of the classifier
             description: Description of the classifier
-            bias_config: Bias detection configuration (for backward compatibility)
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Trained BiasDetector
         """
-        # If bias_config is provided but config is not, create config from bias_config
-        if bias_config is not None and config is None:
-            # Extract params from bias_config
-            params = {
-                "min_confidence": bias_config.min_confidence,
-                "max_features": bias_config.max_features,
-                "random_state": bias_config.random_state,
-                "model_path": bias_config.model_path,
-                "bias_types": bias_config.bias_types,
-            }
+        # Create default config if not provided
+        if config is None:
+            params = kwargs.pop("params", {})
 
-            # Create config with params
+            # Add default bias types and keywords if not provided
+            if "bias_types" not in params:
+                params["bias_types"] = cls.DEFAULT_BIAS_TYPES
+            if "bias_keywords" not in params:
+                params["bias_keywords"] = cls.DEFAULT_BIAS_KEYWORDS
+
             config = ClassifierConfig(
-                labels=bias_config.bias_types,
+                labels=params.get("bias_types", cls.DEFAULT_BIAS_TYPES),
                 cost=cls.DEFAULT_COST,
-                min_confidence=bias_config.min_confidence,
+                min_confidence=params.get("min_confidence", 0.7),
                 params=params,
             )
 

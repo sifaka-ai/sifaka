@@ -1,1 +1,5 @@
-"""Tests for the critics module."""
+"""
+Tests for Sifaka critics.
+"""
+
+__all__ = []

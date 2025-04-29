@@ -5,10 +5,7 @@ Spam classifier using scikit-learn's Naive Bayes.
 import importlib
 import os
 import pickle
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
-
-from pydantic import Field, PrivateAttr
+from typing import Any, Dict, List, Optional, Final
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -18,24 +15,6 @@ from sifaka.classifiers.base import (
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-@dataclass(frozen=True)
-class SpamConfig:
-    """Configuration for spam classification."""
-
-    min_confidence: float = 0.7  # Minimum confidence threshold
-    max_features: int = 1000  # Max features for vectorization
-    random_state: int = 42  # For reproducibility
-    model_path: Optional[str] = None  # Path to save/load the model
-    use_bigrams: bool = True  # Whether to use bigrams in feature extraction
-
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        if not 0.0 <= self.min_confidence <= 1.0:
-            raise ValueError("min_confidence must be between 0.0 and 1.0")
-        if self.max_features <= 0:
-            raise ValueError("max_features must be positive")
 
 
 class SpamClassifier(BaseClassifier):
@@ -48,20 +27,23 @@ class SpamClassifier(BaseClassifier):
     pip install scikit-learn
     """
 
-    # Private attributes
-    _spam_config: SpamConfig = PrivateAttr(default_factory=SpamConfig)
-    _sklearn_feature_extraction_text: Any = PrivateAttr(default=None)
-    _sklearn_naive_bayes: Any = PrivateAttr(default=None)
-    _sklearn_pipeline: Any = PrivateAttr(default=None)
-    _vectorizer: Any = PrivateAttr(default=None)
-    _model: Any = PrivateAttr(default=None)
-    _pipeline: Any = PrivateAttr(default=None)
+    # Class-level constants
+    DEFAULT_LABELS: Final[List[str]] = ["ham", "spam"]
+    DEFAULT_COST: Final[int] = 1.5  # Slightly higher cost for ML-based model
+
+    # Class-level attributes for state management
+    _initialized: bool = False
+    _sklearn_feature_extraction_text: Optional[Any] = None
+    _sklearn_naive_bayes: Optional[Any] = None
+    _sklearn_pipeline: Optional[Any] = None
+    _vectorizer: Optional[Any] = None
+    _model: Optional[Any] = None
+    _pipeline: Optional[Any] = None
 
     def __init__(
         self,
         name: str = "spam_classifier",
         description: str = "Detects spam content in text",
-        spam_config: Optional[SpamConfig] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> None:
@@ -71,7 +53,6 @@ class SpamClassifier(BaseClassifier):
         Args:
             name: The name of the classifier
             description: Description of the classifier
-            spam_config: Spam classification configuration
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
@@ -80,31 +61,24 @@ class SpamClassifier(BaseClassifier):
             # Extract params from kwargs if present
             params = kwargs.pop("params", {})
 
-            # Add spam config to params
-            if spam_config:
-                params["min_confidence"] = spam_config.min_confidence
-                params["max_features"] = spam_config.max_features
-                params["random_state"] = spam_config.random_state
-                params["model_path"] = spam_config.model_path
-                params["use_bigrams"] = spam_config.use_bigrams
-
             # Create config with remaining kwargs
-            config = ClassifierConfig(labels=["ham", "spam"], cost=1.5, params=params, **kwargs)
+            config = ClassifierConfig(
+                labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, params=params, **kwargs
+            )
 
-        # Initialize base class and set spam config
+        # Initialize base class
         super().__init__(name=name, description=description, config=config)
-        if spam_config:
-            self._spam_config = spam_config
 
         # Try to load model if path is provided
-        if self._spam_config.model_path and os.path.exists(self._spam_config.model_path):
+        model_path = self.config.params.get("model_path")
+        if model_path and os.path.exists(model_path):
             self.warm_up()
 
     def _is_initialized(self) -> bool:
         """Check if the classifier is initialized."""
-        return self._pipeline is not None
+        return self._initialized
 
-    def _load_dependencies(self) -> None:
+    def _load_dependencies(self) -> bool:
         """Load scikit-learn dependencies."""
         try:
             # Import necessary scikit-learn modules
@@ -127,13 +101,18 @@ class SpamClassifier(BaseClassifier):
         if not self._is_initialized():
             self._load_dependencies()
 
-            if self._spam_config.model_path and os.path.exists(self._spam_config.model_path):
-                self._load_model(self._spam_config.model_path)
+            model_path = self.config.params.get("model_path")
+            if model_path and os.path.exists(model_path):
+                self._load_model(model_path)
             else:
+                # Get parameters from config
+                max_features = self.config.params.get("max_features", 1000)
+                use_bigrams = self.config.params.get("use_bigrams", True)
+
                 # Create TF-IDF vectorizer
-                ngram_range = (1, 2) if self._spam_config.use_bigrams else (1, 1)
+                ngram_range = (1, 2) if use_bigrams else (1, 1)
                 self._vectorizer = self._sklearn_feature_extraction_text.TfidfVectorizer(
-                    max_features=self._spam_config.max_features,
+                    max_features=max_features,
                     stop_words="english",
                     ngram_range=ngram_range,
                 )
@@ -148,6 +127,8 @@ class SpamClassifier(BaseClassifier):
                         ("classifier", self._model),
                     ]
                 )
+
+            self._initialized = True
 
     def _save_model(self, path: str) -> None:
         """Save the model to a file."""
@@ -197,8 +178,9 @@ class SpamClassifier(BaseClassifier):
         self._pipeline.fit(texts, label_indices)
 
         # Save the model if path is provided
-        if self._spam_config.model_path:
-            self._save_model(self._spam_config.model_path)
+        model_path = self.config.params.get("model_path")
+        if model_path:
+            self._save_model(model_path)
 
         return self
 
@@ -273,7 +255,6 @@ class SpamClassifier(BaseClassifier):
         labels: List[str],
         name: str = "pretrained_spam_classifier",
         description: str = "Pre-trained spam classifier",
-        spam_config: Optional[SpamConfig] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "SpamClassifier":
@@ -285,17 +266,26 @@ class SpamClassifier(BaseClassifier):
             labels: List of labels ("ham" or "spam")
             name: Name of the classifier
             description: Description of the classifier
-            spam_config: Spam classification configuration
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Trained SpamClassifier
         """
+        # Create default config if not provided
+        if config is None:
+            # Extract params from kwargs
+            params = kwargs.pop("params", {})
+
+            # Create config with params
+            config = ClassifierConfig(
+                labels=cls.DEFAULT_LABELS,
+                cost=cls.DEFAULT_COST,
+                params=params,
+            )
+
         # Create instance with provided configuration
-        classifier = cls(
-            name=name, description=description, spam_config=spam_config, config=config, **kwargs
-        )
+        classifier = cls(name=name, description=description, config=config, **kwargs)
 
         # Train the classifier and return it
         return classifier.fit(texts, labels)

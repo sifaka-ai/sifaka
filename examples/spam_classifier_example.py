@@ -1,217 +1,89 @@
-#!/usr/bin/env python3
 """
-Spam Classification Example using Sifaka.
+Spam Classifier Example
 
-This example demonstrates:
-1. Creating and configuring a spam classifier with proper configuration
-2. Training on sample ham/spam data
-3. Classifying new messages
-4. Using ClassifierRuleAdapter for rule-based validation
-5. Model persistence and loading
-
-Usage:
-    python spam_classifier_example.py
-
-Requirements:
-    - Python environment with Sifaka installed
-    - scikit-learn (automatically handled by SpamClassifier)
+This example demonstrates how to use the SpamClassifier to detect spam content.
 """
 
-import logging
 import os
-from pathlib import Path
-import tempfile
+from dotenv import load_dotenv
 
-from sifaka.classifiers.spam import SpamClassifier, SpamConfig
-from sifaka.rules.adapters import ClassifierRuleAdapter
-from sifaka.rules.base import RuleConfig, RulePriority
-from sifaka.utils.logging import LogConfig, configure_logging, get_logger, log_operation
+# Load environment variables from .env file
+load_dotenv()
 
-# Configure logging
-configure_logging(
-    LogConfig(
-        name="spam_example",
-        use_colors=True,
-        structured=True,
-        log_to_file=True,
-        log_dir=Path("logs"),
-    )
-)
-
-logger = get_logger(__name__)
-
-# Sample data for training
-SAMPLE_HAM = [
-    "Hey, are we still meeting for coffee tomorrow?",
-    "Please submit your report by Friday.",
-    "Thanks for sending the documents, I'll review them today.",
-    "The conference call is scheduled for 3 PM.",
-    "Could you please share the presentation slides?",
-]
-
-SAMPLE_SPAM = [
-    "URGENT: You have won $5,000,000 in our lottery! Claim now!",
-    "CONGRATULATIONS! You've been selected for a FREE iPhone. Click here!",
-    "Limited time offer: 90% OFF all luxury watches!",
-    "Your bank account has been suspended. Verify your details immediately!",
-    "URGENT: Your inheritance of $3.5M is waiting for you to claim!",
-]
-
-# Test messages for classification
-TEST_MESSAGES = [
-    "Can we reschedule our meeting to Thursday instead?",
-    "ACT NOW: Get your FREE trial of our premium service!!!",
-    "I have attached the requested report for your review.",
-    "CONGRATULATIONS! You've won a luxury cruise vacation!",
-]
+from sifaka.classifiers import SpamClassifier, ClassifierConfig
+from sifaka.rules.adapters import create_classifier_rule
 
 
-@log_operation()
-def create_classifier(model_path: str) -> SpamClassifier:
-    """Create a properly configured spam classifier.
+def run_spam_example():
+    """Run a simple example of spam classification."""
+    print("=== Spam Classifier Example ===")
 
-    Args:
-        model_path: Path to save/load the model
+    # Training data
+    ham_texts = [
+        "Hey, let's meet for coffee later today.",
+        "Here's the report you requested.",
+        "The project deadline has been extended to next Friday.",
+        "Can you please review this document when you have time?",
+        "Thank you for your feedback on the proposal.",
+    ]
 
-    Returns:
-        Configured SpamClassifier instance
-    """
-    # Create spam configuration with optimal settings
-    spam_config = SpamConfig(
-        min_confidence=0.8,  # Higher threshold for more reliable predictions
-        max_features=2000,  # Increased feature set for better accuracy
-        use_bigrams=True,  # Enable bigrams for better context understanding
-        model_path=model_path,
-        random_state=42,  # For reproducibility
-    )
+    spam_texts = [
+        "CONGRATULATIONS! You've won $1,000,000! Click here to claim now!",
+        "Limited time offer: 90% off luxury watches. Buy now!",
+        "Your account has been suspended. Enter your password here to restore access.",
+        "Make money fast! Work from home and earn $10,000 per week!",
+        "Free pills! Lose 30 pounds in just one week with this miracle drug!",
+    ]
 
-    # Create classifier with configuration
-    classifier = SpamClassifier(
-        name="email_spam_classifier",
-        description="Classifies emails as spam or ham using Naive Bayes",
-        spam_config=spam_config,
-    )
+    # Labels for training data
+    ham_labels = ["ham"] * len(ham_texts)
+    spam_labels = ["spam"] * len(spam_texts)
 
-    logger.structured(logging.INFO, "Classifier created", config=spam_config.__dict__)
-
-    return classifier
-
-
-@log_operation()
-def classify_messages(classifier: SpamClassifier, messages: list[str]) -> None:
-    """Classify a list of messages and log the results.
-
-    Args:
-        classifier: Trained SpamClassifier instance
-        messages: List of messages to classify
-    """
-    for i, message in enumerate(messages, 1):
-        try:
-            with logger.operation_context(f"Classifying message {i}"):
-                result = classifier.classify(message)
-                logger.structured(
-                    logging.INFO,
-                    "Message classification result",
-                    message_id=i,
-                    message_preview=message[:50],
-                    classification=result.label,
-                    confidence=round(result.confidence, 2),
-                    probabilities=result.metadata.get("probabilities", {}),
-                )
-        except Exception as e:
-            logger.error(f"Error classifying message {i}: {str(e)}")
-
-
-@log_operation()
-def test_rule_adapter(classifier: SpamClassifier, messages: list[str]) -> None:
-    """Test the classifier using a rule adapter.
-
-    Args:
-        classifier: Trained SpamClassifier instance
-        messages: List of messages to test
-    """
-    # Create rule adapter with high priority for spam detection
-    spam_rule = ClassifierRuleAdapter(
-        classifier=classifier,
-        rule_config=RuleConfig(
-            priority=RulePriority.HIGH, cost=1.5  # Higher cost for spam violations
+    # Create and train the classifier
+    print("Creating and training spam classifier...")
+    classifier = SpamClassifier.create_pretrained(
+        texts=ham_texts + spam_texts,
+        labels=ham_labels + spam_labels,
+        name="example_spam_classifier",
+        description="Example spam classifier",
+        config=ClassifierConfig(
+            labels=["ham", "spam"],
+            min_confidence=0.6,
+            params={
+                "max_features": 1000,
+                "use_bigrams": True,
+            },
         ),
     )
 
-    for i, text in enumerate(messages, 1):
-        try:
-            with logger.operation_context(f"Testing rule adapter on message {i}"):
-                result = spam_rule.validate(text)  # Use public validate method
-                logger.structured(
-                    logging.INFO,
-                    "Rule validation result",
-                    message_id=i,
-                    text_preview=text[:50],
-                    passed=result.passed,
-                    validation_message=result.message,
-                )
+    # Create a rule from the classifier
+    spam_rule = create_classifier_rule(
+        classifier=classifier,
+        name="spam_rule",
+        description="Ensures text is not spam",
+        threshold=0.6,
+        valid_labels=["ham"],
+    )
 
-                if "classification_result" in result.metadata:
-                    cls_result = result.metadata["classification_result"]
-                    logger.structured(
-                        logging.INFO,
-                        "Classification details",
-                        message_id=i,
-                        label=cls_result.label,
-                        confidence=round(cls_result.confidence, 2),
-                    )
-        except Exception as e:
-            logger.error(f"Error validating message {i} with rule adapter: {str(e)}")
+    # Test with examples
+    test_texts = [
+        "Let's discuss the project timeline tomorrow.",
+        "FREE OFFER! Get your FREE gift card now!",
+        "Here are the meeting notes from yesterday.",
+        "URGENT: Your account needs verification. Click here!",
+    ]
 
+    print("\n=== Testing Classifier ===")
+    for i, text in enumerate(test_texts):
+        result = classifier.classify(text)
+        print(f'\nText {i+1}: "{text}"')
+        print(f"Classification: {result.label} (confidence: {result.confidence:.2f})")
 
-def main():
-    """Run the spam classification example."""
-    with logger.operation_context("Spam Classification Example"):
-        # Prepare training data
-        texts = SAMPLE_HAM + SAMPLE_SPAM
-        labels = ["ham"] * len(SAMPLE_HAM) + ["spam"] * len(SAMPLE_SPAM)
-
-        # Create temporary file for model storage
-        temp_dir = Path(tempfile.gettempdir())
-        model_path = str(temp_dir / "spam_classifier_model.pkl")
-
-        try:
-            # Create and train classifier
-            with logger.operation_context("Training classifier"):
-                classifier = create_classifier(model_path)
-                classifier.warm_up()  # Initialize the classifier
-                classifier.fit(texts, labels)
-                logger.success("Classifier training completed")
-
-            # Classify test messages
-            classify_messages(classifier, TEST_MESSAGES)
-
-            # Test rule-based validation
-            test_rule_adapter(classifier, TEST_MESSAGES)
-
-            # Demonstrate loading saved model
-            with logger.operation_context("Loading saved model"):
-                loaded_classifier = SpamClassifier.create_pretrained(
-                    texts=texts,
-                    labels=labels,
-                    name="pretrained_spam_classifier",
-                    description="Pre-trained spam classifier",
-                    spam_config=SpamConfig(model_path=model_path),
-                )
-                loaded_classifier.warm_up()  # Initialize the loaded classifier
-                logger.success("Pre-trained classifier loaded successfully")
-
-                # Verify loaded model works
-                classify_messages(loaded_classifier, TEST_MESSAGES[:2])
-
-        except Exception as e:
-            logger.error(f"Error in spam classification example: {str(e)}")
-        finally:
-            # Clean up temporary model file
-            if os.path.exists(model_path):
-                os.remove(model_path)
-                logger.info(f"Cleaned up temporary model file: {model_path}")
+        # Test rule validation
+        rule_result = spam_rule.validate(text)
+        validation = "Passed" if rule_result.passed else "Failed"
+        print(f"Rule validation: {validation} - {rule_result.message}")
 
 
 if __name__ == "__main__":
-    main()
+    run_spam_example()

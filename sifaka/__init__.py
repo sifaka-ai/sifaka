@@ -2,61 +2,28 @@
 Sifaka: A framework for building reliable and reflective AI systems.
 """
 
-import warnings
-
 from sifaka.chain import Chain
 from sifaka.critics import PromptCritic
 from sifaka.models import AnthropicProvider, OpenAIProvider
 
-# Import deprecated Reflector for backward compatibility
-try:
-    from sifaka.reflector import Reflector
-except ImportError:
-    # Create a dummy Reflector class for backward compatibility
-    class Reflector:
-        """
-        Deprecated: This class is kept for backward compatibility.
-
-        Use SymmetryRule and RepetitionRule from sifaka.rules.pattern_rules instead.
-        """
-
-        def __init__(self, *args, **kwargs):
-            warnings.warn(
-                "The Reflector class is deprecated and will be removed in version 2.0.0. "
-                "Use SymmetryRule and RepetitionRule from sifaka.rules.pattern_rules instead. "
-                "See the migration guide in the documentation for more details.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-
 from sifaka.rules import (
-    FormatRule,
     LengthRule,
     ProhibitedContentRule,
-    RepetitionRule,
     Rule,
+    RuleConfig,
     SentimentRule,
-    SymmetryRule,
     ToxicityRule,
+    create_length_rule,
 )
 
 # Version information
-__version__ = "1.0.0"
-
-# Show deprecation warning for Reflector
-warnings.warn(
-    "The Reflector class is deprecated and will be removed in version 2.0.0. "
-    "Use SymmetryRule and RepetitionRule from sifaka.rules.pattern_rules instead. "
-    "See the migration guide in the documentation for more details.",
-    DeprecationWarning,
-    stacklevel=2,
-)
+__version__ = "0.1.0"
 
 __all__ = [
     # Core components
     "Chain",
     "Rule",
+    "RuleConfig",
     # Model providers
     "AnthropicProvider",
     "OpenAIProvider",
@@ -65,11 +32,7 @@ __all__ = [
     "ProhibitedContentRule",
     "SentimentRule",
     "ToxicityRule",
-    "FormatRule",
-    "SymmetryRule",
-    "RepetitionRule",
+    "create_length_rule",
     # Critics
     "PromptCritic",
-    # Deprecated (will be removed in 2.0.0)
-    "Reflector",
 ]

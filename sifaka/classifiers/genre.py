@@ -20,67 +20,6 @@ from sifaka.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-@dataclass(frozen=True)
-class GenreConfig:
-    """
-    Configuration for genre classification.
-
-    Note: This class is provided for backward compatibility.
-    The preferred way to configure genre classification is to use
-    ClassifierConfig with params:
-
-    ```python
-    config = ClassifierConfig(
-        labels=["news", "fiction", "academic", "technical", "blog"],
-        cost=2.0,
-        params={
-            "min_confidence": 0.6,
-            "max_features": 2000,
-            "random_state": 42,
-            "model_path": "/path/to/model.pkl",
-            "use_ngrams": True,
-            "n_estimators": 100,
-            "default_genres": ["news", "fiction", "academic", "technical", "blog"],
-        }
-    )
-    ```
-    """
-
-    min_confidence: float = 0.6  # Minimum confidence threshold
-    max_features: int = 2000  # Max features for vectorization
-    random_state: int = 42  # For reproducibility
-    model_path: Optional[str] = None  # Path to save/load the model
-    use_ngrams: bool = True  # Whether to use n-grams
-    n_estimators: int = 100  # Number of trees in the forest
-
-    # Default genre labels
-    default_genres: List[str] = field(
-        default_factory=lambda: [
-            "news",
-            "fiction",
-            "academic",
-            "technical",
-            "blog",
-            "social_media",
-            "email",
-            "marketing",
-            "legal",
-            "creative",
-        ]
-    )
-
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        if not 0.0 <= self.min_confidence <= 1.0:
-            raise ValueError("min_confidence must be between 0.0 and 1.0")
-        if self.max_features <= 0:
-            raise ValueError("max_features must be positive")
-        if self.n_estimators <= 0:
-            raise ValueError("n_estimators must be positive")
-        if not self.default_genres:
-            raise ValueError("default_genres cannot be empty")
-
-
 class GenreClassifier(BaseClassifier):
     """
     A genre classifier using RandomForest from scikit-learn.
@@ -94,10 +33,20 @@ class GenreClassifier(BaseClassifier):
 
     # Class constants
     DEFAULT_COST: float = 2.0
+    DEFAULT_GENRES: List[str] = [
+        "news",
+        "fiction",
+        "academic",
+        "technical",
+        "blog",
+        "social_media",
+        "email",
+        "marketing",
+        "legal",
+        "creative",
+    ]
 
     # Model fields
-    # Keep genre_config for backward compatibility
-    genre_config: GenreConfig = Field(default_factory=GenreConfig)
     vectorizer: Optional[Any] = Field(default=None)
     model: Optional[Any] = Field(default=None)
     pipeline: Optional[Any] = Field(default=None)
@@ -120,23 +69,20 @@ class GenreClassifier(BaseClassifier):
 
         # Create config if not provided
         if not self.config:
-            # Add genre config to params
-            params = {
-                "min_confidence": self.genre_config.min_confidence,
-                "max_features": self.genre_config.max_features,
-                "random_state": self.genre_config.random_state,
-                "model_path": self.genre_config.model_path,
-                "use_ngrams": self.genre_config.use_ngrams,
-                "n_estimators": self.genre_config.n_estimators,
-                "default_genres": self.genre_config.default_genres,
-            }
-
-            # Create config
+            # Create default config
             self.config = ClassifierConfig(
-                labels=self.genre_config.default_genres,
+                labels=self.DEFAULT_GENRES,
                 cost=self.DEFAULT_COST,
-                min_confidence=self.genre_config.min_confidence,
-                params=params,
+                min_confidence=0.6,
+                params={
+                    "min_confidence": 0.6,
+                    "max_features": 2000,
+                    "random_state": 42,
+                    "model_path": None,
+                    "use_ngrams": True,
+                    "n_estimators": 100,
+                    "default_genres": self.DEFAULT_GENRES,
+                },
             )
 
     def _load_dependencies(self) -> None:
@@ -417,7 +363,6 @@ class GenreClassifier(BaseClassifier):
         labels: List[str],
         name: str = "pretrained_genre_classifier",
         description: str = "Pre-trained genre classifier",
-        genre_config: Optional[GenreConfig] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "GenreClassifier":
@@ -429,38 +374,32 @@ class GenreClassifier(BaseClassifier):
             labels: List of genre labels
             name: Name of the classifier
             description: Description of the classifier
-            genre_config: Genre classification configuration (for backward compatibility)
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Trained GenreClassifier
         """
-        # If genre_config is provided but config is not, create config from genre_config
-        if genre_config is not None and config is None:
-            # Extract params from genre_config
-            params = {
-                "min_confidence": genre_config.min_confidence,
-                "max_features": genre_config.max_features,
-                "random_state": genre_config.random_state,
-                "model_path": genre_config.model_path,
-                "use_ngrams": genre_config.use_ngrams,
-                "n_estimators": genre_config.n_estimators,
-                "default_genres": genre_config.default_genres,
-            }
-
-            # Create config with params
+        # If no config provided, create a default one
+        if config is None:
+            # Create config with default params
             config = ClassifierConfig(
-                labels=genre_config.default_genres,
+                labels=cls.DEFAULT_GENRES,
                 cost=cls.DEFAULT_COST,
-                min_confidence=genre_config.min_confidence,
-                params=params,
+                min_confidence=0.6,
+                params={
+                    "min_confidence": 0.6,
+                    "max_features": 2000,
+                    "random_state": 42,
+                    "model_path": None,
+                    "use_ngrams": True,
+                    "n_estimators": 100,
+                    "default_genres": cls.DEFAULT_GENRES,
+                },
             )
 
         # Create instance with provided configuration
-        classifier = cls(
-            name=name, description=description, genre_config=genre_config, config=config, **kwargs
-        )
+        classifier = cls(name=name, description=description, config=config, **kwargs)
 
         # Train the classifier and return it
         return classifier.fit(texts, labels)

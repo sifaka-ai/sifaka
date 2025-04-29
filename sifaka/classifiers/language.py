@@ -17,6 +17,7 @@ from typing import (
 )
 
 from typing_extensions import TypeGuard
+from pydantic import PrivateAttr
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -36,22 +37,6 @@ class LanguageDetector(Protocol):
     def detect_langs(self, text: str) -> Sequence[Any]: ...
     @abstractmethod
     def detect(self, text: str) -> str: ...
-
-
-@dataclass(frozen=True)
-class LanguageConfig:
-    """Configuration for language detection."""
-
-    min_confidence: float = 0.1
-    seed: int = 0  # Seed for consistent results
-    fallback_lang: str = "en"
-    fallback_confidence: float = 0.0
-
-    def __post_init__(self) -> None:
-        if not 0.0 <= self.min_confidence <= 1.0:
-            raise ValueError("min_confidence must be between 0.0 and 1.0")
-        if self.seed < 0:
-            raise ValueError("seed must be non-negative")
 
 
 @dataclass(frozen=True)
@@ -136,11 +121,14 @@ class LanguageClassifier(BaseClassifier):
 
     DEFAULT_COST: Final[int] = 1  # Low cost for statistical analysis
 
+    # Define private attributes that Pydantic v2 will properly handle
+    _detector: Optional[LanguageDetector] = PrivateAttr(default=None)
+    _initialized: bool = PrivateAttr(default=False)
+
     def __init__(
         self,
         name: str = "language_classifier",
         description: str = "Detects text language",
-        lang_config: Optional[LanguageConfig] = None,
         detector: Optional[LanguageDetector] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
@@ -151,13 +139,11 @@ class LanguageClassifier(BaseClassifier):
         Args:
             name: The name of the classifier
             description: Description of the classifier
-            lang_config: Language detection configuration
             detector: Custom language detector implementation
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        # Store language config and detector for later use
-        self._lang_config = lang_config or LanguageConfig()
+        # Store detector for later use
         self._detector = detector
         self._initialized = False
 
@@ -165,13 +151,6 @@ class LanguageClassifier(BaseClassifier):
         if config is None:
             # Extract params from kwargs if present
             params = kwargs.pop("params", {})
-
-            # Add language config to params if provided
-            if lang_config is not None:
-                params["min_confidence"] = lang_config.min_confidence
-                params["seed"] = lang_config.seed
-                params["fallback_lang"] = lang_config.fallback_lang
-                params["fallback_confidence"] = lang_config.fallback_confidence
 
             # Create config with remaining kwargs
             config = ClassifierConfig(
@@ -197,24 +176,34 @@ class LanguageClassifier(BaseClassifier):
         try:
             langdetect = importlib.import_module("langdetect")
             # Set seed for consistent results
-            langdetect.DetectorFactory.seed = self._lang_config.seed
+            seed = self.config.params.get("seed", 0)
+            langdetect.DetectorFactory.seed = seed
 
-            # Create a wrapper class that implements our protocol
+            # Create a wrapper that implements the LanguageDetector protocol
             class LangDetectWrapper:
                 def __init__(self, detect_langs, detect):
-                    self.detect_langs = detect_langs
-                    self.detect = detect
+                    self.detect_langs_func = detect_langs
+                    self.detect_func = detect
 
+                def detect_langs(self, text: str) -> Sequence[Any]:
+                    return self.detect_langs_func(text)
+
+                def detect(self, text: str) -> str:
+                    return self.detect_func(text)
+
+            # Create wrapper with langdetect functions
             detector = LangDetectWrapper(langdetect.detect_langs, langdetect.detect)
+
             self._validate_detector(detector)
             return detector
+
         except ImportError:
             raise ImportError(
                 "langdetect package is required for LanguageClassifier. "
                 "Install it with: pip install sifaka[language]"
             )
         except Exception as e:
-            raise RuntimeError(f"Failed to load language detector: {e}")
+            raise RuntimeError(f"Failed to load langdetect: {e}")
 
     def warm_up(self) -> None:
         """Initialize the language detector if needed."""
@@ -223,83 +212,90 @@ class LanguageClassifier(BaseClassifier):
             self._initialized = True
 
     def get_language_name(self, lang_code: str) -> str:
-        """Get the full name of a language from its code."""
-        return self.LANGUAGE_NAMES.get(lang_code, "Unknown")
+        """Get full language name from language code."""
+        return self.LANGUAGE_NAMES.get(lang_code, lang_code)
 
     def _classify_impl(self, text: str) -> ClassificationResult:
         """
-        Implement language classification logic.
+        Implement language detection logic.
 
         Args:
             text: The text to classify
 
         Returns:
-            ClassificationResult with detected language and confidence
+            ClassificationResult with detected language
         """
         self.warm_up()
 
-        # Initialize default metadata
-        metadata = {
-            "language_name": self.get_language_name(self._lang_config.fallback_lang),
-            "language_code": self._lang_config.fallback_lang,
-            "all_languages": {
-                self._lang_config.fallback_lang: {
-                    "probability": self._lang_config.fallback_confidence,
-                    "name": self.get_language_name(self._lang_config.fallback_lang),
-                }
-            },
-        }
+        # Get configuration from params
+        min_confidence = self.config.params.get("min_confidence", 0.1)
+        fallback_lang = self.config.params.get("fallback_lang", "en")
+        fallback_confidence = self.config.params.get("fallback_confidence", 0.0)
 
         try:
             # Get language probabilities
-            lang_probabilities = self._detector.detect_langs(text)
+            lang_probs = self._detector.detect_langs(text)
 
-            # Convert to our format and sort by probability
-            detected_langs = []
-            for lang in lang_probabilities:
-                code = str(lang).split(":")[0]
-                prob = float(str(lang).split(":")[1])
-                detected_langs.append((code, prob))
+            # Find the most likely language
+            best_lang = None
+            best_prob = 0.0
 
-            detected_langs.sort(key=lambda x: x[1], reverse=True)
+            for lang_prob in lang_probs:
+                lang_code = getattr(lang_prob, "lang", None)
+                prob = float(getattr(lang_prob, "prob", 0.0))
 
-            if not detected_langs:
+                if lang_code and prob > best_prob:
+                    best_lang = lang_code
+                    best_prob = prob
+
+            # If confidence is too low, use fallback language
+            if best_lang is None or best_prob < min_confidence:
                 return ClassificationResult(
-                    label=self._lang_config.fallback_lang,
-                    confidence=self._lang_config.fallback_confidence,
-                    metadata={**metadata, "reason": "no_languages_detected"},
+                    label=fallback_lang,
+                    confidence=fallback_confidence,
+                    metadata={
+                        "detected_lang": best_lang,
+                        "detected_prob": best_prob,
+                        "language_name": self.get_language_name(fallback_lang),
+                        "reason": "low_confidence" if best_lang else "no_language_detected",
+                    },
                 )
 
-            # Get the most likely language
-            top_lang_code, confidence = detected_langs[0]
-
-            # Update metadata with all detected languages
-            metadata.update(
-                {
-                    "language_code": top_lang_code,
-                    "language_name": self.get_language_name(top_lang_code),
-                    "all_languages": {
-                        code: {"probability": prob, "name": self.get_language_name(code)}
-                        for code, prob in detected_langs
-                    },
-                }
-            )
-
+            # Return the detected language
             return ClassificationResult(
-                label=top_lang_code, confidence=confidence, metadata=metadata
+                label=best_lang,
+                confidence=best_prob,
+                metadata={
+                    "language_name": self.get_language_name(best_lang),
+                    "all_langs": [
+                        {
+                            "lang": getattr(lang_prob, "lang", None),
+                            "prob": float(getattr(lang_prob, "prob", 0.0)),
+                            "name": self.get_language_name(getattr(lang_prob, "lang", "")),
+                        }
+                        for lang_prob in lang_probs
+                    ],
+                },
             )
 
         except Exception as e:
             logger.error("Failed to detect language: %s", e)
             return ClassificationResult(
-                label=self._lang_config.fallback_lang,
-                confidence=self._lang_config.fallback_confidence,
-                metadata={**metadata, "error": str(e), "reason": "detection_error"},
+                label=fallback_lang,
+                confidence=fallback_confidence,
+                metadata={
+                    "error": str(e),
+                    "language_name": self.get_language_name(fallback_lang),
+                    "reason": "detection_error",
+                },
             )
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
         """
-        Classify multiple texts efficiently.
+        Classify multiple texts using individual calls.
+
+        Unfortunately, langdetect doesn't have a native batch interface,
+        so we need to fall back to individual calls.
 
         Args:
             texts: List of texts to classify
@@ -308,7 +304,7 @@ class LanguageClassifier(BaseClassifier):
             List of ClassificationResults
         """
         self.validate_batch_input(texts)
-        return [self._classify_impl(text) for text in texts]
+        return [self.classify(text) for text in texts]
 
     @classmethod
     def create_with_custom_detector(
@@ -316,7 +312,6 @@ class LanguageClassifier(BaseClassifier):
         detector: LanguageDetector,
         name: str = "custom_language_classifier",
         description: str = "Custom language detector",
-        lang_config: Optional[LanguageConfig] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "LanguageClassifier":
@@ -327,7 +322,6 @@ class LanguageClassifier(BaseClassifier):
             detector: Custom language detector implementation
             name: Name of the classifier
             description: Description of the classifier
-            lang_config: Custom language configuration
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
@@ -340,11 +334,22 @@ class LanguageClassifier(BaseClassifier):
                 f"Detector must implement LanguageDetector protocol, got {type(detector)}"
             )
 
+        # Create config if not provided
+        if config is None:
+            # Extract params from kwargs if present
+            params = kwargs.pop("params", {})
+
+            # Create config with params
+            config = ClassifierConfig(
+                labels=list(cls.LANGUAGE_NAMES.keys()),
+                cost=cls.DEFAULT_COST,
+                params=params,
+            )
+
         # Create instance with validated detector
         instance = cls(
             name=name,
             description=description,
-            lang_config=lang_config,
             detector=detector,
             config=config,
             **kwargs,
