@@ -337,6 +337,21 @@ from sifaka.rules.formatting.length import create_length_rule
 from sifaka.chain import Chain
 import os
 
+# Create a compatible version of ReflexionCritic that works with Chain
+class CompatibleReflexionCritic(ReflexionCritic):
+    """A ReflexionCritic that's compatible with the Chain class."""
+
+    def critique(self, text: str) -> dict:
+        """Return critique as a dict instead of CriticMetadata."""
+        critic_metadata = super().critique(text)
+        # Convert CriticMetadata to a plain dictionary
+        return {
+            "score": critic_metadata.score,
+            "feedback": critic_metadata.feedback,
+            "issues": critic_metadata.issues,
+            "suggestions": critic_metadata.suggestions,
+        }
+
 # Configure OpenAI model
 model = OpenAIProvider(
     model_name="gpt-3.5-turbo",
@@ -347,8 +362,8 @@ model = OpenAIProvider(
     )
 )
 
-# Create a reflexion critic
-reflexion_critic = ReflexionCritic(
+# Create a reflexion critic using our compatible subclass
+reflexion_critic = CompatibleReflexionCritic(
     llm_provider=model,
     config=ReflexionCriticConfig(
         name="reflexion_critic",

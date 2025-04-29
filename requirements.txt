@@ -1,11 +1,11 @@
 # Core dependencies
-pydantic>=2.6.3
+pydantic>=2.11.3
 typing-extensions>=4.10.0
 
 # Model providers
-anthropic>=0.18.1
-openai>=1.13.3
-tiktoken>=0.6.0  # Required for token counting
+anthropic>=0.50.0
+openai>=1.76.0
+tiktoken>=0.9.0  # Required for token counting
 google-generativeai>=0.3.2  # Required for Gemini provider
 
 # ML/Classification
@@ -23,13 +23,15 @@ asyncio>=3.4.3
 # Utilities
 python-dotenv>=1.0.1
 requests>=2.31.0
-httpx>=0.27.0
+httpx>=0.28.1
 tenacity>=8.2.3
 statistics>=3.12.0  # Standard library but explicitly listed for clarity
 
 # Optional integrations
 langgraph>=0.0.19  # Optional: for LangGraph integration
 langchain>=0.1.9  # Optional: for LangChain integration
+langchain-anthropic>=0.3.12
+langchain-openai>=0.3.14
 
 # Development
 pytest>=8.0.2
@@ -38,3 +40,4 @@ isort>=5.13.2
 mypy>=1.9.0
 ruff>=0.3.0
 pytest-cov>=4.1.0
+flake8>=5.0.0

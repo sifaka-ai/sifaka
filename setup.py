@@ -6,20 +6,20 @@ from setuptools import find_packages, setup
 
 # Core dependencies (required)
 core_requirements = [
-    "pydantic>=2.6.3",
+    "pydantic>=2.11.3",
     "typing-extensions>=4.10.0",
     "python-dotenv>=1.0.1",
     "tqdm>=4.66.2",
     "requests>=2.31.0",
-    "httpx>=0.27.0",
+    "httpx>=0.28.1",
     "tenacity>=8.2.3",
 ]
 
 # Optional dependencies
 extras_require = {
     # Model providers
-    "openai": ["openai>=1.13.3"],
-    "anthropic": ["anthropic>=0.18.1"],
+    "openai": ["openai>=1.76.0", "tiktoken>=0.9.0"],
+    "anthropic": ["anthropic>=0.50.0"],
     # Classifiers
     "toxicity": ["detoxify>=0.5.1", "torch>=2.2.1", "transformers>=4.38.2"],
     "sentiment": ["vaderSentiment>=3.3.2"],
@@ -28,7 +28,7 @@ extras_require = {
     "readability": ["textstat>=0.7.3"],
     # Integrations
     "langgraph": ["langgraph>=0.0.19"],
-    "langchain": ["langchain>=0.1.9"],
+    "langchain": ["langchain>=0.1.9", "langchain-anthropic>=0.3.12", "langchain-openai>=0.3.14"],
     # Development
     "dev": [
         "pytest>=8.0.2",
@@ -37,6 +37,7 @@ extras_require = {
         "mypy>=1.9.0",
         "ruff>=0.3.0",
         "pytest-cov>=4.1.0",
+        "flake8>=5.0.0",
     ],
     # Benchmarking
     "benchmark": [
