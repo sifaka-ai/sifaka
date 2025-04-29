@@ -33,7 +33,7 @@ model = AnthropicProvider(
 # Create a length rule with more relaxed constraints
 length_rule = create_length_rule(
     min_words=100,  # Setting a reasonable minimum
-    max_words=400,  # Increased to a more achievable maximum
+    max_words=500,  # Increased to a more achievable maximum
     rule_id="word_limit_rule",
 )
 
@@ -46,12 +46,17 @@ critic = PromptCritic(
         name="length_critic",
         description="Helps adjust text to meet length requirements",
         system_prompt=(
-            "You are a helpful editor who specializes in adjusting text length while "
+            "You are a skilled editor who specializes in adjusting text length while "
             "preserving the core content and meaning. Your job is to make text more "
-            "concise by removing unnecessary details, redundancies, and filler content. "
-            "The target length is 400 words maximum."
+            "concise by removing unnecessary details, redundancies, and filler content.\n\n"
+            "IMPORTANT LENGTH REQUIREMENTS:\n"
+            "- Minimum: 100 words\n"
+            "- Maximum: 500 words\n"
+            "- Target: Aim for 300-400 words\n\n"
+            "The text must be within these bounds. Be ruthless in cutting content if over the limit, "
+            "and add relevant details if under the minimum. Count your words carefully."
         ),
-        temperature=0.5,
+        temperature=0.4,  # Slightly lower temperature for more consistent results
     ),
 )
 
