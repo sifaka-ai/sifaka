@@ -229,8 +229,10 @@ This example uses a toxicity classifier with a rule to ensure content safety:
 from sifaka.classifiers.toxicity import ToxicityClassifier
 from sifaka.classifiers.base import ClassifierConfig
 from sifaka.rules.content.safety import create_toxicity_rule
+from sifaka.rules.base import RuleConfig
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.models import OpenAIProvider
+from sifaka.models.base import ModelConfig
 from sifaka.chain import Chain
 import os
 
@@ -256,15 +258,17 @@ classifier = ToxicityClassifier(
 
 # Create toxicity rule
 toxicity_rule = create_toxicity_rule(
-    config={
-        "threshold": 0.6,
-        "indicators": [
-            "hate",
-            "offensive",
-            "vulgar",
-            "profanity",
-        ]
-    }
+    config=RuleConfig(
+        params={
+            "threshold": 0.6,
+            "indicators": [
+                "hate",
+                "offensive",
+                "vulgar",
+                "profanity",
+            ]
+        }
+    )
 )
 
 # Create critic to help improve content that violates toxicity rules
