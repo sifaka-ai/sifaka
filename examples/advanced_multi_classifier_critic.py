@@ -28,6 +28,7 @@ from sifaka.classifiers import (
     BiasDetector,
     GenreClassifier,
     ProfanityClassifier,
+    SpamClassifier,
     ClassifierConfig,
 )
 from sifaka.classifiers.base import (
@@ -588,7 +589,54 @@ def create_all_classifier_rules() -> List[Rule]:
     rules.append(profanity_rule)
     print("Added profanity rule")
 
-    # 7. GenreClassifier - ensure content is of an appropriate genre (ALREADY INCLUDED & EASY)
+    # 7. SpamClassifier - ensure content is not spam-like (NEW)
+    # Training data for spam classifier
+    ham_texts = [
+        "Here's the information you requested about the topic.",
+        "The following analysis provides insight into the subject matter.",
+        "This article explores multiple perspectives on the issue.",
+        "Research indicates several factors contribute to this phenomenon.",
+        "Experts suggest the following recommendations for consideration.",
+    ]
+
+    spam_texts = [
+        "CLICK HERE to learn more about this amazing opportunity!",
+        "You won't believe these incredible results! Act now!",
+        "Limited time offer! Don't miss this exclusive content!",
+        "Secret method revealed! Guaranteed amazing outcomes!",
+        "Revolutionary breakthrough that experts don't want you to know!",
+    ]
+
+    # Labels for training data
+    ham_labels = ["ham"] * len(ham_texts)
+    spam_labels = ["spam"] * len(spam_texts)
+
+    spam_classifier = SpamClassifier.create_pretrained(
+        texts=ham_texts + spam_texts,
+        labels=ham_labels + spam_labels,
+        name="spam_classifier",
+        description="Detects spam-like content in text",
+        config=ClassifierConfig(
+            labels=["ham", "spam"],
+            min_confidence=0.3,  # Low confidence requirement for easier passing
+            params={
+                "max_features": 1000,
+                "use_bigrams": True,
+            },
+        ),
+    )
+
+    spam_rule = create_classifier_rule(
+        classifier=spam_classifier,
+        name="spam_rule",
+        description="Ensures text is not spam-like",
+        threshold=0.3,  # Low threshold for easier passing
+        valid_labels=["ham"],
+    )
+    rules.append(spam_rule)
+    print("Added spam rule")
+
+    # 8. GenreClassifier - ensure content is of an appropriate genre (ALREADY INCLUDED & EASY)
     # Create with pretrained data to ensure the model is initialized
     genre_texts = [
         "Breaking news: Scientists discover a new planet in our solar system.",  # news
@@ -632,7 +680,7 @@ def create_all_classifier_rules() -> List[Rule]:
     )
     rules.append(genre_rule)
 
-    # 8. Length rule - enforce fewer words (EVEN EASIER)
+    # 9. Length rule - enforce fewer words (EVEN EASIER)
     length_rule = create_length_rule(
         min_words=500,  # Further reduced from 700
         max_words=2700,

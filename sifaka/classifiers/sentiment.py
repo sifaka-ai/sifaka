@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Final, List, Optional, Protocol, runtime_checkable
 
 from typing_extensions import TypeGuard
+from pydantic import PrivateAttr
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -69,11 +70,13 @@ class SentimentClassifier(BaseClassifier):
     pip install sifaka[sentiment]
     """
 
-    # Class-level constants and attributes
+    # Class-level constants
     DEFAULT_LABELS: Final[List[str]] = ["positive", "neutral", "negative", "unknown"]
     DEFAULT_COST: Final[int] = 1  # Low cost for lexicon-based analysis
-    _initialized: bool = False
-    _analyzer: Optional[SentimentAnalyzer] = None
+
+    # Private attributes using PrivateAttr
+    _analyzer: Optional[SentimentAnalyzer] = PrivateAttr(default=None)
+    _initialized: bool = PrivateAttr(default=False)
 
     def __init__(
         self,
@@ -98,6 +101,7 @@ class SentimentClassifier(BaseClassifier):
         # Store analyzer for later use if provided
         if analyzer is not None:
             self._analyzer = analyzer
+        self._initialized = False
 
         # Create config if not provided
         if config is None:
@@ -149,12 +153,14 @@ class SentimentClassifier(BaseClassifier):
     @property
     def positive_threshold(self) -> float:
         """Get the positive sentiment threshold."""
-        return self.config.params.get("positive_threshold", 0.05)
+        params = dict(self.config.params) if hasattr(self.config, "params") else {}
+        return params.get("positive_threshold", 0.05)
 
     @property
     def negative_threshold(self) -> float:
         """Get the negative sentiment threshold."""
-        return self.config.params.get("negative_threshold", -0.05)
+        params = dict(self.config.params) if hasattr(self.config, "params") else {}
+        return params.get("negative_threshold", -0.05)
 
     def _get_sentiment_label(self, compound_score: float) -> str:
         """Get sentiment label based on compound score."""
@@ -193,7 +199,23 @@ class SentimentClassifier(BaseClassifier):
         try:
             scores = self._analyzer.polarity_scores(text)
             compound_score = scores["compound"]
-            label = self._get_sentiment_label(compound_score)
+
+            # Get thresholds from config.params
+            params = {}
+            if hasattr(self.config, "params"):
+                if isinstance(self.config.params, dict):
+                    params = dict(self.config.params)
+
+            pos_threshold = params.get("positive_threshold", 0.05)
+            neg_threshold = params.get("negative_threshold", -0.05)
+
+            # Determine sentiment label
+            if compound_score >= pos_threshold:
+                label = "positive"
+            elif compound_score <= neg_threshold:
+                label = "negative"
+            else:
+                label = "neutral"
 
             # Convert compound score from [-1, 1] to confidence [0, 1]
             confidence = abs(compound_score)
