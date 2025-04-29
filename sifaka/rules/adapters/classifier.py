@@ -32,7 +32,9 @@ from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 from sifaka.classifiers.base import ClassificationResult, Classifier, ClassifierConfig
 from sifaka.rules.adapters.base import BaseAdapter
-from sifaka.rules.base import BaseValidator, (, Any    Rule,
+from sifaka.rules.base import (
+    BaseValidator,
+    Rule,
     RuleConfig,
     RuleResult,
     RuleResultHandler,
