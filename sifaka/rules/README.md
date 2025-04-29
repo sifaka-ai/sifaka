@@ -70,7 +70,7 @@ To create a custom rule:
 4. Implement `_create_default_validator()` to create your validator
 5. Create factory functions for both the validator and rule
 
-See the documentation for more details on creating custom rules.
+See the [Rules and Validators documentation](../../docs/rules_and_validators.md) for more details on creating custom rules and implementation patterns.
 
 ## Best Practices
 
@@ -79,3 +79,10 @@ See the documentation for more details on creating custom rules.
 3. **Pass configuration as direct parameters** to factory functions, not as dictionaries
 4. **Implement both validator and rule factory functions** for all rule types
 5. **Document the relationship** between rules and validators in module docstrings
+6. **Handle empty text consistently** using the BaseValidator.handle_empty_text method
+7. **Use type-safe config classes** that extend RuleConfig
+8. **Extract rule-specific parameters** in factory functions
+9. **Delegate validation logic** from rules to validators
+10. **Add rule_id to metadata** in rule.validate method
+
+For a complete guide on implementing rules and validators, see the [Rules and Validators documentation](../../docs/rules_and_validators.md).

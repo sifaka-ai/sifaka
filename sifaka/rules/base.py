@@ -34,7 +34,18 @@ Each rule type provides two factory functions:
 1. `create_X_validator()` - Creates a standalone validator
 2. `create_X_rule()` - Creates a rule with a validator
 
-See the documentation for specific rule types for more details.
+## Implementation Patterns
+
+For detailed guidance on implementing rules and validators, see:
+- [Rules and Validators Documentation](../../docs/rules_and_validators.md)
+- [Rules README](./README.md)
+
+These documents provide comprehensive information on:
+- Standard implementation patterns
+- Empty text handling
+- Configuration patterns
+- Best practices
+- Example implementations
 """
 
 import hashlib
