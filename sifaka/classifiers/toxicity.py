@@ -196,9 +196,17 @@ class ToxicityClassifier(BaseClassifier):
         max_category = max(scores.items(), key=lambda x: x[1])
         label, confidence = max_category
 
-        # Only return if it meets the general threshold
+        # Only return toxic label if it meets the general threshold
         if confidence >= general_threshold:
             return label, confidence
+
+        # Special case: If all toxicity scores are extremely low (e.g., < 0.01),
+        # this is clearly non-toxic content, so return high confidence for non_toxic
+        max_toxicity_score = max(scores.values()) if scores else 0.0
+        if max_toxicity_score < 0.01:
+            # If content is extremely non-toxic, return high confidence (0.95)
+            return "non_toxic", 0.95
+
         return "non_toxic", confidence
 
     def _classify_impl(self, text: str) -> ClassificationResult:
