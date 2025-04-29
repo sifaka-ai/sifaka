@@ -113,12 +113,13 @@ length_rule = create_length_rule(
     min_chars=20,
     max_chars=200,
     rule_id="length_validation",
-    config=RuleConfig(priority=RulePriority.MEDIUM),
+    priority=RulePriority.MEDIUM,
 )
 
 prohibited_rule = create_prohibited_content_rule(
     name="prohibited_content",
-    config={"terms": ["illegal", "trafficking", "scam"], "case_sensitive": False},
+    terms=["illegal", "trafficking", "scam"],
+    case_sensitive=False,
 )
 
 # Create classifier rules

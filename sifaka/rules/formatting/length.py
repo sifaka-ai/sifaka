@@ -2,12 +2,42 @@
 Length validation rules for text.
 
 This module provides validators and rules for checking text length constraints.
+
+Usage Example:
+    from sifaka.rules.formatting.length import create_length_rule
+
+    # Create a length rule using the factory function
+    rule = create_length_rule(
+        min_chars=10,
+        max_chars=100,
+        min_words=2,
+        max_words=20,
+        rule_id="length_constraint"
+    )
+
+    # Validate text
+    result = rule.validate("This is a test.")
 """
 
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union, Any
 
 from sifaka.rules.base import Rule, RuleResult, RuleConfig, BaseValidator
+
+
+__all__ = [
+    # Config classes
+    "LengthConfig",
+    # Validator classes
+    "LengthValidator",
+    "DefaultLengthValidator",
+    "LengthRuleValidator",
+    # Rule classes
+    "LengthRule",
+    # Factory functions
+    "create_length_validator",
+    "create_length_rule",
+]
 
 
 @dataclass(frozen=True)
@@ -176,26 +206,27 @@ class LengthRule(Rule):
         return result.with_metadata(rule_id=self._rule_id)
 
 
-def create_length_rule(
+def create_length_validator(
     min_chars: Optional[int] = None,
     max_chars: Optional[int] = None,
     min_words: Optional[int] = None,
     max_words: Optional[int] = None,
-    rule_id: Optional[str] = None,
     **kwargs,
-) -> LengthRule:
-    """Create a length validation rule with the specified constraints.
+) -> LengthValidator:
+    """Create a length validator with the specified constraints.
+
+    This factory function creates a configured LengthValidator instance.
+    It's useful when you need a validator without creating a full rule.
 
     Args:
         min_chars: Minimum number of characters allowed
         max_chars: Maximum number of characters allowed
         min_words: Minimum number of words allowed
         max_words: Maximum number of words allowed
-        rule_id: Identifier for the rule
-        **kwargs: Additional keyword arguments for the rule
+        **kwargs: Additional keyword arguments for the config
 
     Returns:
-        Configured LengthRule
+        Configured LengthValidator
     """
     # Extract RuleConfig parameters from kwargs
     rule_config_params = {}
@@ -210,7 +241,47 @@ def create_length_rule(
         max_words=max_words,
         **rule_config_params,
     )
-    validator = DefaultLengthValidator(config)
+
+    return DefaultLengthValidator(config)
+
+
+def create_length_rule(
+    min_chars: Optional[int] = None,
+    max_chars: Optional[int] = None,
+    min_words: Optional[int] = None,
+    max_words: Optional[int] = None,
+    rule_id: Optional[str] = None,
+    **kwargs,
+) -> LengthRule:
+    """Create a length validation rule with the specified constraints.
+
+    This factory function creates a configured LengthRule instance.
+    It uses create_length_validator internally to create the validator.
+
+    Args:
+        min_chars: Minimum number of characters allowed
+        max_chars: Maximum number of characters allowed
+        min_words: Minimum number of words allowed
+        max_words: Maximum number of words allowed
+        rule_id: Identifier for the rule
+        **kwargs: Additional keyword arguments for the rule
+
+    Returns:
+        Configured LengthRule
+    """
+    # Create validator using the validator factory
+    validator = create_length_validator(
+        min_chars=min_chars,
+        max_chars=max_chars,
+        min_words=min_words,
+        max_words=max_words,
+        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+    )
+
+    # Extract rule-specific kwargs
+    rule_kwargs = {
+        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
+    }
 
     # Use rule_id as name if provided, otherwise use "length_rule"
     name = rule_id if rule_id else "length_rule"
@@ -218,5 +289,5 @@ def create_length_rule(
     return LengthRule(
         validator=validator,
         name=name,
-        **kwargs,
+        **rule_kwargs,
     )

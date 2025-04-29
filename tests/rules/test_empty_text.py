@@ -2,18 +2,14 @@
 Tests for empty text handling in validators.
 """
 
-import pytest
-
-from sifaka.rules.base import RuleResult
-from sifaka.rules.formatting.length import LengthConfig, DefaultLengthValidator
-from sifaka.rules.formatting.style import StyleConfig, DefaultStyleValidator, CapitalizationStyle
+from sifaka.rules.formatting.length import create_length_validator
+from sifaka.rules.formatting.style import create_style_validator, CapitalizationStyle
 
 
 def test_base_validator_empty_text():
     """Test that BaseValidator handles empty text correctly."""
-    # Test with LengthValidator
-    config = LengthConfig(min_chars=10, max_chars=100)
-    validator = DefaultLengthValidator(config)
+    # Test with LengthValidator using factory function
+    validator = create_length_validator(min_chars=10, max_chars=100)
 
     # Test with empty string
     result = validator.validate("")
@@ -37,8 +33,8 @@ def test_base_validator_empty_text():
 
 def test_style_validator_empty_text():
     """Test that StyleValidator handles empty text correctly."""
-    config = StyleConfig(capitalization=CapitalizationStyle.SENTENCE_CASE)
-    validator = DefaultStyleValidator(config)
+    # Test with StyleValidator using factory function
+    validator = create_style_validator(capitalization=CapitalizationStyle.SENTENCE_CASE)
 
     # Test with empty string
     result = validator.validate("")
