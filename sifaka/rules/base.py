@@ -164,8 +164,8 @@ class RuleConfig:
     """
     Immutable configuration for rules.
 
-    This class provides a consistent way to configure rules with both params and metadata fields.
-    The preferred way to configure rules is to use the params dictionary:
+    This class provides a consistent way to configure rules.
+    All rule-specific configuration options should be placed in the params dictionary:
 
     ```python
     config = RuleConfig(
@@ -177,8 +177,6 @@ class RuleConfig:
         }
     )
     ```
-
-    The metadata field is kept for backward compatibility.
     """
 
     priority: RulePriority = RulePriority.MEDIUM
@@ -186,19 +184,11 @@ class RuleConfig:
     cost: int = 1
     params: Dict[str, Any] = field(default_factory=dict)
 
-    # Keep metadata for backward compatibility
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
     def __post_init__(self) -> None:
         if self.cache_size < 0:
             raise ConfigurationError("Cache size must be non-negative")
         if self.cost < 0:
             raise ConfigurationError("Cost must be non-negative")
-
-        # For backward compatibility, if metadata is provided but params is empty,
-        # copy metadata to params
-        if self.metadata and not self.params:
-            object.__setattr__(self, "params", dict(self.metadata))
 
     def with_options(self, **kwargs: Any) -> "RuleConfig":
         """Create a new config with updated options."""
@@ -212,7 +202,6 @@ class RuleConfig:
             cache_size=self.cache_size,
             cost=self.cost,
             params=new_params,
-            metadata=self.metadata,
         )
 
 

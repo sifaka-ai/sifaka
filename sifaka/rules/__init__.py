@@ -68,7 +68,7 @@ Usage Example:
     length_rule = LengthRule(
         name="length",
         config=RuleConfig(
-            metadata={
+            params={
                 "min_length": 10,
                 "max_length": 1000,
                 "unit": "characters"
@@ -80,7 +80,7 @@ Usage Example:
     content_rule = ProhibitedContentRule(
         name="content_filter",
         config=RuleConfig(
-            metadata={
+            params={
                 "prohibited_terms": ["bad", "inappropriate"],
                 "case_sensitive": False
             },
@@ -91,7 +91,7 @@ Usage Example:
     format_rule = FormatRule(
         name="format",
         config=RuleConfig(
-            metadata={
+            params={
                 "required_format": "markdown",
                 "strict": False
             },

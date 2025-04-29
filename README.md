@@ -119,7 +119,7 @@ config = ClassifierConfig(
     labels=["positive", "neutral", "negative"],  # Available classification labels
     cost=1.0,                                   # Relative computational cost
     min_confidence=0.7,                         # Minimum confidence threshold
-    params={                                    # Additional parameters
+    params={                                    # All classifier-specific parameters
         "model_name": "default",
         "threshold": 0.5,
     }
@@ -137,7 +137,7 @@ config = RuleConfig(
     priority=RulePriority.HIGH,      # Rule execution priority
     cache_size=100,                  # Cache size for validation results
     cost=1.0,                        # Relative computational cost
-    params={                         # Additional parameters
+    params={                         # All rule-specific parameters
         "threshold": 0.7,
         "max_length": 500,
     }

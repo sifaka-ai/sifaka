@@ -3,13 +3,12 @@ Base classes for Sifaka classifiers.
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import lru_cache
 from typing import (
     Any,
     Dict,
     List,
-    Optional,
     Protocol,
     Type,
     TypeVar,
@@ -46,9 +45,8 @@ class ClassifierConfig:
     """
     Immutable configuration for classifiers.
 
-    This class follows the same pattern as RuleConfig, with both params and metadata fields.
-    The preferred way to configure classifiers is to use the params dictionary for
-    all classifier-specific configuration options:
+    This class follows the same pattern as RuleConfig.
+    All classifier-specific configuration options should be placed in the params dictionary:
 
     ```python
     config = ClassifierConfig(
@@ -60,8 +58,6 @@ class ClassifierConfig:
         }
     )
     ```
-
-    The metadata field is kept for backward compatibility.
     """
 
     labels: List[str]
@@ -69,9 +65,6 @@ class ClassifierConfig:
     cost: int = 1
     min_confidence: float = 0.5
     params: Dict[str, Any] = Field(default_factory=dict)
-
-    # Keep metadata for backward compatibility, similar to RuleConfig
-    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         if not isinstance(self.labels, list) or not all(isinstance(l, str) for l in self.labels):
@@ -82,11 +75,6 @@ class ClassifierConfig:
             raise ValueError("cost must be non-negative")
         if not 0.0 <= self.min_confidence <= 1.0:
             raise ValueError("min_confidence must be between 0 and 1")
-
-        # For backward compatibility, if metadata is provided but params is empty,
-        # copy metadata to params, similar to RuleConfig
-        if self.metadata and not self.params:
-            object.__setattr__(self, "params", dict(self.metadata))
 
     def with_options(self, **kwargs: Any) -> "ClassifierConfig":
         """Create a new config with updated options."""
@@ -101,7 +89,6 @@ class ClassifierConfig:
             cost=self.cost,
             min_confidence=self.min_confidence,
             params=new_params,
-            metadata=self.metadata,
         )
 
 

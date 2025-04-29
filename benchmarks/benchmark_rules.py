@@ -19,7 +19,7 @@ import psutil
 from tqdm import tqdm
 
 from sifaka.rules.base import Rule, RuleConfig, RuleResult, RulePriority
-from sifaka.rules.length import LengthRule, LengthConfig, DefaultLengthValidator
+from sifaka.rules.formatting.length import LengthRule, DefaultLengthValidator
 from sifaka.rules.prohibited_content import ProhibitedContentRule
 from sifaka.rules.pattern_rules import RepetitionRule, SymmetryRule
 from sifaka.utils.logging import get_logger
@@ -49,15 +49,21 @@ class RuleBenchmark:
         rules = {}
 
         # Initialize LengthRule with config
-        length_config = LengthConfig(
-            min_length=10, max_length=1000, unit="characters", cache_size=100, priority=1, cost=1.0
+        length_config = RuleConfig(
+            cache_size=100,
+            priority=RulePriority.MEDIUM,
+            cost=1.0,
+            params={
+                "min_chars": 10,
+                "max_chars": 1000,
+            },
         )
         length_validator = DefaultLengthValidator(length_config)
         rules["length"] = LengthRule(
             name="length_rule",
             description="Validates text length",
             validator=length_validator,
-            config={"min_length": 10, "max_length": 1000},
+            config=RuleConfig(params={"min_chars": 10, "max_chars": 1000}),
         )
 
         # Initialize ProhibitedContentRule with config
@@ -81,7 +87,7 @@ class RuleBenchmark:
                 priority=RulePriority.MEDIUM,
                 cache_size=100,
                 cost=1.0,
-                metadata={
+                params={
                     "mirror_mode": "horizontal",
                     "preserve_whitespace": True,
                     "preserve_case": True,
@@ -99,7 +105,7 @@ class RuleBenchmark:
                 priority=RulePriority.MEDIUM,
                 cache_size=100,
                 cost=1.0,
-                metadata={
+                params={
                     "pattern_type": "repeat",
                     "pattern_length": 2,
                     "case_sensitive": True,
