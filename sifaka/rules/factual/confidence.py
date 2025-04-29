@@ -1,12 +1,42 @@
 """
 Confidence validation rules for Sifaka.
+
+This module provides validators and rules for checking confidence indicators in text.
+
+Usage Example:
+    from sifaka.rules.factual.confidence import create_confidence_rule
+
+    # Create a confidence rule using the factory function
+    rule = create_confidence_rule(
+        confidence_indicators={
+            "high": ["definitely", "certainly", "always"],
+            "medium": ["likely", "probably", "usually"],
+            "low": ["maybe", "possibly", "sometimes"]
+        }
+    )
+
+    # Validate text
+    result = rule.validate("This is definitely the right approach.")
 """
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from sifaka.rules.base import Rule, RuleConfig, RuleResult, RuleValidator
+from sifaka.rules.base import Rule, RuleConfig, RuleResult
 from sifaka.rules.factual.base import BaseFactualValidator
+
+
+__all__ = [
+    # Config classes
+    "ConfidenceConfig",
+    # Validator classes
+    "DefaultConfidenceValidator",
+    # Rule classes
+    "ConfidenceRule",
+    # Factory functions
+    "create_confidence_validator",
+    "create_confidence_rule",
+]
 
 
 @dataclass(frozen=True)
@@ -89,6 +119,7 @@ class ConfidenceRule(Rule[str, RuleResult, DefaultConfidenceValidator, Any]):
         description: str = "Checks for confidence indicators",
         config: Optional[RuleConfig] = None,
         validator: Optional[DefaultConfidenceValidator] = None,
+        **kwargs,
     ) -> None:
         """
         Initialize the confidence rule.
@@ -98,6 +129,7 @@ class ConfidenceRule(Rule[str, RuleResult, DefaultConfidenceValidator, Any]):
             description: Description of the rule
             config: Rule configuration
             validator: Optional custom validator implementation
+            **kwargs: Additional keyword arguments for the rule
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
@@ -107,7 +139,13 @@ class ConfidenceRule(Rule[str, RuleResult, DefaultConfidenceValidator, Any]):
             self._rule_params = params_source
 
         # Initialize base class
-        super().__init__(name=name, description=description, config=config, validator=validator)
+        super().__init__(
+            name=name,
+            description=description,
+            config=config,
+            validator=validator,
+            **kwargs,
+        )
 
     def _create_default_validator(self) -> DefaultConfidenceValidator:
         """Create a default validator from config."""
@@ -115,27 +153,80 @@ class ConfidenceRule(Rule[str, RuleResult, DefaultConfidenceValidator, Any]):
         return DefaultConfidenceValidator(confidence_config)
 
 
+def create_confidence_validator(
+    confidence_indicators: Optional[Dict[str, List[str]]] = None,
+    **kwargs,
+) -> DefaultConfidenceValidator:
+    """
+    Create a confidence validator with the specified configuration.
+
+    This factory function creates a configured confidence validator instance.
+    It's useful when you need a validator without creating a full rule.
+
+    Args:
+        confidence_indicators: Dictionary mapping confidence levels to indicator phrases
+        **kwargs: Additional keyword arguments for the config
+
+    Returns:
+        Configured confidence validator
+    """
+    # Extract RuleConfig parameters from kwargs
+    rule_config_params = {}
+    for param in ["priority", "cache_size", "cost", "params"]:
+        if param in kwargs:
+            rule_config_params[param] = kwargs.pop(param)
+
+    # Create config with default or provided values
+    config_params = {}
+    if confidence_indicators is not None:
+        config_params["confidence_indicators"] = confidence_indicators
+
+    # Add any remaining config parameters
+    config_params.update(rule_config_params)
+
+    # Create the config
+    config = ConfidenceConfig(**config_params)
+
+    # Return configured validator
+    return DefaultConfidenceValidator(config)
+
+
 def create_confidence_rule(
     name: str = "confidence_rule",
     description: str = "Validates text for confidence indicators",
-    config: Optional[Dict[str, Any]] = None,
+    confidence_indicators: Optional[Dict[str, List[str]]] = None,
+    **kwargs,
 ) -> ConfidenceRule:
     """
     Create a confidence rule with configuration.
 
+    This factory function creates a configured ConfidenceRule instance.
+    It uses create_confidence_validator internally to create the validator.
+
     Args:
         name: The name of the rule
         description: Description of the rule
-        config: Optional configuration dictionary
+        confidence_indicators: Dictionary mapping confidence levels to indicator phrases
+        **kwargs: Additional keyword arguments for the rule
 
     Returns:
         Configured ConfidenceRule instance
     """
-    # Convert the dictionary config to RuleConfig with params
-    rule_config = RuleConfig(params=config or {})
+    # Create validator using the validator factory
+    validator = create_confidence_validator(
+        confidence_indicators=confidence_indicators,
+        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+    )
 
+    # Extract rule-specific kwargs
+    rule_kwargs = {
+        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
+    }
+
+    # Create and return rule
     return ConfidenceRule(
         name=name,
         description=description,
-        config=rule_config,
+        validator=validator,
+        **rule_kwargs,
     )
