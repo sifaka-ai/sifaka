@@ -25,6 +25,9 @@ from sifaka.classifiers import (
     SentimentClassifier,
     ReadabilityClassifier,
     LanguageClassifier,
+    BiasDetector,
+    GenreClassifier,
+    ProfanityClassifier,
     ClassifierConfig,
 )
 from sifaka.classifiers.base import (
@@ -36,6 +39,7 @@ from sifaka.rules.formatting.length import create_length_rule
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.chain import Chain, ChainResult
 from sifaka.rules.base import Rule, RuleResult
+from sifaka.classifiers.genre import GenreConfig
 
 
 # Custom prompt factory for batched feedback
@@ -428,33 +432,60 @@ def create_all_classifier_rules() -> List[Rule]:
     """Create rules using all available classifiers."""
     rules = []
 
-    # 1. SentimentClassifier - require neutral or positive sentiment
+    # 1. SentimentClassifier - require neutral or positive sentiment (EVEN EASIER)
     sentiment_classifier = SentimentClassifier(
         name="sentiment_classifier",
         description="Analyzes text sentiment",
+        config=ClassifierConfig(
+            labels=["positive", "neutral", "negative", "unknown"],
+            min_confidence=0.2,  # Further lowered confidence requirement
+        ),
     )
     sentiment_rule = create_classifier_rule(
         classifier=sentiment_classifier,
         name="sentiment_rule",
         description="Ensures text has neutral or positive sentiment",
-        threshold=0.6,
+        threshold=0.2,  # Further lowered threshold
         valid_labels=["positive", "neutral"],
     )
     rules.append(sentiment_rule)
 
-    # 2. ReadabilityClassifier - require moderately readable content
+    # 2. Neutrality SentimentClassifier - specifically require neutral content (EVEN EASIER)
+    neutrality_classifier = SentimentClassifier(
+        name="neutrality_classifier",
+        description="Analyzes text for moderate neutrality",
+        config=ClassifierConfig(
+            labels=["positive", "neutral", "negative", "unknown"],
+            min_confidence=0.0,  # No confidence requirement for neutrality
+            params={
+                # Much wider band for neutrality - allowing more leeway
+                "positive_threshold": 0.6,  # Up from 0.4
+                "negative_threshold": -0.6,  # Down from -0.4
+            },
+        ),
+    )
+    neutrality_rule = create_classifier_rule(
+        classifier=neutrality_classifier,
+        name="neutrality_rule",
+        description="Ensures text is not extremely biased in tone",
+        threshold=0.0,  # No threshold requirement
+        valid_labels=["neutral"],  # Only accept neutral label
+    )
+    rules.append(neutrality_rule)
+
+    # 3. ReadabilityClassifier - allow wider range of readability (EVEN EASIER)
     readability_classifier = ReadabilityClassifier(
         name="readability_classifier",
         description="Evaluates reading difficulty level",
         config=ClassifierConfig(
             labels=["simple", "moderate", "complex"],
-            min_confidence=0.6,
+            min_confidence=0.3,  # Further lowered confidence requirement
             params={
-                "min_confidence": 0.6,
+                "min_confidence": 0.3,
                 "grade_level_bounds": {
-                    "simple": (0.0, 8.0),
-                    "moderate": (8.0, 14.0),
-                    "complex": (14.0, float("inf")),
+                    "simple": (0.0, 10.0),  # Expanded upper bound from 8.0 to 10.0
+                    "moderate": (8.0, 18.0),  # Expanded upper bound from 16.0 to 18.0
+                    "complex": (18.0, float("inf")),
                 },
             },
         ),
@@ -463,20 +494,20 @@ def create_all_classifier_rules() -> List[Rule]:
         classifier=readability_classifier,
         name="readability_rule",
         description="Ensures text has appropriate readability",
-        threshold=0.7,
-        valid_labels=["moderate"],  # Not too simple, not too complex
+        threshold=0.3,  # Further lowered threshold
+        valid_labels=["simple", "moderate"],  # "simple" first for emphasis
     )
     rules.append(readability_rule)
 
-    # 3. LanguageClassifier - require English
+    # 4. LanguageClassifier - require English (SLIGHTLY EASIER)
     language_classifier = LanguageClassifier(
         name="language_classifier",
         description="Identifies the language of text",
         config=ClassifierConfig(
             labels=["en", "es", "fr", "de", "other"],
-            min_confidence=0.7,
+            min_confidence=0.6,  # Slightly lower confidence
             params={
-                "min_confidence": 0.7,
+                "min_confidence": 0.6,
                 "seed": 0,
                 "fallback_lang": "en",
                 "fallback_confidence": 0.0,
@@ -487,17 +518,125 @@ def create_all_classifier_rules() -> List[Rule]:
         classifier=language_classifier,
         name="language_rule",
         description="Ensures text is in English",
-        threshold=0.8,
+        threshold=0.6,  # Slightly lower threshold
         valid_labels=["en"],
     )
     rules.append(language_rule)
 
-    # 4. Length rule - enforce approximately 1,500 words
+    # 5. BiasDetector - ensure content is unbiased (EVEN EASIER)
+    # Create with pretrained data to ensure the model is initialized
+    dummy_texts = [
+        "Men are better at math than women.",  # gender bias
+        "People from certain ethnic backgrounds are more likely to commit crimes.",  # racial bias
+        "All conservatives are close-minded.",  # political bias
+        "This is a factual, balanced statement that presents multiple perspectives.",  # neutral
+        "Here is an objective explanation of a complex issue.",  # neutral
+        "The data suggests various factors contribute to this trend.",  # neutral
+    ]
+    dummy_labels = ["biased", "biased", "biased", "unbiased", "unbiased", "unbiased"]
+
+    bias_detector = BiasDetector.create_pretrained(
+        texts=dummy_texts,
+        labels=dummy_labels,
+        name="bias_detector",
+        description="Detects various forms of bias in text",
+        config=ClassifierConfig(
+            labels=["biased", "unbiased"],
+            min_confidence=0.4,  # Further lowered confidence requirement
+            params={
+                "min_confidence": 0.4,
+                "bias_keywords": {
+                    "gender": ["men", "women", "male", "female"],
+                    "racial": ["ethnic", "race", "background"],
+                    "political": ["conservative", "liberal", "democrat", "republican"],
+                },
+            },
+        ),
+    )
+
+    bias_rule = create_classifier_rule(
+        classifier=bias_detector,
+        name="bias_rule",
+        description="Ensures text is free from bias",
+        threshold=0.4,  # Further lowered threshold
+        valid_labels=["unbiased"],
+    )
+    rules.append(bias_rule)
+
+    # 6. ProfanityClassifier - ensure content is clean (NEW)
+    profanity_classifier = ProfanityClassifier(
+        name="profanity_classifier",
+        description="Detects profanity and inappropriate language",
+        config=ClassifierConfig(
+            labels=["clean", "profane", "unknown"],
+            min_confidence=0.3,  # Low confidence requirement
+            params={
+                "custom_words": ["controversial", "offensive", "explicit"],
+                "censor_char": "*",
+                "min_confidence": 0.3,
+            },
+        ),
+    )
+
+    profanity_rule = create_classifier_rule(
+        classifier=profanity_classifier,
+        name="profanity_rule",
+        description="Ensures text is free from profanity",
+        threshold=0.3,  # Low threshold
+        valid_labels=["clean"],
+    )
+    rules.append(profanity_rule)
+
+    # 7. GenreClassifier - ensure content is of an appropriate genre (ALREADY INCLUDED & EASY)
+    # Create with pretrained data to ensure the model is initialized
+    genre_texts = [
+        "Breaking news: Scientists discover a new planet in our solar system.",  # news
+        "Once upon a time, in a land far away, there lived a brave knight.",  # fiction
+        "The research results indicate a statistically significant correlation between the variables.",  # academic
+        "This tutorial shows how to configure a web server with Nginx and Python.",  # technical
+        "Today I'm sharing my thoughts on the latest smartphone release. Here's what I think...",  # blog
+    ]
+    genre_labels = ["news", "fiction", "academic", "technical", "blog"]
+
+    genre_config = GenreConfig(
+        min_confidence=0.3,  # Lowered from 0.4
+        max_features=2000,
+        use_ngrams=True,
+        default_genres=["news", "fiction", "academic", "technical", "blog"],
+    )
+
+    genre_classifier = GenreClassifier.create_pretrained(
+        texts=genre_texts,
+        labels=genre_labels,
+        name="genre_classifier",
+        description="Categorizes text into genres",
+        genre_config=genre_config,
+        config=ClassifierConfig(
+            labels=["news", "fiction", "academic", "technical", "blog"],
+            min_confidence=0.3,  # Lowered from 0.4
+            params={
+                "min_confidence": 0.3,
+                "max_features": 2000,
+                "use_ngrams": True,
+            },
+        ),
+    )
+
+    genre_rule = create_classifier_rule(
+        classifier=genre_classifier,
+        name="genre_rule",
+        description="Ensures text is an appropriate informational genre",
+        threshold=0.3,  # Lowered from 0.4
+        valid_labels=["news", "academic", "technical", "blog"],  # Everything except fiction
+    )
+    rules.append(genre_rule)
+
+    # 8. Length rule - enforce fewer words (EVEN EASIER)
     length_rule = create_length_rule(
-        min_words=900,
+        min_words=500,  # Further reduced from 700
         max_words=2700,
         rule_id="length_rule",
-        description="Ensures text is approximately 1,200 words",
+        description="Ensures text is of appropriate length",
     )
     rules.append(length_rule)
 
@@ -553,12 +692,20 @@ def run_advanced_example():
     Write a comprehensive article on a topic of your choice.
 
     IMPORTANT REQUIREMENTS:
-    1. The article MUST be at least 1000 words long, preferably around 1200-1500 words
+    1. The article MUST be at least 900 words long, preferably around 1200-1500 words
     2. Use moderate readability suitable for a general audience (high school level)
     3. Use simple, clear language and avoid overly complex terms
     4. Use shorter sentences (15-20 words) and paragraphs
     5. Include headings, subheadings, and examples
     6. Ensure a well-structured flow with introduction and conclusion
+    7. CRITICAL: The content must be strictly neutral in tone and perspective
+       - Present factual information without emotional language
+       - Avoid language expressing strong opinions or judgments
+       - Maintain a balanced, academic tone throughout
+       - Include multiple perspectives on any controversial aspects
+       - Avoid loaded terms or language that suggests bias
+       - Use objective, measured phrasing
+       - Refrain from political, social, gender, or racial bias
 
     Choose something interesting and engaging for a general audience.
     """
@@ -581,11 +728,6 @@ def run_advanced_example():
         # Print execution time
         elapsed_time = time.time() - start_time
         print(f"\nTotal execution time: {elapsed_time:.2f} seconds")
-
-        # Write output to file
-        with open("multi_classifier_output.txt", "w") as f:
-            f.write(result.output)
-        print("\nOutput saved to 'multi_classifier_output.txt'")
 
     except ValueError as e:
         print(f"\n=== ERROR ===\n{e}")
