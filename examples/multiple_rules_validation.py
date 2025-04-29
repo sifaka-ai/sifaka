@@ -1,5 +1,5 @@
-from sifaka.classifiers import SentimentClassifier
 from sifaka.classifiers.base import BaseClassifier, ClassificationResult, ClassifierConfig
+from sifaka.classifiers.sentiment import SentimentClassifier
 from sifaka.rules import (
     RuleConfig,
     ClassifierRule,
@@ -104,7 +104,11 @@ sample_texts = [
 ]
 
 # Set up classifiers
-sentiment_classifier = SentimentClassifier()
+sentiment_config = ClassifierConfig(
+    labels=["positive", "neutral", "negative", "unknown"],
+    params={"positive_threshold": 0.05, "negative_threshold": -0.05},
+)
+sentiment_classifier = SentimentClassifier(config=sentiment_config)
 profanity_classifier = SimpleProfanityClassifier()
 toxicity_classifier = SimpleToxicityClassifier()
 
@@ -113,12 +117,13 @@ length_rule = create_length_rule(
     min_chars=20,
     max_chars=200,
     rule_id="length_validation",
-    config=RuleConfig(priority=RulePriority.MEDIUM),
+    priority=RulePriority.MEDIUM,
 )
 
 prohibited_rule = create_prohibited_content_rule(
     name="prohibited_content",
-    config={"terms": ["illegal", "trafficking", "scam"], "case_sensitive": False},
+    terms=["illegal", "trafficking", "scam"],
+    case_sensitive=False,
 )
 
 # Create classifier rules

@@ -3,10 +3,45 @@ Sentiment analysis content validation rules for Sifaka.
 
 This module provides rules for analyzing and validating text sentiment,
 including positive/negative sentiment detection and emotional content analysis.
+
+Configuration Pattern:
+    This module follows the standard Sifaka configuration pattern:
+    - All rule-specific configuration is stored in RuleConfig.params
+    - The SentimentConfig and EmotionalContentConfig classes extend RuleConfig and provide type-safe access to parameters
+    - Factory functions (create_sentiment_rule, create_emotional_content_rule) handle configuration
+    - Validator factory functions (create_sentiment_validator, create_emotional_content_validator)
+      create standalone validators
+
+Usage Example:
+    from sifaka.rules.content.sentiment import create_sentiment_rule, create_emotional_content_rule
+
+    # Create a sentiment rule using the factory function
+    sentiment_rule = create_sentiment_rule(
+        threshold=0.7,
+        positive_words={"good", "great", "excellent"},
+        negative_words={"bad", "poor", "terrible"}
+    )
+
+    # Create an emotional content rule
+    emotional_rule = create_emotional_content_rule(
+        categories={
+            "joy": ["happy", "delighted", "excited"],
+            "sadness": ["sad", "depressed", "unhappy"]
+        },
+        min_emotion_score=0.3,
+        max_emotion_score=0.8
+    )
+
+    # Create standalone validators
+    from sifaka.rules.content.sentiment import create_sentiment_validator
+    validator = create_sentiment_validator(
+        threshold=0.7,
+        positive_words={"good", "great", "excellent"}
+    )
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Final, List, Optional, Set
+from typing import Dict, Final, List, Optional, Set
 
 from sifaka.rules.base import (
     BaseValidator,
@@ -539,10 +574,8 @@ class SentimentRule(
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            # Always prefer params over metadata for consistency
-            self._rule_params = config.params if config.params else config.metadata
+        if config and config.params:
+            self._rule_params = config.params
 
         # Initialize base class
         super().__init__(
@@ -582,10 +615,8 @@ class EmotionalContentRule(
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            # Always prefer params over metadata for consistency
-            self._rule_params = config.params if config.params else config.metadata
+        if config and config.params:
+            self._rule_params = config.params
 
         # Initialize base class
         super().__init__(
@@ -602,73 +633,216 @@ class EmotionalContentRule(
         return DefaultEmotionalContentValidator(emotional_config)
 
 
+def create_sentiment_validator(
+    threshold: Optional[float] = None,
+    positive_words: Optional[Set[str]] = None,
+    negative_words: Optional[Set[str]] = None,
+    **kwargs,
+) -> DefaultSentimentValidator:
+    """
+    Create a sentiment validator with the specified configuration.
+
+    This factory function creates a configured sentiment validator instance.
+    It's useful when you need a validator without creating a full rule.
+
+    Args:
+        threshold: Threshold for positive sentiment detection (0.0 to 1.0)
+        positive_words: Set of words indicating positive sentiment
+        negative_words: Set of words indicating negative sentiment
+        **kwargs: Additional keyword arguments for the config
+
+    Returns:
+        Configured sentiment validator
+    """
+    # Extract RuleConfig parameters from kwargs
+    rule_config_params = {}
+    for param in ["priority", "cache_size", "cost", "params"]:
+        if param in kwargs:
+            rule_config_params[param] = kwargs.pop(param)
+
+    # Create config with default or provided values
+    config_params = {}
+    if threshold is not None:
+        config_params["threshold"] = threshold
+    if positive_words is not None:
+        config_params["positive_words"] = positive_words
+    if negative_words is not None:
+        config_params["negative_words"] = negative_words
+
+    # Add any remaining config parameters
+    config_params.update(rule_config_params)
+
+    # Create the config
+    config = SentimentConfig(**config_params)
+
+    # Return configured validator
+    return DefaultSentimentValidator(config)
+
+
+def create_emotional_content_validator(
+    categories: Optional[Dict[str, List[str]]] = None,
+    min_emotion_score: Optional[float] = None,
+    max_emotion_score: Optional[float] = None,
+    **kwargs,
+) -> DefaultEmotionalContentValidator:
+    """
+    Create an emotional content validator with the specified configuration.
+
+    This factory function creates a configured emotional content validator instance.
+    It's useful when you need a validator without creating a full rule.
+
+    Args:
+        categories: Dictionary mapping emotion categories to lists of indicators
+        min_emotion_score: Minimum acceptable emotion score (0.0 to 1.0)
+        max_emotion_score: Maximum acceptable emotion score (0.0 to 1.0)
+        **kwargs: Additional keyword arguments for the config
+
+    Returns:
+        Configured emotional content validator
+    """
+    # Extract RuleConfig parameters from kwargs
+    rule_config_params = {}
+    for param in ["priority", "cache_size", "cost", "params"]:
+        if param in kwargs:
+            rule_config_params[param] = kwargs.pop(param)
+
+    # Create config with default or provided values
+    config_params = {}
+    if categories is not None:
+        config_params["categories"] = categories
+    if min_emotion_score is not None:
+        config_params["min_emotion_score"] = min_emotion_score
+    if max_emotion_score is not None:
+        config_params["max_emotion_score"] = max_emotion_score
+
+    # Add any remaining config parameters
+    config_params.update(rule_config_params)
+
+    # Create the config
+    config = EmotionalContentConfig(**config_params)
+
+    # Return configured validator
+    return DefaultEmotionalContentValidator(config)
+
+
 def create_sentiment_rule(
     name: str = "sentiment_rule",
     description: str = "Validates text sentiment",
-    config: Optional[Dict[str, Any]] = None,
+    threshold: Optional[float] = None,
+    positive_words: Optional[Set[str]] = None,
+    negative_words: Optional[Set[str]] = None,
+    **kwargs,
 ) -> SentimentRule:
     """
     Create a sentiment rule with configuration.
 
+    This factory function creates a configured SentimentRule instance.
+    It uses create_sentiment_validator internally to create the validator.
+
     Args:
         name: The name of the rule
         description: Description of the rule
-        config: Optional configuration dictionary
+        threshold: Threshold for positive sentiment detection (0.0 to 1.0)
+        positive_words: Set of words indicating positive sentiment
+        negative_words: Set of words indicating negative sentiment
+        **kwargs: Additional keyword arguments for the rule
 
     Returns:
         Configured SentimentRule instance
     """
-    if config is None:
-        config = {
-            "threshold": 0.6,
-            "positive_words": DEFAULT_POSITIVE_WORDS,
-            "negative_words": DEFAULT_NEGATIVE_WORDS,
-            "cache_size": 100,
-            "priority": 1,
-            "cost": 1.0,
-        }
+    # Create validator using the validator factory
+    validator = create_sentiment_validator(
+        threshold=threshold,
+        positive_words=positive_words,
+        negative_words=negative_words,
+        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+    )
 
-    # Convert the dictionary config to RuleConfig with params
-    rule_config = RuleConfig(params=config)
+    # Extract rule-specific kwargs
+    rule_kwargs = {
+        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
+    }
 
+    # Create and return rule
     return SentimentRule(
         name=name,
         description=description,
-        config=rule_config,
+        validator=validator,
+        **rule_kwargs,
     )
 
 
 def create_emotional_content_rule(
     name: str = "emotional_content_rule",
     description: str = "Validates emotional content",
-    config: Optional[Dict[str, Any]] = None,
+    categories: Optional[Dict[str, List[str]]] = None,
+    min_emotion_score: Optional[float] = None,
+    max_emotion_score: Optional[float] = None,
+    **kwargs,
 ) -> EmotionalContentRule:
     """
     Create an emotional content rule with configuration.
 
+    This factory function creates a configured EmotionalContentRule instance.
+    It uses create_emotional_content_validator internally to create the validator.
+
     Args:
         name: The name of the rule
         description: Description of the rule
-        config: Optional configuration dictionary
+        categories: Dictionary mapping emotion categories to lists of indicators
+        min_emotion_score: Minimum acceptable emotion score (0.0 to 1.0)
+        max_emotion_score: Maximum acceptable emotion score (0.0 to 1.0)
+        **kwargs: Additional keyword arguments for the rule
 
     Returns:
         Configured EmotionalContentRule instance
     """
-    if config is None:
-        config = {
-            "categories": DEFAULT_EMOTION_CATEGORIES,
-            "min_emotion_score": 0.3,
-            "max_emotion_score": 0.8,
-            "cache_size": 100,
-            "priority": 1,
-            "cost": 1.0,
-        }
+    # Create validator using the validator factory
+    validator = create_emotional_content_validator(
+        categories=categories,
+        min_emotion_score=min_emotion_score,
+        max_emotion_score=max_emotion_score,
+        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+    )
 
-    # Convert the dictionary config to RuleConfig with params
-    rule_config = RuleConfig(params=config)
+    # Extract rule-specific kwargs
+    rule_kwargs = {
+        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
+    }
 
+    # Create and return rule
     return EmotionalContentRule(
         name=name,
         description=description,
-        config=rule_config,
+        validator=validator,
+        **rule_kwargs,
     )
+
+
+# Export public classes and functions
+__all__ = [
+    # Config classes
+    "SentimentConfig",
+    "EmotionalContentConfig",
+    # Helper classes
+    "SentimentWords",
+    "EmotionCategories",
+    # Validator classes
+    "SentimentValidator",
+    "EmotionalContentValidator",
+    "DefaultSentimentValidator",
+    "DefaultEmotionalContentValidator",
+    # Rule classes
+    "SentimentRule",
+    "EmotionalContentRule",
+    # Validator factory functions
+    "create_sentiment_validator",
+    "create_emotional_content_validator",
+    # Rule factory functions
+    "create_sentiment_rule",
+    "create_emotional_content_rule",
+    # Constants
+    "DEFAULT_POSITIVE_WORDS",
+    "DEFAULT_NEGATIVE_WORDS",
+    "DEFAULT_EMOTION_CATEGORIES",
+]

@@ -1,5 +1,19 @@
 """
 Prohibited content validation rules for Sifaka.
+
+This module provides validators and rules for checking text against prohibited content.
+
+Usage Example:
+    from sifaka.rules.content.prohibited import create_prohibited_content_rule
+
+    # Create a prohibited content rule
+    rule = create_prohibited_content_rule(
+        terms=["inappropriate", "offensive", "vulgar"],
+        case_sensitive=False
+    )
+
+    # Validate text
+    result = rule.validate("This is a test.")
 """
 
 from dataclasses import dataclass
@@ -15,6 +29,21 @@ from sifaka.rules.base import (
     ValidationError,
 )
 from sifaka.rules.content.base import ContentAnalyzer, ContentValidator, DefaultContentAnalyzer
+
+
+__all__ = [
+    # Data classes
+    "ProhibitedContentConfig",
+    "ProhibitedTerms",
+    # Validator classes
+    "ProhibitedContentValidator",
+    "DefaultProhibitedContentValidator",
+    # Rule classes
+    "ProhibitedContentRule",
+    # Factory functions
+    "create_prohibited_content_validator",
+    "create_prohibited_content_rule",
+]
 
 
 @dataclass(frozen=True)
@@ -176,6 +205,7 @@ class ProhibitedContentRule(
         description: str = "Checks for prohibited content",
         config: Optional[RuleConfig] = None,
         validator: Optional[DefaultProhibitedContentValidator] = None,
+        **kwargs,
     ) -> None:
         """
         Initialize the prohibited content rule.
@@ -185,6 +215,7 @@ class ProhibitedContentRule(
             description: Description of the rule
             config: Rule configuration
             validator: Optional custom validator implementation
+            **kwargs: Additional keyword arguments for the rule
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
@@ -198,6 +229,7 @@ class ProhibitedContentRule(
             config=config,
             validator=validator,
             result_handler=None,
+            **kwargs,
         )
 
     def _create_default_validator(self) -> DefaultProhibitedContentValidator:
@@ -206,43 +238,96 @@ class ProhibitedContentRule(
         return DefaultProhibitedContentValidator(rule_config)
 
 
+def create_prohibited_content_validator(
+    terms: Optional[List[str]] = None,
+    case_sensitive: bool = False,
+    **kwargs,
+) -> DefaultProhibitedContentValidator:
+    """
+    Create a prohibited content validator with the specified configuration.
+
+    This factory function creates a configured prohibited content validator instance.
+    It's useful when you need a validator without creating a full rule.
+
+    Args:
+        terms: List of prohibited terms to check for
+        case_sensitive: Whether to perform case-sensitive matching
+        **kwargs: Additional keyword arguments for the config
+
+    Returns:
+        Configured prohibited content validator
+    """
+    # Set default values if not provided
+    if terms is None:
+        terms = [
+            "profanity",
+            "obscenity",
+            "hate speech",
+            "explicit content",
+            "adult content",
+            "nsfw",
+            "inappropriate",
+        ]
+
+    # Extract RuleConfig parameters from kwargs
+    rule_config_params = {}
+    for param in ["priority", "cache_size", "cost", "params"]:
+        if param in kwargs:
+            rule_config_params[param] = kwargs.pop(param)
+
+    # Create config dictionary
+    config_dict = {
+        "terms": terms,
+        "case_sensitive": case_sensitive,
+        **rule_config_params,
+    }
+
+    # Create RuleConfig
+    rule_config = RuleConfig(params=config_dict)
+
+    # Return configured validator
+    return DefaultProhibitedContentValidator(rule_config)
+
+
 def create_prohibited_content_rule(
     name: str = "prohibited_content_rule",
     description: str = "Validates text for prohibited content",
-    config: Optional[Dict[str, Any]] = None,
+    terms: Optional[List[str]] = None,
+    case_sensitive: bool = False,
+    **kwargs,
 ) -> ProhibitedContentRule:
     """
     Create a prohibited content rule with configuration.
 
+    This factory function creates a configured ProhibitedContentRule instance.
+    It uses create_prohibited_content_validator internally to create the validator.
+
     Args:
         name: The name of the rule
         description: Description of the rule
-        config: Optional configuration dictionary
+        terms: List of prohibited terms to check for
+        case_sensitive: Whether to perform case-sensitive matching
+        **kwargs: Additional keyword arguments for the rule
 
     Returns:
         Configured ProhibitedContentRule instance
     """
-    if config is None:
-        config = {
-            "terms": [
-                "profanity",
-                "obscenity",
-                "hate speech",
-                "explicit content",
-                "adult content",
-                "nsfw",
-                "inappropriate",
-            ],
-            "case_sensitive": False,
-            "priority": 1,
-            "cost": 1.0,
-        }
+    # Create validator using the validator factory
+    validator = create_prohibited_content_validator(
+        terms=terms,
+        case_sensitive=case_sensitive,
+        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+    )
 
-    # Convert the dictionary config to RuleConfig with params
-    rule_config = RuleConfig(params=config)
+    # Extract rule-specific kwargs
+    rule_kwargs = {
+        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
+    }
 
+    # Create and return rule
     return ProhibitedContentRule(
         name=name,
         description=description,
-        config=rule_config,
+        validator=validator,
+        **rule_kwargs,
     )

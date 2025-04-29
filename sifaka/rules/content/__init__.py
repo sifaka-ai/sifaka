@@ -32,8 +32,6 @@ Example:
     >>> rule = ProhibitedContentRule()
 """
 
-import warnings
-
 # Re-export classes for backward compatibility
 from sifaka.rules.content.base import (
     ContentAnalyzer,
@@ -93,14 +91,6 @@ from sifaka.rules.content.sentiment import (
     SentimentWords,
     create_emotional_content_rule,
     create_sentiment_rule,
-)
-
-warnings.warn(
-    "The content module is deprecated and will be removed in version 2.0.0. "
-    "Use sifaka.rules.content.prohibited, sifaka.rules.content.tone, "
-    "sifaka.rules.content.safety, and sifaka.rules.content.sentiment instead.",
-    DeprecationWarning,
-    stacklevel=2,
 )
 
 # Export public classes and functions

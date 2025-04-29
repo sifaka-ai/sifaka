@@ -2,16 +2,46 @@
 Length validation rules for text.
 
 This module provides validators and rules for checking text length constraints.
+
+Usage Example:
+    from sifaka.rules.formatting.length import create_length_rule
+
+    # Create a length rule using the factory function
+    rule = create_length_rule(
+        min_chars=10,
+        max_chars=100,
+        min_words=2,
+        max_words=20,
+        rule_id="length_constraint"
+    )
+
+    # Validate text
+    result = rule.validate("This is a test.")
 """
 
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union, Any
 
-from sifaka.rules.base import Rule, RuleResult
+from sifaka.rules.base import Rule, RuleResult, RuleConfig, BaseValidator
 
 
-@dataclass
-class LengthConfig:
+__all__ = [
+    # Config classes
+    "LengthConfig",
+    # Validator classes
+    "LengthValidator",
+    "DefaultLengthValidator",
+    "LengthRuleValidator",
+    # Rule classes
+    "LengthRule",
+    # Factory functions
+    "create_length_validator",
+    "create_length_rule",
+]
+
+
+@dataclass(frozen=True)
+class LengthConfig(RuleConfig):
     """Configuration for text length validation.
 
     Attributes:
@@ -27,7 +57,7 @@ class LengthConfig:
     max_words: Optional[int] = None
 
 
-class LengthValidator:
+class LengthValidator(BaseValidator[str]):
     """Base class for text length validators."""
 
     def __init__(self, config: LengthConfig):
@@ -36,36 +66,45 @@ class LengthValidator:
         Args:
             config: Length validation configuration
         """
+        super().__init__()
         self.config = config
 
-    def validate(self, text: str) -> Tuple[bool, List[str]]:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate text against length constraints.
 
         Args:
             text: The text to validate
+            **kwargs: Additional validation context
 
         Returns:
-            Tuple containing:
-                - Boolean indicating if validation passed
-                - List of error messages if validation failed
+            Validation result
         """
+        # Handle empty text
+        empty_result = self.handle_empty_text(text)
+        if empty_result:
+            return empty_result
+
         raise NotImplementedError("Subclasses must implement validate method")
 
 
 class DefaultLengthValidator(LengthValidator):
     """Default implementation of text length validator."""
 
-    def validate(self, text: str) -> Tuple[bool, List[str]]:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate text against length constraints.
 
         Args:
             text: The text to validate
+            **kwargs: Additional validation context
 
         Returns:
-            Tuple containing:
-                - Boolean indicating if validation passed
-                - List of error messages if validation failed
+            Validation result
         """
+        # Handle empty text
+        empty_result = self.handle_empty_text(text)
+        if empty_result:
+            return empty_result
+
         errors = []
 
         # Character length validation
@@ -92,7 +131,15 @@ class DefaultLengthValidator(LengthValidator):
                 f"Text has too many words: {word_count} words (maximum {self.config.max_words})"
             )
 
-        return not errors, errors
+        return RuleResult(
+            passed=not errors,
+            message=errors[0] if errors else "Text length validation successful",
+            metadata={
+                "char_count": char_count,
+                "word_count": word_count,
+                "errors": errors,
+            },
+        )
 
 
 class LengthRuleValidator:
@@ -104,16 +151,7 @@ class LengthRuleValidator:
 
     def validate(self, output: str, **kwargs) -> RuleResult:
         """Validate the output using the wrapped validator."""
-        is_valid, errors = self.validator.validate(output)
-        return RuleResult(
-            passed=is_valid,
-            message=errors[0] if errors else "Text length validation successful",
-            metadata={
-                "char_count": len(output),
-                "word_count": len(output.split()),
-                "errors": errors,
-            },
-        )
+        return self.validator.validate(output, **kwargs)
 
     def can_validate(self, output: str) -> bool:
         """Check if this validator can validate the output."""
@@ -153,25 +191,58 @@ class LengthRule(Rule):
         """Create a default validator adapter for this rule."""
         return LengthRuleValidator(self._length_validator)
 
-    def evaluate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Evaluate text against length constraints.
 
         Args:
             text: The text to evaluate
+            **kwargs: Additional validation context
 
         Returns:
             RuleResult containing validation results
         """
-        is_valid, errors = self._length_validator.validate(text)
-        return RuleResult(
-            passed=is_valid,
-            message=errors[0] if errors else "Text length validation successful",
-            metadata={
-                "char_count": len(text),
-                "word_count": len(text.split()),
-                "rule_id": self._rule_id,
-            },
-        )
+        result = self._length_validator.validate(text, **kwargs)
+        # Add rule_id to metadata
+        return result.with_metadata(rule_id=self._rule_id)
+
+
+def create_length_validator(
+    min_chars: Optional[int] = None,
+    max_chars: Optional[int] = None,
+    min_words: Optional[int] = None,
+    max_words: Optional[int] = None,
+    **kwargs,
+) -> LengthValidator:
+    """Create a length validator with the specified constraints.
+
+    This factory function creates a configured LengthValidator instance.
+    It's useful when you need a validator without creating a full rule.
+
+    Args:
+        min_chars: Minimum number of characters allowed
+        max_chars: Maximum number of characters allowed
+        min_words: Minimum number of words allowed
+        max_words: Maximum number of words allowed
+        **kwargs: Additional keyword arguments for the config
+
+    Returns:
+        Configured LengthValidator
+    """
+    # Extract RuleConfig parameters from kwargs
+    rule_config_params = {}
+    for param in ["priority", "cache_size", "cost", "params"]:
+        if param in kwargs:
+            rule_config_params[param] = kwargs.pop(param)
+
+    config = LengthConfig(
+        min_chars=min_chars,
+        max_chars=max_chars,
+        min_words=min_words,
+        max_words=max_words,
+        **rule_config_params,
+    )
+
+    return DefaultLengthValidator(config)
 
 
 def create_length_rule(
@@ -184,6 +255,9 @@ def create_length_rule(
 ) -> LengthRule:
     """Create a length validation rule with the specified constraints.
 
+    This factory function creates a configured LengthRule instance.
+    It uses create_length_validator internally to create the validator.
+
     Args:
         min_chars: Minimum number of characters allowed
         max_chars: Maximum number of characters allowed
@@ -195,13 +269,19 @@ def create_length_rule(
     Returns:
         Configured LengthRule
     """
-    config = LengthConfig(
+    # Create validator using the validator factory
+    validator = create_length_validator(
         min_chars=min_chars,
         max_chars=max_chars,
         min_words=min_words,
         max_words=max_words,
+        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
     )
-    validator = DefaultLengthValidator(config)
+
+    # Extract rule-specific kwargs
+    rule_kwargs = {
+        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
+    }
 
     # Use rule_id as name if provided, otherwise use "length_rule"
     name = rule_id if rule_id else "length_rule"
@@ -209,5 +289,5 @@ def create_length_rule(
     return LengthRule(
         validator=validator,
         name=name,
-        **kwargs,
+        **rule_kwargs,
     )

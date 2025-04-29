@@ -3,10 +3,39 @@ Safety-related content validation rules for Sifaka.
 
 This module provides rules for validating text against various safety concerns,
 including toxicity, bias, and harmful content.
+
+Usage Example:
+    from sifaka.rules.content.safety import create_toxicity_rule, create_bias_rule, create_harmful_content_rule
+
+    # Create a toxicity rule
+    toxicity_rule = create_toxicity_rule(
+        threshold=0.4,
+        indicators=["offensive", "vulgar", "profanity"]
+    )
+
+    # Create a bias rule
+    bias_rule = create_bias_rule(
+        threshold=0.3,
+        categories={
+            "gender": ["sexist", "gender bias"],
+            "racial": ["racist", "racial bias"]
+        }
+    )
+
+    # Create a harmful content rule
+    harmful_rule = create_harmful_content_rule(
+        categories={
+            "violence": ["violent", "threatening"],
+            "misinformation": ["false", "misleading"]
+        }
+    )
+
+    # Validate text
+    result = toxicity_rule.validate("This is a test.")
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, Final, List, Optional
+from dataclasses import dataclass
+from typing import Dict, Final, List, Optional
 
 from sifaka.rules.base import (
     BaseValidator,
@@ -18,6 +47,32 @@ from sifaka.rules.base import (
     ValidationError,
 )
 from sifaka.rules.content.base import ContentAnalyzer, ContentValidator, DefaultContentAnalyzer
+
+
+__all__ = [
+    # Data classes
+    "ToxicityIndicators",
+    "BiasCategories",
+    "HarmfulCategories",
+    # Validator classes
+    "ToxicityValidator",
+    "BiasValidator",
+    "HarmfulContentValidator",
+    "DefaultToxicityValidator",
+    "DefaultBiasValidator",
+    "DefaultHarmfulContentValidator",
+    # Rule classes
+    "ToxicityRule",
+    "BiasRule",
+    "HarmfulContentRule",
+    # Factory functions
+    "create_toxicity_validator",
+    "create_toxicity_rule",
+    "create_bias_validator",
+    "create_bias_rule",
+    "create_harmful_content_validator",
+    "create_harmful_content_rule",
+]
 
 
 @dataclass(frozen=True)
@@ -551,6 +606,7 @@ class ToxicityRule(Rule[str, RuleResult, DefaultToxicityValidator, RuleResultHan
         description: str = "Validates text for toxic content",
         config: Optional[RuleConfig] = None,
         validator: Optional[DefaultToxicityValidator] = None,
+        **kwargs,
     ) -> None:
         """
         Initialize the toxicity rule.
@@ -560,9 +616,10 @@ class ToxicityRule(Rule[str, RuleResult, DefaultToxicityValidator, RuleResultHan
             description: Description of the rule
             config: Rule configuration
             validator: Optional custom validator implementation
+            **kwargs: Additional keyword arguments for the rule
         """
-        # Create default config if not provided
-        if config is None:
+        # Create default config if not provided and no validator is provided
+        if config is None and validator is None:
             config = RuleConfig(
                 params={
                     "threshold": DefaultToxicityValidator.DEFAULT_THRESHOLD,
@@ -580,6 +637,7 @@ class ToxicityRule(Rule[str, RuleResult, DefaultToxicityValidator, RuleResultHan
             config=config,
             validator=validator,
             result_handler=None,
+            **kwargs,
         )
 
     def _create_default_validator(self) -> DefaultToxicityValidator:
@@ -596,6 +654,7 @@ class BiasRule(Rule[str, RuleResult, DefaultBiasValidator, RuleResultHandler[Rul
         description: str = "Validates text for biased content",
         config: Optional[RuleConfig] = None,
         validator: Optional[DefaultBiasValidator] = None,
+        **kwargs,
     ) -> None:
         """
         Initialize the bias rule.
@@ -605,9 +664,10 @@ class BiasRule(Rule[str, RuleResult, DefaultBiasValidator, RuleResultHandler[Rul
             description: Description of the rule
             config: Rule configuration
             validator: Optional custom validator implementation
+            **kwargs: Additional keyword arguments for the rule
         """
-        # Create default config if not provided
-        if config is None:
+        # Create default config if not provided and no validator is provided
+        if config is None and validator is None:
             config = RuleConfig(
                 params={
                     "threshold": DefaultBiasValidator.DEFAULT_THRESHOLD,
@@ -625,6 +685,7 @@ class BiasRule(Rule[str, RuleResult, DefaultBiasValidator, RuleResultHandler[Rul
             config=config,
             validator=validator,
             result_handler=None,
+            **kwargs,
         )
 
     def _create_default_validator(self) -> DefaultBiasValidator:
@@ -643,6 +704,7 @@ class HarmfulContentRule(
         description: str = "Validates text for harmful content",
         config: Optional[RuleConfig] = None,
         validator: Optional[DefaultHarmfulContentValidator] = None,
+        **kwargs,
     ) -> None:
         """
         Initialize the harmful content rule.
@@ -652,9 +714,10 @@ class HarmfulContentRule(
             description: Description of the rule
             config: Rule configuration
             validator: Optional custom validator implementation
+            **kwargs: Additional keyword arguments for the rule
         """
-        # Create default config if not provided
-        if config is None:
+        # Create default config if not provided and no validator is provided
+        if config is None and validator is None:
             config = RuleConfig(
                 params={
                     "categories": DefaultHarmfulContentValidator.DEFAULT_HARMFUL_CATEGORIES,
@@ -671,6 +734,7 @@ class HarmfulContentRule(
             config=config,
             validator=validator,
             result_handler=None,
+            **kwargs,
         )
 
     def _create_default_validator(self) -> DefaultHarmfulContentValidator:
@@ -678,105 +742,260 @@ class HarmfulContentRule(
         return DefaultHarmfulContentValidator(self.config)
 
 
+def create_toxicity_validator(
+    threshold: float = None,
+    indicators: List[str] = None,
+    **kwargs,
+) -> BaseValidator[str]:
+    """
+    Create a toxicity validator with the specified configuration.
+
+    This factory function creates a configured toxicity validator instance.
+    It's useful when you need a validator without creating a full rule.
+
+    Args:
+        threshold: Threshold for toxicity detection (0.0 to 1.0)
+        indicators: List of toxicity indicators to check for
+        **kwargs: Additional keyword arguments for the config
+
+    Returns:
+        Configured toxicity validator
+    """
+    # Set default values if not provided
+    if threshold is None:
+        threshold = DefaultToxicityValidator.DEFAULT_THRESHOLD
+    if indicators is None:
+        indicators = DefaultToxicityValidator.DEFAULT_TOXICITY_INDICATORS
+
+    # Extract RuleConfig parameters from kwargs
+    rule_config_params = {}
+    for param in ["priority", "cache_size", "cost", "params"]:
+        if param in kwargs:
+            rule_config_params[param] = kwargs.pop(param)
+
+    # Create config dictionary
+    config_dict = {
+        "threshold": threshold,
+        "indicators": indicators,
+        **rule_config_params,
+    }
+
+    # Create RuleConfig
+    rule_config = RuleConfig(params=config_dict)
+
+    # Return configured validator
+    return DefaultToxicityValidator(rule_config)
+
+
 def create_toxicity_rule(
     name: str = "toxicity_rule",
     description: str = "Validates text for toxic content",
-    config: Optional[Dict[str, Any]] = None,
+    threshold: float = None,
+    indicators: List[str] = None,
+    **kwargs,
 ) -> ToxicityRule:
     """
     Create a toxicity rule with configuration.
 
+    This factory function creates a configured ToxicityRule instance.
+    It uses create_toxicity_validator internally to create the validator.
+
     Args:
         name: The name of the rule
         description: Description of the rule
-        config: Optional configuration dictionary
+        threshold: Threshold for toxicity detection (0.0 to 1.0)
+        indicators: List of toxicity indicators to check for
+        **kwargs: Additional keyword arguments for the rule
 
     Returns:
         Configured ToxicityRule instance
     """
-    if config is None:
-        config = {
-            "threshold": DefaultToxicityValidator.DEFAULT_THRESHOLD,
-            "indicators": DefaultToxicityValidator.DEFAULT_TOXICITY_INDICATORS,
-            "cache_size": 100,
-            "priority": 1,
-            "cost": 1.0,
-        }
+    # Create validator using the validator factory
+    validator = create_toxicity_validator(
+        threshold=threshold,
+        indicators=indicators,
+        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+    )
 
-    # Convert the dictionary config to RuleConfig with params
-    rule_config = RuleConfig(params=config)
+    # Extract rule-specific kwargs
+    rule_kwargs = {
+        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
+    }
 
+    # Create and return rule
     return ToxicityRule(
         name=name,
         description=description,
-        config=rule_config,
+        validator=validator,
+        **rule_kwargs,
     )
+
+
+def create_bias_validator(
+    threshold: float = None,
+    categories: Dict[str, List[str]] = None,
+    **kwargs,
+) -> BaseValidator[str]:
+    """
+    Create a bias validator with the specified configuration.
+
+    This factory function creates a configured bias validator instance.
+    It's useful when you need a validator without creating a full rule.
+
+    Args:
+        threshold: Threshold for bias detection (0.0 to 1.0)
+        categories: Dictionary mapping bias categories to indicator terms
+        **kwargs: Additional keyword arguments for the config
+
+    Returns:
+        Configured bias validator
+    """
+    # Set default values if not provided
+    if threshold is None:
+        threshold = DefaultBiasValidator.DEFAULT_THRESHOLD
+    if categories is None:
+        categories = DefaultBiasValidator.DEFAULT_BIAS_CATEGORIES
+
+    # Extract RuleConfig parameters from kwargs
+    rule_config_params = {}
+    for param in ["priority", "cache_size", "cost", "params"]:
+        if param in kwargs:
+            rule_config_params[param] = kwargs.pop(param)
+
+    # Create config dictionary
+    config_dict = {
+        "threshold": threshold,
+        "categories": categories,
+        **rule_config_params,
+    }
+
+    # Create RuleConfig
+    rule_config = RuleConfig(params=config_dict)
+
+    # Return configured validator
+    return DefaultBiasValidator(rule_config)
 
 
 def create_bias_rule(
     name: str = "bias_rule",
     description: str = "Validates text for biased content",
-    config: Optional[Dict[str, Any]] = None,
+    threshold: float = None,
+    categories: Dict[str, List[str]] = None,
+    **kwargs,
 ) -> BiasRule:
     """
     Create a bias rule with configuration.
 
+    This factory function creates a configured BiasRule instance.
+    It uses create_bias_validator internally to create the validator.
+
     Args:
         name: The name of the rule
         description: Description of the rule
-        config: Optional configuration dictionary
+        threshold: Threshold for bias detection (0.0 to 1.0)
+        categories: Dictionary mapping bias categories to indicator terms
+        **kwargs: Additional keyword arguments for the rule
 
     Returns:
         Configured BiasRule instance
     """
-    if config is None:
-        config = {
-            "threshold": DefaultBiasValidator.DEFAULT_THRESHOLD,
-            "categories": DefaultBiasValidator.DEFAULT_BIAS_CATEGORIES,
-            "cache_size": 100,
-            "priority": 1,
-            "cost": 1.0,
-        }
+    # Create validator using the validator factory
+    validator = create_bias_validator(
+        threshold=threshold,
+        categories=categories,
+        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+    )
 
-    # Convert the dictionary config to RuleConfig with params
-    rule_config = RuleConfig(params=config)
+    # Extract rule-specific kwargs
+    rule_kwargs = {
+        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
+    }
 
+    # Create and return rule
     return BiasRule(
         name=name,
         description=description,
-        config=rule_config,
+        validator=validator,
+        **rule_kwargs,
     )
+
+
+def create_harmful_content_validator(
+    categories: Dict[str, List[str]] = None,
+    **kwargs,
+) -> BaseValidator[str]:
+    """
+    Create a harmful content validator with the specified configuration.
+
+    This factory function creates a configured harmful content validator instance.
+    It's useful when you need a validator without creating a full rule.
+
+    Args:
+        categories: Dictionary mapping harmful content categories to indicator terms
+        **kwargs: Additional keyword arguments for the config
+
+    Returns:
+        Configured harmful content validator
+    """
+    # Set default values if not provided
+    if categories is None:
+        categories = DefaultHarmfulContentValidator.DEFAULT_HARMFUL_CATEGORIES
+
+    # Extract RuleConfig parameters from kwargs
+    rule_config_params = {}
+    for param in ["priority", "cache_size", "cost", "params"]:
+        if param in kwargs:
+            rule_config_params[param] = kwargs.pop(param)
+
+    # Create config dictionary
+    config_dict = {
+        "categories": categories,
+        **rule_config_params,
+    }
+
+    # Create RuleConfig
+    rule_config = RuleConfig(params=config_dict)
+
+    # Return configured validator
+    return DefaultHarmfulContentValidator(rule_config)
 
 
 def create_harmful_content_rule(
     name: str = "harmful_content_rule",
     description: str = "Validates text for harmful content",
-    config: Optional[Dict[str, Any]] = None,
+    categories: Dict[str, List[str]] = None,
+    **kwargs,
 ) -> HarmfulContentRule:
     """
     Create a harmful content rule with configuration.
 
+    This factory function creates a configured HarmfulContentRule instance.
+    It uses create_harmful_content_validator internally to create the validator.
+
     Args:
         name: The name of the rule
         description: Description of the rule
-        config: Optional configuration dictionary
+        categories: Dictionary mapping harmful content categories to indicator terms
+        **kwargs: Additional keyword arguments for the rule
 
     Returns:
         Configured HarmfulContentRule instance
     """
-    if config is None:
-        config = {
-            "categories": DefaultHarmfulContentValidator.DEFAULT_HARMFUL_CATEGORIES,
-            "cache_size": 100,
-            "priority": 1,
-            "cost": 1.0,
-        }
+    # Create validator using the validator factory
+    validator = create_harmful_content_validator(
+        categories=categories,
+        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+    )
 
-    # Convert the dictionary config to RuleConfig with params
-    rule_config = RuleConfig(params=config)
+    # Extract rule-specific kwargs
+    rule_kwargs = {
+        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
+    }
 
+    # Create and return rule
     return HarmfulContentRule(
         name=name,
         description=description,
-        config=rule_config,
+        validator=validator,
+        **rule_kwargs,
     )

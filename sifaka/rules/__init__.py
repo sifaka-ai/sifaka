@@ -68,7 +68,7 @@ Usage Example:
     length_rule = LengthRule(
         name="length",
         config=RuleConfig(
-            metadata={
+            params={
                 "min_length": 10,
                 "max_length": 1000,
                 "unit": "characters"
@@ -80,7 +80,7 @@ Usage Example:
     content_rule = ProhibitedContentRule(
         name="content_filter",
         config=RuleConfig(
-            metadata={
+            params={
                 "prohibited_terms": ["bad", "inappropriate"],
                 "case_sensitive": False
             },
@@ -91,7 +91,7 @@ Usage Example:
     format_rule = FormatRule(
         name="format",
         config=RuleConfig(
-            metadata={
+            params={
                 "required_format": "markdown",
                 "strict": False
             },
@@ -130,31 +130,33 @@ Usage Example:
                 print(f"- {rule_name}: {rule_result.message}")
 """
 
-import warnings
-
 from .base import FunctionRule, Rule, RuleResult, RuleConfig
 
-from .domain import (
-    ConsistencyRule,
-    LegalCitationRule,
+# Import directly from submodules to avoid deprecation warnings
+# Domain rules
+from .domain.consistency import ConsistencyRule, create_consistency_rule
+from .domain.legal import (
     LegalRule,
+    LegalCitationRule,
     LegalTermsRule,
-    MedicalRule,
-    PythonRule,
-    create_consistency_rule,
-    create_legal_citation_rule,
     create_legal_rule,
+    create_legal_citation_rule,
     create_legal_terms_rule,
-    create_medical_rule,
-    create_python_rule,
 )
-from .factual import (
-    CitationRule,
-    ConfidenceRule,
-    FactualAccuracyRule,
-    FactualConsistencyRule,
-)
+from .domain.medical import MedicalRule, create_medical_rule
+from .domain.python import PythonRule, create_python_rule
+
+# Factual rules
+from .factual.citation import CitationRule
+from .factual.confidence import ConfidenceRule
+from .factual.accuracy import FactualAccuracyRule
+from .factual.consistency import FactualConsistencyRule
+
+# Formatting rules
 from .formatting.length import LengthRule, create_length_rule
+from .formatting.format import FormatRule, create_plain_text_rule, create_json_rule
+
+# Content rules
 from .content.prohibited import ProhibitedContentRule
 from .content.safety import BiasRule, HarmfulContentRule, ToxicityRule
 from .content.sentiment import EmotionalContentRule, SentimentRule
@@ -184,6 +186,10 @@ __all__ = [
     "ProhibitedContentRule",
     "LengthRule",
     "create_length_rule",
+    # Formatting
+    "FormatRule",
+    "create_plain_text_rule",
+    "create_json_rule",
     # Domain
     "LegalRule",
     "MedicalRule",

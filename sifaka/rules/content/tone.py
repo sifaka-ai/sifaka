@@ -1,5 +1,38 @@
 """
 Tone consistency validation rules for Sifaka.
+
+This module provides validators and rules for checking tone consistency in text.
+
+Configuration Pattern:
+    This module follows the standard Sifaka configuration pattern:
+    - All rule-specific configuration is stored in RuleConfig.params
+    - Factory functions (create_tone_consistency_rule, create_tone_consistency_validator) handle configuration
+    - Validator factory functions create standalone validators
+
+Usage Example:
+    from sifaka.rules.content.tone import create_tone_consistency_rule
+
+    # Create a tone consistency rule using the factory function
+    rule = create_tone_consistency_rule(
+        expected_tone="formal",
+        threshold=0.8,
+        tone_indicators={
+            "formal": {
+                "positive": ["therefore", "consequently", "furthermore"],
+                "negative": ["yo", "hey", "cool"]
+            }
+        }
+    )
+
+    # Validate text
+    result = rule.validate("Therefore, we can conclude that the hypothesis is valid.")
+
+    # Create standalone validator
+    from sifaka.rules.content.tone import create_tone_consistency_validator
+    validator = create_tone_consistency_validator(
+        expected_tone="formal",
+        threshold=0.8
+    )
 """
 
 from dataclasses import dataclass, field
@@ -357,37 +390,118 @@ class ToneConsistencyRule(
         return DefaultToneValidator(self.config)
 
 
+def create_tone_consistency_validator(
+    expected_tone: Optional[str] = None,
+    tone_indicators: Optional[Dict[str, Dict[str, List[str]]]] = None,
+    threshold: Optional[float] = None,
+    **kwargs,
+) -> DefaultToneValidator:
+    """
+    Create a tone consistency validator with the specified configuration.
+
+    This factory function creates a configured tone consistency validator instance.
+    It's useful when you need a validator without creating a full rule.
+
+    Args:
+        expected_tone: The expected tone style (formal, informal, neutral)
+        tone_indicators: Dictionary mapping tone styles to positive/negative indicators
+        threshold: Minimum tone consistency score required (0.0 to 1.0)
+        **kwargs: Additional keyword arguments for the config
+
+    Returns:
+        Configured tone consistency validator
+    """
+    # Extract RuleConfig parameters from kwargs
+    rule_config_params = {}
+    for param in ["priority", "cache_size", "cost", "params"]:
+        if param in kwargs:
+            rule_config_params[param] = kwargs.pop(param)
+
+    # Create config with default or provided values
+    config_params = {}
+    if expected_tone is not None:
+        config_params["expected_tone"] = expected_tone
+    if tone_indicators is not None:
+        config_params["tone_indicators"] = tone_indicators
+    if threshold is not None:
+        config_params["threshold"] = threshold
+
+    # Set defaults if not provided
+    if "expected_tone" not in config_params:
+        config_params["expected_tone"] = "neutral"
+    if "tone_indicators" not in config_params:
+        config_params["tone_indicators"] = DefaultToneValidator.DEFAULT_TONE_INDICATORS
+    if "threshold" not in config_params:
+        config_params["threshold"] = DefaultToneValidator.DEFAULT_THRESHOLD
+
+    # Add any remaining config parameters
+    config_params.update(rule_config_params)
+
+    # Create the config
+    rule_config = RuleConfig(params=config_params)
+
+    # Return configured validator
+    return DefaultToneValidator(rule_config)
+
+
 def create_tone_consistency_rule(
     name: str = "tone_consistency_rule",
     description: str = "Validates text tone consistency",
-    config: Optional[Dict[str, Any]] = None,
+    expected_tone: Optional[str] = None,
+    tone_indicators: Optional[Dict[str, Dict[str, List[str]]]] = None,
+    threshold: Optional[float] = None,
+    **kwargs,
 ) -> ToneConsistencyRule:
     """
     Create a tone consistency rule with configuration.
 
+    This factory function creates a configured ToneConsistencyRule instance.
+    It uses create_tone_consistency_validator internally to create the validator.
+
     Args:
         name: The name of the rule
         description: Description of the rule
-        config: Optional configuration dictionary
+        expected_tone: The expected tone style (formal, informal, neutral)
+        tone_indicators: Dictionary mapping tone styles to positive/negative indicators
+        threshold: Minimum tone consistency score required (0.0 to 1.0)
+        **kwargs: Additional keyword arguments for the rule
 
     Returns:
         Configured ToneConsistencyRule instance
     """
-    if config is None:
-        config = {
-            "expected_tone": "neutral",
-            "tone_indicators": DefaultToneValidator.DEFAULT_TONE_INDICATORS,
-            "threshold": DefaultToneValidator.DEFAULT_THRESHOLD,
-            "cache_size": 100,
-            "priority": 1,
-            "cost": 1.0,
-        }
+    # Create validator using the validator factory
+    validator = create_tone_consistency_validator(
+        expected_tone=expected_tone,
+        tone_indicators=tone_indicators,
+        threshold=threshold,
+        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+    )
 
-    # Convert the dictionary config to RuleConfig with params
-    rule_config = RuleConfig(params=config)
+    # Extract rule-specific kwargs
+    rule_kwargs = {
+        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
+    }
 
+    # Create and return rule
     return ToneConsistencyRule(
         name=name,
         description=description,
-        config=rule_config,
+        validator=validator,
+        **rule_kwargs,
     )
+
+
+# Export public classes and functions
+__all__ = [
+    # Helper classes
+    "ToneIndicators",
+    # Validator classes
+    "ToneConsistencyValidator",
+    "DefaultToneValidator",
+    # Rule classes
+    "ToneConsistencyRule",
+    # Validator factory functions
+    "create_tone_consistency_validator",
+    # Rule factory functions
+    "create_tone_consistency_rule",
+]

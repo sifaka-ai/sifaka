@@ -7,7 +7,6 @@ from abc import abstractmethod
 from typing import (
     Any,
     Dict,
-    Final,
     List,
     Optional,
     Protocol,
@@ -45,7 +44,7 @@ class ToxicityClassifier(BaseClassifier):
     """
 
     # Class-level constants
-    DEFAULT_LABELS: Final[List[str]] = [
+    DEFAULT_LABELS: List[str] = [
         "toxic",
         "severe_toxic",
         "obscene",
@@ -53,12 +52,12 @@ class ToxicityClassifier(BaseClassifier):
         "insult",
         "identity_hate",
     ]
-    DEFAULT_COST: Final[int] = 2  # Moderate cost for local ML model
+    DEFAULT_COST: int = 2  # Moderate cost for local ML model
 
     # Default thresholds
-    DEFAULT_SEVERE_TOXIC_THRESHOLD: Final[float] = 0.7
-    DEFAULT_THREAT_THRESHOLD: Final[float] = 0.7
-    DEFAULT_GENERAL_THRESHOLD: Final[float] = 0.5
+    DEFAULT_SEVERE_TOXIC_THRESHOLD: float = 0.7
+    DEFAULT_THREAT_THRESHOLD: float = 0.7
+    DEFAULT_GENERAL_THRESHOLD: float = 0.5
 
     def __init__(
         self,

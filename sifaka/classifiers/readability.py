@@ -8,7 +8,6 @@ from abc import abstractmethod
 from typing import (
     Any,
     Dict,
-    Final,
     List,
     Optional,
     Protocol,
@@ -105,11 +104,11 @@ class ReadabilityClassifier(BaseClassifier):
     """
 
     # Class-level constants
-    DEFAULT_LABELS: Final[List[str]] = ["elementary", "middle", "high", "college", "graduate"]
-    DEFAULT_COST: Final[int] = 1  # Low cost for statistical analysis
+    DEFAULT_LABELS: List[str] = ["elementary", "middle", "high", "college", "graduate"]
+    DEFAULT_COST: int = 1  # Low cost for statistical analysis
 
     # Default grade level bounds
-    DEFAULT_GRADE_LEVEL_BOUNDS: Final[Dict[str, tuple[float, float]]] = {
+    DEFAULT_GRADE_LEVEL_BOUNDS: Dict[str, tuple[float, float]] = {
         "elementary": (0.0, 6.0),
         "middle": (6.0, 9.0),
         "high": (9.0, 12.0),

@@ -1,5 +1,42 @@
 """
 Consistency validation rules for Sifaka.
+
+This module provides validators and rules for checking consistency in text.
+
+Configuration Pattern:
+    This module follows the standard Sifaka configuration pattern:
+    - All rule-specific configuration is stored in RuleConfig.params
+    - The ConsistencyConfig class extends RuleConfig and provides type-safe access to parameters
+    - Factory functions (create_consistency_rule, create_consistency_validator) handle configuration
+
+Usage Example:
+    from sifaka.rules.domain.consistency import create_consistency_rule
+
+    # Create a consistency rule using the factory function
+    rule = create_consistency_rule(
+        consistency_patterns={
+            "present": r"\\b(?:is|are|am)\\b",
+            "past": r"\\b(?:was|were)\\b"
+        },
+        repetition_threshold=0.2
+    )
+
+    # Validate text
+    result = rule.validate("This text is consistent and was written carefully.")
+
+    # Alternative: Create with explicit RuleConfig
+    from sifaka.rules.base import BaseValidator, RuleConfig, Any
+    rule = ConsistencyRule(
+        config=RuleConfig(
+            params={
+                "consistency_patterns": {
+                    "present": r"\\b(?:is|are|am)\\b",
+                    "past": r"\\b(?:was|were)\\b"
+                },
+                "repetition_threshold": 0.2
+            }
+        )
+    )
 """
 
 import re
@@ -8,6 +45,21 @@ from typing import Any, Dict, List, Optional, Protocol, Tuple, runtime_checkable
 
 from sifaka.rules.base import Rule, RuleConfig, RuleResult, RuleValidator
 from sifaka.rules.domain.base import BaseDomainValidator
+
+
+__all__ = [
+    # Config classes
+    "ConsistencyConfig",
+    # Protocol classes
+    "ConsistencyValidator",
+    # Validator classes
+    "DefaultConsistencyValidator",
+    # Rule classes
+    "ConsistencyRule",
+    # Factory functions
+    "create_consistency_validator",
+    "create_consistency_rule",
+]
 
 
 @dataclass(frozen=True)
@@ -162,6 +214,7 @@ class ConsistencyRule(Rule):
         description: str = "Checks for consistency in text",
         validator: Optional[RuleValidator[str]] = None,
         config: Optional[RuleConfig] = None,
+        **kwargs,
     ) -> None:
         """
         Initialize the consistency rule.
@@ -171,16 +224,21 @@ class ConsistencyRule(Rule):
             description: Description of the rule
             validator: Optional custom validator implementation
             config: Optional configuration
+            **kwargs: Additional keyword arguments for the rule
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            params_source = config.params if config.params else config.metadata
-            self._rule_params = params_source
+        if config and config.params:
+            self._rule_params = config.params
 
         # Initialize base class
-        super().__init__(name=name, description=description, config=config, validator=validator)
+        super().__init__(
+            name=name,
+            description=description,
+            config=config,
+            validator=validator,
+            **kwargs,
+        )
 
     def _create_default_validator(self) -> DefaultConsistencyValidator:
         """Create a default validator from config."""
@@ -188,27 +246,94 @@ class ConsistencyRule(Rule):
         return DefaultConsistencyValidator(consistency_config)
 
 
+def create_consistency_validator(
+    consistency_patterns: Optional[Dict[str, str]] = None,
+    contradiction_indicators: Optional[List[Tuple[str, str]]] = None,
+    repetition_threshold: Optional[float] = None,
+    **kwargs,
+) -> DefaultConsistencyValidator:
+    """
+    Create a consistency validator with the specified configuration.
+
+    This factory function creates a configured consistency validator instance.
+    It's useful when you need a validator without creating a full rule.
+
+    Args:
+        consistency_patterns: Dictionary of regex patterns for consistency checks
+        contradiction_indicators: List of tuples with positive and negative pattern pairs
+        repetition_threshold: Threshold for detecting excessive repetition (0.0 to 1.0)
+        **kwargs: Additional keyword arguments for the config
+
+    Returns:
+        Configured consistency validator
+    """
+    # Extract RuleConfig parameters from kwargs
+    rule_config_params = {}
+    for param in ["priority", "cache_size", "cost", "params"]:
+        if param in kwargs:
+            rule_config_params[param] = kwargs.pop(param)
+
+    # Create config with default or provided values
+    config_params = {}
+    if consistency_patterns is not None:
+        config_params["consistency_patterns"] = consistency_patterns
+    if contradiction_indicators is not None:
+        config_params["contradiction_indicators"] = contradiction_indicators
+    if repetition_threshold is not None:
+        config_params["repetition_threshold"] = repetition_threshold
+
+    # Add any remaining config parameters
+    config_params.update(rule_config_params)
+
+    # Create the config
+    config = ConsistencyConfig(**config_params)
+
+    # Return configured validator
+    return DefaultConsistencyValidator(config)
+
+
 def create_consistency_rule(
     name: str = "consistency_rule",
     description: str = "Validates content consistency",
-    config: Optional[Dict[str, Any]] = None,
+    consistency_patterns: Optional[Dict[str, str]] = None,
+    contradiction_indicators: Optional[List[Tuple[str, str]]] = None,
+    repetition_threshold: Optional[float] = None,
+    **kwargs,
 ) -> ConsistencyRule:
     """
     Create a consistency validation rule.
 
+    This factory function creates a configured ConsistencyRule instance.
+    It uses create_consistency_validator internally to create the validator.
+
     Args:
         name: Name of the rule
         description: Description of the rule
-        config: Optional configuration
+        consistency_patterns: Dictionary of regex patterns for consistency checks
+        contradiction_indicators: List of tuples with positive and negative pattern pairs
+        repetition_threshold: Threshold for detecting excessive repetition (0.0 to 1.0)
+        **kwargs: Additional keyword arguments for the rule
 
     Returns:
         A configured ConsistencyRule
     """
-    # Convert the dictionary config to RuleConfig with params
-    rule_config = RuleConfig(params=config or {})
+    # Create validator using the validator factory
+    validator = create_consistency_validator(
+        consistency_patterns=consistency_patterns,
+        contradiction_indicators=contradiction_indicators,
+        repetition_threshold=repetition_threshold,
+        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+    )
 
+    # Extract rule-specific kwargs
+    rule_kwargs = {
+        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
+    }
+
+    # Create and return rule
     return ConsistencyRule(
         name=name,
         description=description,
-        config=rule_config,
+        validator=validator,
+        **rule_kwargs,
     )

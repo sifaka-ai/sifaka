@@ -79,6 +79,28 @@ chain = Chain(
 result = chain.run("Write about artificial intelligence")
 ```
 
+### Sifaka Workflow Diagram
+
+The diagram below illustrates the flow within the `Chain.run` method:
+
+```mermaid
+flowchart TD
+    A[Input Prompt] --> B(Chain.run);
+    subgraph Attempt Loop [Max Attempts]
+        B --> C{Generate Output w/ Model Provider};
+        C --> D[Output];
+        D --> E{Validate Output w/ Rules};
+        E -- Rule Results --> F{All Rules Passed?};
+        F -- No --> G{Critic Available & Attempts Left?};
+        G -- Yes --> H{Generate Feedback w/ Critic};
+        H --> I[Feedback];
+        I --> J{Combine Original Prompt + Feedback};
+        J --> C;  // Loop back to generate new output
+    end
+    F -- Yes --> K[✅ Final Output];
+    G -- No --> L[❌ Error / Last Failed Output];
+```
+
 ### 4. Classifiers
 
 Classifiers analyze text and categorize it according to specific criteria:
@@ -119,7 +141,7 @@ config = ClassifierConfig(
     labels=["positive", "neutral", "negative"],  # Available classification labels
     cost=1.0,                                   # Relative computational cost
     min_confidence=0.7,                         # Minimum confidence threshold
-    params={                                    # Additional parameters
+    params={                                    # All classifier-specific parameters
         "model_name": "default",
         "threshold": 0.5,
     }
@@ -137,7 +159,7 @@ config = RuleConfig(
     priority=RulePriority.HIGH,      # Rule execution priority
     cache_size=100,                  # Cache size for validation results
     cost=1.0,                        # Relative computational cost
-    params={                         # Additional parameters
+    params={                         # All rule-specific parameters
         "threshold": 0.7,
         "max_length": 500,
     }

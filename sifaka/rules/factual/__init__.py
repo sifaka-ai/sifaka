@@ -33,8 +33,6 @@ Example:
     >>> rule = FactualConsistencyRule()
 """
 
-import warnings
-
 # Re-export classes for backward compatibility
 from sifaka.rules.factual.accuracy import (
     DefaultFactualAccuracyValidator,
@@ -60,14 +58,6 @@ from sifaka.rules.factual.consistency import (
     FactualConsistencyConfig,
     FactualConsistencyRule,
     create_factual_consistency_rule,
-)
-
-warnings.warn(
-    "The factual module is deprecated and will be removed in version 2.0.0. "
-    "Use sifaka.rules.factual.consistency, sifaka.rules.factual.confidence, "
-    "sifaka.rules.factual.citation, and sifaka.rules.factual.accuracy instead.",
-    DeprecationWarning,
-    stacklevel=2,
 )
 
 # Export public classes and functions

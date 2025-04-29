@@ -4,20 +4,53 @@ Classifier adapter module for Sifaka.
 This module provides adapters for using classifiers as validation rules.
 It allows you to plug in any classifier from the classifiers module and
 use it as a rule in validation pipelines.
+
+Usage Example:
+    from sifaka.rules.adapters.classifier import create_classifier_adapter, create_classifier_rule
+    from sifaka.classifiers.toxicity import ToxicityClassifier
+
+    # Create a classifier adapter
+    adapter = create_classifier_adapter(
+        classifier=ToxicityClassifier.create(),
+        threshold=0.7,
+        valid_labels=["safe"]
+    )
+
+    # Create a classifier rule
+    rule = create_classifier_rule(
+        classifier=ToxicityClassifier,
+        threshold=0.7,
+        valid_labels=["safe"],
+        classifier_config={"model_name": "default"}
+    )
+
+    # Validate text
+    result = rule.validate("This is a safe text.")
 """
 
-from typing import Any, Callable, Dict, Final, List, Optional, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Type, Union
 
 from sifaka.classifiers.base import ClassificationResult, Classifier, ClassifierConfig
-from sifaka.rules.adapters.base import Adaptable, BaseAdapter
+from sifaka.rules.adapters.base import BaseAdapter
 from sifaka.rules.base import (
-    ConfigurationError,
+    BaseValidator,
     Rule,
     RuleConfig,
     RuleResult,
     RuleResultHandler,
     ValidationError,
 )
+
+
+__all__ = [
+    # Adapter classes
+    "ClassifierAdapter",
+    # Rule classes
+    "ClassifierRule",
+    # Factory functions
+    "create_classifier_adapter",
+    "create_classifier_rule",
+]
 
 
 class ClassifierAdapter(BaseAdapter):
@@ -129,6 +162,35 @@ class ClassifierAdapter(BaseAdapter):
             raise ValidationError(f"Classification failed: {str(e)}") from e
 
 
+def create_classifier_adapter(
+    classifier: Classifier,
+    threshold: float = 0.5,
+    valid_labels: Optional[List[str]] = None,
+    validation_fn: Optional[Callable[[ClassificationResult], bool]] = None,
+) -> ClassifierAdapter:
+    """
+    Create a classifier adapter with the specified configuration.
+
+    This factory function creates a configured classifier adapter instance.
+    It's useful when you need an adapter without creating a full rule.
+
+    Args:
+        classifier: Classifier to adapt
+        threshold: Confidence threshold for validation (0.0 to 1.0)
+        valid_labels: Optional list of valid classification labels
+        validation_fn: Optional custom validation function
+
+    Returns:
+        Configured classifier adapter
+    """
+    return ClassifierAdapter(
+        classifier=classifier,
+        threshold=threshold,
+        valid_labels=valid_labels,
+        validation_fn=validation_fn,
+    )
+
+
 class ClassifierRule(Rule[str, RuleResult, ClassifierAdapter, RuleResultHandler[RuleResult]]):
     """Rule that leverages a classifier for validation."""
 
@@ -142,6 +204,7 @@ class ClassifierRule(Rule[str, RuleResult, ClassifierAdapter, RuleResultHandler[
         threshold: float = 0.5,
         valid_labels: Optional[List[str]] = None,
         validation_fn: Optional[Callable[[ClassificationResult], bool]] = None,
+        **kwargs,
     ) -> None:
         """
         Initialize with a classifier.
@@ -155,9 +218,7 @@ class ClassifierRule(Rule[str, RuleResult, ClassifierAdapter, RuleResultHandler[
             threshold: Confidence threshold for validation (0.0 to 1.0)
             valid_labels: List of valid labels for validation
             validation_fn: Custom validation function
-
-        Raises:
-            ConfigurationError: If classifier configuration is invalid
+            **kwargs: Additional keyword arguments for the rule
         """
         # Store validation parameters
         self._threshold = threshold
@@ -208,6 +269,7 @@ class ClassifierRule(Rule[str, RuleResult, ClassifierAdapter, RuleResultHandler[
             config=final_rule_config,
             validator=None,
             result_handler=None,
+            **kwargs,
         )
 
     def _create_or_update_rule_config(self, rule_config: Optional[RuleConfig]) -> RuleConfig:
@@ -272,9 +334,13 @@ def create_classifier_rule(
     threshold: float = 0.5,
     valid_labels: Optional[List[str]] = None,
     validation_fn: Optional[Callable[[ClassificationResult], bool]] = None,
+    **kwargs,
 ) -> ClassifierRule:
     """
     Create a classifier rule.
+
+    This factory function creates a configured ClassifierRule instance.
+    It allows you to use any classifier as a validation rule.
 
     Args:
         classifier: Classifier class or instance to use
@@ -285,6 +351,7 @@ def create_classifier_rule(
         threshold: Confidence threshold for validation (0.0 to 1.0)
         valid_labels: List of valid labels for validation
         validation_fn: Custom validation function
+        **kwargs: Additional keyword arguments for the rule
 
     Returns:
         Configured ClassifierRule
@@ -301,4 +368,5 @@ def create_classifier_rule(
         threshold=threshold,
         valid_labels=valid_labels,
         validation_fn=validation_fn,
+        **kwargs,
     )

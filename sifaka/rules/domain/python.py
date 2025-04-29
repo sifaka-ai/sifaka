@@ -1,5 +1,37 @@
 """
 Python domain-specific validation rules for Sifaka.
+
+This module provides validators and rules for checking Python code quality and best practices.
+
+Configuration Pattern:
+    This module follows the standard Sifaka configuration pattern:
+    - All rule-specific configuration is stored in RuleConfig.params
+    - The PythonConfig class extends RuleConfig and provides type-safe access to parameters
+    - Factory functions (create_python_rule, create_python_validator) handle configuration
+
+Usage Example:
+    from sifaka.rules.domain.python import create_python_rule
+
+    # Create a Python rule using the factory function
+    rule = create_python_rule(
+        code_style_patterns={"docstring": r"'''.*?'''", "pep8_classes": r"class [A-Z]"},
+        security_patterns={"eval": r"eval\(", "exec": r"exec\("}
+    )
+
+    # Validate Python code
+    result = rule.validate("def hello_world(): print('Hello, world!')")
+
+    # Alternative: Create with explicit RuleConfig
+    from sifaka.rules.base import BaseValidator, RuleConfig, Any
+    rule = PythonRule(
+        config=RuleConfig(
+            params={
+                "code_style_patterns": {"docstring": r"'''.*?'''"},
+                "security_patterns": {"eval": r"eval\("},
+                "performance_patterns": {"list_comprehension": r"\[.*for.*in.*\]"}
+            }
+        )
+    )
 """
 
 import re
@@ -8,6 +40,21 @@ from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
 from sifaka.rules.base import Rule, RuleConfig, RuleResult, RuleValidator
 from sifaka.rules.domain.base import BaseDomainValidator
+
+
+__all__ = [
+    # Config classes
+    "PythonConfig",
+    # Protocol classes
+    "PythonValidator",
+    # Validator classes
+    "DefaultPythonValidator",
+    # Rule classes
+    "PythonRule",
+    # Factory functions
+    "create_python_validator",
+    "create_python_rule",
+]
 
 
 @dataclass(frozen=True)
@@ -159,6 +206,7 @@ class PythonRule(Rule):
         description: str = "Checks Python code quality and best practices",
         validator: Optional[RuleValidator[str]] = None,
         config: Optional[RuleConfig] = None,
+        **kwargs,
     ) -> None:
         """
         Initialize the Python rule.
@@ -168,16 +216,21 @@ class PythonRule(Rule):
             description: Description of the rule
             validator: Optional custom validator implementation
             config: Optional configuration
+            **kwargs: Additional keyword arguments for the rule
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            params_source = config.params if config.params else config.metadata
-            self._rule_params = params_source
+        if config and config.params:
+            self._rule_params = config.params
 
         # Initialize base class
-        super().__init__(name=name, description=description, config=config, validator=validator)
+        super().__init__(
+            name=name,
+            description=description,
+            config=config,
+            validator=validator,
+            **kwargs,
+        )
 
     def _create_default_validator(self) -> DefaultPythonValidator:
         """Create a default validator from config."""
@@ -185,27 +238,94 @@ class PythonRule(Rule):
         return DefaultPythonValidator(python_config)
 
 
+def create_python_validator(
+    code_style_patterns: Optional[Dict[str, str]] = None,
+    security_patterns: Optional[Dict[str, str]] = None,
+    performance_patterns: Optional[Dict[str, str]] = None,
+    **kwargs,
+) -> DefaultPythonValidator:
+    """
+    Create a Python validator with the specified configuration.
+
+    This factory function creates a configured Python validator instance.
+    It's useful when you need a validator without creating a full rule.
+
+    Args:
+        code_style_patterns: Dictionary of regex patterns for code style checks
+        security_patterns: Dictionary of regex patterns for security checks
+        performance_patterns: Dictionary of regex patterns for performance checks
+        **kwargs: Additional keyword arguments for the config
+
+    Returns:
+        Configured Python validator
+    """
+    # Extract RuleConfig parameters from kwargs
+    rule_config_params = {}
+    for param in ["priority", "cache_size", "cost", "params"]:
+        if param in kwargs:
+            rule_config_params[param] = kwargs.pop(param)
+
+    # Create config with default or provided values
+    config_params = {}
+    if code_style_patterns is not None:
+        config_params["code_style_patterns"] = code_style_patterns
+    if security_patterns is not None:
+        config_params["security_patterns"] = security_patterns
+    if performance_patterns is not None:
+        config_params["performance_patterns"] = performance_patterns
+
+    # Add any remaining config parameters
+    config_params.update(rule_config_params)
+
+    # Create the config
+    config = PythonConfig(**config_params)
+
+    # Return configured validator
+    return DefaultPythonValidator(config)
+
+
 def create_python_rule(
     name: str = "python_rule",
     description: str = "Validates Python code",
-    config: Optional[Dict[str, Any]] = None,
+    code_style_patterns: Optional[Dict[str, str]] = None,
+    security_patterns: Optional[Dict[str, str]] = None,
+    performance_patterns: Optional[Dict[str, str]] = None,
+    **kwargs,
 ) -> PythonRule:
     """
     Create a Python code validation rule.
 
+    This factory function creates a configured PythonRule instance.
+    It uses create_python_validator internally to create the validator.
+
     Args:
         name: Name of the rule
         description: Description of the rule
-        config: Optional configuration
+        code_style_patterns: Dictionary of regex patterns for code style checks
+        security_patterns: Dictionary of regex patterns for security checks
+        performance_patterns: Dictionary of regex patterns for performance checks
+        **kwargs: Additional keyword arguments for the rule
 
     Returns:
         A configured PythonRule
     """
-    # Convert the dictionary config to RuleConfig with params
-    rule_config = RuleConfig(params=config or {})
+    # Create validator using the validator factory
+    validator = create_python_validator(
+        code_style_patterns=code_style_patterns,
+        security_patterns=security_patterns,
+        performance_patterns=performance_patterns,
+        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+    )
 
+    # Extract rule-specific kwargs
+    rule_kwargs = {
+        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
+    }
+
+    # Create and return rule
     return PythonRule(
         name=name,
         description=description,
-        config=rule_config,
+        validator=validator,
+        **rule_kwargs,
     )

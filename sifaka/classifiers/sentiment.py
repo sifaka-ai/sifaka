@@ -4,7 +4,7 @@ Sentiment classifier using VADER.
 
 import importlib
 from abc import abstractmethod
-from typing import Any, Dict, Final, List, Optional, Protocol, runtime_checkable
+from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
 from typing_extensions import TypeGuard
 from pydantic import PrivateAttr
@@ -39,8 +39,8 @@ class SentimentClassifier(BaseClassifier):
     """
 
     # Class-level constants
-    DEFAULT_LABELS: Final[List[str]] = ["positive", "neutral", "negative", "unknown"]
-    DEFAULT_COST: Final[int] = 1  # Low cost for lexicon-based analysis
+    DEFAULT_LABELS: List[str] = ["positive", "neutral", "negative", "unknown"]
+    DEFAULT_COST: int = 1  # Low cost for lexicon-based analysis
 
     # Private attributes using PrivateAttr
     _analyzer: Optional[SentimentAnalyzer] = PrivateAttr(default=None)

@@ -174,6 +174,8 @@ class GenreClassifier(BaseClassifier):
                     self._config = ClassifierConfig(
                         labels=self.custom_labels,
                         cost=self.DEFAULT_COST,
+                        min_confidence=self.config.min_confidence,
+                        params=self.config.params,
                     )
 
                 # Extract vectorizer and model from pipeline
@@ -215,6 +217,8 @@ class GenreClassifier(BaseClassifier):
         self._config = ClassifierConfig(
             labels=unique_labels,
             cost=self.DEFAULT_COST,
+            min_confidence=self.config.min_confidence,
+            params=self.config.params,
         )
 
         # Fit the pipeline

@@ -9,8 +9,7 @@ import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-from sifaka.rules.base import Rule, RuleResult
-
+from sifaka.rules.base import BaseValidator, Rule, RuleResult, Any
 
 @dataclass
 class WhitespaceConfig:
@@ -169,7 +168,7 @@ class WhitespaceRule(Rule):
         super().__init__(config=config, **kwargs)
         self.validator = validator
 
-    def evaluate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Evaluate text against whitespace constraints.
 
         Args:
