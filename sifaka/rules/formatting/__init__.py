@@ -8,12 +8,14 @@ This package provides rules for validating text formatting:
 
 from .length import (
     LengthRule,
+    LengthConfig,
     DefaultLengthValidator,
     create_length_rule,
 )
 
 __all__ = [
     "LengthRule",
+    "LengthConfig",
     "DefaultLengthValidator",
     "create_length_rule",
 ]

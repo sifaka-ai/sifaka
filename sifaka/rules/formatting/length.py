@@ -4,32 +4,50 @@ Length validation rules for text.
 This module provides validators and rules for checking text length constraints.
 """
 
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union, Any
 
-from sifaka.rules.base import Rule, RuleResult, RuleConfig
+from sifaka.rules.base import Rule, RuleResult, RuleConfig, BaseValidator
 
 
-class LengthValidator:
+@dataclass(frozen=True)
+class LengthConfig(RuleConfig):
+    """Configuration for text length validation.
+
+    Attributes:
+        min_chars: Minimum number of characters allowed (inclusive)
+        max_chars: Maximum number of characters allowed (inclusive)
+        min_words: Minimum number of words allowed (inclusive)
+        max_words: Maximum number of words allowed (inclusive)
+    """
+
+    min_chars: Optional[int] = None
+    max_chars: Optional[int] = None
+    min_words: Optional[int] = None
+    max_words: Optional[int] = None
+
+
+class LengthValidator(BaseValidator[str]):
     """Base class for text length validators."""
 
-    def __init__(self, config: RuleConfig):
+    def __init__(self, config: LengthConfig):
         """Initialize validator with a configuration.
 
         Args:
             config: Length validation configuration
         """
+        super().__init__()
         self.config = config
 
-    def validate(self, text: str) -> Tuple[bool, List[str]]:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate text against length constraints.
 
         Args:
             text: The text to validate
+            **kwargs: Additional validation context
 
         Returns:
-            Tuple containing:
-                - Boolean indicating if validation passed
-                - List of error messages if validation failed
+            Validation result
         """
         raise NotImplementedError("Subclasses must implement validate method")
 
@@ -37,41 +55,51 @@ class LengthValidator:
 class DefaultLengthValidator(LengthValidator):
     """Default implementation of text length validator."""
 
-    def validate(self, text: str) -> Tuple[bool, List[str]]:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate text against length constraints.
 
         Args:
             text: The text to validate
+            **kwargs: Additional validation context
 
         Returns:
-            Tuple containing:
-                - Boolean indicating if validation passed
-                - List of error messages if validation failed
+            Validation result
         """
         errors = []
-        params = self.config.params
 
         # Character length validation
         char_count = len(text)
-        min_chars = params.get("min_chars")
-        if min_chars is not None and char_count < min_chars:
-            errors.append(f"Text is too short: {char_count} characters (minimum {min_chars})")
+        if self.config.min_chars is not None and char_count < self.config.min_chars:
+            errors.append(
+                f"Text is too short: {char_count} characters (minimum {self.config.min_chars})"
+            )
 
-        max_chars = params.get("max_chars")
-        if max_chars is not None and char_count > max_chars:
-            errors.append(f"Text is too long: {char_count} characters (maximum {max_chars})")
+        if self.config.max_chars is not None and char_count > self.config.max_chars:
+            errors.append(
+                f"Text is too long: {char_count} characters (maximum {self.config.max_chars})"
+            )
 
         # Word count validation
         word_count = len(text.split())
-        min_words = params.get("min_words")
-        if min_words is not None and word_count < min_words:
-            errors.append(f"Text has too few words: {word_count} words (minimum {min_words})")
+        if self.config.min_words is not None and word_count < self.config.min_words:
+            errors.append(
+                f"Text has too few words: {word_count} words (minimum {self.config.min_words})"
+            )
 
-        max_words = params.get("max_words")
-        if max_words is not None and word_count > max_words:
-            errors.append(f"Text has too many words: {word_count} words (maximum {max_words})")
+        if self.config.max_words is not None and word_count > self.config.max_words:
+            errors.append(
+                f"Text has too many words: {word_count} words (maximum {self.config.max_words})"
+            )
 
-        return not errors, errors
+        return RuleResult(
+            passed=not errors,
+            message=errors[0] if errors else "Text length validation successful",
+            metadata={
+                "char_count": char_count,
+                "word_count": word_count,
+                "errors": errors,
+            },
+        )
 
 
 class LengthRuleValidator:
@@ -83,16 +111,7 @@ class LengthRuleValidator:
 
     def validate(self, output: str, **kwargs) -> RuleResult:
         """Validate the output using the wrapped validator."""
-        is_valid, errors = self.validator.validate(output)
-        return RuleResult(
-            passed=is_valid,
-            message=errors[0] if errors else "Text length validation successful",
-            metadata={
-                "char_count": len(output),
-                "word_count": len(output.split()),
-                "errors": errors,
-            },
-        )
+        return self.validator.validate(output, **kwargs)
 
     def can_validate(self, output: str) -> bool:
         """Check if this validator can validate the output."""
@@ -137,20 +156,14 @@ class LengthRule(Rule):
 
         Args:
             text: The text to evaluate
+            **kwargs: Additional validation context
 
         Returns:
             RuleResult containing validation results
         """
-        is_valid, errors = self._length_validator.validate(text)
-        return RuleResult(
-            passed=is_valid,
-            message=errors[0] if errors else "Text length validation successful",
-            metadata={
-                "char_count": len(text),
-                "word_count": len(text.split()),
-                "rule_id": self._rule_id,
-            },
-        )
+        result = self._length_validator.validate(text, **kwargs)
+        # Add rule_id to metadata
+        return result.with_metadata(rule_id=self._rule_id)
 
 
 def create_length_rule(
@@ -174,13 +187,18 @@ def create_length_rule(
     Returns:
         Configured LengthRule
     """
-    config = RuleConfig(
-        params={
-            "min_chars": min_chars,
-            "max_chars": max_chars,
-            "min_words": min_words,
-            "max_words": max_words,
-        }
+    # Extract RuleConfig parameters from kwargs
+    rule_config_params = {}
+    for param in ["priority", "cache_size", "cost", "params"]:
+        if param in kwargs:
+            rule_config_params[param] = kwargs.pop(param)
+
+    config = LengthConfig(
+        min_chars=min_chars,
+        max_chars=max_chars,
+        min_words=min_words,
+        max_words=max_words,
+        **rule_config_params,
     )
     validator = DefaultLengthValidator(config)
 
