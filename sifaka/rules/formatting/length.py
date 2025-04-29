@@ -153,7 +153,7 @@ class LengthRule(Rule):
         """Create a default validator adapter for this rule."""
         return LengthRuleValidator(self._length_validator)
 
-    def evaluate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Evaluate text against length constraints.
 
         Args:

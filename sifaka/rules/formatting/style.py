@@ -225,7 +225,7 @@ class StyleRule(Rule):
         super().__init__(config=config, **kwargs)
         self.validator = validator
 
-    def evaluate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Evaluate text against style constraints.
 
         Args:
@@ -359,7 +359,7 @@ class FormattingRule(Rule):
         super().__init__(config=config, **kwargs)
         self.validator = validator
 
-    def evaluate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Evaluate text against formatting constraints.
 
         Args:
