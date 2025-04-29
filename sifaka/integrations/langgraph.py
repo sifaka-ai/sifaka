@@ -112,7 +112,7 @@ from typing import (
     runtime_checkable,
 )
 
-from langchain.graphs import StateGraph
+from langgraph.graph import StateGraph
 
 from sifaka.rules.base import Rule, RuleResult
 from sifaka.utils.logging import get_logger
