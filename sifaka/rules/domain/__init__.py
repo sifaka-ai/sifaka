@@ -33,8 +33,6 @@ Example:
     >>> rule = LegalRule()
 """
 
-import warnings
-
 # Re-export classes for backward compatibility
 from sifaka.rules.domain.base import BaseDomainValidator, DomainValidator
 from sifaka.rules.domain.consistency import (
@@ -74,14 +72,6 @@ from sifaka.rules.domain.python import (
     PythonRule,
     PythonValidator,
     create_python_rule,
-)
-
-warnings.warn(
-    "The domain module is deprecated and will be removed in version 2.0.0. "
-    "Use sifaka.rules.domain.legal, sifaka.rules.domain.medical, "
-    "sifaka.rules.domain.python, and sifaka.rules.domain.consistency instead.",
-    DeprecationWarning,
-    stacklevel=2,
 )
 
 # Export public classes and functions

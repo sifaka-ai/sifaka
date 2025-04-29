@@ -6,7 +6,6 @@ import importlib
 from abc import abstractmethod
 from typing import (
     Any,
-    Final,
     List,
     Optional,
     Protocol,
@@ -81,8 +80,8 @@ class ProfanityClassifier(BaseClassifier):
     """
 
     # Class-level constants
-    DEFAULT_LABELS: Final[List[str]] = ["clean", "profane", "unknown"]
-    DEFAULT_COST: Final[int] = 1  # Low cost for dictionary-based check
+    DEFAULT_LABELS: List[str] = ["clean", "profane", "unknown"]
+    DEFAULT_COST: int = 1  # Low cost for dictionary-based check
     # Class-level attributes for state management
     _initialized: bool = False
     _checker: Optional[ProfanityChecker] = None

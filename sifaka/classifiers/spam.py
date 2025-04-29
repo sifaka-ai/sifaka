@@ -5,7 +5,7 @@ Spam classifier using scikit-learn's Naive Bayes.
 import importlib
 import os
 import pickle
-from typing import Any, Dict, List, Optional, Final
+from typing import Any, List, Optional
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -28,8 +28,8 @@ class SpamClassifier(BaseClassifier):
     """
 
     # Class-level constants
-    DEFAULT_LABELS: Final[List[str]] = ["ham", "spam"]
-    DEFAULT_COST: Final[int] = 1.5  # Slightly higher cost for ML-based model
+    DEFAULT_LABELS: List[str] = ["ham", "spam"]
+    DEFAULT_COST: int = 1.5  # Slightly higher cost for ML-based model
 
     # Class-level attributes for state management
     _initialized: bool = False

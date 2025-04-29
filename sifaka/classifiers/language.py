@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from typing import (
     Any,
     Dict,
-    Final,
     List,
     Optional,
     Protocol,
@@ -61,7 +60,7 @@ class LanguageClassifier(BaseClassifier):
     """
 
     # Class-level constants
-    LANGUAGE_NAMES: Final[Dict[str, str]] = {
+    LANGUAGE_NAMES: Dict[str, str] = {
         "af": "Afrikaans",
         "ar": "Arabic",
         "bg": "Bulgarian",
@@ -119,7 +118,7 @@ class LanguageClassifier(BaseClassifier):
         "zh-tw": "Chinese (Traditional)",
     }
 
-    DEFAULT_COST: Final[int] = 1  # Low cost for statistical analysis
+    DEFAULT_COST: int = 1  # Low cost for statistical analysis
 
     # Define private attributes that Pydantic v2 will properly handle
     _detector: Optional[LanguageDetector] = PrivateAttr(default=None)
