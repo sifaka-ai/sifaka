@@ -3,6 +3,12 @@ Python domain-specific validation rules for Sifaka.
 
 This module provides validators and rules for checking Python code quality and best practices.
 
+Configuration Pattern:
+    This module follows the standard Sifaka configuration pattern:
+    - All rule-specific configuration is stored in RuleConfig.params
+    - The PythonConfig class extends RuleConfig and provides type-safe access to parameters
+    - Factory functions (create_python_rule, create_python_validator) handle configuration
+
 Usage Example:
     from sifaka.rules.domain.python import create_python_rule
 
@@ -14,6 +20,19 @@ Usage Example:
 
     # Validate Python code
     result = rule.validate("def hello_world(): print('Hello, world!')")
+
+    # Alternative: Create with explicit RuleConfig
+    from sifaka.rules.base import RuleConfig
+
+    rule = PythonRule(
+        config=RuleConfig(
+            params={
+                "code_style_patterns": {"docstring": r"'''.*?'''"},
+                "security_patterns": {"eval": r"eval\("},
+                "performance_patterns": {"list_comprehension": r"\[.*for.*in.*\]"}
+            }
+        )
+    )
 """
 
 import re
@@ -202,10 +221,8 @@ class PythonRule(Rule):
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            params_source = config.params if config.params else config.metadata
-            self._rule_params = params_source
+        if config and config.params:
+            self._rule_params = config.params
 
         # Initialize base class
         super().__init__(

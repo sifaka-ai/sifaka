@@ -1,5 +1,40 @@
 """
 Base classes for Sifaka rules.
+
+This module defines the core architecture for rules and validators in Sifaka.
+
+## Rule and Validator Relationship
+
+Sifaka follows a delegation pattern for validation:
+
+1. **Rules** are high-level containers that define what to validate
+2. **Validators** implement the actual validation logic
+3. Rules delegate validation work to their validators
+
+This separation of concerns allows for:
+- Reusing validation logic across different rules
+- Testing validation logic independently
+- Extending the framework with custom validators
+
+## Instantiation Pattern
+
+The recommended way to create rules and validators is through factory functions:
+
+```python
+from sifaka.rules.formatting.length import create_length_rule
+
+# Create a rule using the factory function
+rule = create_length_rule(min_chars=10, max_chars=100)
+
+# Validate text
+result = rule.validate("This is a test")
+```
+
+Each rule type provides two factory functions:
+1. `create_X_validator()` - Creates a standalone validator
+2. `create_X_rule()` - Creates a rule with a validator
+
+See the documentation for specific rule types for more details.
 """
 
 import hashlib
@@ -58,7 +93,16 @@ class Validatable(Protocol[T]):
 
 @runtime_checkable
 class RuleValidator(Protocol[T]):
-    """Protocol for rule validation logic."""
+    """
+    Protocol for rule validation logic.
+
+    This protocol defines the interface that all validators must implement.
+    Rules delegate validation work to objects implementing this protocol.
+
+    The BaseValidator class provides a default implementation of this protocol,
+    and most validators should extend BaseValidator rather than implementing
+    this protocol directly.
+    """
 
     @abstractmethod
     def validate(self, output: T, **kwargs) -> "RuleResult": ...
@@ -72,7 +116,21 @@ class RuleValidator(Protocol[T]):
 
 
 class BaseValidator(Generic[T]):
-    """Base class for validators that implements the RuleValidator protocol."""
+    """
+    Base class for validators that implements the RuleValidator protocol.
+
+    Validators implement the actual validation logic and are used by Rules.
+    Rules delegate validation work to their validators, following a clear
+    separation of concerns.
+
+    Validators should be created using factory functions rather than direct instantiation.
+    Each validator type provides a `create_X_validator()` factory function.
+
+    When implementing a custom validator:
+    1. Extend this class or a domain-specific validator base class
+    2. Override the validate() method to implement your validation logic
+    3. Create a factory function for consistent instantiation
+    """
 
     def validate(self, output: T, **kwargs) -> "RuleResult":
         """
@@ -241,6 +299,16 @@ class Rule(Generic[T, R, V, H], ABC):
     A rule validates an input against a specific criterion using a validator
     and optionally processes the results using a handler.
 
+    Rules follow a delegation pattern:
+    1. The Rule receives text to validate
+    2. The Rule delegates validation to its Validator
+    3. The Validator performs the actual validation logic
+    4. The Validator returns a result to the Rule
+    5. The Rule may perform additional processing on the result
+
+    Rules should be created using factory functions rather than direct instantiation.
+    Each rule type provides a `create_X_rule()` factory function.
+
     Type Parameters:
         T: The type of input to validate
         R: The type of validation result
@@ -300,7 +368,21 @@ class Rule(Generic[T, R, V, H], ABC):
 
     @abstractmethod
     def _create_default_validator(self) -> V:
-        """Create a default validator for this rule."""
+        """
+        Create a default validator for this rule.
+
+        This method is called when a rule is instantiated without a validator.
+        It's part of the delegation pattern where rules delegate validation
+        to validator objects.
+
+        When implementing a custom rule:
+        1. Override this method to create a validator for your rule
+        2. Use factory functions to create validators consistently
+        3. Pass configuration from the rule to the validator
+
+        Returns:
+            A validator instance compatible with this rule
+        """
         pass
 
     @property
