@@ -113,182 +113,6 @@ class HarmfulCategories:
         return HarmfulCategories(categories=categories_copy)
 
 
-@dataclass(frozen=True)
-class ToxicityConfig(RuleConfig):
-    """Configuration for toxicity validation."""
-
-    threshold: float = 0.5
-    indicators: List[str] = field(
-        default_factory=lambda: [
-            "hate",
-            "offensive",
-            "vulgar",
-            "profanity",
-            "obscene",
-            "racist",
-            "sexist",
-            "discriminatory",
-            "threatening",
-            "harassing",
-        ]
-    )
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
-
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        super().__post_init__()
-        if not 0.0 <= self.threshold <= 1.0:
-            raise ValueError("Threshold must be between 0.0 and 1.0")
-        if not self.indicators:
-            raise ValueError("Must provide at least one toxicity indicator")
-
-        # For consistency, copy configuration values to params
-        if not self.params:
-            object.__setattr__(
-                self,
-                "params",
-                {
-                    "threshold": self.threshold,
-                    "indicators": self.indicators,
-                    "cache_size": self.cache_size,
-                    "priority": self.priority,
-                    "cost": self.cost,
-                },
-            )
-
-
-@dataclass(frozen=True)
-class BiasConfig(RuleConfig):
-    """Configuration for bias validation."""
-
-    threshold: float = 0.3
-    categories: Dict[str, List[str]] = field(
-        default_factory=lambda: {
-            "gender": [
-                "sexist",
-                "misogynistic",
-                "patriarchal",
-                "gender bias",
-                "gender stereotype",
-            ],
-            "racial": [
-                "racist",
-                "racial bias",
-                "ethnic stereotype",
-                "racial prejudice",
-                "discriminatory",
-            ],
-            "age": [
-                "ageist",
-                "age discrimination",
-                "age bias",
-                "age stereotype",
-                "generational bias",
-            ],
-            "cultural": [
-                "cultural bias",
-                "xenophobic",
-                "ethnocentric",
-                "cultural stereotype",
-                "cultural prejudice",
-            ],
-        }
-    )
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
-
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        super().__post_init__()
-        if not 0.0 <= self.threshold <= 1.0:
-            raise ValueError("Threshold must be between 0.0 and 1.0")
-        if not self.categories:
-            raise ValueError("Must provide at least one bias category")
-        for category, indicators in self.categories.items():
-            if not indicators:
-                raise ValueError(f"Category {category} must have at least one indicator")
-
-        # For consistency, copy configuration values to params
-        if not self.params:
-            object.__setattr__(
-                self,
-                "params",
-                {
-                    "threshold": self.threshold,
-                    "categories": self.categories,
-                    "cache_size": self.cache_size,
-                    "priority": self.priority,
-                    "cost": self.cost,
-                },
-            )
-
-
-@dataclass(frozen=True)
-class HarmfulContentConfig(RuleConfig):
-    """Configuration for harmful content validation."""
-
-    categories: Dict[str, List[str]] = field(
-        default_factory=lambda: {
-            "violence": [
-                "violent",
-                "brutal",
-                "aggressive",
-                "threatening",
-                "dangerous",
-            ],
-            "self_harm": [
-                "suicide",
-                "self-harm",
-                "self-injury",
-                "self-destructive",
-                "harmful behavior",
-            ],
-            "exploitation": [
-                "exploitative",
-                "manipulative",
-                "coercive",
-                "predatory",
-                "abusive",
-            ],
-            "misinformation": [
-                "false",
-                "misleading",
-                "deceptive",
-                "propaganda",
-                "disinformation",
-            ],
-        }
-    )
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
-
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        super().__post_init__()
-        if not self.categories:
-            raise ValueError("Must provide at least one harmful content category")
-        for category, indicators in self.categories.items():
-            if not indicators:
-                raise ValueError(f"Category {category} must have at least one indicator")
-
-        # For consistency, copy configuration values to params
-        if not self.params:
-            object.__setattr__(
-                self,
-                "params",
-                {
-                    "categories": self.categories,
-                    "cache_size": self.cache_size,
-                    "priority": self.priority,
-                    "cost": self.cost,
-                },
-            )
-
-
 class ToxicityValidator(ContentValidator):
     """Validator that checks for toxic content."""
 
@@ -470,12 +294,28 @@ class HarmfulContentValidator(ContentValidator):
 class DefaultToxicityValidator(BaseValidator[str]):
     """Default implementation of toxicity validation."""
 
-    def __init__(self, config: ToxicityConfig) -> None:
+    # Default toxicity indicators
+    DEFAULT_TOXICITY_INDICATORS: Final[List[str]] = [
+        "hate",
+        "offensive",
+        "vulgar",
+        "profanity",
+        "obscene",
+        "racist",
+        "sexist",
+        "discriminatory",
+        "threatening",
+        "harassing",
+    ]
+
+    DEFAULT_THRESHOLD: Final[float] = 0.5
+
+    def __init__(self, config: RuleConfig) -> None:
         """Initialize with configuration."""
         self._config = config
 
     @property
-    def config(self) -> ToxicityConfig:
+    def config(self) -> RuleConfig:
         """Get the validator configuration."""
         return self._config
 
@@ -485,8 +325,8 @@ class DefaultToxicityValidator(BaseValidator[str]):
             raise ValueError("Input must be a string")
 
         # Get configuration from params for consistency
-        threshold = self.config.params.get("threshold", self.config.threshold)
-        indicators = self.config.params.get("indicators", self.config.indicators)
+        threshold = self.config.params.get("threshold", self.DEFAULT_THRESHOLD)
+        indicators = self.config.params.get("indicators", self.DEFAULT_TOXICITY_INDICATORS)
 
         text_lower = text.lower()
         toxic_indicators = [
@@ -498,26 +338,67 @@ class DefaultToxicityValidator(BaseValidator[str]):
         if toxicity_score > threshold:
             return RuleResult(
                 passed=False,
-                message=f"Output contains toxic content (score: {toxicity_score:.2f})",
-                metadata={"toxicity_score": toxicity_score, "toxic_indicators": toxic_indicators},
+                message=f"Text contains toxic content (score: {toxicity_score:.2f})",
+                metadata={
+                    "toxicity_score": toxicity_score,
+                    "toxic_indicators": toxic_indicators,
+                    "threshold": threshold,
+                },
             )
 
         return RuleResult(
             passed=True,
             message="No toxic content detected",
-            metadata={"toxicity_score": toxicity_score},
+            metadata={
+                "toxicity_score": toxicity_score,
+                "threshold": threshold,
+            },
         )
 
 
 class DefaultBiasValidator(BaseValidator[str]):
     """Default implementation of bias validation."""
 
-    def __init__(self, config: BiasConfig) -> None:
+    # Default bias categories
+    DEFAULT_BIAS_CATEGORIES: Final[Dict[str, List[str]]] = {
+        "gender": [
+            "sexist",
+            "misogynistic",
+            "patriarchal",
+            "gender bias",
+            "gender stereotype",
+        ],
+        "racial": [
+            "racist",
+            "racial bias",
+            "ethnic stereotype",
+            "racial prejudice",
+            "discriminatory",
+        ],
+        "age": [
+            "ageist",
+            "age discrimination",
+            "age bias",
+            "age stereotype",
+            "generational bias",
+        ],
+        "cultural": [
+            "cultural bias",
+            "xenophobic",
+            "ethnocentric",
+            "cultural stereotype",
+            "cultural prejudice",
+        ],
+    }
+
+    DEFAULT_THRESHOLD: Final[float] = 0.3
+
+    def __init__(self, config: RuleConfig) -> None:
         """Initialize with configuration."""
         self._config = config
 
     @property
-    def config(self) -> BiasConfig:
+    def config(self) -> RuleConfig:
         """Get the validator configuration."""
         return self._config
 
@@ -527,8 +408,8 @@ class DefaultBiasValidator(BaseValidator[str]):
             raise ValueError("Input must be a string")
 
         # Get configuration from params for consistency
-        threshold = self.config.params.get("threshold", self.config.threshold)
-        categories = self.config.params.get("categories", self.config.categories)
+        threshold = self.config.params.get("threshold", self.DEFAULT_THRESHOLD)
+        categories = self.config.params.get("categories", self.DEFAULT_BIAS_CATEGORIES)
 
         text_lower = text.lower()
         bias_scores: Dict[str, float] = {}
@@ -549,6 +430,7 @@ class DefaultBiasValidator(BaseValidator[str]):
                 metadata={
                     "bias_scores": {},
                     "detected_biases": {},
+                    "threshold": threshold,
                 },
             )
 
@@ -557,11 +439,12 @@ class DefaultBiasValidator(BaseValidator[str]):
         if overall_bias_score > threshold:
             return RuleResult(
                 passed=False,
-                message=f"Output contains biased content (score: {overall_bias_score:.2f})",
+                message=f"Text contains biased content (score: {overall_bias_score:.2f})",
                 metadata={
                     "bias_scores": bias_scores,
                     "detected_biases": detected_biases,
                     "overall_score": overall_bias_score,
+                    "threshold": threshold,
                 },
             )
 
@@ -572,6 +455,7 @@ class DefaultBiasValidator(BaseValidator[str]):
                 "bias_scores": bias_scores,
                 "detected_biases": detected_biases,
                 "overall_score": overall_bias_score,
+                "threshold": threshold,
             },
         )
 
@@ -579,12 +463,44 @@ class DefaultBiasValidator(BaseValidator[str]):
 class DefaultHarmfulContentValidator(BaseValidator[str]):
     """Default implementation of harmful content validation."""
 
-    def __init__(self, config: HarmfulContentConfig) -> None:
+    # Default harmful content categories
+    DEFAULT_HARMFUL_CATEGORIES: Final[Dict[str, List[str]]] = {
+        "violence": [
+            "violent",
+            "brutal",
+            "aggressive",
+            "threatening",
+            "dangerous",
+        ],
+        "self_harm": [
+            "suicide",
+            "self-harm",
+            "self-injury",
+            "self-destructive",
+            "harmful behavior",
+        ],
+        "exploitation": [
+            "exploitative",
+            "manipulative",
+            "coercive",
+            "predatory",
+            "abusive",
+        ],
+        "misinformation": [
+            "false",
+            "misleading",
+            "deceptive",
+            "propaganda",
+            "disinformation",
+        ],
+    }
+
+    def __init__(self, config: RuleConfig) -> None:
         """Initialize with configuration."""
         self._config = config
 
     @property
-    def config(self) -> HarmfulContentConfig:
+    def config(self) -> RuleConfig:
         """Get the validator configuration."""
         return self._config
 
@@ -594,7 +510,7 @@ class DefaultHarmfulContentValidator(BaseValidator[str]):
             raise ValueError("Input must be a string")
 
         # Get configuration from params for consistency
-        categories = self.config.params.get("categories", self.config.categories)
+        categories = self.config.params.get("categories", self.DEFAULT_HARMFUL_CATEGORIES)
 
         text_lower = text.lower()
         harmful_content: Dict[str, List[str]] = {}
@@ -609,7 +525,7 @@ class DefaultHarmfulContentValidator(BaseValidator[str]):
         if harmful_content:
             return RuleResult(
                 passed=False,
-                message="Output contains harmful content",
+                message="Text contains harmful content",
                 metadata={
                     "harmful_content": harmful_content,
                     "categories_found": list(harmful_content.keys()),
@@ -627,7 +543,7 @@ class DefaultHarmfulContentValidator(BaseValidator[str]):
 
 
 class ToxicityRule(Rule[str, RuleResult, DefaultToxicityValidator, RuleResultHandler[RuleResult]]):
-    """Rule for validating text toxicity."""
+    """Rule that checks for toxic content."""
 
     def __init__(
         self,
@@ -637,7 +553,7 @@ class ToxicityRule(Rule[str, RuleResult, DefaultToxicityValidator, RuleResultHan
         validator: Optional[DefaultToxicityValidator] = None,
     ) -> None:
         """
-        Initialize the rule with toxicity validation.
+        Initialize the toxicity rule.
 
         Args:
             name: The name of the rule
@@ -645,12 +561,17 @@ class ToxicityRule(Rule[str, RuleResult, DefaultToxicityValidator, RuleResultHan
             config: Rule configuration
             validator: Optional custom validator implementation
         """
-        # Store parameters for creating the default validator
-        self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            # Always prefer params over metadata for consistency
-            self._rule_params = config.params if config.params else config.metadata
+        # Create default config if not provided
+        if config is None:
+            config = RuleConfig(
+                params={
+                    "threshold": DefaultToxicityValidator.DEFAULT_THRESHOLD,
+                    "indicators": DefaultToxicityValidator.DEFAULT_TOXICITY_INDICATORS,
+                    "cache_size": 100,
+                    "priority": 1,
+                    "cost": 1.0,
+                }
+            )
 
         # Initialize base class
         super().__init__(
@@ -663,12 +584,11 @@ class ToxicityRule(Rule[str, RuleResult, DefaultToxicityValidator, RuleResultHan
 
     def _create_default_validator(self) -> DefaultToxicityValidator:
         """Create a default validator from config."""
-        rule_config = ToxicityConfig(**self._rule_params)
-        return DefaultToxicityValidator(rule_config)
+        return DefaultToxicityValidator(self.config)
 
 
 class BiasRule(Rule[str, RuleResult, DefaultBiasValidator, RuleResultHandler[RuleResult]]):
-    """Rule for validating text bias."""
+    """Rule that checks for biased content."""
 
     def __init__(
         self,
@@ -678,7 +598,7 @@ class BiasRule(Rule[str, RuleResult, DefaultBiasValidator, RuleResultHandler[Rul
         validator: Optional[DefaultBiasValidator] = None,
     ) -> None:
         """
-        Initialize the rule with bias validation.
+        Initialize the bias rule.
 
         Args:
             name: The name of the rule
@@ -686,12 +606,17 @@ class BiasRule(Rule[str, RuleResult, DefaultBiasValidator, RuleResultHandler[Rul
             config: Rule configuration
             validator: Optional custom validator implementation
         """
-        # Store parameters for creating the default validator
-        self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            # Always prefer params over metadata for consistency
-            self._rule_params = config.params if config.params else config.metadata
+        # Create default config if not provided
+        if config is None:
+            config = RuleConfig(
+                params={
+                    "threshold": DefaultBiasValidator.DEFAULT_THRESHOLD,
+                    "categories": DefaultBiasValidator.DEFAULT_BIAS_CATEGORIES,
+                    "cache_size": 100,
+                    "priority": 1,
+                    "cost": 1.0,
+                }
+            )
 
         # Initialize base class
         super().__init__(
@@ -704,14 +629,13 @@ class BiasRule(Rule[str, RuleResult, DefaultBiasValidator, RuleResultHandler[Rul
 
     def _create_default_validator(self) -> DefaultBiasValidator:
         """Create a default validator from config."""
-        rule_config = BiasConfig(**self._rule_params)
-        return DefaultBiasValidator(rule_config)
+        return DefaultBiasValidator(self.config)
 
 
 class HarmfulContentRule(
     Rule[str, RuleResult, DefaultHarmfulContentValidator, RuleResultHandler[RuleResult]]
 ):
-    """Rule for validating harmful content."""
+    """Rule that checks for harmful content."""
 
     def __init__(
         self,
@@ -721,7 +645,7 @@ class HarmfulContentRule(
         validator: Optional[DefaultHarmfulContentValidator] = None,
     ) -> None:
         """
-        Initialize the rule with harmful content validation.
+        Initialize the harmful content rule.
 
         Args:
             name: The name of the rule
@@ -729,12 +653,16 @@ class HarmfulContentRule(
             config: Rule configuration
             validator: Optional custom validator implementation
         """
-        # Store parameters for creating the default validator
-        self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            # Always prefer params over metadata for consistency
-            self._rule_params = config.params if config.params else config.metadata
+        # Create default config if not provided
+        if config is None:
+            config = RuleConfig(
+                params={
+                    "categories": DefaultHarmfulContentValidator.DEFAULT_HARMFUL_CATEGORIES,
+                    "cache_size": 100,
+                    "priority": 1,
+                    "cost": 1.0,
+                }
+            )
 
         # Initialize base class
         super().__init__(
@@ -747,8 +675,7 @@ class HarmfulContentRule(
 
     def _create_default_validator(self) -> DefaultHarmfulContentValidator:
         """Create a default validator from config."""
-        rule_config = HarmfulContentConfig(**self._rule_params)
-        return DefaultHarmfulContentValidator(rule_config)
+        return DefaultHarmfulContentValidator(self.config)
 
 
 def create_toxicity_rule(
@@ -769,19 +696,8 @@ def create_toxicity_rule(
     """
     if config is None:
         config = {
-            "threshold": 0.5,
-            "indicators": [
-                "hate",
-                "offensive",
-                "vulgar",
-                "profanity",
-                "obscene",
-                "racist",
-                "sexist",
-                "discriminatory",
-                "threatening",
-                "harassing",
-            ],
+            "threshold": DefaultToxicityValidator.DEFAULT_THRESHOLD,
+            "indicators": DefaultToxicityValidator.DEFAULT_TOXICITY_INDICATORS,
             "cache_size": 100,
             "priority": 1,
             "cost": 1.0,
@@ -815,37 +731,8 @@ def create_bias_rule(
     """
     if config is None:
         config = {
-            "threshold": 0.3,
-            "categories": {
-                "gender": [
-                    "sexist",
-                    "misogynistic",
-                    "patriarchal",
-                    "gender bias",
-                    "gender stereotype",
-                ],
-                "racial": [
-                    "racist",
-                    "racial bias",
-                    "ethnic stereotype",
-                    "racial prejudice",
-                    "discriminatory",
-                ],
-                "age": [
-                    "ageist",
-                    "age discrimination",
-                    "age bias",
-                    "age stereotype",
-                    "generational bias",
-                ],
-                "cultural": [
-                    "cultural bias",
-                    "xenophobic",
-                    "ethnocentric",
-                    "cultural stereotype",
-                    "cultural prejudice",
-                ],
-            },
+            "threshold": DefaultBiasValidator.DEFAULT_THRESHOLD,
+            "categories": DefaultBiasValidator.DEFAULT_BIAS_CATEGORIES,
             "cache_size": 100,
             "priority": 1,
             "cost": 1.0,
@@ -879,36 +766,7 @@ def create_harmful_content_rule(
     """
     if config is None:
         config = {
-            "categories": {
-                "violence": [
-                    "violent",
-                    "brutal",
-                    "aggressive",
-                    "threatening",
-                    "dangerous",
-                ],
-                "self_harm": [
-                    "suicide",
-                    "self-harm",
-                    "self-injury",
-                    "self-destructive",
-                    "harmful behavior",
-                ],
-                "exploitation": [
-                    "exploitative",
-                    "manipulative",
-                    "coercive",
-                    "predatory",
-                    "abusive",
-                ],
-                "misinformation": [
-                    "false",
-                    "misleading",
-                    "deceptive",
-                    "propaganda",
-                    "disinformation",
-                ],
-            },
+            "categories": DefaultHarmfulContentValidator.DEFAULT_HARMFUL_CATEGORIES,
             "cache_size": 100,
             "priority": 1,
             "cost": 1.0,

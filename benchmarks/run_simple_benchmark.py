@@ -5,7 +5,7 @@ Simplified benchmark runner that focuses on basic rule benchmarks.
 """
 
 from benchmark_rules import RuleBenchmark
-from sifaka.rules.prohibited_content import ProhibitedContentConfig, ProhibitedContentRule
+from sifaka.rules.content.prohibited import ProhibitedContentRule
 from sifaka.rules.length import LengthRule
 from sifaka.rules.base import RuleConfig
 
@@ -30,7 +30,7 @@ def main():
     benchmark.rules["prohibited_content"] = ProhibitedContentRule(
         name="prohibited_content_rule",
         description="Checks for prohibited content",
-        config={"prohibited_terms": {"bad", "worse", "worst"}},
+        config=RuleConfig(params={"terms": ["bad", "worse", "worst"], "case_sensitive": False}),
     )
 
     # Run benchmarks

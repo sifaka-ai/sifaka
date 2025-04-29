@@ -4,7 +4,6 @@ Sentiment classifier using VADER.
 
 import importlib
 from abc import abstractmethod
-from dataclasses import dataclass
 from typing import Any, Dict, Final, List, Optional, Protocol, runtime_checkable
 
 from typing_extensions import TypeGuard
@@ -26,37 +25,6 @@ class SentimentAnalyzer(Protocol):
 
     @abstractmethod
     def polarity_scores(self, text: str) -> Dict[str, float]: ...
-
-
-@dataclass(frozen=True)
-class SentimentThresholds:
-    """
-    Immutable thresholds for sentiment classification.
-
-    Note: This class is provided for backward compatibility.
-    The preferred way to configure sentiment thresholds is to use
-    ClassifierConfig with params:
-
-    ```python
-    config = ClassifierConfig(
-        labels=["positive", "neutral", "negative", "unknown"],
-        cost=1,
-        params={
-            "positive_threshold": 0.05,
-            "negative_threshold": -0.05,
-        }
-    )
-    ```
-    """
-
-    positive: float = 0.05
-    negative: float = -0.05
-
-    def __post_init__(self) -> None:
-        if self.positive < self.negative:
-            raise ValueError("Positive threshold must be greater than negative threshold")
-        if not (-1.0 <= self.negative <= self.positive <= 1.0):
-            raise ValueError("Thresholds must be between -1.0 and 1.0")
 
 
 class SentimentClassifier(BaseClassifier):
@@ -82,7 +50,6 @@ class SentimentClassifier(BaseClassifier):
         self,
         name: str = "sentiment_classifier",
         description: str = "Analyzes text sentiment using VADER",
-        thresholds: Optional[SentimentThresholds] = None,
         analyzer: Optional[SentimentAnalyzer] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
@@ -93,7 +60,6 @@ class SentimentClassifier(BaseClassifier):
         Args:
             name: The name of the classifier
             description: Description of the classifier
-            thresholds: Sentiment threshold configuration (for backward compatibility)
             analyzer: Custom sentiment analyzer implementation
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
@@ -107,11 +73,6 @@ class SentimentClassifier(BaseClassifier):
         if config is None:
             # Extract params from kwargs if present
             params = kwargs.pop("params", {})
-
-            # Add thresholds to params if provided
-            if thresholds is not None:
-                params["positive_threshold"] = thresholds.positive
-                params["negative_threshold"] = thresholds.negative
 
             # Create config with remaining kwargs
             config = ClassifierConfig(
@@ -250,7 +211,6 @@ class SentimentClassifier(BaseClassifier):
         analyzer: SentimentAnalyzer,
         name: str = "custom_sentiment_classifier",
         description: str = "Custom sentiment analyzer",
-        thresholds: Optional[SentimentThresholds] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "SentimentClassifier":
@@ -261,7 +221,6 @@ class SentimentClassifier(BaseClassifier):
             analyzer: Custom sentiment analyzer implementation
             name: Name of the classifier
             description: Description of the classifier
-            thresholds: Custom sentiment thresholds (for backward compatibility)
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
@@ -274,13 +233,9 @@ class SentimentClassifier(BaseClassifier):
                 f"Analyzer must implement SentimentAnalyzer protocol, got {type(analyzer)}"
             )
 
-        # If thresholds is provided but config is not, create config from thresholds
-        if thresholds is not None and config is None:
-            # Extract params from thresholds
-            params = {
-                "positive_threshold": thresholds.positive,
-                "negative_threshold": thresholds.negative,
-            }
+        # Create default config if not provided
+        if config is None:
+            params = kwargs.pop("params", {})
 
             # Create config with params
             config = ClassifierConfig(
@@ -293,7 +248,6 @@ class SentimentClassifier(BaseClassifier):
         instance = cls(
             name=name,
             description=description,
-            thresholds=thresholds,
             analyzer=analyzer,
             config=config,
             **kwargs,

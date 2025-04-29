@@ -40,41 +40,6 @@ class LanguageDetector(Protocol):
 
 
 @dataclass(frozen=True)
-class LanguageConfig:
-    """
-    Configuration for language detection.
-
-    Note: This class is provided for backward compatibility.
-    The preferred way to configure language detection is to use
-    ClassifierConfig with params:
-
-    ```python
-    config = ClassifierConfig(
-        labels=["en", "fr", "de", ...],  # language codes
-        cost=1,
-        params={
-            "min_confidence": 0.1,
-            "seed": 0,
-            "fallback_lang": "en",
-            "fallback_confidence": 0.0,
-        }
-    )
-    ```
-    """
-
-    min_confidence: float = 0.1
-    seed: int = 0  # Seed for consistent results
-    fallback_lang: str = "en"
-    fallback_confidence: float = 0.0
-
-    def __post_init__(self) -> None:
-        if not 0.0 <= self.min_confidence <= 1.0:
-            raise ValueError("min_confidence must be between 0.0 and 1.0")
-        if self.seed < 0:
-            raise ValueError("seed must be non-negative")
-
-
-@dataclass(frozen=True)
 class LanguageInfo:
     """Information about a supported language."""
 
@@ -164,7 +129,6 @@ class LanguageClassifier(BaseClassifier):
         self,
         name: str = "language_classifier",
         description: str = "Detects text language",
-        lang_config: Optional[LanguageConfig] = None,
         detector: Optional[LanguageDetector] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
@@ -175,7 +139,6 @@ class LanguageClassifier(BaseClassifier):
         Args:
             name: The name of the classifier
             description: Description of the classifier
-            lang_config: Language detection configuration (for backward compatibility)
             detector: Custom language detector implementation
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
@@ -188,13 +151,6 @@ class LanguageClassifier(BaseClassifier):
         if config is None:
             # Extract params from kwargs if present
             params = kwargs.pop("params", {})
-
-            # Add language config to params if provided
-            if lang_config is not None:
-                params["min_confidence"] = lang_config.min_confidence
-                params["seed"] = lang_config.seed
-                params["fallback_lang"] = lang_config.fallback_lang
-                params["fallback_confidence"] = lang_config.fallback_confidence
 
             # Create config with remaining kwargs
             config = ClassifierConfig(
@@ -356,7 +312,6 @@ class LanguageClassifier(BaseClassifier):
         detector: LanguageDetector,
         name: str = "custom_language_classifier",
         description: str = "Custom language detector",
-        lang_config: Optional[LanguageConfig] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "LanguageClassifier":
@@ -367,7 +322,6 @@ class LanguageClassifier(BaseClassifier):
             detector: Custom language detector implementation
             name: Name of the classifier
             description: Description of the classifier
-            lang_config: Custom language configuration (for backward compatibility)
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
@@ -380,15 +334,10 @@ class LanguageClassifier(BaseClassifier):
                 f"Detector must implement LanguageDetector protocol, got {type(detector)}"
             )
 
-        # If lang_config is provided but config is not, create config from lang_config
-        if lang_config is not None and config is None:
-            # Extract params from lang_config
-            params = {
-                "min_confidence": lang_config.min_confidence,
-                "seed": lang_config.seed,
-                "fallback_lang": lang_config.fallback_lang,
-                "fallback_confidence": lang_config.fallback_confidence,
-            }
+        # Create config if not provided
+        if config is None:
+            # Extract params from kwargs if present
+            params = kwargs.pop("params", {})
 
             # Create config with params
             config = ClassifierConfig(
@@ -401,7 +350,6 @@ class LanguageClassifier(BaseClassifier):
         instance = cls(
             name=name,
             description=description,
-            lang_config=lang_config,
             detector=detector,
             config=config,
             **kwargs,

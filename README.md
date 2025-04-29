@@ -11,6 +11,7 @@ Sifaka is a framework for improving large language model (LLM) outputs through v
 - ✅ **Response Critics**: Provide feedback to improve model outputs
 - ✅ **Chain Architecture**: Create feedback loops for iterative improvement
 - ✅ **Model Agnostic**: Works with Claude, OpenAI, and other LLM providers
+- ✅ **Streamlined Configuration**: Unified configuration system using ClassifierConfig and RuleConfig
 
 ## Installation
 
@@ -77,6 +78,70 @@ chain = Chain(
 result = chain.run("Write about artificial intelligence")
 ```
 
+### 4. Classifiers
+
+Classifiers analyze text and categorize it according to specific criteria:
+
+```python
+from sifaka.classifiers.toxicity import ToxicityClassifier
+from sifaka.classifiers.base import ClassifierConfig
+
+# Create a toxicity classifier with custom thresholds
+classifier = ToxicityClassifier(
+    config=ClassifierConfig(
+        params={
+            "general_threshold": 0.6,
+            "severe_toxic_threshold": 0.8,
+            "threat_threshold": 0.7,
+        }
+    )
+)
+
+# Classify text
+result = classifier.classify("Your text to analyze")
+print(f"Label: {result.label}, Confidence: {result.confidence}")
+```
+
+## Configuration System
+
+Sifaka uses a streamlined configuration system with two main configuration classes:
+
+### ClassifierConfig
+
+Used by all classifiers to manage their configuration parameters:
+
+```python
+from sifaka.classifiers.base import ClassifierConfig
+
+config = ClassifierConfig(
+    labels=["positive", "neutral", "negative"],  # Available classification labels
+    cost=1.0,                                   # Relative computational cost
+    min_confidence=0.7,                         # Minimum confidence threshold
+    params={                                    # Additional parameters
+        "model_name": "default",
+        "threshold": 0.5,
+    }
+)
+```
+
+### RuleConfig
+
+Used by all rules to manage their configuration parameters:
+
+```python
+from sifaka.rules.base import RuleConfig, RulePriority
+
+config = RuleConfig(
+    priority=RulePriority.HIGH,      # Rule execution priority
+    cache_size=100,                  # Cache size for validation results
+    cost=1.0,                        # Relative computational cost
+    params={                         # Additional parameters
+        "threshold": 0.7,
+        "max_length": 500,
+    }
+)
+```
+
 ## Usage Examples
 
 ### Example 1: Claude with Length Critic (Condense Text)
@@ -131,37 +196,44 @@ chain = Chain(model=model, rules=[length_rule], critic=critic, max_attempts=3)
 result = chain.run("Explain how large language models work in detail")
 ```
 
-### Example 2: Claude with Length Critic (Expand Text)
+### Example 2: Content Safety Validation
 
-This example uses Claude with a critic to expand brief responses:
+This example uses a toxicity classifier with a rule to ensure content safety:
 
 ```python
-# Same imports and initial setup as above
+from sifaka.classifiers.toxicity import ToxicityClassifier
+from sifaka.classifiers.base import ClassifierConfig
+from sifaka.rules.content.safety import create_toxicity_rule
+from sifaka.chain import Chain
 
-# Create length rule (minimum 500 words)
-length_rule = create_length_rule(
-    min_words=500,
-    max_words=1000,
-    rule_id="expanded_length_rule"
-)
-
-# Create critic to help expand text
-critic = PromptCritic(
-    llm_provider=model,
-    config=PromptCriticConfig(
-        name="expansion_critic",
-        system_prompt=(
-            "You are an editor who specializes in expanding text by adding relevant "
-            "examples, elaborating on key points, and providing deeper context."
-        )
+# Configure toxicity classifier
+classifier = ToxicityClassifier(
+    config=ClassifierConfig(
+        params={
+            "general_threshold": 0.5,
+            "severe_toxic_threshold": 0.7,
+        }
     )
 )
 
-# Create chain with model, rule, and critic
-chain = Chain(model=model, rules=[length_rule], critic=critic, max_attempts=4)
+# Create toxicity rule
+toxicity_rule = create_toxicity_rule(
+    config={
+        "threshold": 0.6,
+        "indicators": [
+            "hate",
+            "offensive",
+            "vulgar",
+            "profanity",
+        ]
+    }
+)
 
-# Run the chain with a prompt that would naturally generate brief output
-result = chain.run("Briefly explain what artificial intelligence is")
+# Create chain with model, rule, and critic
+chain = Chain(model=model, rules=[toxicity_rule], critic=critic, max_attempts=3)
+
+# Run the chain
+result = chain.run("Write a social media post about community values")
 ```
 
 ## Full Examples
@@ -170,6 +242,7 @@ For complete, runnable examples, see the `/examples` directory:
 
 - `claude_length_critic.py`: Demonstrates reducing text length
 - `claude_expand_length_critic.py`: Demonstrates expanding text length
+- `toxicity_filtering.py`: Demonstrates content safety validation
 
 ## License
 

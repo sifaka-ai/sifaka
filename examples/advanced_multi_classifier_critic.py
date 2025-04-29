@@ -31,7 +31,6 @@ from sifaka.classifiers import (
     SpamClassifier,
     TopicClassifier,
     ToxicityClassifier,
-    LLMClassifier,
     ClassifierConfig,
 )
 from sifaka.classifiers.base import (
@@ -43,7 +42,6 @@ from sifaka.rules.formatting.length import create_length_rule
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.chain import Chain, ChainResult
 from sifaka.rules.base import Rule, RuleResult
-from sifaka.classifiers.genre import GenreConfig
 
 
 # Custom prompt factory for batched feedback
@@ -650,19 +648,11 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
     ]
     genre_labels = ["news", "fiction", "academic", "technical", "blog"]
 
-    genre_config = GenreConfig(
-        min_confidence=0.3,  # Lowered from 0.4
-        max_features=2000,
-        use_ngrams=True,
-        default_genres=["news", "fiction", "academic", "technical", "blog"],
-    )
-
     genre_classifier = GenreClassifier.create_pretrained(
         texts=genre_texts,
         labels=genre_labels,
         name="genre_classifier",
         description="Categorizes text into genres",
-        genre_config=genre_config,
         config=ClassifierConfig(
             labels=["news", "fiction", "academic", "technical", "blog"],
             min_confidence=0.3,  # Lowered from 0.4
@@ -670,6 +660,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
                 "min_confidence": 0.3,
                 "max_features": 2000,
                 "use_ngrams": True,
+                "default_genres": ["news", "fiction", "academic", "technical", "blog"],
             },
         ),
     )

@@ -2,10 +2,8 @@
 Prohibited content validation rules for Sifaka.
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, Final, List, Optional, Sequence, TypeGuard
-
-from typing_extensions import TypeGuard
+from dataclasses import dataclass
+from typing import Any, Dict, Final, List, Optional, Sequence
 
 from sifaka.rules.base import (
     BaseValidator,
@@ -17,6 +15,29 @@ from sifaka.rules.base import (
     ValidationError,
 )
 from sifaka.rules.content.base import ContentAnalyzer, ContentValidator, DefaultContentAnalyzer
+
+
+@dataclass(frozen=True)
+class ProhibitedContentConfig:
+    """Configuration for prohibited content validation."""
+
+    terms: List[str]
+    case_sensitive: bool = False
+    priority: int = 1
+    cost: float = 1.0
+
+    def __post_init__(self) -> None:
+        if not self.terms:
+            raise ConfigurationError("Prohibited terms list cannot be empty")
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert config to dictionary."""
+        return {
+            "terms": self.terms,
+            "case_sensitive": self.case_sensitive,
+            "priority": self.priority,
+            "cost": self.cost,
+        }
 
 
 @dataclass(frozen=True)
@@ -37,64 +58,6 @@ class ProhibitedTerms:
     def with_case_sensitivity(self, case_sensitive: bool) -> "ProhibitedTerms":
         """Create new instance with updated case sensitivity."""
         return ProhibitedTerms(terms=self.terms, case_sensitive=case_sensitive)
-
-
-@dataclass(frozen=True)
-class ProhibitedContentConfig(RuleConfig):
-    """
-    Configuration for prohibited content validation.
-
-    Note: This class is provided for backward compatibility.
-    The preferred way to configure prohibited content validation is to use
-    RuleConfig with params:
-
-    ```python
-    config = RuleConfig(
-        priority=RulePriority.HIGH,
-        cost=1.0,
-        params={
-            "terms": ["profanity", "obscenity", "hate speech"],
-            "case_sensitive": False,
-        }
-    )
-    ```
-    """
-
-    terms: List[str] = field(
-        default_factory=lambda: [
-            "profanity",
-            "obscenity",
-            "hate speech",
-            "explicit content",
-            "adult content",
-            "nsfw",
-            "inappropriate",
-        ]
-    )
-    case_sensitive: bool = False
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
-
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        super().__post_init__()
-        if not self.terms:
-            raise ValueError("Must provide at least one prohibited term")
-
-        # For consistency, copy configuration values to params
-        if not self.params:
-            object.__setattr__(
-                self,
-                "params",
-                {
-                    "terms": self.terms,
-                    "case_sensitive": self.case_sensitive,
-                    "cache_size": self.cache_size,
-                    "priority": self.priority,
-                    "cost": self.cost,
-                },
-            )
 
 
 class ProhibitedContentValidator(ContentValidator):
@@ -145,12 +108,12 @@ class ProhibitedContentValidator(ContentValidator):
 class DefaultProhibitedContentValidator(BaseValidator[str]):
     """Default implementation of prohibited content validation."""
 
-    def __init__(self, config: ProhibitedContentConfig) -> None:
+    def __init__(self, config: RuleConfig) -> None:
         """Initialize with configuration."""
         self._config = config
 
     @property
-    def config(self) -> ProhibitedContentConfig:
+    def config(self) -> RuleConfig:
         """Get the validator configuration."""
         return self._config
 
@@ -159,9 +122,20 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
-        # Get configuration from params for consistency
+        # Get configuration from params
         case_sensitive = self.config.params.get("case_sensitive", False)
-        terms = self.config.params.get("terms", self.config.terms)
+        terms = self.config.params.get(
+            "terms",
+            [
+                "profanity",
+                "obscenity",
+                "hate speech",
+                "explicit content",
+                "adult content",
+                "nsfw",
+                "inappropriate",
+            ],
+        )
 
         check_text = text if case_sensitive else text.lower()
         found_terms = []
@@ -214,10 +188,8 @@ class ProhibitedContentRule(
         """
         # Store parameters for creating the default validator
         self._rule_params = {}
-        if config:
-            # For backward compatibility, check both params and metadata
-            # Always prefer params over metadata for consistency
-            self._rule_params = config.params if config.params else config.metadata
+        if config and config.params:
+            self._rule_params = config.params
 
         # Initialize base class
         super().__init__(
@@ -230,8 +202,8 @@ class ProhibitedContentRule(
 
     def _create_default_validator(self) -> DefaultProhibitedContentValidator:
         """Create a default validator from config."""
-        prohibited_config = ProhibitedContentConfig(**self._rule_params)
-        return DefaultProhibitedContentValidator(prohibited_config)
+        rule_config = RuleConfig(params=self._rule_params)
+        return DefaultProhibitedContentValidator(rule_config)
 
 
 def create_prohibited_content_rule(
@@ -262,7 +234,6 @@ def create_prohibited_content_rule(
                 "inappropriate",
             ],
             "case_sensitive": False,
-            "cache_size": 100,
             "priority": 1,
             "cost": 1.0,
         }

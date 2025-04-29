@@ -5,7 +5,6 @@ Readability classifier that analyzes text complexity.
 import importlib
 import statistics
 from abc import abstractmethod
-from dataclasses import dataclass, field
 from typing import (
     Any,
     Dict,
@@ -54,78 +53,44 @@ class ReadabilityAnalyzer(Protocol):
     def dale_chall_readability_score(self, text: str) -> float: ...
 
 
-@dataclass(frozen=True)
-class ReadabilityConfig:
-    """
-    Configuration for readability analysis.
-
-    Note: This class is provided for backward compatibility.
-    The preferred way to configure readability analysis is to use
-    ClassifierConfig with params:
-
-    ```python
-    config = ClassifierConfig(
-        labels=["elementary", "middle", "high", "college", "graduate"],
-        cost=1,
-        params={
-            "min_confidence": 0.5,
-            "grade_level_bounds": {
-                "elementary": (0.0, 6.0),
-                "middle": (6.0, 9.0),
-                "high": (9.0, 12.0),
-                "college": (12.0, 16.0),
-                "graduate": (16.0, float("inf")),
-            }
-        }
-    )
-    ```
-    """
-
-    min_confidence: float = 0.5
-    grade_level_bounds: Dict[str, tuple[float, float]] = field(
-        default_factory=lambda: {
-            "elementary": (0.0, 6.0),
-            "middle": (6.0, 9.0),
-            "high": (9.0, 12.0),
-            "college": (12.0, 16.0),
-            "graduate": (16.0, float("inf")),
-        }
-    )
-
-    def __post_init__(self) -> None:
-        if not 0.0 <= self.min_confidence <= 1.0:
-            raise ValueError("min_confidence must be between 0.0 and 1.0")
-
-        # Validate grade level bounds
-        prev_upper = float("-inf")
-        for level, (lower, upper) in self.grade_level_bounds.items():
-            if lower >= upper:
-                raise ValueError(f"Invalid bounds for {level}: lower must be less than upper")
-            if lower < prev_upper:
-                raise ValueError(f"Grade level bounds must be non-overlapping")
-            prev_upper = upper
-
-
-@dataclass(frozen=True)
 class ReadabilityMetrics:
     """Container for readability metrics."""
 
-    flesch_reading_ease: float
-    flesch_kincaid_grade: float
-    gunning_fog: float
-    smog_index: float
-    automated_readability_index: float
-    dale_chall_readability_score: float
-    lexicon_count: int
-    sentence_count: int
-    syllable_count: int
-    avg_sentence_length: float
-    sentence_length_std: float
-    avg_word_length: float
-    word_length_std: float
-    vocabulary_diversity: float
-    unique_word_count: int
-    difficult_words: int
+    def __init__(
+        self,
+        flesch_reading_ease: float,
+        flesch_kincaid_grade: float,
+        gunning_fog: float,
+        smog_index: float,
+        automated_readability_index: float,
+        dale_chall_readability_score: float,
+        lexicon_count: int,
+        sentence_count: int,
+        syllable_count: int,
+        avg_sentence_length: float,
+        sentence_length_std: float,
+        avg_word_length: float,
+        word_length_std: float,
+        vocabulary_diversity: float,
+        unique_word_count: int,
+        difficult_words: int,
+    ):
+        self.flesch_reading_ease = flesch_reading_ease
+        self.flesch_kincaid_grade = flesch_kincaid_grade
+        self.gunning_fog = gunning_fog
+        self.smog_index = smog_index
+        self.automated_readability_index = automated_readability_index
+        self.dale_chall_readability_score = dale_chall_readability_score
+        self.lexicon_count = lexicon_count
+        self.sentence_count = sentence_count
+        self.syllable_count = syllable_count
+        self.avg_sentence_length = avg_sentence_length
+        self.sentence_length_std = sentence_length_std
+        self.avg_word_length = avg_word_length
+        self.word_length_std = word_length_std
+        self.vocabulary_diversity = vocabulary_diversity
+        self.unique_word_count = unique_word_count
+        self.difficult_words = difficult_words
 
 
 class ReadabilityClassifier(BaseClassifier):
@@ -143,11 +108,19 @@ class ReadabilityClassifier(BaseClassifier):
     DEFAULT_LABELS: Final[List[str]] = ["elementary", "middle", "high", "college", "graduate"]
     DEFAULT_COST: Final[int] = 1  # Low cost for statistical analysis
 
+    # Default grade level bounds
+    DEFAULT_GRADE_LEVEL_BOUNDS: Final[Dict[str, tuple[float, float]]] = {
+        "elementary": (0.0, 6.0),
+        "middle": (6.0, 9.0),
+        "high": (9.0, 12.0),
+        "college": (12.0, 16.0),
+        "graduate": (16.0, float("inf")),
+    }
+
     def __init__(
         self,
         name: str = "readability_classifier",
         description: str = "Analyzes text readability",
-        readability_config: Optional[ReadabilityConfig] = None,
         analyzer: Optional[ReadabilityAnalyzer] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
@@ -158,7 +131,6 @@ class ReadabilityClassifier(BaseClassifier):
         Args:
             name: The name of the classifier
             description: Description of the classifier
-            readability_config: Configuration for readability analysis (for backward compatibility)
             analyzer: Custom readability analyzer implementation
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
@@ -168,12 +140,9 @@ class ReadabilityClassifier(BaseClassifier):
             # Extract params from kwargs if present
             params = kwargs.pop("params", {})
 
-            # Add readability config to params if provided
-            if readability_config is not None:
-                params["min_confidence"] = readability_config.min_confidence
-                params["grade_level_bounds"] = {
-                    k: (v[0], float(v[1])) for k, v in readability_config.grade_level_bounds.items()
-                }
+            # Ensure grade_level_bounds is present
+            if "grade_level_bounds" not in params:
+                params["grade_level_bounds"] = self.DEFAULT_GRADE_LEVEL_BOUNDS
 
             # Create config with remaining kwargs
             config = ClassifierConfig(
@@ -219,14 +188,7 @@ class ReadabilityClassifier(BaseClassifier):
         """Convert grade level to readability label."""
         # Get grade level bounds from config params
         grade_level_bounds = self.config.params.get(
-            "grade_level_bounds",
-            {
-                "elementary": (0.0, 6.0),
-                "middle": (6.0, 9.0),
-                "high": (9.0, 12.0),
-                "college": (12.0, 16.0),
-                "graduate": (16.0, float("inf")),
-            },
+            "grade_level_bounds", self.DEFAULT_GRADE_LEVEL_BOUNDS
         )
 
         for level, (lower, upper) in grade_level_bounds.items():
@@ -387,7 +349,6 @@ class ReadabilityClassifier(BaseClassifier):
         analyzer: ReadabilityAnalyzer,
         name: str = "custom_readability_classifier",
         description: str = "Custom readability analyzer",
-        readability_config: Optional[ReadabilityConfig] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "ReadabilityClassifier":
@@ -398,7 +359,6 @@ class ReadabilityClassifier(BaseClassifier):
             analyzer: Custom readability analyzer implementation
             name: Name of the classifier
             description: Description of the classifier
-            readability_config: Custom readability configuration (for backward compatibility)
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
@@ -411,15 +371,13 @@ class ReadabilityClassifier(BaseClassifier):
                 f"Analyzer must implement ReadabilityAnalyzer protocol, got {type(analyzer)}"
             )
 
-        # If readability_config is provided but config is not, create config from readability_config
-        if readability_config is not None and config is None:
-            # Extract params from readability_config
-            params = {
-                "min_confidence": readability_config.min_confidence,
-                "grade_level_bounds": {
-                    k: (v[0], float(v[1])) for k, v in readability_config.grade_level_bounds.items()
-                },
-            }
+        # Create default config if not provided
+        if config is None:
+            params = kwargs.pop("params", {})
+
+            # Ensure grade_level_bounds is present
+            if "grade_level_bounds" not in params:
+                params["grade_level_bounds"] = cls.DEFAULT_GRADE_LEVEL_BOUNDS
 
             # Create config with params
             config = ClassifierConfig(
@@ -432,7 +390,6 @@ class ReadabilityClassifier(BaseClassifier):
         instance = cls(
             name=name,
             description=description,
-            readability_config=readability_config,
             analyzer=analyzer,
             config=config,
             **kwargs,

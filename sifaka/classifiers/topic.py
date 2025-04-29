@@ -3,7 +3,6 @@ Topic classifier using scikit-learn's LDA.
 """
 
 import importlib
-from dataclasses import dataclass
 from typing import List, Optional
 
 from sifaka.classifiers.base import (
@@ -14,48 +13,6 @@ from sifaka.classifiers.base import (
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-@dataclass(frozen=True)
-class TopicConfig:
-    """
-    Configuration for topic classification.
-
-    Note: This class is provided for backward compatibility.
-    The preferred way to configure topic classification is to use
-    ClassifierConfig with params:
-
-    ```python
-    config = ClassifierConfig(
-        labels=["topic_0", "topic_1", "topic_2", "topic_3", "topic_4"],
-        cost=2.0,
-        params={
-            "num_topics": 5,
-            "min_confidence": 0.1,
-            "max_features": 1000,
-            "random_state": 42,
-            "top_words_per_topic": 10,
-        }
-    )
-    ```
-    """
-
-    num_topics: int = 5  # Number of topics to extract
-    min_confidence: float = 0.1  # Minimum confidence threshold
-    max_features: int = 1000  # Max features for vectorization
-    random_state: int = 42  # For reproducibility
-    top_words_per_topic: int = 10  # Number of top words to include in topic representation
-
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        if self.num_topics <= 0:
-            raise ValueError("num_topics must be positive")
-        if not 0.0 <= self.min_confidence <= 1.0:
-            raise ValueError("min_confidence must be between 0.0 and 1.0")
-        if self.max_features <= 0:
-            raise ValueError("max_features must be positive")
-        if self.top_words_per_topic <= 0:
-            raise ValueError("top_words_per_topic must be positive")
 
 
 class TopicClassifier(BaseClassifier):
@@ -73,7 +30,6 @@ class TopicClassifier(BaseClassifier):
         self,
         name: str = "topic_classifier",
         description: str = "Classifies text into topics using LDA",
-        topic_config: Optional[TopicConfig] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> None:
@@ -83,7 +39,6 @@ class TopicClassifier(BaseClassifier):
         Args:
             name: The name of the classifier
             description: Description of the classifier
-            topic_config: Topic classification configuration
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
@@ -92,21 +47,9 @@ class TopicClassifier(BaseClassifier):
             # Extract params from kwargs if present
             params = kwargs.pop("params", {})
 
-            # If topic_config is provided, add its values to params
-            if topic_config is not None:
-                params.update(
-                    {
-                        "num_topics": topic_config.num_topics,
-                        "min_confidence": topic_config.min_confidence,
-                        "max_features": topic_config.max_features,
-                        "random_state": topic_config.random_state,
-                        "top_words_per_topic": topic_config.top_words_per_topic,
-                    }
-                )
-
             # Get num_topics from params or use default
-            num_topics = params["num_topics"] if "num_topics" in params else 5
-            min_confidence = params["min_confidence"] if "min_confidence" in params else 0.1
+            num_topics = params.get("num_topics", 5)
+            min_confidence = params.get("min_confidence", 0.1)
 
             # Create config with remaining kwargs
             config = ClassifierConfig(
@@ -130,16 +73,12 @@ class TopicClassifier(BaseClassifier):
     @property
     def num_topics(self) -> int:
         """Get the number of topics."""
-        return self.config.params["num_topics"] if "num_topics" in self.config.params else 5
+        return self.config.params.get("num_topics", 5)
 
     @property
     def top_words_per_topic(self) -> int:
         """Get the number of top words per topic."""
-        return (
-            self.config.params["top_words_per_topic"]
-            if "top_words_per_topic" in self.config.params
-            else 10
-        )
+        return self.config.params.get("top_words_per_topic", 10)
 
     def _load_dependencies(self) -> None:
         """Load scikit-learn dependencies."""
@@ -165,12 +104,8 @@ class TopicClassifier(BaseClassifier):
         if not self._initialized:
             self._load_dependencies()
             # Get configuration from params
-            max_features = (
-                self.config.params["max_features"] if "max_features" in self.config.params else 1000
-            )
-            random_state = (
-                self.config.params["random_state"] if "random_state" in self.config.params else 42
-            )
+            max_features = self.config.params.get("max_features", 1000)
+            random_state = self.config.params.get("random_state", 42)
 
             self._vectorizer = self._sklearn_feature_extraction_text.TfidfVectorizer(
                 max_features=max_features,
@@ -325,7 +260,6 @@ class TopicClassifier(BaseClassifier):
         corpus: List[str],
         name: str = "pretrained_topic_classifier",
         description: str = "Pre-trained topic classifier",
-        topic_config: Optional[TopicConfig] = None,
         config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "TopicClassifier":
@@ -336,35 +270,26 @@ class TopicClassifier(BaseClassifier):
             corpus: List of texts to train on
             name: Name of the classifier
             description: Description of the classifier
-            topic_config: Topic classification configuration (for backward compatibility)
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Trained TopicClassifier instance
         """
-        # If topic_config is provided but config is not, create config from topic_config
-        if topic_config is not None and config is None:
-            # Extract params from topic_config
-            params = {
-                "num_topics": topic_config.num_topics,
-                "min_confidence": topic_config.min_confidence,
-                "max_features": topic_config.max_features,
-                "random_state": topic_config.random_state,
-                "top_words_per_topic": topic_config.top_words_per_topic,
-            }
+        # Create default config if not provided
+        if config is None:
+            # Get num_topics from kwargs or use default
+            params = kwargs.pop("params", {})
+            num_topics = params.get("num_topics", 5)
 
-            # Create config with params
             config = ClassifierConfig(
-                labels=[f"topic_{i}" for i in range(topic_config.num_topics)],
+                labels=[f"topic_{i}" for i in range(num_topics)],
                 cost=2.0,
                 params=params,
             )
 
         # Create instance with provided configuration
-        classifier = cls(
-            name=name, description=description, topic_config=topic_config, config=config, **kwargs
-        )
+        classifier = cls(name=name, description=description, config=config, **kwargs)
 
         # Train the classifier and return it
         return classifier.fit(corpus)

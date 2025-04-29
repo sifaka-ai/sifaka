@@ -17,7 +17,7 @@ from sifaka.rules import (
 )
 
 # Version information
-__version__ = "1.0.0"
+__version__ = "0.1.0"
 
 __all__ = [
     # Core components

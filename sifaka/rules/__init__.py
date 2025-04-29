@@ -156,8 +156,8 @@ from .factual import (
 )
 from .formatting.length import LengthRule, create_length_rule
 from .content.prohibited import ProhibitedContentRule
-from .safety import BiasRule, HarmfulContentRule, ToxicityRule
-from .sentiment import EmotionalContentRule, SentimentRule
+from .content.safety import BiasRule, HarmfulContentRule, ToxicityRule
+from .content.sentiment import EmotionalContentRule, SentimentRule
 
 # Import from the adapters module
 from .adapters import (

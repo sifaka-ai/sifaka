@@ -44,7 +44,6 @@ from sifaka.rules.content.base import (
 )
 from sifaka.rules.content.prohibited import (
     DefaultProhibitedContentValidator,
-    ProhibitedContentConfig,
     ProhibitedContentRule,
     ProhibitedContentValidator,
     ProhibitedTerms,
@@ -52,7 +51,6 @@ from sifaka.rules.content.prohibited import (
 )
 from sifaka.rules.content.tone import (
     DefaultToneValidator,
-    ToneConfig,
     ToneConsistencyRule,
     ToneConsistencyValidator,
     ToneIndicators,
@@ -62,17 +60,14 @@ from sifaka.rules.content.tone import (
 # New imports from safety module
 from sifaka.rules.content.safety import (
     BiasCategories,
-    BiasConfig,
     BiasRule,
     BiasValidator,
     DefaultBiasValidator,
     DefaultHarmfulContentValidator,
     DefaultToxicityValidator,
     HarmfulCategories,
-    HarmfulContentConfig,
     HarmfulContentRule,
     HarmfulContentValidator,
-    ToxicityConfig,
     ToxicityIndicators,
     ToxicityRule,
     ToxicityValidator,
@@ -112,10 +107,8 @@ warnings.warn(
 __all__ = [
     # Original exports
     "ProhibitedContentRule",
-    "ProhibitedContentConfig",
     "DefaultProhibitedContentValidator",
     "ToneConsistencyRule",
-    "ToneConfig",
     "DefaultToneValidator",
     "create_prohibited_content_rule",
     "create_tone_consistency_rule",
@@ -130,17 +123,14 @@ __all__ = [
     "DefaultToneAnalyzer",
     # Safety module exports
     "ToxicityRule",
-    "ToxicityConfig",
     "ToxicityIndicators",
     "ToxicityValidator",
     "DefaultToxicityValidator",
     "BiasRule",
-    "BiasConfig",
     "BiasCategories",
     "BiasValidator",
     "DefaultBiasValidator",
     "HarmfulContentRule",
-    "HarmfulContentConfig",
     "HarmfulCategories",
     "HarmfulContentValidator",
     "DefaultHarmfulContentValidator",

@@ -54,14 +54,14 @@ from .base import (
     ClassifierProtocol,
     TextProcessor,
 )
-from .bias import BiasConfig, BiasDetector
-from .genre import GenreClassifier, GenreConfig
+from .bias import BiasDetector
+from .genre import GenreClassifier
 from .language import LanguageClassifier
 from .profanity import ProfanityClassifier
 from .readability import ReadabilityClassifier
 from .sentiment import SentimentClassifier
-from .spam import SpamClassifier, SpamConfig
-from .topic import TopicClassifier, TopicConfig
+from .spam import SpamClassifier
+from .topic import TopicClassifier
 from .toxicity import ToxicityClassifier
 
 __all__ = [
@@ -76,14 +76,10 @@ __all__ = [
     "ProfanityClassifier",
     "ToxicityClassifier",
     "SpamClassifier",
-    "SpamConfig",
     "BiasDetector",
-    "BiasConfig",
     # Text Properties
     "ReadabilityClassifier",
     "LanguageClassifier",
     "TopicClassifier",
-    "TopicConfig",
     "GenreClassifier",
-    "GenreConfig",
 ]
