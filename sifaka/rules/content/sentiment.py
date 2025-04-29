@@ -817,3 +817,32 @@ def create_emotional_content_rule(
         validator=validator,
         **rule_kwargs,
     )
+
+
+# Export public classes and functions
+__all__ = [
+    # Config classes
+    "SentimentConfig",
+    "EmotionalContentConfig",
+    # Helper classes
+    "SentimentWords",
+    "EmotionCategories",
+    # Validator classes
+    "SentimentValidator",
+    "EmotionalContentValidator",
+    "DefaultSentimentValidator",
+    "DefaultEmotionalContentValidator",
+    # Rule classes
+    "SentimentRule",
+    "EmotionalContentRule",
+    # Validator factory functions
+    "create_sentiment_validator",
+    "create_emotional_content_validator",
+    # Rule factory functions
+    "create_sentiment_rule",
+    "create_emotional_content_rule",
+    # Constants
+    "DEFAULT_POSITIVE_WORDS",
+    "DEFAULT_NEGATIVE_WORDS",
+    "DEFAULT_EMOTION_CATEGORIES",
+]
