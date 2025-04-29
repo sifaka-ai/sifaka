@@ -29,6 +29,7 @@ from sifaka.classifiers import (
     GenreClassifier,
     ProfanityClassifier,
     SpamClassifier,
+    TopicClassifier,
     ClassifierConfig,
 )
 from sifaka.classifiers.base import (
@@ -680,7 +681,56 @@ def create_all_classifier_rules() -> List[Rule]:
     )
     rules.append(genre_rule)
 
-    # 9. Length rule - enforce fewer words (EVEN EASIER)
+    # 9. TopicClassifier - ensure content matches desired topics (NEW)
+    # Training corpus for topic modeling
+    topic_corpus = [
+        "The latest economic report shows significant growth in the tech sector and manufacturing industries.",
+        "Recent scientific research has led to breakthroughs in renewable energy and climate science.",
+        "Educational reforms are being proposed to address challenges in schools and improve student outcomes.",
+        "The healthcare industry is adopting new technologies to enhance patient care and reduce costs.",
+        "Political debates focus on economic policies, social issues, and international relations.",
+        "Technological innovations in artificial intelligence and machine learning are transforming industries.",
+        "The entertainment industry has seen shifts in content distribution and consumer preferences.",
+        "Environmental conservation efforts are addressing pollution, habitat loss, and species protection.",
+        "Social media platforms are changing how people communicate and share information.",
+        "Financial markets have experienced volatility due to global economic uncertainty.",
+    ]
+
+    topic_classifier = TopicClassifier.create_pretrained(
+        corpus=topic_corpus,
+        name="topic_classifier",
+        description="Identifies main topics in text",
+        config=ClassifierConfig(
+            labels=[
+                "topic_0",
+                "topic_1",
+                "topic_2",
+                "topic_3",
+            ],  # Initial labels, will be replaced after fitting
+            params={
+                "num_topics": 4,
+                "min_confidence": 0.3,  # Low confidence requirement for easier passing
+                "max_features": 1000,
+                "top_words_per_topic": 5,
+            },
+        ),
+    )
+
+    # Print the topic labels to see what was generated
+    print("Topic labels:", topic_classifier.config.labels)
+
+    # The rule will pass if any topic has sufficient confidence
+    # We don't specify valid_labels because they're dynamically generated from the topics
+    topic_rule = create_classifier_rule(
+        classifier=topic_classifier,
+        name="topic_rule",
+        description="Ensures text contains clear topic focus",
+        threshold=0.3,  # Low threshold for easier passing
+    )
+    rules.append(topic_rule)
+    print("Added topic rule")
+
+    # 10. Length rule - enforce fewer words (EVEN EASIER)
     length_rule = create_length_rule(
         min_words=500,  # Further reduced from 700
         max_words=2700,
