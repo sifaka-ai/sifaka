@@ -355,7 +355,7 @@ reflexion_critic = create_reflexion_critic(
         "Focus on identifying patterns in feedback and applying those lessons to new tasks."
     ),
     memory_buffer_size=5,  # Store up to 5 reflections
-    reflection_depth=1     # Perform 1 level of reflection
+    reflection_depth=2     # Perform 1 level of reflection
 )
 
 # Create a length rule
