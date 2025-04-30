@@ -355,13 +355,13 @@ reflexion_critic = create_reflexion_critic(
         "Focus on identifying patterns in feedback and applying those lessons to new tasks."
     ),
     memory_buffer_size=5,  # Store up to 5 reflections
-    reflection_depth=2     # Perform 1 level of reflection
+    reflection_depth=1     # Perform 1 level of reflection
 )
 
 # Create a length rule
 length_rule = create_length_rule(
     min_words=50,
-    max_words=300,
+    max_words=225,
     rule_id="word_length_rule",
     description="Ensures text is between 50-300 words",
 )
@@ -382,8 +382,14 @@ prompts = [
 ]
 
 for prompt in prompts:
-    result = chain.run(prompt)
-    print(f"Output (Word Count: {len(result.output.split())}): {result.output}\n")
+    try:
+        result = chain.run(prompt)
+        # Process successful result
+        print(f"Output: {result.output}")
+    except ValueError as e:
+        # Handle validation failure
+        print(f"Validation failed: {e}")
+
 
 # The reflexion critic's memory buffer now contains reflections that will
 # guide future improvements, making it more effective over time
