@@ -9,7 +9,11 @@ to guide future improvements.
 import os
 import logging
 
-from sifaka.critics.reflexion import ReflexionCritic, ReflexionCriticConfig
+from sifaka.critics.reflexion import (
+    ReflexionCriticConfig,
+    create_reflexion_critic,
+    ReflexionCritic,
+)
 from sifaka.models.openai import OpenAIProvider
 from sifaka.models.base import ModelConfig
 from sifaka.rules.formatting.length import create_length_rule
@@ -21,9 +25,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("reflexion_example")
 
-# Set the OpenAI API key explicitly
-# Replace this with your actual API key or set the OPENAI_API_KEY environment variable
-api_key = os.environ.get("OPENAI_API_KEY", "your-api-key-here")
+# Get the OpenAI API key from environment variable
+# For testing purposes, we'll use a placeholder - replace with your actual key when running
+api_key = os.environ.get("OPENAI_API_KEY", "sk-your-actual-api-key")
+print(f"Using API key: {api_key[:5]}..." if api_key else "No API key found")
 
 # Create OpenAI provider
 openai_model = OpenAIProvider(
@@ -32,23 +37,9 @@ openai_model = OpenAIProvider(
 )
 
 
-# Create a reflexion critic with a custom method to make it compatible with Chain
-class CompatibleReflexionCritic(ReflexionCritic):
-    """A ReflexionCritic that's compatible with the Chain class."""
-
-    def critique(self, text: str) -> dict:
-        """Analyze text and provide detailed feedback as a dict instead of CriticMetadata."""
-        logger.info("Critiquing text...")
-        critic_metadata = super().critique(text)
-        # Convert CriticMetadata to a plain dictionary
-        result = {
-            "score": critic_metadata.score,
-            "feedback": critic_metadata.feedback,
-            "issues": critic_metadata.issues,
-            "suggestions": critic_metadata.suggestions,
-        }
-        logger.info(f"Critique result: {result}")
-        return result
+# Create a custom ReflexionCritic with additional logging
+class LoggingReflexionCritic(ReflexionCritic):
+    """A ReflexionCritic with additional logging for demonstration purposes."""
 
     def improve(self, text: str, feedback: str = None) -> str:
         """Override improve to add logging."""
@@ -137,8 +128,27 @@ class CompatibleReflexionCritic(ReflexionCritic):
         return original_text, improved_text
 
 
-# Create a reflexion critic
-reflexion_critic = CompatibleReflexionCritic(
+# Create a reflexion critic using the factory function
+# Note: ReflexionCritic now returns a dictionary from critique() by default, so it works with Chain
+reflexion_critic = create_reflexion_critic(
+    model=openai_model,
+    name="length_reflexion_critic",
+    description="A critic that helps adjust text length while learning from past attempts",
+    system_prompt=(
+        "You are an expert editor who specializes in adjusting text length. "
+        "You maintain a memory of past improvements and use these reflections "
+        "to guide future improvements. Focus on learning patterns from past "
+        "feedback and applying them to new situations."
+    ),
+    memory_buffer_size=5,  # Store up to 5 reflections
+    reflection_depth=1,  # Perform 1 level of reflection
+)
+
+# For demonstration purposes, we'll also show how to create a custom logging critic
+# Uncomment this to use the logging critic instead
+"""
+# Create a logging critic for more detailed output
+reflexion_critic = LoggingReflexionCritic(
     llm_provider=openai_model,
     config=ReflexionCriticConfig(
         name="length_reflexion_critic",
@@ -153,18 +163,45 @@ reflexion_critic = CompatibleReflexionCritic(
         reflection_depth=1,  # Perform 1 level of reflection
     ),
 )
+"""
 
 print("\n\n=== GENERATING MANUAL REFLECTIONS ===\n")
 print("First, we'll manually create reflections to populate the memory buffer\n")
 
+
+# Add a manually_create_reflection method to the standard ReflexionCritic instance
+def manually_create_reflection(critic, prompt, issue, suggestion):
+    """Manually create and add a reflection to demonstrate the process."""
+    logger.info(f"Manually creating a reflection for prompt: {prompt}")
+
+    # Generate a response
+    original_text = critic.llm_provider.generate(prompt)
+    feedback = f"Issue: {issue}. Suggestion: {suggestion}"
+
+    # Create a short/condensed version of the text
+    short_prompt = f"Create a very concise version (under 50 words) of this text: {original_text}"
+    improved_text = critic.llm_provider.generate(short_prompt)
+
+    logger.info(f"Original text: {original_text[:100]}... (truncated)")
+    logger.info(f"Feedback: {feedback}")
+    logger.info(f"Improved text: {improved_text}")
+
+    # Generate reflection
+    critic._generate_reflection(original_text, feedback, improved_text)
+
+    return original_text, improved_text
+
+
 # Manually create reflections for the first two prompts
-original1, improved1 = reflexion_critic.manually_create_reflection(
+original1, improved1 = manually_create_reflection(
+    reflexion_critic,
     "Explain the concept of machine learning in detail.",
     "Text is too long for the required format",
     "Create a more concise explanation focusing on the key points only",
 )
 
-original2, improved2 = reflexion_critic.manually_create_reflection(
+original2, improved2 = manually_create_reflection(
+    reflexion_critic,
     "Describe the process of photosynthesis in plants.",
     "Text exceeds the required word count",
     "Condense the explanation to focus on the main steps only",

@@ -69,19 +69,17 @@ critic = PromptCritic(
 A critic that maintains a memory of past improvements and uses these reflections to guide future improvements:
 
 ```python
-from sifaka.critics.reflexion import ReflexionCritic, ReflexionCriticConfig
+from sifaka.critics.reflexion import ReflexionCriticConfig, create_reflexion_critic
 from sifaka.models.anthropic import AnthropicProvider
 
 # Create a reflexion critic that uses Claude
-reflexion_critic = ReflexionCritic(
-    llm_provider=claude_model,
-    config=ReflexionCriticConfig(
-        name="reflexion_critic",
-        description="A critic that learns from past feedback",
-        system_prompt="You are an editor who learns from past feedback to improve future edits.",
-        memory_buffer_size=5,  # Store up to 5 reflections
-        reflection_depth=1     # Perform 1 level of reflection
-    )
+reflexion_critic = create_reflexion_critic(
+    model=claude_model,
+    name="reflexion_critic",
+    description="A critic that learns from past feedback",
+    system_prompt="You are an editor who learns from past feedback to improve future edits.",
+    memory_buffer_size=5,  # Store up to 5 reflections
+    reflection_depth=1     # Perform 1 level of reflection
 )
 ```
 
@@ -222,7 +220,7 @@ model = AnthropicProvider(
 # Create length rule (max 400 words)
 length_rule = create_length_rule(
     min_words=100,
-    max_words=400,
+    max_words=500,
     rule_id="word_limit_rule"
 )
 
@@ -330,27 +328,12 @@ For complete, runnable examples, see the `/examples` directory:
 This example uses the ReflexionCritic to improve text by learning from past feedback:
 
 ```python
-from sifaka.critics.reflexion import ReflexionCritic, ReflexionCriticConfig
+from sifaka.critics.reflexion import ReflexionCriticConfig, create_reflexion_critic
 from sifaka.models.openai import OpenAIProvider
 from sifaka.models.base import ModelConfig
 from sifaka.rules.formatting.length import create_length_rule
 from sifaka.chain import Chain
 import os
-
-# Create a compatible version of ReflexionCritic that works with Chain
-class CompatibleReflexionCritic(ReflexionCritic):
-    """A ReflexionCritic that's compatible with the Chain class."""
-
-    def critique(self, text: str) -> dict:
-        """Return critique as a dict instead of CriticMetadata."""
-        critic_metadata = super().critique(text)
-        # Convert CriticMetadata to a plain dictionary
-        return {
-            "score": critic_metadata.score,
-            "feedback": critic_metadata.feedback,
-            "issues": critic_metadata.issues,
-            "suggestions": critic_metadata.suggestions,
-        }
 
 # Configure OpenAI model
 model = OpenAIProvider(
@@ -362,27 +345,25 @@ model = OpenAIProvider(
     )
 )
 
-# Create a reflexion critic using our compatible subclass
-reflexion_critic = CompatibleReflexionCritic(
-    llm_provider=model,
-    config=ReflexionCriticConfig(
-        name="reflexion_critic",
-        description="A critic that learns from past feedback",
-        system_prompt=(
-            "You are an expert editor who learns from past feedback to improve future edits. "
-            "Focus on identifying patterns in feedback and applying those lessons to new tasks."
-        ),
-        memory_buffer_size=5,  # Store up to 5 reflections
-        reflection_depth=1     # Perform 1 level of reflection
-    )
+# Create a reflexion critic using the factory function
+reflexion_critic = create_reflexion_critic(
+    model=model,
+    name="reflexion_critic",
+    description="A critic that learns from past feedback",
+    system_prompt=(
+        "You are an expert editor who learns from past feedback to improve future edits. "
+        "Focus on identifying patterns in feedback and applying those lessons to new tasks."
+    ),
+    memory_buffer_size=5,  # Store up to 5 reflections
+    reflection_depth=1     # Perform 1 level of reflection
 )
 
 # Create a length rule
 length_rule = create_length_rule(
     min_words=50,
-    max_words=100,
+    max_words=300,
     rule_id="word_length_rule",
-    description="Ensures text is between 50-100 words",
+    description="Ensures text is between 50-300 words",
 )
 
 # Create a chain with the model, rule, and reflexion critic
