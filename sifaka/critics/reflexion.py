@@ -13,11 +13,15 @@ memory buffer, which influences subsequent decision-making.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Final, List, Optional, Union, cast
+import logging
+from typing import Any, Dict, Final, List, cast
 
-from .base import BaseCritic, CriticConfig, CriticMetadata, CriticOutput, CriticResult
+from .base import BaseCritic, CriticConfig, CriticOutput, CriticResult
 from .protocols import TextCritic, TextImprover, TextValidator
 from .prompt import LanguageModel
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -319,14 +323,14 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         except Exception as e:
             raise ValueError(f"Failed to improve text: {str(e)}") from e
 
-    def critique(self, text: str) -> CriticMetadata:
+    def critique(self, text: str) -> dict:
         """Analyze text and provide detailed feedback.
 
         Args:
             text: The text to critique
 
         Returns:
-            CriticMetadata containing score, feedback, issues, and suggestions
+            Dictionary containing score, feedback, issues, and suggestions
 
         Raises:
             ValueError: If text is empty
@@ -345,37 +349,31 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             # Parse the response
             if isinstance(response, dict):
                 # If response is already a dict, use it directly
-                return CriticMetadata(
-                    score=float(response.get("score", 0.0)),
-                    feedback=str(response.get("feedback", "")),
-                    issues=list(response.get("issues", [])),
-                    suggestions=list(response.get("suggestions", [])),
-                )
+                return {
+                    "score": float(response.get("score", 0.0)),
+                    "feedback": str(response.get("feedback", "")),
+                    "issues": list(response.get("issues", [])),
+                    "suggestions": list(response.get("suggestions", [])),
+                }
             elif isinstance(response, str):
                 # Parse string response
-                result = self._parse_critique_response(response)
-                return CriticMetadata(
-                    score=float(result.get("score", 0.0)),
-                    feedback=str(result.get("feedback", "")),
-                    issues=list(result.get("issues", [])),
-                    suggestions=list(result.get("suggestions", [])),
-                )
+                return self._parse_critique_response(response)
             else:
-                return CriticMetadata(
-                    score=0.0,
-                    feedback="Failed to critique text: Invalid response format",
-                    issues=["Invalid response format"],
-                    suggestions=["Try again with clearer text"],
-                )
+                return {
+                    "score": 0.0,
+                    "feedback": "Failed to critique text: Invalid response format",
+                    "issues": ["Invalid response format"],
+                    "suggestions": ["Try again with clearer text"],
+                }
 
         except Exception as e:
             # Return failure result if parsing fails
-            return CriticMetadata(
-                score=0.0,
-                feedback=f"Failed to critique text: {str(e)}",
-                issues=["Failed to parse model response"],
-                suggestions=["Try again with clearer text"],
-            )
+            return {
+                "score": 0.0,
+                "feedback": f"Failed to critique text: {str(e)}",
+                "issues": ["Failed to parse model response"],
+                "suggestions": ["Try again with clearer text"],
+            }
 
     def _violations_to_feedback(self, violations: List[Dict[str, Any]]) -> str:
         """Convert rule violations to feedback text.
@@ -539,8 +537,19 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         except Exception as e:
             raise ValueError(f"Failed to validate text: {str(e)}") from e
 
-    async def acritique(self, text: str) -> Dict[str, Any]:
-        """Asynchronously critique text."""
+    async def acritique(self, text: str) -> dict:
+        """Asynchronously critique text.
+
+        Args:
+            text: The text to critique
+
+        Returns:
+            Dictionary containing score, feedback, issues, and suggestions
+
+        Raises:
+            ValueError: If text is empty
+            TypeError: If model returns invalid output
+        """
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
@@ -554,9 +563,17 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
                 # Fall back to synchronous invoke if ainvoke is not available
                 response = self._model.invoke(critique_prompt)
 
+            # Parse the response
             if isinstance(response, dict):
-                return response
+                # If response is already a dict, use it directly
+                return {
+                    "score": float(response.get("score", 0.0)),
+                    "feedback": str(response.get("feedback", "")),
+                    "issues": list(response.get("issues", [])),
+                    "suggestions": list(response.get("suggestions", [])),
+                }
             elif isinstance(response, str):
+                # Parse string response
                 return self._parse_critique_response(response)
             else:
                 return {
@@ -566,7 +583,13 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
                     "suggestions": ["Try again with clearer text"],
                 }
         except Exception as e:
-            raise ValueError(f"Failed to critique text: {str(e)}") from e
+            # Return failure result if parsing fails
+            return {
+                "score": 0.0,
+                "feedback": f"Failed to critique text: {str(e)}",
+                "issues": ["Failed to parse model response"],
+                "suggestions": ["Try again with clearer text"],
+            }
 
     async def aimprove(self, text: str, feedback: str = None) -> str:
         """Asynchronously improve text."""
@@ -722,4 +745,5 @@ def create_reflexion_critic(
         memory_buffer_size=memory_buffer_size,
         reflection_depth=reflection_depth,
     )
+
     return ReflexionCritic(config=config, llm_provider=model, name=name, description=description)
