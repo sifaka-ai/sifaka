@@ -6,12 +6,15 @@ flow between models, rules, and critics.
 """
 
 from dataclasses import dataclass
-from typing import Generic, List, Optional, TypeVar
+from typing import Generic, List, Optional, TypeVar, Dict, Any
 
 from .critics import PromptCritic
 from .critics.prompt import CriticMetadata
+from .generation import Generator
+from .improvement import Improver, ImprovementResult
 from .models.base import ModelProvider
 from .rules import Rule, RuleResult
+from .validation import Validator, ValidationResult
 
 OutputType = TypeVar("OutputType")
 
@@ -22,15 +25,15 @@ class ChainResult(Generic[OutputType]):
 
     output: OutputType
     rule_results: List[RuleResult]
-    critique_details: Optional[dict] = None
+    critique_details: Optional[Dict[str, Any]] = None
 
 
 class Chain(Generic[OutputType]):
     """
     Chain class that orchestrates the validation and improvement flow.
 
-    This class combines a model provider with validation rules and an optional critic
-    to generate, validate, and potentially improve outputs based on prompts.
+    This class combines generation, validation, and improvement components to
+    create a complete pipeline for generating, validating, and improving outputs.
     """
 
     def __init__(
@@ -49,9 +52,9 @@ class Chain(Generic[OutputType]):
             critic: Optional critic for improving outputs
             max_attempts: Maximum number of improvement attempts
         """
-        self.model = model
-        self.rules = rules
-        self.critic = critic
+        self.generator = Generator[OutputType](model)
+        self.validator = Validator[OutputType](rules)
+        self.improver = Improver[OutputType](critic) if critic else None
         self.max_attempts = max_attempts
 
     def run(self, prompt: str) -> ChainResult[OutputType]:
@@ -68,56 +71,43 @@ class Chain(Generic[OutputType]):
             ValueError: If validation fails after max attempts
         """
         attempts = 0
-        last_critique = None
+        current_prompt = prompt
+        last_critique_details = None
 
         while attempts < self.max_attempts:
             # Generate output
-            output = self.model.generate(prompt)
+            output = self.generator.generate(current_prompt)
 
             # Validate output
-            rule_results = []
-            all_passed = True
-            for rule in self.rules:
-                result = rule.validate(output)
-                rule_results.append(result)
-                if not result.passed:
-                    all_passed = False
+            validation_result = self.validator.validate(output)
 
             # If validation passed, return result
-            if all_passed:
-                # Handle different critique formats properly
-                critique_details = None
-                if last_critique:
-                    if isinstance(last_critique, CriticMetadata):
-                        critique_details = last_critique.__dict__
-                    elif isinstance(last_critique, dict):
-                        critique_details = last_critique
-
+            if validation_result.all_passed:
                 return ChainResult(
                     output=output,
-                    rule_results=rule_results,
-                    critique_details=critique_details,
+                    rule_results=validation_result.rule_results,
+                    critique_details=last_critique_details,
                 )
 
-            # If validation failed but we have no critic, raise error
-            if not self.critic:
-                error_messages = [r.message for r in rule_results if not r.passed]
+            # If validation failed but we have no improver, raise error
+            if not self.improver:
+                error_messages = self.validator.get_error_messages(validation_result)
                 raise ValueError(f"Validation failed. Errors:\n" + "\n".join(error_messages))
 
-            # If we have a critic and validation failed, try to improve
+            # If we have an improver and validation failed, try to improve
             if attempts < self.max_attempts - 1:
-                critique = self.critic.critique(output)
-                last_critique = critique
-                if isinstance(critique, CriticMetadata):
-                    feedback = critique.feedback
-                else:
-                    feedback = critique.get("feedback", "")
-                prompt = f"{prompt}\n\nPrevious attempt feedback:\n{feedback}"
+                improvement_result = self.improver.improve(output, validation_result)
+                last_critique_details = improvement_result.critique_details
+
+                if improvement_result.critique_details:
+                    feedback = self.improver.get_feedback(improvement_result.critique_details)
+                    current_prompt = f"{prompt}\n\nPrevious attempt feedback:\n{feedback}"
+
                 attempts += 1
                 continue
 
-            # If we're out of attempts or no critic, raise error
-            error_messages = [r.message for r in rule_results if not r.passed]
+            # If we're out of attempts, raise error
+            error_messages = self.validator.get_error_messages(validation_result)
             raise ValueError(
                 f"Validation failed after {attempts + 1} attempts. Errors:\n"
                 + "\n".join(error_messages)
