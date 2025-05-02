@@ -732,12 +732,6 @@ def create_format_rule(
     )
 
 
-# For backward compatibility - these are aliases to maintain API compatibility
-MarkdownValidator = DefaultMarkdownValidator
-JsonValidator = DefaultJsonValidator
-PlainTextValidator = DefaultPlainTextValidator
-
-
 # Export public classes and functions
 __all__ = [
     # Rule classes
@@ -752,11 +746,8 @@ __all__ = [
     # Validator classes
     "FormatValidator",
     "DefaultFormatValidator",
-    "MarkdownValidator",
     "DefaultMarkdownValidator",
-    "JsonValidator",
     "DefaultJsonValidator",
-    "PlainTextValidator",
     "DefaultPlainTextValidator",
     # Validator factory functions
     "create_format_validator",

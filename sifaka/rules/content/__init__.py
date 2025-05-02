@@ -39,6 +39,8 @@ from sifaka.rules.content.base import (
     DefaultContentAnalyzer,
     DefaultToneAnalyzer,
     ToneAnalyzer,
+    IndicatorAnalyzerBase,
+    CategoryAnalyzerBase,
 )
 from sifaka.rules.content.prohibited import (
     DefaultProhibitedContentValidator,
@@ -143,4 +145,7 @@ __all__ = [
     "DEFAULT_POSITIVE_WORDS",
     "DEFAULT_NEGATIVE_WORDS",
     "DEFAULT_EMOTION_CATEGORIES",
+    # Base analyzers
+    "IndicatorAnalyzerBase",
+    "CategoryAnalyzerBase",
 ]

@@ -52,7 +52,13 @@ from sifaka.rules.base import (
     RuleResultHandler,
     ValidationError,
 )
-from sifaka.rules.content.base import ContentAnalyzer, ContentValidator, DefaultContentAnalyzer
+from sifaka.rules.content.base import (
+    CategoryAnalyzerBase,
+    ContentAnalyzer,
+    ContentValidator,
+    DefaultContentAnalyzer,
+    IndicatorAnalyzerBase,
+)
 
 
 # Default sets of positive and negative words for sentiment analysis
@@ -442,6 +448,11 @@ class DefaultSentimentValidator(BaseValidator[str]):
     def __init__(self, config: SentimentConfig) -> None:
         """Initialize with configuration."""
         self._config = config
+        self._analyzer = _SentimentAnalyzer(
+            positive_words=self.config.params.get("positive_words", self.config.positive_words),
+            negative_words=self.config.params.get("negative_words", self.config.negative_words),
+            threshold=self.config.params.get("threshold", self.config.threshold),
+        )
 
     @property
     def config(self) -> SentimentConfig:
@@ -449,43 +460,8 @@ class DefaultSentimentValidator(BaseValidator[str]):
         return self._config
 
     def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate text sentiment."""
-        if not isinstance(text, str):
-            raise ValueError("Input must be a string")
-
-        # Get configuration from params for consistency
-        threshold = self.config.params.get("threshold", self.config.threshold)
-        positive_words = self.config.params.get("positive_words", self.config.positive_words)
-        negative_words = self.config.params.get("negative_words", self.config.negative_words)
-
-        text_lower = text.lower()
-        positive_matches = sum(1 for word in positive_words if word.lower() in text_lower)
-        negative_matches = sum(1 for word in negative_words if word.lower() in text_lower)
-
-        total_matches = positive_matches + negative_matches
-        if total_matches == 0:
-            return RuleResult(
-                passed=True,
-                message="Neutral sentiment detected",
-                metadata={
-                    "sentiment_score": 0.5,
-                    "positive_matches": 0,
-                    "negative_matches": 0,
-                },
-            )
-
-        sentiment_score = positive_matches / total_matches
-        is_positive = sentiment_score >= threshold
-
-        return RuleResult(
-            passed=is_positive,
-            message=f"{'Positive' if is_positive else 'Negative'} sentiment detected (score: {sentiment_score:.2f})",
-            metadata={
-                "sentiment_score": sentiment_score,
-                "positive_matches": positive_matches,
-                "negative_matches": negative_matches,
-            },
-        )
+        """Delegate validation to the internal analyzer."""
+        return self._analyzer.analyze(text)
 
 
 class DefaultEmotionalContentValidator(BaseValidator[str]):
@@ -494,6 +470,15 @@ class DefaultEmotionalContentValidator(BaseValidator[str]):
     def __init__(self, config: EmotionalContentConfig) -> None:
         """Initialize with configuration."""
         self._config = config
+        self._analyzer = _EmotionCategoryAnalyzer(
+            categories=self.config.params.get("categories", self.config.categories),
+            min_emotion_score=self.config.params.get(
+                "min_emotion_score", self.config.min_emotion_score
+            ),
+            max_emotion_score=self.config.params.get(
+                "max_emotion_score", self.config.max_emotion_score
+            ),
+        )
 
     @property
     def config(self) -> EmotionalContentConfig:
@@ -501,54 +486,8 @@ class DefaultEmotionalContentValidator(BaseValidator[str]):
         return self._config
 
     def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate emotional content."""
-        if not isinstance(text, str):
-            raise ValueError("Input must be a string")
-
-        # Get configuration from params for consistency
-        categories = self.config.params.get("categories", self.config.categories)
-        min_emotion_score = self.config.params.get(
-            "min_emotion_score", self.config.min_emotion_score
-        )
-        max_emotion_score = self.config.params.get(
-            "max_emotion_score", self.config.max_emotion_score
-        )
-
-        text_lower = text.lower()
-        emotion_scores: Dict[str, float] = {}
-        detected_emotions: Dict[str, List[str]] = {}
-
-        for category, indicators in categories.items():
-            found_indicators = [
-                indicator for indicator in indicators if indicator.lower() in text_lower
-            ]
-            if found_indicators:
-                score = len(found_indicators) / len(indicators)
-                emotion_scores[category] = score
-                detected_emotions[category] = found_indicators
-
-        if not emotion_scores:
-            return RuleResult(
-                passed=True,
-                message="No strong emotions detected",
-                metadata={
-                    "emotion_scores": {},
-                    "detected_emotions": {},
-                },
-            )
-
-        avg_emotion_score = sum(emotion_scores.values()) / len(emotion_scores)
-        is_balanced = min_emotion_score <= avg_emotion_score <= max_emotion_score
-
-        return RuleResult(
-            passed=is_balanced,
-            message=f"{'Balanced' if is_balanced else 'Unbalanced'} emotional content detected (score: {avg_emotion_score:.2f})",
-            metadata={
-                "emotion_scores": emotion_scores,
-                "detected_emotions": detected_emotions,
-                "average_score": avg_emotion_score,
-            },
-        )
+        """Delegate validation to the internal analyzer."""
+        return self._analyzer.analyze(text)
 
 
 class SentimentRule(
@@ -845,4 +784,101 @@ __all__ = [
     "DEFAULT_POSITIVE_WORDS",
     "DEFAULT_NEGATIVE_WORDS",
     "DEFAULT_EMOTION_CATEGORIES",
+    "_SentimentAnalyzer",
+    "_EmotionCategoryAnalyzer",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Internal analyzers implementing the core validation logic
+# ---------------------------------------------------------------------------
+
+
+class _SentimentAnalyzer(BaseModel):
+    """Analyze text sentiment using positive and negative word lists."""
+
+    positive_words: Set[str] = Field(default_factory=set)
+    negative_words: Set[str] = Field(default_factory=set)
+    threshold: float = 0.6
+
+    def analyze(self, text: str) -> RuleResult:  # type: ignore[override]
+        """Check for positive/negative sentiment indicators."""
+        if not isinstance(text, str):
+            raise ValueError("Input must be a string")
+
+        text_lower = text.lower()
+        positive_matches = sum(1 for word in self.positive_words if word.lower() in text_lower)
+        negative_matches = sum(1 for word in self.negative_words if word.lower() in text_lower)
+
+        total_matches = positive_matches + negative_matches
+        if total_matches == 0:
+            return RuleResult(
+                passed=True,
+                message="Neutral sentiment detected",
+                metadata={
+                    "sentiment_score": 0.5,
+                    "positive_matches": 0,
+                    "negative_matches": 0,
+                },
+            )
+
+        sentiment_score = positive_matches / total_matches
+        is_positive = sentiment_score >= self.threshold
+
+        return RuleResult(
+            passed=is_positive,
+            message=f"{'Positive' if is_positive else 'Negative'} sentiment detected (score: {sentiment_score:.2f})",
+            metadata={
+                "sentiment_score": sentiment_score,
+                "positive_matches": positive_matches,
+                "negative_matches": negative_matches,
+            },
+        )
+
+
+class _EmotionCategoryAnalyzer(CategoryAnalyzerBase):
+    """Analyze emotional content using category indicators."""
+
+    min_emotion_score: float = 0.3
+    max_emotion_score: float = 0.8
+
+    def analyze(self, text: str) -> RuleResult:  # type: ignore[override]
+        """Check for emotion categories and compute balance score."""
+        if not isinstance(text, str):
+            raise ValueError("Input must be a string")
+
+        text_lower = text.lower()
+        emotion_scores: Dict[str, float] = {}
+        detected_emotions: Dict[str, List[str]] = {}
+
+        for category, indicators in self.categories.items():
+            found_indicators = [
+                indicator for indicator in indicators if indicator.lower() in text_lower
+            ]
+            if found_indicators:
+                score = len(found_indicators) / len(indicators)
+                emotion_scores[category] = score
+                detected_emotions[category] = found_indicators
+
+        if not emotion_scores:
+            return RuleResult(
+                passed=True,
+                message="No strong emotions detected",
+                metadata={
+                    "emotion_scores": {},
+                    "detected_emotions": {},
+                },
+            )
+
+        avg_emotion_score = sum(emotion_scores.values()) / len(emotion_scores)
+        is_balanced = self.min_emotion_score <= avg_emotion_score <= self.max_emotion_score
+
+        return RuleResult(
+            passed=is_balanced,
+            message=f"{'Balanced' if is_balanced else 'Unbalanced'} emotional content detected (score: {avg_emotion_score:.2f})",
+            metadata={
+                "emotion_scores": emotion_scores,
+                "detected_emotions": detected_emotions,
+                "average_score": avg_emotion_score,
+            },
+        )

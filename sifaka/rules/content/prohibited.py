@@ -29,6 +29,7 @@ from sifaka.rules.base import (
     ValidationError,
 )
 from sifaka.rules.content.base import ContentAnalyzer, ContentValidator, DefaultContentAnalyzer
+from pydantic import BaseModel, Field
 
 
 __all__ = [
@@ -43,6 +44,7 @@ __all__ = [
     # Factory functions
     "create_prohibited_content_validator",
     "create_prohibited_content_rule",
+    "_ProhibitedAnalyzer",
 ]
 
 
@@ -134,6 +136,39 @@ class ProhibitedContentValidator(ContentValidator):
             raise ValidationError(f"Content validation failed: {str(e)}") from e
 
 
+class _ProhibitedAnalyzer(BaseModel):
+    """Analyze text for the presence of prohibited terms."""
+
+    terms: List[str] = Field(default_factory=list)
+    case_sensitive: bool = False
+
+    # The analyze method mirrors the BaseValidator[str] interface expected by
+    # the rule engine so DefaultProhibitedContentValidator can simply delegate.
+    def analyze(self, text: str) -> RuleResult:  # type: ignore[override]
+        if not isinstance(text, str):
+            raise ValueError("Input must be a string")
+
+        check_text = text if self.case_sensitive else text.lower()
+        normalized_terms = (
+            self.terms
+            if self.case_sensitive
+            else [t.lower() for t in self.terms]
+        )
+
+        found_terms = [term for term in normalized_terms if term in check_text]
+
+        passed = not found_terms
+        return RuleResult(
+            passed=passed,
+            message=(
+                "No prohibited terms found"
+                if passed
+                else f"Found prohibited terms: {', '.join(found_terms)}"
+            ),
+            metadata={"found_terms": found_terms, "case_sensitive": self.case_sensitive},
+        )
+
+
 class DefaultProhibitedContentValidator(BaseValidator[str]):
     """Default implementation of prohibited content validation."""
 
@@ -146,52 +181,30 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
         """Get the validator configuration."""
         return self._config
 
+    def __post_init_validator(self) -> None:
+        """Create the internal analyzer once after initialization."""
+        self._analyzer = _ProhibitedAnalyzer(
+            terms=self.config.params.get(
+                "terms",
+                [
+                    "profanity",
+                    "obscenity",
+                    "hate speech",
+                    "explicit content",
+                    "adult content",
+                    "nsfw",
+                    "inappropriate",
+                ],
+            ),
+            case_sensitive=self.config.params.get("case_sensitive", False),
+        )
+
     def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate text for prohibited content."""
-        if not isinstance(text, str):
-            raise ValueError("Input must be a string")
-
-        # Get configuration from params
-        case_sensitive = self.config.params.get("case_sensitive", False)
-        terms = self.config.params.get(
-            "terms",
-            [
-                "profanity",
-                "obscenity",
-                "hate speech",
-                "explicit content",
-                "adult content",
-                "nsfw",
-                "inappropriate",
-            ],
-        )
-
-        check_text = text if case_sensitive else text.lower()
-        found_terms = []
-
-        for term in terms:
-            check_term = term if case_sensitive else term.lower()
-            if check_term in check_text:
-                found_terms.append(term)
-
-        if found_terms:
-            return RuleResult(
-                passed=False,
-                message=f"Found prohibited terms: {', '.join(found_terms)}",
-                metadata={
-                    "found_terms": found_terms,
-                    "case_sensitive": case_sensitive,
-                },
-            )
-
-        return RuleResult(
-            passed=True,
-            message="No prohibited terms found",
-            metadata={
-                "found_terms": [],
-                "case_sensitive": case_sensitive,
-            },
-        )
+        """Delegate validation to the internal _ProhibitedAnalyzer."""
+        # Lazily create analyzer if not yet created (for picklability)
+        if not hasattr(self, "_analyzer"):
+            self.__post_init_validator()
+        return self._analyzer.analyze(text)
 
 
 class ProhibitedContentRule(

@@ -85,12 +85,14 @@ reflexion_critic = create_reflexion_critic(
 
 ### 3. Chains
 
-Chains orchestrate the validation and improvement process:
+Chains orchestrate the validation and improvement process. Sifaka provides two ways to create chains:
+
+#### Simple Chain Creation
 
 ```python
 from sifaka.chain import Chain
 
-# Create a chain with a model, rules, and critic
+# Create a chain with a model, rules, and critic (legacy approach)
 chain = Chain(
     model=model,            # LLM Provider
     rules=[length_rule],    # Validation rules
@@ -102,9 +104,66 @@ chain = Chain(
 result = chain.run("Write about artificial intelligence")
 ```
 
+#### Advanced Chain Creation
+
+For more control and customization, use the factory functions or create chains with specialized components:
+
+```python
+from sifaka.chain import create_simple_chain, create_backoff_chain
+
+# Create a simple chain with fixed retry attempts
+chain = create_simple_chain(
+    model=model,
+    rules=[length_rule],
+    critic=critic,
+    max_attempts=3,
+)
+
+# Create a chain with exponential backoff retry strategy
+chain = create_backoff_chain(
+    model=model,
+    rules=[length_rule],
+    critic=critic,
+    max_attempts=5,
+    initial_backoff=1.0,
+    backoff_factor=2.0,
+    max_backoff=60.0,
+)
+```
+
+#### Custom Chain Components
+
+For maximum flexibility, create chains with custom components:
+
+```python
+from sifaka.chain import (
+    ChainCore,
+    PromptManager,
+    ValidationManager,
+    ResultFormatter,
+    SimpleRetryStrategy,
+)
+
+# Create custom components
+validation_manager = ValidationManager(rules)
+prompt_manager = PromptManager()
+retry_strategy = SimpleRetryStrategy(max_attempts=3)
+result_formatter = ResultFormatter()
+
+# Create a chain with custom components
+chain = ChainCore(
+    model=model,
+    validation_manager=validation_manager,
+    prompt_manager=prompt_manager,
+    retry_strategy=retry_strategy,
+    result_formatter=result_formatter,
+    critic=critic,
+)
+```
+
 ### Sifaka Workflow Diagram
 
-The diagram below illustrates the flow within the `Chain.run` method:
+The diagram below illustrates the flow within the chain execution:
 
 ```mermaid
 flowchart LR
@@ -322,6 +381,7 @@ For complete, runnable examples, see the `/examples` directory:
 - `claude_expand_length_critic.py`: Demonstrates expanding text length
 - `toxicity_filtering.py`: Demonstrates content safety validation
 - `reflexion_critic_example.py`: Demonstrates using the ReflexionCritic to improve text through learning from past feedback
+- `advanced_chain_example.py`: Demonstrates the new chain architecture with different components and strategies
 
 ### Example 3: Reflexion-Based Learning
 
