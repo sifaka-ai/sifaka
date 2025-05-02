@@ -44,8 +44,42 @@ except ImportError:
         pass
 
 
-from sifaka.rules.base import BaseValidator, RuleResult, Rule, FunctionRule
+from sifaka.rules.base import BaseValidator, RuleResult, Rule, RuleConfig
 from sifaka.adapters.rules.base import Adaptable, BaseAdapter
+
+
+@runtime_checkable
+class GuardrailsValidatable(Protocol):
+    """
+    Protocol for components that can be validated by Guardrails.
+
+    This defines the minimum interface needed for a component
+    to be used with the Guardrails adapter.
+
+    Examples:
+        ```python
+        class CustomValidator(GuardrailsValidatable):
+            def validate(self, value, metadata=None):
+                # Custom validation logic
+                if valid:
+                    return PassResult(value)
+                else:
+                    return FailResult(value, "Validation failed")
+        ```
+    """
+
+    def validate(self, value: str, metadata: Optional[Dict[str, Any]] = None) -> ValidationResult:
+        """
+        Validate a value.
+
+        Args:
+            value: The value to validate
+            metadata: Additional context for validation
+
+        Returns:
+            Validation result
+        """
+        ...
 
 
 class GuardrailsValidatorAdapter(BaseValidator[str]):
@@ -89,6 +123,11 @@ class GuardrailsValidatorAdapter(BaseValidator[str]):
                 "Guardrails is not installed. Please install it with 'pip install guardrails-ai'"
             )
         self._guardrails_validator = guardrails_validator
+
+    @property
+    def guardrails_validator(self) -> GuardrailsValidator:
+        """Get the Guardrails validator being adapted."""
+        return self._guardrails_validator
 
     def _convert_guardrails_result(self, gr_result: ValidationResult) -> RuleResult:
         """
@@ -219,11 +258,23 @@ class GuardrailsRule(Rule):
         if description is None:
             description = f"Rule using Guardrails validator: {guardrails_validator.__class__.__name__}"
 
+        # Create rule configuration
+        rule_config = RuleConfig(
+            params={
+                "guardrails_validator_type": guardrails_validator.__class__.__name__,
+            }
+        )
+
         self._guardrails_validator = guardrails_validator
         self._rule_id = rule_id or name
         self._adapter = GuardrailsValidatorAdapter(guardrails_validator)
 
-        super().__init__(name=name, description=description, **kwargs)
+        super().__init__(
+            name=name,
+            description=description,
+            config=rule_config,
+            **kwargs
+        )
 
     def _create_default_validator(self) -> BaseValidator[str]:
         """
@@ -233,6 +284,16 @@ class GuardrailsRule(Rule):
             The GuardrailsValidatorAdapter
         """
         return self._adapter
+
+    @property
+    def guardrails_validator(self) -> GuardrailsValidator:
+        """Get the Guardrails validator being used."""
+        return self._guardrails_validator
+
+    @property
+    def rule_id(self) -> str:
+        """Get the rule ID."""
+        return self._rule_id
 
     def validate(self, text: str, **kwargs) -> RuleResult:
         """
@@ -249,11 +310,6 @@ class GuardrailsRule(Rule):
         # Add rule_id to metadata
         return result.with_metadata(rule_id=self._rule_id)
 
-    @property
-    def rule_id(self) -> str:
-        """Get the rule ID."""
-        return self._rule_id
-
 
 def create_guardrails_rule(
     guardrails_validator: GuardrailsValidator,
@@ -261,7 +317,7 @@ def create_guardrails_rule(
     name: Optional[str] = None,
     description: Optional[str] = None,
     **kwargs
-) -> Rule:
+) -> GuardrailsRule:
     """
     Create a Sifaka rule that uses a Guardrails validator.
 
@@ -303,6 +359,8 @@ def create_guardrails_rule(
 
 # Export public classes and functions
 __all__ = [
+    # Protocols
+    "GuardrailsValidatable",
     # Core components
     "GuardrailsValidatorAdapter",
     "GuardrailsRule",

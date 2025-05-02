@@ -280,7 +280,11 @@ class ClassifierRule(Rule):
             raise TypeError(f"Expected a Classifier, got {type(classifier)}")
 
         # Get labels from the classifier's config
-        all_labels = classifier.config.get('labels', []) if hasattr(classifier.config, 'get') else []
+        all_labels = []
+        if hasattr(classifier.config, 'get'):
+            all_labels = classifier.config.get('labels', [])
+        elif hasattr(classifier.config, 'labels'):
+            all_labels = classifier.config.labels
 
         if valid_labels is None and invalid_labels is None:
             raise ValueError("Either valid_labels or invalid_labels must be provided")
@@ -308,6 +312,7 @@ class ClassifierRule(Rule):
             "invalid_labels": invalid_labels,
         })
 
+        # Store essential attributes
         self._classifier = classifier
         self._rule_id = rule_id or f"classifier_{classifier.name}"
         self._severity = severity
@@ -318,11 +323,17 @@ class ClassifierRule(Rule):
             extraction_function=extraction_function,
         )
 
+        # Initialize base class
         super().__init__(
             name=name,
             description=description,
             config=rule_config,
         )
+
+    @property
+    def classifier(self) -> Classifier:
+        """Get the classifier used by this rule."""
+        return self._classifier
 
     @property
     def threshold(self) -> float:
@@ -426,6 +437,18 @@ class ClassifierRule(Rule):
         Returns:
             RuleResult with validation results
         """
+        # Handle empty input
+        if not input_text:
+            return RuleResult(
+                passed=True,
+                message="Empty text validation skipped",
+                metadata={
+                    "reason": "empty_input",
+                    "rule_id": self._rule_id,
+                    "severity": self._severity,
+                },
+            )
+
         # Extract text to classify
         text_to_classify = input_text
         if self._classifier_config.extraction_function:
@@ -459,7 +482,12 @@ class ClassifierRule(Rule):
                 self._rule = rule
 
             def validate(self, input_text: str, **kwargs) -> RuleResult:
-                return self._rule.validate(input_text, **kwargs)
+                # Handle empty text
+                empty_result = self.handle_empty_text(input_text)
+                if empty_result:
+                    return empty_result
+
+                return self._rule._validate_text(input_text)
 
         return ClassifierValidator(self)
 
@@ -508,62 +536,123 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         extraction_function: Optional[Callable[[str], str]] = None,
     ) -> None:
         """
-        Initialize a classifier adapter.
+        Initialize with classifier and configuration.
 
         Args:
-            classifier: Classifier to use for validation
+            classifier: The classifier to adapt
             threshold: Confidence threshold for accepting a classification
             valid_labels: List of valid labels
             invalid_labels: List of invalid labels
-            extraction_function: Function to extract text to classify from input
+            extraction_function: Function to extract text to classify
+
+        Raises:
+            ValueError: If neither valid_labels nor invalid_labels is provided
+            ValueError: If both valid_labels and invalid_labels are provided
         """
         super().__init__(classifier)
 
-        # If valid_labels is None but invalid_labels is provided, derive valid_labels
-        if valid_labels is None and invalid_labels is not None:
-            # Access the labels from config, which is a dictionary with a 'labels' key
-            all_labels = classifier.config.get('labels', [])
-            valid_labels = [label for label in all_labels if label not in invalid_labels]
-            # Don't pass invalid_labels to ClassifierRule
-            invalid_labels = None
-
-        self._rule = ClassifierRule(
-            classifier=classifier,
+        # Create configuration
+        self._config = ClassifierRuleConfig(
             threshold=threshold,
-            valid_labels=valid_labels,
+            valid_labels=valid_labels if valid_labels is not None else [],
             invalid_labels=invalid_labels,
             extraction_function=extraction_function,
         )
 
     @property
+    def config(self) -> ClassifierRuleConfig:
+        """Get the adapter configuration."""
+        return self._config
+
+    @property
+    def classifier(self) -> Classifier:
+        """Get the classifier being adapted."""
+        return self.adaptee
+
+    @property
     def valid_labels(self) -> List[str]:
         """Get the valid labels for this adapter."""
-        return self._rule.valid_labels
+        return self._config.valid_labels
 
     @property
     def threshold(self) -> float:
         """Get the confidence threshold for this adapter."""
-        return self._rule.threshold
+        return self._config.threshold
 
     def validate(self, input_text: str, **kwargs) -> RuleResult:
         """
         Validate input using the classifier.
 
-        This method delegates validation to the internal ClassifierRule.
-
         Args:
-            input_text: Input to validate
+            input_text: Text to validate
             **kwargs: Additional validation context
 
         Returns:
             RuleResult with validation results
         """
-        # Handle empty text first
+        # Handle empty text
         empty_result = self.handle_empty_text(input_text)
         if empty_result:
             return empty_result
 
-        return self._rule.validate(input_text, **kwargs)
+        try:
+            # Extract text to classify if needed
+            text_to_classify = input_text
+            if self._config.extraction_function:
+                text_to_classify = self._config.extraction_function(input_text)
+
+            # Get classification result
+            result = self.classifier.classify(text_to_classify)
+
+            # Extract label and confidence
+            label = result.label
+            confidence = result.confidence
+
+            # Check if label is valid
+            is_valid_label = label in self._config.valid_labels
+            passed = is_valid_label and confidence >= self._config.threshold
+
+            # Prepare metadata
+            metadata = {
+                "label": label,
+                "confidence": confidence,
+                "threshold": self._config.threshold,
+                "valid_labels": self._config.valid_labels,
+                "adaptee_name": self.classifier.name,
+            }
+
+            # Create result message
+            if passed:
+                message = (
+                    f"Classified as '{label}' with confidence {confidence:.2f}, "
+                    f"which is >= threshold {self._config.threshold} and in valid labels"
+                )
+            else:
+                if not is_valid_label:
+                    message = (
+                        f"Classified as '{label}' which is not in valid labels {self._config.valid_labels}"
+                    )
+                else:
+                    message = (
+                        f"Classified as '{label}' with confidence {confidence:.2f}, "
+                        f"which is < threshold {self._config.threshold}"
+                    )
+
+            return RuleResult(
+                passed=passed,
+                message=message,
+                metadata=metadata,
+            )
+        except Exception as e:
+            # Handle errors consistently
+            return RuleResult(
+                passed=False,
+                message=f"Classification error: {str(e)}",
+                metadata={
+                    "error_type": type(e).__name__,
+                    "adaptee_name": self.classifier.name,
+                }
+            )
 
 
 @validate_call(config=dict(arbitrary_types_allowed=True))
