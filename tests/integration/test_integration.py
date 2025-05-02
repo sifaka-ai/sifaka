@@ -27,7 +27,6 @@ from sifaka.integrations.langgraph import (
     wrap_node,
 )
 from sifaka.rules.base import Rule, RuleResult
-from sifaka.domain.base import DomainConfig
 
 
 class MockChainValidator(ChainValidator[str]):

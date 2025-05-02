@@ -16,7 +16,6 @@ from sifaka.rules.base import (
     RuleResultHandler,
 )
 from sifaka.critics.base import CriticConfig, CriticMetadata, CriticOutput, CriticResult
-from sifaka.domain.base import DomainConfig
 from sifaka.integrations.langchain import (
     ChainValidator,
     ChainOutputProcessor,

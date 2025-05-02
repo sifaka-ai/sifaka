@@ -1,11 +1,11 @@
-"""Base test configuration and utilities."""
+"""Tests for base components."""
 
 import unittest
 from unittest.mock import patch, MagicMock
 from typing import Dict, Any, List, Optional
 import pytest
-from sifaka.domain.base import DomainConfig
 from sifaka.models.base import ModelConfig, ModelProvider
+from sifaka.rules.base import Rule, RuleConfig, RuleResult, RulePriority
 
 class BaseTestCase(unittest.TestCase):
     """Base test case with common utilities."""
@@ -26,20 +26,6 @@ class BaseTestCase(unittest.TestCase):
                 }
             }]
         }
-
-    def create_mock_domain_config(self, **kwargs) -> DomainConfig:
-        """Create a mock domain configuration."""
-        default_config = {
-            "name": "test_domain",
-            "description": "Test domain configuration",
-            "params": {
-                "required_terms": ["term1", "term2"],
-                "prohibited_terms": ["term3", "term4"],
-                "style": "professional"
-            }
-        }
-        default_config.update(kwargs)
-        return DomainConfig(**default_config)
 
     def create_mock_model_config(self, **kwargs) -> ModelConfig:
         """Create a mock model configuration."""
@@ -74,19 +60,6 @@ def mock_anthropic():
     """Fixture for mocking Anthropic client."""
     with patch('anthropic.Anthropic') as mock:
         yield mock
-
-@pytest.fixture
-def mock_domain_config():
-    """Fixture for creating a mock domain configuration."""
-    return DomainConfig(
-        name="test_domain",
-        description="Test domain configuration",
-        params={
-            "required_terms": ["term1", "term2"],
-            "prohibited_terms": ["term3", "term4"],
-            "style": "professional"
-        }
-    )
 
 @pytest.fixture
 def mock_model_config():
