@@ -1,5 +1,8 @@
 """
 Anthropic model provider implementation.
+
+This module provides the AnthropicProvider class which implements the ModelProviderCore
+interface for Anthropic Claude models.
 """
 
 from typing import Optional
@@ -9,10 +12,12 @@ import tiktoken
 from anthropic import Anthropic
 from langchain_anthropic import ChatAnthropic
 
-from sifaka.models.base import APIClient, ModelConfig, ModelProvider, TokenCounter
+from sifaka.models.base import APIClient, ModelConfig, TokenCounter
+from sifaka.models.core import ModelProviderCore
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
 
 class AnthropicClient(APIClient):
     """Anthropic API client implementation."""
@@ -36,6 +41,7 @@ class AnthropicClient(APIClient):
             logger.error(f"Anthropic API error: {str(e)}")
             raise
 
+
 class AnthropicTokenCounter(TokenCounter):
     """Token counter using tiktoken for Anthropic models."""
 
@@ -57,7 +63,8 @@ class AnthropicTokenCounter(TokenCounter):
             logger.error(f"Error counting tokens: {str(e)}")
             raise
 
-class AnthropicProvider(ModelProvider):
+
+class AnthropicProvider(ModelProviderCore):
     """
     Anthropic model provider implementation.
 
@@ -72,14 +79,29 @@ class AnthropicProvider(ModelProvider):
         api_client: Optional[APIClient] = None,
         token_counter: Optional[TokenCounter] = None,
     ) -> None:
-        """Initialize the Anthropic provider."""
+        """
+        Initialize the Anthropic provider.
+
+        Args:
+            model_name: The name of the model to use
+            config: Optional model configuration
+            api_client: Optional API client to use
+            token_counter: Optional token counter to use
+        """
+        # Verify Anthropic package is installed
+        try:
+            # Just importing the package to verify it's installed
+            # We already imported it at the module level
+            pass
+        except ImportError:
+            raise ImportError("Anthropic package is required. Install with: pip install anthropic")
+
         super().__init__(
             model_name=model_name,
             config=config,
             api_client=api_client,
             token_counter=token_counter,
         )
-        logger.info(f"Initialized Anthropic provider with model {model_name}")
 
     def _create_default_client(self) -> APIClient:
         """Create a default Anthropic client."""
@@ -90,7 +112,12 @@ class AnthropicProvider(ModelProvider):
         return AnthropicTokenCounter(model=self.model_name)
 
     def get_langchain_llm(self) -> ChatAnthropic:
-        """Get a LangChain ChatAnthropic instance for this provider."""
+        """
+        Get a LangChain ChatAnthropic instance for this provider.
+
+        Returns:
+            A LangChain ChatAnthropic instance configured with this provider's settings
+        """
         return ChatAnthropic(
             model_name=self.model_name,
             anthropic_api_key=self.config.api_key,

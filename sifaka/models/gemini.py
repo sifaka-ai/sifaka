@@ -1,5 +1,8 @@
 """
 Google Gemini model provider implementation.
+
+This module provides the GeminiProvider class which implements the ModelProviderCore
+interface for Google Gemini models.
 """
 
 from typing import Optional
@@ -7,10 +10,12 @@ from typing import Optional
 import google.generativeai as genai
 import tiktoken
 
-from sifaka.models.base import APIClient, ModelConfig, ModelProvider, TokenCounter
+from sifaka.models.base import APIClient, ModelConfig, TokenCounter
+from sifaka.models.core import ModelProviderCore
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
 
 class GeminiClient(APIClient):
     """Gemini API client implementation."""
@@ -39,6 +44,7 @@ class GeminiClient(APIClient):
             logger.error(f"Gemini API error: {str(e)}")
             raise
 
+
 class GeminiTokenCounter(TokenCounter):
     """Token counter using tiktoken for Gemini models."""
 
@@ -60,7 +66,8 @@ class GeminiTokenCounter(TokenCounter):
             logger.error(f"Error counting tokens: {str(e)}")
             raise
 
-class GeminiProvider(ModelProvider):
+
+class GeminiProvider(ModelProviderCore):
     """
     Google Gemini model provider implementation.
 
@@ -75,19 +82,46 @@ class GeminiProvider(ModelProvider):
         api_client: Optional[APIClient] = None,
         token_counter: Optional[TokenCounter] = None,
     ) -> None:
-        """Initialize the Gemini provider."""
+        """
+        Initialize the Gemini provider.
+
+        Args:
+            model_name: The name of the model to use
+            config: Optional model configuration
+            api_client: Optional API client to use
+            token_counter: Optional token counter to use
+        """
+        # Verify Google Generative AI package is installed
+        try:
+            # Just importing the package to verify it's installed
+            # We already imported it at the module level
+            pass
+        except ImportError:
+            raise ImportError(
+                "Google Generative AI package is required. Install with: pip install google-generativeai"
+            )
+
         super().__init__(
             model_name=model_name,
             config=config,
             api_client=api_client,
             token_counter=token_counter,
         )
-        logger.info(f"Initialized Gemini provider with model {model_name}")
 
     def _create_default_client(self) -> APIClient:
-        """Create a default Gemini client."""
+        """
+        Create a default Gemini client.
+
+        Returns:
+            A default Gemini API client
+        """
         return GeminiClient(api_key=self.config.api_key)
 
     def _create_default_token_counter(self) -> TokenCounter:
-        """Create a default token counter for the current model."""
+        """
+        Create a default token counter for the current model.
+
+        Returns:
+            A default token counter for Gemini models
+        """
         return GeminiTokenCounter(model=self.model_name)
