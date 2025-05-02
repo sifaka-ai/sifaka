@@ -142,10 +142,10 @@ Chains orchestrate the validation and improvement process. Sifaka provides two w
 #### Simple Chain Creation
 
 ```python
-from sifaka.chain import create_simple_chain
+from sifaka.chain import ChainOrchestrator
 
 # Create a chain with a model, rules, and critic
-chain = create_simple_chain(
+chain = ChainOrchestrator(
     model=model,            # LLM Provider
     rules=[length_rule],    # Validation rules
     critic=critic,          # Improvement critic
@@ -158,7 +158,7 @@ result = chain.run("Write about artificial intelligence")
 
 #### Advanced Chain Creation
 
-For more control and customization, use the factory functions or create chains with specialized components:
+For more control and customization, use the factory functions:
 
 ```python
 from sifaka.chain import create_simple_chain, create_backoff_chain
@@ -264,7 +264,7 @@ from sifaka.models.anthropic import AnthropicProvider
 from sifaka.models.base import ModelConfig
 from sifaka.rules.formatting.length import create_length_rule
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
-from sifaka.chain import create_simple_chain
+from sifaka.chain import ChainOrchestrator
 
 # Configure Claude model
 model = AnthropicProvider(
@@ -296,8 +296,8 @@ critic = PromptCritic(
     )
 )
 
-# Create chain with model, rule, and critic using the factory function
-chain = create_simple_chain(
+# Create chain with model, rule, and critic
+chain = ChainOrchestrator(
     model=model,
     rules=[length_rule],
     critic=critic,
@@ -320,7 +320,7 @@ from sifaka.rules.base import RuleConfig
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.models import OpenAIProvider
 from sifaka.models.base import ModelConfig
-from sifaka.chain import create_simple_chain
+from sifaka.chain import ChainOrchestrator
 import os
 
 # Configure OpenAI model for content generation
@@ -371,8 +371,8 @@ critic = PromptCritic(
     )
 )
 
-# Create chain with model, rule, and critic using the factory function
-chain = create_simple_chain(
+# Create chain with model, rule, and critic
+chain = ChainOrchestrator(
     model=model,
     rules=[toxicity_rule],
     critic=critic,
@@ -402,7 +402,7 @@ from sifaka.critics.reflexion import ReflexionCriticConfig, create_reflexion_cri
 from sifaka.models.openai import OpenAIProvider
 from sifaka.models.base import ModelConfig
 from sifaka.rules.formatting.length import create_length_rule
-from sifaka.chain import create_simple_chain
+from sifaka.chain import ChainOrchestrator
 import os
 
 # Configure OpenAI model
@@ -436,8 +436,8 @@ length_rule = create_length_rule(
     description="Ensures text is between 50-300 words",
 )
 
-# Create a chain with the model, rule, and reflexion critic using the factory function
-chain = create_simple_chain(
+# Create a chain with the model, rule, and reflexion critic
+chain = ChainOrchestrator(
     model=model,
     rules=[length_rule],
     critic=reflexion_critic,

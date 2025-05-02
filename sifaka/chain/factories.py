@@ -9,7 +9,7 @@ from typing import Generic, List, Optional, TypeVar
 from ..critics import CriticCore
 from ..models.base import ModelProvider
 from ..rules import Rule
-from .core import ChainCore
+from .orchestrator import ChainOrchestrator
 from .formatters.result import ResultFormatter
 from .managers.prompt import PromptManager
 from .managers.validation import ValidationManager
@@ -26,31 +26,24 @@ def create_simple_chain(
     rules: List[Rule],
     critic: Optional[CriticCore] = None,
     max_attempts: int = 3,
-) -> ChainCore[OutputType]:
+) -> ChainOrchestrator[OutputType]:
     """
     Create a simple chain with the given parameters.
-    
+
     Args:
         model: The model provider to use
         rules: The rules to validate against
         critic: Optional critic to use
         max_attempts: Maximum number of attempts
-        
+
     Returns:
-        A configured chain
+        A configured chain orchestrator
     """
-    validation_manager = ValidationManager[OutputType](rules)
-    prompt_manager = PromptManager()
-    retry_strategy = SimpleRetryStrategy[OutputType](max_attempts=max_attempts)
-    result_formatter = ResultFormatter[OutputType]()
-    
-    return ChainCore[OutputType](
+    return ChainOrchestrator[OutputType](
         model=model,
-        validation_manager=validation_manager,
-        prompt_manager=prompt_manager,
-        retry_strategy=retry_strategy,
-        result_formatter=result_formatter,
+        rules=rules,
         critic=critic,
+        max_attempts=max_attempts,
     )
 
 
@@ -62,10 +55,10 @@ def create_backoff_chain(
     initial_backoff: float = 1.0,
     backoff_factor: float = 2.0,
     max_backoff: float = 60.0,
-) -> ChainCore[OutputType]:
+) -> ChainOrchestrator[OutputType]:
     """
     Create a chain with exponential backoff retry strategy.
-    
+
     Args:
         model: The model provider to use
         rules: The rules to validate against
@@ -74,10 +67,11 @@ def create_backoff_chain(
         initial_backoff: Initial backoff time in seconds
         backoff_factor: Factor to multiply backoff by each attempt
         max_backoff: Maximum backoff time in seconds
-        
+
     Returns:
-        A configured chain
+        A configured chain orchestrator
     """
+    # Create components
     validation_manager = ValidationManager[OutputType](rules)
     prompt_manager = PromptManager()
     retry_strategy = BackoffRetryStrategy[OutputType](
@@ -87,12 +81,16 @@ def create_backoff_chain(
         max_backoff=max_backoff,
     )
     result_formatter = ResultFormatter[OutputType]()
-    
-    return ChainCore[OutputType](
+
+    # Create orchestrator with custom backoff retry strategy
+    orchestrator = ChainOrchestrator[OutputType](
         model=model,
-        validation_manager=validation_manager,
-        prompt_manager=prompt_manager,
-        retry_strategy=retry_strategy,
-        result_formatter=result_formatter,
+        rules=rules,
         critic=critic,
+        max_attempts=max_attempts,
     )
+
+    # Replace default retry strategy with backoff strategy
+    orchestrator._core._retry_strategy = retry_strategy
+
+    return orchestrator

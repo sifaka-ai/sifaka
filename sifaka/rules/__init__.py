@@ -53,7 +53,7 @@ Available Rules:
    - ClassifierRule: Converts classifiers to rules
 
 Usage Example:
-    from sifaka.chain import Chain
+    from sifaka.chain import ChainOrchestrator
     from sifaka.models import OpenAIProvider
     from sifaka.rules import LengthRule, ProhibitedContentRule, FormatRule
     from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
@@ -110,7 +110,7 @@ Usage Example:
     )
 
     # Create chain with rules and critic
-    chain = Chain(
+    chain = ChainOrchestrator(
         model=provider,
         rules=[length_rule, content_rule, format_rule],
         critic=critic,

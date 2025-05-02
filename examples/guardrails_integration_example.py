@@ -18,7 +18,7 @@ load_dotenv()
 from sifaka.models.anthropic import AnthropicProvider
 from sifaka.models.base import ModelConfig
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
-from sifaka.chain import ChainCore as Chain, ValidationManager, PromptManager, SimpleRetryStrategy, ResultFormatter
+from sifaka.chain import ChainOrchestrator
 
 # Import Guardrails components
 try:
@@ -94,20 +94,12 @@ if GUARDRAILS_AVAILABLE:
         ),
     )
 
-    # Create chain components
-    validation_manager = ValidationManager[str]([phone_rule])
-    prompt_manager = PromptManager()
-    retry_strategy = SimpleRetryStrategy[str](max_attempts=3)
-    result_formatter = ResultFormatter[str]()
-
-    # Create a chain with the model, validation manager, and critic
-    chain = Chain(
+    # Create a chain with the model, rule, and critic
+    chain = ChainOrchestrator(
         model=model,
-        validation_manager=validation_manager,
-        prompt_manager=prompt_manager,
-        retry_strategy=retry_strategy,
-        result_formatter=result_formatter,
+        rules=[phone_rule],
         critic=critic,
+        max_attempts=3
     )
 
     # Prompt designed to generate a response with a phone number
