@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/models/core.py
-# hypothesis_version: 6.131.9
-
-['C', 'ModelProviderCore', 'T', 'api_key', 'max_tokens', 'temperature', 'text_length', 'token_count', 'trace_enabled']

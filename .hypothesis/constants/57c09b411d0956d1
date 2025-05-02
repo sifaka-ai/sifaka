@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/rules/formatting/__init__.py
-# hypothesis_version: 6.131.9
-
-['LengthConfig', 'LengthRule', 'create_length_rule']

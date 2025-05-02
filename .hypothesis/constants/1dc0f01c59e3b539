@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/rules/content/prohibited.py
-# hypothesis_version: 6.131.9
-
-[0.0, 0.5, 0.7, 1.0, 100, 'Priority of the rule', 'cache_size', 'case_sensitive', 'classifier_metadata', 'clean', 'confidence', 'cost', 'custom_words', 'examples', 'forbid', 'inappropriate', 'label', 'offensive', 'params', 'priority', 'profane', 'terms', 'threshold', 'unknown', 'vulgar']

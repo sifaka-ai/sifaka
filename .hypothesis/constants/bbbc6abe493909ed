@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/rules/factual/consistency.py
-# hypothesis_version: 6.131.9
-
-[0.0, 0.7, 1.0, 100, 'Priority of the rule', 'although', 'but', 'consistency_rule', 'despite', 'however', 'in contrast', 'nevertheless', 'nonetheless', 'on the other hand', 'still', 'threshold', 'yet']

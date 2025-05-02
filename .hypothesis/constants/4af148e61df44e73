@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/critics/__init__.py
-# hypothesis_version: 6.131.9
-
-[0.7, 1.0, 100, 1000, 'CriticConfig', 'CriticCore', 'CriticMetadata', 'CriticResult', 'CritiqueService', 'DefaultPromptManager', 'MemoryManager', 'PromptCriticConfig', 'PromptManager', 'ResponseParser', 'create_prompt_critic']

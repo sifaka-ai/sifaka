@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/models/services/generation.py
-# hypothesis_version: 6.131.9
-
-[1000, 'C', 'T', 'duration_ms', 'error', 'generate', 'max_tokens', 'prompt_tokens', 'response_tokens', 'success', 'temperature']

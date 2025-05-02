@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/rules/content/safety.py
-# hypothesis_version: 6.131.9
-
-[0.0, 0.3, 0.5, 1.0, 'HarmfulContentConfig', 'HarmfulContentRule', 'abuse', 'attack', 'bias_rule', 'bigoted', 'bully', 'cache_size', 'categories', 'conspiracy', 'cost', 'create_bias_rule', 'create_toxicity_rule', 'danger', 'deceptive', 'discriminatory', 'fail_if_any', 'fake', 'false', 'forbid', 'harass', 'harassment', 'harm', 'harmful_content_rule', 'hate', 'hate_speech', 'hoax', 'intimidate', 'kill', 'misinformation', 'misleading', 'murder', 'non-toxic', 'params', 'prejudiced', 'priority', 'racist', 'sexist', 'stalk', 'threaten', 'threatening', 'threshold', 'toxicity_rule', 'unbiased', 'violence', 'violent']

@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/adapters/rules/__init__.py
-# hypothesis_version: 6.131.9
-
-['Adaptable', 'BaseAdapter', 'ClassifierAdapter', 'ClassifierRule']

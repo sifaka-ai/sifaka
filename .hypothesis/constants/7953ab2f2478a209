@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/models/openai.py
-# hypothesis_version: 6.131.9
-
-['cl100k_base', 'content', 'gpt-3.5-turbo', 'gpt-4-turbo', 'role', 'user']

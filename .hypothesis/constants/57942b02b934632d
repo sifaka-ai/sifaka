@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/rules/domain/python.py
-# hypothesis_version: 6.131.9
-
-['<string>', 'cache_size', 'class \\w+:', 'code_style_patterns', 'cost', 'csv\\.writer\\(', 'def \\w+\\(.*\\):', 'eval\\(', 'except \\w+:', 'exec', 'exec\\(', 'finally:', 'for \\w+ in', 'from \\w+ import', 'import \\w+', 'json\\.dump\\(', 'os\\.popen\\(', 'os\\.system\\(', 'params', 'performance_patterns', 'pickle\\.dump\\(', 'pickle\\.loads\\(', 'priority', 'python_rule', 'security_patterns', 'shutil\\.rmtree\\(', 'subprocess\\.Popen\\(', 'subprocess\\.run\\(', 'tempfile\\.mkstemp\\(', 'threading\\.Thread\\(', 'time\\.sleep\\(', 'try:', 'while True:', 'while \\w+:', 'with \\w+:']

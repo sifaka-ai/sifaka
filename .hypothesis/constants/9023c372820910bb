@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/rules/factual/citation.py
-# hypothesis_version: 6.131.9
-
-[0.0, 1.0, 100, 'Priority of the rule', '\\(.*?\\)', '\\(\\d{4}\\)', '\\[.*?\\]', '\\[.*?\\]\\(.*?\\)', '\\d{4}', 'citation_patterns', 'citation_rule', 'max_citations', 'min_citations']

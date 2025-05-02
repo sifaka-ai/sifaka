@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/critics/base.py
-# hypothesis_version: 6.131.9
-
-[0.0, 0.5, 0.7, 1.0, 100, 'BaseCritic', 'Basic text critic', 'C', 'Critic', 'CriticConfig', 'CriticConfig[T]', 'CriticMetadata', 'CriticMetadata[R]', 'CriticOutput', 'CriticResult', 'R', 'T', 'TextCritic', 'TextImprover', 'TextValidator', 'basic_critic', 'create_basic_critic', 'create_critic', 'custom_critic', 'description', 'fix', 'name', 'params']

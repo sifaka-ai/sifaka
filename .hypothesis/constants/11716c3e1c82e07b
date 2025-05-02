@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/classifiers/spam.py
-# hypothesis_version: 6.131.9
-
-[0.0, 1.5, 1000, 'SpamClassifier', 'classification_error', 'classifier', 'english', 'error', 'ham', 'max_features', 'model_path', 'params', 'probabilities', 'rb', 'reason', 'sklearn.naive_bayes', 'sklearn.pipeline', 'spam', 'spam_classifier', 'unknown', 'use_bigrams', 'vectorizer', 'wb']

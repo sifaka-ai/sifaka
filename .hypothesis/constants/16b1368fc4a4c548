@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/rules/domain/medical.py
-# hypothesis_version: 6.131.9
-
-['MedicalConfig', 'MedicalRule', 'MedicalValidator', '\\b', '_MedicalTermAnalyzer', 'alert', 'cache_size', 'caution', 'condition', 'cost', 'create_medical_rule', 'critical', 'dangerous', 'diagnosis', 'disease', 'emergency', 'found_terms', 'has_disclaimer', 'life-threatening', 'medical_rule', 'medical_terms', 'medication', 'params', 'prescription', 'priority', 'procedure', 'require_disclaimer', 'risk', 'severe', 'surgery', 'symptom', 'therapy', 'treatment', 'urgent', 'warning', 'warning_terms']

@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/rules/content/base.py
-# hypothesis_version: 6.131.9
-
-[0.0, 0.3, 0.5, 1.0, 'avg_word_length', 'casual', 'complexity', 'fail_if_any', 'forbid', 'formal', 'formality', 'found_indicators', 'has_content', 'higher_is_better', 'informal', 'length', 'metadata', 'score', 'scores', 'technical', 'threshold', 'total_indicators', 'total_words', 'unique_words', 'word_count']

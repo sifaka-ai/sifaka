@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/rules/content/tone.py
-# hypothesis_version: 6.131.9
-
-[0.0, 0.7, 1.0, '!', '!!', '???', 'ToneAnalyzer', 'ToneConfig', 'ToneConsistencyRule', 'ToneValidator', 'are', 'awesome', 'btw', 'cache_size', 'consequently', 'cool', 'cost', 'expected_tone', 'forbid', 'formal', 'furthermore', 'gonna', 'great', 'hence', 'hey', 'hi', 'informal', 'is', 'moreover', 'negative', 'negative_indicators', 'neutral', 'nice', 'omg', 'params', 'positive', 'positive_indicators', 'priority', 'ratio', 'terrible', 'that', 'the', 'therefore', 'these', 'this', 'those', 'threshold', 'thus', 'tone_indicators', 'wanna', 'wow', 'yeah', 'yo']

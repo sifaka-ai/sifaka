@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/adapters/rules/base.py
-# hypothesis_version: 6.131.9
-
-['A', 'Adaptable', 'T', 'adaptee_name', 'empty_input', 'reason']

@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/critics/models.py
-# hypothesis_version: 6.131.9
-
-[0.0, 0.7, 1.0, 100, 1000, 'Name of the critic', 'Size of the cache', 'attempt_number', 'cache_size', 'cost', 'description', 'failure', 'forbid', 'max_attempts', 'max_tokens', 'memory_buffer_size', 'min_confidence', 'name', 'needs_improvement', 'priority', 'processing_time_ms', 'reflection_depth', 'score', 'success', 'system_prompt', 'temperature']

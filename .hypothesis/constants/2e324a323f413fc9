@@ -1,4 +1,0 @@
-# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/chain/improvement.py
-# hypothesis_version: 6.131.9
-
-[0.0, 'ImprovementResult', 'chain_name', 'critic_feedback', 'failed_rules', 'improvement_attempts', 'passed_rules', 'processing_time_ms']
