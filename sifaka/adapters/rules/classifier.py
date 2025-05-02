@@ -50,9 +50,9 @@ print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 
 from typing import Any, Callable, Dict, List, Optional, Protocol, Type, Union, TypeVar, Generic, cast, runtime_checkable
 
-from pydantic import BaseModel, Field, validate_arguments
+from pydantic import BaseModel, Field, validate_arguments, validate_call
 
-from sifaka.rules.base import Rule, RuleConfig, RuleResult
+from sifaka.rules.base import Rule, RuleConfig, RuleResult, BaseValidator
 from sifaka.adapters.rules.base import Adaptable, BaseAdapter, A
 from sifaka.classifiers.base import ClassificationResult, ClassifierConfig
 
@@ -280,7 +280,7 @@ class ClassifierRule(Rule):
             raise TypeError(f"Expected a Classifier, got {type(classifier)}")
 
         # Get labels from the classifier's config
-        all_labels = getattr(classifier.config, "labels", [])
+        all_labels = classifier.config.get('labels', []) if hasattr(classifier.config, 'get') else []
 
         if valid_labels is None and invalid_labels is None:
             raise ValueError("Either valid_labels or invalid_labels must be provided")
@@ -308,85 +308,31 @@ class ClassifierRule(Rule):
             "invalid_labels": invalid_labels,
         })
 
-        super().__init__(
-            name=name,
-            description=description,
-            config=rule_config,
-        )
-
+        self._classifier = classifier
         self._rule_id = rule_id or f"classifier_{classifier.name}"
         self._severity = severity
-        self.classifier = classifier
-        self.config = ClassifierRuleConfig(
+        self._classifier_config = ClassifierRuleConfig(
             threshold=threshold,
             valid_labels=valid_labels,
             invalid_labels=invalid_labels,
             extraction_function=extraction_function,
         )
 
-    def validate(self, input_text: str, **kwargs) -> RuleResult:
-        """
-        Validate input using the classifier.
-
-        This method extracts text to classify if needed, classifies it,
-        and evaluates the classification against the rule criteria.
-
-        Args:
-            input_text: Input to validate
-            **kwargs: Additional validation context
-
-        Returns:
-            RuleResult with validation results
-        """
-        # Extract text to classify
-        text_to_classify = input_text
-        if self.config.extraction_function:
-            text_to_classify = self.config.extraction_function(input_text)
-
-        # Get prediction using the classifier's classify method
-        result = self.classifier.classify(text_to_classify)
-
-        # Extract label and confidence
-        label = result.label
-        confidence = result.confidence
-
-        # Check if label is valid
-        is_valid_label = label in self.config.valid_labels
-        passed = is_valid_label and confidence >= self.config.threshold
-
-        # Prepare metadata
-        metadata = {
-            "label": label,
-            "confidence": confidence,
-            "threshold": self.config.threshold,
-            "valid_labels": self.config.valid_labels,
-            "classification_result": result.dict() if hasattr(result, "dict") else result,
-            "rule_id": self._rule_id,
-            "severity": self._severity,
-        }
-
-        # Create result message
-        if passed:
-            message = (
-                f"Classified as '{label}' with confidence {confidence:.2f}, "
-                f"which is >= threshold {self.config.threshold} and in valid labels"
-            )
-        else:
-            if not is_valid_label:
-                message = (
-                    f"Classified as '{label}' which is not in valid labels {self.config.valid_labels}"
-                )
-            else:
-                message = (
-                    f"Classified as '{label}' with confidence {confidence:.2f}, "
-                    f"which is < threshold {self.config.threshold}"
-                )
-
-        return RuleResult(
-            passed=passed,
-            message=message,
-            metadata=metadata,
+        super().__init__(
+            name=name,
+            description=description,
+            config=rule_config,
         )
+
+    @property
+    def threshold(self) -> float:
+        """Get the confidence threshold for this rule."""
+        return self._classifier_config.threshold
+
+    @property
+    def valid_labels(self) -> List[str]:
+        """Get the valid labels for this rule."""
+        return self._classifier_config.valid_labels
 
     @property
     def rule_id(self) -> str:
@@ -407,6 +353,115 @@ class ClassifierRule(Rule):
             The severity of the rule
         """
         return self._severity
+
+    def _validate_text(self, text_to_classify: str) -> RuleResult:
+        """
+        Internal method to validate text using the classifier.
+
+        Args:
+            text_to_classify: Text to classify
+
+        Returns:
+            RuleResult with validation results
+
+        Raises:
+            Exception: Any exception from the classifier is caught by the caller
+        """
+        # Get prediction using the classifier's classify method
+        result = self._classifier.classify(text_to_classify)
+
+        # Extract label and confidence
+        label = result.label
+        confidence = result.confidence
+
+        # Check if label is valid
+        is_valid_label = label in self._classifier_config.valid_labels
+        passed = is_valid_label and confidence >= self._classifier_config.threshold
+
+        # Prepare metadata
+        metadata = {
+            "label": label,
+            "confidence": confidence,
+            "threshold": self._classifier_config.threshold,
+            "valid_labels": self._classifier_config.valid_labels,
+            "classification_result": result.model_dump() if hasattr(result, "model_dump") else result,
+            "rule_id": self._rule_id,
+            "severity": self._severity,
+        }
+
+        # Create result message
+        if passed:
+            message = (
+                f"Classified as '{label}' with confidence {confidence:.2f}, "
+                f"which is >= threshold {self._classifier_config.threshold} and in valid labels"
+            )
+        else:
+            if not is_valid_label:
+                message = (
+                    f"Classified as '{label}' which is not in valid labels {self._classifier_config.valid_labels}"
+                )
+            else:
+                message = (
+                    f"Classified as '{label}' with confidence {confidence:.2f}, "
+                    f"which is < threshold {self._classifier_config.threshold}"
+                )
+
+        return RuleResult(
+            passed=passed,
+            message=message,
+            metadata=metadata,
+        )
+
+    def validate(self, input_text: str, **kwargs) -> RuleResult:
+        """
+        Validate input using the classifier.
+
+        This method extracts text to classify if needed, classifies it,
+        and evaluates the classification against the rule criteria.
+
+        Args:
+            input_text: Input to validate
+            **kwargs: Additional validation context
+
+        Returns:
+            RuleResult with validation results
+        """
+        # Extract text to classify
+        text_to_classify = input_text
+        if self._classifier_config.extraction_function:
+            text_to_classify = self._classifier_config.extraction_function(input_text)
+
+        try:
+            return self._validate_text(text_to_classify)
+        except Exception as e:
+            # Handle classifier errors
+            return RuleResult(
+                passed=False,
+                message=f"Classification error: {str(e)}",
+                metadata={
+                    "error_type": type(e).__name__,
+                    "rule_id": self._rule_id,
+                    "severity": self._severity,
+                }
+            )
+
+    def _create_default_validator(self) -> BaseValidator[str]:
+        """Create a default validator for this rule.
+
+        This method is required by the Rule abstract base class.
+
+        Returns:
+            A validator that uses the classifier for validation
+        """
+        # Create a simple validator that uses the classifier
+        class ClassifierValidator(BaseValidator[str]):
+            def __init__(self, rule: ClassifierRule):
+                self._rule = rule
+
+            def validate(self, input_text: str, **kwargs) -> RuleResult:
+                return self._rule.validate(input_text, **kwargs)
+
+        return ClassifierValidator(self)
 
 
 class ClassifierAdapter(BaseAdapter[str, Classifier]):
@@ -463,13 +518,32 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
             extraction_function: Function to extract text to classify from input
         """
         super().__init__(classifier)
-        self.rule = ClassifierRule(
+
+        # If valid_labels is None but invalid_labels is provided, derive valid_labels
+        if valid_labels is None and invalid_labels is not None:
+            # Access the labels from config, which is a dictionary with a 'labels' key
+            all_labels = classifier.config.get('labels', [])
+            valid_labels = [label for label in all_labels if label not in invalid_labels]
+            # Don't pass invalid_labels to ClassifierRule
+            invalid_labels = None
+
+        self._rule = ClassifierRule(
             classifier=classifier,
             threshold=threshold,
             valid_labels=valid_labels,
             invalid_labels=invalid_labels,
             extraction_function=extraction_function,
         )
+
+    @property
+    def valid_labels(self) -> List[str]:
+        """Get the valid labels for this adapter."""
+        return self._rule.valid_labels
+
+    @property
+    def threshold(self) -> float:
+        """Get the confidence threshold for this adapter."""
+        return self._rule.threshold
 
     def validate(self, input_text: str, **kwargs) -> RuleResult:
         """
@@ -489,10 +563,10 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         if empty_result:
             return empty_result
 
-        return self.rule.validate(input_text, **kwargs)
+        return self._rule.validate(input_text, **kwargs)
 
 
-@validate_arguments
+@validate_call(config=dict(arbitrary_types_allowed=True))
 def create_classifier_rule(
     classifier: Classifier,
     threshold: float = 0.5,
@@ -594,6 +668,10 @@ def create_classifier_adapter(
         )
         ```
     """
+    # First check if the classifier is valid
+    if not isinstance(classifier, Classifier):
+        raise ValueError(f"Expected a Classifier, got {type(classifier)}")
+
     return ClassifierAdapter(
         classifier=classifier,
         threshold=threshold,

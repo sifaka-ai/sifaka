@@ -28,7 +28,7 @@ class MockSentimentClassifier:
         return ClassificationResult(label="neutral", confidence=0.7, metadata={})
 
 
-@patch("sifaka.rules.content.sentiment.SentimentClassifier", MockSentimentClassifier)
+@patch("sifaka.rules.content.sentiment.SimpleSentimentClassifier", MockSentimentClassifier)
 def test_sentiment_validator():
     """Test that SentimentValidator properly validates text sentiment."""
     # Create a validator using the factory function
@@ -59,7 +59,7 @@ def test_sentiment_validator():
     assert result.metadata["sentiment"] == "neutral"
 
 
-@patch("sifaka.classifiers.sentiment.SentimentClassifier", MockSentimentClassifier)
+@patch("sifaka.rules.content.sentiment.SimpleSentimentClassifier", MockSentimentClassifier)
 def test_sentiment_rule_delegation():
     """Test that SentimentRule properly delegates to its validator."""
     # Create a rule using the factory function
@@ -81,7 +81,7 @@ def test_sentiment_rule_delegation():
     assert "rule_id" in result.metadata
 
 
-@patch("sifaka.classifiers.sentiment.SentimentClassifier", MockSentimentClassifier)
+@patch("sifaka.rules.content.sentiment.SimpleSentimentClassifier", MockSentimentClassifier)
 def test_empty_text_handling():
     """Test that empty text is handled properly."""
     # Create a rule
@@ -100,7 +100,7 @@ def test_empty_text_handling():
     assert result.metadata.get("reason") == "empty_input"
 
 
-@patch("sifaka.classifiers.sentiment.SentimentClassifier", MockSentimentClassifier)
+@patch("sifaka.rules.content.sentiment.SimpleSentimentClassifier", MockSentimentClassifier)
 def test_custom_config():
     """Test that custom configuration works properly."""
     # Create a rule with custom configuration

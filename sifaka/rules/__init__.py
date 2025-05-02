@@ -162,7 +162,7 @@ from .content.safety import HarmfulContentRule, create_toxicity_rule
 from .content.sentiment import create_sentiment_rule
 
 # Import from the adapters module
-from .adapters import (
+from sifaka.adapters.rules import (
     ClassifierAdapter,
     ClassifierRule,
     create_classifier_rule,

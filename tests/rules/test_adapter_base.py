@@ -65,7 +65,7 @@ class ErrorAdapter(BaseAdapter[str, MockAdaptee]):
     """Adapter that raises an error during validation."""
 
     def validate(self, input_text: str, **kwargs) -> RuleResult:
-        raise RuntimeError("Test error")
+        raise ValidationError("Test error")
 
 
 class TestAdaptableProtocol:
