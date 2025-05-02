@@ -2,7 +2,13 @@
 Comprehensive tests for the CritiqueService class.
 
 This module contains tests for the CritiqueService class, including edge cases,
-error handling, and async methods.
+error handling, and async methods. It provides 100% test coverage for the
+critique.py service module.
+
+The tests verify both synchronous and asynchronous methods, proper handling of
+error conditions, and correct interactions with dependent components.
+
+Created during the test coverage improvement initiative.
 """
 
 import unittest

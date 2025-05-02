@@ -181,6 +181,22 @@ def run_all_tests():
     )
     success = success and response_parser_success
 
+    # Run prompt manager tests
+    print("\n=== Testing prompt manager ===")
+    prompt_manager_success = run_tests_from_file(
+        "tests.critics.managers.test_prompt",
+        os.path.join(os.path.dirname(__file__), "managers", "test_prompt.py")
+    )
+    success = success and prompt_manager_success
+
+    # Run prompt factories tests
+    print("\n=== Testing prompt factories ===")
+    prompt_factories_success = run_tests_from_file(
+        "tests.critics.managers.test_prompt_factories",
+        os.path.join(os.path.dirname(__file__), "managers", "test_prompt_factories.py")
+    )
+    success = success and prompt_factories_success
+
     # Run reflexion integration tests
     print("\n=== Testing reflexion integration ===")
     reflexion_integration_success = run_tests_from_file(
