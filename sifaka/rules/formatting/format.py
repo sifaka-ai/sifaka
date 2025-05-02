@@ -48,13 +48,10 @@ Usage Example:
 """
 
 import json
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional, Protocol, Set, Tuple, runtime_checkable
 
-# Third-party
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
-# Sifaka
 from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
 
 FormatType = Literal["markdown", "plain_text", "json"]
@@ -70,92 +67,179 @@ class FormatValidator(Protocol):
     def validate(self, text: str, **kwargs) -> RuleResult: ...
 
 
-@dataclass(frozen=True)
-class FormatConfig(RuleConfig):
+class FormatConfig(BaseModel):
     """Configuration for format validation."""
 
-    required_format: FormatType = "plain_text"
-    # Markdown specific settings
-    markdown_elements: Set[str] = field(default_factory=lambda: {"headers", "lists", "code_blocks"})
-    # JSON specific settings
-    json_schema: Dict[str, Any] = field(default_factory=dict)
-    # Plain text specific settings
-    min_length: int = 1
-    max_length: Optional[int] = None
-    # Common settings
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        super().__post_init__()
-        if self.required_format not in ["markdown", "plain_text", "json"]:
+    required_format: FormatType = Field(
+        default="plain_text",
+        description="The required format type",
+    )
+    markdown_elements: Set[str] = Field(
+        default_factory=lambda: {"headers", "lists", "code_blocks"},
+        description="Set of required markdown elements",
+    )
+    json_schema: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="JSON schema for validation",
+    )
+    min_length: int = Field(
+        default=1,
+        ge=0,
+        description="Minimum text length",
+    )
+    max_length: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Maximum text length",
+    )
+    cache_size: int = Field(
+        default=100,
+        ge=1,
+        description="Size of the validation cache",
+    )
+    priority: int = Field(
+        default=1,
+        ge=0,
+        description="Priority of the rule",
+    )
+    cost: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Cost of running the rule",
+    )
+
+    @field_validator("required_format")
+    @classmethod
+    def validate_format_type(cls, v: FormatType) -> FormatType:
+        """Validate that format type is valid."""
+        if v not in ["markdown", "plain_text", "json"]:
             raise ValueError(
-                f"required_format must be one of: markdown, plain_text, json, got {self.required_format}"
+                f"required_format must be one of: markdown, plain_text, json, got {v}"
             )
-        if not isinstance(self.markdown_elements, set):
-            raise ValueError("markdown_elements must be a set of strings")
-        if self.min_length < 0:
-            raise ValueError("min_length must be non-negative")
-        if self.max_length is not None and self.max_length < self.min_length:
+        return v
+
+    @field_validator("max_length")
+    @classmethod
+    def validate_lengths(cls, v: Optional[int], values: Dict[str, Any]) -> Optional[int]:
+        """Validate that max_length is greater than min_length if specified."""
+        if v is not None and "min_length" in values and v < values["min_length"]:
             raise ValueError("max_length must be greater than or equal to min_length")
+        return v
 
 
-@dataclass(frozen=True)
-class MarkdownConfig(RuleConfig):
+class MarkdownConfig(BaseModel):
     """Configuration for markdown format validation."""
 
-    required_elements: List[str] = field(
-        default_factory=lambda: ["#", "*", "_", "`", ">", "-", "1.", "[", "]", "(", ")"]
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    required_elements: List[str] = Field(
+        default_factory=lambda: ["#", "*", "_", "`", ">", "-", "1.", "[", "]", "(", ")"],
+        description="List of required markdown elements",
     )
-    min_elements: int = 1
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
+    min_elements: int = Field(
+        default=1,
+        ge=0,
+        description="Minimum number of elements required",
+    )
+    cache_size: int = Field(
+        default=100,
+        ge=1,
+        description="Size of the validation cache",
+    )
+    priority: int = Field(
+        default=1,
+        ge=0,
+        description="Priority of the rule",
+    )
+    cost: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Cost of running the rule",
+    )
 
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        super().__post_init__()
-        if not self.required_elements:
+    @field_validator("required_elements")
+    @classmethod
+    def validate_elements(cls, v: List[str]) -> List[str]:
+        """Validate that at least one element is required."""
+        if not v:
             raise ValueError("Must provide at least one required element")
-        if self.min_elements < 0:
-            raise ValueError("min_elements must be non-negative")
+        return v
 
 
-@dataclass(frozen=True)
-class JsonConfig(RuleConfig):
+class JsonConfig(BaseModel):
     """Configuration for JSON format validation."""
 
-    strict: bool = True
-    allow_empty: bool = False
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        super().__post_init__()
+    strict: bool = Field(
+        default=True,
+        description="Whether to use strict JSON parsing",
+    )
+    allow_empty: bool = Field(
+        default=False,
+        description="Whether to allow empty JSON",
+    )
+    cache_size: int = Field(
+        default=100,
+        ge=1,
+        description="Size of the validation cache",
+    )
+    priority: int = Field(
+        default=1,
+        ge=0,
+        description="Priority of the rule",
+    )
+    cost: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Cost of running the rule",
+    )
 
 
-@dataclass(frozen=True)
-class PlainTextConfig(RuleConfig):
+class PlainTextConfig(BaseModel):
     """Configuration for plain text format validation."""
 
-    min_length: int = 1
-    max_length: Optional[int] = None
-    allow_empty: bool = False
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        super().__post_init__()
-        if self.min_length < 0:
-            raise ValueError("min_length must be non-negative")
-        if self.max_length is not None and self.max_length < self.min_length:
+    min_length: int = Field(
+        default=1,
+        ge=0,
+        description="Minimum text length",
+    )
+    max_length: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Maximum text length",
+    )
+    allow_empty: bool = Field(
+        default=False,
+        description="Whether to allow empty text",
+    )
+    cache_size: int = Field(
+        default=100,
+        ge=1,
+        description="Size of the validation cache",
+    )
+    priority: int = Field(
+        default=1,
+        ge=0,
+        description="Priority of the rule",
+    )
+    cost: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Cost of running the rule",
+    )
+
+    @field_validator("max_length")
+    @classmethod
+    def validate_lengths(cls, v: Optional[int], values: Dict[str, Any]) -> Optional[int]:
+        """Validate that max_length is greater than min_length if specified."""
+        if v is not None and "min_length" in values and v < values["min_length"]:
             raise ValueError("max_length must be greater than or equal to min_length")
+        return v
 
 
 class DefaultMarkdownValidator(BaseValidator[str]):

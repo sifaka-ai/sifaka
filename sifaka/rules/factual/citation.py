@@ -1,211 +1,207 @@
 """
 Citation validation rules for Sifaka.
 
-This module provides validators and rules for checking citations in text.
+This module provides rules for validating citations in text, including:
+- Citation pattern validation
+- Citation count validation
+- Citation format validation
 
 Configuration Pattern:
     This module follows the standard Sifaka configuration pattern:
     - All rule-specific configuration is stored in RuleConfig.params
-    - The CitationConfig class extends RuleConfig and provides type-safe access to parameters
-    - Factory functions (create_citation_rule, create_citation_validator) handle configuration
+    - Factory functions handle configuration
+    - Validator factory functions create standalone validators
 
 Usage Example:
     from sifaka.rules.factual.citation import create_citation_rule
 
-    # Create a citation rule using the factory function
+    # Create a citation rule
     rule = create_citation_rule(
         citation_patterns=[
-            r"\[[\d]+\]",  # [1], [2], etc.
-            r"\([A-Za-z]+, \d{4}\)",  # (Smith, 2020)
+            r"\(\d{4}\)",  # (2024)
+            r"\[.*?\]",    # [Author, 2024]
+            r"\(.*?\)"     # (Author, 2024)
         ],
-        required_citations=True
-    )
-
-    # Validate text
-    result = rule.validate("According to Smith (2020), this approach is effective.")
-
-    # Alternative: Create with explicit RuleConfig
-    from sifaka.rules.base import BaseValidator, RuleConfig, Any
-    rule = CitationRule(
-        config=RuleConfig(
-            params={
-                "citation_patterns": [
-                    r"\[[\d]+\]",  # [1], [2], etc.
-                    r"\([A-Za-z]+, \d{4}\)",  # (Smith, 2020)
-                ],
-                "required_citations": True
-            }
-        )
+        min_citations=1,
+        max_citations=5
     )
 """
 
-import re
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+import re
 
-from sifaka.rules.base import Rule, RuleConfig, RuleResult
+from pydantic import BaseModel, Field, field_validator, ConfigDict
+
+from sifaka.rules.base import (
+    BaseValidator,
+    ConfigurationError,
+    Rule,
+    RuleConfig,
+    RuleResult,
+    RuleResultHandler,
+    ValidationError,
+)
 from sifaka.rules.factual.base import BaseFactualValidator
 
 
-__all__ = [
-    # Config classes
-    "CitationConfig",
-    # Validator classes
-    "DefaultCitationValidator",
-    # Rule classes
-    "CitationRule",
-    # Factory functions
-    "create_citation_validator",
-    "create_citation_rule",
+# Default citation patterns
+DEFAULT_CITATION_PATTERNS: List[str] = [
+    r"\(\d{4}\)",      # (2024)
+    r"\[.*?\]",        # [Author, 2024]
+    r"\(.*?\)",        # (Author, 2024)
+    r"\d{4}",          # 2024
+    r"\[.*?\]\(.*?\)", # [Author](URL)
 ]
 
 
-@dataclass(frozen=True)
-class CitationConfig(RuleConfig):
-    """Configuration for citation rules."""
+class CitationConfig(BaseModel):
+    """Configuration for citation validation."""
 
-    citation_patterns: List[str] = field(
-        default_factory=lambda: [
-            r"\[[\d]+\]",  # [1], [2], etc.
-            r"\([A-Za-z]+ et al., \d{4}\)",  # (Smith et al., 2020)
-            r"\([A-Za-z]+, \d{4}\)",  # (Smith, 2020)
-            r"https?://[^\s]+",  # URLs
-        ]
+    model_config = ConfigDict(frozen=True)
+
+    citation_patterns: List[str] = Field(
+        default_factory=lambda: DEFAULT_CITATION_PATTERNS,
+        description="List of regex patterns for citation validation",
     )
-    required_citations: bool = True
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
+    min_citations: int = Field(
+        default=1,
+        ge=0,
+        description="Minimum number of citations required",
+    )
+    max_citations: int = Field(
+        default=5,
+        ge=1,
+        description="Maximum number of citations allowed",
+    )
+    cache_size: int = Field(
+        default=100,
+        ge=1,
+        description="Size of the validation cache",
+    )
+    priority: int = Field(
+        default=1,
+        ge=0,
+        description="Priority of the rule",
+    )
+    cost: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Cost of running the rule",
+    )
 
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        super().__post_init__()
-        if not self.citation_patterns:
-            raise ValueError("Must provide at least one citation pattern")
+    @field_validator("citation_patterns")
+    @classmethod
+    def validate_citation_patterns(cls, v: List[str]) -> List[str]:
+        """Validate that citation patterns are not empty."""
+        if not v:
+            raise ValueError("Citation patterns cannot be empty")
+        return v
+
+    @field_validator("max_citations")
+    @classmethod
+    def validate_max_citations(cls, v: int, values: Dict[str, Any]) -> int:
+        """Validate that max_citations is greater than or equal to min_citations."""
+        if "min_citations" in values and v < values["min_citations"]:
+            raise ValueError("max_citations must be greater than or equal to min_citations")
+        return v
 
 
 class DefaultCitationValidator(BaseFactualValidator):
-    """Default implementation of citation validation."""
+    """Default validator for citation validation."""
 
     def __init__(self, config: CitationConfig) -> None:
-        """Initialize with configuration."""
-        super().__init__(config)
-        self._patterns = [re.compile(pattern) for pattern in config.citation_patterns]
-
-    @property
-    def config(self) -> CitationConfig:
-        """Get the validator configuration."""
-        return self._config
-
-    def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate text for citations."""
-        if not isinstance(text, str):
-            raise ValueError("Input must be a string")
-
-        found_citations = []
-        for pattern in self._patterns:
-            found_citations.extend(pattern.findall(text))
-
-        if not found_citations and self.config.required_citations:
-            return RuleResult(
-                passed=False,
-                message="No citations found",
-                metadata={
-                    "found_citations": [],
-                    "required": self.config.required_citations,
-                },
-            )
-
-        return RuleResult(
-            passed=True,
-            message=f"Found {len(found_citations)} citation(s)",
-            metadata={
-                "found_citations": found_citations,
-                "required": self.config.required_citations,
-            },
-        )
-
-
-class CitationRule(Rule[str, RuleResult, DefaultCitationValidator, Any]):
-    """Rule that checks for citations in the text."""
-
-    def __init__(
-        self,
-        name: str = "citation_rule",
-        description: str = "Checks for citations",
-        config: Optional[RuleConfig] = None,
-        validator: Optional[DefaultCitationValidator] = None,
-        **kwargs,
-    ) -> None:
-        """
-        Initialize the citation rule.
+        """Initialize with configuration.
 
         Args:
-            name: The name of the rule
-            description: Description of the rule
-            config: Rule configuration
-            validator: Optional custom validator implementation
-            **kwargs: Additional keyword arguments for the rule
+            config: The configuration for the validator
         """
-        # Store parameters for creating the default validator
-        self._rule_params = {}
-        if config and config.params:
-            self._rule_params = config.params
+        super().__init__(config)
+        self._patterns = [re.compile(fmt) for fmt in config.citation_patterns]
+        self._min_citations = config.min_citations
+        self._max_citations = config.max_citations
 
-        # Initialize base class
-        super().__init__(
-            name=name,
-            description=description,
-            config=config,
-            validator=validator,
-            **kwargs,
+    def validate(self, text: str) -> RuleResult:
+        """Validate the given text for citations.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            RuleResult: The result of the validation
+        """
+        # Find all citations
+        citations = []
+        for pattern in self._patterns:
+            citations.extend(pattern.findall(text))
+
+        # Count citations
+        citation_count = len(citations)
+        is_valid = self._min_citations <= citation_count <= self._max_citations
+
+        return RuleResult(
+            is_valid=is_valid,
+            score=1.0 if is_valid else 0.0,
+            message=f"Found {citation_count} citations (min: {self._min_citations}, max: {self._max_citations})",
         )
 
-    def _create_default_validator(self) -> DefaultCitationValidator:
-        """Create a default validator from config."""
-        citation_config = CitationConfig(**self._rule_params)
-        return DefaultCitationValidator(citation_config)
+
+class CitationRule(Rule):
+    """Rule for validating citations."""
+
+    def __init__(self, config: CitationConfig) -> None:
+        """Initialize with configuration.
+
+        Args:
+            config: The configuration for the rule
+        """
+        super().__init__(config)
+        self._validator = DefaultCitationValidator(config)
+
+    def validate(self, text: str) -> RuleResult:
+        """Validate the given text for citations.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            RuleResult: The result of the validation
+        """
+        return self._validator.validate(text)
 
 
 def create_citation_validator(
     citation_patterns: Optional[List[str]] = None,
-    required_citations: Optional[bool] = None,
+    min_citations: Optional[int] = None,
+    max_citations: Optional[int] = None,
     **kwargs,
 ) -> DefaultCitationValidator:
-    """
-    Create a citation validator with the specified configuration.
-
-    This factory function creates a configured citation validator instance.
-    It's useful when you need a validator without creating a full rule.
+    """Create a citation validator.
 
     Args:
-        citation_patterns: List of regex patterns for detecting citations
-        required_citations: Whether citations are required in the text
+        citation_patterns: List of regex patterns for citation validation
+        min_citations: Minimum number of citations required
+        max_citations: Maximum number of citations allowed
         **kwargs: Additional keyword arguments for the config
 
     Returns:
-        Configured citation validator
+        DefaultCitationValidator: The created validator
     """
-    # Extract RuleConfig parameters from kwargs
-    rule_config_params = {}
-    for param in ["priority", "cache_size", "cost", "params"]:
-        if param in kwargs:
-            rule_config_params[param] = kwargs.pop(param)
-
     # Create config with default or provided values
     config_params = {}
     if citation_patterns is not None:
         config_params["citation_patterns"] = citation_patterns
-    if required_citations is not None:
-        config_params["required_citations"] = required_citations
+    if min_citations is not None:
+        config_params["min_citations"] = min_citations
+    if max_citations is not None:
+        config_params["max_citations"] = max_citations
 
     # Add any remaining config parameters
-    config_params.update(rule_config_params)
+    config_params.update(kwargs)
 
-    # Create the config
+    # Create config
     config = CitationConfig(**config_params)
 
-    # Return configured validator
+    # Create validator
     return DefaultCitationValidator(config)
 
 
@@ -213,41 +209,33 @@ def create_citation_rule(
     name: str = "citation_rule",
     description: str = "Validates text for citations",
     citation_patterns: Optional[List[str]] = None,
-    required_citations: Optional[bool] = None,
+    min_citations: Optional[int] = None,
+    max_citations: Optional[int] = None,
     **kwargs,
 ) -> CitationRule:
-    """
-    Create a citation rule with configuration.
-
-    This factory function creates a configured CitationRule instance.
-    It uses create_citation_validator internally to create the validator.
+    """Create a citation rule.
 
     Args:
         name: The name of the rule
         description: Description of the rule
-        citation_patterns: List of regex patterns for detecting citations
-        required_citations: Whether citations are required in the text
+        citation_patterns: List of regex patterns for citation validation
+        min_citations: Minimum number of citations required
+        max_citations: Maximum number of citations allowed
         **kwargs: Additional keyword arguments for the rule
 
     Returns:
-        Configured CitationRule instance
+        CitationRule: The created rule
     """
-    # Create validator using the validator factory
-    validator = create_citation_validator(
-        citation_patterns=citation_patterns,
-        required_citations=required_citations,
-        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
-    )
-
-    # Extract rule-specific kwargs
-    rule_kwargs = {
-        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
+    # Create config dictionary
+    config_dict = {
+        "citation_patterns": citation_patterns or DEFAULT_CITATION_PATTERNS,
+        "min_citations": min_citations or 1,
+        "max_citations": max_citations or 5,
+        **kwargs,
     }
 
-    # Create and return rule
-    return CitationRule(
-        name=name,
-        description=description,
-        validator=validator,
-        **rule_kwargs,
-    )
+    # Create config
+    config = CitationConfig(**config_dict)
+
+    # Create rule
+    return CitationRule(config)

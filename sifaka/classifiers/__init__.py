@@ -31,6 +31,9 @@ Available Classifiers:
    - TopicClassifier: Identifies topics in text using LDA
    - GenreClassifier: Categorizes text into genres (news, fiction, academic, etc.)
 
+4. Entity Analysis:
+   - NERClassifier: Identifies named entities (people, organizations, locations, etc.)
+
 Usage Example:
     from sifaka.classifiers import SentimentClassifier, ReadabilityClassifier
 
@@ -57,6 +60,7 @@ from .base import (
 from .bias import BiasDetector
 from .genre import GenreClassifier
 from .language import LanguageClassifier
+from .ner import NERClassifier
 from .profanity import ProfanityClassifier
 from .readability import ReadabilityClassifier
 from .sentiment import SentimentClassifier
@@ -82,4 +86,6 @@ __all__ = [
     "LanguageClassifier",
     "TopicClassifier",
     "GenreClassifier",
+    # Entity Analysis
+    "NERClassifier",
 ]

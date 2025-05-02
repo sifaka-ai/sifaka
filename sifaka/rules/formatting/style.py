@@ -19,14 +19,11 @@ Usage Example:
 """
 
 import re
-from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Dict, List, Optional, Tuple, Union
 
-# Third-party
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr, ConfigDict
 
-# Sifaka
 from sifaka.rules.base import Rule, RuleResult, RuleConfig, BaseValidator
 
 
@@ -66,8 +63,7 @@ class CapitalizationStyle(Enum):
     CAPITALIZE_FIRST = auto()  # Only first letter capitalized
 
 
-@dataclass(frozen=True)
-class StyleConfig(RuleConfig):
+class StyleConfig(BaseModel):
     """Configuration for text style validation.
 
     Attributes:
@@ -78,15 +74,31 @@ class StyleConfig(RuleConfig):
         strip_whitespace: Whether to strip whitespace before validation
     """
 
-    capitalization: Optional[CapitalizationStyle] = None
-    require_end_punctuation: bool = False
-    allowed_end_chars: Optional[List[str]] = None
-    disallowed_chars: Optional[List[str]] = None
-    strip_whitespace: bool = True
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    capitalization: Optional[CapitalizationStyle] = Field(
+        default=None,
+        description="Required capitalization style",
+    )
+    require_end_punctuation: bool = Field(
+        default=False,
+        description="Whether text must end with punctuation",
+    )
+    allowed_end_chars: Optional[List[str]] = Field(
+        default=None,
+        description="List of allowed ending characters",
+    )
+    disallowed_chars: Optional[List[str]] = Field(
+        default=None,
+        description="List of characters not allowed in the text",
+    )
+    strip_whitespace: bool = Field(
+        default=True,
+        description="Whether to strip whitespace before validation",
+    )
 
 
-@dataclass(frozen=True)
-class FormattingConfig(RuleConfig):
+class FormattingConfig(BaseModel):
     """Configuration for text formatting validation.
 
     Attributes:
@@ -96,10 +108,24 @@ class FormattingConfig(RuleConfig):
         remove_extra_lines: Whether to remove extra blank lines
     """
 
-    style_config: Optional[StyleConfig] = None
-    strip_whitespace: bool = True
-    normalize_whitespace: bool = False
-    remove_extra_lines: bool = False
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    style_config: Optional[StyleConfig] = Field(
+        default=None,
+        description="Configuration for style validation",
+    )
+    strip_whitespace: bool = Field(
+        default=True,
+        description="Whether to strip whitespace before validation",
+    )
+    normalize_whitespace: bool = Field(
+        default=False,
+        description="Whether to normalize consecutive whitespace",
+    )
+    remove_extra_lines: bool = Field(
+        default=False,
+        description="Whether to remove extra blank lines",
+    )
 
 
 class StyleValidator(BaseValidator[str]):

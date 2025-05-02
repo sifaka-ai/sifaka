@@ -14,6 +14,7 @@ from typing import (
 )
 
 from typing_extensions import TypeGuard
+from pydantic import PrivateAttr
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -82,9 +83,10 @@ class ProfanityClassifier(BaseClassifier):
     # Class-level constants
     DEFAULT_LABELS: List[str] = ["clean", "profane", "unknown"]
     DEFAULT_COST: int = 1  # Low cost for dictionary-based check
-    # Class-level attributes for state management
-    _initialized: bool = False
-    _checker: Optional[ProfanityChecker] = None
+
+    # Private attributes using PrivateAttr for state management
+    _initialized: bool = PrivateAttr(default=False)
+    _checker: Optional[ProfanityChecker] = PrivateAttr(default=None)
 
     def __init__(
         self,

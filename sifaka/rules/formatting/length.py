@@ -19,8 +19,9 @@ Usage Example:
     result = rule.validate("This is a test.")
 """
 
-from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union, Any
+
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from sifaka.rules.base import Rule, RuleResult, RuleConfig, BaseValidator
 
@@ -40,8 +41,7 @@ __all__ = [
 ]
 
 
-@dataclass(frozen=True)
-class LengthConfig(RuleConfig):
+class LengthConfig(BaseModel):
     """Configuration for text length validation.
 
     Attributes:
@@ -51,10 +51,52 @@ class LengthConfig(RuleConfig):
         max_words: Maximum number of words allowed (inclusive)
     """
 
-    min_chars: Optional[int] = None
-    max_chars: Optional[int] = None
-    min_words: Optional[int] = None
-    max_words: Optional[int] = None
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    min_chars: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Minimum number of characters allowed (inclusive)",
+    )
+    max_chars: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Maximum number of characters allowed (inclusive)",
+    )
+    min_words: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Minimum number of words allowed (inclusive)",
+    )
+    max_words: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Maximum number of words allowed (inclusive)",
+    )
+
+    @field_validator("max_chars")
+    @classmethod
+    def validate_max_chars(cls, v: Optional[int], info) -> Optional[int]:
+        """Validate that max_chars is greater than min_chars if specified."""
+        if (
+            v is not None
+            and info.data.get("min_chars") is not None
+            and v < info.data.get("min_chars")
+        ):
+            raise ValueError("max_chars must be greater than or equal to min_chars")
+        return v
+
+    @field_validator("max_words")
+    @classmethod
+    def validate_max_words(cls, v: Optional[int], info) -> Optional[int]:
+        """Validate that max_words is greater than min_words if specified."""
+        if (
+            v is not None
+            and info.data.get("min_words") is not None
+            and v < info.data.get("min_words")
+        ):
+            raise ValueError("max_words must be greater than or equal to min_words")
+        return v
 
 
 class LengthValidator(BaseValidator[str]):

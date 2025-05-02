@@ -7,6 +7,7 @@ import os
 import pickle
 from typing import Any, List, Optional
 
+from pydantic import PrivateAttr
 from sifaka.classifiers.base import (
     BaseClassifier,
     ClassificationResult,
@@ -31,14 +32,14 @@ class SpamClassifier(BaseClassifier):
     DEFAULT_LABELS: List[str] = ["ham", "spam"]
     DEFAULT_COST: int = 1.5  # Slightly higher cost for ML-based model
 
-    # Class-level attributes for state management
-    _initialized: bool = False
-    _sklearn_feature_extraction_text: Optional[Any] = None
-    _sklearn_naive_bayes: Optional[Any] = None
-    _sklearn_pipeline: Optional[Any] = None
-    _vectorizer: Optional[Any] = None
-    _model: Optional[Any] = None
-    _pipeline: Optional[Any] = None
+    # Private attributes using PrivateAttr for state management
+    _initialized: bool = PrivateAttr(default=False)
+    _sklearn_feature_extraction_text: Optional[Any] = PrivateAttr(default=None)
+    _sklearn_naive_bayes: Optional[Any] = PrivateAttr(default=None)
+    _sklearn_pipeline: Optional[Any] = PrivateAttr(default=None)
+    _vectorizer: Optional[Any] = PrivateAttr(default=None)
+    _model: Optional[Any] = PrivateAttr(default=None)
+    _pipeline: Optional[Any] = PrivateAttr(default=None)
 
     def __init__(
         self,

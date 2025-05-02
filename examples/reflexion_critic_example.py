@@ -17,7 +17,7 @@ from sifaka.critics.reflexion import (
 from sifaka.models.openai import OpenAIProvider
 from sifaka.models.base import ModelConfig
 from sifaka.rules.formatting.length import create_length_rule
-from sifaka.chain import Chain
+from sifaka.chain import create_simple_chain
 
 # Configure logging
 logging.basicConfig(
@@ -225,7 +225,7 @@ regular_rule = create_length_rule(
 )
 
 # Create two chains - first with the short rule to force iterations and generate reflections
-short_chain = Chain(
+short_chain = create_simple_chain(
     model=openai_model,
     rules=[short_rule],
     critic=reflexion_critic,
@@ -233,7 +233,7 @@ short_chain = Chain(
 )
 
 # And another with the regular rule
-regular_chain = Chain(
+regular_chain = create_simple_chain(
     model=openai_model,
     rules=[regular_rule],
     critic=reflexion_critic,

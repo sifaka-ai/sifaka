@@ -15,6 +15,7 @@ from typing import (
 
 import numpy as np
 from typing_extensions import TypeGuard
+from pydantic import PrivateAttr
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -59,6 +60,10 @@ class ToxicityClassifier(BaseClassifier):
     DEFAULT_THREAT_THRESHOLD: float = 0.7
     DEFAULT_GENERAL_THRESHOLD: float = 0.5
 
+    # Private attributes using PrivateAttr for state management
+    _model: Optional[ToxicityModel] = PrivateAttr(default=None)
+    _initialized: bool = PrivateAttr(default=False)
+
     def __init__(
         self,
         name: str = "toxicity_classifier",
@@ -102,8 +107,6 @@ class ToxicityClassifier(BaseClassifier):
 
         # Store model for later use
         self._model = model
-        self._detoxify = None
-        self._initialized = False
 
     def _validate_model(self, model: Any) -> TypeGuard[ToxicityModel]:
         """Validate that a model implements the required protocol."""

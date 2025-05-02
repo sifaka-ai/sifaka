@@ -17,27 +17,48 @@ from typing import (
     runtime_checkable,
 )
 
-from typing_extensions import NotRequired, TypedDict
+from pydantic import BaseModel, Field
 
 from .logging import get_logger
 
 logger = get_logger(__name__)
 
-class TraceEvent(TypedDict):
+class TraceEvent(BaseModel):
     """A trace event."""
 
-    type: str
-    timestamp: str
-    data: Dict[str, Any]
-    component: NotRequired[str]
+    type: str = Field(description="Type of the event")
+    timestamp: str = Field(description="ISO format timestamp of the event")
+    data: Dict[str, Any] = Field(description="Event data")
+    component: Optional[str] = Field(
+        default=None,
+        description="Component that generated the event",
+    )
 
-class TraceData(TypedDict):
-    """Type definition for trace data."""
+    class Config:
+        """Pydantic model configuration."""
 
-    id: str
-    start_time: str
-    end_time: Optional[str]
-    events: List[TraceEvent]
+        frozen = True  # Make the model immutable
+        extra = "forbid"  # Don't allow extra fields
+
+class TraceData(BaseModel):
+    """Model for trace data."""
+
+    id: str = Field(description="Unique identifier for the trace")
+    start_time: str = Field(description="ISO format start time")
+    end_time: Optional[str] = Field(
+        default=None,
+        description="ISO format end time, None if trace is still active",
+    )
+    events: List[TraceEvent] = Field(
+        default_factory=list,
+        description="List of events in the trace",
+    )
+
+    class Config:
+        """Pydantic model configuration."""
+
+        frozen = True  # Make the model immutable
+        extra = "forbid"  # Don't allow extra fields
 
 @runtime_checkable
 class TraceStorage(Protocol):

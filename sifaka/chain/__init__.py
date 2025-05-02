@@ -18,23 +18,18 @@ It also provides factory functions for creating different types of chains:
 - create_backoff_chain - Creates a chain with exponential backoff retry strategy
 """
 
-# Legacy components for backward compatibility
-from .compat import Chain
-from .result import ChainResult
-
-# New components
+# Core components
 from .core import ChainCore
+from .result import ChainResult
 from .factories import create_simple_chain, create_backoff_chain
 from .formatters import ResultFormatter
 from .managers import PromptManager, ValidationManager
 from .strategies import RetryStrategy, SimpleRetryStrategy, BackoffRetryStrategy
 
 __all__ = [
-    # Legacy components
-    "Chain",
-    "ChainResult",
-    # New components
+    # Core components
     "ChainCore",
+    "ChainResult",
     # Factory functions
     "create_simple_chain",
     "create_backoff_chain",

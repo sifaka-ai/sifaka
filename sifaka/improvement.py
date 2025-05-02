@@ -7,7 +7,7 @@ This module provides components for improving outputs based on validation result
 from dataclasses import dataclass
 from typing import Optional, TypeVar, Generic, Dict, Any
 
-from .critics import CriticCore
+from .critics.base import BaseCritic
 from .critics.models import CriticMetadata
 from .validation import ValidationResult
 
@@ -30,7 +30,7 @@ class Improver(Generic[OutputType]):
     This class is responsible for using critics to improve outputs that fail validation.
     """
 
-    def __init__(self, critic: CriticCore):
+    def __init__(self, critic: BaseCritic):
         """
         Initialize an Improver instance.
 
@@ -61,15 +61,23 @@ class Improver(Generic[OutputType]):
         # Process critique details based on type
         critique_details = None
         if isinstance(critique, CriticMetadata):
-            critique_details = critique.__dict__
+            # Convert CriticMetadata to dict while preserving score
+            critique_details = {
+                "score": critique.score,
+                "feedback": critique.feedback,
+                "suggestions": critique.suggestions
+            }
         elif isinstance(critique, dict):
-            critique_details = critique
+            # Handle both "score" and "confidence" keys
+            critique_details = critique.copy()
+            if "confidence" in critique_details and "score" not in critique_details:
+                critique_details["score"] = critique_details.pop("confidence")
 
-        # Output didn't need improvement or critic didn't provide feedback
-        if not critique_details:
-            return ImprovementResult(output=output, improved=False)
+        # If we have feedback, mark as improved even if output didn't change
+        if critique_details:
+            return ImprovementResult(output=output, critique_details=critique_details, improved=True)
 
-        return ImprovementResult(output=output, critique_details=critique_details, improved=True)
+        return ImprovementResult(output=output, improved=False)
 
     def get_feedback(self, critique_details: Dict[str, Any]) -> str:
         """

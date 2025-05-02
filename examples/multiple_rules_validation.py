@@ -2,7 +2,6 @@ from sifaka.classifiers.base import BaseClassifier, ClassificationResult, Classi
 from sifaka.classifiers.sentiment import SentimentClassifier
 from sifaka.rules import (
     RuleConfig,
-    ClassifierRule,
     create_classifier_rule,
     create_length_rule,
 )
@@ -117,35 +116,42 @@ length_rule = create_length_rule(
     min_chars=20,
     max_chars=200,
     rule_id="length_validation",
-    priority=RulePriority.MEDIUM,
+    description="Validates text length",
+    config=RuleConfig(params={"priority": RulePriority.MEDIUM}),
 )
 
 prohibited_rule = create_prohibited_content_rule(
     name="prohibited_content",
     terms=["illegal", "trafficking", "scam"],
-    case_sensitive=False,
+    rule_config={"priority": RulePriority.HIGH},
 )
 
 # Create classifier rules
 sentiment_rule = create_classifier_rule(
     classifier=sentiment_classifier,
     name="sentiment_validation",
+    threshold=0.3,  # Minimum confidence threshold
+    valid_labels=["positive", "neutral"],  # Allow positive or neutral sentiment
     rule_config={
         "threshold": 0.3,  # Minimum positive sentiment score required
         "negative_threshold": 0.7,  # Maximum negative sentiment allowed
     },
 )
 
-profanity_rule = ClassifierRule(
+profanity_rule = create_classifier_rule(
     classifier=profanity_classifier,
     name="profanity_validation",
-    rule_config=RuleConfig(priority=RulePriority.HIGH),
+    threshold=0.5,
+    valid_labels=["clean"],
+    rule_config={"priority": RulePriority.HIGH},
 )
 
-toxicity_rule = ClassifierRule(
+toxicity_rule = create_classifier_rule(
     classifier=toxicity_classifier,
     name="toxicity_validation",
-    rule_config=RuleConfig(priority=RulePriority.CRITICAL),
+    threshold=0.5,
+    valid_labels=["non-toxic"],
+    rule_config={"priority": RulePriority.CRITICAL},
 )
 
 # Create a list of all rules to apply

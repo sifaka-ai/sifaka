@@ -25,13 +25,13 @@ python-dotenv>=1.0.1
 requests>=2.31.0
 httpx>=0.28.1
 tenacity>=8.2.3
-statistics>=3.12.0  # Standard library but explicitly listed for clarity
 
 # Optional integrations
 langgraph>=0.0.19  # Optional: for LangGraph integration
 langchain>=0.1.9  # Optional: for LangChain integration
 langchain-anthropic>=0.3.12
 langchain-openai>=0.3.14
+guardrails-ai>=0.6.6  # Updated to latest version to fix pkg_resources deprecation
 
 # Development
 pytest>=8.0.2
@@ -41,3 +41,4 @@ mypy>=1.9.0
 ruff>=0.3.0
 pytest-cov>=4.1.0
 flake8>=5.0.0
+typer>=0.9.0  # Updated to latest version to fix is_flag deprecation

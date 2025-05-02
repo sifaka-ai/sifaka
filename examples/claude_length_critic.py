@@ -18,7 +18,7 @@ from sifaka.models.anthropic import AnthropicProvider
 from sifaka.models.base import ModelConfig
 from sifaka.rules.formatting.length import create_length_rule
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
-from sifaka.chain import Chain
+from sifaka.chain import create_simple_chain
 
 # Configure Claude model - using sonnet for better performance
 model = AnthropicProvider(
@@ -61,7 +61,7 @@ critic = PromptCritic(
 )
 
 # Create a chain with the model, rule, and critic
-chain = Chain(model=model, rules=[length_rule], critic=critic, max_attempts=3)
+chain = create_simple_chain(model=model, rules=[length_rule], critic=critic, max_attempts=3)
 
 # Prompt designed to generate a verbose response (around 500 words)
 prompt = """

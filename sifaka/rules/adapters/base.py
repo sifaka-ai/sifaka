@@ -27,6 +27,11 @@ class Adaptable(Protocol):
 class BaseAdapter(BaseValidator[Any]):
     """Base class for adapters that convert components to validators."""
 
+    @property
+    def validation_type(self) -> type:
+        """Get the type of input this validator can validate."""
+        return str
+
     def __init__(self, adaptee: Adaptable) -> None:
         """
         Initialize with adaptee.

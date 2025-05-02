@@ -63,14 +63,12 @@ from sifaka.rules.domain.medical import (
     DefaultMedicalValidator,
     MedicalConfig,
     MedicalRule,
-    MedicalValidator,
     create_medical_rule,
 )
 from sifaka.rules.domain.python import (
     DefaultPythonValidator,
     PythonConfig,
     PythonRule,
-    PythonValidator,
     create_python_rule,
 )
 
@@ -102,10 +100,8 @@ __all__ = [
     "create_consistency_rule",
     "DomainValidator",
     "BaseDomainValidator",
-    "MedicalValidator",
     "LegalValidator",
     "LegalCitationValidator",
     "LegalTermsValidator",
-    "PythonValidator",
     "ConsistencyValidator",
 ]

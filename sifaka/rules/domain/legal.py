@@ -65,10 +65,11 @@ from typing import (
     Protocol,
     Set,
     runtime_checkable,
+    Pattern,
 )
 
 # Third-party
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, field_validator, ConfigDict, PrivateAttr
 
 # Sifaka
 from sifaka.rules.base import Rule, RuleConfig, RuleResult
@@ -106,21 +107,27 @@ __all__ = [
 ]
 
 
-@dataclass(frozen=True)
-class LegalConfig(RuleConfig):
+class LegalConfig(BaseModel):
     """Configuration for legal rules."""
 
-    legal_terms: Dict[str, List[str]] = field(
-        default_factory=lambda: {
-            "jurisdiction": ["jurisdiction", "court", "venue", "forum", "tribunal"],
-            "statute": ["statute", "law", "regulation", "code", "act", "bill", "ordinance"],
-            "precedent": ["precedent", "case law", "ruling", "decision", "holding", "opinion"],
-            "liability": ["liability", "responsibility", "duty", "obligation", "negligence"],
-            "procedure": ["procedure", "motion", "pleading", "filing", "petition", "appeal"],
-            "evidence": ["evidence", "proof", "exhibit", "testimony", "witness", "document"],
-        }
+    model_config = ConfigDict(frozen=True)
+
+    legal_terms: List[str] = Field(
+        default_factory=lambda: [
+            "copyright",
+            "trademark",
+            "patent",
+            "license",
+            "agreement",
+            "contract",
+            "terms",
+            "conditions",
+            "warranty",
+            "liability",
+        ],
+        description="List of legal terms to validate",
     )
-    citation_patterns: List[str] = field(
+    citation_patterns: List[str] = Field(
         default_factory=lambda: [
             r"\d+\s*(?:U\.?S\.?|F\.?(?:2d|3d)?|S\.?Ct\.?)\s*\d+",  # Federal cases
             r"\d+\s*[A-Z][a-z]*\.?\s*(?:2d|3d)?\s*\d+",  # State cases
@@ -129,116 +136,172 @@ class LegalConfig(RuleConfig):
             r"(?:pub\.?\s*l\.?|P\.?L\.?)\s*\d+[-‐]\d+",  # Public Laws
             r"(?:CFR|C\.F\.R\.)\s*§*\s*\d+\.\d+",  # Code of Federal Regulations
             r"\d+\s*L\.?\s*Ed\.?\s*(?:2d)?\s*\d+",  # Supreme Court (Lawyers' Edition)
-        ]
+        ],
+        description="List of regex patterns for legal citations",
     )
-    disclaimers: List[str] = field(
+    disclaimers: List[str] = Field(
         default_factory=lambda: [
-            r"(?i)not\s+(?:intended\s+as\s+)?legal\s+advice",
-            r"(?i)consult\s+(?:(?:a|your)\s+)?(?:qualified\s+)?(?:attorney|lawyer|legal\s+counsel)",
-            r"(?i)seek\s+legal\s+(?:counsel|advice|representation)",
-            r"(?i)legal\s+disclaimer\s*[:\-]?",
-            r"(?i)for\s+informational\s+purposes\s+only",
-            r"(?i)does\s+not\s+constitute\s+(?:a|an)\s+attorney-client\s+relationship",
-            r"(?i)not\s+a\s+substitute\s+for\s+legal\s+(?:counsel|advice)",
-        ]
+            "This is not legal advice",
+            "Consult an attorney",
+            "For informational purposes only",
+            "Not a substitute for legal counsel",
+        ],
+        description="List of acceptable legal disclaimers",
     )
-    disclaimer_required: bool = True
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
+    disclaimer_required: bool = Field(
+        default=True,
+        description="Whether to require a legal disclaimer",
+    )
+    cache_size: int = Field(
+        default=100,
+        ge=1,
+        description="Size of the validation cache",
+    )
+    priority: int = Field(
+        default=1,
+        ge=0,
+        description="Priority of the rule",
+    )
+    cost: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Cost of running the rule",
+    )
 
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        super().__post_init__()
-        if not self.legal_terms:
-            raise ValueError("Must provide at least one legal term category")
-        if not self.citation_patterns:
+    @field_validator("legal_terms")
+    @classmethod
+    def validate_legal_terms(cls, v: List[str]) -> List[str]:
+        """Validate that legal terms are not empty."""
+        if not v:
+            raise ValueError("Legal terms cannot be empty")
+        return v
+
+    @field_validator("citation_patterns")
+    @classmethod
+    def validate_citation_patterns(cls, v: List[str]) -> List[str]:
+        """Validate that citation patterns are not empty."""
+        if not v:
             raise ValueError("Must provide at least one citation pattern")
-        if not self.disclaimers:
+        return v
+
+    @field_validator("disclaimers")
+    @classmethod
+    def validate_disclaimers(cls, v: List[str]) -> List[str]:
+        """Validate that disclaimers are not empty."""
+        if not v:
             raise ValueError("Must provide at least one disclaimer pattern")
+        return v
 
 
-@dataclass(frozen=True)
-class LegalCitationConfig(RuleConfig):
+class LegalCitationConfig(BaseModel):
     """Configuration for legal citation validation."""
 
-    citation_patterns: List[str] = field(
+    citation_patterns: List[str] = Field(
         default_factory=lambda: [
             r"\d+\s+U\.S\.\s+\d+",  # US Reports citations
             r"\d+\s+S\.\s*Ct\.\s+\d+",  # Supreme Court Reporter
             r"\d+\s+F\.\d+d\s+\d+",  # Federal Reporter citations
             r"\d+\s+F\.\s*Supp\.\s+\d+",  # Federal Supplement
-        ]
+        ],
+        description="List of regex patterns for legal citations",
     )
-    require_citations: bool = True
-    min_citations: int = 0
-    max_citations: int = 100
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
+    require_citations: bool = Field(
+        default=True,
+        description="Whether citations are required in the text",
+    )
+    min_citations: int = Field(
+        default=0,
+        ge=0,
+        description="Minimum number of citations required",
+    )
+    max_citations: int = Field(
+        default=100,
+        ge=0,
+        description="Maximum number of citations allowed",
+    )
+    cache_size: int = Field(
+        default=100,
+        ge=1,
+        description="Size of the validation cache",
+    )
+    priority: int = Field(
+        default=1,
+        ge=0,
+        description="Priority of the rule",
+    )
+    cost: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Cost of running the rule",
+    )
 
-    def __post_init__(self) -> None:
-        """Validate configuration parameters."""
-        super().__post_init__()
-        if not isinstance(self.citation_patterns, list):
-            raise ValueError("citation_patterns must be a list")
-        if not all(isinstance(p, str) for p in self.citation_patterns):
+    @field_validator("citation_patterns")
+    @classmethod
+    def validate_citation_patterns(cls, v: List[str]) -> List[str]:
+        """Validate that citation patterns are valid strings."""
+        if not all(isinstance(p, str) for p in v):
             raise ValueError("citation_patterns must contain only strings")
-        if self.min_citations < 0:
-            raise ValueError("min_citations must be non-negative")
-        if self.max_citations < self.min_citations:
+        return v
+
+    @field_validator("max_citations")
+    @classmethod
+    def validate_max_citations(cls, v: int, values: Dict[str, Any]) -> int:
+        """Validate that max_citations is greater than or equal to min_citations."""
+        if "min_citations" in values and v < values["min_citations"]:
             raise ValueError("max_citations must be greater than or equal to min_citations")
+        return v
 
 
-@dataclass(frozen=True)
-class LegalTermsConfig(RuleConfig):
+class LegalTermsConfig(BaseModel):
     """Configuration for legal terms validation."""
 
-    legal_terms: Set[str] = field(
+    legal_terms: Set[str] = Field(
         default_factory=lambda: {
             "confidential",
             "proprietary",
-            "classified",
             "restricted",
             "private",
             "sensitive",
-        }
+        },
+        description="Set of legal terms to check for",
     )
-    warning_terms: Set[str] = field(
+    warning_terms: Set[str] = Field(
         default_factory=lambda: {
             "warning",
             "caution",
             "notice",
             "disclaimer",
             "privileged",
-        }
+        },
+        description="Set of warning terms to check for",
     )
-    required_terms: Set[str] = field(default_factory=set)
-    prohibited_terms: Set[str] = field(default_factory=set)
-    case_sensitive: bool = False
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
-
-    def __post_init__(self) -> None:
-        """Validate configuration parameters."""
-        super().__post_init__()
-        if not isinstance(self.legal_terms, set):
-            raise ValueError("legal_terms must be a set")
-        if not all(isinstance(t, str) for t in self.legal_terms):
-            raise ValueError("legal_terms must contain only strings")
-        if not isinstance(self.warning_terms, set):
-            raise ValueError("warning_terms must be a set")
-        if not all(isinstance(t, str) for t in self.warning_terms):
-            raise ValueError("warning_terms must contain only strings")
-        if not isinstance(self.required_terms, set):
-            raise ValueError("required_terms must be a set")
-        if not all(isinstance(t, str) for t in self.required_terms):
-            raise ValueError("required_terms must contain only strings")
-        if not isinstance(self.prohibited_terms, set):
-            raise ValueError("prohibited_terms must be a set")
-        if not all(isinstance(t, str) for t in self.prohibited_terms):
-            raise ValueError("prohibited_terms must contain only strings")
+    required_terms: Set[str] = Field(
+        default_factory=set,
+        description="Set of terms that must be present",
+    )
+    prohibited_terms: Set[str] = Field(
+        default_factory=set,
+        description="Set of terms that must not be present",
+    )
+    case_sensitive: bool = Field(
+        default=False,
+        description="Whether term matching should be case sensitive",
+    )
+    cache_size: int = Field(
+        default=100,
+        ge=1,
+        description="Size of the validation cache",
+    )
+    priority: int = Field(
+        default=1,
+        ge=0,
+        description="Priority of the rule",
+    )
+    cost: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Cost of running the rule",
+    )
 
 
 @runtime_checkable

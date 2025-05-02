@@ -50,7 +50,6 @@ These documents provide comprehensive information on:
 
 import hashlib
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from enum import Enum, auto
 from functools import lru_cache
 from typing import (
@@ -67,6 +66,8 @@ from typing import (
     cast,
     runtime_checkable,
 )
+
+from pydantic import BaseModel, Field, ConfigDict
 
 # Type variables for generic implementations
 T = TypeVar("T")  # Input type
@@ -208,7 +209,7 @@ class BaseValidator(Generic[T]):
         Returns:
             The type this validator can validate
         """
-        return str  # Default to string, override in subclasses
+        return T  # type: ignore
 
 
 @runtime_checkable
@@ -225,30 +226,41 @@ class RuleResultHandler(Protocol[R]):
     def can_handle(self, result: R) -> bool: ...
 
 
-@dataclass(frozen=True)
-class RuleResult:
+class RuleResult(BaseModel):
     """Immutable result of a rule validation."""
 
-    passed: bool
-    message: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    score: Optional[float] = field(default=None)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
-    def __post_init__(self) -> None:
-        if self.score is not None and not 0 <= self.score <= 1:
-            raise ValueError("Score must be between 0 and 1")
+    passed: bool = Field(description="Whether the validation passed")
+    message: str = Field(description="Description of the validation result")
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional metadata about the validation result",
+    )
+    score: Optional[float] = Field(
+        default=None,
+        description="Optional score for the validation result",
+    )
 
     @property
     def failed(self) -> bool:
-        """Return whether the validation failed."""
+        """Check if validation failed."""
         return not self.passed
 
     def __bool__(self) -> bool:
-        """Return whether the validation passed."""
+        """Convert to boolean."""
         return self.passed
 
     def with_metadata(self, **kwargs: Any) -> "RuleResult":
-        """Create a new result with additional metadata."""
+        """
+        Create a new result with additional metadata.
+
+        Args:
+            **kwargs: Additional metadata to add
+
+        Returns:
+            New result with additional metadata
+        """
         return RuleResult(
             passed=self.passed,
             message=self.message,
@@ -257,8 +269,7 @@ class RuleResult:
         )
 
 
-@dataclass(frozen=True)
-class RuleConfig:
+class RuleConfig(BaseModel):
     """
     Immutable configuration for rules.
 
@@ -277,29 +288,54 @@ class RuleConfig:
     ```
     """
 
-    priority: RulePriority = RulePriority.MEDIUM
-    cache_size: int = 0
-    cost: int = 1
-    params: Dict[str, Any] = field(default_factory=dict)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
-    def __post_init__(self) -> None:
-        if self.cache_size < 0:
-            raise ConfigurationError("Cache size must be non-negative")
-        if self.cost < 0:
-            raise ConfigurationError("Cost must be non-negative")
+    priority: RulePriority = Field(
+        default=RulePriority.MEDIUM,
+        description="Priority level for rule execution",
+    )
+    cache_size: int = Field(
+        default=0,
+        ge=0,
+        description="Size of the validation cache",
+    )
+    cost: int = Field(
+        default=1,
+        ge=0,
+        description="Cost of running the rule",
+    )
+    params: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Rule-specific configuration parameters",
+    )
 
     def with_options(self, **kwargs: Any) -> "RuleConfig":
-        """Create a new config with updated options."""
-        return RuleConfig(**{**self.__dict__, **kwargs})
+        """
+        Create a new config with updated options.
+
+        Args:
+            **kwargs: Options to update
+
+        Returns:
+            New config with updated options
+        """
+        return RuleConfig(**{**self.model_dump(), **kwargs})
 
     def with_params(self, **kwargs: Any) -> "RuleConfig":
-        """Create a new config with updated parameters."""
-        new_params = {**self.params, **kwargs}
+        """
+        Create a new config with updated params.
+
+        Args:
+            **kwargs: Params to update
+
+        Returns:
+            New config with updated params
+        """
         return RuleConfig(
-            priority=self.priority,
-            cache_size=self.cache_size,
-            cost=self.cost,
-            params=new_params,
+            **{
+                **self.model_dump(exclude={"params"}),
+                "params": {**self.params, **kwargs},
+            }
         )
 
 

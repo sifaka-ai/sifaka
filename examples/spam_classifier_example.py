@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from sifaka.classifiers import SpamClassifier, ClassifierConfig
-from sifaka.rules.adapters import create_classifier_rule
+from sifaka.rules.adapters.classifier import create_classifier_rule
 
 
 def run_spam_example():

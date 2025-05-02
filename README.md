@@ -5,6 +5,70 @@ Sifaka is a framework for improving large language model (LLM) outputs through v
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+## Installation
+
+Sifaka can be installed with different sets of dependencies depending on your needs:
+
+### Basic Installation
+```bash
+pip install sifaka
+```
+
+### Installation with Specific Features
+
+```bash
+# Install with OpenAI support
+pip install "sifaka[openai]"
+
+# Install with Anthropic support
+pip install "sifaka[anthropic]"
+
+# Install with all classifiers
+pip install "sifaka[classifiers]"
+
+# Install with LangGraph integration
+pip install "sifaka[langgraph]"
+
+# Install with LangChain integration
+pip install "sifaka[langchain]"
+
+# Install with benchmarking tools
+pip install "sifaka[benchmark]"
+
+# Install everything (except development tools)
+pip install "sifaka[all]"
+```
+
+### Development Installation
+```bash
+git clone https://github.com/sifaka-ai/sifaka.git
+cd sifaka
+pip install -e ".[dev]"  # Install with development dependencies
+```
+
+## Optional Dependencies
+
+Sifaka's functionality can be extended through optional dependencies:
+
+### Model Providers
+- `openai`: OpenAI API support
+- `anthropic`: Anthropic Claude API support
+- `google-generativeai`: Google Gemini API support
+
+### Classifiers
+- `toxicity`: Toxicity detection using Detoxify
+- `sentiment`: Sentiment analysis using VADER
+- `profanity`: Profanity detection
+- `language`: Language detection
+- `readability`: Text readability analysis
+
+### Integrations
+- `langgraph`: LangGraph integration for complex workflows
+- `langchain`: LangChain integration for chain-based processing
+
+### Benchmarking
+- `benchmark`: Tools for performance benchmarking and analysis
+
 ## Key Features
 
 - ✅ **Validation Rules**: Enforce constraints like length limits and content restrictions
@@ -12,18 +76,6 @@ Sifaka is a framework for improving large language model (LLM) outputs through v
 - ✅ **Chain Architecture**: Create feedback loops for iterative improvement
 - ✅ **Model Agnostic**: Works with Claude, OpenAI, and other LLM providers
 - ✅ **Streamlined Configuration**: Unified configuration system using ClassifierConfig and RuleConfig
-
-## Installation
-
-```bash
-# Basic installation
-pip install sifaka
-
-# Development installation
-git clone https://github.com/your-username/sifaka.git
-cd sifaka
-pip install -e .
-```
 
 ## Core Components
 
@@ -90,10 +142,10 @@ Chains orchestrate the validation and improvement process. Sifaka provides two w
 #### Simple Chain Creation
 
 ```python
-from sifaka.chain import Chain
+from sifaka.chain import create_simple_chain
 
-# Create a chain with a model, rules, and critic (legacy approach)
-chain = Chain(
+# Create a chain with a model, rules, and critic
+chain = create_simple_chain(
     model=model,            # LLM Provider
     rules=[length_rule],    # Validation rules
     critic=critic,          # Improvement critic
@@ -129,58 +181,6 @@ chain = create_backoff_chain(
     backoff_factor=2.0,
     max_backoff=60.0,
 )
-```
-
-#### Custom Chain Components
-
-For maximum flexibility, create chains with custom components:
-
-```python
-from sifaka.chain import (
-    ChainCore,
-    PromptManager,
-    ValidationManager,
-    ResultFormatter,
-    SimpleRetryStrategy,
-)
-
-# Create custom components
-validation_manager = ValidationManager(rules)
-prompt_manager = PromptManager()
-retry_strategy = SimpleRetryStrategy(max_attempts=3)
-result_formatter = ResultFormatter()
-
-# Create a chain with custom components
-chain = ChainCore(
-    model=model,
-    validation_manager=validation_manager,
-    prompt_manager=prompt_manager,
-    retry_strategy=retry_strategy,
-    result_formatter=result_formatter,
-    critic=critic,
-)
-```
-
-### Sifaka Workflow Diagram
-
-The diagram below illustrates the flow within the chain execution:
-
-```mermaid
-flowchart LR
-    A[Input Prompt] --> B(Chain.run)
-    subgraph Attempt Loop [Max Attempts]
-        B --> C{Generate Output w/ Model Provider}
-        C --> D[Output]
-        D --> E{Validate Output w/ Rules}
-        E -- Rule Results --> F{All Rules Passed?}
-        F -- No --> G{Critic Available & Attempts Left?}
-        G -- Yes --> H{Generate Feedback w/ Critic}
-        H --> I[Feedback]
-        I --> J{Combine Original Prompt + Feedback}
-        J --> C
-    end
-    F -- Yes --> K[✅ Final Output]
-    G -- No --> L[❌ Error / Last Failed Output]
 ```
 
 ### 4. Classifiers
@@ -455,6 +455,34 @@ for prompt in prompts:
 # guide future improvements, making it more effective over time
 ```
 
+## Integration with Guardrails
+
+While Sifaka is designed to be "batteries included" with its built-in classifiers and rules, it also provides seamless integration with [Guardrails AI](https://www.guardrailsai.com/). This integration allows you to:
+
+- Use Guardrails' validation and transformation capabilities alongside Sifaka's native features
+- Leverage Guardrails' extensive rule library while maintaining Sifaka's flexibility
+- Combine both systems' strengths for robust content validation and transformation
+
+Example integration:
+```python
+from sifaka.rules.adapters.guardrails_adapter import GuardrailsAdapter
+from sifaka.domain import Domain
+
+# Create a Guardrails adapter
+guardrails_adapter = GuardrailsAdapter()
+
+# Use it in your domain configuration
+domain = Domain({
+    "name": "text",
+    "rules": {
+        "guardrails": {
+            "enabled": True,
+            "adapter": guardrails_adapter
+        }
+    }
+})
+```
+
 ## License
 
-MIT
+Sifaka is licensed under the MIT License. See [LICENSE](LICENSE) for details.

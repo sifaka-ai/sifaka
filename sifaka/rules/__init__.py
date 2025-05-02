@@ -149,17 +149,17 @@ from .domain.python import PythonRule, create_python_rule
 # Factual rules
 from .factual.citation import CitationRule
 from .factual.confidence import ConfidenceRule
-from .factual.accuracy import FactualAccuracyRule
-from .factual.consistency import FactualConsistencyRule
+from .factual.accuracy import AccuracyRule as FactualAccuracyRule
+from .factual.consistency import ConsistencyRule as FactualConsistencyRule
 
 # Formatting rules
 from .formatting.length import LengthRule, create_length_rule
 from .formatting.format import FormatRule, create_plain_text_rule, create_json_rule
 
 # Content rules
-from .content.prohibited import ProhibitedContentRule
-from .content.safety import BiasRule, HarmfulContentRule, ToxicityRule
-from .content.sentiment import EmotionalContentRule, SentimentRule
+from .content.prohibited import create_prohibited_content_rule
+from .content.safety import HarmfulContentRule, create_toxicity_rule
+from .content.sentiment import create_sentiment_rule
 
 # Import from the adapters module
 from .adapters import (
@@ -175,7 +175,7 @@ __all__ = [
     "RuleConfig",
     "FunctionRule",
     # Safety
-    "ToxicityRule",
+    "create_toxicity_rule",
     "BiasRule",
     "HarmfulContentRule",
     # Classifier
@@ -183,7 +183,7 @@ __all__ = [
     "ClassifierAdapter",
     "create_classifier_rule",
     # Content
-    "ProhibitedContentRule",
+    "create_prohibited_content_rule",
     "LengthRule",
     "create_length_rule",
     # Formatting
@@ -210,6 +210,5 @@ __all__ = [
     "CitationRule",
     "FactualAccuracyRule",
     # Sentiment
-    "SentimentRule",
-    "EmotionalContentRule",
+    "create_sentiment_rule",
 ]

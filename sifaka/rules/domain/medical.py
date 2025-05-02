@@ -1,57 +1,110 @@
 """
 Medical domain-specific validation rules for Sifaka.
 
-This module provides validators and rules for checking medical content.
+This module provides rules for validating medical content, including:
+- Medical terminology validation
+- Medical disclaimer validation
+- Medical warning validation
 
 Configuration Pattern:
     This module follows the standard Sifaka configuration pattern:
     - All rule-specific configuration is stored in RuleConfig.params
-    - The MedicalConfig class extends RuleConfig and provides type-safe access to parameters
-    - Factory functions (create_medical_rule, create_medical_validator) handle configuration
+    - Factory functions handle configuration
+    - Validator factory functions create standalone validators
 
 Usage Example:
     from sifaka.rules.domain.medical import create_medical_rule
 
-    # Create a medical rule using the factory function
+    # Create a medical rule
     rule = create_medical_rule(
-        medical_terms={
-            "diagnosis": ["diagnosis", "diagnose", "diagnosed"],
-            "treatment": ["treatment", "therapy"]
-        },
-        warning_terms={"diagnosis", "treatment", "cure"},
-        disclaimer_required=True
-    )
-
-    # Validate text
-    result = rule.validate("This treatment may help with symptoms. Consult your doctor for medical advice.")
-
-    # Alternative: Create with explicit RuleConfig
-    from sifaka.rules.base import BaseValidator, RuleConfig, Any
-    rule = MedicalRule(
-        config=RuleConfig(
-            params={
-                "medical_terms": {
-                    "diagnosis": ["diagnosis", "diagnose", "diagnosed"],
-                    "treatment": ["treatment", "therapy"]
-                },
-                "warning_terms": {"diagnosis", "treatment", "cure"},
-                "disclaimer_required": True
-            }
-        )
+        medical_terms=["diagnosis", "treatment", "symptom"],
+        require_disclaimer=True
     )
 """
 
-# Standard library
 import re
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Protocol, Set, runtime_checkable
+from typing import Any, Dict, List, Optional, Set
 
-# Third-party
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, field_validator, ConfigDict, PrivateAttr
 
-# Sifaka
-from sifaka.rules.base import Rule, RuleConfig, RuleResult
-from sifaka.rules.domain.base import BaseDomainValidator
+from sifaka.rules.base import (
+    BaseValidator,
+    ConfigurationError,
+    Rule,
+    RuleConfig,
+    RuleResult,
+    RuleResultHandler,
+    ValidationError,
+)
+from sifaka.rules.domain.base import DomainValidator as BaseDomainValidator
+
+
+# Default medical terms
+DEFAULT_MEDICAL_TERMS: List[str] = [
+    "diagnosis",
+    "treatment",
+    "symptom",
+    "condition",
+    "disease",
+    "medication",
+    "prescription",
+    "therapy",
+    "procedure",
+    "surgery",
+]
+
+# Default medical warning terms
+DEFAULT_WARNING_TERMS: List[str] = [
+    "emergency",
+    "urgent",
+    "critical",
+    "severe",
+    "life-threatening",
+    "dangerous",
+    "risk",
+    "warning",
+    "caution",
+    "alert",
+]
+
+# Default medical disclaimers
+DEFAULT_DISCLAIMERS: List[str] = [
+    "This is not medical advice",
+    "Consult a healthcare professional",
+    "For informational purposes only",
+    "Not a substitute for professional medical advice",
+]
+
+
+class MedicalConfig(BaseModel):
+    """Configuration for medical content validation."""
+
+    model_config = ConfigDict(frozen=True)
+
+    medical_terms: List[str] = Field(
+        default_factory=lambda: DEFAULT_MEDICAL_TERMS,
+        description="List of medical terms to validate",
+    )
+    warning_terms: List[str] = Field(
+        default_factory=lambda: DEFAULT_WARNING_TERMS,
+        description="List of medical warning terms",
+    )
+    require_disclaimer: bool = Field(
+        default=True,
+        description="Whether to require a medical disclaimer",
+    )
+    disclaimers: List[str] = Field(
+        default_factory=lambda: DEFAULT_DISCLAIMERS,
+        description="List of acceptable medical disclaimers",
+    )
+
+    @field_validator("medical_terms")
+    @classmethod
+    def validate_medical_terms(cls, v: List[str]) -> List[str]:
+        """Validate that medical terms are not empty."""
+        if not v:
+            raise ValueError("Medical terms cannot be empty")
+        return v
 
 
 __all__ = [
@@ -70,58 +123,6 @@ __all__ = [
     "_MedicalTermAnalyzer",
     "_MedicalDisclaimerAnalyzer",
 ]
-
-
-@dataclass(frozen=True)
-class MedicalConfig(RuleConfig):
-    """Configuration for medical rules."""
-
-    medical_terms: Dict[str, List[str]] = field(
-        default_factory=lambda: {
-            "diagnosis": ["diagnosis", "diagnose", "diagnosed"],
-            "treatment": ["treatment", "treat", "treating", "therapy"],
-            "medication": ["medication", "drug", "prescription", "medicine"],
-            "symptom": ["symptom", "symptoms", "sign", "signs"],
-        }
-    )
-    warning_terms: Set[str] = field(
-        default_factory=lambda: {
-            "diagnosis",
-            "treatment",
-            "medication",
-            "prescription",
-            "therapy",
-            "cure",
-            "heal",
-            "remedy",
-        }
-    )
-    disclaimer_required: bool = True
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
-
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        super().__post_init__()
-        if not self.medical_terms:
-            raise ValueError("Must provide at least one medical term category")
-        if not self.warning_terms:
-            raise ValueError("Must provide at least one warning term")
-
-
-@runtime_checkable
-class MedicalValidator(Protocol):
-    """Protocol for medical content validation."""
-
-    def validate(self, text: str) -> RuleResult: ...
-    @property
-    def config(self) -> MedicalConfig: ...
-
-
-# ---------------------------------------------------------------------------
-# Analyzer helpers
-# ---------------------------------------------------------------------------
 
 
 class _MedicalDisclaimerAnalyzer(BaseModel):
@@ -170,7 +171,9 @@ class _MedicalTermAnalyzer(BaseModel):
             if matches:
                 found_terms[cat] = matches
 
-        warnings = [p.pattern.strip("\\b").strip("\\b") for p in self._compiled_warning if p.search(text)]
+        warnings = [
+            p.pattern.strip("\\b").strip("\\b") for p in self._compiled_warning if p.search(text)
+        ]
         return found_terms, warnings
 
 
@@ -200,7 +203,7 @@ class DefaultMedicalValidator(BaseDomainValidator):
 
         # Decision logic
         if found_terms:
-            if self.config.disclaimer_required and not has_disclaimer:
+            if self.config.require_disclaimer and not has_disclaimer:
                 return RuleResult(
                     passed=False,
                     message="Medical content requires a disclaimer",
@@ -308,7 +311,7 @@ def create_medical_validator(
     if warning_terms is not None:
         config_params["warning_terms"] = warning_terms
     if disclaimer_required is not None:
-        config_params["disclaimer_required"] = disclaimer_required
+        config_params["require_disclaimer"] = disclaimer_required
 
     # Add any remaining config parameters
     config_params.update(rule_config_params)

@@ -10,8 +10,9 @@ This example shows how to:
 
 import os
 import json
-from typing import Dict, List, Tuple, TypedDict, Annotated, Any, Optional, cast
+from typing import Dict, List, Tuple, Annotated, Any, Optional, cast
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field
 
 # Load environment variables from .env file (containing API keys)
 load_dotenv()
@@ -75,9 +76,21 @@ IMPROVEMENT:"""
 
 
 # Define state types
-class AgentState(TypedDict):
-    messages: List[Dict]
-    next: str
+class AgentState(BaseModel):
+    """State for the agent in the LangGraph."""
+
+    messages: List[Dict] = Field(
+        description="List of messages in the conversation",
+    )
+    next: str = Field(
+        description="Next action to take in the graph",
+    )
+
+    class Config:
+        """Pydantic model configuration."""
+
+        frozen = True  # Make the model immutable
+        extra = "forbid"  # Don't allow extra fields
 
 
 # Create a custom SifakaGraph class that implements critique

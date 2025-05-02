@@ -19,7 +19,7 @@ from sifaka.models.base import ModelConfig
 from sifaka.classifiers.language import LanguageClassifier, ClassifierConfig
 from sifaka.rules.adapters.classifier import create_classifier_rule
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
-from sifaka.chain import Chain, ChainResult
+from sifaka.chain import ChainCore, ChainResult
 
 
 # Custom prompt factory for language detection

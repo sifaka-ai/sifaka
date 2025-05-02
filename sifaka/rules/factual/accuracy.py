@@ -1,241 +1,208 @@
 """
-Factual accuracy validation rules for Sifaka.
+Accuracy validation rules for Sifaka.
 
-This module provides validators and rules for checking factual accuracy in text.
+This module provides rules for validating factual accuracy in text, including:
+- Fact verification
+- Accuracy scoring
+- Knowledge base validation
 
 Configuration Pattern:
     This module follows the standard Sifaka configuration pattern:
     - All rule-specific configuration is stored in RuleConfig.params
-    - The FactualAccuracyConfig class extends RuleConfig and provides type-safe access to parameters
-    - Factory functions (create_factual_accuracy_rule, create_factual_accuracy_validator) handle configuration
+    - Factory functions handle configuration
+    - Validator factory functions create standalone validators
 
 Usage Example:
-    from sifaka.rules.factual.accuracy import create_factual_accuracy_rule
+    from sifaka.rules.factual.accuracy import create_accuracy_rule
 
-    # Create a factual accuracy rule using the factory function
-    rule = create_factual_accuracy_rule(
-        knowledge_base={
-            "earth_shape": {"round", "spherical", "geoid"},
-            "gravity": {"9.8 m/s²", "9.8 meters per second squared"}
-        }
-    )
-
-    # Validate text
-    result = rule.validate("The Earth is spherical and gravity is 9.8 m/s².")
-
-    # Alternative: Create with explicit RuleConfig
-    from sifaka.rules.base import BaseValidator, RuleConfig, Any
-    rule = FactualAccuracyRule(
-        config=RuleConfig(
-            params={
-                "knowledge_base": {
-                    "earth_shape": {"round", "spherical", "geoid"},
-                    "gravity": {"9.8 m/s²", "9.8 meters per second squared"}
-                }
-            }
-        )
+    # Create an accuracy rule
+    rule = create_accuracy_rule(
+        knowledge_base=[
+            "The Earth is round",
+            "Water boils at 100°C at sea level",
+            "The capital of France is Paris"
+        ],
+        threshold=0.8
     )
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, List, Optional
 
-from sifaka.rules.base import Rule, RuleConfig, RuleResult
+from pydantic import BaseModel, Field, field_validator, ConfigDict
+
+from sifaka.rules.base import (
+    BaseValidator,
+    ConfigurationError,
+    Rule,
+    RuleConfig,
+    RuleResult,
+    RuleResultHandler,
+    ValidationError,
+)
 from sifaka.rules.factual.base import BaseFactualValidator
 
 
-__all__ = [
-    # Config classes
-    "FactualAccuracyConfig",
-    # Validator classes
-    "DefaultFactualAccuracyValidator",
-    # Rule classes
-    "FactualAccuracyRule",
-    # Factory functions
-    "create_factual_accuracy_validator",
-    "create_factual_accuracy_rule",
-]
+class AccuracyConfig(BaseModel):
+    """Configuration for accuracy validation."""
 
+    model_config = ConfigDict(frozen=True)
 
-@dataclass(frozen=True)
-class FactualAccuracyConfig(RuleConfig):
-    """Configuration for factual accuracy rules."""
-
-    knowledge_base: Dict[str, Set[str]] = field(
-        default_factory=lambda: {
-            "earth_shape": {"round", "spherical", "geoid"},
-            "gravity": {"9.8 m/s²", "9.8 meters per second squared"},
-        }
+    knowledge_base: List[str] = Field(
+        default_factory=list,
+        description="List of known facts for validation",
     )
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
+    threshold: float = Field(
+        default=0.8,
+        ge=0.0,
+        le=1.0,
+        description="Minimum accuracy score required",
+    )
+    cache_size: int = Field(
+        default=100,
+        ge=1,
+        description="Size of the validation cache",
+    )
+    priority: int = Field(
+        default=1,
+        ge=0,
+        description="Priority of the rule",
+    )
+    cost: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Cost of running the rule",
+    )
 
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        super().__post_init__()
-        if not self.knowledge_base:
-            raise ValueError("Must provide at least one knowledge base entry")
-        if not all(facts for facts in self.knowledge_base.values()):
-            raise ValueError("Each knowledge base entry must have at least one fact")
-
-
-class DefaultFactualAccuracyValidator(BaseFactualValidator):
-    """Default implementation of factual accuracy validation."""
-
-    def __init__(self, config: FactualAccuracyConfig) -> None:
-        """Initialize with configuration."""
-        super().__init__(config)
-
-    @property
-    def config(self) -> FactualAccuracyConfig:
-        """Get the validator configuration."""
-        return self._config
-
-    def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate text for factual accuracy."""
-        if not isinstance(text, str):
-            raise ValueError("Input must be a string")
-
-        text_lower = text.lower()
-        found_facts: Dict[str, Set[str]] = {}
-
-        # Check each knowledge base entry
-        for topic, facts in self.config.knowledge_base.items():
-            found = {fact for fact in facts if fact.lower() in text_lower}
-            if found:
-                found_facts[topic] = found
-
-        if not found_facts:
-            return RuleResult(
-                passed=True,
-                message="No factual claims found to verify",
-                metadata={"verified_facts": {}},
-            )
-
-        # All found facts are considered accurate since they're from the knowledge base
-        return RuleResult(
-            passed=True,
-            message=f"Verified {len(found_facts)} factual claim(s)",
-            metadata={"verified_facts": found_facts},
-        )
+    @field_validator("knowledge_base")
+    @classmethod
+    def validate_knowledge_base(cls, v: List[str]) -> List[str]:
+        """Validate that knowledge base is not empty."""
+        if not v:
+            raise ValueError("Knowledge base cannot be empty")
+        return v
 
 
-class FactualAccuracyRule(Rule[str, RuleResult, DefaultFactualAccuracyValidator, Any]):
-    """Rule that checks for factual accuracy in the text."""
+class DefaultAccuracyValidator(BaseFactualValidator):
+    """Default validator for accuracy validation."""
 
-    def __init__(
-        self,
-        name: str = "factual_accuracy_rule",
-        description: str = "Checks for factual accuracy",
-        config: Optional[RuleConfig] = None,
-        validator: Optional[DefaultFactualAccuracyValidator] = None,
-        **kwargs,
-    ) -> None:
-        """
-        Initialize the factual accuracy rule.
+    def __init__(self, config: AccuracyConfig) -> None:
+        """Initialize with configuration.
 
         Args:
-            name: The name of the rule
-            description: Description of the rule
-            config: Rule configuration
-            validator: Optional custom validator implementation
-            **kwargs: Additional keyword arguments for the rule
+            config: The configuration for the validator
         """
-        # Store parameters for creating the default validator
-        self._rule_params = {}
-        if config and config.params:
-            self._rule_params = config.params
+        super().__init__(config)
+        self._knowledge_base = config.knowledge_base
+        self._threshold = config.threshold
 
-        # Initialize base class
-        super().__init__(
-            name=name,
-            description=description,
-            config=config,
-            validator=validator,
-            **kwargs,
+    def validate(self, text: str) -> RuleResult:
+        """Validate the given text for accuracy.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            RuleResult: The result of the validation
+        """
+        # Count matching facts
+        matching_facts = sum(1 for fact in self._knowledge_base if fact.lower() in text.lower())
+        total_facts = len(self._knowledge_base)
+
+        # Calculate accuracy score
+        accuracy_score = matching_facts / total_facts if total_facts > 0 else 0.0
+        is_valid = accuracy_score >= self._threshold
+
+        return RuleResult(
+            is_valid=is_valid,
+            score=accuracy_score,
+            message=f"Accuracy score: {accuracy_score:.2f} (threshold: {self._threshold})",
         )
 
-    def _create_default_validator(self) -> DefaultFactualAccuracyValidator:
-        """Create a default validator from config."""
-        accuracy_config = FactualAccuracyConfig(**self._rule_params)
-        return DefaultFactualAccuracyValidator(accuracy_config)
+
+class AccuracyRule(Rule):
+    """Rule for validating accuracy."""
+
+    def __init__(self, config: AccuracyConfig) -> None:
+        """Initialize with configuration.
+
+        Args:
+            config: The configuration for the rule
+        """
+        super().__init__(config)
+        self._validator = DefaultAccuracyValidator(config)
+
+    def validate(self, text: str) -> RuleResult:
+        """Validate the given text for accuracy.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            RuleResult: The result of the validation
+        """
+        return self._validator.validate(text)
 
 
-def create_factual_accuracy_validator(
-    knowledge_base: Optional[Dict[str, Set[str]]] = None,
+def create_accuracy_validator(
+    knowledge_base: Optional[List[str]] = None,
+    threshold: Optional[float] = None,
     **kwargs,
-) -> DefaultFactualAccuracyValidator:
-    """
-    Create a factual accuracy validator with the specified configuration.
-
-    This factory function creates a configured factual accuracy validator instance.
-    It's useful when you need a validator without creating a full rule.
+) -> DefaultAccuracyValidator:
+    """Create an accuracy validator.
 
     Args:
-        knowledge_base: Dictionary mapping topics to sets of facts
+        knowledge_base: List of known facts for validation
+        threshold: Minimum accuracy score required
         **kwargs: Additional keyword arguments for the config
 
     Returns:
-        Configured factual accuracy validator
+        DefaultAccuracyValidator: The created validator
     """
-    # Extract RuleConfig parameters from kwargs
-    rule_config_params = {}
-    for param in ["priority", "cache_size", "cost", "params"]:
-        if param in kwargs:
-            rule_config_params[param] = kwargs.pop(param)
-
     # Create config with default or provided values
     config_params = {}
     if knowledge_base is not None:
         config_params["knowledge_base"] = knowledge_base
+    if threshold is not None:
+        config_params["threshold"] = threshold
 
     # Add any remaining config parameters
-    config_params.update(rule_config_params)
+    config_params.update(kwargs)
 
-    # Create the config
-    config = FactualAccuracyConfig(**config_params)
+    # Create config
+    config = AccuracyConfig(**config_params)
 
-    # Return configured validator
-    return DefaultFactualAccuracyValidator(config)
+    # Create validator
+    return DefaultAccuracyValidator(config)
 
 
-def create_factual_accuracy_rule(
-    name: str = "factual_accuracy_rule",
+def create_accuracy_rule(
+    name: str = "accuracy_rule",
     description: str = "Validates text for factual accuracy",
-    knowledge_base: Optional[Dict[str, Set[str]]] = None,
+    knowledge_base: Optional[List[str]] = None,
+    threshold: Optional[float] = None,
     **kwargs,
-) -> FactualAccuracyRule:
-    """
-    Create a factual accuracy rule with configuration.
-
-    This factory function creates a configured FactualAccuracyRule instance.
-    It uses create_factual_accuracy_validator internally to create the validator.
+) -> AccuracyRule:
+    """Create an accuracy rule.
 
     Args:
         name: The name of the rule
         description: Description of the rule
-        knowledge_base: Dictionary mapping topics to sets of facts
+        knowledge_base: List of known facts for validation
+        threshold: Minimum accuracy score required
         **kwargs: Additional keyword arguments for the rule
 
     Returns:
-        Configured FactualAccuracyRule instance
+        AccuracyRule: The created rule
     """
-    # Create validator using the validator factory
-    validator = create_factual_accuracy_validator(
-        knowledge_base=knowledge_base,
-        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
-    )
-
-    # Extract rule-specific kwargs
-    rule_kwargs = {
-        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
+    # Create config dictionary
+    config_dict = {
+        "knowledge_base": knowledge_base or [],
+        "threshold": threshold or 0.8,
+        **kwargs,
     }
 
-    # Create and return rule
-    return FactualAccuracyRule(
-        name=name,
-        description=description,
-        validator=validator,
-        **rule_kwargs,
-    )
+    # Create config
+    config = AccuracyConfig(**config_dict)
+
+    # Create rule
+    return AccuracyRule(config)

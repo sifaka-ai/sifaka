@@ -184,7 +184,14 @@ class PerformanceMonitor:
         metrics = self.get_metrics()
         logger.info("Performance metrics:")
         for name, value in metrics.items():
-            if "time" in name:
-                logger.info(f"  {name}: {value:.2f}ms")
+            if isinstance(value, dict):
+                logger.info(f"  {name}:")
+                for subname, subvalue in value.items():
+                    logger.info(f"    {subname}: {subvalue}")
+            elif isinstance(value, float):
+                if "time" in name:
+                    logger.info(f"  {name}: {value:.2f}ms")
+                else:
+                    logger.info(f"  {name}: {value:.2f}")
             else:
-                logger.info(f"  {name}: {value:.2f}")
+                logger.info(f"  {name}: {value}")

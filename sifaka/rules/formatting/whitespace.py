@@ -6,13 +6,14 @@ such as leading/trailing whitespace, spacing between words, and newline formatti
 """
 
 import re
-from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
+
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from sifaka.rules.base import BaseValidator, Rule, RuleResult, Any
 
-@dataclass
-class WhitespaceConfig:
+
+class WhitespaceConfig(BaseModel):
     """Configuration for text whitespace validation.
 
     Attributes:
@@ -25,13 +26,45 @@ class WhitespaceConfig:
         normalize_whitespace: Whether to normalize whitespace during validation
     """
 
-    allow_leading_whitespace: bool = False
-    allow_trailing_whitespace: bool = False
-    allow_multiple_spaces: bool = False
-    allow_tabs: bool = False
-    allow_newlines: bool = True
-    max_newlines: Optional[int] = None
-    normalize_whitespace: bool = False
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    allow_leading_whitespace: bool = Field(
+        default=False,
+        description="Whether to allow whitespace at the beginning of text",
+    )
+    allow_trailing_whitespace: bool = Field(
+        default=False,
+        description="Whether to allow whitespace at the end of text",
+    )
+    allow_multiple_spaces: bool = Field(
+        default=False,
+        description="Whether to allow multiple consecutive spaces",
+    )
+    allow_tabs: bool = Field(
+        default=False,
+        description="Whether to allow tab characters",
+    )
+    allow_newlines: bool = Field(
+        default=True,
+        description="Whether to allow newline characters",
+    )
+    max_newlines: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Maximum number of consecutive newlines allowed",
+    )
+    normalize_whitespace: bool = Field(
+        default=False,
+        description="Whether to normalize whitespace during validation",
+    )
+
+    @field_validator("max_newlines")
+    @classmethod
+    def validate_max_newlines(cls, v: Optional[int], values: Dict[str, Any]) -> Optional[int]:
+        """Validate that max_newlines is only set if allow_newlines is True."""
+        if v is not None and not values.get("allow_newlines", True):
+            raise ValueError("max_newlines can only be set if allow_newlines is True")
+        return v
 
 
 class WhitespaceValidator:
