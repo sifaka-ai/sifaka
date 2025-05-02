@@ -121,7 +121,7 @@ async def async_measure_time(func: Callable, *args, **kwargs) -> Dict[str, Any]:
 # Mock classes for testing
 # ---------------------------------------------------------------------------
 
-class MockModelProvider(ModelProvider):
+class MockModelProvider:
     """Mock model provider with configurable response time."""
 
     def __init__(self, latency: float = 0.01, **kwargs):
@@ -131,16 +131,9 @@ class MockModelProvider(ModelProvider):
             latency: Simulated response time in seconds
             **kwargs: Additional configuration parameters
         """
-        config = kwargs.get("config", {
-            "name": "mock_provider",
-            "description": "Mock provider for benchmarking",
-            "params": {
-                "latency": latency
-            }
-        })
-        super().__init__(config)
         self.latency = latency
         self._token_rate = kwargs.get("token_rate", 20)  # tokens per character
+        self.model_name = "mock-model"
 
     def generate(self, prompt: str, **kwargs) -> Dict[str, Any]:
         """Generate a response with simulated latency.
@@ -276,9 +269,6 @@ class MockRule(Rule):
 @pytest.fixture
 def mock_models():
     """Create a set of mock model providers with different latencies."""
-    # Skip tests that use this fixture
-    pytest.skip("Skipping since we're not implementing abstract methods")
-
     return {
         "fast": MockModelProvider(latency=0.01),
         "medium": MockModelProvider(latency=0.05),
@@ -400,9 +390,6 @@ class TestThroughput:
 
     def test_end_to_end_pipeline_throughput(self, mock_models, mock_adapters):
         """Benchmark throughput for an end-to-end pipeline (model + adapter)."""
-        # Skip this test since it would require implementing abstract methods
-        pytest.skip("Skipping since we're not modifying core code or implementing abstract methods")
-
         results = {}
 
         # Test with different concurrency levels
