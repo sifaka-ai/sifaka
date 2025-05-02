@@ -124,42 +124,143 @@ class TextCritic(Protocol):
 
 
 class BaseCritic(ABC):
-    """Abstract base class for critics implementing all protocols."""
+    """
+    Abstract base class for critics implementing all protocols.
+
+    This class defines the interface for critics and provides common functionality.
+    All critics should inherit from this class and implement the required methods.
+
+    The BaseCritic follows a component-based architecture where functionality is
+    delegated to specialized components:
+    - PromptManager: Creates prompts for validation, critique, improvement, and reflection
+    - ResponseParser: Parses responses from language models
+    - MemoryManager: Manages memory for critics (optional)
+    - CritiqueService: Provides methods for validation, critique, and improvement
+    """
 
     def __init__(self, config: CriticConfig) -> None:
-        """Initialize the critic with configuration."""
+        """
+        Initialize the critic with configuration.
+
+        Args:
+            config: The critic configuration
+        """
         self._config = config
         self._validate_config()
 
     @property
     def config(self) -> CriticConfig:
-        """Get critic configuration."""
+        """
+        Get critic configuration.
+
+        Returns:
+            The critic configuration
+        """
         return self._config
 
     def _validate_config(self) -> None:
-        """Validate critic configuration."""
+        """
+        Validate critic configuration.
+
+        Raises:
+            TypeError: If config is invalid
+        """
         # Allow both dataclass and pydantic CriticConfig
         if not hasattr(self.config, "name") or not hasattr(self.config, "description"):
             raise TypeError("config must have name and description attributes")
 
     def is_valid_text(self, text: Any) -> TypeGuard[str]:
-        """Type guard to ensure text is a valid string."""
+        """
+        Type guard to ensure text is a valid string.
+
+        Args:
+            text: The text to check
+
+        Returns:
+            True if text is a valid string, False otherwise
+        """
         return isinstance(text, str) and bool(text.strip())
 
     @abstractmethod
     def validate(self, text: str) -> bool:
-        """Validate text against quality standards."""
+        """
+        Validate text against quality standards.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            True if the text meets quality standards, False otherwise
+
+        Raises:
+            ValueError: If text is empty
+        """
+        pass
 
     @abstractmethod
     def improve(self, text: str, violations: List[Dict[str, Any]]) -> str:
-        """Improve text based on violations."""
+        """
+        Improve text based on violations.
+
+        Args:
+            text: The text to improve
+            violations: List of rule violations
+
+        Returns:
+            The improved text
+
+        Raises:
+            ValueError: If text is empty
+        """
+        pass
 
     @abstractmethod
     def critique(self, text: str) -> CriticMetadata:
-        """Critique text and provide feedback."""
+        """
+        Critique text and provide feedback.
+
+        Args:
+            text: The text to critique
+
+        Returns:
+            CriticMetadata containing the critique details
+
+        Raises:
+            ValueError: If text is empty
+        """
+        pass
+
+    @abstractmethod
+    def improve_with_feedback(self, text: str, feedback: str) -> str:
+        """
+        Improve text based on feedback.
+
+        Args:
+            text: The text to improve
+            feedback: Feedback to guide the improvement
+
+        Returns:
+            The improved text
+
+        Raises:
+            ValueError: If text is empty
+        """
+        pass
 
     def process(self, text: str, violations: List[Dict[str, Any]]) -> CriticOutput:
-        """Process text and return improved version with metadata."""
+        """
+        Process text and return improved version with metadata.
+
+        Args:
+            text: The text to process
+            violations: List of rule violations
+
+        Returns:
+            CriticOutput containing the result, improved text, and metadata
+
+        Raises:
+            ValueError: If text is empty
+        """
         if not self.is_valid_text(text):
             raise ValueError("text must be a non-empty string")
 
@@ -186,34 +287,96 @@ DEFAULT_MIN_CONFIDENCE: Final[float] = 0.7
 DEFAULT_MAX_ATTEMPTS: Final[int] = 3
 DEFAULT_CACHE_SIZE: Final[int] = 100
 
-T = TypeVar("T", bound=BaseCritic)
+T = TypeVar("T", bound="BaseCritic")
 
 
-def create_critic(critic_class: type[T], name: str, description: str, **kwargs: Any) -> T:
-    """Factory function to create a critic instance with configuration."""
-    config = CriticConfig(
-        name=name,
-        description=description,
-        min_confidence=kwargs.pop("min_confidence", DEFAULT_MIN_CONFIDENCE),
-        max_attempts=kwargs.pop("max_attempts", DEFAULT_MAX_ATTEMPTS),
-        cache_size=kwargs.pop("cache_size", DEFAULT_CACHE_SIZE),
-        priority=kwargs.pop("priority", 1),
-        cost=kwargs.pop("cost", 1.0),
-    )
-    return critic_class(config=config, **kwargs)
+def create_critic(
+    critic_class: Any,
+    name: str = "custom_critic",
+    description: str = "Custom critic implementation",
+    min_confidence: float = DEFAULT_MIN_CONFIDENCE,
+    max_attempts: int = DEFAULT_MAX_ATTEMPTS,
+    cache_size: int = DEFAULT_CACHE_SIZE,
+    priority: int = 1,
+    cost: float = 1.0,
+    config: CriticConfig = None,
+    **kwargs: Any,
+) -> BaseCritic:
+    """
+    Factory function to create a critic instance with configuration.
+
+    This function creates a critic instance of the specified class with
+    the given configuration parameters.
+
+    Args:
+        critic_class: The critic class to instantiate
+        name: Name of the critic
+        description: Description of the critic
+        min_confidence: Minimum confidence threshold
+        max_attempts: Maximum number of improvement attempts
+        cache_size: Size of the cache
+        priority: Priority of the critic
+        cost: Cost of using the critic
+        config: Optional critic configuration (overrides other parameters)
+        **kwargs: Additional keyword arguments for the critic
+
+    Returns:
+        An instance of the specified critic class
+
+    Raises:
+        TypeError: If the created instance is not a BaseCritic
+    """
+    # Use provided config or create one from parameters
+    if config is None:
+        config = CriticConfig(
+            name=name,
+            description=description,
+            min_confidence=min_confidence,
+            max_attempts=max_attempts,
+            cache_size=cache_size,
+            priority=priority,
+            cost=cost,
+        )
+
+    # Create the critic instance with the config
+    result = critic_class(config, **kwargs)
+    assert isinstance(result, BaseCritic), f"Expected BaseCritic, got {type(result)}"
+    return result
 
 
 class Critic(BaseCritic):
-    """Default implementation of a text critic."""
+    """
+    Default implementation of a text critic.
+
+    This class provides a simple implementation of the BaseCritic interface
+    for basic text validation, critique, and improvement.
+    """
 
     def validate(self, text: str) -> bool:
-        """Validate text against quality standards."""
+        """
+        Validate text against quality standards.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            True if the text meets quality standards, False otherwise
+        """
         if not self.is_valid_text(text):
             return False
         return len(text.strip()) > 0
 
     def improve(self, text: str, violations: List[Dict[str, Any]]) -> str:
-        """Improve text based on violations."""
+        """
+        Improve text based on violations.
+
+        Args:
+            text: The text to improve
+            violations: List of rule violations
+
+        Returns:
+            The improved text
+        """
         if not violations:
             return text
         # Apply basic improvements based on violations
@@ -223,8 +386,30 @@ class Critic(BaseCritic):
                 improved = violation["fix"](improved)
         return improved
 
+    def improve_with_feedback(self, text: str, feedback: str) -> str:
+        """
+        Improve text based on feedback.
+
+        Args:
+            text: The text to improve
+            feedback: Feedback to guide the improvement
+
+        Returns:
+            The improved text
+        """
+        # Simple implementation that just appends the feedback
+        return f"{text}\n\nImproved based on feedback: {feedback}"
+
     def critique(self, text: str) -> CriticMetadata:
-        """Critique text and provide feedback."""
+        """
+        Critique text and provide feedback.
+
+        Args:
+            text: The text to critique
+
+        Returns:
+            CriticMetadata containing the critique details
+        """
         if not self.is_valid_text(text):
             return CriticMetadata(
                 score=0.0,

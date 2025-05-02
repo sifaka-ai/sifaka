@@ -12,8 +12,8 @@ from tests.base.test_base import BaseTestCase
 class MockValidator(BaseValidator[str]):
     """Mock validator for testing."""
 
-    def __init__(self, passes: bool, message: str = ""):
-        """Initialize mock validator."""
+    def setUp(self, passes: bool, message: str = ""):
+        """Set up mock validator."""
         self._passes = passes
         self._message = message
 
@@ -33,18 +33,26 @@ class MockValidator(BaseValidator[str]):
 class MockRule(Rule[str, RuleResult, MockValidator, None]):
     """Mock rule for testing."""
 
-    def __init__(self, name: str, passes: bool, message: str = ""):
+    def __init__(self):
         """Initialize mock rule."""
+        self.validator = MockValidator()
+        self.validator.setUp(True)
+
+    def setUp(self, name: str, passes: bool, message: str = ""):
+        """Set up mock rule."""
         super().__init__(
             name=name,
             description=f"Mock rule: {name}",
             config=RuleConfig(),
-            validator=MockValidator(passes, message)
+            validator=self.validator
         )
+        self.validator.setUp(passes, message)
 
     def _create_default_validator(self) -> MockValidator:
         """Create default validator."""
-        return MockValidator(True)
+        validator = MockValidator()
+        validator.setUp(True)
+        return validator
 
 
 class TestValidator(BaseTestCase):
@@ -53,11 +61,14 @@ class TestValidator(BaseTestCase):
     def setUp(self):
         """Set up test fixtures."""
         super().setUp()
-        self.rules = [
-            MockRule("rule1", True),
-            MockRule("rule2", True),
-            MockRule("rule3", True)
-        ]
+        self.rules = []
+        rule1 = MockRule()
+        rule1.setUp("rule1", True, "")
+        rule2 = MockRule()
+        rule2.setUp("rule2", True, "")
+        rule3 = MockRule()
+        rule3.setUp("rule3", True, "")
+        self.rules = [rule1, rule2, rule3]
         self.validator = Validator(self.rules)
 
     def test_initialization(self):
@@ -78,11 +89,14 @@ class TestValidator(BaseTestCase):
 
     def test_validate_some_failed(self):
         """Test validation when some rules fail."""
-        rules = [
-            MockRule("rule1", True),
-            MockRule("rule2", False, "Rule 2 failed"),
-            MockRule("rule3", True)
-        ]
+        rules = []
+        rule1 = MockRule()
+        rule1.setUp("rule1", True, "")
+        rule2 = MockRule()
+        rule2.setUp("rule2", False, "Rule 2 failed")
+        rule3 = MockRule()
+        rule3.setUp("rule3", True, "")
+        rules = [rule1, rule2, rule3]
         validator = Validator(rules)
         output = "test output"
         result = validator.validate(output)
@@ -95,11 +109,14 @@ class TestValidator(BaseTestCase):
 
     def test_validate_all_failed(self):
         """Test validation when all rules fail."""
-        rules = [
-            MockRule("rule1", False, "Rule 1 failed"),
-            MockRule("rule2", False, "Rule 2 failed"),
-            MockRule("rule3", False, "Rule 3 failed")
-        ]
+        rules = []
+        rule1 = MockRule()
+        rule1.setUp("rule1", False, "Rule 1 failed")
+        rule2 = MockRule()
+        rule2.setUp("rule2", False, "Rule 2 failed")
+        rule3 = MockRule()
+        rule3.setUp("rule3", False, "Rule 3 failed")
+        rules = [rule1, rule2, rule3]
         validator = Validator(rules)
         output = "test output"
         result = validator.validate(output)
@@ -112,11 +129,14 @@ class TestValidator(BaseTestCase):
 
     def test_get_error_messages(self):
         """Test getting error messages from validation results."""
-        rules = [
-            MockRule("rule1", True),
-            MockRule("rule2", False, "Rule 2 failed"),
-            MockRule("rule3", False, "Rule 3 failed")
-        ]
+        rules = []
+        rule1 = MockRule()
+        rule1.setUp("rule1", True, "")
+        rule2 = MockRule()
+        rule2.setUp("rule2", False, "Rule 2 failed")
+        rule3 = MockRule()
+        rule3.setUp("rule3", False, "Rule 3 failed")
+        rules = [rule1, rule2, rule3]
         validator = Validator(rules)
         output = "test output"
         result = validator.validate(output)
@@ -172,23 +192,29 @@ class TestValidator(BaseTestCase):
         class ComplexRule(Rule[ComplexOutput, RuleResult, ComplexValidator, None]):
             """Rule for complex output."""
 
-            def __init__(self, name: str, passes: bool, message: str = ""):
+            def __init__(self):
                 """Initialize complex rule."""
+                self.validator = ComplexValidator()
+
+            def setUp(self, name: str, passes: bool, message: str = ""):
+                """Set up complex rule."""
                 super().__init__(
                     name=name,
                     description=f"Complex rule: {name}",
                     config=RuleConfig(),
-                    validator=ComplexValidator()
+                    validator=self.validator
                 )
 
             def _create_default_validator(self) -> ComplexValidator:
                 """Create default validator."""
                 return ComplexValidator()
 
-        rules = [
-            ComplexRule("rule1", True),
-            ComplexRule("rule2", True)
-        ]
+        rules = []
+        rule1 = ComplexRule()
+        rule1.setUp("rule1", True, "")
+        rule2 = ComplexRule()
+        rule2.setUp("rule2", True, "")
+        rules = [rule1, rule2]
         validator = Validator(rules)
         output = ComplexOutput("test value")
         result = validator.validate(output)

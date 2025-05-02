@@ -18,8 +18,8 @@ from sifaka.validation import RuleResult
 class MockModelProvider:
     """Mock model provider for testing."""
 
-    def __init__(self):
-        """Initialize the mock model provider."""
+    def setUp(self):
+        """Set up mock model provider."""
         self.generate = Mock(return_value="Generated text")
         self.model_name = "mock-model"
 
@@ -35,8 +35,13 @@ class MockModelProvider:
 class MockRule:
     """Mock rule for testing."""
 
-    def __init__(self, name: str, should_pass: bool = True):
-        """Initialize the mock rule."""
+    def __init__(self):
+        """Initialize mock rule."""
+        self._should_pass = True
+        self.name = ""
+
+    def setUp(self, name: str, should_pass: bool = True):
+        """Set up mock rule."""
         self.name = name
         self._should_pass = should_pass
 
@@ -51,8 +56,8 @@ class MockRule:
 class MockCritic:
     """Mock critic for testing."""
 
-    def __init__(self):
-        """Initialize the mock critic."""
+    def setUp(self):
+        """Set up mock critic."""
         self.critique = Mock(
             return_value={
                 "score": 0.8,
@@ -83,13 +88,17 @@ class TestChainCore(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.model = MockModelProvider()
-        self.passing_rule = MockRule("passing_rule", should_pass=True)
-        self.failing_rule = MockRule("failing_rule", should_pass=False)
+        self.model.setUp()
+        self.passing_rule = MockRule()
+        self.passing_rule.setUp("passing_rule", should_pass=True)
+        self.failing_rule = MockRule()
+        self.failing_rule.setUp("failing_rule", should_pass=False)
         self.validation_manager = ValidationManager[str]([self.passing_rule])
         self.prompt_manager = PromptManager()
         self.retry_strategy = SimpleRetryStrategy[str](max_attempts=3)
         self.result_formatter = ResultFormatter[str]()
         self.critic = MockCritic()
+        self.critic.setUp()
 
         self.chain = ChainCore[str](
             model=self.model,
@@ -155,7 +164,7 @@ class TestFactories(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.model = MockModelProvider()
-        self.passing_rule = MockRule("passing_rule", should_pass=True)
+        self.passing_rule = MockRule()
         self.critic = MockCritic()
 
     def test_create_simple_chain(self):

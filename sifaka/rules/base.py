@@ -48,6 +48,8 @@ These documents provide comprehensive information on:
 - Example implementations
 """
 
+from __future__ import annotations
+
 import hashlib
 from abc import ABC, abstractmethod
 from enum import Enum, auto
@@ -58,6 +60,7 @@ from typing import (
     Dict,
     Final,
     Generic,
+    List,
     Optional,
     Protocol,
     Tuple,
@@ -68,6 +71,10 @@ from typing import (
 )
 
 from pydantic import BaseModel, Field, ConfigDict
+
+from ..utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 # Type variables for generic implementations
 T = TypeVar("T")  # Input type
@@ -93,18 +100,24 @@ class RulePriority(Enum):
     CRITICAL = auto()
 
 
+T_co = TypeVar("T_co", covariant=True)
+
+
 @runtime_checkable
-class Validatable(Protocol[T]):
+class Validatable(Protocol[T_co]):
     """Protocol for objects that can be validated."""
 
     def is_valid(self) -> bool: ...
     def validate(self) -> None: ...
     @property
-    def validation_errors(self) -> list[str]: ...
+    def validation_errors(self) -> List[str]: ...
+
+
+T_contra = TypeVar("T_contra", contravariant=True)
 
 
 @runtime_checkable
-class RuleValidator(Protocol[T]):
+class RuleValidator(Protocol[T_contra]):
     """
     Protocol for rule validation logic.
 
@@ -116,15 +129,12 @@ class RuleValidator(Protocol[T]):
     this protocol directly.
     """
 
-    @abstractmethod
-    def validate(self, output: T, **kwargs) -> "RuleResult": ...
+    def validate(self, output: T_contra, **kwargs: Any) -> "RuleResult": ...
 
-    @abstractmethod
-    def can_validate(self, output: T) -> bool: ...
+    def can_validate(self, output: T_contra) -> bool: ...
 
     @property
-    @abstractmethod
-    def validation_type(self) -> type[T]: ...
+    def validation_type(self) -> type: ...
 
 
 class BaseValidator(Generic[T]):
@@ -144,7 +154,7 @@ class BaseValidator(Generic[T]):
     3. Create a factory function for consistent instantiation
     """
 
-    def validate(self, output: T, **kwargs) -> "RuleResult":
+    def validate(self, output: T, **kwargs: Any) -> "RuleResult":
         """
         Validate the output.
 
@@ -202,28 +212,29 @@ class BaseValidator(Generic[T]):
         return isinstance(output, self.validation_type)
 
     @property
-    def validation_type(self) -> type[T]:
+    def validation_type(self) -> type:
         """
         Get the type this validator can validate.
 
         Returns:
             The type this validator can validate
         """
-        return T  # type: ignore
+        # Default implementation returns str type
+        return str
+
+
+R_contra = TypeVar("R_contra", contravariant=True)
 
 
 @runtime_checkable
-class RuleResultHandler(Protocol[R]):
+class RuleResultHandler(Protocol[R_contra]):
     """Protocol for handling rule validation results."""
 
-    @abstractmethod
-    def handle_result(self, result: R) -> None: ...
+    def handle_result(self, result: R_contra) -> None: ...
 
-    @abstractmethod
-    def should_continue(self, result: R) -> bool: ...
+    def should_continue(self, result: R_contra) -> bool: ...
 
-    @abstractmethod
-    def can_handle(self, result: R) -> bool: ...
+    def can_handle(self, result: R_contra) -> bool: ...
 
 
 class RuleResult(BaseModel):
@@ -359,8 +370,8 @@ class Rule(Generic[T, R, V, H], ABC):
     Type Parameters:
         T: The type of input to validate
         R: The type of validation result
-        V: The type of validator
-        H: The type of result handler
+        V: The type of validator (must implement RuleValidator[T])
+        H: The type of result handler (must implement RuleResultHandler[R])
     """
 
     def __init__(
@@ -391,7 +402,7 @@ class Rule(Generic[T, R, V, H], ABC):
                 raise ConfigurationError(
                     f"Validator must implement RuleValidator protocol, got {type(validator)}"
                 )
-            self._validator: Final[V] = validator
+            self._validator: V = validator
         else:
             # Create a default validator
             self._validator = self._create_default_validator()
@@ -408,10 +419,28 @@ class Rule(Generic[T, R, V, H], ABC):
 
         # Initialize cache if enabled
         if self._config.cache_size > 0:
-            self._validator_validate = self._validator.validate
-            self._validator.validate = lru_cache(maxsize=self._config.cache_size)(
-                self._validator_validate
-            )
+            # Instead of replacing the method, we'll create a cached validator wrapper
+            # that delegates to the original validator
+            original_validator = self._validator
+
+            class CachedValidator(RuleValidator[T]):
+                def __init__(self, validator: RuleValidator[T], cache_size: int):
+                    self._validator = validator
+                    self._cache_size = cache_size
+                    self._cached_validate = lru_cache(maxsize=cache_size)(self._validator.validate)
+
+                def validate(self, output: T, **kwargs: Any) -> RuleResult:
+                    return self._cached_validate(output, **kwargs)
+
+                def can_validate(self, output: T) -> bool:
+                    return self._validator.can_validate(output)
+
+                @property
+                def validation_type(self) -> type:
+                    return self._validator.validation_type
+
+            # Replace the validator with a cached version
+            self._validator = cast(V, CachedValidator(original_validator, self._config.cache_size))
 
     @abstractmethod
     def _create_default_validator(self) -> V:
@@ -430,7 +459,7 @@ class Rule(Generic[T, R, V, H], ABC):
         Returns:
             A validator instance compatible with this rule
         """
-        pass
+        raise NotImplementedError("Subclasses must implement _create_default_validator")
 
     @property
     def name(self) -> str:
@@ -447,7 +476,7 @@ class Rule(Generic[T, R, V, H], ABC):
         """Get the rule configuration."""
         return self._config
 
-    def _get_cache_key(self, output: T, **kwargs) -> str:
+    def _get_cache_key(self, output: T, **kwargs: Any) -> str:
         """Generate a cache key for the output."""
         hasher = hashlib.md5()
         hasher.update(str(output).encode())
@@ -455,7 +484,7 @@ class Rule(Generic[T, R, V, H], ABC):
         hasher.update(str(sorted(kwargs.items())).encode())
         return hasher.hexdigest()
 
-    def validate(self, output: T, **kwargs) -> R:
+    def validate(self, output: T, **kwargs: Any) -> R:
         """
         Validate an output.
 
@@ -493,9 +522,9 @@ class Rule(Generic[T, R, V, H], ABC):
             if self._result_handler is not None:
                 self._result_handler.handle_result(result)
                 if not self._result_handler.should_continue(result):
-                    return result
+                    return cast(R, result)
 
-            return result
+            return cast(R, result)
 
         except Exception as e:
             # Convert to ValidationError
@@ -505,11 +534,11 @@ class Rule(Generic[T, R, V, H], ABC):
 class FunctionValidator(BaseValidator[str]):
     """Validator that wraps a function for validation."""
 
-    def __init__(self, func: Callable) -> None:
+    def __init__(self, func: Callable[..., Any]) -> None:
         """Initialize with a validation function."""
         self._func = func
 
-    def validate(self, output: str, **kwargs) -> RuleResult:
+    def validate(self, output: str, **kwargs: Any) -> RuleResult:
         """Validate using the wrapped function."""
         # Handle empty text
         empty_result = self.handle_empty_text(output)
@@ -581,7 +610,7 @@ class RuleProtocol(Protocol):
         """Get rule description."""
         ...
 
-    def validate(self, output: Any, **kwargs) -> "RuleResult":
+    def validate(self, output: Any, **kwargs: Any) -> "RuleResult":
         """Validate output against rule criteria."""
         ...
 

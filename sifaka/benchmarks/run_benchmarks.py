@@ -5,8 +5,7 @@ Script to run Sifaka benchmarks.
 import os
 from typing import Optional
 
-from sifaka.benchmarks.benchmark_guardrails import SifakaBenchmark, print_benchmark_results
-from sifaka.benchmarks.benchmark_config import GUARDRAILS_CONFIG
+from benchmark_sifaka import SifakaBenchmark, print_benchmark_results
 
 
 def get_api_key(env_var: str) -> Optional[str]:
@@ -20,15 +19,16 @@ def main():
     guardrails_api_key = get_api_key("GUARDRAILS_API_KEY")
 
     # Configure Guardrails
-    guardrails_config = GUARDRAILS_CONFIG.copy()
-    if guardrails_api_key:
-        guardrails_config["api_key"] = guardrails_api_key
-    else:
-        guardrails_config = None
+    guardrails_config = {
+        "api_key": guardrails_api_key,
+        "model": "gpt-4",
+        "temperature": 0.7,
+        "max_tokens": 1000,
+    } if guardrails_api_key else None
 
     # Initialize benchmark
     benchmark = SifakaBenchmark(
-        num_samples=5,  # Reduced for faster testing
+        num_samples=100,  # Reduced for initial testing
         warm_up_rounds=2,
         text_length=200,
         api_key=anthropic_api_key,
@@ -36,7 +36,7 @@ def main():
     )
 
     # Run benchmarks
-    results = benchmark.run_all_benchmarks(sample_size=5)  # Reduced sample size for faster testing
+    results = benchmark.run_all_benchmarks(sample_size=50)  # Reduced sample size for initial testing
 
     # Print results
     print_benchmark_results(results)

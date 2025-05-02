@@ -4,7 +4,8 @@ Base classes for Sifaka classifiers.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from functools import lru_cache
+
+# No longer using lru_cache directly
 from typing import (
     Any,
     Dict,
@@ -15,8 +16,9 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
-from typing_extensions import TypeGuard
+from pydantic import BaseModel, ConfigDict, Field
+
+# No longer using TypeGuard
 
 
 @runtime_checkable
@@ -66,7 +68,7 @@ class ClassifierConfig:
     min_confidence: float = 0.5
     params: Dict[str, Any] = Field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not isinstance(self.labels, list) or not all(isinstance(l, str) for l in self.labels):
             raise ValueError("labels must be a list of strings")
         if self.cache_size < 0:
@@ -108,7 +110,7 @@ class ClassificationResult(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0, description="Confidence score between 0 and 1")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
-    def with_metadata(self, **kwargs) -> "ClassificationResult":
+    def with_metadata(self, **kwargs: Any) -> "ClassificationResult":
         """Create a new result with additional metadata."""
         new_metadata = {**self.metadata, **kwargs}
         return ClassificationResult(
@@ -136,33 +138,30 @@ class BaseClassifier(ABC, BaseModel):
     description: str = Field(description="Description of the classifier", min_length=1)
     config: ClassifierConfig
 
-    def model_post_init(self, __context: Any) -> None:
+    def model_post_init(self, _: Any) -> None:
         """Initialize cache if enabled."""
-        if self.config.cache_size > 0:
-            self._classify_impl_original = self._classify_impl
-            self._classify_impl = lru_cache(maxsize=self.config.cache_size)(
-                self._classify_impl_original
-            )
+        # We don't need to do anything special for caching
+        # The _classify_impl method will handle caching internally
 
     @property
     def min_confidence(self) -> float:
         """Get the minimum confidence threshold."""
         return self.config.min_confidence
 
-    def validate_input(self, text: str) -> TypeGuard[str]:
+    def validate_input(self, text: Any) -> bool:
         """Validate input text."""
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
         return True
 
-    def validate_batch_input(self, texts: List[str]) -> TypeGuard[List[str]]:
+    def validate_batch_input(self, texts: Any) -> bool:
         """Validate batch input texts."""
         if not isinstance(texts, list) or not all(isinstance(t, str) for t in texts):
             raise ValueError("Input must be a list of strings")
         return True
 
     @abstractmethod
-    def _classify_impl(self, text: str) -> ClassificationResult:
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
         """
         Implement classification logic.
 
@@ -175,7 +174,45 @@ class BaseClassifier(ABC, BaseModel):
         Raises:
             NotImplementedError: Must be implemented by subclasses
         """
-        raise NotImplementedError("Subclasses must implement _classify_impl")
+        raise NotImplementedError("Subclasses must implement _classify_impl_uncached")
+
+    def _classify_impl(self, text: str) -> ClassificationResult:
+        """
+        Wrapper around _classify_impl_uncached that handles caching.
+
+        Args:
+            text: The text to classify
+
+        Returns:
+            ClassificationResult with label and confidence
+        """
+        # If caching is enabled, use a function-local cache
+        if self.config.cache_size > 0:
+            # Create a cache key from the text
+            cache_key = text
+
+            # Check if we have a cached result
+            if not hasattr(self, "_result_cache"):
+                # Initialize the cache as a dict mapping strings to ClassificationResults
+                self._result_cache: Dict[str, ClassificationResult] = {}
+
+            if cache_key in self._result_cache:
+                return self._result_cache[cache_key]
+
+            # Get the result
+            result = self._classify_impl_uncached(text)
+
+            # Cache the result
+            if len(self._result_cache) >= self.config.cache_size:
+                # Simple LRU: just clear the cache when it gets full
+                # A more sophisticated implementation would use an OrderedDict
+                self._result_cache.clear()
+            self._result_cache[cache_key] = result
+
+            return result
+        else:
+            # No caching, just call the implementation directly
+            return self._classify_impl_uncached(text)
 
     def classify(self, text: str) -> ClassificationResult:
         """
@@ -220,7 +257,9 @@ class BaseClassifier(ABC, BaseModel):
         pass
 
     @classmethod
-    def create(cls: Type[T], name: str, description: str, labels: List[str], **config_kwargs) -> T:
+    def create(
+        cls: Type[T], name: str, description: str, labels: List[str], **config_kwargs: Any
+    ) -> T:
         """
         Factory method to create a classifier instance.
 

@@ -6,12 +6,12 @@ with the Sifaka framework. These protocols define the interfaces for text valida
 improvement, and critiquing.
 """
 
-from typing import Any, Dict, List, Protocol, Union, runtime_checkable
+from typing import Any, List, Protocol, TypedDict, runtime_checkable
 
 
 @runtime_checkable
-class TextValidator(Protocol):
-    """Protocol for text validation."""
+class SyncTextValidator(Protocol):
+    """Protocol for synchronous text validation."""
 
     def validate(self, text: str) -> bool:
         """
@@ -24,6 +24,11 @@ class TextValidator(Protocol):
             bool: True if the text passes validation, False otherwise
         """
         ...
+
+
+@runtime_checkable
+class AsyncTextValidator(Protocol):
+    """Protocol for asynchronous text validation."""
 
     async def validate(self, text: str) -> bool:
         """
@@ -39,8 +44,15 @@ class TextValidator(Protocol):
 
 
 @runtime_checkable
-class TextImprover(Protocol):
-    """Protocol for text improvement."""
+class TextValidator(SyncTextValidator, Protocol):
+    """Protocol for text validation (sync version)."""
+
+    ...
+
+
+@runtime_checkable
+class SyncTextImprover(Protocol):
+    """Protocol for synchronous text improvement."""
 
     def improve(self, text: str, feedback: str) -> str:
         """
@@ -54,6 +66,11 @@ class TextImprover(Protocol):
             str: The improved text
         """
         ...
+
+
+@runtime_checkable
+class AsyncTextImprover(Protocol):
+    """Protocol for asynchronous text improvement."""
 
     async def improve(self, text: str, feedback: str) -> str:
         """
@@ -70,10 +87,26 @@ class TextImprover(Protocol):
 
 
 @runtime_checkable
-class TextCritic(Protocol):
-    """Protocol for text critiquing."""
+class TextImprover(SyncTextImprover, Protocol):
+    """Protocol for text improvement (sync version)."""
 
-    def critique(self, text: str) -> dict:
+    ...
+
+
+class CritiqueResult(TypedDict):
+    """Type definition for critique results."""
+
+    score: float
+    feedback: str
+    issues: List[str]
+    suggestions: List[str]
+
+
+@runtime_checkable
+class SyncTextCritic(Protocol):
+    """Protocol for synchronous text critiquing."""
+
+    def critique(self, text: str) -> CritiqueResult:
         """
         Critique text and provide feedback.
 
@@ -81,11 +114,16 @@ class TextCritic(Protocol):
             text: The text to critique
 
         Returns:
-            dict: A dictionary containing critique information
+            CritiqueResult: A dictionary containing critique information
         """
         ...
 
-    async def critique(self, text: str) -> dict:
+
+@runtime_checkable
+class AsyncTextCritic(Protocol):
+    """Protocol for asynchronous text critiquing."""
+
+    async def critique(self, text: str) -> CritiqueResult:
         """
         Asynchronously critique text and provide feedback.
 
@@ -93,16 +131,23 @@ class TextCritic(Protocol):
             text: The text to critique
 
         Returns:
-            dict: A dictionary containing critique information
+            CritiqueResult: A dictionary containing critique information
         """
         ...
 
 
 @runtime_checkable
-class LLMProvider(Protocol):
-    """Protocol for language model providers."""
+class TextCritic(SyncTextCritic, Protocol):
+    """Protocol for text critiquing (sync version)."""
 
-    def generate(self, prompt: str, **kwargs) -> str:
+    ...
+
+
+@runtime_checkable
+class SyncLLMProvider(Protocol):
+    """Protocol for synchronous language model providers."""
+
+    def generate(self, prompt: str, **kwargs: Any) -> str:
         """
         Generate text from a prompt.
 
@@ -115,7 +160,12 @@ class LLMProvider(Protocol):
         """
         ...
 
-    async def generate(self, prompt: str, **kwargs) -> str:
+
+@runtime_checkable
+class AsyncLLMProvider(Protocol):
+    """Protocol for asynchronous language model providers."""
+
+    async def generate(self, prompt: str, **kwargs: Any) -> str:
         """
         Asynchronously generate text from a prompt.
 
@@ -130,10 +180,17 @@ class LLMProvider(Protocol):
 
 
 @runtime_checkable
-class PromptFactory(Protocol):
-    """Protocol for prompt factories."""
+class LLMProvider(SyncLLMProvider, Protocol):
+    """Protocol for language model providers (sync version)."""
 
-    def create_prompt(self, text: str, **kwargs) -> str:
+    ...
+
+
+@runtime_checkable
+class SyncPromptFactory(Protocol):
+    """Protocol for synchronous prompt factories."""
+
+    def create_prompt(self, text: str, **kwargs: Any) -> str:
         """
         Create a prompt for a language model.
 
@@ -146,7 +203,12 @@ class PromptFactory(Protocol):
         """
         ...
 
-    async def create_prompt(self, text: str, **kwargs) -> str:
+
+@runtime_checkable
+class AsyncPromptFactory(Protocol):
+    """Protocol for asynchronous prompt factories."""
+
+    async def create_prompt(self, text: str, **kwargs: Any) -> str:
         """
         Asynchronously create a prompt for a language model.
 
@@ -160,11 +222,33 @@ class PromptFactory(Protocol):
         ...
 
 
+@runtime_checkable
+class PromptFactory(SyncPromptFactory, Protocol):
+    """Protocol for prompt factories (sync version)."""
+
+    ...
+
+
 # Export public protocols
 __all__ = [
+    # Synchronous protocols
     "TextValidator",
     "TextImprover",
     "TextCritic",
     "LLMProvider",
     "PromptFactory",
+    # Synchronous explicit protocols
+    "SyncTextValidator",
+    "SyncTextImprover",
+    "SyncTextCritic",
+    "SyncLLMProvider",
+    "SyncPromptFactory",
+    # Asynchronous protocols
+    "AsyncTextValidator",
+    "AsyncTextImprover",
+    "AsyncTextCritic",
+    "AsyncLLMProvider",
+    "AsyncPromptFactory",
+    # Type definitions
+    "CritiqueResult",
 ]

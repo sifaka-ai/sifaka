@@ -116,10 +116,13 @@ from langgraph.graph import StateGraph
 
 from sifaka.rules.base import Rule, RuleResult
 from sifaka.utils.logging import get_logger
+from sifaka.chain.formatters.result import ResultFormatter
+from sifaka.chain.managers.validation import ValidationManager
 
 logger = get_logger(__name__)
 StateType = TypeVar("StateType")
 NodeType = TypeVar("NodeType")
+
 
 @runtime_checkable
 class GraphValidator(Protocol[StateType]):
@@ -128,6 +131,7 @@ class GraphValidator(Protocol[StateType]):
     def validate(self, state: StateType) -> RuleResult: ...
     def can_validate(self, state: StateType) -> bool: ...
 
+
 @runtime_checkable
 class GraphProcessor(Protocol[StateType]):
     """Protocol for graph state processing."""
@@ -135,12 +139,14 @@ class GraphProcessor(Protocol[StateType]):
     def process(self, state: StateType) -> StateType: ...
     def can_process(self, state: StateType) -> bool: ...
 
+
 @runtime_checkable
 class GraphNode(Protocol[StateType, NodeType]):
     """Protocol for graph nodes."""
 
     def run(self, state: StateType) -> NodeType: ...
     def can_run(self, state: StateType) -> bool: ...
+
 
 @dataclass
 class GraphConfig(Generic[StateType]):
@@ -157,9 +163,13 @@ class GraphConfig(Generic[StateType]):
         if not isinstance(self.processors, list):
             raise ValueError("processors must be a list")
 
+
 class SifakaGraph(Generic[StateType, NodeType]):
     """
     A LangGraph graph that integrates Sifaka's reflection and reliability features.
+
+    This class follows the component-based architecture pattern by delegating to
+    specialized components for validation, processing, and error handling.
     """
 
     def __init__(
@@ -177,6 +187,20 @@ class SifakaGraph(Generic[StateType, NodeType]):
         self._graph = graph
         self._config = config
 
+        # Create validation manager
+        self._validation_manager = self._create_validation_manager()
+
+        # Create result formatter
+        self._result_formatter = self._create_result_formatter()
+
+    def _create_validation_manager(self):
+        """Create a validation manager for this graph."""
+        return ValidationManager(self._config.validators)
+
+    def _create_result_formatter(self):
+        """Create a result formatter for this graph."""
+        return ResultFormatter()
+
     @property
     def has_validators(self) -> bool:
         """Return whether the graph has any validators."""
@@ -186,6 +210,16 @@ class SifakaGraph(Generic[StateType, NodeType]):
     def has_processors(self) -> bool:
         """Return whether the graph has any processors."""
         return bool(self._config.processors)
+
+    @property
+    def graph(self) -> StateGraph:
+        """Return the wrapped graph."""
+        return self._graph
+
+    @property
+    def config(self) -> GraphConfig[StateType]:
+        """Return the graph configuration."""
+        return self._config
 
     def _validate_state(self, state: StateType) -> tuple[bool, List[Dict[str, Any]]]:
         """
@@ -256,16 +290,18 @@ class SifakaGraph(Generic[StateType, NodeType]):
         passed, violations = self._validate_state(state)
         if not passed:
             if self._config.critique:
-                # TODO: Implement critique
-                pass
+                # TODO: Implement critique with standardized error handling
+                logger.warning("Graph state validation failed: %s", violations)
             else:
-                raise ValueError(f"Graph state failed validation: {violations}")
+                error_message = "\n".join([f"{v['validator']}: {v['message']}" for v in violations])
+                raise ValueError(f"Graph state validation failed:\n{error_message}")
 
         return state
 
     def __call__(self, inputs: Dict[str, Any], **kwargs) -> Dict[str, Any]:
         """Run the graph (callable interface)."""
         return self.run(inputs, **kwargs)
+
 
 class RuleBasedValidator(GraphValidator[Dict[str, Any]]):
     """A validator that uses Sifaka rules."""
@@ -275,8 +311,17 @@ class RuleBasedValidator(GraphValidator[Dict[str, Any]]):
         self._rules = rules
 
     def validate(self, state: Dict[str, Any]) -> RuleResult:
-        """Validate using rules."""
-        for key, value in state.items():
+        """
+        Validate using rules.
+
+        Args:
+            state: The state to validate
+
+        Returns:
+            RuleResult indicating whether validation passed
+        """
+        # Iterate through all values in the state dictionary
+        for _, value in state.items():
             if isinstance(value, str):
                 for rule in self._rules:
                     result = rule.validate(value)
@@ -287,6 +332,7 @@ class RuleBasedValidator(GraphValidator[Dict[str, Any]]):
     def can_validate(self, state: Dict[str, Any]) -> bool:
         """Check if can validate the state."""
         return isinstance(state, dict)
+
 
 class SifakaNode(GraphNode[StateType, NodeType]):
     """
@@ -330,8 +376,47 @@ class SifakaNode(GraphNode[StateType, NodeType]):
         return self._node(processed_state)
 
     def can_run(self, state: StateType) -> bool:
-        """Check if the node can run on the state."""
+        """
+        Check if the node can run on the state.
+
+        Args:
+            state: The state to check
+
+        Returns:
+            Always returns True as this node can run on any state
+        """
+        # We don't use the state parameter but it's required by the protocol
         return True
+
+
+def create_simple_graph(
+    graph: StateGraph,
+    validators: Optional[List[GraphValidator[StateType]]] = None,
+    processors: Optional[List[GraphProcessor[StateType]]] = None,
+    critique: bool = True,
+) -> SifakaGraph[StateType, Any]:
+    """
+    Create a simple LangGraph integration with Sifaka's features.
+
+    This factory function creates a SifakaGraph with the specified components.
+
+    Args:
+        graph: The graph to wrap
+        validators: Optional list of validators
+        processors: Optional list of processors
+        critique: Whether to enable critique
+
+    Returns:
+        A configured SifakaGraph
+    """
+    config = GraphConfig(
+        validators=validators or [],
+        processors=processors or [],
+        critique=critique,
+    )
+
+    return SifakaGraph(graph=graph, config=config)
+
 
 def wrap_graph(
     graph: StateGraph,
@@ -348,6 +433,7 @@ def wrap_graph(
         The wrapped graph
     """
     return SifakaGraph(graph=graph, config=config or GraphConfig())
+
 
 def wrap_node(
     node: Callable[[StateType], NodeType],
@@ -367,15 +453,21 @@ def wrap_node(
     """
     return SifakaNode(node=node, validators=validators, processors=processors)
 
+
 # Export public classes and functions
 __all__ = [
+    # Protocols
     "GraphValidator",
     "GraphProcessor",
     "GraphNode",
+    # Configuration
     "GraphConfig",
+    # Core components
     "SifakaGraph",
     "RuleBasedValidator",
     "SifakaNode",
+    # Factory functions
+    "create_simple_graph",
     "wrap_graph",
     "wrap_node",
 ]

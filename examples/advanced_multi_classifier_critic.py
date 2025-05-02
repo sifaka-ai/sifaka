@@ -40,7 +40,14 @@ from sifaka.classifiers.base import (
 from sifaka.rules.adapters import create_classifier_rule
 from sifaka.rules.formatting.length import create_length_rule
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
-from sifaka.chain import Chain, ChainResult
+from sifaka.chain import (
+    ChainCore,
+    ChainResult,
+    PromptManager,
+    ValidationManager,
+    ResultFormatter,
+    SimpleRetryStrategy,
+)
 from sifaka.rules.base import Rule, RuleResult
 
 
@@ -347,13 +354,26 @@ class BatchedCritic(PromptCritic):
 
 
 # Custom Chain with batched feedback
-class BatchedFeedbackChain(Chain):
+class BatchedFeedbackChain(ChainCore[str]):
     """Chain implementation with batched feedback for multiple rules."""
 
     def __init__(self, model, rules, batched_critic, max_attempts=5, verbose=True):
         """Initialize chain with model, rules, and batched critic."""
-        super().__init__(model, rules, critic=batched_critic, max_attempts=max_attempts)
+        validation_manager = ValidationManager[str](rules)
+        prompt_manager = PromptManager()
+        retry_strategy = SimpleRetryStrategy[str](max_attempts=max_attempts)
+        result_formatter = ResultFormatter[str]()
+
+        super().__init__(
+            model=model,
+            validation_manager=validation_manager,
+            prompt_manager=prompt_manager,
+            retry_strategy=retry_strategy,
+            result_formatter=result_formatter,
+            critic=batched_critic,
+        )
         self.verbose = verbose
+        self.max_attempts = max_attempts  # Store max_attempts for our custom run method
 
     def run(self, prompt: str) -> ChainResult:
         """
@@ -384,7 +404,7 @@ class BatchedFeedbackChain(Chain):
             all_passed = True
             failed_rules = []
 
-            for rule in self.rules:
+            for rule in self.validation_manager.rules:
                 result = rule.validate(current_output)
                 rule_results.append(result)
 
@@ -392,7 +412,6 @@ class BatchedFeedbackChain(Chain):
                     all_passed = False
                     failed_rules.append(rule.name)
                     if self.verbose:
-                        # Access rule.name directly since RuleResult doesn't have rule_name
                         print(f"❌ Rule failed: {rule.name} - {result.message}")
                 elif self.verbose:
                     print(f"✅ Rule passed: {rule.name}")

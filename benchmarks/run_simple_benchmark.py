@@ -5,9 +5,8 @@ Simplified benchmark runner that focuses on basic rule benchmarks.
 """
 
 from benchmark_rules import RuleBenchmark
-from sifaka.rules.content.prohibited import ProhibitedContentRule
-from sifaka.rules.length import LengthRule
-from sifaka.rules.base import RuleConfig
+from sifaka.rules.content.prohibited import create_prohibited_content_rule
+from sifaka.rules.formatting.length import create_length_rule
 
 
 def main():
@@ -19,18 +18,17 @@ def main():
     # Override the rules with our minimal set
     benchmark.rules = {}  # Clear existing rules
 
-    # Add length rule
-    benchmark.rules["length"] = LengthRule(
-        name="length_rule",
-        description="Validates text length",
-        config={"min_length": 10, "max_length": 1000},
+    # Use factory functions to create rules
+    benchmark.rules["length"] = create_length_rule(
+        min_chars=10,
+        max_chars=1000,
+        rule_id="length_rule"
     )
 
-    # Add prohibited content rule
-    benchmark.rules["prohibited_content"] = ProhibitedContentRule(
-        name="prohibited_content_rule",
-        description="Checks for prohibited content",
-        config=RuleConfig(params={"terms": ["bad", "worse", "worst"], "case_sensitive": False}),
+    benchmark.rules["prohibited_content"] = create_prohibited_content_rule(
+        terms=["bad", "worse", "worst"],
+        case_sensitive=False,
+        name="prohibited_content_rule"
     )
 
     # Run benchmarks

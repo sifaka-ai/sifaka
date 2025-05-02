@@ -17,7 +17,7 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from .logging import get_logger
 
@@ -34,11 +34,7 @@ class TraceEvent(BaseModel):
         description="Component that generated the event",
     )
 
-    class Config:
-        """Pydantic model configuration."""
-
-        frozen = True  # Make the model immutable
-        extra = "forbid"  # Don't allow extra fields
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
 class TraceData(BaseModel):
     """Model for trace data."""
@@ -54,11 +50,7 @@ class TraceData(BaseModel):
         description="List of events in the trace",
     )
 
-    class Config:
-        """Pydantic model configuration."""
-
-        frozen = True  # Make the model immutable
-        extra = "forbid"  # Don't allow extra fields
+    model_config = ConfigDict(frozen=True)
 
 @runtime_checkable
 class TraceStorage(Protocol):

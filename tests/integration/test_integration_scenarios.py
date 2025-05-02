@@ -30,6 +30,19 @@ from dotenv import load_dotenv
 class TestMockProvider(MockProvider):
     """Test mock provider that implements abstract methods."""
 
+    def __init__(self, **kwargs):
+        """Initialize the mock provider."""
+        config = kwargs.get("config", {
+            "name": "test_mock_provider",
+            "description": "A test mock provider",
+            "params": {
+                "test_param": "test_value"
+            }
+        })
+        super().__init__(config)
+        self._client = self._create_default_client()
+        self._token_counter = self._create_default_token_counter()
+
     def _create_default_client(self) -> Any:
         """Create a mock client."""
         return MagicMock()

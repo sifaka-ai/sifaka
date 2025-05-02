@@ -24,11 +24,14 @@ from langchain_core.runnables import RunnableSequence
 
 from sifaka.rules.base import Rule, RuleResult
 from sifaka.utils.logging import get_logger
+from sifaka.chain.formatters.result import ResultFormatter
+from sifaka.chain.managers.validation import ValidationManager
 
 logger = get_logger(__name__)
 T = TypeVar("T")
 OutputType = TypeVar("OutputType")
 ChainType = Union[LLMChain, RunnableSequence]
+
 
 @runtime_checkable
 class ChainValidator(Protocol[OutputType]):
@@ -37,12 +40,14 @@ class ChainValidator(Protocol[OutputType]):
     def validate(self, output: OutputType) -> RuleResult: ...
     def can_validate(self, output: OutputType) -> bool: ...
 
+
 @runtime_checkable
 class ChainOutputProcessor(Protocol[OutputType]):
     """Protocol for chain output processing."""
 
     def process(self, output: OutputType) -> OutputType: ...
     def can_process(self, output: OutputType) -> bool: ...
+
 
 @runtime_checkable
 class ChainMemory(Protocol):
@@ -53,6 +58,7 @@ class ChainMemory(Protocol):
     def clear(self) -> None: ...
     @property
     def memory_variables(self) -> List[str]: ...
+
 
 @dataclass
 class ChainConfig(Generic[OutputType]):
@@ -72,9 +78,13 @@ class ChainConfig(Generic[OutputType]):
         if self.memory and not isinstance(self.memory, (BaseMemory, ChainMemory)):
             raise ValueError("memory must implement ChainMemory protocol")
 
+
 class SifakaChain(Generic[OutputType]):
     """
     A LangChain chain that integrates Sifaka's reflection and reliability features.
+
+    This class follows the component-based architecture pattern by delegating to
+    specialized components for validation, processing, and error handling.
     """
 
     def __init__(
@@ -92,11 +102,26 @@ class SifakaChain(Generic[OutputType]):
         self._chain = chain
         self._config = config
 
+        # Configure the chain
         if isinstance(chain, LLMChain):
             if config.memory:
                 self._chain.memory = cast(BaseMemory, config.memory)
             if config.callbacks:
                 self._chain.callbacks = config.callbacks
+
+        # Create validation manager
+        self._validation_manager = self._create_validation_manager()
+
+        # Create result formatter
+        self._result_formatter = self._create_result_formatter()
+
+    def _create_validation_manager(self):
+        """Create a validation manager for this chain."""
+        return ValidationManager(self._config.validators)
+
+    def _create_result_formatter(self):
+        """Create a result formatter for this chain."""
+        return ResultFormatter()
 
     @property
     def has_validators(self) -> bool:
@@ -117,6 +142,16 @@ class SifakaChain(Generic[OutputType]):
     def has_output_parser(self) -> bool:
         """Return whether the chain has an output parser."""
         return self._config.output_parser is not None
+
+    @property
+    def chain(self) -> ChainType:
+        """Return the wrapped chain."""
+        return self._chain
+
+    @property
+    def config(self) -> ChainConfig[OutputType]:
+        """Return the chain configuration."""
+        return self._config
 
     def _validate_output(self, output: OutputType) -> tuple[bool, List[Dict[str, Any]]]:
         """
@@ -200,16 +235,56 @@ class SifakaChain(Generic[OutputType]):
         passed, violations = self._validate_output(output)
         if not passed:
             if self._config.critique:
-                # TODO: Implement critique
-                pass
+                # TODO: Implement critique with standardized error handling
+                logger.warning("Output validation failed: %s", violations)
             else:
-                raise ValueError(f"Output validation failed: {violations}")
+                error_message = "\n".join([f"{v['validator']}: {v['message']}" for v in violations])
+                raise ValueError(f"Output validation failed:\n{error_message}")
 
         return output
 
     def __call__(self, inputs: Union[str, Dict[str, Any]], **kwargs) -> OutputType:
         """Alias for run."""
         return self.run(inputs, **kwargs)
+
+
+def create_simple_langchain(
+    chain: ChainType,
+    validators: Optional[List[ChainValidator[OutputType]]] = None,
+    processors: Optional[List[ChainOutputProcessor[OutputType]]] = None,
+    memory: Optional[ChainMemory] = None,
+    callbacks: Optional[List[BaseCallbackHandler]] = None,
+    output_parser: Optional[BaseOutputParser[OutputType]] = None,
+    critique: bool = True,
+) -> SifakaChain[OutputType]:
+    """
+    Create a simple LangChain integration with Sifaka's features.
+
+    This factory function creates a SifakaChain with the specified components.
+
+    Args:
+        chain: The LangChain chain to wrap (either LLMChain or RunnableSequence)
+        validators: Optional list of validators
+        processors: Optional list of processors
+        memory: Optional memory component
+        callbacks: Optional list of callbacks
+        output_parser: Optional output parser
+        critique: Whether to enable critique
+
+    Returns:
+        A configured SifakaChain
+    """
+    config = ChainConfig(
+        validators=validators or [],
+        processors=processors or [],
+        memory=memory,
+        callbacks=callbacks or [],
+        output_parser=output_parser,
+        critique=critique,
+    )
+
+    return SifakaChain(chain=chain, config=config)
+
 
 def wrap_chain(
     chain: ChainType,
@@ -226,6 +301,7 @@ def wrap_chain(
         A Sifaka chain
     """
     return SifakaChain(chain=chain, config=config or ChainConfig())
+
 
 class RuleBasedValidator(ChainValidator[str]):
     """A validator that uses Sifaka rules."""
@@ -245,6 +321,7 @@ class RuleBasedValidator(ChainValidator[str]):
     def can_validate(self, output: str) -> bool:
         """Check if can validate the output."""
         return isinstance(output, str)
+
 
 class SifakaMemory(ChainMemory):
     """
@@ -304,6 +381,7 @@ class SifakaMemory(ChainMemory):
         """Clear the memory."""
         self._memory.clear()
 
+
 def wrap_memory(
     memory: BaseMemory,
     validators: Optional[List[ChainValidator[Any]]] = None,
@@ -322,15 +400,21 @@ def wrap_memory(
     """
     return SifakaMemory(memory=memory, validators=validators, processors=processors)
 
+
 # Export public classes and functions
 __all__ = [
+    # Protocols
     "ChainValidator",
     "ChainOutputProcessor",
     "ChainMemory",
+    # Configuration
     "ChainConfig",
+    # Core components
     "SifakaChain",
     "RuleBasedValidator",
     "SifakaMemory",
+    # Factory functions
+    "create_simple_langchain",
     "wrap_chain",
     "wrap_memory",
 ]

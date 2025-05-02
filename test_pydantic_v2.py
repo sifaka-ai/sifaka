@@ -3,6 +3,7 @@ Test script to verify Pydantic v2 updates.
 """
 
 import sys
+import pytest
 from typing import Dict, Any, List
 
 from sifaka.critics.models import CriticConfig
@@ -25,91 +26,91 @@ def test_critic_config():
         cost=2.0,
     )
     print(f"Valid config created: {config}")
+    assert config.name == "test_critic"
+    assert config.description == "A test critic"
+    assert config.min_confidence == 0.8
+    assert config.max_attempts == 5
+    assert config.cache_size == 200
+    assert config.priority == 2
+    assert config.cost == 2.0
 
     # Test validation constraints
-    try:
-        invalid_config = CriticConfig(
+    with pytest.raises(ValueError):
+        CriticConfig(
             name="", description="test"  # Should fail min_length validation
         )
-        print("ERROR: Empty name validation failed")
-    except ValueError as e:
-        print(f"Correctly caught validation error: {e}")
 
-    try:
-        invalid_config = CriticConfig(
+    with pytest.raises(ValueError):
+        CriticConfig(
             name="test", description="test", min_confidence=1.5  # Should fail le=1.0 validation
         )
-        print("ERROR: min_confidence validation failed")
-    except ValueError as e:
-        print(f"Correctly caught validation error: {e}")
-
-    return True
 
 
 def test_classification_result():
     """Test ClassificationResult with Pydantic v2 features."""
-    print("\nTesting ClassificationResult...")
+    print("Testing ClassificationResult...")
 
-    # Since ClassificationResult is frozen, we need to provide all fields at initialization
-    result = ClassificationResult(label="positive", confidence=0.95, metadata={"source": "test"})
+    # Test valid result
+    result = ClassificationResult(
+        label="positive",
+        confidence=0.95,
+        metadata={"source": "test"},
+    )
     print(f"Valid result created: {result}")
-
-    # Test with_metadata method (which creates a new instance)
-    new_result = result.with_metadata(extra="info")
-    print(f"Result with added metadata: {new_result}")
+    assert result.label == "positive"
+    assert result.confidence == 0.95
+    assert result.metadata == {"source": "test"}
 
     # Test validation constraints
-    try:
-        invalid_result = ClassificationResult(
-            label="negative", confidence=1.5  # Should fail le=1.0 validation
+    with pytest.raises(ValueError):
+        ClassificationResult(
+            label="positive", confidence=1.5  # Should fail le=1.0 validation
         )
-        print("ERROR: confidence validation failed")
-    except ValueError as e:
-        print(f"Correctly caught validation error: {e}")
 
-    return True
+    with pytest.raises(ValueError):
+        ClassificationResult(
+            label="positive", confidence=-0.1  # Should fail ge=0.0 validation
+        )
 
 
 def test_accuracy_config():
     """Test AccuracyConfig with Pydantic v2 features."""
-    print("\nTesting AccuracyConfig...")
+    print("Testing AccuracyConfig...")
 
     # Test valid config
-    config = AccuracyConfig(knowledge_base=["Fact 1", "Fact 2"], threshold=0.7, cache_size=50)
+    config = AccuracyConfig(
+        knowledge_base=["Fact 1", "Fact 2"],
+        threshold=0.7,
+        cache_size=50
+    )
     print(f"Valid config created: {config}")
+    assert config.knowledge_base == ["Fact 1", "Fact 2"]
+    assert config.threshold == 0.7
+    assert config.cache_size == 50
 
     # Test validation constraints
-    try:
-        invalid_config = AccuracyConfig(
-            knowledge_base=[], threshold=0.5  # Should fail min_length validation
+    with pytest.raises(ValueError):
+        AccuracyConfig(
+            knowledge_base=[],  # Should fail min_length validation
+            threshold=0.7,
+            cache_size=50
         )
-        print("ERROR: empty knowledge_base validation failed")
-    except ValueError as e:
-        print(f"Correctly caught validation error: {e}")
 
-    # Test validator creation
-    validator = create_accuracy_validator(knowledge_base=["The Earth is round"], threshold=0.6)
-    print(f"Created validator with config: {validator._config}")
-
-    return True
+    with pytest.raises(ValueError):
+        AccuracyConfig(
+            knowledge_base=["Fact 1"],
+            threshold=1.5,  # Should fail le=1.0 validation
+            cache_size=50
+        )
 
 
 def main():
     """Run all tests."""
-    print("Testing Pydantic v2 updates...\n")
-
-    all_passed = True
-    all_passed &= test_critic_config()
-    all_passed &= test_classification_result()
-    all_passed &= test_accuracy_config()
-
-    if all_passed:
-        print("\nAll tests passed! Pydantic v2 updates are working correctly.")
-        return 0
-    else:
-        print("\nSome tests failed. Please check the output above.")
-        return 1
+    test_critic_config()
+    test_classification_result()
+    test_accuracy_config()
+    print("All tests passed!")
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

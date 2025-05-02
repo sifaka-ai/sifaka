@@ -63,6 +63,11 @@ class Improver(Generic[OutputType]):
         logger.debug(f"Got critique: {critique}")
         logger.debug(f"Critique type: {type(critique)}")
 
+        # If critique is None, return unimproved result
+        if critique is None:
+            logger.debug("No critique provided, returning unimproved result")
+            return ImprovementResult(output=output, improved=False)
+
         # Process critique details based on type
         critique_details = None
         if isinstance(critique, CriticMetadata):
@@ -70,24 +75,19 @@ class Improver(Generic[OutputType]):
             # Convert CriticMetadata to dict using asdict
             critique_details = asdict(critique)
             logger.debug(f"CriticMetadata fields: {critique_details}")
-            # Add confidence key for backward compatibility
-            critique_details["confidence"] = critique_details["score"]
+
             logger.debug(f"Converted CriticMetadata to dict: {critique_details}")
         elif isinstance(critique, dict):
             logger.debug("Processing dict feedback")
-            # Handle both "score" and "confidence" keys
             critique_details = critique.copy()
-            logger.debug(f"Original dict feedback: {critique_details}")
-            if "confidence" in critique_details and "score" not in critique_details:
-                critique_details["score"] = critique_details["confidence"]
-            elif "score" in critique_details and "confidence" not in critique_details:
-                critique_details["confidence"] = critique_details["score"]
-            logger.debug(f"Processed dict feedback: {critique_details}")
+            logger.debug(f"Dict feedback: {critique_details}")
 
         # If we have critique details, mark as improved
         if critique_details:
             logger.debug("Returning improved result with critique details")
-            return ImprovementResult(output=output, critique_details=critique_details, improved=True)
+            return ImprovementResult(
+                output=output, critique_details=critique_details, improved=True
+            )
 
         logger.debug("No critique details, returning unimproved result")
         return ImprovementResult(output=output, improved=False)

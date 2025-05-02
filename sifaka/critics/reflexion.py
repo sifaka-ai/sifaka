@@ -12,11 +12,11 @@ verbally reflect on task feedback signals and maintain these reflections in an e
 memory buffer, which influences subsequent decision-making.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import logging
 from typing import Any, Dict, Final, List, cast
 
-from .base import BaseCritic, CriticConfig, CriticOutput, CriticResult
+from .base import BaseCritic, CriticConfig
 from .protocols import TextCritic, TextImprover, TextValidator
 from .prompt import LanguageModel
 
@@ -171,6 +171,9 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     This critic maintains a memory of reflections on previous improvements,
     which it uses to guide future improvements. It follows the Reflexion
     framework's approach of verbal reinforcement learning.
+
+    This class follows the component-based architecture pattern by delegating to
+    specialized components for prompt management, response parsing, and memory management.
     """
 
     def __init__(
@@ -180,7 +183,6 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         llm_provider: Any = None,
         prompt_factory: Any = None,
         config: ReflexionCriticConfig = None,
-        model: LanguageModel = None,
     ) -> None:
         """Initialize the reflexion critic.
 
@@ -190,11 +192,7 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             llm_provider: Language model provider
             prompt_factory: Prompt factory
             config: Configuration for the critic
-            model: Language model to use for critiquing (deprecated, use llm_provider instead)
         """
-        # For backward compatibility
-        if model is not None and llm_provider is None:
-            llm_provider = model
 
         if llm_provider is None:
             from pydantic import ValidationError
@@ -221,11 +219,27 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
 
         super().__init__(config)
 
+        # Create components
+        from .managers.prompt_factories import ReflexionCriticPromptManager
+        from .managers.response import ResponseParser
+        from .managers.memory import MemoryManager
+        from .services.critique import CritiqueService
+
+        # Initialize components
+        self._prompt_manager = prompt_factory or ReflexionCriticPromptManager(config)
+        self._response_parser = ResponseParser()
+        self._memory_manager = MemoryManager(buffer_size=config.memory_buffer_size)
+
+        # Create service
+        self._critique_service = CritiqueService(
+            llm_provider=llm_provider,
+            prompt_manager=self._prompt_manager,
+            response_parser=self._response_parser,
+            memory_manager=self._memory_manager,
+        )
+
+        # Store the language model provider
         self._model = llm_provider
-        self._prompt_factory = prompt_factory or ReflexionPromptFactory()
-        self.llm_provider = llm_provider
-        self.prompt_factory = self._prompt_factory
-        self._memory_buffer: List[str] = []
 
     @property
     def config(self) -> ReflexionCriticConfig:
@@ -247,21 +261,8 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        validation_prompt = self._prompt_factory.create_validation_prompt(text)
-
-        try:
-            response = self._model.invoke(validation_prompt)
-            if isinstance(response, dict) and "valid" in response:
-                return response["valid"]
-            elif isinstance(response, str):
-                # Try to parse the response
-                if "VALID: true" in response.lower():
-                    return True
-                elif "VALID: false" in response.lower():
-                    return False
-            return False
-        except Exception:
-            return False
+        # Delegate to critique service
+        return self._critique_service.validate(text)
 
     def improve(self, text: str, feedback: str = None) -> str:
         """Improve text based on feedback and reflections.
@@ -288,40 +289,13 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         else:
             feedback_str = feedback
 
-        # Get reflections from memory buffer
-        reflections = self._get_relevant_reflections()
+        # Delegate to critique service
+        improved_text = self._critique_service.improve(text, feedback_str)
 
-        # Create improvement prompt using the prompt factory
-        improve_prompt = self._prompt_factory.create_improvement_prompt(
-            text, feedback_str, reflections
-        )
+        # Generate reflection on the improvement process
+        self._generate_reflection(text, feedback_str, improved_text)
 
-        # Get improved version from the model
-        try:
-            response = self._model.invoke(improve_prompt)
-
-            # Handle different response types
-            if isinstance(response, dict) and "improved_text" in response:
-                improved_text = response["improved_text"]
-            elif isinstance(response, str):
-                # Try to extract improved text from string response
-                if "IMPROVED_TEXT:" in response:
-                    parts = response.split("IMPROVED_TEXT:")
-                    if len(parts) > 1:
-                        improved_text = parts[1].strip()
-                    else:
-                        improved_text = response.strip()
-                else:
-                    improved_text = response.strip()
-            else:
-                return "Failed to improve text: Invalid response format"
-
-            # Generate reflection on the improvement process
-            self._generate_reflection(text, feedback, improved_text)
-
-            return improved_text
-        except Exception as e:
-            raise ValueError(f"Failed to improve text: {str(e)}") from e
+        return improved_text
 
     def critique(self, text: str) -> dict:
         """Analyze text and provide detailed feedback.
@@ -339,41 +313,8 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        # Create critique prompt using the prompt factory
-        critique_prompt = self._prompt_factory.create_critique_prompt(text)
-
-        try:
-            # Get response from the model
-            response = self._model.invoke(critique_prompt)
-
-            # Parse the response
-            if isinstance(response, dict):
-                # If response is already a dict, use it directly
-                return {
-                    "score": float(response.get("score", 0.0)),
-                    "feedback": str(response.get("feedback", "")),
-                    "issues": list(response.get("issues", [])),
-                    "suggestions": list(response.get("suggestions", [])),
-                }
-            elif isinstance(response, str):
-                # Parse string response
-                return self._parse_critique_response(response)
-            else:
-                return {
-                    "score": 0.0,
-                    "feedback": "Failed to critique text: Invalid response format",
-                    "issues": ["Invalid response format"],
-                    "suggestions": ["Try again with clearer text"],
-                }
-
-        except Exception as e:
-            # Return failure result if parsing fails
-            return {
-                "score": 0.0,
-                "feedback": f"Failed to critique text: {str(e)}",
-                "issues": ["Failed to parse model response"],
-                "suggestions": ["Try again with clearer text"],
-            }
+        # Delegate to critique service
+        return self._critique_service.critique(text)
 
     def _violations_to_feedback(self, violations: List[Dict[str, Any]]) -> str:
         """Convert rule violations to feedback text.
@@ -460,11 +401,13 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             feedback: The feedback received
             improved_text: The improved text
         """
-        reflection_prompt = self._prompt_factory.create_reflection_prompt(
+        # Create reflection prompt
+        reflection_prompt = self._prompt_manager.create_reflection_prompt(
             original_text, feedback, improved_text
         )
 
         try:
+            # Get response from the model
             response = self._model.invoke(reflection_prompt)
 
             # Extract reflection from response
@@ -479,24 +422,12 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
                 else:
                     reflection = response.strip()
 
-            # Add reflection to memory buffer
+            # Add reflection to memory
             if reflection:
-                self._add_to_memory(reflection)
+                self._memory_manager.add_to_memory(reflection)
         except Exception:
             # Silently fail if reflection generation fails
             pass
-
-    def _add_to_memory(self, reflection: str) -> None:
-        """Add a reflection to the memory buffer.
-
-        Args:
-            reflection: The reflection to add
-        """
-        self._memory_buffer.append(reflection)
-
-        # Trim memory buffer if it exceeds the configured size
-        while len(self._memory_buffer) > self.config.memory_buffer_size:
-            self._memory_buffer.pop(0)
 
     def _get_relevant_reflections(self) -> List[str]:
         """Get relevant reflections from the memory buffer.
@@ -504,41 +435,32 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         Returns:
             List[str]: Relevant reflections
         """
-        # For now, just return all reflections
-        # In a more advanced implementation, this could filter or rank reflections
-        # based on relevance to the current task
-        return self._memory_buffer
+        # Get reflections from memory manager
+        return self._memory_manager.get_memory()
 
     # Async methods
     async def avalidate(self, text: str) -> bool:
-        """Asynchronously validate text."""
+        """
+        Asynchronously validate text.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            True if the text meets quality standards, False otherwise
+
+        Raises:
+            ValueError: If text is empty
+        """
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        validation_prompt = self._prompt_factory.create_validation_prompt(text)
-
-        try:
-            # Try to use ainvoke if available, otherwise fall back to invoke
-            if hasattr(self._model, "ainvoke"):
-                response = await self._model.ainvoke(validation_prompt)
-            else:
-                # Fall back to synchronous invoke if ainvoke is not available
-                response = self._model.invoke(validation_prompt)
-
-            if isinstance(response, dict) and "valid" in response:
-                return response["valid"]
-            elif isinstance(response, str):
-                # Try to parse the response
-                if "VALID: true" in response.lower():
-                    return True
-                elif "VALID: false" in response.lower():
-                    return False
-            return False
-        except Exception as e:
-            raise ValueError(f"Failed to validate text: {str(e)}") from e
+        # Delegate to critique service
+        return await self._critique_service.avalidate(text)
 
     async def acritique(self, text: str) -> dict:
-        """Asynchronously critique text.
+        """
+        Asynchronously critique text.
 
         Args:
             text: The text to critique
@@ -553,46 +475,23 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        critique_prompt = self._prompt_factory.create_critique_prompt(text)
-
-        try:
-            # Try to use ainvoke if available, otherwise fall back to invoke
-            if hasattr(self._model, "ainvoke"):
-                response = await self._model.ainvoke(critique_prompt)
-            else:
-                # Fall back to synchronous invoke if ainvoke is not available
-                response = self._model.invoke(critique_prompt)
-
-            # Parse the response
-            if isinstance(response, dict):
-                # If response is already a dict, use it directly
-                return {
-                    "score": float(response.get("score", 0.0)),
-                    "feedback": str(response.get("feedback", "")),
-                    "issues": list(response.get("issues", [])),
-                    "suggestions": list(response.get("suggestions", [])),
-                }
-            elif isinstance(response, str):
-                # Parse string response
-                return self._parse_critique_response(response)
-            else:
-                return {
-                    "score": 0.0,
-                    "feedback": "Failed to critique text: Invalid response format",
-                    "issues": ["Invalid response format"],
-                    "suggestions": ["Try again with clearer text"],
-                }
-        except Exception as e:
-            # Return failure result if parsing fails
-            return {
-                "score": 0.0,
-                "feedback": f"Failed to critique text: {str(e)}",
-                "issues": ["Failed to parse model response"],
-                "suggestions": ["Try again with clearer text"],
-            }
+        # Delegate to critique service
+        return await self._critique_service.acritique(text)
 
     async def aimprove(self, text: str, feedback: str = None) -> str:
-        """Asynchronously improve text."""
+        """
+        Asynchronously improve text.
+
+        Args:
+            text: The text to improve
+            feedback: Feedback to guide the improvement
+
+        Returns:
+            The improved text
+
+        Raises:
+            ValueError: If text is empty
+        """
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
@@ -605,55 +504,27 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         else:
             feedback_str = feedback
 
-        # Get reflections from memory buffer
-        reflections = self._get_relevant_reflections()
+        # Delegate to critique service
+        improved_text = await self._critique_service.aimprove(text, feedback_str)
 
-        improve_prompt = self._prompt_factory.create_improvement_prompt(
-            text, feedback_str, reflections
-        )
+        # Generate reflection on the improvement process
+        await self._generate_reflection_async(text, feedback_str, improved_text)
 
-        try:
-            # Try to use ainvoke if available, otherwise fall back to invoke
-            if hasattr(self._model, "ainvoke"):
-                response = await self._model.ainvoke(improve_prompt)
-            else:
-                # Fall back to synchronous invoke if ainvoke is not available
-                response = self._model.invoke(improve_prompt)
-
-            # Handle different response types
-            if isinstance(response, dict) and "improved_text" in response:
-                improved_text = response["improved_text"]
-            elif isinstance(response, str):
-                # Try to extract improved text from string response
-                if "IMPROVED_TEXT:" in response:
-                    parts = response.split("IMPROVED_TEXT:")
-                    if len(parts) > 1:
-                        improved_text = parts[1].strip()
-                    else:
-                        improved_text = response.strip()
-                else:
-                    improved_text = response.strip()
-            else:
-                return "Failed to improve text: Invalid response format"
-
-            # Generate reflection on the improvement process
-            await self._generate_reflection_async(text, feedback, improved_text)
-
-            return improved_text
-        except Exception as e:
-            raise ValueError(f"Failed to improve text: {str(e)}") from e
+        return improved_text
 
     async def _generate_reflection_async(
         self, original_text: str, feedback: str, improved_text: str
     ) -> None:
-        """Asynchronously generate a reflection on the improvement process.
+        """
+        Asynchronously generate a reflection on the improvement process.
 
         Args:
             original_text: The original text
             feedback: The feedback received
             improved_text: The improved text
         """
-        reflection_prompt = self._prompt_factory.create_reflection_prompt(
+        # Create reflection prompt
+        reflection_prompt = self._prompt_manager.create_reflection_prompt(
             original_text, feedback, improved_text
         )
 
@@ -677,9 +548,9 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
                 else:
                     reflection = response.strip()
 
-            # Add reflection to memory buffer
+            # Add reflection to memory
             if reflection:
-                self._add_to_memory(reflection)
+                self._memory_manager.add_to_memory(reflection)
         except Exception:
             # Silently fail if reflection generation fails
             pass
@@ -708,7 +579,7 @@ DEFAULT_REFLEXION_CONFIG = ReflexionCriticConfig(
 
 # Function to create a reflexion critic
 def create_reflexion_critic(
-    model: LanguageModel,
+    llm_provider: LanguageModel,
     name: str = "reflexion_critic",
     description: str = "Improves text using reflections on past feedback",
     system_prompt: str = DEFAULT_REFLEXION_SYSTEM_PROMPT,
@@ -722,7 +593,7 @@ def create_reflexion_critic(
     Create a reflexion critic with the given parameters.
 
     Args:
-        model: Language model to use for critiquing
+        llm_provider: Language model provider to use for critiquing
         name: Name of the critic
         description: Description of the critic
         system_prompt: System prompt for the model
@@ -746,4 +617,6 @@ def create_reflexion_critic(
         reflection_depth=reflection_depth,
     )
 
-    return ReflexionCritic(config=config, llm_provider=model, name=name, description=description)
+    return ReflexionCritic(
+        config=config, llm_provider=llm_provider, name=name, description=description
+    )

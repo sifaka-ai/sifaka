@@ -264,7 +264,7 @@ from sifaka.models.anthropic import AnthropicProvider
 from sifaka.models.base import ModelConfig
 from sifaka.rules.formatting.length import create_length_rule
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
-from sifaka.chain import Chain
+from sifaka.chain import create_simple_chain
 
 # Configure Claude model
 model = AnthropicProvider(
@@ -296,8 +296,13 @@ critic = PromptCritic(
     )
 )
 
-# Create chain with model, rule, and critic
-chain = Chain(model=model, rules=[length_rule], critic=critic, max_attempts=3)
+# Create chain with model, rule, and critic using the factory function
+chain = create_simple_chain(
+    model=model,
+    rules=[length_rule],
+    critic=critic,
+    max_attempts=3
+)
 
 # Run the chain with a prompt that would naturally generate verbose output
 result = chain.run("Explain how large language models work in detail")
@@ -315,7 +320,7 @@ from sifaka.rules.base import RuleConfig
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.models import OpenAIProvider
 from sifaka.models.base import ModelConfig
-from sifaka.chain import Chain
+from sifaka.chain import create_simple_chain
 import os
 
 # Configure OpenAI model for content generation
@@ -366,8 +371,13 @@ critic = PromptCritic(
     )
 )
 
-# Create chain with model, rule, and critic
-chain = Chain(model=model, rules=[toxicity_rule], critic=critic, max_attempts=3)
+# Create chain with model, rule, and critic using the factory function
+chain = create_simple_chain(
+    model=model,
+    rules=[toxicity_rule],
+    critic=critic,
+    max_attempts=3
+)
 
 # Run the chain
 result = chain.run("Write a social media post about community values")
@@ -392,7 +402,7 @@ from sifaka.critics.reflexion import ReflexionCriticConfig, create_reflexion_cri
 from sifaka.models.openai import OpenAIProvider
 from sifaka.models.base import ModelConfig
 from sifaka.rules.formatting.length import create_length_rule
-from sifaka.chain import Chain
+from sifaka.chain import create_simple_chain
 import os
 
 # Configure OpenAI model
@@ -426,12 +436,12 @@ length_rule = create_length_rule(
     description="Ensures text is between 50-300 words",
 )
 
-# Create a chain with the model, rule, and reflexion critic
-chain = Chain(
+# Create a chain with the model, rule, and reflexion critic using the factory function
+chain = create_simple_chain(
     model=model,
     rules=[length_rule],
     critic=reflexion_critic,
-    max_attempts=3,
+    max_attempts=3
 )
 
 # Process a series of prompts and observe how the critic improves over time

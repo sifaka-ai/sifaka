@@ -198,17 +198,61 @@ class ProfanityClassifier(BaseClassifier):
         Returns:
             CensorResult with censoring details
         """
-        censored = self._checker.censor(text)
+        if not self._checker:
+            raise RuntimeError("Profanity checker not initialized. Call warm_up() first.")
+
+        # Count total words
         total_words = len(text.split())
-        censored_count = sum(
-            1 for _, censored_char in zip(text, censored) if censored_char == self.censor_char
-        ) // max(len(self.censor_char), 1)
+
+        # Censor the text
+        censored_text = self._checker.censor(text)
+
+        # Count censored words by comparing original and censored text
+        censored_words = sum(1 for orig, censored in zip(text.split(), censored_text.split())
+                           if orig != censored)
 
         return CensorResult(
             original_text=text,
-            censored_text=censored,
-            censored_word_count=censored_count,
+            censored_text=censored_text,
+            censored_word_count=censored_words,
             total_word_count=total_words,
+        )
+
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
+        """
+        Implement classification logic for profanity detection.
+
+        Args:
+            text: The text to classify
+
+        Returns:
+            ClassificationResult with label and confidence
+        """
+        if not self._checker:
+            raise RuntimeError("Profanity checker not initialized. Call warm_up() first.")
+
+        # Check for profanity
+        contains_profanity = self._checker.contains_profanity(text)
+
+        # Calculate confidence based on the ratio of profane words
+        censor_result = self._censor_text(text)
+        confidence = censor_result.profanity_ratio if contains_profanity else 1.0 - censor_result.profanity_ratio
+
+        # Determine the label
+        label = "profane" if contains_profanity else "clean"
+
+        # Create metadata
+        metadata = {
+            "contains_profanity": contains_profanity,
+            "profanity_ratio": censor_result.profanity_ratio,
+            "censored_word_count": censor_result.censored_word_count,
+            "total_word_count": censor_result.total_word_count,
+        }
+
+        return ClassificationResult(
+            label=label,
+            confidence=confidence,
+            metadata=metadata,
         )
 
     def _classify_impl(self, text: str) -> ClassificationResult:
