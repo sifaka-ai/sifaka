@@ -3,6 +3,70 @@ Base protocols and types for model providers.
 
 This module provides the core interfaces and base implementations for model providers,
 including protocols for API clients, token counters, and language models.
+
+## Architecture Overview
+
+The model system follows a layered architecture:
+
+1. **ModelProvider**: High-level interface for model interactions
+2. **APIClient**: Low-level communication with model services
+3. **TokenCounter**: Utility for token counting
+4. **Config**: Configuration and settings management
+
+## Component Lifecycle
+
+### ModelProvider
+1. **Initialization**: Set up with model name and configuration
+2. **Configuration**: Define generation parameters
+3. **Operation**: Generate text, count tokens, trace events
+4. **Error Handling**: Manage API failures and retry strategies
+5. **Cleanup**: Release resources when no longer needed
+
+### Error Handling Patterns
+
+The model system implements several error handling patterns:
+
+1. **Typed Exceptions**: Use specific exception types for different error cases
+2. **Automatic Retries**: Implement backoff strategy for transient errors
+3. **Graceful Degradation**: Fallback to simpler models when primary fails
+4. **Thorough Logging**: Log all errors with context for diagnosis
+5. **Tracing**: Record detailed events for monitoring and debugging
+
+## Usage Examples
+
+```python
+from sifaka.models import create_model_provider, ModelConfig
+from sifaka.models.anthropic import AnthropicProvider
+
+# Basic usage with factory function
+provider = create_model_provider(
+    AnthropicProvider,
+    model_name="claude-3-opus",
+    api_key="your-api-key",
+    temperature=0.8
+)
+response = provider.generate("Explain quantum computing in simple terms.")
+
+# Direct instantiation with custom configuration
+config = ModelConfig().with_temperature(0.9).with_max_tokens(2000)
+provider = AnthropicProvider(model_name="claude-3-opus", config=config)
+
+# Error handling pattern
+try:
+    response = provider.generate("Explain quantum computing")
+except ValueError as e:
+    # Handle input validation errors
+    print(f"Input error: {e}")
+except RuntimeError as e:
+    # Handle API and generation errors
+    print(f"Generation failed: {e}")
+    # Implement fallback strategy
+    fallback_provider = create_model_provider(
+        AnthropicProvider,
+        model_name="claude-3-haiku"
+    )
+    response = fallback_provider.generate("Explain quantum computing briefly")
+```
 """
 
 from abc import ABC, abstractmethod
@@ -29,17 +93,44 @@ class ModelConfig:
     Because it is immutable, you must use the with_* methods to create
     modified versions of a configuration.
 
-    Examples:
-        ```python
-        # Create a default configuration
-        config = ModelConfig()
+    ## Lifecycle
 
-        # Create a modified configuration
-        new_config = config.with_temperature(0.9).with_max_tokens(2000)
+    1. **Creation**: Instantiate with default or custom values
+    2. **Validation**: Values are validated in __post_init__
+    3. **Modification**: Create new instances with with_* methods
+    4. **Usage**: Pass to model providers for configuration
 
-        # Use the configuration with a model provider
-        provider = AnthropicProvider(model_name="claude-3-opus", config=new_config)
-        ```
+    ## Error Handling
+
+    - Validates temperature range (0-1)
+    - Validates max_tokens is positive
+    - Raises ValueError for invalid inputs
+    - Returns new instances rather than modifying existing ones
+
+    ## Examples
+
+    ```python
+    # Create a default configuration
+    config = ModelConfig()
+
+    # Create a modified configuration
+    new_config = config.with_temperature(0.9).with_max_tokens(2000)
+
+    # Error handling with validation
+    try:
+        invalid_config = config.with_temperature(1.5)  # Will raise ValueError
+    except ValueError as e:
+        print(f"Configuration error: {e}")
+        # Use default or fallback configuration
+        fallback_config = config.with_temperature(0.7)
+
+    # Checking configuration before use
+    if config.temperature > 0.8:
+        print("Warning: High temperature may lead to more random outputs")
+
+    # Use the configuration with a model provider
+    provider = AnthropicProvider(model_name="claude-3-opus", config=new_config)
+    ```
     """
 
     temperature: float = 0.7
@@ -48,7 +139,13 @@ class ModelConfig:
     trace_enabled: bool = True
 
     def __post_init__(self) -> None:
-        """Validate configuration values."""
+        """
+        Validate configuration values.
+
+        Raises:
+            ValueError: If temperature is not between 0 and 1
+            ValueError: If max_tokens is not positive
+        """
         if not 0 <= self.temperature <= 1:
             raise ValueError("temperature must be between 0 and 1")
         if self.max_tokens < 1:
@@ -66,6 +163,22 @@ class ModelConfig:
 
         Raises:
             ValueError: If temperature is not between 0 and 1
+
+        Examples:
+            ```python
+            # Create a config with a specific temperature
+            config = ModelConfig().with_temperature(0.8)
+
+            # Chain multiple configuration updates
+            config = ModelConfig().with_temperature(0.8).with_max_tokens(500)
+
+            # Handle validation errors
+            try:
+                config = ModelConfig().with_temperature(1.5)  # Invalid
+            except ValueError as e:
+                # Use default instead
+                config = ModelConfig()
+            ```
         """
         return replace(self, temperature=temperature)
 
@@ -81,6 +194,23 @@ class ModelConfig:
 
         Raises:
             ValueError: If max_tokens is not positive
+
+        Examples:
+            ```python
+            # Create a config with a specific max_tokens
+            config = ModelConfig().with_max_tokens(2000)
+
+            # Adjust based on text length
+            prompt_length = len(prompt) // 4  # Rough estimate
+            config = ModelConfig().with_max_tokens(max(1000, prompt_length * 2))
+
+            # Handle validation errors
+            try:
+                config = ModelConfig().with_max_tokens(-100)  # Invalid
+            except ValueError as e:
+                # Use default instead
+                config = ModelConfig()
+            ```
         """
         return replace(self, max_tokens=max_tokens)
 
@@ -93,6 +223,23 @@ class ModelConfig:
 
         Returns:
             A new ModelConfig with the updated API key
+
+        Examples:
+            ```python
+            # Create a config with an API key
+            config = ModelConfig().with_api_key("sk-...")
+
+            # Read API key from environment variable
+            import os
+            config = ModelConfig().with_api_key(os.environ.get("ANTHROPIC_API_KEY"))
+
+            # Handle missing API key
+            api_key = os.environ.get("ANTHROPIC_API_KEY")
+            if not api_key:
+                print("Warning: No API key found, some features may be limited")
+                # Proceed with default or use a mock provider
+            config = ModelConfig().with_api_key(api_key)
+            ```
         """
         return replace(self, api_key=api_key)
 
@@ -105,6 +252,20 @@ class ModelConfig:
 
         Returns:
             A new ModelConfig with the updated trace_enabled setting
+
+        Examples:
+            ```python
+            # Enable tracing for debugging
+            debug_config = ModelConfig().with_trace_enabled(True)
+
+            # Disable tracing for production
+            prod_config = ModelConfig().with_trace_enabled(False)
+
+            # Conditionally enable tracing
+            import os
+            env = os.environ.get("ENVIRONMENT", "development")
+            config = ModelConfig().with_trace_enabled(env == "development")
+            ```
         """
         return replace(self, trace_enabled=trace_enabled)
 
@@ -117,10 +278,72 @@ class APIClient(Protocol):
     Classes implementing this protocol are responsible for sending prompts to
     language model services and returning the responses.
 
-    Lifecycle:
-    1. Initialization: Set up any necessary client libraries and authentication
-    2. Usage: Send prompts to the API and return responses
-    3. Cleanup: Release any resources when no longer needed
+    ## Lifecycle
+
+    1. **Initialization**: Set up client libraries and authentication
+    2. **Request Preparation**: Format prompts and parameters for the API
+    3. **Request Execution**: Send requests to the API
+    4. **Response Handling**: Process and return responses
+    5. **Error Handling**: Manage API errors and retries
+    6. **Cleanup**: Release resources when no longer needed
+
+    ## Error Handling
+
+    Implementations should handle:
+    - Network errors (timeouts, connection issues)
+    - Authentication errors (invalid API keys)
+    - Rate limiting and quota issues
+    - Service availability problems
+    - Malformed responses
+
+    ## Examples
+
+    ```python
+    from sifaka.models.base import APIClient, ModelConfig
+    import requests
+
+    class SimpleAPIClient(APIClient):
+        def __init__(self, base_url: str):
+            self.base_url = base_url
+            self.session = requests.Session()
+
+        def send_prompt(self, prompt: str, config: ModelConfig) -> str:
+            # Prepare request
+            headers = {"Authorization": f"Bearer {config.api_key}"}
+            payload = {
+                "prompt": prompt,
+                "temperature": config.temperature,
+                "max_tokens": config.max_tokens
+            }
+
+            # Send request with error handling
+            try:
+                response = self.session.post(
+                    f"{self.base_url}/generate",
+                    headers=headers,
+                    json=payload,
+                    timeout=30  # Prevent indefinite hanging
+                )
+                response.raise_for_status()  # Raise exception for HTTP errors
+                return response.json().get("text", "")
+
+            except requests.Timeout:
+                raise RuntimeError("Request timed out, service may be overloaded")
+            except requests.ConnectionError:
+                raise RuntimeError("Connection error, check network connectivity")
+            except requests.HTTPError as e:
+                if e.response.status_code == 401:
+                    raise ValueError("Invalid API key")
+                elif e.response.status_code == 429:
+                    raise RuntimeError("Rate limit exceeded, try again later")
+                else:
+                    raise RuntimeError(f"API error: {e}")
+            except Exception as e:
+                raise RuntimeError(f"Unexpected error: {e}")
+
+        def close(self):
+            self.session.close()
+    ```
     """
 
     def send_prompt(self, prompt: str, config: ModelConfig) -> str:
@@ -135,7 +358,9 @@ class APIClient(Protocol):
             The text response from the LLM service
 
         Raises:
-            Exception: If there is an error communicating with the service
+            ValueError: If there's an issue with the input parameters
+            RuntimeError: If there's an error communicating with the service
+            TimeoutError: If the request times out
         """
         ...
 
@@ -149,10 +374,48 @@ class TokenCounter(Protocol):
     the number of tokens in a piece of text, using the appropriate
     tokenization method for a specific model.
 
-    Lifecycle:
-    1. Initialization: Set up any necessary tokenizers
-    2. Usage: Count tokens in text
-    3. Cleanup: Release any resources when no longer needed
+    ## Lifecycle
+
+    1. **Initialization**: Set up tokenizers or models
+    2. **Usage**: Count tokens in text
+    3. **Cleanup**: Release resources when no longer needed
+
+    ## Error Handling
+
+    Implementations should handle:
+    - Text encoding issues
+    - Tokenizer initialization failures
+    - Invalid inputs (empty strings, non-text content)
+
+    ## Examples
+
+    ```python
+    from sifaka.models.base import TokenCounter
+    import tiktoken
+
+    class OpenAITokenCounter(TokenCounter):
+        def __init__(self, model_name: str = "gpt-4"):
+            try:
+                self.encoding = tiktoken.encoding_for_model(model_name)
+            except KeyError:
+                # Fallback to a default encoding if model-specific one not found
+                self.encoding = tiktoken.get_encoding("cl100k_base")
+                print(f"Warning: Using fallback encoding for model {model_name}")
+
+        def count_tokens(self, text: str) -> int:
+            if not isinstance(text, str):
+                raise TypeError("Input must be a string")
+
+            if not text:
+                return 0
+
+            try:
+                return len(self.encoding.encode(text))
+            except Exception as e:
+                # Log error and use character-based approximation as fallback
+                print(f"Error counting tokens: {e}")
+                return len(text) // 4  # Rough approximation
+    ```
     """
 
     def count_tokens(self, text: str) -> int:
@@ -166,7 +429,9 @@ class TokenCounter(Protocol):
             The number of tokens in the text
 
         Raises:
-            Exception: If there is an error counting tokens
+            TypeError: If text is not a string
+            ValueError: If there's an issue with the text content
+            RuntimeError: If there's an error with the tokenizer
         """
         ...
 
@@ -182,10 +447,90 @@ class LanguageModel(Protocol[R]):
     Type Parameters:
         R: The return type of the generate method
 
-    Lifecycle:
-    1. Initialization: Set up any necessary clients and resources
-    2. Usage: Generate text from prompts
-    3. Cleanup: Release any resources when no longer needed
+    ## Lifecycle
+
+    1. **Initialization**: Set up model, clients, and resources
+    2. **Configuration**: Set generation parameters
+    3. **Prompt Preparation**: Format prompts for the model
+    4. **Generation**: Generate text responses
+    5. **Response Processing**: Parse and validate responses
+    6. **Cleanup**: Release resources when no longer needed
+
+    ## Error Handling
+
+    Implementations should handle:
+    - Input validation errors
+    - Configuration issues
+    - Generation failures
+    - Response parsing problems
+    - Resource cleanup
+
+    ## Examples
+
+    ```python
+    from sifaka.models.base import LanguageModel, ModelConfig
+    from typing import Dict, Any, Optional
+
+    class CompletionModel(LanguageModel[str]):
+        def __init__(self, model_name: str, api_key: Optional[str] = None):
+            self._model_name = model_name
+            self._api_key = api_key
+            self._client = self._create_client()
+
+        @property
+        def model_name(self) -> str:
+            return self._model_name
+
+        def _create_client(self):
+            # Create appropriate client for the model
+            if "gpt" in self._model_name.lower():
+                from openai import OpenAI
+                return OpenAI(api_key=self._api_key)
+            elif "claude" in self._model_name.lower():
+                from anthropic import Anthropic
+                return Anthropic(api_key=self._api_key)
+            else:
+                raise ValueError(f"Unsupported model: {self._model_name}")
+
+        def generate(self, prompt: str, **kwargs) -> str:
+            # Input validation
+            if not prompt:
+                raise ValueError("Prompt cannot be empty")
+
+            # Default parameters
+            temperature = kwargs.get("temperature", 0.7)
+            max_tokens = kwargs.get("max_tokens", 1000)
+
+            # Error handling with try-except
+            try:
+                # Generate based on model type
+                if "gpt" in self._model_name.lower():
+                    response = self._client.completions.create(
+                        model=self._model_name,
+                        prompt=prompt,
+                        temperature=temperature,
+                        max_tokens=max_tokens
+                    )
+                    return response.choices[0].text.strip()
+                elif "claude" in self._model_name.lower():
+                    response = self._client.completions.create(
+                        model=self._model_name,
+                        prompt=prompt,
+                        temperature=temperature,
+                        max_tokens=max_tokens
+                    )
+                    return response.completion.strip()
+                else:
+                    raise ValueError(f"Unsupported model: {self._model_name}")
+            except Exception as e:
+                # Proper error propagation with context
+                raise RuntimeError(f"Error generating from {self._model_name}: {e}")
+
+        def close(self):
+            # Resource cleanup
+            if hasattr(self._client, "close"):
+                self._client.close()
+    ```
     """
 
     @property
@@ -210,7 +555,9 @@ class LanguageModel(Protocol[R]):
             The generated text or structured response
 
         Raises:
-            Exception: If generation fails
+            TypeError: If prompt is not a string
+            ValueError: If prompt is empty or invalid
+            RuntimeError: If generation fails
         """
         ...
 
@@ -225,22 +572,99 @@ class ModelProvider(ABC, Generic[C]):
     Type Parameters:
         C: The configuration type, must be a subclass of ModelConfig
 
-    Lifecycle:
-    1. Initialization: Set up the provider with a model name and configuration
-    2. Usage: Generate text, count tokens, and trace events
-    3. Cleanup: Release any resources when no longer needed
+    ## Lifecycle
 
-    Examples:
-        ```python
-        # Create a provider with default configuration
-        provider = AnthropicProvider(model_name="claude-3-opus")
+    1. **Initialization**: Set up with model name and configuration
+       - Create/validate config
+       - Initialize dependencies (API client, token counter)
+       - Set up tracing if enabled
 
-        # Generate text
+    2. **Configuration**: Configure generation parameters
+       - Set temperature, max_tokens, etc.
+       - Configure API keys and authentication
+
+    3. **Operation**: Main usage phase
+       - Generate text from prompts
+       - Count tokens for optimization
+       - Trace events for monitoring
+
+    4. **Error Handling**: Manage failures
+       - Handle API errors
+       - Implement retries and circuit breakers
+       - Provide meaningful error messages
+
+    5. **Cleanup**: Release resources
+       - Close API clients
+       - Ensure proper resource management
+
+    ## Error Handling Patterns
+
+    This class implements several error handling patterns:
+
+    1. **Input Validation**: Validates all inputs before processing
+       - Checks prompt is a string and not empty
+       - Validates configuration parameters
+
+    2. **Dependency Management**: Ensures required dependencies exist
+       - Creates default components when needed
+       - Validates components implement required protocols
+
+    3. **Exception Handling**: Proper exception hierarchy
+       - Uses TypeError for type validation issues
+       - Uses ValueError for invalid inputs
+       - Uses RuntimeError for operational failures
+       - Preserves original exception in context
+
+    4. **Tracing and Logging**: Records errors for diagnosis
+       - Logs all errors with context
+       - Traces events for debugging
+       - Includes relevant metadata with errors
+
+    ## Examples
+
+    ```python
+    from sifaka.models.base import ModelProvider, ModelConfig, APIClient, TokenCounter
+
+    # Basic usage
+    provider = OpenAIProvider(model_name="gpt-4")
+    response = provider.generate("Explain quantum computing")
+    token_count = provider.count_tokens("How many tokens is this?")
+
+    # With custom configuration
+    config = ModelConfig().with_temperature(0.9).with_max_tokens(2000)
+    provider = AnthropicProvider(model_name="claude-3-opus", config=config)
+
+    # With explicit dependencies
+    class CustomClient(APIClient):
+        def send_prompt(self, prompt, config):
+            # Custom implementation
+            return "Response"
+
+    class CustomTokenCounter(TokenCounter):
+        def count_tokens(self, text):
+            # Custom implementation
+            return len(text.split())
+
+    provider = AnthropicProvider(
+        model_name="claude-3-opus",
+        config=config,
+        api_client=CustomClient(),
+        token_counter=CustomTokenCounter()
+    )
+
+    # Error handling
+    try:
         response = provider.generate("Explain quantum computing")
-
-        # Count tokens
-        token_count = provider.count_tokens("How many tokens is this?")
-        ```
+    except ValueError as e:
+        # Handle input validation errors
+        print(f"Input error: {e}")
+    except RuntimeError as e:
+        # Handle API and generation errors
+        print(f"Generation failed: {e}")
+        # Implement fallback strategy
+        fallback_provider = OpenAIProvider(model_name="gpt-3.5-turbo")
+        response = fallback_provider.generate("Explain quantum computing briefly")
+    ```
     """
 
     def __init__(
@@ -260,6 +684,10 @@ class ModelProvider(ABC, Generic[C]):
             api_client: Optional API client to use
             token_counter: Optional token counter to use
             tracer: Optional tracer to use
+
+        Raises:
+            ValueError: If model_name is empty
+            TypeError: If dependencies don't implement required protocols
         """
         self._model_name = model_name
         self._config = config or self._create_default_config()  # type: C
@@ -329,6 +757,9 @@ class ModelProvider(ABC, Generic[C]):
 
         Returns:
             The API client to use
+
+        Raises:
+            RuntimeError: If a default client cannot be created
         """
         if self._api_client is None:
             logger.debug(f"Creating default API client for {self.model_name}")
@@ -341,6 +772,9 @@ class ModelProvider(ABC, Generic[C]):
 
         Returns:
             The token counter to use
+
+        Raises:
+            RuntimeError: If a default token counter cannot be created
         """
         if self._token_counter is None:
             logger.debug(f"Creating default token counter for {self.model_name}")
@@ -371,6 +805,31 @@ class ModelProvider(ABC, Generic[C]):
 
         Raises:
             TypeError: If text is not a string
+            RuntimeError: If token counting fails
+
+        Examples:
+            ```python
+            # Basic token counting
+            provider = AnthropicProvider(model_name="claude-3-opus")
+            count = provider.count_tokens("How many tokens is this?")
+            print(f"Token count: {count}")
+
+            # Error handling
+            try:
+                count = provider.count_tokens(["This", "is", "a", "list"])  # TypeError
+            except TypeError as e:
+                print(f"Invalid input: {e}")
+                # Handle with default or fallback
+                count = 0
+
+            # Using for optimization
+            prompt = "This is a long prompt..."
+            count = provider.count_tokens(prompt)
+            if count > 1000:
+                # Truncate or summarize if too long
+                prompt = prompt[:500] + "..."
+                print(f"Truncated prompt to reduce tokens")
+            ```
         """
         if not isinstance(text, str):
             raise TypeError("text must be a string")
@@ -395,6 +854,10 @@ class ModelProvider(ABC, Generic[C]):
         Args:
             prompt: The prompt to generate from
             **kwargs: Optional overrides for model configuration
+                - temperature: Control randomness (0-1)
+                - max_tokens: Maximum tokens to generate
+                - api_key: Override API key
+                - trace_enabled: Override tracing setting
 
         Returns:
             The generated text
@@ -403,6 +866,48 @@ class ModelProvider(ABC, Generic[C]):
             TypeError: If prompt is not a string
             ValueError: If prompt is empty
             RuntimeError: If an error occurs during generation
+
+        Examples:
+            ```python
+            # Basic generation
+            provider = AnthropicProvider(model_name="claude-3-opus")
+            response = provider.generate("Explain quantum computing in simple terms.")
+
+            # With parameter overrides
+            response = provider.generate(
+                "Write a creative story.",
+                temperature=0.9,
+                max_tokens=2000
+            )
+
+            # Comprehensive error handling
+            try:
+                response = provider.generate("Explain quantum computing")
+            except ValueError as e:
+                # Handle input validation errors
+                print(f"Input error: {e}")
+                response = "I couldn't process that request."
+            except RuntimeError as e:
+                # Handle API and generation errors
+                print(f"Generation failed: {e}")
+
+                # Check for specific error conditions
+                if "rate limit" in str(e).lower():
+                    print("Rate limit exceeded, waiting and retrying...")
+                    import time
+                    time.sleep(5)
+                    response = provider.generate("Explain quantum computing briefly")
+                elif "context length" in str(e).lower():
+                    print("Prompt too long, shortening...")
+                    response = provider.generate("Briefly explain quantum computing")
+                else:
+                    # Fallback to simpler model
+                    fallback_provider = create_model_provider(
+                        AnthropicProvider,
+                        model_name="claude-3-haiku"
+                    )
+                    response = fallback_provider.generate("Explain quantum computing briefly")
+            ```
         """
         if not isinstance(prompt, str):
             raise TypeError("prompt must be a string")
@@ -493,14 +998,54 @@ def create_model_provider(
     Returns:
         A configured model provider instance
 
+    Raises:
+        ValueError: If parameters are invalid
+        TypeError: If provider_type is not a valid model provider class
+        RuntimeError: If provider creation fails
+
     Examples:
         ```python
+        from sifaka.models.anthropic import AnthropicProvider
+        from sifaka.models.openai import OpenAIProvider
+
         # Create an Anthropic provider
         provider = create_model_provider(
             AnthropicProvider,
             model_name="claude-3-opus",
             api_key="your-api-key",
             temperature=0.8
+        )
+
+        # Create an OpenAI provider
+        provider = create_model_provider(
+            OpenAIProvider,
+            model_name="gpt-4",
+            api_key="your-api-key",
+            max_tokens=2000
+        )
+
+        # Error handling when creating providers
+        try:
+            provider = create_model_provider(
+                AnthropicProvider,
+                model_name="invalid-model",
+                api_key="your-api-key"
+            )
+        except (ValueError, RuntimeError) as e:
+            print(f"Provider creation failed: {e}")
+            # Use fallback provider
+            provider = create_model_provider(
+                OpenAIProvider,
+                model_name="gpt-3.5-turbo",
+                api_key="your-openai-key"
+            )
+
+        # With additional provider-specific options
+        provider = create_model_provider(
+            AnthropicProvider,
+            model_name="claude-3-opus",
+            api_key="your-api-key",
+            system_prompt="You are a helpful assistant"
         )
         ```
     """

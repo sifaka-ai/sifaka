@@ -817,21 +817,159 @@ def wrap_graph(
     tracer: Optional[Tracer] = None,
 ) -> SifakaGraph[StateType, Any]:
     """
-    Wrap a LangGraph graph with Sifaka's features.
+    Wrap a LangGraph graph with Sifaka's reflection and reliability features.
 
-    This factory function is a more descriptive alias for create_simple_graph.
-    It wraps a graph with validation, processing, and critique capabilities.
+    This factory function creates a SifakaGraph with validation, processing, and critique
+    capabilities. If rules are provided, they are wrapped in a RuleBasedValidator.
+
+    ## Lifecycle
+
+    1. **Initialization**: Set up wrapped graph with validation and processing capabilities
+       - Configure validators from rules and explicit validators
+       - Set up processors for state transformation
+       - Configure tracing if enabled
+
+    2. **Execution**: Run graph with enhanced capabilities
+       - Process input state
+       - Execute wrapped graph
+       - Validate output state
+       - Apply post-processing
+       - Handle validation failures
+
+    3. **Maintenance**: Monitor and debug graph execution
+       - Trace execution steps
+       - Report validation issues
+       - Apply critique for improvement
+
+    ## Error Handling
+
+    This wrapper implements several error handling patterns:
+
+    - **Input Validation**: Checks input state before processing
+    - **Output Validation**: Validates output state against rules
+    - **Critique Mode**: Provides feedback on validation failures
+    - **Tracing**: Records execution details for debugging
+    - **Graceful Degradation**: Returns original results with warnings when validation fails
 
     Args:
-        graph: The graph to wrap
+        graph: The LangGraph graph to wrap
         rules: Optional list of Sifaka rules
-        validators: Optional list of validators
-        processors: Optional list of processors
-        critique: Whether to enable critique
+        validators: Optional list of graph validators
+        processors: Optional list of graph processors
+        critique: Whether to enable critique mode (defaults to True)
         tracer: Optional tracer for debugging
 
     Returns:
         The wrapped graph
+
+    Raises:
+        ValueError: If graph is None or not a StateGraph
+        ValueError: If rules and validators are both None
+
+    ## Examples
+
+    ```python
+    from langgraph.graph import StateGraph
+    from langgraph.prebuilt import ToolNode
+    from sifaka.adapters.langgraph import wrap_graph
+    from sifaka.rules.content import create_toxicity_rule
+    from sifaka.rules.formatting import create_length_rule
+    from sifaka.utils.tracing import Tracer
+
+    # Create a LangGraph graph
+    builder = StateGraph()
+
+    # Add nodes
+    builder.add_node("generate", lambda state: {"output": f"Generated response to: {state['input']}"})
+    builder.add_node("process", lambda state: {"output": state["output"].upper()})
+
+    # Add edges
+    builder.set_entry_point("generate")
+    builder.add_edge("generate", "process")
+    builder.set_finish_point("process")
+
+    # Compile graph
+    graph = builder.compile()
+
+    # Create rules for validation
+    rules = [
+        create_length_rule(min_chars=10, max_chars=1000),
+        create_toxicity_rule(threshold=0.8)
+    ]
+
+    # Create a tracer for debugging
+    tracer = Tracer()
+
+    # Wrap the graph with Sifaka's features
+    sifaka_graph = wrap_graph(
+        graph=graph,
+        rules=rules,
+        critique=True,
+        tracer=tracer
+    )
+
+    # Use try/except for robust error handling
+    try:
+        # Run the graph
+        output = sifaka_graph({"input": "Hello, world!"})
+        print(f"Output: {output['output']}")
+
+    except ValueError as e:
+        # Handle validation errors
+        print(f"Validation error: {e}")
+        # Fall back to original graph
+        output = graph({"input": "Hello, world!"})
+        print(f"Fallback output: {output['output']}")
+
+    except Exception as e:
+        # Handle other errors
+        print(f"Unexpected error: {e}")
+        # Implement appropriate fallback strategy
+    ```
+
+    ### Advanced Usage with Custom Components
+
+    ```python
+    from sifaka.adapters.langgraph import wrap_graph, GraphValidator, GraphProcessor
+
+    # Custom validator for specific state structure
+    class StateStructureValidator(GraphValidator[Dict[str, Any], RuleResult]):
+        def validate(self, state: Dict[str, Any]) -> RuleResult:
+            required_keys = ["input", "output", "metadata"]
+            missing_keys = [k for k in required_keys if k not in state]
+
+            if missing_keys:
+                return RuleResult(
+                    passed=False,
+                    message=f"State missing required keys: {missing_keys}",
+                    metadata={"missing_keys": missing_keys}
+                )
+            return RuleResult(passed=True, message="State structure valid")
+
+        def can_validate(self, state: Dict[str, Any]) -> bool:
+            return isinstance(state, dict)
+
+    # Custom processor for adding timestamps
+    class TimestampProcessor(GraphProcessor[Dict[str, Any]]):
+        def process(self, state: Dict[str, Any]) -> Dict[str, Any]:
+            from datetime import datetime
+            state["metadata"] = state.get("metadata", {})
+            state["metadata"]["timestamp"] = datetime.now().isoformat()
+            return state
+
+        def can_process(self, state: Dict[str, Any]) -> bool:
+            return isinstance(state, dict)
+
+    # Wrap graph with custom components
+    enhanced_graph = wrap_graph(
+        graph=graph,
+        rules=rules,
+        validators=[StateStructureValidator()],
+        processors=[TimestampProcessor()],
+        critique=True,
+        tracer=tracer
+    )
+    ```
     """
     return create_simple_graph(
         graph=graph,
