@@ -228,44 +228,8 @@ class ProfanityClassifier(BaseClassifier):
         Returns:
             ClassificationResult with label and confidence
         """
-        if not self._checker:
-            raise RuntimeError("Profanity checker not initialized. Call warm_up() first.")
-
-        # Check for profanity
-        contains_profanity = self._checker.contains_profanity(text)
-
-        # Calculate confidence based on the ratio of profane words
-        censor_result = self._censor_text(text)
-        confidence = censor_result.profanity_ratio if contains_profanity else 1.0 - censor_result.profanity_ratio
-
-        # Determine the label
-        label = "profane" if contains_profanity else "clean"
-
-        # Create metadata
-        metadata = {
-            "contains_profanity": contains_profanity,
-            "profanity_ratio": censor_result.profanity_ratio,
-            "censored_word_count": censor_result.censored_word_count,
-            "total_word_count": censor_result.total_word_count,
-        }
-
-        return ClassificationResult(
-            label=label,
-            confidence=confidence,
-            metadata=metadata,
-        )
-
-    def _classify_impl(self, text: str) -> ClassificationResult:
-        """
-        Implement profanity classification logic.
-
-        Args:
-            text: The text to classify
-
-        Returns:
-            ClassificationResult with profanity check results
-        """
-        self.warm_up()
+        if not self._initialized:
+            self.warm_up()
 
         try:
             # Note: Empty text is handled by BaseClassifier.classify
@@ -350,3 +314,54 @@ class ProfanityClassifier(BaseClassifier):
         )
 
         return instance
+
+
+def create_profanity_classifier(
+    name: str = "profanity_classifier",
+    description: str = "Detects profanity and inappropriate language",
+    custom_words: Optional[List[str]] = None,
+    censor_char: str = "*",
+    min_confidence: float = 0.5,
+    cache_size: int = 0,
+    cost: int = 1,
+    **kwargs,
+) -> ProfanityClassifier:
+    """
+    Factory function to create a profanity classifier.
+
+    Args:
+        name: Name of the classifier
+        description: Description of the classifier
+        custom_words: Optional list of custom profanity words to check for
+        censor_char: Character to use for censoring profane words
+        min_confidence: Minimum confidence for profanity classification
+        cache_size: Size of the classification cache (0 to disable)
+        cost: Computational cost of this classifier
+        **kwargs: Additional configuration parameters
+
+    Returns:
+        Configured ProfanityClassifier instance
+    """
+    # Prepare params
+    params = kwargs.pop("params", {})
+    params.update({
+        "custom_words": custom_words or [],
+        "censor_char": censor_char,
+        "min_confidence": min_confidence,
+    })
+
+    # Create config
+    config = ClassifierConfig(
+        labels=ProfanityClassifier.DEFAULT_LABELS,
+        cache_size=cache_size,
+        cost=cost,
+        params=params,
+    )
+
+    # Create and return classifier
+    return ProfanityClassifier(
+        name=name,
+        description=description,
+        config=config,
+        **kwargs,
+    )

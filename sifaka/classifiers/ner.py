@@ -223,9 +223,9 @@ class NERClassifier(BaseClassifier):
             entity_count=len(entities),
         )
 
-    def _classify_impl(self, text: str) -> ClassificationResult:
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
         """
-        Implement NER classification logic.
+        Implement NER classification logic without caching.
 
         Args:
             text: The text to classify
@@ -346,3 +346,54 @@ class NERClassifier(BaseClassifier):
         )
 
         return instance
+
+
+def create_ner_classifier(
+    name: str = "ner_classifier",
+    description: str = "Identifies named entities in text",
+    model_name: str = "en_core_web_sm",
+    entity_types: Optional[List[str]] = None,
+    min_confidence: float = 0.5,
+    cache_size: int = 0,
+    cost: int = 2,
+    **kwargs,
+) -> NERClassifier:
+    """
+    Factory function to create a NER classifier.
+
+    Args:
+        name: Name of the classifier
+        description: Description of the classifier
+        model_name: Name of the spaCy model to use
+        entity_types: Optional list of entity types to recognize (filter)
+        min_confidence: Minimum confidence for entity classification
+        cache_size: Size of the classification cache (0 to disable)
+        cost: Computational cost of this classifier
+        **kwargs: Additional configuration parameters
+
+    Returns:
+        Configured NERClassifier instance
+    """
+    # Prepare params
+    params = kwargs.pop("params", {})
+    params.update({
+        "model_name": model_name,
+        "entity_types": entity_types or NERClassifier.DEFAULT_LABELS,
+        "min_confidence": min_confidence,
+    })
+
+    # Create config
+    config = ClassifierConfig(
+        labels=NERClassifier.DEFAULT_LABELS,
+        cache_size=cache_size,
+        cost=cost,
+        params=params,
+    )
+
+    # Create and return classifier
+    return NERClassifier(
+        name=name,
+        description=description,
+        config=config,
+        **kwargs,
+    )

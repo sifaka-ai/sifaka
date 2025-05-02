@@ -411,11 +411,13 @@ class ClassifierRule(Rule):
                 message = (
                     f"Classified as '{label}' which is not in valid labels {self._classifier_config.valid_labels}"
                 )
+                metadata["errors"] = [message]
             else:
                 message = (
                     f"Classified as '{label}' with confidence {confidence:.2f}, "
                     f"which is < threshold {self._classifier_config.threshold}"
                 )
+                metadata["errors"] = [message]
 
         return RuleResult(
             passed=passed,
@@ -458,13 +460,15 @@ class ClassifierRule(Rule):
             return self._validate_text(text_to_classify)
         except Exception as e:
             # Handle classifier errors
+            error_message = f"Classification error: {str(e)}"
             return RuleResult(
                 passed=False,
-                message=f"Classification error: {str(e)}",
+                message=error_message,
                 metadata={
                     "error_type": type(e).__name__,
                     "rule_id": self._rule_id,
                     "severity": self._severity,
+                    "errors": [error_message]
                 }
             )
 

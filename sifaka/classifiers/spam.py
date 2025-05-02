@@ -5,7 +5,7 @@ Spam classifier using scikit-learn's Naive Bayes.
 import importlib
 import os
 import pickle
-from typing import Any, List, Optional
+from typing import Any, ClassVar, Dict, List, Optional
 
 from pydantic import PrivateAttr
 from sifaka.classifiers.base import (
@@ -18,7 +18,7 @@ from sifaka.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-class SpamClassifier(BaseClassifier):
+class SpamClassifier(BaseClassifier[str, str]):
     """
     A spam classifier using Naive Bayes from scikit-learn.
 
@@ -29,8 +29,8 @@ class SpamClassifier(BaseClassifier):
     """
 
     # Class-level constants
-    DEFAULT_LABELS: List[str] = ["ham", "spam"]
-    DEFAULT_COST: int = 1.5  # Slightly higher cost for ML-based model
+    DEFAULT_LABELS: ClassVar[List[str]] = ["ham", "spam"]
+    DEFAULT_COST: ClassVar[int] = 1.5  # Slightly higher cost for ML-based model
 
     # Private attributes using PrivateAttr for state management
     _initialized: bool = PrivateAttr(default=False)
@@ -45,7 +45,7 @@ class SpamClassifier(BaseClassifier):
         self,
         name: str = "spam_classifier",
         description: str = "Detects spam content in text",
-        config: Optional[ClassifierConfig] = None,
+        config: Optional[ClassifierConfig[str]] = None,
         **kwargs,
     ) -> None:
         """
@@ -59,25 +59,29 @@ class SpamClassifier(BaseClassifier):
         """
         # Create config if not provided
         if config is None:
-            # Extract params from kwargs if present
-            params = kwargs.pop("params", {})
+            # Extract model path and features from kwargs
+            model_params = {
+                "model_path": kwargs.pop("model_path", None),
+                "max_features": kwargs.pop("max_features", 1000),
+                "use_bigrams": kwargs.pop("use_bigrams", True),
+            }
 
             # Create config with remaining kwargs
-            config = ClassifierConfig(
-                labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, params=params, **kwargs
+            config = ClassifierConfig[str](
+                labels=self.DEFAULT_LABELS,
+                cost=self.DEFAULT_COST,
+                params=model_params,
+                **kwargs
             )
 
         # Initialize base class
         super().__init__(name=name, description=description, config=config)
+        self._initialized = False
 
         # Try to load model if path is provided
         model_path = self.config.params.get("model_path")
         if model_path and os.path.exists(model_path):
             self.warm_up()
-
-    def _is_initialized(self) -> bool:
-        """Check if the classifier is initialized."""
-        return self._initialized
 
     def _load_dependencies(self) -> bool:
         """Load scikit-learn dependencies."""
@@ -99,7 +103,7 @@ class SpamClassifier(BaseClassifier):
 
     def warm_up(self) -> None:
         """Initialize the model if needed."""
-        if not self._is_initialized():
+        if not self._initialized:
             self._load_dependencies()
 
             model_path = self.config.params.get("model_path")
@@ -185,9 +189,9 @@ class SpamClassifier(BaseClassifier):
 
         return self
 
-    def _classify_impl(self, text: str) -> ClassificationResult:
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
         """
-        Implement spam classification logic.
+        Implement spam classification logic without caching.
 
         Args:
             text: The text to classify
@@ -195,26 +199,34 @@ class SpamClassifier(BaseClassifier):
         Returns:
             ClassificationResult with prediction details
         """
-        if not self._is_initialized():
+        if not self._initialized:
             self.warm_up()
 
-        # Get prediction probabilities
-        proba = self._pipeline.predict_proba([text])[0]
+        try:
+            # Get prediction probabilities
+            proba = self._pipeline.predict_proba([text])[0]
 
-        # Get predicted label index and confidence
-        label_idx = proba.argmax()
-        confidence = float(proba[label_idx])
+            # Get predicted label index and confidence
+            label_idx = proba.argmax()
+            confidence = float(proba[label_idx])
 
-        # Get label from index
-        label = self.config.labels[label_idx]
+            # Get label from index
+            label = self.config.labels[label_idx]
 
-        return ClassificationResult(
-            label=label,
-            confidence=confidence,
-            metadata={"probabilities": {l: float(p) for l, p in zip(self.config.labels, proba)}},
-        )
+            return ClassificationResult[str](
+                label=label,
+                confidence=confidence,
+                metadata={"probabilities": {l: float(p) for l, p in zip(self.config.labels, proba)}},
+            )
+        except Exception as e:
+            logger.error(f"Failed to classify text: {e}")
+            return ClassificationResult[str](
+                label="unknown",
+                confidence=0.0,
+                metadata={"error": str(e), "reason": "classification_error"},
+            )
 
-    def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
+    def batch_classify(self, texts: List[str]) -> List[ClassificationResult[str]]:
         """
         Classify multiple texts efficiently.
 
@@ -226,28 +238,39 @@ class SpamClassifier(BaseClassifier):
         """
         self.validate_batch_input(texts)
 
-        if not self._is_initialized():
+        if not self._initialized:
             self.warm_up()
 
-        # Predict probabilities for all texts
-        probas = self._pipeline.predict_proba(texts)
+        try:
+            # Predict probabilities for all texts
+            probas = self._pipeline.predict_proba(texts)
 
-        results = []
-        for proba in probas:
-            label_idx = proba.argmax()
-            confidence = float(proba[label_idx])
+            results = []
+            for proba in probas:
+                label_idx = proba.argmax()
+                confidence = float(proba[label_idx])
 
-            results.append(
-                ClassificationResult(
-                    label=self.config.labels[label_idx],
-                    confidence=confidence,
-                    metadata={
-                        "probabilities": {l: float(p) for l, p in zip(self.config.labels, proba)}
-                    },
+                results.append(
+                    ClassificationResult[str](
+                        label=self.config.labels[label_idx],
+                        confidence=confidence,
+                        metadata={
+                            "probabilities": {l: float(p) for l, p in zip(self.config.labels, proba)}
+                        },
+                    )
                 )
-            )
 
-        return results
+            return results
+        except Exception as e:
+            logger.error(f"Failed to batch classify texts: {e}")
+            return [
+                ClassificationResult[str](
+                    label="unknown",
+                    confidence=0.0,
+                    metadata={"error": str(e), "reason": "batch_classification_error"},
+                )
+                for _ in texts
+            ]
 
     @classmethod
     def create_pretrained(
@@ -256,7 +279,6 @@ class SpamClassifier(BaseClassifier):
         labels: List[str],
         name: str = "pretrained_spam_classifier",
         description: str = "Pre-trained spam classifier",
-        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "SpamClassifier":
         """
@@ -267,26 +289,68 @@ class SpamClassifier(BaseClassifier):
             labels: List of labels ("ham" or "spam")
             name: Name of the classifier
             description: Description of the classifier
-            config: Optional classifier configuration
             **kwargs: Additional configuration parameters
 
         Returns:
             Trained SpamClassifier
         """
-        # Create default config if not provided
-        if config is None:
-            # Extract params from kwargs
-            params = kwargs.pop("params", {})
-
-            # Create config with params
-            config = ClassifierConfig(
-                labels=cls.DEFAULT_LABELS,
-                cost=cls.DEFAULT_COST,
-                params=params,
-            )
-
-        # Create instance with provided configuration
-        classifier = cls(name=name, description=description, config=config, **kwargs)
+        # Create instance with provided kwargs
+        classifier = cls(
+            name=name,
+            description=description,
+            **kwargs,
+        )
 
         # Train the classifier and return it
         return classifier.fit(texts, labels)
+
+
+def create_spam_classifier(
+    name: str = "spam_classifier",
+    description: str = "Detects spam content in text",
+    model_path: Optional[str] = None,
+    max_features: int = 1000,
+    use_bigrams: bool = True,
+    cache_size: int = 0,
+    cost: int = 1.5,
+    **kwargs,
+) -> SpamClassifier:
+    """
+    Factory function to create a spam classifier.
+
+    Args:
+        name: Name of the classifier
+        description: Description of the classifier
+        model_path: Path to a saved model file (optional)
+        max_features: Maximum number of features to use in vectorizer
+        use_bigrams: Whether to use bigrams in addition to unigrams
+        cache_size: Size of the classification cache (0 to disable)
+        cost: Computational cost of this classifier
+        **kwargs: Additional configuration parameters
+
+    Returns:
+        Configured SpamClassifier instance
+    """
+    # Prepare params
+    params = kwargs.pop("params", {})
+    params.update({
+        "model_path": model_path,
+        "max_features": max_features,
+        "use_bigrams": use_bigrams,
+    })
+
+    # Create config
+    config = ClassifierConfig[str](
+        labels=SpamClassifier.DEFAULT_LABELS,
+        cache_size=cache_size,
+        cost=cost,
+        params=params,
+    )
+
+    # Create classifier
+    return SpamClassifier(
+        name=name,
+        description=description,
+        config=config,
+        **kwargs,
+    )

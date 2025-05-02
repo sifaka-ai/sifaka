@@ -189,6 +189,7 @@ class GuardrailsValidatorAdapter(BaseValidator[str]):
                 metadata={
                     "error_type": type(e).__name__,
                     "validator": self._guardrails_validator.__class__.__name__,
+                    "errors": [str(e)]
                 }
             )
 

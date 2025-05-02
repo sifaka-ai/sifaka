@@ -759,16 +759,19 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
         return cls(name=name, description=description, config=config)
 
 
-# Type alias for external usage
-Classifier = BaseClassifier[str, Any]
+# Create type aliases for common classifier types
 TextClassifier = BaseClassifier[str, str]
+
+# Create a more intuitive alias to avoid confusion
+Classifier = BaseClassifier
 
 # Export these types
 __all__ = [
-    "Classifier",
-    "TextClassifier",
-    "ClassificationResult",
+    "BaseClassifier",
+    "Classifier",  # Alias for BaseClassifier
     "ClassifierConfig",
+    "ClassificationResult",
     "ClassifierProtocol",
     "TextProcessor",
+    "TextClassifier",
 ]
