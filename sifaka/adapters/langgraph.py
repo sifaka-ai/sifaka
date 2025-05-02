@@ -1,10 +1,13 @@
 """
-LangGraph integration for Sifaka.
+LangGraph adapter for Sifaka.
+
+This module provides adapter classes and functions to integrate LangGraph with Sifaka's
+reflection and reliability features.
 
 Example usage:
     ```python
     from langgraph.graph import Graph
-    from sifaka.integrations.langgraph import wrap_graph
+    from sifaka.adapters.langgraph import wrap_graph
     from sifaka.rules.base import Rule
     from sifaka.critique.base import Critique
     from sifaka.utils.tracing import Tracer
@@ -37,7 +40,7 @@ Example usage:
 Example with state graph:
     ```python
     from langgraph.graph import StateGraph
-    from sifaka.integrations.langgraph import wrap_state_graph
+    from sifaka.adapters.langgraph import wrap_state_graph
 
     # Create a state graph
     state_graph = StateGraph()
@@ -58,7 +61,7 @@ Example with state graph:
 Example with tool node:
     ```python
     from langgraph.prebuilt import ToolNode
-    from sifaka.integrations.langgraph import wrap_tool_node
+    from sifaka.adapters.langgraph import wrap_tool_node
 
     # Create a tool node
     node = ToolNode(...)
@@ -79,7 +82,7 @@ Example with tool node:
 Example with channel:
     ```python
     from langgraph.channels import AnyValue
-    from sifaka.integrations.langgraph import wrap_channel
+    from sifaka.adapters.langgraph import wrap_channel
 
     # Create a channel
     channel = AnyValue()

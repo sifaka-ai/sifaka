@@ -1,5 +1,8 @@
 """
-LangChain integration for Sifaka.
+LangChain adapter for Sifaka.
+
+This module provides adapter classes and functions to integrate LangChain with Sifaka's
+reflection and reliability features.
 """
 
 from dataclasses import dataclass, field

@@ -8,7 +8,7 @@ Currently supported adapters:
 
 Example usage:
     >>> from sifaka.classifiers import SentimentClassifier
-    >>> from sifaka.rules.adapters import create_classifier_rule
+    >>> from sifaka.adapters.rules import create_classifier_rule
     >>>
     >>> # Create a classifier rule
     >>> rule = create_classifier_rule(
@@ -22,7 +22,7 @@ Example usage:
 
     >>> # Example using Guardrails validator (if installed)
     >>> from guardrails.hub import RegexMatch
-    >>> from sifaka.rules.adapters import create_guardrails_rule
+    >>> from sifaka.adapters.rules import create_guardrails_rule
     >>>
     >>> # Create a rule from a Guardrails validator
     >>> regex_rule = create_guardrails_rule(
@@ -31,8 +31,8 @@ Example usage:
     >>> )
 """
 
-from sifaka.rules.adapters.base import Adaptable, BaseAdapter
-from sifaka.rules.adapters.classifier import (
+from sifaka.adapters.rules.base import Adaptable, BaseAdapter
+from sifaka.adapters.rules.classifier import (
     ClassifierAdapter,
     ClassifierRule,
     create_classifier_rule,
@@ -40,7 +40,7 @@ from sifaka.rules.adapters.classifier import (
 
 # Try to import Guardrails adapter if available
 try:
-    from sifaka.rules.adapters.guardrails_adapter import (
+    from sifaka.adapters.rules.guardrails_adapter import (
         GuardrailsValidatorAdapter,
         create_guardrails_rule,
     )

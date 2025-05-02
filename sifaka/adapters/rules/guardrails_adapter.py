@@ -1,12 +1,11 @@
 """
-Guardrails validator adapter for Sifaka.
+Adapter for using Guardrails validators as rules.
 
-This module provides an adapter that allows Guardrails validators to be used within
-Sifaka's rule-based validation system.
+This module provides adapters for using validators from the Guardrails library as Sifaka rules.
 
 Usage Example:
     from guardrails.hub import RegexMatch
-    from sifaka.rules.adapters.guardrails_adapter import create_guardrails_rule
+    from sifaka.adapters.rules import create_guardrails_rule
 
     # Create a Guardrails validator
     regex_validator = RegexMatch(regex=r"\d{3}-\d{3}-\d{4}")
@@ -21,7 +20,7 @@ Usage Example:
     result = chain.run("What's a good phone number format?")
 """
 
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, Protocol, runtime_checkable
 
 try:
     from guardrails.validator_base import Validator as GuardrailsValidator
@@ -46,6 +45,7 @@ except ImportError:
 
 
 from sifaka.rules.base import BaseValidator, RuleResult, Rule, FunctionRule
+from sifaka.adapters.rules.base import Adaptable, BaseAdapter
 
 
 class GuardrailsValidatorAdapter(BaseValidator[str]):
