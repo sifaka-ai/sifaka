@@ -13,6 +13,7 @@ import unittest
 from unittest.mock import MagicMock, patch, AsyncMock
 import pytest
 from typing import Dict, List, Any, Optional
+import asyncio
 
 from sifaka.critics.services.critique import CritiqueService
 from sifaka.critics.managers.memory import MemoryManager

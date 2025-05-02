@@ -1,7 +1,48 @@
 """
 Base classes for Sifaka rules.
 
-This module defines the core architecture for rules and validators in Sifaka.
+This module defines the core architecture for rules and validators in Sifaka,
+providing the foundation for all validation components in the framework.
+It implements a delegation pattern where rules delegate validation work to
+specialized validator components.
+
+The module provides these key components:
+- Rule: Base class for all validation rules
+- BaseValidator: Base class for validation logic
+- RuleResult: Standardized validation result format
+- RuleConfig: Configuration for rules
+- Protocol classes for interface definitions
+- Factory functions for component creation
+
+Lifecycle:
+    1. Configuration: Set up rules and validators with appropriate parameters
+    2. Validation: Apply validation logic to input text
+    3. Result Processing: Handle validation results
+    4. Result Handling: Take action based on validation outcomes
+
+Usage Example:
+    ```python
+    from sifaka.rules.formatting.length import create_length_rule
+    from sifaka.rules.formatting.style import create_style_rule
+
+    # Create rules using factory functions
+    length_rule = create_length_rule(min_chars=10, max_chars=100)
+    style_rule = create_style_rule(capitalization="sentence")
+
+    # Validate text
+    text = "This is a test."
+    length_result = length_rule.validate(text)
+    style_result = style_rule.validate(text)
+
+    # Check results
+    if length_result.passed and style_result.passed:
+        print("Text passed all validations!")
+    else:
+        if not length_result.passed:
+            print(f"Length validation failed: {length_result.message}")
+        if not style_result.passed:
+            print(f"Style validation failed: {style_result.message}")
+    ```
 
 ## Architecture Overview
 
@@ -130,18 +171,33 @@ class ValidationError(Exception):
     Base exception for validation errors.
 
     This exception should be raised when validation cannot be performed
-    due to issues with the input or validation process.
+    due to issues with the input or validation process. It provides a
+    standardized way to handle validation failures across the framework.
+
+    Lifecycle:
+        1. Creation: Instantiated with an error message
+        2. Raising: Raised when validation cannot proceed
+        3. Handling: Caught by higher-level components
 
     Examples:
         ```python
+        from sifaka.rules.base import ValidationError
+
         def validate_number(value: str) -> bool:
             try:
                 float(value)
                 return True
             except ValueError:
                 raise ValidationError(f"'{value}' is not a valid number")
+
+        # Using the validation function
+        try:
+            is_valid = validate_number("abc")
+        except ValidationError as e:
+            print(f"Validation failed: {e}")
         ```
     """
+
     pass
 
 
@@ -150,10 +206,18 @@ class ConfigurationError(Exception):
     Base exception for configuration errors.
 
     This exception should be raised when a rule or validator
-    is incorrectly configured.
+    is incorrectly configured. It helps identify configuration issues
+    early, before validation is attempted.
+
+    Lifecycle:
+        1. Creation: Instantiated with a descriptive error message
+        2. Raising: Raised during component initialization
+        3. Handling: Caught by application code to handle configuration issues
 
     Examples:
         ```python
+        from sifaka.rules.base import ConfigurationError, BaseValidator
+
         class LengthValidator(BaseValidator[str]):
             def __init__(self, min_length: int, max_length: int):
                 if min_length < 0:
@@ -164,8 +228,16 @@ class ConfigurationError(Exception):
                     )
                 self.min_length = min_length
                 self.max_length = max_length
+
+        # Using the validator with error handling
+        try:
+            validator = LengthValidator(min_length=100, max_length=50)
+        except ConfigurationError as e:
+            print(f"Configuration error: {e}")
+            # Handle the error or use default values
         ```
     """
+
     pass
 
 
@@ -174,25 +246,51 @@ class RulePriority(Enum):
     Priority levels for rule execution.
 
     Rules with higher priority are generally executed first.
-    This allows critical validations to fail early in a chain.
+    This allows critical validations to fail early in a chain,
+    improving performance and user experience by providing
+    the most important feedback first.
+
+    Lifecycle:
+        1. Definition: Defined as enum values (LOW, MEDIUM, HIGH, CRITICAL)
+        2. Assignment: Assigned to rules via RuleConfig
+        3. Usage: Used to sort rules for execution order
 
     Examples:
         ```python
+        from sifaka.rules.base import RulePriority, RuleConfig
+        from sifaka.rules.formatting.length import create_length_rule
+        from sifaka.rules.content.prohibited import create_prohibited_content_rule
+
         # Create a rule with high priority
         config = RuleConfig(priority=RulePriority.HIGH)
 
+        # Create rules with different priorities
+        length_rule = create_length_rule(
+            min_chars=10,
+            max_chars=100,
+            config=RuleConfig(priority=RulePriority.MEDIUM)
+        )
+
         # Create a security rule with critical priority
-        security_rule = create_security_rule(
+        security_rule = create_prohibited_content_rule(
+            terms=["harmful", "offensive"],
             config=RuleConfig(priority=RulePriority.CRITICAL)
         )
 
         # Sort rules by priority
+        rules = [length_rule, security_rule]
         sorted_rules = sorted(
             rules,
             key=lambda r: r.config.priority,
             reverse=True  # Higher priority first
         )
         ```
+
+    Attributes:
+        LOW: Lowest priority, typically for cosmetic or style validations
+        MEDIUM: Default priority for most rules
+        HIGH: Higher priority for important validations
+        CRITICAL: Highest priority for essential validations (security, safety)
     """
 
     LOW = auto()
@@ -793,68 +891,79 @@ class RuleResult(BaseModel):
 
     This class provides a standardized way to represent validation results
     with metadata and optional scores. It is immutable to prevent accidental
-    modification after creation.
+    modification after creation and ensures consistent result handling
+    throughout the Sifaka framework.
 
-    ## Lifecycle
+    Lifecycle:
+        1. Creation: Instantiated with validation outcome
+           - Set passed/failed status
+           - Provide descriptive message
+           - Include relevant metadata
 
-    1. **Creation**: Instantiated with validation outcome
-       - Set passed/failed status
-       - Provide descriptive message
-       - Include relevant metadata
+        2. Usage: Accessed by rules and handlers
+           - Check validation status
+           - Process result message
+           - Analyze metadata
 
-    2. **Usage**: Accessed by rules and handlers
-       - Check validation status
-       - Process result message
-       - Analyze metadata
+        3. Augmentation: New instances created with additional metadata
+           - Create enhanced results with with_metadata()
+           - Add rule-specific information
+           - Include performance metrics
 
-    3. **Augmentation**: New instances created with additional metadata
-       - Create enhanced results with with_metadata()
-       - Add rule-specific information
-       - Include performance metrics
+    Examples:
+        ```python
+        from sifaka.rules.base import RuleResult
 
-    ## Examples
+        # Create a successful validation result
+        result = RuleResult(
+            passed=True,
+            message="Text meets all requirements",
+            metadata={"char_count": 150, "word_count": 23},
+            score=0.95
+        )
 
-    ```python
-    # Create a successful validation result
-    result = RuleResult(
-        passed=True,
-        message="Text meets all requirements",
-        metadata={"char_count": 150, "word_count": 23},
-        score=0.95
-    )
+        # Create a failed validation result
+        result = RuleResult(
+            passed=False,
+            message="Text contains prohibited content",
+            metadata={
+                "prohibited_terms": ["xyz", "abc"],
+                "severity": "high"
+            }
+        )
 
-    # Create a failed validation result
-    result = RuleResult(
-        passed=False,
-        message="Text contains prohibited content",
-        metadata={
-            "prohibited_terms": ["xyz", "abc"],
-            "severity": "high"
-        }
-    )
+        # Access properties
+        if result.passed:
+            print(f"Validation passed: {result.message}")
+        else:
+            print(f"Validation failed: {result.message}")
+            print(f"Details: {result.metadata}")
 
-    # Access properties
-    if result.passed:
-        print(f"Validation passed: {result.message}")
-    else:
-        print(f"Validation failed: {result.message}")
-        print(f"Details: {result.metadata}")
+        # Use as boolean (will be True if passed)
+        if result:
+            print("Validation passed!")
+        else:
+            print("Validation failed!")
 
-    # Use as boolean (will be True if passed)
-    if result:
-        print("Validation passed!")
-    else:
-        print("Validation failed!")
+        # Create a new result with additional metadata
+        enhanced_result = result.with_metadata(
+            rule_id="content_rule",
+            execution_time_ms=42
+        )
 
-    # Create a new result with additional metadata
-    enhanced_result = result.with_metadata(
-        rule_id="content_rule",
-        execution_time_ms=42
-    )
+        # Chain metadata additions
+        final_result = result.with_metadata(rule_id="content_rule").with_metadata(priority="high")
 
-    # Chain metadata additions
-    final_result = result.with_metadata(rule_id="content_rule").with_metadata(priority="high")
-    ```
+        # Access the failed property
+        if result.failed:
+            print("Taking corrective action...")
+        ```
+
+    Attributes:
+        passed: Whether the validation passed
+        message: Description of the validation result
+        metadata: Additional metadata about the validation result
+        score: Optional score for the validation result (e.g., confidence)
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -923,32 +1032,50 @@ class RuleConfig(BaseModel):
     """
     Immutable configuration for rules.
 
-    This class provides a consistent way to configure rules.
-    All rule-specific configuration options should be placed in the params dictionary:
+    This class provides a consistent way to configure rules across the Sifaka framework.
+    It handles common configuration options like priority and caching, while
+    allowing rule-specific options through the params dictionary.
 
     Lifecycle:
-    1. Creation: Instantiated with configuration options
-    2. Usage: Accessed by rules during setup and validation
-    3. Modification: New instances created with updated options
+        1. Creation: Instantiated with configuration options
+        2. Usage: Accessed by rules during setup and validation
+        3. Modification: New instances created with updated options (immutable pattern)
+        4. Extension: Specialized config classes can extend this base class
 
     Examples:
         ```python
-        # Create a rule configuration
+        from sifaka.rules.base import RuleConfig, RulePriority
+        from sifaka.rules.formatting.length import create_length_rule
+
+        # Create a basic rule configuration
         config = RuleConfig(
             priority=RulePriority.HIGH,
             cost=1.0,
             params={
-                "option1": "value1",
-                "option2": "value2",
+                "min_chars": 10,
+                "max_chars": 100,
             }
         )
+
+        # Use the configuration with a rule
+        rule = create_length_rule(config=config)
 
         # Create a new configuration with updated options
         updated_config = config.with_options(priority=RulePriority.CRITICAL)
 
         # Create a new configuration with updated params
-        parameterized_config = config.with_params(option3="value3")
+        parameterized_config = config.with_params(min_chars=20, max_chars=200)
+
+        # Access configuration values
+        print(f"Priority: {config.priority}")
+        print(f"Min chars: {config.params.get('min_chars')}")
         ```
+
+    Attributes:
+        priority: Priority level for rule execution (affects execution order)
+        cache_size: Size of the validation cache (0 disables caching)
+        cost: Computational cost of running the rule
+        params: Dictionary of rule-specific configuration parameters
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -1013,7 +1140,9 @@ class Rule(Generic[T, R, V, H], ABC):
     Base class for all Sifaka rules.
 
     A rule validates an input against a specific criterion using a validator
-    and optionally processes the results using a handler.
+    and optionally processes the results using a handler. This class implements
+    the core validation logic and delegation pattern used throughout the Sifaka
+    framework.
 
     Rules follow a delegation pattern:
     1. The Rule receives text to validate
@@ -1032,16 +1161,44 @@ class Rule(Generic[T, R, V, H], ABC):
         H: The type of result handler (must implement RuleResultHandler[R])
 
     Lifecycle:
-    1. Initialization: Set up with name, description, config, validator, handler
-    2. Validation Request: Receive input to validate
-    3. Delegation: Forward validation to validator
-    4. Result Processing: Apply rule-specific enhancements to results
-    5. Result Handling: Forward results to handler if provided
+        1. Initialization: Set up with name, description, config, validator, handler
+        2. Validation Request: Receive input to validate
+        3. Delegation: Forward validation to validator
+        4. Result Processing: Apply rule-specific enhancements to results
+        5. Result Handling: Forward results to handler if provided
 
     Examples:
         ```python
         from sifaka.rules.base import Rule, RuleResult, RuleConfig
+        from typing import Optional
 
+        # Define a validator
+        class LengthValidator:
+            def __init__(self, min_length: int):
+                self.min_length = min_length
+
+            def validate(self, text: str, **kwargs) -> RuleResult:
+                if len(text) >= self.min_length:
+                    return RuleResult(
+                        passed=True,
+                        message=f"Text length ({len(text)}) meets minimum requirement ({self.min_length})",
+                        metadata={"length": len(text)}
+                    )
+                else:
+                    return RuleResult(
+                        passed=False,
+                        message=f"Text length ({len(text)}) below minimum requirement ({self.min_length})",
+                        metadata={"length": len(text)}
+                    )
+
+            def can_validate(self, text: str) -> bool:
+                return isinstance(text, str)
+
+            @property
+            def validation_type(self) -> type:
+                return str
+
+        # Define a rule that uses the validator
         class LengthRule(Rule[str, RuleResult, LengthValidator, None]):
             def __init__(
                 self,
@@ -1056,8 +1213,18 @@ class Rule(Generic[T, R, V, H], ABC):
             def _create_default_validator(self) -> LengthValidator:
                 return LengthValidator(min_length=self.min_length)
 
-            # validate method is inherited from Rule base class
+        # Create and use the rule
+        rule = LengthRule(min_length=10)
+        result = rule.validate("Hello world")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
+
+    Attributes:
+        _name: The name of the rule
+        _description: Description of the rule
+        _config: Rule configuration
+        _validator: The validator used by this rule
+        _result_handler: Optional handler for validation results
     """
 
     def __init__(
@@ -1464,13 +1631,19 @@ def create_rule(
     description: str = "",
     config: Optional[RuleConfig] = None,
     validator: Optional[RuleValidator] = None,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> Rule:
     """
     Factory function to create a rule with standardized configuration.
 
     This function simplifies the creation of rules by providing a
-    consistent interface. It's useful for creating rules in a generic way.
+    consistent interface. It's useful for creating rules in a generic way
+    or when the specific rule type is determined at runtime.
+
+    Lifecycle:
+        1. Configuration: Set up rule parameters
+        2. Instantiation: Create the rule instance
+        3. Usage: Use the rule for validation
 
     Args:
         rule_type: The class of the rule to create
@@ -1485,9 +1658,10 @@ def create_rule(
 
     Examples:
         ```python
-        # Create a length rule
+        from sifaka.rules.base import create_rule, RuleConfig
         from sifaka.rules.formatting.length import LengthRule, LengthValidator
 
+        # Create a length rule
         validator = LengthValidator(min_chars=10, max_chars=100)
         rule = create_rule(
             rule_type=LengthRule,
@@ -1495,14 +1669,26 @@ def create_rule(
             description="Custom rule for length validation",
             validator=validator
         )
+
+        # Create a rule with configuration
+        config = RuleConfig(
+            priority="HIGH",
+            params={"min_chars": 10, "max_chars": 100}
+        )
+        rule = create_rule(
+            rule_type=LengthRule,
+            name="high_priority_length",
+            description="High priority length validation",
+            config=config
+        )
+
+        # Validate text with the rule
+        result = rule.validate("This is a test")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
     """
     return rule_type(
-        name=name,
-        description=description,
-        config=config,
-        validator=validator,
-        **kwargs
+        name=name, description=description, config=config, validator=validator, **kwargs
     )
 
 
