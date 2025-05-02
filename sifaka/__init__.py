@@ -2,6 +2,14 @@
 Sifaka: A framework for building reliable and reflective AI systems.
 """
 
+# Apply compatibility patches early
+try:
+    from sifaka.utils.patches import apply_all_patches
+    apply_all_patches()
+except ImportError:
+    # If patches are not available, continue without them
+    pass
+
 from sifaka.chain import ChainCore, ChainResult
 from sifaka.critics import CriticCore, create_prompt_critic, create_reflexion_critic
 from sifaka.generation import Generator
