@@ -23,26 +23,28 @@ print(f"Length validation: {'Passed' if length_result.passed else 'Failed'}")
 print(f"Style validation: {'Passed' if style_result.passed else 'Failed'}")
 ```
 
-### Creating a Simple Domain
+### Using Multiple Rules Together
 
 ```python
-from sifaka.domain.base import Domain, DomainConfig
+from sifaka.chain import create_validation_chain
 from sifaka.rules.formatting.length import create_length_rule
 from sifaka.rules.formatting.style import create_style_rule
 
-# Create domain configuration
-config = DomainConfig(
-    name="basic_domain",
-    description="Basic validation domain",
-    rules=[
-        create_length_rule(min_chars=10, max_chars=100),
-        create_style_rule(capitalization="sentence")
-    ]
+# Create rules
+rules = [
+    create_length_rule(min_chars=10, max_chars=100),
+    create_style_rule(capitalization="sentence")
+]
+
+# Create a validation chain
+validation_chain = create_validation_chain(
+    name="basic_validation",
+    rules=rules
 )
 
-# Create and use domain
-domain = Domain(config)
-result = domain.validate("this is a test")
+# Validate text
+text = "this is a test"
+result = validation_chain.process(text)
 
 print(f"All validations passed: {result.all_passed}")
 for rule_result in result.rule_results:
@@ -57,29 +59,26 @@ for rule_result in result.rule_results:
 
 ```python
 from sifaka.models.openai import OpenAIProvider
-from sifaka.domain.base import Domain, DomainConfig
+from sifaka.models.base import ModelConfig
+from sifaka.chain import create_validation_chain
 from sifaka.rules.formatting.length import create_length_rule
 
 # Create model provider
 model = OpenAIProvider(
-    config={
-        "model": "gpt-3.5-turbo",
-        "temperature": 0.7
-    }
+    model_name="gpt-3.5-turbo",
+    config=ModelConfig(temperature=0.7, max_tokens=500)
 )
 
-# Create domain
-domain = Domain(
-    DomainConfig(
-        name="model_domain",
-        rules=[create_length_rule(min_chars=10, max_chars=100)]
-    )
+# Create validation chain
+validation_chain = create_validation_chain(
+    name="model_validation",
+    rules=[create_length_rule(min_chars=10, max_chars=100)]
 )
 
 # Generate and validate text
 prompt = "Write a short story about a cat."
 response = model.generate(prompt)
-result = domain.validate(response["text"])
+result = validation_chain.process(response["text"])
 
 print(f"Generated text: {response['text']}")
 print(f"Validation passed: {result.all_passed}")
@@ -90,25 +89,23 @@ print(f"Validation passed: {result.all_passed}")
 ### Using a Critic
 
 ```python
-from sifaka.critics.style import StyleCritic
-from sifaka.domain.base import Domain, DomainConfig
+from sifaka.critics import create_style_critic
+from sifaka.chain import create_validation_chain
 from sifaka.rules.formatting.length import create_length_rule
 
 # Create critic
-critic = StyleCritic()
+critic = create_style_critic()
 
-# Create domain
-domain = Domain(
-    DomainConfig(
-        name="critic_domain",
-        rules=[create_length_rule(min_chars=10, max_chars=100)]
-    )
+# Create validation chain
+validation_chain = create_validation_chain(
+    name="critic_validation",
+    rules=[create_length_rule(min_chars=10, max_chars=100)]
 )
 
 # Analyze and improve text
 text = "this is a test"
 critique = critic.critique(text)
-result = domain.validate(text)
+result = validation_chain.process(text)
 
 if not result.all_passed:
     improved_text = critic.improve(text, [r.message for r in result.rule_results])
@@ -170,29 +167,28 @@ print(f"Validation passed: {result.passed}")
 print(f"Message: {result.message}")
 ```
 
-### Domain with Multiple Rules
+### Combining Multiple Rules in a Chain
 
 ```python
-from sifaka.domain.base import Domain, DomainConfig
+from sifaka.chain import create_validation_chain
 from sifaka.rules.formatting.length import create_length_rule
 from sifaka.rules.formatting.style import create_style_rule
-from sifaka.rules.content.toxicity import create_toxicity_rule
+from sifaka.rules.content.prohibited import create_prohibited_content_rule
 
-# Create domain with multiple rules
-config = DomainConfig(
-    name="comprehensive_domain",
-    description="Domain with multiple validation rules",
+# Create validation chain with multiple rules
+validation_chain = create_validation_chain(
+    name="comprehensive_validation",
+    description="Chain with multiple validation rules",
     rules=[
         create_length_rule(min_chars=10, max_chars=100),
         create_style_rule(capitalization="sentence"),
-        create_toxicity_rule(threshold=0.8)
+        create_prohibited_content_rule(terms=["bad", "inappropriate"])
     ]
 )
 
-# Create and use domain
-domain = Domain(config)
+# Validate text
 text = "this is a test"
-result = domain.validate(text)
+result = validation_chain.process(text)
 
 print(f"Text: {text}")
 print(f"All validations passed: {result.all_passed}")
@@ -206,18 +202,24 @@ for rule_result in result.rule_results:
 
 ```python
 from sifaka.models.openai import OpenAIProvider
-from sifaka.critics.style import StyleCritic
-from sifaka.domain.base import Domain, DomainConfig
+from sifaka.models.base import ModelConfig
+from sifaka.critics import create_style_critic
+from sifaka.chain import create_improvement_chain
 from sifaka.rules.formatting.length import create_length_rule
 
 # Create components
-model = OpenAIProvider(config={"model": "gpt-3.5-turbo"})
-critic = StyleCritic()
-domain = Domain(
-    DomainConfig(
-        name="integrated_domain",
-        rules=[create_length_rule(min_chars=10, max_chars=100)]
-    )
+model = OpenAIProvider(
+    model_name="gpt-3.5-turbo",
+    config=ModelConfig(temperature=0.7, max_tokens=500)
+)
+critic = create_style_critic()
+
+# Create improvement chain
+improvement_chain = create_improvement_chain(
+    name="integrated_improvement",
+    rules=[create_length_rule(min_chars=10, max_chars=100)],
+    critic=critic,
+    max_attempts=3
 )
 
 # Generate and improve text
@@ -226,15 +228,11 @@ response = model.generate(prompt)
 text = response["text"]
 
 # Validate and improve if needed
-result = domain.validate(text)
-if not result.all_passed:
-    critique = critic.critique(text)
-    improved_text = critic.improve(
-        text,
-        [r.message for r in result.rule_results]
-    )
+result = improvement_chain.process(text)
+if result.improved_text:
     print(f"Original text: {text}")
-    print(f"Improved text: {improved_text}")
+    print(f"Improved text: {result.improved_text}")
 else:
     print(f"Generated text: {text}")
+    print(f"All rules passed: {result.all_passed}")
 ```

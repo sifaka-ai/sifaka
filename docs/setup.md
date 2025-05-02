@@ -57,30 +57,34 @@ LOG_LEVEL=INFO
 ENVIRONMENT=development
 ```
 
-### 2. Domain Configuration
+### 2. Chain Configuration
 
-Create a domain configuration file (e.g., `config/domains/code.json`):
+Create a configuration file for your chain (e.g., `config/chains/text_validation.json`):
 
 ```json
 {
-    "name": "code",
-    "description": "Code generation and analysis domain",
-    "rules": {
-        "syntax": {
-            "enabled": true,
-            "config": {
-                "language": "python"
-            }
+    "name": "text_validation",
+    "description": "Text validation chain",
+    "model": {
+        "provider": "openai",
+        "model_name": "gpt-3.5-turbo",
+        "config": {
+            "temperature": 0.7,
+            "max_tokens": 500
         }
     },
-    "models": {
-        "default": {
-            "provider": "openai",
-            "config": {
-                "model": "gpt-4"
-            }
+    "rules": [
+        {
+            "name": "length",
+            "min_chars": 10,
+            "max_chars": 1000
+        },
+        {
+            "name": "toxicity",
+            "threshold": 0.8
         }
-    }
+    ],
+    "max_attempts": 3
 }
 ```
 

@@ -1,228 +1,276 @@
 # Component Relationship Diagrams
 
-This document provides visual representations of Sifaka's component relationships and interactions.
+This document provides Mermaid diagrams showing the relationships between key Sifaka components.
 
-## Core Component Hierarchy
+## High-Level Component Relationships
 
 ```mermaid
 graph TD
-    A[Sifaka] --> B[Domains]
-    A --> C[Rules]
-    A --> D[Validators]
-    A --> E[Model Providers]
-    A --> F[Critics]
-
-    B --> G[Domain Config]
-    B --> H[Rule Set]
-
-    C --> I[Rule Config]
-    C --> J[Validator]
-
-    D --> K[Validation Logic]
-
-    E --> L[Model Config]
-    E --> M[Generation Logic]
-
-    F --> N[Critic Config]
-    F --> O[Improvement Logic]
-```
-
-## Validation Flow
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Domain
-    participant Rule
-    participant Validator
-    participant Model
-    participant Critic
-
-    User->>Domain: Validate Text
-    Domain->>Rule: Delegate Validation
-    Rule->>Validator: Perform Validation
-    Validator-->>Rule: Return Result
-    Rule-->>Domain: Return Processed Result
-    Domain-->>User: Return Final Result
-
-    alt Needs Improvement
-        Domain->>Critic: Analyze Text
-        Critic-->>Domain: Suggest Improvements
-        Domain->>Model: Generate Improved Text
-        Model-->>Domain: Return New Text
-        Domain->>Rule: Validate New Text
+    Client[Client Application] --> Adapters
+    Client --> Chain
+    Adapters --> Chain
+    Chain --> Models
+    Chain --> Classifiers
+    Chain --> Critics
+    Chain --> Rules
+    Classifiers --> Models
+    Critics --> Models
+    Rules --> Classifiers
+    subgraph "Core Components"
+        Models
+        Classifiers
+        Critics
+        Rules
+    end
+    subgraph "Integration Layer"
+        Chain
+        Adapters
+    end
+    subgraph "Client Layer"
+        Client
     end
 ```
 
-## Configuration Flow
-
-```mermaid
-graph TD
-    A[User] -->|creates| B[DomainConfig]
-    B -->|contains| C[RuleConfigs]
-    C -->|configures| D[Rules]
-    D -->|uses| E[Validators]
-
-    B -->|contains| F[ModelConfig]
-    F -->|configures| G[ModelProvider]
-
-    B -->|contains| H[CriticConfig]
-    H -->|configures| I[Critic]
-```
-
-## Rule-Validator Pattern
+## Classifier Inheritance Hierarchy
 
 ```mermaid
 classDiagram
+    BaseClassifier <|-- ToxicityClassifier
+    BaseClassifier <|-- SentimentClassifier
+    BaseClassifier <|-- LanguageClassifier
+    BaseClassifier <|-- GenreClassifier
+    BaseClassifier <|-- BiasClassifier
+    BaseClassifier <|-- SpamClassifier
+    BaseClassifier <|-- ProfanityClassifier
+    BaseClassifier <|-- ReadabilityClassifier
+    BaseClassifier <|-- TopicClassifier
+    BaseClassifier <|-- NERClassifier
+
+    class BaseClassifier {
+        +name: str
+        +description: str
+        +config: ClassifierConfig
+        +classify(text): ClassificationResult
+        +batch_classify(texts): List[ClassificationResult]
+        #_classify_impl_uncached(text): ClassificationResult
+    }
+
+    class ToxicityClassifier {
+        -_model: ToxicityModel
+        +warm_up()
+        #_classify_impl_uncached(text): ClassificationResult
+    }
+
+    class SentimentClassifier {
+        -_analyzer: SentimentAnalyzer
+        +warm_up()
+        #_classify_impl_uncached(text): ClassificationResult
+    }
+```
+
+## Rule Component Relationships
+
+```mermaid
+classDiagram
+    Rule o-- Validator
+    Rule o-- RuleConfig
+    BaseValidator <|-- ContentValidator
+    BaseValidator <|-- FormattingValidator
+    BaseValidator <|-- FactualValidator
+
     class Rule {
         +name: str
         +description: str
         +config: RuleConfig
-        +validator: Validator
-        +validate(text: T) R
+        +validate(text): RuleResult
     }
 
     class Validator {
-        +config: ValidatorConfig
-        +validate(text: T) RuleResult
-        +handle_empty_text(text: T) RuleResult?
+        +validate(text): RuleResult
+        +can_validate(text): bool
     }
 
-    class RuleConfig {
-        +params: Dict[str, Any]
+    class BaseValidator {
+        +validate(text): RuleResult
+        +handle_empty_text(text): RuleResult
+        +can_validate(text): bool
     }
-
-    Rule --> Validator: uses
-    Rule --> RuleConfig: has
-    Validator --> RuleConfig: has
 ```
 
-## Model-Critic Interaction
+## Request Processing Sequence
 
 ```mermaid
 sequenceDiagram
-    participant User
+    participant Client
+    participant Rule
+    participant Validator
+    participant Classifier
     participant Model
+
+    Client->>Rule: validate(text)
+    Rule->>Validator: validate(text)
+    alt Uses Classifier
+        Validator->>Classifier: classify(text)
+        Classifier->>Model: generate(prompt)
+        Model-->>Classifier: response
+        Classifier-->>Validator: classification
+    end
+    Validator-->>Rule: validation result
+    Rule-->>Client: rule result
+```
+
+## Critic Workflow
+
+```mermaid
+sequenceDiagram
+    participant Client
     participant Critic
-    participant Domain
+    participant Rule
+    participant Model
 
-    User->>Model: Generate Text
-    Model-->>User: Return Text
-
-    User->>Domain: Validate Text
-    Domain->>Critic: Analyze Text
-    Critic-->>Domain: Return Analysis
+    Client->>Critic: critique(text)
+    Critic->>Model: analyze(text)
+    Model-->>Critic: analysis
+    Critic-->>Client: critique result
 
     alt Needs Improvement
-        Domain->>Critic: Improve Text
-        Critic->>Model: Generate Improved Version
-        Model-->>Critic: Return Improved Text
-        Critic-->>Domain: Return Improved Text
-        Domain-->>User: Return Final Text
-    else No Improvement Needed
-        Domain-->>User: Return Original Text
+        Client->>Critic: improve(text, feedback)
+        Critic->>Rule: validate(text)
+        Rule-->>Critic: validation result
+        Critic->>Model: improve(text, feedback)
+        Model-->>Critic: improved text
+        Critic-->>Client: improved text
     end
 ```
 
-## Domain Composition
+## Adapter Pattern
 
 ```mermaid
 classDiagram
-    class Domain {
-        +name: str
-        +description: str
+    LangChainAdapter o-- SifakaChain
+    LangGraphAdapter o-- SifakaChain
+    SifakaChain o-- Rule
+    SifakaChain o-- Classifier
+    SifakaChain o-- Critic
+
+    class LangChainAdapter {
+        +run(input): output
+    }
+
+    class LangGraphAdapter {
+        +build_graph(): Graph
+    }
+
+    class SifakaChain {
+        +process(input): output
+    }
+```
+
+## Chain Architecture
+
+```mermaid
+classDiagram
+    ChainCore o-- Model
+    ChainCore o-- ValidationManager
+    ChainCore o-- PromptManager
+    ChainCore o-- RetryStrategy
+    ChainCore o-- ResultFormatter
+    ChainCore o-- Critic
+
+    ValidationManager o-- Rule
+    RetryStrategy <|-- SimpleRetryStrategy
+    RetryStrategy <|-- BackoffRetryStrategy
+
+    class ChainCore {
+        +model: Model
+        +validation_manager: ValidationManager
+        +prompt_manager: PromptManager
+        +retry_strategy: RetryStrategy
+        +result_formatter: ResultFormatter
+        +critic: Critic
+        +run(prompt: str): ChainResult
+    }
+
+    class ValidationManager {
         +rules: List[Rule]
-        +validate(text: T) ValidationResult
+        +validate(text): ValidationResult
     }
 
-    class Rule {
-        +name: str
-        +description: str
-        +validate(text: T) RuleResult
+    class PromptManager {
+        +create_prompt_with_feedback(prompt, feedback): str
     }
 
-    class ValidationResult {
-        +all_passed: bool
-        +rule_results: List[RuleResult]
+    class RetryStrategy {
+        <<abstract>>
+        +run(prompt, generator, validation_manager, prompt_manager): ChainResult
     }
 
-    Domain --> Rule: contains
-    Domain --> ValidationResult: returns
-    Rule --> RuleResult: returns
+    class SimpleRetryStrategy {
+        +max_attempts: int
+    }
+
+    class BackoffRetryStrategy {
+        +max_attempts: int
+        +initial_backoff: float
+        +backoff_factor: float
+        +max_backoff: float
+    }
+
+    class ResultFormatter {
+        +format(output, rule_results, critique_details): ChainResult
+    }
 ```
 
-## Error Handling Flow
+## Chain Processing Flow
 
 ```mermaid
-graph TD
-    A[Validation Error] --> B{Error Type}
-    B -->|Rule Violation| C[Rule Result]
-    B -->|Model Error| D[Model Error]
-    B -->|Critic Error| E[Critic Error]
+sequenceDiagram
+    participant Client
+    participant Chain
+    participant Model
+    participant ValidationManager
+    participant Rule
+    participant Critic
 
-    C --> F[Error Message]
-    D --> F
-    E --> F
+    Client->>Chain: run(prompt)
+    Chain->>Model: generate(prompt)
+    Model-->>Chain: response
 
-    F --> G[Error Handling]
-    G -->|Retry| H[Retry Logic]
-    G -->|Fallback| I[Fallback Logic]
-    G -->|Abort| J[Abort Logic]
+    Chain->>ValidationManager: validate(response)
+    ValidationManager->>Rule: validate(response)
+    Rule-->>ValidationManager: rule_result
+    ValidationManager-->>Chain: validation_result
+
+    alt Validation Failed
+        Chain->>Critic: improve(response, feedback)
+        Critic-->>Chain: improved_text
+
+        loop Until success or max attempts
+            Chain->>Model: generate(updated_prompt)
+            Model-->>Chain: response
+            Chain->>ValidationManager: validate(response)
+            ValidationManager-->>Chain: validation_result
+        end
+    end
+
+    Chain-->>Client: chain_result
 ```
 
-## Component Dependencies
+## Chain Factory Pattern
 
 ```mermaid
-graph TD
-    A[Domain] -->|depends on| B[Rules]
-    A -->|depends on| C[Model Provider]
-    A -->|depends on| D[Critic]
+sequenceDiagram
+    participant Client
+    participant Factory
+    participant ChainCore
+    participant Components
 
-    B -->|depends on| E[Validators]
-    B -->|depends on| F[Rule Config]
-
-    C -->|depends on| G[Model Config]
-
-    D -->|depends on| H[Critic Config]
-
-    style A fill:#f9f,stroke:#333,stroke-width:2px
-    style B fill:#bbf,stroke:#333,stroke-width:2px
-    style C fill:#bfb,stroke:#333,stroke-width:2px
-    style D fill:#fbb,stroke:#333,stroke-width:2px
+    Client->>Factory: create_simple_chain(model, rules, critic)
+    Factory->>Components: create specialized components
+    Components-->>Factory: return components
+    Factory->>ChainCore: create(model, validation_manager, prompt_manager, retry_strategy, result_formatter, critic)
+    ChainCore-->>Factory: return chain
+    Factory-->>Client: return configured chain
 ```
 
-## Data Flow
-
-```mermaid
-graph LR
-    A[Input Text] --> B[Domain]
-    B --> C[Rules]
-    C --> D[Validators]
-    D --> E[Validation Results]
-    E --> F[Domain Results]
-
-    G[Model] --> H[Generated Text]
-    H --> B
-
-    I[Critic] --> J[Improved Text]
-    J --> B
-
-    style A fill:#f9f,stroke:#333,stroke-width:2px
-    style E fill:#bbf,stroke:#333,stroke-width:2px
-    style F fill:#bfb,stroke:#333,stroke-width:2px
-    style H fill:#fbb,stroke:#333,stroke-width:2px
-    style J fill:#fbf,stroke:#333,stroke-width:2px
-```
-
-These diagrams illustrate:
-1. The hierarchical structure of Sifaka's components
-2. The flow of validation and improvement
-3. Configuration relationships
-4. The rule-validator pattern
-5. Model-critic interactions
-6. Domain composition
-7. Error handling flows
-8. Component dependencies
-9. Data flow through the system
-
-Each diagram provides a different perspective on how the components interact and work together to provide Sifaka's functionality.
+These diagrams provide a visual representation of the key relationships and interactions between Sifaka components. They can be rendered directly in GitHub or any Markdown viewer that supports Mermaid.

@@ -78,11 +78,46 @@ If you were using the incomplete domain module:
 # Old code (will no longer work)
 from sifaka.domain import Domain, DomainConfig
 
-# New code
+# New code options:
+
+# Option 1: Use domain-specific rules
 from sifaka.rules.domain import DomainRules
-# Or, depending on your use case:
+
+# Option 2: Use classifier adapters
 from sifaka.adapters.rules import ClassifierAdapter
+
+# Option 3 (Recommended): Use the new Chain architecture
+from sifaka.chain import create_validation_chain, create_improvement_chain
 ```
+
+### Using Chain Architecture
+
+The recommended approach to replace Domain functionality is to use the new Chain architecture:
+
+```python
+# Old domain-based approach
+from sifaka.domain import Domain, DomainConfig
+from sifaka.rules.formatting.length import create_length_rule
+
+domain_config = DomainConfig(
+    name="example_domain",
+    rules=[create_length_rule(min_chars=10, max_chars=100)]
+)
+domain = Domain(config=domain_config)
+result = domain.validate("test text")
+
+# New chain-based approach
+from sifaka.chain import create_validation_chain
+from sifaka.rules.formatting.length import create_length_rule
+
+chain = create_validation_chain(
+    name="validation_chain",
+    rules=[create_length_rule(min_chars=10, max_chars=100)]
+)
+result = chain.process("test text")
+```
+
+For more details on the Chain architecture, see the [Chain Architecture Guide](chain_architecture.md).
 
 ### ClassifierAdapter Usage
 
@@ -158,20 +193,25 @@ validated = domain.validate(result)
 ```python
 from sifaka.adapters.langchain import LangChainAdapter
 from sifaka.models.anthropic import AnthropicProvider
-from sifaka.rules.domain import create_domain_rule
+from sifaka.chain import create_validation_chain
+from sifaka.rules.formatting.length import create_length_rule
 
 # Create model
 model = AnthropicProvider(model="claude-3-sonnet")
 
-# Create chain
-chain = LangChainAdapter.create_chain(model)
+# Create LangChain adapter
+langchain_adapter = LangChainAdapter.create_chain(model)
 
-# Create domain rules
-domain_rule = create_domain_rule(name="example_domain")
+# Create validation chain
+validation_chain = create_validation_chain(
+    name="content_validation",
+    rules=[create_length_rule(min_chars=10, max_chars=1000)]
+)
 
-# Use domain rule with chain
-result = chain.run("Generate content about AI")
-validated = domain_rule.validate(result)
+# Use the chains
+result = langchain_adapter.run("Generate content about AI")
+validation_result = validation_chain.process(result)
+print(f"Validation passed: {validation_result.all_passed}")
 ```
 
 ## Getting Help

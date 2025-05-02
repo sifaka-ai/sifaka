@@ -22,7 +22,7 @@ Welcome to the Sifaka documentation! This documentation is organized into severa
 
 ## Guides
 - [Setup Guide](setup.md) - Installation and setup instructions
-- [Domain Configuration](domain_configuration.md) - Configuring domains and rules
+- [Chain Architecture](chain_architecture.md) - Understanding the chain architecture
 - [Testing Guide](testing/testing_guide.md) - Testing your Sifaka implementation
 - [Contributing Guide](contributing.md) - Contributing to Sifaka
 
