@@ -76,14 +76,16 @@ def create_prompt_critic(
     prompt_manager = PromptCriticPromptManager(config)
     response_parser = ResponseParser()
 
+    # Create critic - filter out any kwargs not accepted by CriticCore
+    core_kwargs = {
+        'config': config,
+        'llm_provider': llm_provider,
+        'prompt_manager': prompt_manager,
+        'response_parser': response_parser,
+    }
+
     # Create critic
-    return CriticCore(
-        config=config,
-        llm_provider=llm_provider,
-        prompt_manager=prompt_manager,
-        response_parser=response_parser,
-        **kwargs,
-    )
+    return CriticCore(**core_kwargs)
 
 
 def create_reflexion_critic(
@@ -152,14 +154,19 @@ def create_reflexion_critic(
     # Create managers
     prompt_manager = ReflexionCriticPromptManager(config)
     response_parser = ResponseParser()
-    memory_manager = MemoryManager(buffer_size=memory_buffer_size)
+
+    # Use the buffer size from the config (which could be from the provided config parameter)
+    buffer_size = getattr(config, 'memory_buffer_size', memory_buffer_size)
+    memory_manager = MemoryManager(buffer_size=buffer_size)
+
+    # Create critic - filter out any kwargs not accepted by CriticCore
+    core_kwargs = {
+        'config': config,
+        'llm_provider': llm_provider,
+        'prompt_manager': prompt_manager,
+        'response_parser': response_parser,
+        'memory_manager': memory_manager,
+    }
 
     # Create critic
-    return CriticCore(
-        config=config,
-        llm_provider=llm_provider,
-        prompt_manager=prompt_manager,
-        response_parser=response_parser,
-        memory_manager=memory_manager,
-        **kwargs,
-    )
+    return CriticCore(**core_kwargs)
