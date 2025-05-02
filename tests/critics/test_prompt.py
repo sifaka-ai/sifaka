@@ -108,8 +108,15 @@ class TestPromptCritic(unittest.TestCase):
 
     def test_critic_initialization(self):
         """Test critic initialization."""
-        # Skip this test since we don't know the exact attribute names
-        pytest.skip("Skipping since we can't determine the exact attribute structure")
+        # Test basic configuration was passed correctly
+        self.assertEqual(self.critic.config.name, "test_critic")
+        self.assertEqual(self.critic.config.description, "Test critic")
+        self.assertEqual(self.critic.config.system_prompt, "You are an expert editor.")
+        self.assertEqual(self.critic.config.temperature, 0.7)
+        self.assertEqual(self.critic.config.max_tokens, 1000)
+
+        # Verify the model was stored
+        self.assertEqual(self.critic._model, self.model)
 
     def test_critic_initialization_without_model(self):
         """Test critic initialization without model."""
@@ -198,13 +205,41 @@ class TestCreatePromptCritic(unittest.TestCase):
 
     def test_create_prompt_critic(self):
         """Test creating a prompt critic with factory function."""
-        # Skip this test since we can't modify the implementation
-        pytest.skip("Skipping since we can't modify the create_prompt_critic function")
+        # Test with custom parameters
+        critic = create_prompt_critic(
+            llm_provider=self.model,
+            name="custom_critic",
+            description="Custom critic",
+            system_prompt="Custom system prompt",
+            temperature=0.5,
+            max_tokens=500,
+            min_confidence=0.6
+        )
+
+        # Verify the critic was created with the right config
+        self.assertEqual(critic.config.name, "custom_critic")
+        self.assertEqual(critic.config.description, "Custom critic")
+        self.assertEqual(critic.config.system_prompt, "Custom system prompt")
+        self.assertEqual(critic.config.temperature, 0.5)
+        self.assertEqual(critic.config.max_tokens, 500)
+        self.assertEqual(critic.config.min_confidence, 0.6)
+
+        # Verify the model was passed
+        self.assertEqual(critic._model, self.model)
 
     def test_create_prompt_critic_with_defaults(self):
         """Test creating a prompt critic with default values."""
-        # Skip this test since we can't modify the implementation
-        pytest.skip("Skipping since we can't modify the create_prompt_critic function")
+        from sifaka.critics.prompt import DEFAULT_SYSTEM_PROMPT
+
+        # Create with just the required parameters
+        critic = create_prompt_critic(llm_provider=self.model)
+
+        # Verify default values were used
+        self.assertEqual(critic.config.name, "factory_critic")
+        self.assertEqual(critic.config.system_prompt, DEFAULT_SYSTEM_PROMPT)
+        self.assertEqual(critic.config.temperature, 0.7)
+        self.assertEqual(critic.config.max_tokens, 1000)
+        self.assertEqual(critic.config.min_confidence, 0.7)
 
 
 if __name__ == "__main__":

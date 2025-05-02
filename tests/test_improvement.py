@@ -34,6 +34,10 @@ class MockCritic(BaseCritic):
         """Mock improve method."""
         return text
 
+    def improve_with_feedback(self, text: str, feedback: str) -> str:
+        """Mock improve_with_feedback method."""
+        return f"Improved with feedback: {text}"
+
     def critique(self, text: str) -> Optional[CriticMetadata]:
         """Mock critique method."""
         logger.debug(f"MockCritic.critique called with text: {text}")
@@ -81,8 +85,15 @@ class TestImprover(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         super().setUp()
-        # Skip all tests in this class since we can't implement the abstract class
-        pytest.skip("Skipping since we can't implement abstract methods")
+        # Create a critic with default feedback
+        self.feedback = {
+            "feedback": "Test feedback",
+            "score": 0.8,
+            "suggestions": ["suggestion1", "suggestion2"],
+            "issues": []
+        }
+        self.critic = MockCritic(self.feedback)
+        self.improver = Improver(self.critic)
 
     def test_improve_no_improvement_needed(self):
         """Test improvement when validation passed."""
@@ -111,10 +122,11 @@ class TestImprover(unittest.TestCase):
         )
         logger.debug(f"Created metadata: {metadata}")
         logger.debug(f"Metadata fields: {dataclasses.asdict(metadata)}")
-        self.critic = MockCritic(metadata)  # Update instance variable
-        logger.debug(f"Created critic with metadata: {self.critic.feedback}")
-        self.improver = Improver(self.critic)  # Create new improver with updated critic
-        result = self.improver.improve(output, validation_result)
+
+        critic = MockCritic(metadata)
+        improver = Improver(critic)
+
+        result = improver.improve(output, validation_result)
         logger.debug(f"Got result: {result}")
         logger.debug(f"Result critique_details: {result.critique_details}")
 
@@ -134,15 +146,16 @@ class TestImprover(unittest.TestCase):
         # Create critic with dictionary feedback
         feedback = {
             "feedback": "Test feedback",
-            "confidence": 0.8,
+            "confidence": 0.8,  # This will be converted to 'score' in CriticMetadata
             "suggestions": ["suggestion1", "suggestion2"],
             "issues": []
         }
         logger.debug(f"Created feedback: {feedback}")
-        self.critic = MockCritic(feedback)  # Update instance variable
-        logger.debug(f"Created critic with feedback: {self.critic.feedback}")
-        self.improver = Improver(self.critic)  # Create new improver with updated critic
-        result = self.improver.improve(output, validation_result)
+
+        critic = MockCritic(feedback)
+        improver = Improver(critic)
+
+        result = improver.improve(output, validation_result)
         logger.debug(f"Got result: {result}")
         logger.debug(f"Result critique_details: {result.critique_details}")
 
@@ -151,7 +164,8 @@ class TestImprover(unittest.TestCase):
         self.assertTrue(result.improved)
         self.assertIsNotNone(result.critique_details)
         self.assertEqual(result.critique_details["feedback"], "Test feedback")
-        self.assertEqual(result.critique_details["confidence"], 0.8)
+        # 'confidence' gets converted to 'score' when creating CriticMetadata
+        self.assertEqual(result.critique_details["score"], 0.8)
         self.assertEqual(result.critique_details["suggestions"], ["suggestion1", "suggestion2"])
 
     def test_improve_no_feedback(self):

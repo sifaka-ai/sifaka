@@ -156,8 +156,7 @@ class TestBaseCritic(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        pytest.skip("Skipping since we can't fully implement all abstract methods")
-
+        # Create the config for our tests
         self.config = CriticConfig(
             name="test_critic",
             description="Test critic configuration",
@@ -190,23 +189,23 @@ class TestBaseCritic(unittest.TestCase):
 
     def test_process_valid_text(self):
         """Test processing valid text."""
-        result = self.critic.process("This is a valid text that is long enough to pass validation.")
+        result = self.critic.process("This is a valid text that is long enough to pass validation.", [])
         self.assertTrue(isinstance(result, CriticOutput))
         self.assertEqual(result.result, CriticResult.SUCCESS)
         self.assertEqual(result.improved_text, "This is a valid text that is long enough to pass validation.")
 
     def test_process_text_needing_improvement(self):
         """Test processing text that needs improvement."""
-        result = self.critic.process("Short")
+        result = self.critic.process("Short", [])
         self.assertTrue(isinstance(result, CriticOutput))
-        self.assertEqual(result.result, CriticResult.SUCCESS)
+        self.assertEqual(result.result, CriticResult.NEEDS_IMPROVEMENT)
         self.assertEqual(result.improved_text, "Improved: Short")
         self.assertIsNotNone(result.metadata)
 
     def test_process_invalid_text(self):
         """Test processing text that has an invalid type."""
-        with self.assertRaises(TypeError):
-            self.critic.process(123)  # Not a string
+        with self.assertRaises(ValueError):
+            self.critic.process("", [])  # Empty string
 
 
 class TestCreateCritic(unittest.TestCase):
@@ -214,11 +213,34 @@ class TestCreateCritic(unittest.TestCase):
 
     def test_create_critic(self):
         """Test creating a critic with factory function."""
-        pytest.skip("Skipping since we can't modify the create_critic function")
+        # Instead of modifying the function, we'll test it works with the default Critic
+        # which is a concrete implementation we can instantiate
+        from sifaka.critics.base import Critic
+
+        critic = create_critic(
+            critic_class=Critic,  # Concrete implementation
+            name="test_critic",
+            description="Test critic"
+        )
+
+        self.assertIsInstance(critic, Critic)
+        self.assertEqual(critic.config.name, "test_critic")
+        self.assertEqual(critic.config.description, "Test critic")
 
     def test_create_critic_with_defaults(self):
         """Test creating a critic with default values."""
-        pytest.skip("Skipping since we can't modify the create_critic function")
+        # Use the concrete Critic implementation
+        from sifaka.critics.base import Critic, DEFAULT_MIN_CONFIDENCE, DEFAULT_MAX_ATTEMPTS, DEFAULT_CACHE_SIZE
+
+        critic = create_critic(
+            critic_class=Critic
+        )
+
+        self.assertIsInstance(critic, Critic)
+        self.assertEqual(critic.config.name, "custom_critic")  # Default name
+        self.assertEqual(critic.config.min_confidence, DEFAULT_MIN_CONFIDENCE)
+        self.assertEqual(critic.config.max_attempts, DEFAULT_MAX_ATTEMPTS)
+        self.assertEqual(critic.config.cache_size, DEFAULT_CACHE_SIZE)
 
 
 if __name__ == "__main__":
