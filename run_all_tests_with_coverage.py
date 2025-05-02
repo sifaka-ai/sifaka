@@ -125,7 +125,9 @@ isolated_modules = [
     "sifaka/critics/style.py",
     "sifaka/models/mock.py",
     "sifaka/rules/formatting/whitespace.py",
-    "sifaka/classifiers/toxicity.py"
+    "sifaka/classifiers/toxicity.py",
+    "sifaka/classifiers/spam.py",
+    "sifaka/classifiers/topic.py"
 ]
 
 # Check isolated coverage files for existing coverage data

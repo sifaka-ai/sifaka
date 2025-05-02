@@ -1,41 +1,121 @@
 """
 Base classes for Sifaka classifiers.
 
-This module provides the core interfaces and base implementations for text classification.
+This module provides the core interfaces and base implementations for text classification,
+including protocols, configuration classes, result types, and the base classifier class.
 
-Examples:
-    Creating a simple classifier:
+## Architecture Overview
 
-    ```python
-    from sifaka.classifiers.base import BaseClassifier, ClassificationResult, ClassifierConfig
+The classifier system follows a layered architecture:
 
-    class SimpleClassifier(BaseClassifier[str, str]):
-        def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
-            # Simple implementation that checks text length
-            if len(text) > 100:
-                return ClassificationResult(
-                    label="long",
-                    confidence=0.9,
-                    metadata={"length": len(text)}
-                )
+1. **BaseClassifier**: High-level interface for classification
+2. **ClassifierConfig**: Configuration and settings management
+3. **ClassificationResult**: Standardized result format
+4. **Protocol Classes**: Interface definitions for classifiers and processors
+
+## Component Lifecycle
+
+### ClassifierConfig
+1. **Creation**: Instantiate with labels and optional parameters
+2. **Validation**: Values are validated in __post_init__
+3. **Modification**: Create new instances with with_options() or with_params()
+4. **Usage**: Pass to classifiers for configuration
+
+### ClassificationResult
+1. **Creation**: Instantiate with label, confidence, and optional metadata
+2. **Access**: Read label, confidence, and metadata properties
+3. **Enhancement**: Create new instances with additional metadata using with_metadata()
+
+### BaseClassifier
+1. **Initialization**: Set up with name, description, and config
+2. **Configuration**: Define classification parameters
+3. **Warm-up**: Optionally prepare resources with warm_up()
+4. **Classification**: Process inputs with classify() or batch_classify()
+5. **Caching**: Automatically cache results if configured
+
+## Error Handling Patterns
+
+The classifier system implements several error handling patterns:
+
+1. **Input Validation**: Validates all inputs before processing
+   - Checks input types with validate_input()
+   - Handles empty text gracefully
+   - Validates batch inputs with validate_batch_input()
+
+2. **Classification Errors**: Handles errors during classification
+   - Catches exceptions in _classify_impl
+   - Returns valid results even when errors occur
+   - Includes error details in metadata
+
+3. **Confidence Thresholds**: Uses confidence scores for reliability
+   - Sets minimum confidence thresholds in configuration
+   - Allows filtering results based on confidence
+   - Provides confidence scores for all classifications
+
+## Usage Examples
+
+```python
+from sifaka.classifiers.base import BaseClassifier, ClassificationResult, ClassifierConfig
+
+# Creating a simple classifier
+class SimpleClassifier(BaseClassifier[str, str]):
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
+        # Simple implementation that checks text length
+        if len(text) > 100:
             return ClassificationResult(
-                label="short",
+                label="long",
                 confidence=0.9,
                 metadata={"length": len(text)}
             )
+        return ClassificationResult(
+            label="short",
+            confidence=0.9,
+            metadata={"length": len(text)}
+        )
 
-    # Create the classifier using the factory method
-    classifier = SimpleClassifier.create(
-        name="length_classifier",
-        description="Classifies text as short or long",
-        labels=["short", "long"],
-        cache_size=100
-    )
+# Create the classifier using the factory method
+classifier = SimpleClassifier.create(
+    name="length_classifier",
+    description="Classifies text as short or long",
+    labels=["short", "long"],
+    cache_size=100
+)
 
-    # Use the classifier
-    result = classifier.classify("Hello world")
-    print(f"Label: {result.label}, Confidence: {result.confidence}")
-    ```
+# Use the classifier
+result = classifier.classify("Hello world")
+print(f"Label: {result.label}, Confidence: {result.confidence}")
+
+# Error handling example
+try:
+    result = classifier.classify(123)  # Wrong type
+except ValueError as e:
+    print(f"Validation error: {e}")
+
+# Batch classification
+texts = ["Short text", "This is a much longer text that will be classified differently"]
+results = classifier.batch_classify(texts)
+for text, result in zip(texts, results):
+    print(f"Text: {text[:20]}... - Label: {result.label}, Confidence: {result.confidence:.2f}")
+```
+
+## Instantiation Pattern
+
+The recommended way to create classifiers is through the create() factory method:
+
+```python
+from sifaka.classifiers.toxicity import ToxicityClassifier
+
+# Create a classifier using the factory method
+classifier = ToxicityClassifier.create(
+    name="toxicity_classifier",
+    description="Classifies text as toxic or non-toxic",
+    labels=["toxic", "non-toxic"],
+    cache_size=100,
+    min_confidence=0.7
+)
+```
+
+Each classifier type may also provide specialized factory functions for easier instantiation.
 """
 
 from abc import ABC, abstractmethod
@@ -47,22 +127,18 @@ from typing import (
     Dict,
     Generic,
     List,
-    Optional,
     Protocol,
     Type,
     TypeVar,
-    Union,
-    Callable,
     runtime_checkable,
-    cast,
-    overload,
 )
 
 from pydantic import BaseModel, ConfigDict, Field
 
 # Input and output type vars
-T = TypeVar('T')  # Input type (usually str)
-R = TypeVar('R')  # Result type
+T = TypeVar("T")  # Input type (usually str)
+R = TypeVar("R")  # Result type
+
 
 @runtime_checkable
 class TextProcessor(Protocol[T, R]):
@@ -70,20 +146,92 @@ class TextProcessor(Protocol[T, R]):
     Protocol for text processing components.
 
     This protocol defines the interface for components that process text inputs
-    and return structured outputs.
+    and return structured outputs. It's used as a common interface for various
+    text processing operations in the Sifaka framework.
 
-    Examples:
-        Implementing a simple text processor:
+    ## Lifecycle
 
-        ```python
-        class SimpleProcessor:
-            def process(self, text: str) -> Dict[str, str]:
-                return {"length": str(len(text)), "first_char": text[0] if text else ""}
+    1. **Implementation**: Create a class that implements the process() method
+       - Define a method that takes text input and returns a dictionary
+       - Ensure the method signature matches the protocol
 
-        # Check if it adheres to the protocol
-        from typing import runtime_checkable
-        assert isinstance(SimpleProcessor(), TextProcessor)
-        ```
+    2. **Verification**: Verify protocol compliance
+       - Use isinstance() to check if an object implements the protocol
+       - No explicit registration or inheritance is needed
+
+    3. **Usage**: Use the processor for text processing
+       - Pass text to the process() method
+       - Receive structured output as a dictionary
+       - Use the output for further processing or analysis
+
+    ## Error Handling
+
+    Implementations should handle these error cases:
+    - Empty or invalid text inputs
+    - Processing failures
+    - Resource availability issues
+
+    ## Examples
+
+    Implementing a simple text processor:
+
+    ```python
+    from sifaka.classifiers.base import TextProcessor
+    from typing import Dict, runtime_checkable
+
+    class SimpleProcessor:
+        def process(self, text: str) -> Dict[str, str]:
+            # Handle empty text
+            if not text:
+                return {"error": "Empty text", "length": "0"}
+
+            # Process the text
+            return {
+                "length": str(len(text)),
+                "first_char": text[0] if text else "",
+                "has_digits": str(any(c.isdigit() for c in text))
+            }
+
+    # Check if it adheres to the protocol
+    processor = SimpleProcessor()
+    assert isinstance(processor, TextProcessor)
+
+    # Use the processor
+    result = processor.process("Hello 123")
+    print(f"Text length: {result['length']}")
+    print(f"First character: {result['first_char']}")
+    print(f"Contains digits: {result['has_digits']}")
+    ```
+
+    Using with error handling:
+
+    ```python
+    from sifaka.classifiers.base import TextProcessor
+    from typing import Dict, Optional
+
+    class RobustProcessor:
+        def __init__(self):
+            self.error_count = 0
+
+        def process(self, text: str) -> Dict[str, str]:
+            try:
+                if not text:
+                    return {"status": "error", "reason": "empty_input"}
+
+                # Process the text
+                return {
+                    "status": "success",
+                    "length": str(len(text)),
+                    "words": str(len(text.split()))
+                }
+            except Exception as e:
+                self.error_count += 1
+                return {
+                    "status": "error",
+                    "reason": str(e),
+                    "error_count": str(self.error_count)
+                }
+    ```
     """
 
     def process(self, text: T) -> Dict[str, R]: ...
@@ -95,17 +243,97 @@ class ClassifierProtocol(Protocol[T, R]):
     Protocol defining the interface for classifiers.
 
     This protocol defines the essential methods that all classifiers must implement.
+    It provides a common interface for all classification components in the Sifaka
+    framework, allowing for consistent usage patterns and interchangeability.
 
-    Examples:
-        Checking if an object follows the classifier protocol:
+    ## Lifecycle
 
-        ```python
-        from sifaka.classifiers.toxicity import ToxicityClassifier
-        from sifaka.classifiers.base import ClassifierProtocol
+    1. **Implementation**: Create a class that implements all required methods
+       - Implement classify() for single text classification
+       - Implement batch_classify() for processing multiple texts
+       - Provide name, description, and min_confidence properties
 
-        classifier = ToxicityClassifier()
-        assert isinstance(classifier, ClassifierProtocol)
-        ```
+    2. **Verification**: Verify protocol compliance
+       - Use isinstance() to check if an object implements the protocol
+       - No explicit registration or inheritance is needed
+
+    3. **Usage**: Use the classifier for text classification
+       - Call classify() with text input
+       - Receive ClassificationResult with label and confidence
+       - Use batch_classify() for efficient processing of multiple texts
+
+    ## Error Handling
+
+    Implementations should handle these error cases:
+    - Invalid input types (non-string inputs)
+    - Empty text inputs
+    - Classification failures
+    - Resource availability issues
+
+    ## Examples
+
+    Checking if an object follows the classifier protocol:
+
+    ```python
+    from sifaka.classifiers.toxicity import ToxicityClassifier
+    from sifaka.classifiers.base import ClassifierProtocol
+
+    classifier = ToxicityClassifier()
+    assert isinstance(classifier, ClassifierProtocol)
+    ```
+
+    Creating a minimal classifier that implements the protocol:
+
+    ```python
+    from sifaka.classifiers.base import ClassifierProtocol, ClassificationResult
+    from typing import List
+
+    class MinimalClassifier:
+        @property
+        def name(self) -> str:
+            return "minimal_classifier"
+
+        @property
+        def description(self) -> str:
+            return "A minimal classifier implementation"
+
+        @property
+        def min_confidence(self) -> float:
+            return 0.5
+
+        def classify(self, text: str) -> ClassificationResult:
+            # Simple implementation based on text length
+            if not text:
+                return ClassificationResult(
+                    label="unknown",
+                    confidence=0.0,
+                    metadata={"reason": "empty_input"}
+                )
+
+            if len(text) > 50:
+                return ClassificationResult(
+                    label="long",
+                    confidence=0.9,
+                    metadata={"length": len(text)}
+                )
+            else:
+                return ClassificationResult(
+                    label="short",
+                    confidence=0.8,
+                    metadata={"length": len(text)}
+                )
+
+        def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
+            return [self.classify(text) for text in texts]
+
+    # Verify protocol compliance
+    classifier = MinimalClassifier()
+    assert isinstance(classifier, ClassifierProtocol)
+
+    # Use the classifier
+    result = classifier.classify("This is a test")
+    print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
+    ```
     """
 
     def classify(self, text: T) -> "ClassificationResult": ...
@@ -123,38 +351,110 @@ class ClassifierConfig(Generic[T]):
     """
     Immutable configuration for classifiers.
 
-    This class follows the same pattern as RuleConfig.
-    All classifier-specific configuration options should be placed in the params dictionary.
+    This class provides a standardized way to configure classifiers with
+    immutable properties. It follows the same pattern as RuleConfig, where
+    all classifier-specific configuration options are placed in the params dictionary.
 
-    Lifecycle:
-        - Create once at classifier initialization
-        - Immutable after creation
-        - Use with_options() or with_params() to create modified versions
+    The immutable design ensures configuration consistency during classifier
+    operation and prevents accidental modification of settings.
 
-    Examples:
-        Creating and using a classifier config:
+    ## Lifecycle
 
-        ```python
-        from sifaka.classifiers.base import ClassifierConfig
+    1. **Creation**: Instantiate with required and optional parameters
+       - Provide labels list (required)
+       - Set cache_size, cost, and min_confidence as needed
+       - Add classifier-specific options in params dictionary
 
-        # Create a basic config
+    2. **Validation**: Values are validated in __post_init__
+       - Labels must be a list of strings
+       - Cache size must be non-negative
+       - Cost must be non-negative
+       - Min confidence must be between 0 and 1
+
+    3. **Usage**: Access configuration properties during classification
+       - Read labels list for valid classification outputs
+       - Use cache_size for result caching
+       - Access min_confidence for threshold checks
+       - Read classifier-specific params as needed
+
+    4. **Modification**: Create new instances with updated values
+       - Use with_options() to update top-level properties
+       - Use with_params() to update classifier-specific parameters
+       - Original configuration remains unchanged (immutable)
+
+    ## Error Handling
+
+    The class implements these error handling patterns:
+    - Validation of all parameters in __post_init__
+    - Immutability to prevent runtime configuration errors
+    - Type checking for critical parameters
+    - Range validation for numeric parameters
+
+    ## Examples
+
+    Creating and using a classifier config:
+
+    ```python
+    from sifaka.classifiers.base import ClassifierConfig
+
+    # Create a basic config
+    config = ClassifierConfig(
+        labels=["positive", "negative", "neutral"],
+        cache_size=100,
+        cost=5,
+        params={
+            "model_name": "sentiment-large",
+            "threshold": 0.7
+        }
+    )
+
+    # Create a modified version
+    updated_config = config.with_params(threshold=0.8, use_gpu=True)
+
+    # Access configuration values
+    print(f"Labels: {config.labels}")
+    print(f"Threshold: {updated_config.params['threshold']}")
+    ```
+
+    Error handling with validation:
+
+    ```python
+    from sifaka.classifiers.base import ClassifierConfig
+
+    try:
+        # This will raise an error due to invalid min_confidence
         config = ClassifierConfig(
-            labels=["positive", "negative", "neutral"],
-            cache_size=100,
-            cost=5,
-            params={
-                "model_name": "sentiment-large",
-                "threshold": 0.7
-            }
+            labels=["valid", "invalid"],
+            min_confidence=1.5  # Must be between 0 and 1
         )
+    except ValueError as e:
+        print(f"Configuration error: {e}")
+        # Use default values instead
+        config = ClassifierConfig(
+            labels=["valid", "invalid"],
+            min_confidence=0.7  # Valid value
+        )
+    ```
 
-        # Create a modified version
-        updated_config = config.with_params(threshold=0.8, use_gpu=True)
+    Creating specialized configurations:
 
-        # Access configuration values
-        print(f"Labels: {config.labels}")
-        print(f"Threshold: {updated_config.params['threshold']}")
-        ```
+    ```python
+    from sifaka.classifiers.base import ClassifierConfig
+
+    # Create a config for a high-precision classifier
+    high_precision = ClassifierConfig(
+        labels=["spam", "ham"],
+        min_confidence=0.9,  # Require high confidence
+        params={"precision_focused": True}
+    )
+
+    # Create a config for a high-recall classifier
+    high_recall = ClassifierConfig(
+        labels=["spam", "ham"],
+        min_confidence=0.3,  # Accept lower confidence
+        params={"recall_focused": True}
+    )
+    ```
 
     Args:
         labels: List of valid classification labels
@@ -251,31 +551,125 @@ class ClassificationResult(BaseModel, Generic[R]):
 
     This class provides an immutable representation of a classification result,
     including the predicted label, confidence score, and additional metadata.
+    The immutable design ensures result consistency and prevents accidental
+    modification after classification.
 
-    Examples:
-        Creating and using a classification result:
+    ## Lifecycle
 
-        ```python
-        from sifaka.classifiers.base import ClassificationResult
+    1. **Creation**: Instantiate with classification results
+       - Provide label and confidence (required)
+       - Add optional metadata dictionary
+       - Values are validated during creation
 
-        # Create a result
-        result = ClassificationResult(
-            label="positive",
-            confidence=0.85,
-            metadata={
-                "scores": {"positive": 0.85, "negative": 0.10, "neutral": 0.05},
-                "text_length": 120
-            }
-        )
+    2. **Access**: Read properties to get classification details
+       - Access label for the classification result
+       - Check confidence for result reliability
+       - Examine metadata for additional information
 
-        # Access the result
-        if result.confidence > 0.8:
-            print(f"High confidence classification: {result.label}")
+    3. **Enhancement**: Create new instances with additional metadata
+       - Use with_metadata() to add or update metadata
+       - Original result remains unchanged (immutable)
+       - Chain multiple with_metadata() calls as needed
 
-        # Add additional metadata
-        updated = result.with_metadata(processed_at="2023-07-01T12:34:56")
-        print(f"Processing timestamp: {updated.metadata['processed_at']}")
-        ```
+    4. **Usage**: Use in application logic
+       - Check confidence against thresholds
+       - Make decisions based on label
+       - Extract detailed information from metadata
+       - Pass to other components for further processing
+
+    ## Error Handling
+
+    The class implements these error handling patterns:
+    - Validation of confidence range (0-1)
+    - Immutability to prevent result tampering
+    - Type checking for critical parameters
+    - Structured metadata for error details
+
+    ## Examples
+
+    Creating and using a classification result:
+
+    ```python
+    from sifaka.classifiers.base import ClassificationResult
+
+    # Create a result
+    result = ClassificationResult(
+        label="positive",
+        confidence=0.85,
+        metadata={
+            "scores": {"positive": 0.85, "negative": 0.10, "neutral": 0.05},
+            "text_length": 120
+        }
+    )
+
+    # Access the result
+    if result.confidence > 0.8:
+        print(f"High confidence classification: {result.label}")
+
+    # Add additional metadata
+    updated = result.with_metadata(processed_at="2023-07-01T12:34:56")
+    print(f"Processing timestamp: {updated.metadata['processed_at']}")
+    ```
+
+    Error handling with confidence thresholds:
+
+    ```python
+    from sifaka.classifiers.base import ClassificationResult
+
+    # Create results with different confidence levels
+    high_confidence = ClassificationResult(label="spam", confidence=0.95)
+    medium_confidence = ClassificationResult(label="spam", confidence=0.7)
+    low_confidence = ClassificationResult(label="spam", confidence=0.3)
+
+    # Apply different handling based on confidence
+    def process_result(result):
+        if result.confidence > 0.9:
+            print(f"Automatic action: {result.label}")
+            return "automatic"
+        elif result.confidence > 0.6:
+            print(f"Suggested action: {result.label}")
+            return "suggested"
+        else:
+            print(f"Manual review needed: {result.label} ({result.confidence:.2f})")
+            return "review"
+
+    # Process the results
+    process_result(high_confidence)   # "automatic"
+    process_result(medium_confidence) # "suggested"
+    process_result(low_confidence)    # "review"
+    ```
+
+    Working with metadata:
+
+    ```python
+    from sifaka.classifiers.base import ClassificationResult
+
+    # Create a result with detailed metadata
+    result = ClassificationResult(
+        label="toxic",
+        confidence=0.92,
+        metadata={
+            "category": "hate_speech",
+            "severity": "high",
+            "keywords": ["offensive_term1", "offensive_term2"]
+        }
+    )
+
+    # Extract and use metadata
+    if result.metadata.get("severity") == "high":
+        print(f"High severity {result.label} content detected")
+        print(f"Flagged keywords: {', '.join(result.metadata.get('keywords', []))}")
+
+    # Chain metadata additions
+    enhanced = result.with_metadata(
+        timestamp="2023-07-01T12:34:56"
+    ).with_metadata(
+        action_taken="content_removed"
+    )
+
+    print(f"Action taken: {enhanced.metadata['action_taken']}")
+    print(f"Timestamp: {enhanced.metadata['timestamp']}")
+    ```
 
     Attributes:
         label: The predicted label/class
@@ -329,72 +723,166 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
     Base class for all Sifaka classifiers.
 
     A classifier provides predictions that can be used by rules and other components
-    in the Sifaka framework.
+    in the Sifaka framework. This abstract base class defines the core interface
+    and functionality for all classifiers, implementing common patterns for
+    input validation, caching, and result handling.
 
-    Lifecycle:
-        - Initialize with name, description, and config
-        - Optionally call warm_up() to prepare resources
-        - Use classify() or batch_classify() methods for classification
-        - No explicit cleanup needed for most classifiers
-        - Some implementations may manage external resources that need cleanup
+    ## Architecture
 
-    Examples:
-        Creating a simple classifier implementation:
+    BaseClassifier follows a layered architecture:
+    1. **Public API**: classify() and batch_classify() methods
+    2. **Caching Layer**: _classify_impl() handles caching
+    3. **Core Logic**: _classify_impl_uncached() implements classification logic
+    4. **Validation**: validate_input() and validate_batch_input() ensure valid inputs
 
-        ```python
-        from sifaka.classifiers.base import (
-            BaseClassifier,
-            ClassificationResult,
-            ClassifierConfig
+    ## Lifecycle
+
+    1. **Initialization**: Set up with name, description, and config
+       - Create with required parameters
+       - Initialize internal state
+       - Set up caching if enabled
+
+    2. **Warm-up**: Optionally prepare resources
+       - Call warm_up() to load models or resources
+       - Prepare any expensive resources before classification
+       - This step is optional but recommended for performance
+
+    3. **Classification**: Process inputs
+       - Call classify() for single inputs
+       - Call batch_classify() for multiple inputs
+       - Results are cached if caching is enabled
+
+    4. **Result Handling**: Process classification results
+       - Check confidence against min_confidence threshold
+       - Extract label and metadata
+       - Make decisions based on classification
+
+    5. **Cleanup**: No explicit cleanup needed for most classifiers
+       - Some implementations may manage external resources
+       - Those implementations should provide cleanup methods
+
+    ## Error Handling
+
+    The class implements these error handling patterns:
+    - Input validation with validate_input() and validate_batch_input()
+    - Empty text handling in classify()
+    - Type checking for inputs
+    - Exception handling in classification methods
+    - Confidence thresholds for reliability
+
+    ## Examples
+
+    Creating a simple classifier implementation:
+
+    ```python
+    from sifaka.classifiers.base import (
+        BaseClassifier,
+        ClassificationResult,
+        ClassifierConfig
+    )
+
+    class SentimentClassifier(BaseClassifier[str, str]):
+        def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
+            # Simple sentiment analysis (real impl would be more sophisticated)
+            positive_words = ["good", "great", "excellent", "happy"]
+            negative_words = ["bad", "terrible", "sad", "awful"]
+
+            text_lower = text.lower()
+            pos_count = sum(word in text_lower for word in positive_words)
+            neg_count = sum(word in text_lower for word in negative_words)
+
+            if pos_count > neg_count:
+                return ClassificationResult[str](
+                    label="positive",
+                    confidence=0.7 + (0.3 * (pos_count / (pos_count + neg_count + 1))),
+                    metadata={"positive_words": pos_count, "negative_words": neg_count}
+                )
+            elif neg_count > pos_count:
+                return ClassificationResult[str](
+                    label="negative",
+                    confidence=0.7 + (0.3 * (neg_count / (pos_count + neg_count + 1))),
+                    metadata={"positive_words": pos_count, "negative_words": neg_count}
+                )
+            else:
+                return ClassificationResult[str](
+                    label="neutral",
+                    confidence=0.6,
+                    metadata={"positive_words": pos_count, "negative_words": neg_count}
+                )
+
+        def warm_up(self) -> None:
+            # For this simple classifier, no warm-up is needed
+            # In real implementations, this might load models or resources
+            pass
+
+    # Create and use the classifier
+    classifier = SentimentClassifier(
+        name="sentiment",
+        description="Simple sentiment classifier",
+        config=ClassifierConfig[str](
+            labels=["positive", "negative", "neutral"],
+            cache_size=100
         )
+    )
 
-        class SentimentClassifier(BaseClassifier[str, str]):
-            def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
-                # Simple sentiment analysis (real impl would be more sophisticated)
-                positive_words = ["good", "great", "excellent", "happy"]
-                negative_words = ["bad", "terrible", "sad", "awful"]
+    result = classifier.classify("I had a great day today!")
+    print(f"Sentiment: {result.label} (confidence: {result.confidence:.2f})")
+    ```
 
-                text_lower = text.lower()
-                pos_count = sum(word in text_lower for word in positive_words)
-                neg_count = sum(word in text_lower for word in negative_words)
+    Using the factory method for creation:
 
-                if pos_count > neg_count:
-                    return ClassificationResult[str](
-                        label="positive",
-                        confidence=0.7 + (0.3 * (pos_count / (pos_count + neg_count + 1))),
-                        metadata={"positive_words": pos_count, "negative_words": neg_count}
-                    )
-                elif neg_count > pos_count:
-                    return ClassificationResult[str](
-                        label="negative",
-                        confidence=0.7 + (0.3 * (neg_count / (pos_count + neg_count + 1))),
-                        metadata={"positive_words": pos_count, "negative_words": neg_count}
-                    )
-                else:
-                    return ClassificationResult[str](
-                        label="neutral",
-                        confidence=0.6,
-                        metadata={"positive_words": pos_count, "negative_words": neg_count}
-                    )
+    ```python
+    from sifaka.classifiers.base import BaseClassifier, ClassificationResult
 
-            def warm_up(self) -> None:
-                # For this simple classifier, no warm-up is needed
-                # In real implementations, this might load models or resources
-                pass
+    class KeywordClassifier(BaseClassifier[str, str]):
+        def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
+            # Implementation details...
+            pass
 
-        # Create and use the classifier
-        classifier = SentimentClassifier(
-            name="sentiment",
-            description="Simple sentiment classifier",
-            config=ClassifierConfig[str](
-                labels=["positive", "negative", "neutral"],
-                cache_size=100
-            )
-        )
+    # Create using the factory method
+    classifier = KeywordClassifier.create(
+        name="keyword_classifier",
+        description="Classifies text based on keywords",
+        labels=["tech", "sports", "politics", "entertainment"],
+        cache_size=200,
+        min_confidence=0.6
+    )
+    ```
 
-        result = classifier.classify("I had a great day today!")
-        print(f"Sentiment: {result.label} (confidence: {result.confidence:.2f})")
-        ```
+    Handling empty inputs and errors:
+
+    ```python
+    from sifaka.classifiers.base import BaseClassifier, ClassificationResult
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    class RobustClassifier(BaseClassifier[str, str]):
+        def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
+            try:
+                # Core classification logic
+                # ...
+
+                # Return result
+                return ClassificationResult(
+                    label="some_label",
+                    confidence=0.8,
+                    metadata={"processed_successfully": True}
+                )
+            except Exception as e:
+                # Log the error
+                logger.error(f"Classification error: {e}")
+
+                # Return a fallback result
+                return ClassificationResult(
+                    label="unknown",
+                    confidence=0.0,
+                    metadata={
+                        "error": str(e),
+                        "error_type": type(e).__name__
+                    }
+                )
+    ```
 
     Type parameters:
         T: The input type (usually str)
@@ -517,17 +1005,62 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
         Implement classification logic.
 
         This abstract method must be implemented by subclasses to provide
-        the core classification functionality.
+        the core classification functionality. It contains the actual
+        classification algorithm and is called by _classify_impl when
+        no cached result is available.
 
-        Error Handling:
-            - Should handle classification errors internally
-            - Should return a valid ClassificationResult even on errors
-            - May set confidence=0 and include error details in metadata
+        ## Lifecycle
 
-        Lifecycle:
-            - Called by _classify_impl when no cached result is available
-            - Should implement the core classification logic
-            - Should handle all errors internally and return a valid result
+        1. **Invocation**: Called by _classify_impl
+           - Receives validated input text
+           - Called only when no cached result is available
+           - Input has already been validated
+
+        2. **Processing**: Apply classification algorithm
+           - Implement the core classification logic
+           - Process the text according to the classifier's purpose
+           - Calculate confidence scores
+
+        3. **Result Creation**: Return standardized result
+           - Create a ClassificationResult with label and confidence
+           - Include relevant metadata
+           - Handle all errors internally
+
+        ## Error Handling
+
+        Implementations should follow these error handling patterns:
+        - Catch and handle all exceptions internally
+        - Return a valid ClassificationResult even on errors
+        - Set confidence=0 for failed classifications
+        - Include error details in metadata
+        - Log errors for debugging
+
+        ## Implementation Guidelines
+
+        1. **Robust Implementation**:
+           ```python
+           def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
+               try:
+                   # Core classification logic
+                   # ...
+                   return ClassificationResult(
+                       label="some_label",
+                       confidence=0.8,
+                       metadata={"processed_successfully": True}
+                   )
+               except Exception as e:
+                   logger.error(f"Classification error: {e}")
+                   return ClassificationResult(
+                       label="unknown",
+                       confidence=0.0,
+                       metadata={"error": str(e)}
+                   )
+           ```
+
+        2. **Performance Considerations**:
+           - Consider implementing timeouts for expensive operations
+           - Use efficient algorithms for text processing
+           - Consider batching operations when possible
 
         Args:
             text: The text to classify
@@ -591,32 +1124,91 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
         """
         Classify the input text.
 
-        This is the main method for classifying single inputs.
+        This is the main method for classifying single inputs. It handles input
+        validation, empty text checking, and delegates to the internal implementation
+        methods for the actual classification work.
 
-        Error Handling:
-            - Validates input with validate_input()
-            - Handles empty text gracefully by returning unknown label
-            - Delegates to _classify_impl for actual classification
+        ## Lifecycle
 
-        Examples:
-            ```python
-            from sifaka.classifiers.toxicity import create_toxicity_classifier
+        1. **Input Validation**: Check input validity
+           - Validate input type with validate_input()
+           - Check for empty text
+           - Return early with "unknown" label for empty text
 
-            # Create a toxicity classifier
-            classifier = create_toxicity_classifier()
+        2. **Classification**: Process the input
+           - Delegate to _classify_impl for actual classification
+           - _classify_impl handles caching and delegates to _classify_impl_uncached
+           - The implementation method performs the core classification logic
 
-            # Classify a text
-            result = classifier.classify("This product is awesome!")
+        3. **Result Return**: Return the classification result
+           - Return ClassificationResult with label, confidence, and metadata
+           - Result can be used for decision making in the application
 
-            print(f"Label: {result.label}")
-            print(f"Confidence: {result.confidence:.2f}")
+        ## Error Handling
 
-            # Check for high confidence classifications
-            if result.confidence > 0.8:
-                print(f"High confidence classification: {result.label}")
-            else:
-                print("Low confidence classification")
-            ```
+        This method implements these error handling patterns:
+        - Input validation with validate_input()
+        - Special handling for empty text
+        - Propagation of implementation errors
+        - Structured error information in results
+
+        ## Examples
+
+        Basic usage:
+
+        ```python
+        from sifaka.classifiers.toxicity import create_toxicity_classifier
+
+        # Create a toxicity classifier
+        classifier = create_toxicity_classifier()
+
+        # Classify a text
+        result = classifier.classify("This product is awesome!")
+
+        print(f"Label: {result.label}")
+        print(f"Confidence: {result.confidence:.2f}")
+
+        # Check for high confidence classifications
+        if result.confidence > 0.8:
+            print(f"High confidence classification: {result.label}")
+        else:
+            print("Low confidence classification")
+        ```
+
+        Handling empty text:
+
+        ```python
+        # Empty text handling
+        result = classifier.classify("")
+        assert result.label == "unknown"
+        assert result.confidence == 0.0
+        assert result.metadata.get("reason") == "empty_input"
+        ```
+
+        Error handling:
+
+        ```python
+        try:
+            # This will raise ValueError for non-string input
+            result = classifier.classify(123)
+        except ValueError as e:
+            print(f"Invalid input: {e}")
+            # Handle the error appropriately
+        ```
+
+        Confidence thresholds:
+
+        ```python
+        # Using min_confidence from the classifier
+        result = classifier.classify("Some text to classify")
+
+        if result.confidence >= classifier.min_confidence:
+            print(f"Reliable classification: {result.label}")
+            # Take action based on the classification
+        else:
+            print(f"Low confidence classification: {result.label} ({result.confidence:.2f})")
+            # Handle low confidence case (e.g., manual review)
+        ```
 
         Args:
             text: The text to classify
@@ -709,36 +1301,100 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
 
     @classmethod
     def create(
-        cls: Type[C],
-        name: str,
-        description: str,
-        labels: List[str],
-        **config_kwargs: Any
+        cls: Type[C], name: str, description: str, labels: List[str], **config_kwargs: Any
     ) -> C:
         """
         Factory method to create a classifier instance.
 
         This method provides a consistent way to create classifier instances
-        with proper configuration.
+        with proper configuration. It simplifies the instantiation process
+        by handling the creation of the ClassifierConfig object and setting
+        up the classifier with the appropriate parameters.
 
-        Examples:
-            ```python
-            from sifaka.classifiers.base import BaseClassifier
+        ## Lifecycle
 
-            class MyClassifier(BaseClassifier[str, str]):
+        1. **Parameter Processing**: Process input parameters
+           - Extract required parameters (name, description, labels)
+           - Extract optional configuration parameters
+           - Separate params dictionary from other config options
+
+        2. **Configuration Creation**: Create configuration object
+           - Create ClassifierConfig with provided parameters
+           - Set up labels list
+           - Configure cache_size, min_confidence, etc.
+           - Include classifier-specific params
+
+        3. **Instance Creation**: Create classifier instance
+           - Instantiate the classifier class
+           - Pass name, description, and config
+           - Return the configured instance
+
+        ## Error Handling
+
+        This method handles these error cases:
+        - Parameter validation (delegated to ClassifierConfig)
+        - Type checking for critical parameters
+        - Proper extraction of params dictionary
+
+        ## Examples
+
+        Basic usage:
+
+        ```python
+        from sifaka.classifiers.base import BaseClassifier
+
+        class MyClassifier(BaseClassifier[str, str]):
+            def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
                 # Implementation details...
                 pass
 
-            # Create an instance using the factory method
-            classifier = MyClassifier.create(
-                name="my_classifier",
-                description="My custom classifier implementation",
-                labels=["label1", "label2", "label3"],
-                cache_size=100,
-                min_confidence=0.6,
-                params={"custom_param": "value"}
-            )
-            ```
+        # Create an instance using the factory method
+        classifier = MyClassifier.create(
+            name="my_classifier",
+            description="My custom classifier implementation",
+            labels=["label1", "label2", "label3"],
+            cache_size=100,
+            min_confidence=0.6,
+            params={"custom_param": "value"}
+        )
+        ```
+
+        Creating with specialized parameters:
+
+        ```python
+        # Create a classifier with specific configuration
+        sentiment_classifier = SentimentClassifier.create(
+            name="sentiment",
+            description="Analyzes text sentiment",
+            labels=["positive", "negative", "neutral"],
+            cache_size=200,
+            min_confidence=0.7,
+            params={
+                "model_name": "sentiment-large",
+                "use_gpu": True,
+                "batch_size": 16
+            }
+        )
+        ```
+
+        Creating multiple classifiers with different configurations:
+
+        ```python
+        # Create classifiers with different confidence thresholds
+        high_precision = ToxicityClassifier.create(
+            name="toxicity_precise",
+            description="High-precision toxicity detection",
+            labels=["toxic", "non-toxic"],
+            min_confidence=0.9  # High threshold for precision
+        )
+
+        high_recall = ToxicityClassifier.create(
+            name="toxicity_sensitive",
+            description="High-recall toxicity detection",
+            labels=["toxic", "non-toxic"],
+            min_confidence=0.3  # Low threshold for recall
+        )
+        ```
 
         Args:
             name: Name of the classifier

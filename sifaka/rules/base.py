@@ -518,7 +518,8 @@ class BaseValidator(Generic[T]):
 
     Validators implement the actual validation logic and are used by Rules.
     Rules delegate validation work to their validators, following a clear
-    separation of concerns.
+    separation of concerns. This delegation pattern allows for reusing validation
+    logic across different rules and testing validation logic independently.
 
     Validators should be created using factory functions rather than direct instantiation.
     Each validator type provides a `create_X_validator()` factory function.
@@ -526,121 +527,122 @@ class BaseValidator(Generic[T]):
     Type Parameters:
         T: The input type to validate
 
-    ## Lifecycle
+    Lifecycle:
+        1. Initialization: Set up validator configuration
+           - Initialize with validation parameters
+           - Validate configuration values
+           - Set up any required resources
 
-    1. **Initialization**: Set up validator configuration
-       - Initialize with validation parameters
-       - Validate configuration values
-       - Set up any required resources
+        2. Validation Request: Receive input to validate
+           - Check input compatibility
+           - Handle special cases (e.g., empty text)
 
-    2. **Validation Request**: Receive input to validate
-       - Check input compatibility
-       - Handle special cases (e.g., empty text)
+        3. Input Processing: Apply validation logic to input
+           - Apply core validation logic
+           - Handle errors gracefully
+           - Calculate validation metrics
 
-    3. **Input Processing**: Apply validation logic to input
-       - Apply core validation logic
-       - Handle errors gracefully
-       - Calculate validation metrics
+        4. Result Creation: Return standardized validation results
+           - Create RuleResult with appropriate status
+           - Include descriptive message
+           - Add relevant metadata
 
-    4. **Result Creation**: Return standardized validation results
-       - Create RuleResult with appropriate status
-       - Include descriptive message
-       - Add relevant metadata
+    Examples:
+        ```python
+        from sifaka.rules.base import BaseValidator, RuleResult, ConfigurationError
+        from typing import Optional
+        import logging
 
-    ## Error Handling
+        logger = logging.getLogger(__name__)
 
-    BaseValidator implements these error handling patterns:
+        class LengthValidator(BaseValidator[str]):
+            def __init__(self, min_length: int = 0, max_length: Optional[int] = None):
+                # Validate configuration
+                if min_length < 0:
+                    raise ConfigurationError("min_length must be non-negative")
+                if max_length is not None and max_length < min_length:
+                    raise ConfigurationError(
+                        f"max_length ({max_length}) must be >= min_length ({min_length})"
+                    )
 
-    - **Empty Text Handling**: The `handle_empty_text()` method provides standardized
-      handling for empty inputs.
+                self.min_length = min_length
+                self.max_length = max_length
 
-    - **Type Checking**: The `can_validate()` method checks input compatibility.
+            def validate(self, text: str, **kwargs) -> RuleResult:
+                # Handle empty text first
+                empty_result = self.handle_empty_text(text)
+                if empty_result:
+                    return empty_result
 
-    - **Safe Validation**: Subclasses should implement safe validation that catches
-      and properly handles unexpected errors.
+                # Safe validation with try/except
+                try:
+                    # Calculate text length
+                    text_length = len(text)
 
-    ## Examples
+                    # Check minimum length
+                    if text_length < self.min_length:
+                        return RuleResult(
+                            passed=False,
+                            message=f"Text length ({text_length}) is below minimum ({self.min_length})",
+                            metadata={
+                                "text_length": text_length,
+                                "min_length": self.min_length,
+                                "max_length": self.max_length
+                            }
+                        )
 
-    ```python
-    from sifaka.rules.base import BaseValidator, RuleResult
+                    # Check maximum length if specified
+                    if self.max_length is not None and text_length > self.max_length:
+                        return RuleResult(
+                            passed=False,
+                            message=f"Text length ({text_length}) exceeds maximum ({self.max_length})",
+                            metadata={
+                                "text_length": text_length,
+                                "min_length": self.min_length,
+                                "max_length": self.max_length
+                            }
+                        )
 
-    class LengthValidator(BaseValidator[str]):
-        def __init__(self, min_length: int = 0, max_length: Optional[int] = None):
-            # Validate configuration
-            if min_length < 0:
-                raise ConfigurationError("min_length must be non-negative")
-            if max_length is not None and max_length < min_length:
-                raise ConfigurationError(
-                    f"max_length ({max_length}) must be >= min_length ({min_length})"
-                )
-
-            self.min_length = min_length
-            self.max_length = max_length
-
-        def validate(self, text: str, **kwargs) -> RuleResult:
-            # Handle empty text first
-            empty_result = self.handle_empty_text(text)
-            if empty_result:
-                return empty_result
-
-            # Safe validation with try/except
-            try:
-                # Calculate text length
-                text_length = len(text)
-
-                # Check minimum length
-                if text_length < self.min_length:
+                    # Validation passed
                     return RuleResult(
-                        passed=False,
-                        message=f"Text length ({text_length}) is below minimum ({self.min_length})",
+                        passed=True,
+                        message=(
+                            f"Text length ({text_length}) is within limits " +
+                            f"(min: {self.min_length}" +
+                            (f", max: {self.max_length}" if self.max_length is not None else "")
+                            + ")"
+                        ),
                         metadata={
                             "text_length": text_length,
                             "min_length": self.min_length,
                             "max_length": self.max_length
                         }
                     )
-
-                # Check maximum length if specified
-                if self.max_length is not None and text_length > self.max_length:
+                except Exception as e:
+                    # Handle unexpected errors
+                    logger.error(f"Length validation error: {e}")
                     return RuleResult(
                         passed=False,
-                        message=f"Text length ({text_length}) exceeds maximum ({self.max_length})",
-                        metadata={
-                            "text_length": text_length,
-                            "min_length": self.min_length,
-                            "max_length": self.max_length
-                        }
+                        message=f"Validation error: {str(e)}",
+                        metadata={"error_type": type(e).__name__}
                     )
 
-                # Validation passed
-                return RuleResult(
-                    passed=True,
-                    message=(
-                        f"Text length ({text_length}) is within limits " +
-                        f"(min: {self.min_length}" +
-                        (f", max: {self.max_length}" if self.max_length is not None else "")
-                        + ")"
-                    ),
-                    metadata={
-                        "text_length": text_length,
-                        "min_length": self.min_length,
-                        "max_length": self.max_length
-                    }
-                )
-            except Exception as e:
-                # Handle unexpected errors
-                logger.error(f"Length validation error: {e}")
-                return RuleResult(
-                    passed=False,
-                    message=f"Validation error: {str(e)}",
-                    metadata={"error_type": type(e).__name__}
-                )
+        # Create and use the validator
+        validator = LengthValidator(min_length=10, max_length=100)
+        result = validator.validate("Hello world")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+        ```
 
-        # Create factory function
-        @staticmethod
-        def create(min_length: int = 0, max_length: Optional[int] = None) -> "LengthValidator":
-            return LengthValidator(min_length=min_length, max_length=max_length)
-    ```
+    Error Handling:
+        BaseValidator implements these error handling patterns:
+
+        - Empty Text Handling: The `handle_empty_text()` method provides standardized
+          handling for empty inputs.
+
+        - Type Checking: The `can_validate()` method checks input compatibility.
+
+        - Safe Validation: Subclasses should implement safe validation that catches
+          and properly handles unexpected errors.
     """
 
     def validate(self, output: T, **kwargs: Any) -> "RuleResult":
@@ -1424,22 +1426,57 @@ class FunctionValidator(BaseValidator[str]):
     without creating a full validator class. It handles various return
     types from the wrapped function and converts them to RuleResult objects.
 
+    The wrapped function can return:
+    - A boolean (True for pass, False for fail)
+    - A RuleResult object
+    - A tuple of (bool, str) for (passed, message)
+    - A tuple of (bool, str, dict) for (passed, message, metadata)
+
     Lifecycle:
-    1. Initialization: Wrap a validation function
-    2. Validation: Call the function with input
-    3. Result Conversion: Convert function output to RuleResult
+        1. Initialization: Wrap a validation function
+        2. Validation: Call the function with input
+        3. Result Conversion: Convert function output to RuleResult
 
     Examples:
         ```python
-        # Create a validator from a simple function
+        from sifaka.rules.base import FunctionValidator, RuleResult
+
+        # Create a validator from a simple boolean function
         def is_long_enough(text: str) -> bool:
             return len(text) > 10
 
         validator = FunctionValidator(is_long_enough)
-
-        # Use the validator
         result = validator.validate("Hello world")
+        print(f"Validation {'passed' if result.passed else 'failed'}")
+
+        # Function returning a tuple
+        def check_length(text: str) -> tuple:
+            length = len(text)
+            if length > 10:
+                return True, f"Text length ({length}) is sufficient"
+            else:
+                return False, f"Text length ({length}) is too short"
+
+        validator = FunctionValidator(check_length)
+        result = validator.validate("Hello")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+
+        # Function returning a RuleResult
+        def validate_content(text: str) -> RuleResult:
+            has_numbers = any(c.isdigit() for c in text)
+            return RuleResult(
+                passed=has_numbers,
+                message=f"Text {'contains' if has_numbers else 'does not contain'} numbers",
+                metadata={"has_numbers": has_numbers}
+            )
+
+        validator = FunctionValidator(validate_content)
+        result = validator.validate("Hello world 123")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
+
+    Attributes:
+        _func: The wrapped validation function
     """
 
     def __init__(self, func: Callable[..., Any]) -> None:
@@ -1495,6 +1532,10 @@ class FunctionRule(Rule[str, RuleResult, FunctionValidator, RuleResultHandler[Ru
     """
     A rule that wraps a function for simple validation.
 
+    This rule provides a convenient way to create validation rules from simple
+    functions without creating full validator and rule classes. It delegates
+    validation to a FunctionValidator that wraps the provided function.
+
     The function must have one of these signatures:
     1. (str) -> bool
     2. (str) -> RuleResult
@@ -1502,12 +1543,16 @@ class FunctionRule(Rule[str, RuleResult, FunctionValidator, RuleResultHandler[Ru
     4. (str) -> tuple[bool, str, dict]
 
     Lifecycle:
-    1. Initialization: Wrap a validation function
-    2. Validation: Delegate to FunctionValidator
+        1. Initialization: Wrap a validation function
+        2. Validation: Delegate to FunctionValidator
+        3. Result Processing: Handle validation results
 
     Examples:
         ```python
-        # Create a rule from a simple function
+        from sifaka.rules.base import FunctionRule, RuleResult
+        from typing import List, Dict, Any, Tuple, Union
+
+        # Create a rule from a simple boolean function
         def contains_keywords(text: str, keywords: List[str]) -> bool:
             return any(keyword in text.lower() for keyword in keywords)
 
@@ -1519,7 +1564,28 @@ class FunctionRule(Rule[str, RuleResult, FunctionValidator, RuleResultHandler[Ru
 
         # Use the rule with kwargs
         result = rule.validate("Hello world", keywords=["hello", "world"])
+        print(f"Validation {'passed' if result.passed else 'failed'}")
+
+        # Function returning a tuple with message
+        def check_length(text: str, min_length: int = 10) -> Tuple[bool, str]:
+            length = len(text)
+            if length >= min_length:
+                return True, f"Text length ({length}) meets minimum requirement ({min_length})"
+            else:
+                return False, f"Text length ({length}) below minimum requirement ({min_length})"
+
+        rule = FunctionRule(
+            func=check_length,
+            name="length_rule",
+            description="Checks if text meets minimum length"
+        )
+
+        result = rule.validate("Hello", min_length=10)
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
+
+    Attributes:
+        _func: The wrapped validation function
     """
 
     def __init__(
@@ -1563,18 +1629,41 @@ class RuleProtocol(Protocol):
     Protocol defining the interface for rules.
 
     This protocol is useful for type checking code that works with rules
-    without requiring a specific rule implementation.
+    without requiring a specific rule implementation. It defines the minimum
+    interface that all rule-like objects must implement to be used in contexts
+    that expect rules.
 
     Lifecycle:
-    1. Access: Get rule properties
-    2. Validation: Validate input against rule
+        1. Access: Get rule properties (name, description, config)
+        2. Validation: Validate input against rule
+        3. Result Handling: Process validation results
 
     Examples:
         ```python
+        from sifaka.rules.base import RuleProtocol, RuleResult
+        from typing import Any, Protocol
+
+        # Function that works with any rule-like object
         def process_with_rule(rule: RuleProtocol, text: str) -> None:
             print(f"Validating with rule: {rule.name}")
+            print(f"Description: {rule.description}")
+            print(f"Configuration: {rule.config}")
+
+            # Perform validation
             result = rule.validate(text)
-            print(f"Result: {result.message}")
+
+            # Process result
+            if isinstance(result, RuleResult):
+                print(f"Result: {result.message}")
+                if not result.passed:
+                    print(f"Validation failed with metadata: {result.metadata}")
+            else:
+                print(f"Result: {result}")
+
+        # Use with any rule implementation
+        process_with_rule(length_rule, "Hello world")
+        process_with_rule(style_rule, "Hello world")
+        process_with_rule(custom_rule, "Hello world")
         ```
     """
 

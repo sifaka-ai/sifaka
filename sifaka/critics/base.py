@@ -2,7 +2,136 @@
 Base module for critics that provide feedback and validation on prompts.
 
 This module defines the core interfaces and base implementations for critics
-that analyze and improve text outputs based on rule violations.
+that analyze and improve text outputs based on rule violations. Critics are
+a key component in the Sifaka framework, providing feedback and improvement
+suggestions for text that fails validation rules.
+
+## Architecture Overview
+
+The critic system follows a layered architecture:
+
+1. **BaseCritic**: High-level interface for text critique and improvement
+2. **CriticConfig**: Configuration and settings management
+3. **CriticMetadata**: Standardized critique result format
+4. **CriticOutput**: Complete output from critique and improvement process
+5. **Protocol Classes**: Interface definitions for validators, improvers, and critics
+
+## Component Lifecycle
+
+### CriticConfig
+1. **Creation**: Instantiate with name, description, and optional parameters
+2. **Validation**: Values are validated in __post_init__
+3. **Modification**: Create new instances with with_params()
+4. **Usage**: Pass to critics for configuration
+
+### CriticMetadata
+1. **Creation**: Instantiate with score, feedback, and optional details
+2. **Access**: Read score, feedback, issues, and suggestions
+3. **Enhancement**: Create new instances with additional data using with_extra()
+
+### BaseCritic
+1. **Initialization**: Set up with configuration
+2. **Validation**: Check if text meets quality standards
+3. **Critique**: Analyze text and provide feedback
+4. **Improvement**: Enhance text based on violations or feedback
+5. **Processing**: Combine critique and improvement in a single operation
+
+## Error Handling Patterns
+
+The critic system implements several error handling patterns:
+
+1. **Input Validation**: Validates all inputs before processing
+   - Checks input types with is_valid_text()
+   - Handles empty text gracefully
+   - Validates configuration in _validate_config()
+
+2. **Critique Errors**: Handles errors during critique
+   - Returns valid CriticMetadata even when errors occur
+   - Includes error details in metadata
+   - Sets appropriate score for failed critiques
+
+3. **Improvement Errors**: Handles errors during text improvement
+   - Falls back to original text when improvement fails
+   - Returns appropriate result status (SUCCESS, NEEDS_IMPROVEMENT, FAILURE)
+   - Preserves original critique metadata
+
+## Usage Examples
+
+```python
+from sifaka.critics.base import create_basic_critic, CriticResult
+
+# Create a basic critic
+critic = create_basic_critic(
+    name="quality_critic",
+    description="Checks text quality and provides improvements",
+    min_confidence=0.7
+)
+
+# Validate text
+text = "This is a sample text that needs improvement."
+is_valid = critic.validate(text)
+print(f"Text is valid: {is_valid}")
+
+# Critique text
+metadata = critic.critique(text)
+print(f"Critique score: {metadata.score:.2f}")
+print(f"Feedback: {metadata.feedback}")
+
+if metadata.issues:
+    print("Issues:")
+    for issue in metadata.issues:
+        print(f"- {issue}")
+
+if metadata.suggestions:
+    print("Suggestions:")
+    for suggestion in metadata.suggestions:
+        print(f"- {suggestion}")
+
+# Process text with violations
+violations = [
+    {"rule": "length", "message": "Text is too short", "fix": lambda t: t + " Additional content."}
+]
+output = critic.process(text, violations)
+
+print(f"Result: {output.result}")
+print(f"Improved text: {output.improved_text}")
+```
+
+## Instantiation Pattern
+
+The recommended way to create critics is through factory functions:
+
+```python
+from sifaka.critics.base import create_critic, Critic
+from sifaka.critics.prompt import create_prompt_critic
+
+# Create a basic critic
+basic_critic = create_basic_critic(
+    name="basic_critic",
+    description="Basic text quality critic",
+    min_confidence=0.6
+)
+
+# Create a custom critic
+custom_critic = create_critic(
+    critic_class=Critic,
+    name="custom_critic",
+    description="Custom critic implementation",
+    min_confidence=0.8,
+    max_attempts=5,
+    params={"custom_param": "value"}
+)
+
+# Create a specialized prompt critic
+prompt_critic = create_prompt_critic(
+    llm_provider=model_provider,
+    name="prompt_critic",
+    description="LLM-based prompt critic",
+    system_prompt="You are an expert editor that improves text."
+)
+```
+
+Each critic type typically provides specialized factory functions for easier instantiation.
 """
 
 from abc import ABC, abstractmethod
@@ -21,20 +150,70 @@ from typing import (
     Union,
     cast,
     overload,
-    runtime_checkable
+    runtime_checkable,
 )
 
 from typing_extensions import TypeGuard
 
 
 # Input and output type variables
-T = TypeVar('T')  # Input type (usually str)
-R = TypeVar('R')  # Result type
-C = TypeVar('C', bound='BaseCritic')  # Critic type
+T = TypeVar("T")  # Input type (usually str)
+R = TypeVar("R")  # Result type
+C = TypeVar("C", bound="BaseCritic")  # Critic type
 
 
 class CriticResult(str, Enum):
-    """Enumeration of possible critic results."""
+    """
+    Enumeration of possible critic results.
+
+    This enum defines the standard result states that can be returned by
+    a critic's process() method, indicating the outcome of the critique
+    and improvement process.
+
+    ## Lifecycle
+
+    1. **Definition**: Defined as enum values (SUCCESS, NEEDS_IMPROVEMENT, FAILURE)
+    2. **Assignment**: Assigned in CriticOutput during processing
+    3. **Usage**: Used to determine next steps in processing pipelines
+
+    ## Values
+
+    - **SUCCESS**: Text meets quality standards and needs no improvement
+    - **NEEDS_IMPROVEMENT**: Text has been improved but may need further refinement
+    - **FAILURE**: Text could not be improved or improvement failed
+
+    ## Examples
+
+    ```python
+    from sifaka.critics.base import CriticResult, create_basic_critic
+
+    critic = create_basic_critic()
+    output = critic.process("Sample text", violations=[])
+
+    if output.result == CriticResult.SUCCESS:
+        print("Text meets quality standards")
+    elif output.result == CriticResult.NEEDS_IMPROVEMENT:
+        print("Text has been improved but may need further review")
+        print(f"Improved text: {output.improved_text}")
+    else:  # CriticResult.FAILURE
+        print("Text could not be improved")
+        print(f"Issues: {output.metadata.issues}")
+    ```
+
+    Using in conditional logic:
+
+    ```python
+    def handle_critic_result(output):
+        if output.result == CriticResult.SUCCESS:
+            return output.improved_text
+        elif output.result == CriticResult.NEEDS_IMPROVEMENT:
+            # Apply additional processing
+            return further_improve(output.improved_text)
+        else:  # CriticResult.FAILURE
+            # Fall back to default text
+            return "Unable to generate appropriate text"
+    ```
+    """
 
     SUCCESS = auto()
     NEEDS_IMPROVEMENT = auto()
@@ -43,7 +222,130 @@ class CriticResult(str, Enum):
 
 @dataclass(frozen=True)
 class CriticConfig(Generic[T]):
-    """Immutable configuration for critics."""
+    """
+    Immutable configuration for critics.
+
+    This class provides a standardized way to configure critics with
+    immutable properties. It follows the same pattern as RuleConfig and
+    ClassifierConfig, where critic-specific configuration options are
+    placed in the params dictionary.
+
+    The immutable design ensures configuration consistency during critic
+    operation and prevents accidental modification of settings.
+
+    ## Lifecycle
+
+    1. **Creation**: Instantiate with required and optional parameters
+       - Provide name and description (required)
+       - Set min_confidence, max_attempts, cache_size as needed
+       - Add critic-specific options in params dictionary
+
+    2. **Validation**: Values are validated in __post_init__
+       - Name and description must be non-empty
+       - min_confidence must be between 0 and 1
+       - max_attempts must be positive
+       - cache_size, priority, and cost must be non-negative
+
+    3. **Usage**: Access configuration properties during critic operation
+       - Read name and description for identification
+       - Use min_confidence for quality thresholds
+       - Use max_attempts for retry limits
+       - Access critic-specific params as needed
+
+    4. **Modification**: Create new instances with updated values
+       - Use with_params() to update critic-specific parameters
+       - Original configuration remains unchanged (immutable)
+
+    ## Error Handling
+
+    The class implements these error handling patterns:
+    - Validation of all parameters in __post_init__
+    - Immutability to prevent runtime configuration errors
+    - Type checking for critical parameters
+    - Range validation for numeric parameters
+
+    ## Examples
+
+    Creating and using a critic config:
+
+    ```python
+    from sifaka.critics.base import CriticConfig
+
+    # Create a basic config
+    config = CriticConfig(
+        name="quality_critic",
+        description="Checks text quality and provides improvements",
+        min_confidence=0.7,
+        max_attempts=3,
+        params={
+            "model_name": "gpt-3.5-turbo",
+            "temperature": 0.7
+        }
+    )
+
+    # Create a modified version
+    updated_config = config.with_params(temperature=0.5, use_gpu=True)
+
+    # Access configuration values
+    print(f"Critic name: {config.name}")
+    print(f"Min confidence: {config.min_confidence}")
+    print(f"Temperature: {updated_config.params['temperature']}")
+    ```
+
+    Error handling with validation:
+
+    ```python
+    from sifaka.critics.base import CriticConfig
+
+    try:
+        # This will raise an error due to invalid min_confidence
+        config = CriticConfig(
+            name="invalid_critic",
+            description="Invalid configuration example",
+            min_confidence=1.5  # Must be between 0 and 1
+        )
+    except ValueError as e:
+        print(f"Configuration error: {e}")
+        # Use default values instead
+        config = CriticConfig(
+            name="valid_critic",
+            description="Valid configuration example",
+            min_confidence=0.7  # Valid value
+        )
+    ```
+
+    Creating specialized configurations:
+
+    ```python
+    from sifaka.critics.base import CriticConfig
+
+    # Create a config for a high-precision critic
+    high_precision = CriticConfig(
+        name="precision_critic",
+        description="High-precision text critic",
+        min_confidence=0.9,  # Require high confidence
+        params={"precision_focused": True}
+    )
+
+    # Create a config for a high-recall critic
+    high_recall = CriticConfig(
+        name="recall_critic",
+        description="High-recall text critic",
+        min_confidence=0.3,  # Accept lower confidence
+        params={"recall_focused": True}
+    )
+    ```
+
+    Attributes:
+        name: Name of the critic
+        description: Description of what this critic does
+        min_confidence: Minimum confidence threshold for valid critiques
+        max_attempts: Maximum number of improvement attempts
+        cache_size: Size of the critique result cache (0 to disable)
+        priority: Priority of the critic (higher values = higher priority)
+        cost: Computational cost of using this critic
+        params: Dictionary of critic-specific parameters
+    """
 
     name: str
     description: str
@@ -88,7 +390,144 @@ class CriticConfig(Generic[T]):
 
 @dataclass(frozen=True)
 class CriticMetadata(Generic[R]):
-    """Immutable metadata for critic results."""
+    """
+    Immutable metadata for critic results.
+
+    This class provides a standardized way to represent critique results,
+    including a quality score, feedback text, identified issues, and
+    improvement suggestions. The immutable design ensures result consistency
+    and prevents accidental modification after critique.
+
+    ## Lifecycle
+
+    1. **Creation**: Instantiate with critique results
+       - Provide score and feedback (required)
+       - Add optional issues and suggestions lists
+       - Include processing metrics and attempt information
+       - Values are validated during creation
+
+    2. **Access**: Read properties to get critique details
+       - Access score for quantitative quality assessment
+       - Read feedback for qualitative assessment
+       - Examine issues list for identified problems
+       - Review suggestions for improvement ideas
+
+    3. **Enhancement**: Create new instances with additional data
+       - Use with_extra() to add or update extra metadata
+       - Original metadata remains unchanged (immutable)
+       - Chain multiple with_extra() calls as needed
+
+    4. **Usage**: Use in application logic
+       - Compare score against confidence thresholds
+       - Present feedback to users or systems
+       - Apply suggestions for text improvement
+       - Track processing metrics for performance analysis
+
+    ## Error Handling
+
+    The class implements these error handling patterns:
+    - Validation of score range (0-1)
+    - Validation of attempt_number (must be positive)
+    - Validation of processing_time_ms (must be non-negative)
+    - Immutability to prevent result tampering
+    - Structured extra dictionary for additional error details
+
+    ## Examples
+
+    Creating and using critic metadata:
+
+    ```python
+    from sifaka.critics.base import CriticMetadata
+
+    # Create basic metadata
+    metadata = CriticMetadata(
+        score=0.75,
+        feedback="Text is generally good but could use some improvements",
+        issues=["Text is slightly too short", "Missing conclusion"],
+        suggestions=["Add more details", "Include a concluding paragraph"]
+    )
+
+    # Access metadata properties
+    print(f"Quality score: {metadata.score:.2f}")
+    print(f"Feedback: {metadata.feedback}")
+
+    if metadata.issues:
+        print("Issues:")
+        for issue in metadata.issues:
+            print(f"- {issue}")
+
+    if metadata.suggestions:
+        print("Suggestions:")
+        for suggestion in metadata.suggestions:
+            print(f"- {suggestion}")
+    ```
+
+    Using with confidence thresholds:
+
+    ```python
+    from sifaka.critics.base import CriticMetadata
+
+    # Create metadata with different scores
+    high_quality = CriticMetadata(score=0.95, feedback="Excellent text")
+    medium_quality = CriticMetadata(score=0.7, feedback="Good text with minor issues")
+    low_quality = CriticMetadata(score=0.3, feedback="Text needs significant improvement")
+
+    # Apply different handling based on score
+    def process_critique(metadata, min_confidence=0.8):
+        if metadata.score >= min_confidence:
+            print(f"High quality text: {metadata.feedback}")
+            return "accept"
+        elif metadata.score >= 0.5:
+            print(f"Needs minor revisions: {metadata.feedback}")
+            return "revise"
+        else:
+            print(f"Needs major revisions: {metadata.feedback}")
+            print(f"Issues: {', '.join(metadata.issues)}")
+            return "reject"
+
+    # Process the metadata
+    process_critique(high_quality)    # "accept"
+    process_critique(medium_quality)  # "revise"
+    process_critique(low_quality)     # "reject"
+    ```
+
+    Adding extra information:
+
+    ```python
+    from sifaka.critics.base import CriticMetadata
+    import time
+
+    # Create initial metadata
+    start_time = time.time()
+    metadata = CriticMetadata(
+        score=0.8,
+        feedback="Good quality text",
+        processing_time_ms=(time.time() - start_time) * 1000
+    )
+
+    # Add extra information
+    enhanced = metadata.with_extra(
+        model_name="gpt-3.5-turbo",
+        tokens_used=150
+    ).with_extra(
+        timestamp=time.time()
+    )
+
+    # Access extra information
+    print(f"Model used: {enhanced.extra['model_name']}")
+    print(f"Tokens used: {enhanced.extra['tokens_used']}")
+    print(f"Timestamp: {enhanced.extra['timestamp']}")
+    ```
+
+    Attributes:
+        score: Quality score between 0 and 1
+        feedback: Textual feedback about the critique
+        issues: List of identified issues
+        suggestions: List of improvement suggestions
+        attempt_number: Current attempt number (for multi-attempt processes)
+        processing_time_ms: Processing time in milliseconds
+        extra: Additional metadata as key-value pairs
+    """
 
     score: float
     feedback: str
@@ -123,7 +562,103 @@ class CriticMetadata(Generic[R]):
 
 @dataclass(frozen=True)
 class CriticOutput(Generic[T, R]):
-    """Immutable output from a critic."""
+    """
+    Immutable output from a critic.
+
+    This class represents the complete output from a critic's process() method,
+    combining the result status, improved text, and detailed metadata. The
+    immutable design ensures output consistency and prevents accidental
+    modification after processing.
+
+    ## Lifecycle
+
+    1. **Creation**: Instantiate with process results
+       - Provide result status (SUCCESS, NEEDS_IMPROVEMENT, FAILURE)
+       - Include the improved text (or original if improvement failed)
+       - Include detailed metadata from critique
+
+    2. **Access**: Read properties to get process details
+       - Check result status to determine outcome
+       - Access improved_text for the enhanced content
+       - Examine metadata for detailed critique information
+
+    3. **Usage**: Use in application logic
+       - Make decisions based on result status
+       - Present improved text to users or systems
+       - Use metadata for detailed feedback
+
+    ## Examples
+
+    Creating and using critic output:
+
+    ```python
+    from sifaka.critics.base import CriticOutput, CriticResult, CriticMetadata
+
+    # Create metadata
+    metadata = CriticMetadata(
+        score=0.75,
+        feedback="Text is generally good but could use some improvements",
+        issues=["Text is slightly too short"],
+        suggestions=["Add more details"]
+    )
+
+    # Create output
+    output = CriticOutput(
+        result=CriticResult.NEEDS_IMPROVEMENT,
+        improved_text="This is the improved version of the text with more details.",
+        metadata=metadata
+    )
+
+    # Use the output
+    if output.result == CriticResult.SUCCESS:
+        print("Text meets quality standards")
+        print(output.improved_text)
+    elif output.result == CriticResult.NEEDS_IMPROVEMENT:
+        print("Text has been improved but may need further review")
+        print(f"Improved text: {output.improved_text}")
+        print(f"Feedback: {output.metadata.feedback}")
+    else:  # CriticResult.FAILURE
+        print("Text could not be improved")
+        print(f"Issues: {', '.join(output.metadata.issues)}")
+    ```
+
+    Using in a processing pipeline:
+
+    ```python
+    from sifaka.critics.base import create_basic_critic, CriticResult
+
+    critic = create_basic_critic()
+
+    def process_text(text, violations):
+        output = critic.process(text, violations)
+
+        if output.result == CriticResult.SUCCESS:
+            return output.improved_text, True
+
+        elif output.result == CriticResult.NEEDS_IMPROVEMENT:
+            # Log improvement details
+            print(f"Text improved: {output.metadata.feedback}")
+
+            # Check if score meets threshold
+            if output.metadata.score >= 0.7:
+                return output.improved_text, True
+            else:
+                # Try another improvement iteration
+                return process_text(output.improved_text, violations)
+
+        else:  # CriticResult.FAILURE
+            print(f"Improvement failed: {output.metadata.feedback}")
+            return text, False  # Return original text
+
+    # Use the processing function
+    improved_text, success = process_text("Original text", [])
+    ```
+
+    Attributes:
+        result: The result status (SUCCESS, NEEDS_IMPROVEMENT, FAILURE)
+        improved_text: The improved text (or original if improvement failed)
+        metadata: Detailed metadata from the critique process
+    """
 
     result: CriticResult
     improved_text: T
