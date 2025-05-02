@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/rules/formatting/style.py
+# hypothesis_version: 6.131.9
+
+['.!?', 'CapitalizationStyle', 'FormattingConfig', 'FormattingRule', 'FormattingValidator', 'StyleConfig', 'StyleRule', 'StyleValidator', 'Validates text style', '\\n{3,}', '\\s+', '_CharAnalyzer', '_EndingAnalyzer', 'allowed_end_chars', 'cache_size', 'capitalization', 'cost', 'create_style_rule', 'disallowed_chars', 'errors', 'forbid', 'formatted_length', 'formatting_rule', 'normalize_whitespace', 'original_length', 'params', 'priority', 'remove_extra_lines', 'strip_whitespace', 'style_config', 'style_rule']

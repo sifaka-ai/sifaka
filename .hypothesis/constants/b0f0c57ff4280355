@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/classifiers/profanity.py
+# hypothesis_version: 6.131.9
+
+[0.0, 0.5, 1.0, '*', 'ProfanityClassifier', 'bad', 'better_profanity', 'censor_char', 'censored_text', 'censored_word_count', 'clean', 'contains_profanity', 'custom_words', 'error', 'inappropriate', 'min_confidence', 'offensive', 'params', 'profane', 'profanity_classifier', 'profanity_ratio', 'reason', 'total_word_count', 'unknown']

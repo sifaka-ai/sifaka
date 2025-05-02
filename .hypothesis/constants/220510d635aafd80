@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/rules/formatting/length.py
+# hypothesis_version: 6.131.9
+
+['LengthConfig', 'LengthRule', 'LengthRuleValidator', 'LengthValidator', 'cache_size', 'char_count', 'cost', 'create_length_rule', 'errors', 'forbid', 'length_rule', 'max_chars', 'max_words', 'min_chars', 'min_words', 'params', 'priority', 'rule_id', 'word_count']

@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/rules/domain/consistency.py
+# hypothesis_version: 6.131.9
+
+[0.0, 0.3, 1.0, 100, '(?m)^#{1,6}\\s+\\w+', 'ConsistencyConfig', 'ConsistencyRule', 'ConsistencyValidator', 'Priority of the rule', 'Text is consistent', '\\b(?:all|every)\\b', '\\b(?:always|never)\\b', '\\b(?:begin|start)\\b', '\\b(?:end|finish)\\b', '\\b(?:is|are)\\b', '\\b(?:less|fewer)\\b', '\\b(?:more|greater)\\b', '\\b(?:must|should)\\b', '\\b(?:will|shall)\\b', '\\b\\w+\\b', '\\|[^|]+\\|', '_PatternAnalyzer', '_RepetitionAnalyzer', 'active', 'cache_size', 'code_block', 'consistency_patterns', 'consistency_rule', 'contradictions', 'cost', 'error', 'first_person', 'forbid', 'future', 'heading', 'list_marker', 'negative', 'params', 'passive', 'past', 'pattern', 'pattern_counts', 'positive', 'present', 'priority', 'repetition_threshold', 'repetitions', 'second_person', 'table_marker', 'third_person']

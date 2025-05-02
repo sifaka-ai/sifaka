@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/utils/logging.py
+# hypothesis_version: 6.131.9
+
+['\x1b[0m', '\x1b[31m', '\x1b[32m', '\x1b[33m', '\x1b[36m', '\x1b[41m', '%Y%m%d', '%Y-%m-%d %H:%M:%S', '(structured)', 'CRITICAL', 'DEBUG', 'ERROR', 'INFO', 'WARNING', 'failed', 'logs', 'message', 'sifaka', 'structured_data']

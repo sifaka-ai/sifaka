@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/critics/models.py
+# hypothesis_version: 6.131.9
+
+[0.0, 0.7, 1.0, 100, 1000, 'Attempt number', 'General feedback', 'List of issues', 'List of suggestions', 'Name of the critic', 'Size of the cache', 'description', 'forbid', 'name', 'system_prompt']

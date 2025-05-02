@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/classifiers/genre.py
+# hypothesis_version: 6.131.9
+
+[0.6, 2.0, 100, 2000, 'GenreClassifier', 'academic', 'blog', 'classifier', 'creative', 'default_genres', 'email', 'english', 'feature_importances', 'feature_importances_', 'fiction', 'is_confident', 'labels', 'legal', 'marketing', 'max_features', 'min_confidence', 'model_path', 'n_estimators', 'news', 'pipeline', 'probabilities', 'random_state', 'rb', 'sklearn.ensemble', 'sklearn.pipeline', 'social_media', 'technical', 'threshold', 'top_features', 'use_ngrams', 'vectorizer', 'wb']

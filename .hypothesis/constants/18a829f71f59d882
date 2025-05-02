@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/models/anthropic.py
+# hypothesis_version: 6.131.9
+
+[0.7, 0.8, 1000, 'cl100k_base', 'content', 'model', 'role', 'temperature', 'user']

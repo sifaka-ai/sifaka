@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/rules/content/sentiment.py
+# hypothesis_version: 6.131.9
+
+[0.0, 0.6, 0.8, 1.0, 100, 'Priority of the rule', 'SentimentAnalyzer', 'SentimentConfig', 'SentimentRule', 'SentimentValidator', 'awful', 'bad', 'cache_size', 'classifier_metadata', 'confidence', 'cost', 'excellent', 'forbid', 'good', 'great', 'happy', 'negative', 'negative_words', 'neutral', 'params', 'positive', 'positive_words', 'priority', 'sad', 'sentiment', 'sentiment_rule', 'terrible', 'threshold', 'valid_labels']

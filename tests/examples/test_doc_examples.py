@@ -255,7 +255,7 @@ class TestClassifierAdapterExamples:
         classifier = SentimentClassifier()
 
         # Create adapter as shown in example
-        adapter = ClassifierAdapter(adaptee=classifier, valid_labels=["positive"])
+        adapter = ClassifierAdapter(classifier, valid_labels=["positive"])
 
         # Test with positive text
         result = adapter.validate("This is great!")

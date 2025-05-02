@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/classifiers/readability.py
+# hypothesis_version: 6.131.9
+
+[0.0, 1.0, 6.0, 9.0, 12.0, 16.0, '.', 'Difficult - College', 'Easy - 6th grade', 'avg_sentence_length', 'avg_word_length', 'classification_error', 'college', 'dale_chall_score', 'difficult_words', 'elementary', 'error', 'flesch_kincaid_grade', 'flesch_reading_ease', 'grade_level', 'grade_level_bounds', 'graduate', 'gunning_fog', 'high', 'inf', 'lexicon_count', 'metrics', 'middle', 'params', 'reason', 'sentence_count', 'sentence_length_std', 'smog_index', 'syllable_count', 'text_stats', 'textstat', 'unique_word_count', 'unknown', 'vocabulary_diversity', 'word_length_std']

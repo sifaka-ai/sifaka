@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/critics/prompt.py
+# hypothesis_version: 6.131.9
+
+[0.7, 1000, 'Custom Prompt Critic', 'Custom prompt critic', 'Field required', 'factory_critic', 'llm_provider', 'loc', 'missing', 'msg', 'prompt_critic', 'type']

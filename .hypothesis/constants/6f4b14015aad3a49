@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/models/base.py
+# hypothesis_version: 6.131.9
+
+[0.7, 1000, 'C', 'ModelConfig', 'ModelProvider', 'R', 'T', 'api_key', 'duration_ms', 'error', 'generate', 'max_tokens', 'prompt_tokens', 'response_tokens', 'success', 'temperature', 'text_length', 'token_count', 'trace_enabled']

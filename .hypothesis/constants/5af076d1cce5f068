@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/rules/formatting/format.py
+# hypothesis_version: 6.131.9
+
+[0.0, 1.0, 100, '#', '(', ')', '*', '-', '1.', '>', 'DefaultJsonValidator', 'Empty text', 'FormatConfig', 'FormatRule', 'FormatType', 'FormatValidator', 'JsonConfig', 'MarkdownConfig', 'Maximum text length', 'Minimum text length', 'PlainTextConfig', 'Priority of the rule', 'Valid JSON format', '[', ']', '_', '_JsonAnalyzer', '_MarkdownAnalyzer', '_PlainTextAnalyzer', '`', 'allow_empty', 'cache_size', 'code_blocks', 'cost', 'create_format_rule', 'create_json_rule', 'create_markdown_rule', 'empty_string', 'error', 'forbid', 'format_rule', 'found_elements', 'headers', 'json', 'json_rule', 'json_schema', 'length', 'lists', 'markdown', 'markdown_elements', 'markdown_rule', 'max_length', 'min_elements', 'min_length', 'params', 'plain_text', 'plain_text_rule', 'position', 'priority', 'required_elements', 'required_format', 'required_min', 'strict']

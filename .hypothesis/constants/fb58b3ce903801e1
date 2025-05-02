@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/classifiers/toxicity.py
+# hypothesis_version: 6.131.9
+
+[0.0, 0.01, 0.5, 0.7, 0.95, 'ToxicityClassifier', 'all_scores', 'classification_error', 'detoxify', 'error', 'general_threshold', 'identity_hate', 'insult', 'model_name', 'non_toxic', 'obscene', 'original', 'params', 'reason', 'severe_toxic', 'threat', 'threat_threshold', 'toxic', 'toxicity_classifier', 'unknown']

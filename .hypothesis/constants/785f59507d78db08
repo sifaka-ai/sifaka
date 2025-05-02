@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/rules/factual/confidence.py
+# hypothesis_version: 6.131.9
+
+[0.0, 0.8, 1.0, 100, 'Priority of the rule', 'absolutely', 'certainly', 'clearly', 'confidence_rule', 'definitely', 'evidently', 'highly confident', 'obviously', 'threshold', 'undoubtedly', 'very certain', 'without a doubt']

@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/classifiers/base.py
+# hypothesis_version: 6.131.9
+
+[0.0, 0.5, 1.0, 'Additional metadata', 'BaseClassifier', 'C', 'ClassificationResult', 'Classifier', 'ClassifierConfig', 'ClassifierConfig[T]', 'ClassifierProtocol', 'R', 'T', 'TextClassifier', 'TextProcessor', '_result_cache', 'empty_input', 'params', 'reason', 'unknown']

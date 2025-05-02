@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/classifiers/ner.py
+# hypothesis_version: 6.131.9
+
+[0.0, 0.5, 1.0, 'Custom NER engine', 'NERClassifier', 'date', 'dominant_entity_type', 'en_core_web_sm', 'end', 'entities', 'entities_by_type', 'entity_count', 'entity_density', 'entity_types', 'error', 'location', 'min_confidence', 'model_name', 'money', 'ner_classifier', 'organization', 'params', 'person', 'reason', 'spacy', 'start', 'text', 'type', 'unknown']

@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/classifiers/sentiment.py
+# hypothesis_version: 6.131.9
+
+[-0.05, 0.0, 0.05, 1.0, 'SentimentClassifier', 'compound', 'compound_score', 'empty_input', 'error', 'neg', 'neg_score', 'negative', 'negative_threshold', 'neu', 'neu_score', 'neutral', 'params', 'pos', 'pos_score', 'positive', 'positive_threshold', 'reason', 'sentiment_classifier', 'unknown']

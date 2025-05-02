@@ -1,0 +1,4 @@
+# file: /Users/evanvolgas/Documents/not_beam/sifaka/sifaka/adapters/rules/classifier.py
+# hypothesis_version: 6.131.9
+
+[0.0, 0.5, 1.0, 'C', 'Classifier', 'ClassifierAdapter', 'ClassifierInstance', 'ClassifierRule', 'ClassifierRuleConfig', 'ClassifierType', 'List of valid labels', 'adaptee_name', 'confidence', 'empty_input', 'error', 'error_type', 'errors', 'get', 'invalid_labels', 'label', 'labels', 'model_dump', 'reason', 'rule_id', 'severity', 'threshold', 'valid_labels']
