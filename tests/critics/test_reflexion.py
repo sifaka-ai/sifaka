@@ -1,7 +1,12 @@
+"""
+Tests for the reflexion critic module.
+"""
+
 import unittest
 from unittest.mock import MagicMock, patch
 import pytest
 from typing import Dict, Any
+import asyncio
 
 from sifaka.critics.reflexion import (
     ReflexionCritic,
@@ -109,6 +114,19 @@ class MockReflexionCritic:
         if not text or not text.strip():
             return text
         return f"Improved with feedback: {text}"
+
+    # Implement async methods that return awaitable objects
+    async def avalidate(self, text):
+        """Async validate method."""
+        return self.validate(text)
+
+    async def acritique(self, text):
+        """Async critique method."""
+        return self.critique(text)
+
+    async def aimprove(self, text, feedback=None):
+        """Async improve method."""
+        return self.improve(text, feedback)
 
 
 # Patch the create_reflexion_critic function to return our mock
@@ -371,9 +389,7 @@ async def test_avalidate():
     mock_model = MockModel({"validate": "VALID: true\nREASON: This is valid."})
     critic = patched_create_reflexion_critic(llm_provider=mock_model)
 
-    # Mock avalidate to call synchronous validate
-    critic.avalidate = lambda text: critic.validate(text)
-
+    # The critic already has proper async methods implemented
     result = await critic.avalidate("This is a test")
     assert result is True
 
@@ -387,9 +403,7 @@ async def test_acritique():
     })
     critic = patched_create_reflexion_critic(llm_provider=mock_model)
 
-    # Mock acritique to call synchronous critique
-    critic.acritique = lambda text: critic.critique(text)
-
+    # The critic already has proper async methods implemented
     result = await critic.acritique("This is a test")
     assert isinstance(result, CriticMetadata)
     assert result.score == 0.8
@@ -405,9 +419,7 @@ async def test_aimprove():
     mock_model = MockModel({"improve": "IMPROVED_TEXT: This is improved text."})
     critic = patched_create_reflexion_critic(llm_provider=mock_model)
 
-    # Mock aimprove to call synchronous improve
-    critic.aimprove = lambda text, feedback=None: critic.improve(text, feedback)
-
+    # The critic already has proper async methods implemented
     result = await critic.aimprove("This is a test", "Make it better")
     assert result == "Improved: This is a test"
 

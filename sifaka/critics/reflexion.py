@@ -289,13 +289,8 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         else:
             feedback_str = feedback
 
-        # Delegate to critique service
-        improved_text = self._critique_service.improve(text, feedback_str)
-
-        # Generate reflection on the improvement process
-        self._generate_reflection(text, feedback_str, improved_text)
-
-        return improved_text
+        # Delegate to critique service - the critique service handles reflection generation
+        return self._critique_service.improve(text, feedback_str)
 
     def critique(self, text: str) -> dict:
         """Analyze text and provide detailed feedback.
@@ -393,42 +388,6 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
 
         return result
 
-    def _generate_reflection(self, original_text: str, feedback: str, improved_text: str) -> None:
-        """Generate a reflection on the improvement process and add it to memory.
-
-        Args:
-            original_text: The original text
-            feedback: The feedback received
-            improved_text: The improved text
-        """
-        # Create reflection prompt
-        reflection_prompt = self._prompt_manager.create_reflection_prompt(
-            original_text, feedback, improved_text
-        )
-
-        try:
-            # Get response from the model
-            response = self._model.invoke(reflection_prompt)
-
-            # Extract reflection from response
-            reflection = ""
-            if isinstance(response, dict) and "reflection" in response:
-                reflection = response["reflection"]
-            elif isinstance(response, str):
-                if "REFLECTION:" in response:
-                    parts = response.split("REFLECTION:")
-                    if len(parts) > 1:
-                        reflection = parts[1].strip()
-                else:
-                    reflection = response.strip()
-
-            # Add reflection to memory
-            if reflection:
-                self._memory_manager.add_to_memory(reflection)
-        except Exception:
-            # Silently fail if reflection generation fails
-            pass
-
     def _get_relevant_reflections(self) -> List[str]:
         """Get relevant reflections from the memory buffer.
 
@@ -504,56 +463,8 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         else:
             feedback_str = feedback
 
-        # Delegate to critique service
-        improved_text = await self._critique_service.aimprove(text, feedback_str)
-
-        # Generate reflection on the improvement process
-        await self._generate_reflection_async(text, feedback_str, improved_text)
-
-        return improved_text
-
-    async def _generate_reflection_async(
-        self, original_text: str, feedback: str, improved_text: str
-    ) -> None:
-        """
-        Asynchronously generate a reflection on the improvement process.
-
-        Args:
-            original_text: The original text
-            feedback: The feedback received
-            improved_text: The improved text
-        """
-        # Create reflection prompt
-        reflection_prompt = self._prompt_manager.create_reflection_prompt(
-            original_text, feedback, improved_text
-        )
-
-        try:
-            # Try to use ainvoke if available, otherwise fall back to invoke
-            if hasattr(self._model, "ainvoke"):
-                response = await self._model.ainvoke(reflection_prompt)
-            else:
-                # Fall back to synchronous invoke if ainvoke is not available
-                response = self._model.invoke(reflection_prompt)
-
-            # Extract reflection from response
-            reflection = ""
-            if isinstance(response, dict) and "reflection" in response:
-                reflection = response["reflection"]
-            elif isinstance(response, str):
-                if "REFLECTION:" in response:
-                    parts = response.split("REFLECTION:")
-                    if len(parts) > 1:
-                        reflection = parts[1].strip()
-                else:
-                    reflection = response.strip()
-
-            # Add reflection to memory
-            if reflection:
-                self._memory_manager.add_to_memory(reflection)
-        except Exception:
-            # Silently fail if reflection generation fails
-            pass
+        # Delegate to critique service - the critique service handles reflection generation
+        return await self._critique_service.aimprove(text, feedback_str)
 
 
 # Default configurations

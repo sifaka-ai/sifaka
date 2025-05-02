@@ -1,24 +1,23 @@
-"""
-Tests for whitespace validation rules.
-"""
+"""Test module for sifaka.rules.formatting.whitespace."""
 
 import pytest
+from pydantic import ValidationError
+
 from sifaka.rules.formatting.whitespace import (
     WhitespaceConfig,
+    WhitespaceValidator,
     DefaultWhitespaceValidator,
     WhitespaceRule,
     create_whitespace_rule,
 )
-from sifaka.rules.base import RuleResult
 
 
 class TestWhitespaceConfig:
     """Tests for WhitespaceConfig."""
 
     def test_default_config(self):
-        """Test default configuration values."""
+        """Test default configuration."""
         config = WhitespaceConfig()
-
         assert config.allow_leading_whitespace is False
         assert config.allow_trailing_whitespace is False
         assert config.allow_multiple_spaces is False
@@ -28,7 +27,7 @@ class TestWhitespaceConfig:
         assert config.normalize_whitespace is False
 
     def test_custom_config(self):
-        """Test custom configuration values."""
+        """Test custom configuration."""
         config = WhitespaceConfig(
             allow_leading_whitespace=True,
             allow_trailing_whitespace=True,
@@ -37,7 +36,6 @@ class TestWhitespaceConfig:
             allow_newlines=False,
             normalize_whitespace=True,
         )
-
         assert config.allow_leading_whitespace is True
         assert config.allow_trailing_whitespace is True
         assert config.allow_multiple_spaces is True
@@ -46,250 +44,267 @@ class TestWhitespaceConfig:
         assert config.max_newlines is None
         assert config.normalize_whitespace is True
 
-    # Skip the max_newlines validation test until we update the code to work with Pydantic v2
-    @pytest.mark.skip(reason="Requires updating the validator for Pydantic v2 compatibility")
     def test_max_newlines_validation(self):
-        """Test max_newlines validation."""
-        # Valid case
+        """Test validation of max_newlines with allow_newlines."""
+        # Valid: allow_newlines=True, max_newlines=2
         config = WhitespaceConfig(allow_newlines=True, max_newlines=2)
         assert config.max_newlines == 2
 
-        # Invalid case - max_newlines set when allow_newlines is False
-        with pytest.raises(ValueError) as excinfo:
+        # Invalid: allow_newlines=False, max_newlines=2
+        with pytest.raises(ValidationError):
             WhitespaceConfig(allow_newlines=False, max_newlines=2)
 
-        assert "max_newlines can only be set if allow_newlines is True" in str(excinfo.value)
+    def test_max_newlines_range(self):
+        """Test validation of max_newlines range."""
+        # Valid: max_newlines=0
+        config = WhitespaceConfig(max_newlines=0)
+        assert config.max_newlines == 0
+
+        # Invalid: max_newlines=-1
+        with pytest.raises(ValidationError):
+            WhitespaceConfig(max_newlines=-1)
 
 
 class TestDefaultWhitespaceValidator:
     """Tests for DefaultWhitespaceValidator."""
 
-    def test_leading_whitespace(self):
-        """Test leading whitespace validation."""
-        # Not allowed (default)
+    def test_initialization(self):
+        """Test initialization with config."""
         config = WhitespaceConfig()
         validator = DefaultWhitespaceValidator(config)
+        assert validator.config == config
 
-        is_valid, errors = validator.validate(" Hello")
+    def test_validate_no_errors(self):
+        """Test validation with no errors."""
+        config = WhitespaceConfig()
+        validator = DefaultWhitespaceValidator(config)
+        text = "This is a valid text."
+        is_valid, errors = validator.validate(text)
+        assert is_valid is True
+        assert errors == []
+
+    def test_validate_leading_whitespace(self):
+        """Test validation of leading whitespace."""
+        # Not allowed (default)
+        config = WhitespaceConfig(allow_leading_whitespace=False)
+        validator = DefaultWhitespaceValidator(config)
+        text = " Leading whitespace"
+        is_valid, errors = validator.validate(text)
         assert is_valid is False
-        assert "leading whitespace" in errors[0]
+        assert "leading whitespace" in errors[0].lower()
 
         # Allowed
         config = WhitespaceConfig(allow_leading_whitespace=True)
         validator = DefaultWhitespaceValidator(config)
-
-        is_valid, errors = validator.validate(" Hello")
+        text = " Leading whitespace"
+        is_valid, errors = validator.validate(text)
         assert is_valid is True
-        assert not errors
+        assert errors == []
 
-    def test_trailing_whitespace(self):
-        """Test trailing whitespace validation."""
+    def test_validate_trailing_whitespace(self):
+        """Test validation of trailing whitespace."""
         # Not allowed (default)
-        config = WhitespaceConfig()
+        config = WhitespaceConfig(allow_trailing_whitespace=False)
         validator = DefaultWhitespaceValidator(config)
-
-        is_valid, errors = validator.validate("Hello ")
+        text = "Trailing whitespace "
+        is_valid, errors = validator.validate(text)
         assert is_valid is False
-        assert "trailing whitespace" in errors[0]
+        assert "trailing whitespace" in errors[0].lower()
 
         # Allowed
         config = WhitespaceConfig(allow_trailing_whitespace=True)
         validator = DefaultWhitespaceValidator(config)
-
-        is_valid, errors = validator.validate("Hello ")
+        text = "Trailing whitespace "
+        is_valid, errors = validator.validate(text)
         assert is_valid is True
-        assert not errors
+        assert errors == []
 
-    def test_multiple_spaces(self):
-        """Test multiple spaces validation."""
+    def test_validate_multiple_spaces(self):
+        """Test validation of multiple consecutive spaces."""
         # Not allowed (default)
-        config = WhitespaceConfig()
+        config = WhitespaceConfig(allow_multiple_spaces=False)
         validator = DefaultWhitespaceValidator(config)
-
-        is_valid, errors = validator.validate("Hello  world")
+        text = "Multiple  spaces"
+        is_valid, errors = validator.validate(text)
         assert is_valid is False
-        assert "multiple consecutive spaces" in errors[0]
+        assert "multiple consecutive spaces" in errors[0].lower()
 
         # Allowed
         config = WhitespaceConfig(allow_multiple_spaces=True)
         validator = DefaultWhitespaceValidator(config)
-
-        is_valid, errors = validator.validate("Hello  world")
+        text = "Multiple  spaces"
+        is_valid, errors = validator.validate(text)
         assert is_valid is True
-        assert not errors
+        assert errors == []
 
-    def test_tabs(self):
-        """Test tab characters validation."""
+    def test_validate_tabs(self):
+        """Test validation of tab characters."""
         # Not allowed (default)
-        config = WhitespaceConfig()
+        config = WhitespaceConfig(allow_tabs=False)
         validator = DefaultWhitespaceValidator(config)
-
-        is_valid, errors = validator.validate("Hello\tworld")
+        text = "Contains\ttab"
+        is_valid, errors = validator.validate(text)
         assert is_valid is False
-        assert "tab characters" in errors[0]
+        assert "tab" in errors[0].lower()
 
         # Allowed
         config = WhitespaceConfig(allow_tabs=True)
         validator = DefaultWhitespaceValidator(config)
-
-        is_valid, errors = validator.validate("Hello\tworld")
+        text = "Contains\ttab"
+        is_valid, errors = validator.validate(text)
         assert is_valid is True
-        assert not errors
+        assert errors == []
 
-    def test_newlines(self):
-        """Test newline characters validation."""
+    def test_validate_newlines(self):
+        """Test validation of newline characters."""
         # Allowed (default)
-        config = WhitespaceConfig()
+        config = WhitespaceConfig(allow_newlines=True)
         validator = DefaultWhitespaceValidator(config)
-
-        is_valid, errors = validator.validate("Hello\nworld")
+        text = "Contains\nnewline"
+        is_valid, errors = validator.validate(text)
         assert is_valid is True
-        assert not errors
+        assert errors == []
 
         # Not allowed
         config = WhitespaceConfig(allow_newlines=False)
         validator = DefaultWhitespaceValidator(config)
-
-        is_valid, errors = validator.validate("Hello\nworld")
+        text = "Contains\nnewline"
+        is_valid, errors = validator.validate(text)
         assert is_valid is False
-        assert "newline characters" in errors[0]
+        assert "newline" in errors[0].lower()
 
-    # Skip the max_newlines test until we update the code to work with Pydantic v2
-    @pytest.mark.skip(reason="Requires updating the validator for Pydantic v2 compatibility")
-    def test_max_newlines(self):
-        """Test maximum consecutive newlines validation."""
-        # Max 2 newlines
-        config = WhitespaceConfig(max_newlines=2)
+    def test_validate_max_newlines(self):
+        """Test validation of maximum consecutive newlines."""
+        # Max 1 newline
+        config = WhitespaceConfig(allow_newlines=True, max_newlines=1)
         validator = DefaultWhitespaceValidator(config)
 
-        # Valid - 2 newlines
-        is_valid, errors = validator.validate("Hello\n\nworld")
+        # Valid: 1 newline
+        text = "One\nnewline"
+        is_valid, errors = validator.validate(text)
         assert is_valid is True
-        assert not errors
+        assert errors == []
 
-        # Invalid - 3 newlines
-        is_valid, errors = validator.validate("Hello\n\n\nworld")
+        # Invalid: 2 newlines
+        text = "Two\n\nnewlines"
+        is_valid, errors = validator.validate(text)
         assert is_valid is False
-        assert "consecutive newlines" in errors[0]
+        assert "consecutive newlines" in errors[0].lower()
+        assert "maximum allowed is 1" in errors[0].lower()
 
     def test_normalize_whitespace(self):
-        """Test whitespace normalization."""
-        # With normalization
-        config = WhitespaceConfig(normalize_whitespace=True)
-        validator = DefaultWhitespaceValidator(config)
-
-        # Should normalize and then validate
-        is_valid, errors = validator.validate("  Hello  world  ")
-        assert is_valid is True  # After normalization, the text should be valid
-        assert not errors
-
-        # Multiple issues without normalization
-        config = WhitespaceConfig(normalize_whitespace=False)
-        validator = DefaultWhitespaceValidator(config)
-
-        is_valid, errors = validator.validate("  Hello  world  ")
-        assert is_valid is False
-        assert len(errors) == 3  # Leading, trailing, and multiple spaces
-
-
-# Create a concrete implementation of WhitespaceRule for testing
-class ConcreteWhitespaceRule(WhitespaceRule):
-    """Concrete implementation of WhitespaceRule for testing."""
-
-    def _create_default_validator(self):
-        """Create a default validator."""
-        config = WhitespaceConfig()
-        return DefaultWhitespaceValidator(config)
-
-    def validate(self, text: str, **kwargs) -> RuleResult:
-        """Evaluate text against whitespace constraints.
-
-        Args:
-            text: The text to evaluate
-
-        Returns:
-            RuleResult containing validation results
-        """
-        is_valid, errors = self.validator.validate(text)
-        message = "; ".join(errors) if errors else "Validation passed"
-        return RuleResult(
-            passed=is_valid,
-            message=message
+        """Test normalization of whitespace."""
+        config = WhitespaceConfig(
+            allow_leading_whitespace=False,
+            allow_trailing_whitespace=False,
+            allow_multiple_spaces=False,
+            allow_tabs=False,
+            normalize_whitespace=True,
         )
+        validator = DefaultWhitespaceValidator(config)
+
+        # Text with various whitespace issues
+        text = " \t Multiple  spaces and\ttabs with trailing space "
+
+        # With normalization enabled, validation should pass
+        is_valid, errors = validator.validate(text)
+        assert is_valid is True
+        assert errors == []
+
+        # Test the internal normalization method directly
+        normalized = validator._normalize_whitespace(text)
+        assert not normalized.startswith(" ")
+        assert not normalized.endswith(" ")
+        assert "  " not in normalized
+        assert "\t" not in normalized
+
+    def test_multiple_validation_issues(self):
+        """Test validation with multiple issues."""
+        config = WhitespaceConfig()
+        validator = DefaultWhitespaceValidator(config)
+        text = " Leading and trailing \t with tab and  multiple spaces"
+        is_valid, errors = validator.validate(text)
+        assert is_valid is False
+        assert len(errors) == 3  # Leading, multiple spaces, and tab issues
 
 
 class TestWhitespaceRule:
     """Tests for WhitespaceRule."""
 
-    def test_rule_validation(self):
-        """Test rule validation."""
+    def test_initialization(self):
+        """Test initialization with validator."""
         config = WhitespaceConfig()
         validator = DefaultWhitespaceValidator(config)
-        rule = ConcreteWhitespaceRule(
-            validator=validator,
-            name="test_rule",
-            description="Test rule"
-        )
+        rule = WhitespaceRule(validator=validator)
+        assert rule.validator == validator
+        assert rule.id == "rule"  # Default ID
+
+    def test_custom_rule_id(self):
+        """Test initialization with custom ID."""
+        config = WhitespaceConfig()
+        validator = DefaultWhitespaceValidator(config)
+        rule = WhitespaceRule(validator=validator, id="custom_id")
+        assert rule.id == "custom_id"
+
+    def test_validate(self):
+        """Test validation through the rule."""
+        config = WhitespaceConfig()
+        validator = DefaultWhitespaceValidator(config)
+        rule = WhitespaceRule(validator=validator)
 
         # Valid text
-        result = rule.validate("Hello world")
+        result = rule.validate("Valid text")
         assert result.passed is True
-        assert not hasattr(result, 'errors')  # RuleResult doesn't have errors attribute
-
-        # Invalid text - we need to check the message since WhitespaceRule converts errors list to a message
-        result = rule.validate("  Hello  world  ")
-        assert result.passed is False
-        assert "whitespace" in result.message.lower()
-
-    # Skip this test for now until we implement a concrete WhitespaceRule for testing
-    @pytest.mark.skip(reason="Factory function uses abstract WhitespaceRule class")
-    def test_create_whitespace_rule(self):
-        """Test create_whitespace_rule factory function."""
-        # Default rule
-        rule = create_whitespace_rule()
-
-        # Valid text
-        result = rule.validate("Hello world")
-        assert result.passed is True
+        assert result.rule_id == "rule"
+        assert result.errors == []
 
         # Invalid text
-        result = rule.validate("  Hello  world  ")
+        result = rule.validate(" Invalid text with leading space")
+        assert result.passed is False
+        assert result.rule_id == "rule"
+        assert len(result.errors) == 1
+        assert "leading whitespace" in result.errors[0].lower()
+
+
+class TestCreateWhitespaceRule:
+    """Tests for create_whitespace_rule helper function."""
+
+    def test_default_creation(self):
+        """Test creating rule with default parameters."""
+        rule = create_whitespace_rule()
+        assert isinstance(rule, WhitespaceRule)
+        assert rule.id == "whitespace"  # Default ID
+
+        # Test with default validator config
+        result = rule.validate("Valid text")
+        assert result.passed is True
+
+        result = rule.validate(" Invalid text")
         assert result.passed is False
 
-        # Custom rule with all whitespace allowed
+    def test_custom_creation(self):
+        """Test creating rule with custom parameters."""
         rule = create_whitespace_rule(
             allow_leading_whitespace=True,
             allow_trailing_whitespace=True,
             allow_multiple_spaces=True,
             allow_tabs=True,
+            allow_newlines=False,
+            max_newlines=None,
+            normalize_whitespace=True,
             rule_id="custom_whitespace",
             name="Custom Whitespace Rule",
-            description="Custom rule that allows all whitespace",
+            description="A custom whitespace rule",
         )
 
-        # Should now pass
-        result = rule.validate("  Hello  world  \t")
+        assert isinstance(rule, WhitespaceRule)
+        assert rule.id == "custom_whitespace"
+        assert rule.name == "Custom Whitespace Rule"
+        assert rule.description == "A custom whitespace rule"
+
+        # Test with custom validator config
+        result = rule.validate(" Leading whitespace is allowed ")
         assert result.passed is True
-        assert result.rule_id == "custom_whitespace"
 
-    # Add a test that uses our concrete implementation instead
-    def test_concrete_whitespace_rule(self):
-        """Test concrete WhitespaceRule implementation."""
-        # Create a rule that allows all whitespace
-        config = WhitespaceConfig(
-            allow_leading_whitespace=True,
-            allow_trailing_whitespace=True,
-            allow_multiple_spaces=True,
-            allow_tabs=True,
-        )
-        validator = DefaultWhitespaceValidator(config)
-        rule = ConcreteWhitespaceRule(
-            validator=validator,
-            name="custom_whitespace",
-            description="Custom rule that allows all whitespace",
-        )
-
-        # Should now pass
-        result = rule.validate("  Hello  world  \t")
-        assert result.passed is True
-        assert rule.name == "custom_whitespace"
+        result = rule.validate("Newlines are\nnot allowed")
+        assert result.passed is False
