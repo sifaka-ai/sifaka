@@ -45,17 +45,20 @@ from sifaka.rules.factual.base import BaseFactualValidator
 class AccuracyConfig(BaseModel):
     """Configuration for accuracy validation."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     knowledge_base: List[str] = Field(
         default_factory=list,
         description="List of known facts for validation",
+        min_length=1,
+        json_schema_extra={"examples": ["The Earth is round", "Water boils at 100°C at sea level"]},
     )
     threshold: float = Field(
         default=0.8,
         ge=0.0,
         le=1.0,
         description="Minimum accuracy score required",
+        json_schema_extra={"examples": [0.8, 0.9]},
     )
     cache_size: int = Field(
         default=100,
@@ -72,14 +75,6 @@ class AccuracyConfig(BaseModel):
         ge=0.0,
         description="Cost of running the rule",
     )
-
-    @field_validator("knowledge_base")
-    @classmethod
-    def validate_knowledge_base(cls, v: List[str]) -> List[str]:
-        """Validate that knowledge base is not empty."""
-        if not v:
-            raise ValueError("Knowledge base cannot be empty")
-        return v
 
 
 class DefaultAccuracyValidator(BaseFactualValidator):

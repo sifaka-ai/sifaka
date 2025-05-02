@@ -49,27 +49,38 @@ class FactualValidator(Protocol):
         ...
 
 
-class BaseFactualValidator(BaseValidator):
+class BaseFactualValidator(BaseValidator[str]):
     """Base class for factual validators."""
 
-    def __init__(self, config: RuleConfig) -> None:
+    def __init__(self, config: Any) -> None:
         """Initialize with configuration.
 
         Args:
             config: The configuration for the validator
         """
-        super().__init__(config)
+        self._config = config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate the given text for factual accuracy.
 
         Args:
             text: The text to validate
+            **kwargs: Additional validation context
 
         Returns:
             RuleResult: The result of the validation
         """
+        # Handle empty text
+        empty_result = self.handle_empty_text(text)
+        if empty_result:
+            return empty_result
+
         raise NotImplementedError("Subclasses must implement validate()")
+
+    @property
+    def validation_type(self) -> type[str]:
+        """Get the type this validator can validate."""
+        return str
 
 
 class FactualConfig(BaseModel):

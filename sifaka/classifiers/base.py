@@ -102,17 +102,11 @@ class ClassificationResult(BaseModel):
         metadata: Additional metadata about the classification
     """
 
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)  # Immutable model
+
     label: str = Field(description="The classification label")
     confidence: float = Field(ge=0.0, le=1.0, description="Confidence score between 0 and 1")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    @model_validator(mode="after")
-    def validate_metadata(self) -> "ClassificationResult":
-        """Ensure metadata is immutable."""
-        self.metadata = dict(self.metadata)  # Create a new dict to prevent mutations
-        return self
 
     def with_metadata(self, **kwargs) -> "ClassificationResult":
         """Create a new result with additional metadata."""
@@ -132,15 +126,15 @@ class BaseClassifier(ABC, BaseModel):
     A classifier provides predictions that can be used by rules.
     """
 
-    name: str = Field(description="Name of the classifier")
-    description: str = Field(description="Description of the classifier")
-    config: ClassifierConfig
-
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
         from_attributes=True,
         validate_assignment=True,
     )
+
+    name: str = Field(description="Name of the classifier", min_length=1)
+    description: str = Field(description="Description of the classifier", min_length=1)
+    config: ClassifierConfig
 
     def model_post_init(self, __context: Any) -> None:
         """Initialize cache if enabled."""
