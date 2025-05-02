@@ -23,6 +23,10 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Dict, List, Optional, Tuple, Union
 
+# Third-party
+from pydantic import BaseModel, Field, PrivateAttr
+
+# Sifaka
 from sifaka.rules.base import Rule, RuleResult, RuleConfig, BaseValidator
 
 
@@ -45,6 +49,10 @@ __all__ = [
     "create_style_rule",
     "create_formatting_validator",
     "create_formatting_rule",
+    # Internal helpers
+    "_CapitalizationAnalyzer",
+    "_EndingAnalyzer",
+    "_CharAnalyzer",
 ]
 
 
@@ -125,143 +133,45 @@ class StyleValidator(BaseValidator[str]):
 
 
 class DefaultStyleValidator(StyleValidator):
-    """Default implementation of text style validator."""
+    """Default style validator delegating logic to analyzers."""
 
-    def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate text against style constraints.
+    def __init__(self, config: StyleConfig):
+        super().__init__(config)
 
-        Args:
-            text: The text to validate
-            **kwargs: Additional validation context
+        self._cap_analyzer = _CapitalizationAnalyzer(style=config.capitalization)
+        self._end_analyzer = _EndingAnalyzer(
+            require_end_punctuation=config.require_end_punctuation,
+            allowed_end_chars=config.allowed_end_chars or [],
+        )
+        self._char_analyzer = _CharAnalyzer(disallowed=config.disallowed_chars or [])
 
-        Returns:
-            Validation result
-        """
-        # Handle empty text
-        empty_result = self.handle_empty_text(text)
-        if empty_result:
-            return empty_result
+    def validate(self, text: str, **kwargs) -> RuleResult:  # noqa: D401
+        """Validate *text* style by delegating to analyzers."""
+
+        empty = self.handle_empty_text(text)
+        if empty:
+            return empty
 
         if self.config.strip_whitespace:
             text = text.strip()
 
-        errors = []
+        errors: List[str] = []
 
-        # Capitalization validation
-        if self.config.capitalization:
-            cap_valid, cap_error = self._validate_capitalization(text)
-            if not cap_valid:
-                errors.append(cap_error)
+        if cap_err := self._cap_analyzer.analyze(text):
+            errors.append(cap_err)
 
-        # End punctuation validation
-        if self.config.require_end_punctuation or self.config.allowed_end_chars:
-            end_valid, end_error = self._validate_ending(text)
-            if not end_valid:
-                errors.append(end_error)
+        if end_err := self._end_analyzer.analyze(text):
+            errors.append(end_err)
 
-        # Disallowed characters validation
-        if self.config.disallowed_chars:
-            char_valid, char_errors = self._validate_disallowed_chars(text)
-            if not char_valid:
-                errors.extend(char_errors)
+        disallowed_found = self._char_analyzer.analyze(text)
+        if disallowed_found:
+            errors.extend([f"Disallowed character found: '{ch}'" for ch in disallowed_found])
 
         return RuleResult(
             passed=not errors,
             message=errors[0] if errors else "Style validation successful",
-            metadata={
-                "capitalization": (
-                    str(self.config.capitalization) if self.config.capitalization else None
-                ),
-                "errors": errors,
-            },
+            metadata={"errors": errors},
         )
-
-    def _validate_capitalization(self, text: str) -> Tuple[bool, str]:
-        """Validate text capitalization style.
-
-        Args:
-            text: The text to validate
-
-        Returns:
-            Tuple containing:
-                - Boolean indicating if validation passed
-                - Error message if validation failed
-        """
-        if not text:
-            return True, ""
-
-        style = self.config.capitalization
-        if style == CapitalizationStyle.SENTENCE_CASE:
-            is_valid = text[0].isupper() and text[1:].islower()
-            return is_valid, "Text should be in sentence case" if not is_valid else ""
-
-        elif style == CapitalizationStyle.TITLE_CASE:
-            words = text.split()
-            # Simple title case check - each major word should be capitalized
-            is_valid = all(w[0].isupper() for w in words if len(w) > 3 or words.index(w) == 0)
-            return is_valid, "Text should be in title case" if not is_valid else ""
-
-        elif style == CapitalizationStyle.LOWERCASE:
-            is_valid = text.islower()
-            return is_valid, "Text should be lowercase" if not is_valid else ""
-
-        elif style == CapitalizationStyle.UPPERCASE:
-            is_valid = text.isupper()
-            return is_valid, "Text should be uppercase" if not is_valid else ""
-
-        elif style == CapitalizationStyle.CAPITALIZE_FIRST:
-            is_valid = text[0].isupper() if text else True
-            return is_valid, "First letter should be capitalized" if not is_valid else ""
-
-        return True, ""
-
-    def _validate_ending(self, text: str) -> Tuple[bool, str]:
-        """Validate text ending.
-
-        Args:
-            text: The text to validate
-
-        Returns:
-            Tuple containing:
-                - Boolean indicating if validation passed
-                - Error message if validation failed
-        """
-        if not text:
-            return True, ""
-
-        if self.config.require_end_punctuation:
-            punct_pattern = r"[.!?]$"
-            if not re.search(punct_pattern, text):
-                return False, "Text must end with punctuation (., !, or ?)"
-
-        if self.config.allowed_end_chars:
-            last_char = text[-1] if text else ""
-            if last_char not in self.config.allowed_end_chars:
-                allowed = ", ".join(self.config.allowed_end_chars)
-                return False, f"Text must end with one of these characters: {allowed}"
-
-        return True, ""
-
-    def _validate_disallowed_chars(self, text: str) -> Tuple[bool, List[str]]:
-        """Validate text doesn't contain disallowed characters.
-
-        Args:
-            text: The text to validate
-
-        Returns:
-            Tuple containing:
-                - Boolean indicating if validation passed
-                - List of error messages for each disallowed character found
-        """
-        if not text or not self.config.disallowed_chars:
-            return True, []
-
-        errors = []
-        for char in self.config.disallowed_chars:
-            if char in text:
-                errors.append(f"Text contains disallowed character: '{char}'")
-
-        return not errors, errors
 
 
 class StyleRule(Rule):
@@ -576,3 +486,76 @@ def create_formatting_rule(
         id=rule_id or "formatting",
         **rule_kwargs,
     )
+
+
+# ---------------------------------------------------------------------------
+# Analyzer helpers (Single Responsibility)
+# ---------------------------------------------------------------------------
+
+
+class _CapitalizationAnalyzer(BaseModel):
+    """Validate capitalization according to the configured style."""
+
+    style: Optional["CapitalizationStyle"] = None  # noqa: F821 forward ref
+
+    def analyze(self, text: str) -> Optional[str]:
+        if self.style is None or not text:
+            return None
+
+        # Sentence case
+        if self.style == CapitalizationStyle.SENTENCE_CASE:
+            if not (text[0].isupper() and text[1:].islower()):
+                return "Text should be in sentence case"
+
+        # Title case (simple heuristic)
+        elif self.style == CapitalizationStyle.TITLE_CASE:
+            if any(word and word[0].islower() for word in text.split()):
+                return "Text should be in title case"
+
+        # Lowercase
+        elif self.style == CapitalizationStyle.LOWERCASE:
+            if text.lower() != text:
+                return "Text should be all lowercase"
+
+        # Uppercase
+        elif self.style == CapitalizationStyle.UPPERCASE:
+            if text.upper() != text:
+                return "Text should be all uppercase"
+
+        # Capitalize first
+        elif self.style == CapitalizationStyle.CAPITALIZE_FIRST:
+            if not (text[0].isupper() and text[1:] == text[1:]):
+                # second condition basically always true; we accept any remainder
+                return "Only the first character should be capitalized"
+
+        return None
+
+
+class _EndingAnalyzer(BaseModel):
+    """Check ending punctuation requirements."""
+
+    require_end_punctuation: bool = False
+    allowed_end_chars: List[str] = Field(default_factory=list)
+
+    def analyze(self, text: str) -> Optional[str]:
+        if not text:
+            return None
+
+        end_char = text[-1]
+
+        if self.require_end_punctuation and end_char not in ".!?" and end_char not in self.allowed_end_chars:
+            return "Text must end with punctuation"
+
+        if self.allowed_end_chars and end_char not in self.allowed_end_chars:
+            return f"Text must end with one of {self.allowed_end_chars}"
+
+        return None
+
+
+class _CharAnalyzer(BaseModel):
+    """Detect presence of disallowed characters."""
+
+    disallowed: List[str] = Field(default_factory=list)
+
+    def analyze(self, text: str) -> List[str]:
+        return [ch for ch in self.disallowed if ch in text]

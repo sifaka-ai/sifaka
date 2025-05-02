@@ -3,7 +3,7 @@ Sifaka: A framework for building reliable and reflective AI systems.
 """
 
 from sifaka.chain import Chain, ChainResult
-from sifaka.critics import PromptCritic
+from sifaka.critics import CriticCore, create_prompt_critic, create_reflexion_critic
 from sifaka.generation import Generator
 from sifaka.improvement import Improver, ImprovementResult
 from sifaka.models import AnthropicProvider, OpenAIProvider
@@ -43,5 +43,7 @@ __all__ = [
     "ToxicityRule",
     "create_length_rule",
     # Critics
-    "PromptCritic",
+    "CriticCore",
+    "create_prompt_critic",
+    "create_reflexion_critic",
 ]

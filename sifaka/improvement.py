@@ -5,10 +5,10 @@ This module provides components for improving outputs based on validation result
 """
 
 from dataclasses import dataclass
-from typing import Optional, TypeVar, Generic, Dict, Any, Union
+from typing import Optional, TypeVar, Generic, Dict, Any
 
-from .critics import PromptCritic
-from .critics.prompt import CriticMetadata
+from .critics import CriticCore
+from .critics.models import CriticMetadata
 from .validation import ValidationResult
 
 OutputType = TypeVar("OutputType")
@@ -30,7 +30,7 @@ class Improver(Generic[OutputType]):
     This class is responsible for using critics to improve outputs that fail validation.
     """
 
-    def __init__(self, critic: PromptCritic):
+    def __init__(self, critic: CriticCore):
         """
         Initialize an Improver instance.
 
@@ -39,9 +39,9 @@ class Improver(Generic[OutputType]):
         """
         self.critic = critic
 
-    def improve(self,
-                output: OutputType,
-                validation_result: ValidationResult[OutputType]) -> ImprovementResult[OutputType]:
+    def improve(
+        self, output: OutputType, validation_result: ValidationResult[OutputType]
+    ) -> ImprovementResult[OutputType]:
         """
         Improve the output based on validation results.
 
@@ -69,11 +69,7 @@ class Improver(Generic[OutputType]):
         if not critique_details:
             return ImprovementResult(output=output, improved=False)
 
-        return ImprovementResult(
-            output=output,
-            critique_details=critique_details,
-            improved=True
-        )
+        return ImprovementResult(output=output, critique_details=critique_details, improved=True)
 
     def get_feedback(self, critique_details: Dict[str, Any]) -> str:
         """

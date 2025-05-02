@@ -41,6 +41,8 @@ from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 from sifaka.rules.base import Rule, RuleConfig, RuleResult, RuleValidator
 from sifaka.rules.domain.base import BaseDomainValidator
 
+# Third-party
+from pydantic import BaseModel, Field, PrivateAttr
 
 __all__ = [
     # Config classes
@@ -54,6 +56,11 @@ __all__ = [
     # Factory functions
     "create_python_validator",
     "create_python_rule",
+    # Internal helpers
+    "_PythonStyleAnalyzer",
+    "_PythonSecurityAnalyzer",
+    "_PythonPerformanceAnalyzer",
+    "_PythonSyntaxAnalyzer",
 ]
 
 
@@ -115,86 +122,49 @@ class PythonValidator(Protocol):
 
 
 class DefaultPythonValidator(BaseDomainValidator):
-    """Default implementation of Python code validation."""
+    """Default implementation of Python code validation composed of analyzers."""
 
     def __init__(self, config: PythonConfig) -> None:
-        """Initialize with configuration."""
         super().__init__(config)
-        self._code_style_patterns = {
-            k: re.compile(pattern, re.MULTILINE)
-            for k, pattern in config.code_style_patterns.items()
-        }
-        self._security_patterns = {
-            k: re.compile(pattern, re.MULTILINE) for k, pattern in config.security_patterns.items()
-        }
-        self._performance_patterns = {
-            k: re.compile(pattern) for k, pattern in config.performance_patterns.items()
-        }
+
+        self._style_analyzer = _PythonStyleAnalyzer(patterns=config.code_style_patterns)
+        self._security_analyzer = _PythonSecurityAnalyzer(patterns=config.security_patterns)
+        self._perf_analyzer = _PythonPerformanceAnalyzer(patterns=config.performance_patterns)
+        self._syntax_analyzer = _PythonSyntaxAnalyzer()
 
     @property
-    def config(self) -> PythonConfig:
-        """Get the validator configuration."""
+    def config(self) -> PythonConfig:  # type: ignore[override]
         return self._config
 
-    def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate Python code."""
+    def validate(self, text: str, **kwargs) -> RuleResult:  # noqa: D401
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
-        try:
-            # Check code style
-            style_matches = {}
-            for name, pattern in self._code_style_patterns.items():
-                style_matches[name] = len(pattern.findall(text))
+        style_matches = self._style_analyzer.analyze(text)
+        security_issues = self._security_analyzer.analyze(text)
+        perf_matches = self._perf_analyzer.analyze(text)
+        syntax_ok, syntax_err = self._syntax_analyzer.analyze(text)
 
-            # Check security issues
-            security_issues = {}
-            for name, pattern in self._security_patterns.items():
-                matches = pattern.findall(text)
-                if matches:
-                    security_issues[name] = matches
-
-            # Check performance patterns
-            performance_matches = {}
-            for name, pattern in self._performance_patterns.items():
-                performance_matches[name] = len(pattern.findall(text))
-
-            # Check for Python syntax errors
-            syntax_valid = True
-            error_message = ""
-            try:
-                compile(text, "<string>", "exec")
-            except SyntaxError as e:
-                syntax_valid = False
-                error_message = str(e)
-
-            # Overall validation result
-            passed = syntax_valid and not security_issues
-            message = "Python code validation "
-            if passed:
-                message += "passed"
-            else:
-                message += (
-                    f"failed: {error_message if not syntax_valid else 'security issues found'}"
-                )
-
-            return RuleResult(
-                passed=passed,
-                message=message,
-                metadata={
-                    "syntax_valid": syntax_valid,
-                    "error_message": error_message,
-                    "style_matches": style_matches,
-                    "security_issues": security_issues,
-                    "performance_matches": performance_matches,
-                },
+        passed = syntax_ok and not security_issues
+        message = (
+            "Python code validation passed"
+            if passed
+            else (
+                f"Python syntax error: {syntax_err}" if not syntax_ok else "Security issues found"
             )
-        except Exception as e:
-            return RuleResult(
-                passed=False,
-                message=f"Error validating Python code: {str(e)}",
-                metadata={"error": str(e)},
-            )
+        )
+
+        return RuleResult(
+            passed=passed,
+            message=message,
+            metadata={
+                "syntax_valid": syntax_ok,
+                "error_message": syntax_err,
+                "style_matches": style_matches,
+                "security_issues": security_issues,
+                "performance_matches": perf_matches,
+            },
+        )
 
 
 class PythonRule(Rule):
@@ -329,3 +299,60 @@ def create_python_rule(
         validator=validator,
         **rule_kwargs,
     )
+
+
+# ---------------------------------------------------------------------------
+# Analyzer helpers (Single Responsibility)
+# ---------------------------------------------------------------------------
+
+
+class _PythonStyleAnalyzer(BaseModel):
+    patterns: Dict[str, str] = Field(default_factory=dict)
+
+    _compiled: Dict[str, re.Pattern[str]] = PrivateAttr(default_factory=dict)
+
+    def model_post_init(self, __context: Any) -> None:  # type: ignore[override]
+        self._compiled = {k: re.compile(pat, re.MULTILINE) for k, pat in self.patterns.items()}
+
+    def analyze(self, text: str) -> Dict[str, int]:
+        return {name: len(p.findall(text)) for name, p in self._compiled.items()}
+
+
+class _PythonSecurityAnalyzer(BaseModel):
+    patterns: Dict[str, str] = Field(default_factory=dict)
+
+    _compiled: Dict[str, re.Pattern[str]] = PrivateAttr(default_factory=dict)
+
+    def model_post_init(self, __context: Any) -> None:  # type: ignore[override]
+        self._compiled = {k: re.compile(pat, re.MULTILINE) for k, pat in self.patterns.items()}
+
+    def analyze(self, text: str) -> Dict[str, List[str]]:
+        issues: Dict[str, List[str]] = {}
+        for name, pat in self._compiled.items():
+            matches = pat.findall(text)
+            if matches:
+                issues[name] = matches if isinstance(matches, list) else [matches]
+        return issues
+
+
+class _PythonPerformanceAnalyzer(BaseModel):
+    patterns: Dict[str, str] = Field(default_factory=dict)
+
+    _compiled: Dict[str, re.Pattern[str]] = PrivateAttr(default_factory=dict)
+
+    def model_post_init(self, __context: Any) -> None:  # type: ignore[override]
+        self._compiled = {k: re.compile(pat) for k, pat in self.patterns.items()}
+
+    def analyze(self, text: str) -> Dict[str, int]:
+        return {name: len(p.findall(text)) for name, p in self._compiled.items()}
+
+
+class _PythonSyntaxAnalyzer(BaseModel):
+    """Attempt to compile code to detect syntax errors."""
+
+    def analyze(self, text: str) -> tuple[bool, str]:
+        try:
+            compile(text, "<string>", "exec")
+            return True, ""
+        except SyntaxError as e:
+            return False, str(e)

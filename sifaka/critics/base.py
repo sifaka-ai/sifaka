@@ -138,8 +138,9 @@ class BaseCritic(ABC):
 
     def _validate_config(self) -> None:
         """Validate critic configuration."""
-        if not isinstance(self.config, CriticConfig):
-            raise TypeError("config must be a CriticConfig instance")
+        # Allow both dataclass and pydantic CriticConfig
+        if not hasattr(self.config, "name") or not hasattr(self.config, "description"):
+            raise TypeError("config must have name and description attributes")
 
     def is_valid_text(self, text: Any) -> TypeGuard[str]:
         """Type guard to ensure text is a valid string."""

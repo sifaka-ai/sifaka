@@ -11,7 +11,7 @@ from sifaka.chain import (
     FeedbackFormatter,
     RetryManager,
 )
-from sifaka.critics import PromptCritic
+from sifaka.critics import CriticCore
 from sifaka.generation import Generator
 from sifaka.improvement import Improver, ImprovementResult
 from sifaka.models.base import ModelProvider
@@ -37,7 +37,7 @@ class TestChain(unittest.TestCase):
         self.failing_rule.validate.return_value = RuleResult(passed=False, message="Failed")
 
         # Create mock critic
-        self.critic = Mock(spec=PromptCritic)
+        self.critic = Mock(spec=CriticCore)
         self.critic.critique.return_value = {"feedback": "Needs improvement", "score": 0.5}
 
     def test_chain_with_passing_rules(self):

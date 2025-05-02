@@ -7,7 +7,7 @@ orchestrating the validation and improvement flow.
 
 from typing import Generic, List, Optional, TypeVar
 
-from ..critics import PromptCritic
+from ..critics import CriticCore
 from ..generation import Generator
 from ..improvement import Improver
 from ..models.base import ModelProvider
@@ -27,7 +27,7 @@ class Chain(Generic[OutputType]):
 
     This class combines generation, validation, and improvement components to
     create a complete pipeline for generating, validating, and improving outputs.
-    
+
     It delegates to specialized components for each responsibility:
     - ChainOrchestrator: Coordinates the overall flow
     - ChainExecutor: Executes a single cycle
@@ -39,7 +39,7 @@ class Chain(Generic[OutputType]):
         self,
         model: ModelProvider,
         rules: List[Rule],
-        critic: Optional[PromptCritic] = None,
+        critic: Optional[CriticCore] = None,
         max_attempts: int = 3,
     ):
         """
@@ -55,11 +55,11 @@ class Chain(Generic[OutputType]):
         self.generator = Generator[OutputType](model)
         self.validator = Validator[OutputType](rules)
         self.improver = Improver[OutputType](critic) if critic else None
-        
+
         # Create supporting components
         self.feedback_formatter = FeedbackFormatter()
         self.retry_manager = RetryManager(max_attempts=max_attempts)
-        
+
         # Create orchestrator
         self.orchestrator = ChainOrchestrator(
             generator=self.generator,

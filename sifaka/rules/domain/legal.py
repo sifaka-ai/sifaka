@@ -54,10 +54,23 @@ Usage Example:
     )
 """
 
+# Standard library
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Protocol, Set, runtime_checkable
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Set,
+    runtime_checkable,
+)
 
+# Third-party
+from pydantic import BaseModel, Field, PrivateAttr
+
+# Sifaka
 from sifaka.rules.base import Rule, RuleConfig, RuleResult
 from sifaka.rules.domain.base import BaseDomainValidator
 
@@ -86,6 +99,10 @@ __all__ = [
     "create_legal_citation_rule",
     "create_legal_terms_validator",
     "create_legal_terms_rule",
+    # Internal helpers (non-exported)
+    "_DisclaimerAnalyzer",
+    "_LegalTermAnalyzer",
+    "_CitationAnalyzer",
 ]
 
 
@@ -251,228 +268,270 @@ class LegalTermsValidator(Protocol):
     def config(self) -> LegalTermsConfig: ...
 
 
+# ---------------------------------------------------------------------------
+# Analyzer helpers (Single Responsibility, re-usable)
+# ---------------------------------------------------------------------------
+
+
+class _DisclaimerAnalyzer(BaseModel):
+    """Detect whether a text contains at least one required disclaimer pattern."""
+
+    patterns: List[str] = Field(default_factory=list)
+
+    _compiled: List[re.Pattern[str]] = PrivateAttr(default_factory=list)
+
+    def model_post_init(self, __context: Any) -> None:  # type: ignore[override]
+        self._compiled = [re.compile(pat, re.IGNORECASE) for pat in self.patterns]
+
+    # Public API -----------------------------------------------------------
+    def contains_disclaimer(self, text: str) -> bool:
+        return any(pat.search(text) for pat in self._compiled)
+
+
+class _LegalTermAnalyzer(BaseModel):
+    """Count occurrences of legal terms grouped by category."""
+
+    terms: Dict[str, List[str]] = Field(default_factory=dict)
+
+    _compiled: Dict[str, List[re.Pattern[str]]] = PrivateAttr(default_factory=dict)
+
+    def model_post_init(self, __context: Any) -> None:  # type: ignore[override]
+        self._compiled = {
+            cat: [re.compile(r"\b" + re.escape(term) + r"\b", re.IGNORECASE) for term in term_list]
+            for cat, term_list in self.terms.items()
+        }
+
+    def analyze(self, text: str) -> Dict[str, int]:
+        counts: Dict[str, int] = {}
+        for cat, patterns in self._compiled.items():
+            counts[cat] = sum(len(p.findall(text)) for p in patterns)
+        return counts
+
+
+class _CitationAnalyzer(BaseModel):
+    """Locate citations, validate formatting, and compute totals."""
+
+    patterns: List[str] = Field(default_factory=list)
+
+    _compiled: List[re.Pattern[str]] = PrivateAttr(default_factory=list)
+
+    def model_post_init(self, __context: Any) -> None:  # type: ignore[override]
+        self._compiled = [re.compile(p) for p in self.patterns]
+
+    def extract(self, text: str) -> List[str]:
+        citations: List[str] = []
+        for pat in self._compiled:
+            citations.extend(pat.findall(text))
+        return citations
+
+    def invalid(self, citations: List[str]) -> List[str]:
+        return [c for c in citations if not any(p.match(c) for p in self._compiled)]
+
+
 class DefaultLegalValidator(BaseDomainValidator):
-    """Default implementation of legal content validation."""
+    """Default implementation of legal content validation (delegates to analyzers)."""
 
     def __init__(self, config: LegalConfig) -> None:
-        """Initialize with configuration."""
         super().__init__(config)
-        self._citation_patterns = [re.compile(pattern) for pattern in config.citation_patterns]
-        self._disclaimer_patterns = [re.compile(pattern) for pattern in config.disclaimers]
 
+        self._disclaimer_analyzer = _DisclaimerAnalyzer(patterns=config.disclaimers)
+        self._term_analyzer = _LegalTermAnalyzer(terms=config.legal_terms)
+
+    # ------------------------------------------------------------------
+    # Properties
+    # ------------------------------------------------------------------
     @property
-    def config(self) -> LegalConfig:
-        """Get the validator configuration."""
+    def config(self) -> LegalConfig:  # type: ignore[override]
         return self._config
 
-    def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate legal content."""
+    # ------------------------------------------------------------------
+    # Validation
+    # ------------------------------------------------------------------
+    def validate(self, text: str, **kwargs) -> RuleResult:  # noqa: D401 – simple desc
+        """Validate *text* for legal content consistency and disclaimers."""
+
         if not isinstance(text, str):
             raise ValueError("Text must be a string")
 
         try:
-            # Check for disclaimer if required
-            has_disclaimer = any(pattern.search(text) for pattern in self._disclaimer_patterns)
+            has_disclaimer = self._disclaimer_analyzer.contains_disclaimer(text)
+            term_counts = self._term_analyzer.analyze(text)
+
             if self.config.disclaimer_required and not has_disclaimer:
                 return RuleResult(
                     passed=False,
                     message="No legal disclaimer found when required",
-                    metadata={"found_disclaimer": False, "requirement": "disclaimer"},
+                    metadata={
+                        "legal_term_counts": term_counts,
+                        "has_disclaimer": False,
+                        "disclaimer_required": True,
+                    },
                 )
-
-            # Check for legal terms
-            legal_term_counts = {}
-            for category, terms in self.config.legal_terms.items():
-                count = 0
-                for term in terms:
-                    # Case-insensitive search
-                    pattern = re.compile(r"\b" + re.escape(term) + r"\b", re.IGNORECASE)
-                    count += len(pattern.findall(text))
-                legal_term_counts[category] = count
 
             return RuleResult(
                 passed=True,
                 message="Legal content validation passed",
                 metadata={
-                    "legal_term_counts": legal_term_counts,
+                    "legal_term_counts": term_counts,
                     "has_disclaimer": has_disclaimer,
                     "disclaimer_required": self.config.disclaimer_required,
                 },
             )
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             return RuleResult(
                 passed=False,
-                message=f"Error validating legal content: {str(e)}",
+                message=f"Error validating legal content: {e}",
                 metadata={"error": str(e)},
             )
 
 
 class DefaultLegalCitationValidator(BaseDomainValidator):
-    """Default implementation of legal citation validation."""
+    """Default implementation of legal citation validation using _CitationAnalyzer."""
 
     def __init__(self, config: LegalCitationConfig) -> None:
-        """Initialize with configuration."""
         super().__init__(config)
-        self._compiled_patterns = [re.compile(pattern) for pattern in config.citation_patterns]
+        self._citation_analyzer = _CitationAnalyzer(patterns=config.citation_patterns)
 
     @property
-    def config(self) -> LegalCitationConfig:
-        """Get the validator configuration."""
+    def config(self) -> LegalCitationConfig:  # type: ignore[override]
         return self._config
 
-    def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate legal citations."""
+    def validate(self, text: str, **kwargs) -> RuleResult:  # noqa: D401
+        """Validate *text* for citation presence, count, and correctness."""
+
         if not isinstance(text, str):
             raise ValueError("Text must be a string")
 
         try:
-            # Find all citations
-            found_citations = []
-            for pattern in self._compiled_patterns:
-                found_citations.extend(pattern.findall(text))
+            citations = self._citation_analyzer.extract(text)
+            invalid = self._citation_analyzer.invalid(citations)
+            total = len(citations)
 
-            # Check if citations are properly formatted
-            invalid_citations = []
-            for citation in found_citations:
-                if not any(pattern.match(citation) for pattern in self._compiled_patterns):
-                    invalid_citations.append(citation)
-
-            # Check citation count requirements
-            total_citations = len(found_citations)
-            if self.config.require_citations and total_citations == 0:
+            # Requirements checks ------------------------------------------------
+            if self.config.require_citations and total == 0:
                 return RuleResult(
                     passed=False,
-                    message="No citations found when citations are required",
-                    metadata={
-                        "found_citations": found_citations,
-                        "total_citations": total_citations,
-                        "requirement": "required",
-                    },
+                    message="No citations found when required",
+                    metadata={"total_citations": 0},
                 )
 
-            if total_citations < self.config.min_citations:
+            if total < self.config.min_citations:
                 return RuleResult(
                     passed=False,
-                    message=f"Found {total_citations} citations, minimum required is {self.config.min_citations}",
-                    metadata={
-                        "found_citations": found_citations,
-                        "total_citations": total_citations,
-                        "requirement": "minimum",
-                    },
+                    message=(
+                        f"Found {total} citations; minimum required is {self.config.min_citations}"
+                    ),
+                    metadata={"total_citations": total},
                 )
 
-            if total_citations > self.config.max_citations:
+            if total > self.config.max_citations:
                 return RuleResult(
                     passed=False,
-                    message=f"Found {total_citations} citations, maximum allowed is {self.config.max_citations}",
-                    metadata={
-                        "found_citations": found_citations,
-                        "total_citations": total_citations,
-                        "requirement": "maximum",
-                    },
+                    message=(
+                        f"Found {total} citations; maximum allowed is {self.config.max_citations}"
+                    ),
+                    metadata={"total_citations": total},
                 )
 
-            if invalid_citations:
+            if invalid:
                 return RuleResult(
                     passed=False,
-                    message=f"Found {len(invalid_citations)} invalid citations",
-                    metadata={
-                        "found_citations": found_citations,
-                        "invalid_citations": invalid_citations,
-                        "total_citations": total_citations,
-                    },
+                    message=f"Found {len(invalid)} invalid citations",
+                    metadata={"invalid_citations": invalid, "total_citations": total},
                 )
 
-            # All checks passed
             return RuleResult(
                 passed=True,
-                message=f"Found {total_citations} valid citations",
-                metadata={
-                    "found_citations": found_citations,
-                    "total_citations": total_citations,
-                },
+                message=f"Found {total} valid citations",
+                metadata={"total_citations": total},
             )
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             return RuleResult(
                 passed=False,
-                message=f"Error validating citations: {str(e)}",
+                message=f"Error validating citations: {e}",
                 metadata={"error": str(e)},
             )
 
 
 class DefaultLegalTermsValidator(BaseDomainValidator):
-    """Default implementation of legal terms validation."""
+    """Default implementation of legal terms validation with analyzers."""
 
     def __init__(self, config: LegalTermsConfig) -> None:
-        """Initialize with configuration."""
         super().__init__(config)
 
+        flags = 0 if config.case_sensitive else re.IGNORECASE
+
+        # Pre-compile sets for quick membership checks
+        self._legal_patterns = [re.compile(r"\b" + re.escape(t) + r"\b", flags) for t in config.legal_terms]
+        self._warning_patterns = [
+            re.compile(r"\b" + re.escape(t) + r"\b", flags) for t in config.warning_terms
+        ]
+        self._required_patterns = [
+            re.compile(r"\b" + re.escape(t) + r"\b", flags) for t in config.required_terms
+        ]
+        self._prohibited_patterns = [
+            re.compile(r"\b" + re.escape(t) + r"\b", flags) for t in config.prohibited_terms
+        ]
+
     @property
-    def config(self) -> LegalTermsConfig:
-        """Get the validator configuration."""
+    def config(self) -> LegalTermsConfig:  # type: ignore[override]
         return self._config
 
-    def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate legal terms."""
+    def _matches(self, patterns: List[re.Pattern[str]], text: str) -> Set[str]:
+        return {p.pattern.strip("\\b").strip("\\b") for p in patterns if p.search(text)}
+
+    def validate(self, text: str, **kwargs) -> RuleResult:  # noqa: D401
+        """Validate legal term usage in *text*."""
+
         if not isinstance(text, str):
             raise ValueError("Text must be a string")
 
         try:
-            # Check for legal terms
-            flags = 0 if self.config.case_sensitive else re.IGNORECASE
-            legal_terms_found = set()
-            for term in self.config.legal_terms:
-                pattern = re.compile(r"\b" + re.escape(term) + r"\b", flags)
-                if pattern.search(text):
-                    legal_terms_found.add(term)
+            legal_found = self._matches(self._legal_patterns, text)
+            warning_found = self._matches(self._warning_patterns, text)
+            missing_required = {
+                p.pattern.strip("\\b").strip("\\b")
+                for p in self._required_patterns
+                if not p.search(text)
+            }
+            prohibited_found = self._matches(self._prohibited_patterns, text)
 
-            # Check for warning terms
-            warning_terms_found = set()
-            for term in self.config.warning_terms:
-                pattern = re.compile(r"\b" + re.escape(term) + r"\b", flags)
-                if pattern.search(text):
-                    warning_terms_found.add(term)
+            if missing_required:
+                return RuleResult(
+                    passed=False,
+                    message="Missing required legal terms",
+                    metadata={
+                        "missing_required_terms": missing_required,
+                        "legal_terms_found": legal_found,
+                        "warning_terms_found": warning_found,
+                        "prohibited_terms_found": prohibited_found,
+                    },
+                )
 
-            # Check for required terms
-            missing_required_terms = set()
-            for term in self.config.required_terms:
-                pattern = re.compile(r"\b" + re.escape(term) + r"\b", flags)
-                if not pattern.search(text):
-                    missing_required_terms.add(term)
-
-            # Check for prohibited terms
-            prohibited_terms_found = set()
-            for term in self.config.prohibited_terms:
-                pattern = re.compile(r"\b" + re.escape(term) + r"\b", flags)
-                if pattern.search(text):
-                    prohibited_terms_found.add(term)
-
-            # Determine if validation passes
-            passed = True
-            message = "Legal terms validation passed"
-
-            if missing_required_terms:
-                passed = False
-                message = f"Missing required legal terms: {', '.join(missing_required_terms)}"
-
-            if prohibited_terms_found:
-                passed = False
-                message = f"Found prohibited legal terms: {', '.join(prohibited_terms_found)}"
+            if prohibited_found:
+                return RuleResult(
+                    passed=False,
+                    message="Found prohibited legal terms",
+                    metadata={
+                        "missing_required_terms": missing_required,
+                        "legal_terms_found": legal_found,
+                        "warning_terms_found": warning_found,
+                        "prohibited_terms_found": prohibited_found,
+                    },
+                )
 
             return RuleResult(
-                passed=passed,
-                message=message,
+                passed=True,
+                message="Legal terms validation passed",
                 metadata={
-                    "legal_terms_found": list(legal_terms_found),
-                    "warning_terms_found": list(warning_terms_found),
-                    "missing_required_terms": list(missing_required_terms),
-                    "prohibited_terms_found": list(prohibited_terms_found),
+                    "legal_terms_found": legal_found,
+                    "warning_terms_found": warning_found,
                 },
             )
-        except Exception as e:
+        except Exception as e:  # pragma: no cover
             return RuleResult(
                 passed=False,
-                message=f"Error validating legal terms: {str(e)}",
+                message=f"Error validating legal terms: {e}",
                 metadata={"error": str(e)},
             )
 
