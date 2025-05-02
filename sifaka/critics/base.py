@@ -8,9 +8,29 @@ that analyze and improve text outputs based on rule violations.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Dict, Final, List, Protocol, TypeVar, runtime_checkable
+from typing import (
+    Any,
+    Dict,
+    Final,
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+    overload,
+    runtime_checkable
+)
 
 from typing_extensions import TypeGuard
+
+
+# Input and output type variables
+T = TypeVar('T')  # Input type (usually str)
+R = TypeVar('R')  # Result type
+C = TypeVar('C', bound='BaseCritic')  # Critic type
 
 
 class CriticResult(str, Enum):
@@ -22,7 +42,7 @@ class CriticResult(str, Enum):
 
 
 @dataclass(frozen=True)
-class CriticConfig:
+class CriticConfig(Generic[T]):
     """Immutable configuration for critics."""
 
     name: str
@@ -32,6 +52,7 @@ class CriticConfig:
     cache_size: int = 100
     priority: int = 1
     cost: float = 1.0
+    params: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Validate configuration values."""
@@ -50,9 +71,23 @@ class CriticConfig:
         if self.cost < 0:
             raise ValueError("cost must be non-negative")
 
+    def with_params(self, **kwargs: Any) -> "CriticConfig[T]":
+        """Create a new config with updated parameters."""
+        new_params = {**self.params, **kwargs}
+        return CriticConfig(
+            name=self.name,
+            description=self.description,
+            min_confidence=self.min_confidence,
+            max_attempts=self.max_attempts,
+            cache_size=self.cache_size,
+            priority=self.priority,
+            cost=self.cost,
+            params=new_params,
+        )
+
 
 @dataclass(frozen=True)
-class CriticMetadata:
+class CriticMetadata(Generic[R]):
     """Immutable metadata for critic results."""
 
     score: float
@@ -61,6 +96,7 @@ class CriticMetadata:
     suggestions: List[str] = field(default_factory=list)
     attempt_number: int = 1
     processing_time_ms: float = 0.0
+    extra: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Validate metadata values."""
@@ -71,59 +107,72 @@ class CriticMetadata:
         if self.processing_time_ms < 0:
             raise ValueError("processing_time_ms must be non-negative")
 
+    def with_extra(self, **kwargs: Any) -> "CriticMetadata[R]":
+        """Create a new metadata with additional extra data."""
+        new_extra = {**self.extra, **kwargs}
+        return CriticMetadata(
+            score=self.score,
+            feedback=self.feedback,
+            issues=self.issues,
+            suggestions=self.suggestions,
+            attempt_number=self.attempt_number,
+            processing_time_ms=self.processing_time_ms,
+            extra=new_extra,
+        )
+
 
 @dataclass(frozen=True)
-class CriticOutput:
+class CriticOutput(Generic[T, R]):
     """Immutable output from a critic."""
 
     result: CriticResult
-    improved_text: str
-    metadata: CriticMetadata
+    improved_text: T
+    metadata: CriticMetadata[R]
 
 
 @runtime_checkable
-class TextValidator(Protocol):
+class TextValidator(Protocol[T]):
     """Protocol for text validation."""
 
     @property
-    def config(self) -> CriticConfig:
+    def config(self) -> CriticConfig[T]:
         """Get validator configuration."""
         ...
 
-    def validate(self, text: str) -> bool:
+    def validate(self, text: T) -> bool:
         """Validate text against quality standards."""
         ...
 
 
 @runtime_checkable
-class TextImprover(Protocol):
+class TextImprover(Protocol[T, R]):
     """Protocol for text improvement."""
 
     @property
-    def config(self) -> CriticConfig:
+    def config(self) -> CriticConfig[T]:
         """Get improver configuration."""
         ...
 
-    def improve(self, text: str, violations: List[Dict[str, Any]]) -> str:
+    def improve(self, text: T, violations: List[Dict[str, Any]]) -> T:
         """Improve text based on violations."""
         ...
 
 
 @runtime_checkable
-class TextCritic(Protocol):
+class TextCritic(Protocol[T, R]):
     """Protocol for text critiquing."""
 
     @property
-    def config(self) -> CriticConfig:
+    def config(self) -> CriticConfig[T]:
         """Get critic configuration."""
         ...
 
-    def critique(self, text: str) -> CriticMetadata:
+    def critique(self, text: T) -> CriticMetadata[R]:
         """Critique text and provide feedback."""
         ...
 
 
-class BaseCritic(ABC):
+class BaseCritic(ABC, Generic[T, R]):
     """
     Abstract base class for critics implementing all protocols.
 
@@ -136,9 +185,13 @@ class BaseCritic(ABC):
     - ResponseParser: Parses responses from language models
     - MemoryManager: Manages memory for critics (optional)
     - CritiqueService: Provides methods for validation, critique, and improvement
+
+    Type parameters:
+        T: The input type (usually str)
+        R: The result type
     """
 
-    def __init__(self, config: CriticConfig) -> None:
+    def __init__(self, config: CriticConfig[T]) -> None:
         """
         Initialize the critic with configuration.
 
@@ -149,7 +202,7 @@ class BaseCritic(ABC):
         self._validate_config()
 
     @property
-    def config(self) -> CriticConfig:
+    def config(self) -> CriticConfig[T]:
         """
         Get critic configuration.
 
@@ -169,7 +222,7 @@ class BaseCritic(ABC):
         if not hasattr(self.config, "name") or not hasattr(self.config, "description"):
             raise TypeError("config must have name and description attributes")
 
-    def is_valid_text(self, text: Any) -> TypeGuard[str]:
+    def is_valid_text(self, text: Any) -> TypeGuard[T]:
         """
         Type guard to ensure text is a valid string.
 
@@ -182,7 +235,7 @@ class BaseCritic(ABC):
         return isinstance(text, str) and bool(text.strip())
 
     @abstractmethod
-    def validate(self, text: str) -> bool:
+    def validate(self, text: T) -> bool:
         """
         Validate text against quality standards.
 
@@ -198,7 +251,7 @@ class BaseCritic(ABC):
         pass
 
     @abstractmethod
-    def improve(self, text: str, violations: List[Dict[str, Any]]) -> str:
+    def improve(self, text: T, violations: List[Dict[str, Any]]) -> T:
         """
         Improve text based on violations.
 
@@ -215,7 +268,7 @@ class BaseCritic(ABC):
         pass
 
     @abstractmethod
-    def critique(self, text: str) -> CriticMetadata:
+    def critique(self, text: T) -> CriticMetadata[R]:
         """
         Critique text and provide feedback.
 
@@ -231,7 +284,7 @@ class BaseCritic(ABC):
         pass
 
     @abstractmethod
-    def improve_with_feedback(self, text: str, feedback: str) -> str:
+    def improve_with_feedback(self, text: T, feedback: str) -> T:
         """
         Improve text based on feedback.
 
@@ -247,7 +300,7 @@ class BaseCritic(ABC):
         """
         pass
 
-    def process(self, text: str, violations: List[Dict[str, Any]]) -> CriticOutput:
+    def process(self, text: T, violations: List[Dict[str, Any]]) -> CriticOutput[T, R]:
         """
         Process text and return improved version with metadata.
 
@@ -287,11 +340,31 @@ DEFAULT_MIN_CONFIDENCE: Final[float] = 0.7
 DEFAULT_MAX_ATTEMPTS: Final[int] = 3
 DEFAULT_CACHE_SIZE: Final[int] = 100
 
-T = TypeVar("T", bound="BaseCritic")
+
+@overload
+def create_critic(
+    critic_class: Type[C],
+    name: str,
+    description: str,
+) -> C: ...
+
+
+@overload
+def create_critic(
+    critic_class: Type[C],
+    name: str,
+    description: str,
+    min_confidence: float,
+    max_attempts: int,
+    cache_size: int,
+    priority: int,
+    cost: float,
+    **kwargs: Any,
+) -> C: ...
 
 
 def create_critic(
-    critic_class: Any,
+    critic_class: Type[C],
     name: str = "custom_critic",
     description: str = "Custom critic implementation",
     min_confidence: float = DEFAULT_MIN_CONFIDENCE,
@@ -299,9 +372,9 @@ def create_critic(
     cache_size: int = DEFAULT_CACHE_SIZE,
     priority: int = 1,
     cost: float = 1.0,
-    config: CriticConfig = None,
+    config: Optional[CriticConfig[Any]] = None,
     **kwargs: Any,
-) -> BaseCritic:
+) -> C:
     """
     Factory function to create a critic instance with configuration.
 
@@ -326,9 +399,12 @@ def create_critic(
     Raises:
         TypeError: If the created instance is not a BaseCritic
     """
+    # Extract params from kwargs if present
+    params: Dict[str, Any] = kwargs.pop("params", {})
+
     # Use provided config or create one from parameters
     if config is None:
-        config = CriticConfig(
+        config = CriticConfig[Any](
             name=name,
             description=description,
             min_confidence=min_confidence,
@@ -336,6 +412,7 @@ def create_critic(
             cache_size=cache_size,
             priority=priority,
             cost=cost,
+            params=params,
         )
 
     # Create the critic instance with the config
@@ -344,7 +421,7 @@ def create_critic(
     return result
 
 
-class Critic(BaseCritic):
+class Critic(BaseCritic[str, str]):
     """
     Default implementation of a text critic.
 
@@ -400,7 +477,7 @@ class Critic(BaseCritic):
         # Simple implementation that just appends the feedback
         return f"{text}\n\nImproved based on feedback: {feedback}"
 
-    def critique(self, text: str) -> CriticMetadata:
+    def critique(self, text: str) -> CriticMetadata[str]:
         """
         Critique text and provide feedback.
 
@@ -411,7 +488,7 @@ class Critic(BaseCritic):
             CriticMetadata containing the critique details
         """
         if not self.is_valid_text(text):
-            return CriticMetadata(
+            return CriticMetadata[str](
                 score=0.0,
                 feedback="Invalid or empty text",
                 issues=["Text must be a non-empty string"],
@@ -424,12 +501,42 @@ class Critic(BaseCritic):
         issues = [] if score >= 0.5 else ["Text may be too short"]
         suggestions = [] if score >= 0.5 else ["Consider adding more content"]
 
-        return CriticMetadata(
+        return CriticMetadata[str](
             score=score,
             feedback=feedback,
             issues=issues,
             suggestions=suggestions,
         )
+
+
+def create_basic_critic(
+    name: str = "basic_critic",
+    description: str = "Basic text critic",
+    min_confidence: float = DEFAULT_MIN_CONFIDENCE,
+    max_attempts: int = DEFAULT_MAX_ATTEMPTS,
+    **kwargs: Any,
+) -> Critic:
+    """
+    Create a basic text critic with the given configuration.
+
+    Args:
+        name: Name of the critic
+        description: Description of the critic
+        min_confidence: Minimum confidence threshold
+        max_attempts: Maximum number of improvement attempts
+        **kwargs: Additional configuration parameters
+
+    Returns:
+        A configured Critic instance
+    """
+    return create_critic(
+        critic_class=Critic,
+        name=name,
+        description=description,
+        min_confidence=min_confidence,
+        max_attempts=max_attempts,
+        **kwargs,
+    )
 
 
 __all__ = [
@@ -443,4 +550,5 @@ __all__ = [
     "TextImprover",
     "TextCritic",
     "create_critic",
+    "create_basic_critic",
 ]

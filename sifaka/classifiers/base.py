@@ -9,31 +9,38 @@ from dataclasses import dataclass
 from typing import (
     Any,
     Dict,
+    Generic,
     List,
+    Optional,
     Protocol,
     Type,
     TypeVar,
+    Union,
+    Callable,
     runtime_checkable,
+    cast,
+    overload,
 )
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# No longer using TypeGuard
-
+# Input and output type vars
+T = TypeVar('T')  # Input type (usually str)
+R = TypeVar('R')  # Result type
 
 @runtime_checkable
-class TextProcessor(Protocol):
+class TextProcessor(Protocol[T, R]):
     """Protocol for text processing components."""
 
-    def process(self, text: str) -> Dict[str, Any]: ...
+    def process(self, text: T) -> Dict[str, R]: ...
 
 
 @runtime_checkable
-class ClassifierProtocol(Protocol):
+class ClassifierProtocol(Protocol[T, R]):
     """Protocol defining the interface for classifiers."""
 
-    def classify(self, text: str) -> "ClassificationResult": ...
-    def batch_classify(self, texts: List[str]) -> List["ClassificationResult"]: ...
+    def classify(self, text: T) -> "ClassificationResult": ...
+    def batch_classify(self, texts: List[T]) -> List["ClassificationResult"]: ...
     @property
     def name(self) -> str: ...
     @property
@@ -43,7 +50,7 @@ class ClassifierProtocol(Protocol):
 
 
 @dataclass(frozen=True)
-class ClassifierConfig:
+class ClassifierConfig(Generic[T]):
     """
     Immutable configuration for classifiers.
 
@@ -78,11 +85,11 @@ class ClassifierConfig:
         if not 0.0 <= self.min_confidence <= 1.0:
             raise ValueError("min_confidence must be between 0 and 1")
 
-    def with_options(self, **kwargs: Any) -> "ClassifierConfig":
+    def with_options(self, **kwargs: Any) -> "ClassifierConfig[T]":
         """Create a new config with updated options."""
         return ClassifierConfig(**{**self.__dict__, **kwargs})
 
-    def with_params(self, **kwargs: Any) -> "ClassifierConfig":
+    def with_params(self, **kwargs: Any) -> "ClassifierConfig[T]":
         """Create a new config with updated parameters."""
         new_params = {**self.params, **kwargs}
         return ClassifierConfig(
@@ -94,7 +101,7 @@ class ClassifierConfig:
         )
 
 
-class ClassificationResult(BaseModel):
+class ClassificationResult(BaseModel, Generic[R]):
     """
     Result of a classification.
 
@@ -110,7 +117,7 @@ class ClassificationResult(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0, description="Confidence score between 0 and 1")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
-    def with_metadata(self, **kwargs: Any) -> "ClassificationResult":
+    def with_metadata(self, **kwargs: Any) -> "ClassificationResult[R]":
         """Create a new result with additional metadata."""
         new_metadata = {**self.metadata, **kwargs}
         return ClassificationResult(
@@ -118,14 +125,18 @@ class ClassificationResult(BaseModel):
         )
 
 
-T = TypeVar("T", bound="BaseClassifier")
+C = TypeVar("C", bound="BaseClassifier")
 
 
-class BaseClassifier(ABC, BaseModel):
+class BaseClassifier(ABC, BaseModel, Generic[T, R]):
     """
     Base class for all Sifaka classifiers.
 
     A classifier provides predictions that can be used by rules.
+
+    Type parameters:
+        T: The input type (usually str)
+        R: The result type
     """
 
     model_config = ConfigDict(
@@ -136,7 +147,7 @@ class BaseClassifier(ABC, BaseModel):
 
     name: str = Field(description="Name of the classifier", min_length=1)
     description: str = Field(description="Description of the classifier", min_length=1)
-    config: ClassifierConfig
+    config: ClassifierConfig[T]
 
     def model_post_init(self, _: Any) -> None:
         """Initialize cache if enabled."""
@@ -149,19 +160,41 @@ class BaseClassifier(ABC, BaseModel):
         return self.config.min_confidence
 
     def validate_input(self, text: Any) -> bool:
-        """Validate input text."""
+        """
+        Validate input text.
+
+        Args:
+            text: The input to validate
+
+        Returns:
+            True if the input is valid
+
+        Raises:
+            ValueError: If input is invalid
+        """
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
         return True
 
     def validate_batch_input(self, texts: Any) -> bool:
-        """Validate batch input texts."""
+        """
+        Validate batch input texts.
+
+        Args:
+            texts: The batch input to validate
+
+        Returns:
+            True if the input is valid
+
+        Raises:
+            ValueError: If input is invalid
+        """
         if not isinstance(texts, list) or not all(isinstance(t, str) for t in texts):
             raise ValueError("Input must be a list of strings")
         return True
 
     @abstractmethod
-    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
+    def _classify_impl_uncached(self, text: T) -> ClassificationResult[R]:
         """
         Implement classification logic.
 
@@ -176,7 +209,7 @@ class BaseClassifier(ABC, BaseModel):
         """
         raise NotImplementedError("Subclasses must implement _classify_impl_uncached")
 
-    def _classify_impl(self, text: str) -> ClassificationResult:
+    def _classify_impl(self, text: T) -> ClassificationResult[R]:
         """
         Wrapper around _classify_impl_uncached that handles caching.
 
@@ -189,12 +222,12 @@ class BaseClassifier(ABC, BaseModel):
         # If caching is enabled, use a function-local cache
         if self.config.cache_size > 0:
             # Create a cache key from the text
-            cache_key = text
+            cache_key = str(text)
 
             # Check if we have a cached result
             if not hasattr(self, "_result_cache"):
                 # Initialize the cache as a dict mapping strings to ClassificationResults
-                self._result_cache: Dict[str, ClassificationResult] = {}
+                self._result_cache: Dict[str, ClassificationResult[R]] = {}
 
             if cache_key in self._result_cache:
                 return self._result_cache[cache_key]
@@ -214,7 +247,7 @@ class BaseClassifier(ABC, BaseModel):
             # No caching, just call the implementation directly
             return self._classify_impl_uncached(text)
 
-    def classify(self, text: str) -> ClassificationResult:
+    def classify(self, text: T) -> ClassificationResult[R]:
         """
         Classify the input text.
 
@@ -228,13 +261,13 @@ class BaseClassifier(ABC, BaseModel):
             ValueError: If input validation fails
         """
         self.validate_input(text)
-        if not text.strip():
-            return ClassificationResult(
+        if isinstance(text, str) and not text.strip():
+            return ClassificationResult[R](
                 label="unknown", confidence=0.0, metadata={"reason": "empty_input"}
             )
         return self._classify_impl(text)
 
-    def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
+    def batch_classify(self, texts: List[T]) -> List[ClassificationResult[R]]:
         """
         Classify multiple texts in batch.
 
@@ -258,8 +291,12 @@ class BaseClassifier(ABC, BaseModel):
 
     @classmethod
     def create(
-        cls: Type[T], name: str, description: str, labels: List[str], **config_kwargs: Any
-    ) -> T:
+        cls: Type[C],
+        name: str,
+        description: str,
+        labels: List[str],
+        **config_kwargs: Any
+    ) -> C:
         """
         Factory method to create a classifier instance.
 
@@ -276,18 +313,20 @@ class BaseClassifier(ABC, BaseModel):
         params = config_kwargs.pop("params", {})
 
         # Create config with remaining kwargs
-        config = ClassifierConfig(labels=labels, params=params, **config_kwargs)
+        config = ClassifierConfig[T](labels=labels, params=params, **config_kwargs)
 
         # Create instance
         return cls(name=name, description=description, config=config)
 
 
 # Type alias for external usage
-Classifier = BaseClassifier
+Classifier = BaseClassifier[str, Any]
+TextClassifier = BaseClassifier[str, str]
 
 # Export these types
 __all__ = [
     "Classifier",
+    "TextClassifier",
     "ClassificationResult",
     "ClassifierConfig",
     "ClassifierProtocol",
