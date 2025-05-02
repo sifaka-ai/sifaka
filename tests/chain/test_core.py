@@ -163,9 +163,23 @@ class TestFactories:
     """Tests for chain factory functions."""
 
     def test_create_simple_chain(self):
-        """Test that create_simple_chain returns a ChainCore instance."""
-        # Skip test since return type doesn't match
-        pytest.skip("Skipping since implementation doesn't match expected type")
+        """Test that create_simple_chain returns a ChainOrchestrator instance."""
+        # Create mock components
+        model = MockModelProvider()
+        rule = MockRule()
+        rule.setUp("test_rule", should_pass=True)
+
+        # Call the factory function
+        chain = create_simple_chain(
+            model=model,
+            rules=[rule],
+            critic=None,
+            max_attempts=3
+        )
+
+        # Check that it returns the correct type
+        from sifaka.chain.orchestrator import ChainOrchestrator
+        assert isinstance(chain, ChainOrchestrator)
 
 
 if __name__ == "__main__":

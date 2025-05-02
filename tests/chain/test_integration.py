@@ -88,28 +88,159 @@ class TestIntegration(unittest.TestCase):
 
     def test_create_simple_chain(self):
         """Test creating a simple chain."""
-        # Skip this test since implementation doesn't match expected type
-        pytest.skip("Skipping since implementation doesn't match expected type")
+        # Create a simple chain
+        chain = create_simple_chain(
+            model=self.model,
+            rules=[self.passing_rule],
+            critic=None,
+            max_attempts=3
+        )
+
+        # Verify it's the correct type
+        from sifaka.chain.orchestrator import ChainOrchestrator
+        self.assertIsInstance(chain, ChainOrchestrator)
+
+        # Verify it has the correct configuration
+        self.assertEqual(chain._core._retry_strategy.max_attempts, 3)
 
     def test_create_backoff_chain(self):
         """Test creating a chain with backoff retry strategy."""
-        # Skip this test since implementation doesn't match expected type
-        pytest.skip("Skipping since implementation doesn't match expected type")
+        # Create a chain with backoff
+        chain = create_backoff_chain(
+            model=self.model,
+            rules=[self.passing_rule],
+            critic=None,
+            max_attempts=3,
+            initial_backoff=1.0,
+            backoff_factor=2.0,
+            max_backoff=60.0
+        )
+
+        # Verify it's the correct type
+        from sifaka.chain.orchestrator import ChainOrchestrator
+        from sifaka.chain.strategies.retry import BackoffRetryStrategy
+        self.assertIsInstance(chain, ChainOrchestrator)
+
+        # Verify it uses a backoff retry strategy
+        self.assertIsInstance(chain._core._retry_strategy, BackoffRetryStrategy)
+        self.assertEqual(chain._core._retry_strategy.max_attempts, 3)
+
+        # Cannot check these attributes as they might be private
+        # or implemented differently than expected
 
     def test_chain_with_passing_rule(self):
         """Test chain with a rule that passes."""
-        # Skip this test since implementation is missing retry_strategy
-        pytest.skip("Skipping since implementation is missing retry_strategy")
+        # Create chain with passing rule
+        chain = create_simple_chain(
+            model=self.model,
+            rules=[self.passing_rule],
+            critic=None,
+            max_attempts=3
+        )
+
+        # Run the chain
+        result = chain.run("Test prompt")
+
+        # Verify the result
+        self.assertEqual(result.output, "Generated text")
+        self.assertTrue(result.rule_results[0].passed)
+
+        # Verify the model was called once
+        self.assertEqual(self.model.call_count, 1)
 
     def test_chain_with_failing_rule(self):
         """Test chain with a rule that fails."""
-        # Skip this test since implementation is missing retry_strategy
-        pytest.skip("Skipping since implementation is missing retry_strategy")
+        # Create a model that returns different responses on retries
+        model = MockModelProvider(responses=["Bad output", "Good output"])
+
+        # Create rule that fails on first output but passes on second
+        class ConditionalRule:
+            def validate(self, text: str) -> RuleResult:
+                if text == "Bad output":
+                    return RuleResult(passed=False, message="Failed")
+                return RuleResult(passed=True, message="Passed")
+
+        # Create chain with the conditional rule
+        chain = create_simple_chain(
+            model=model,
+            rules=[ConditionalRule()],
+            critic=None,
+            max_attempts=3
+        )
+
+        # Run the chain
+        result = chain.run("Test prompt")
+
+        # Verify the result
+        self.assertEqual(result.output, "Good output")
+        self.assertTrue(result.rule_results[0].passed)
+
+        # Verify the model was called twice
+        self.assertEqual(model.call_count, 2)
 
     def test_chain_with_critic(self):
         """Test chain with a critic."""
-        # Skip this test since implementation is missing retry_strategy
-        pytest.skip("Skipping since implementation is missing retry_strategy")
+        # Create a model that returns outputs needing improvement
+        model = MockModelProvider(responses=["Unimproved output"])
+
+        # Create a custom critic that works with our test
+        class TestCritic:
+            def __init__(self):
+                self.call_count = 0
+
+            def critique(self, text):
+                self.call_count += 1
+                return {
+                    "score": 0.5,
+                    "feedback": "Needs improvement",
+                    "issues": ["Not improved"],
+                    "suggestions": ["Improve it"]
+                }
+
+            def improve(self, text, violations=None):
+                return "Improved " + text
+
+            # Add necessary method to make it work with the chain
+            def improve_with_feedback(self, text, feedback):
+                return "Improved " + text
+
+        critic = TestCritic()
+
+        # Create rule that always passes for improved text
+        class ImprovementRule:
+            def validate(self, text: str) -> RuleResult:
+                if text.startswith("Improved"):
+                    return RuleResult(passed=True, message="Passed after improvement")
+                return RuleResult(passed=False, message="Needs improvement")
+
+        # Create mock model that returns different outputs based on call count
+        class ResponseModelProvider:
+            def __init__(self):
+                self.call_count = 0
+                self.model_name = "test-model"
+
+            def generate(self, prompt):
+                self.call_count += 1
+                if self.call_count == 1:
+                    return "Unimproved output"
+                else:
+                    return "Improved output"
+
+        response_model = ResponseModelProvider()
+
+        # Create chain with critic
+        chain = create_simple_chain(
+            model=response_model,
+            rules=[ImprovementRule()],
+            critic=critic,
+            max_attempts=3
+        )
+
+        # Run the chain
+        result = chain.run("Test prompt")
+
+        # Verify the critic was called
+        self.assertGreater(critic.call_count, 0)
 
     @patch("time.sleep")
     def test_real_chain_with_backoff(self, mock_sleep):
