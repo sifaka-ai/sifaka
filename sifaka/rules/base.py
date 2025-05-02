@@ -3,7 +3,7 @@ Base classes for Sifaka rules.
 
 This module defines the core architecture for rules and validators in Sifaka.
 
-## Rule and Validator Relationship
+## Architecture Overview
 
 Sifaka follows a delegation pattern for validation:
 
@@ -15,6 +15,18 @@ This separation of concerns allows for:
 - Reusing validation logic across different rules
 - Testing validation logic independently
 - Extending the framework with custom validators
+
+## Component Lifecycle
+
+### Validators
+1. **Initialization**: Create with configuration
+2. **Validation**: Process input text and apply validation logic
+3. **Result Creation**: Return standardized RuleResult objects
+
+### Rules
+1. **Initialization**: Set up with name, description, config, validator
+2. **Delegation**: Forward validation requests to validator
+3. **Result Processing**: Enhance validation results with rule metadata
 
 ## Instantiation Pattern
 
@@ -28,6 +40,7 @@ rule = create_length_rule(min_chars=10, max_chars=100)
 
 # Validate text
 result = rule.validate("This is a test")
+print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 
 Each rule type provides two factory functions:
@@ -64,6 +77,7 @@ from typing import (
     Optional,
     Protocol,
     Tuple,
+    Type,
     TypeVar,
     Union,
     cast,
@@ -92,7 +106,12 @@ class ConfigurationError(Exception):
 
 
 class RulePriority(Enum):
-    """Priority levels for rule execution."""
+    """
+    Priority levels for rule execution.
+
+    Rules with higher priority are generally executed first.
+    This allows critical validations to fail early in a chain.
+    """
 
     LOW = auto()
     MEDIUM = auto()
@@ -105,12 +124,43 @@ T_co = TypeVar("T_co", covariant=True)
 
 @runtime_checkable
 class Validatable(Protocol[T_co]):
-    """Protocol for objects that can be validated."""
+    """
+    Protocol for objects that can be validated.
 
-    def is_valid(self) -> bool: ...
-    def validate(self) -> None: ...
+    Implementing classes should provide methods to check validity,
+    trigger validation, and expose validation errors.
+
+    Type Parameters:
+        T_co: The covariant result type
+    """
+
+    def is_valid(self) -> bool:
+        """
+        Check if the object is valid.
+
+        Returns:
+            True if the object is valid, False otherwise
+        """
+        ...
+
+    def validate(self) -> None:
+        """
+        Validate the object, raising exceptions for invalid objects.
+
+        Raises:
+            ValidationError: If the object is invalid
+        """
+        ...
+
     @property
-    def validation_errors(self) -> List[str]: ...
+    def validation_errors(self) -> List[str]:
+        """
+        Get the list of validation errors.
+
+        Returns:
+            List of validation error messages
+        """
+        ...
 
 
 T_contra = TypeVar("T_contra", contravariant=True)
@@ -127,14 +177,74 @@ class RuleValidator(Protocol[T_contra]):
     The BaseValidator class provides a default implementation of this protocol,
     and most validators should extend BaseValidator rather than implementing
     this protocol directly.
+
+    Type Parameters:
+        T_contra: The contravariant input type
+
+    Lifecycle:
+    1. Initialization: Set up with any necessary configuration
+    2. Validation: Process input and apply validation logic
+    3. Result: Return standardized validation results
+
+    Examples:
+        ```python
+        from sifaka.rules.base import RuleValidator, RuleResult
+
+        class MyValidator(RuleValidator[str]):
+            def validate(self, text: str, **kwargs) -> RuleResult:
+                is_valid = len(text) > 10
+                return RuleResult(
+                    passed=is_valid,
+                    message="Text length validation" +
+                            (" passed" if is_valid else " failed")
+                )
+
+            def can_validate(self, text: str) -> bool:
+                return isinstance(text, str)
+
+            @property
+            def validation_type(self) -> type:
+                return str
+        ```
     """
 
-    def validate(self, output: T_contra, **kwargs: Any) -> "RuleResult": ...
+    def validate(self, output: T_contra, **kwargs: Any) -> "RuleResult":
+        """
+        Validate the output and return a result.
 
-    def can_validate(self, output: T_contra) -> bool: ...
+        Args:
+            output: The output to validate
+            **kwargs: Additional validation context
+
+        Returns:
+            Validation result
+
+        Raises:
+            ValidationError: If validation cannot be performed
+        """
+        ...
+
+    def can_validate(self, output: T_contra) -> bool:
+        """
+        Check if this validator can validate the output.
+
+        Args:
+            output: The output to check
+
+        Returns:
+            True if this validator can validate the output
+        """
+        ...
 
     @property
-    def validation_type(self) -> type: ...
+    def validation_type(self) -> type:
+        """
+        Get the type this validator can validate.
+
+        Returns:
+            The type this validator can validate
+        """
+        ...
 
 
 class BaseValidator(Generic[T]):
@@ -148,10 +258,39 @@ class BaseValidator(Generic[T]):
     Validators should be created using factory functions rather than direct instantiation.
     Each validator type provides a `create_X_validator()` factory function.
 
-    When implementing a custom validator:
-    1. Extend this class or a domain-specific validator base class
-    2. Override the validate() method to implement your validation logic
-    3. Create a factory function for consistent instantiation
+    Type Parameters:
+        T: The input type to validate
+
+    Lifecycle:
+    1. Initialization: Set up validator configuration
+    2. Validation Request: Receive input to validate
+    3. Input Processing: Apply validation logic to input
+    4. Result Creation: Return standardized validation results
+
+    Examples:
+        ```python
+        from sifaka.rules.base import BaseValidator, RuleResult
+
+        class LengthValidator(BaseValidator[str]):
+            def __init__(self, min_length: int):
+                self.min_length = min_length
+
+            def validate(self, text: str, **kwargs) -> RuleResult:
+                # Handle empty text first
+                empty_result = self.handle_empty_text(text)
+                if empty_result:
+                    return empty_result
+
+                # Apply validation logic
+                is_valid = len(text) >= self.min_length
+                return RuleResult(
+                    passed=is_valid,
+                    message=f"Text length is {len(text)}" +
+                            (f", which meets minimum of {self.min_length}"
+                             if is_valid
+                             else f", which is below minimum of {self.min_length}")
+                )
+        ```
     """
 
     def validate(self, output: T, **kwargs: Any) -> "RuleResult":
@@ -167,6 +306,9 @@ class BaseValidator(Generic[T]):
 
         Returns:
             Validation result
+
+        Raises:
+            NotImplementedError: If not implemented by subclass
         """
         # Handle empty text for string validators
         if isinstance(output, str) and not output.strip():
@@ -184,6 +326,10 @@ class BaseValidator(Generic[T]):
     def handle_empty_text(self, text: str) -> Optional["RuleResult"]:
         """
         Handle empty text validation.
+
+        This is a utility method to provide consistent handling of empty text
+        across different validators. Validators should call this method at the
+        beginning of their validate method when processing string inputs.
 
         Args:
             text: The text to check
@@ -228,17 +374,105 @@ R_contra = TypeVar("R_contra", contravariant=True)
 
 @runtime_checkable
 class RuleResultHandler(Protocol[R_contra]):
-    """Protocol for handling rule validation results."""
+    """
+    Protocol for handling rule validation results.
 
-    def handle_result(self, result: R_contra) -> None: ...
+    Result handlers provide a way to process validation results
+    and determine if validation should continue after a result
+    is received.
 
-    def should_continue(self, result: R_contra) -> bool: ...
+    Type Parameters:
+        R_contra: The contravariant result type
 
-    def can_handle(self, result: R_contra) -> bool: ...
+    Lifecycle:
+    1. Initialization: Set up handler configuration
+    2. Result Reception: Receive validation results
+    3. Processing: Apply handler logic to results
+    4. Continuation Decision: Determine if validation should continue
+
+    Examples:
+        ```python
+        from sifaka.rules.base import RuleResultHandler, RuleResult
+
+        class LoggingHandler(RuleResultHandler[RuleResult]):
+            def handle_result(self, result: RuleResult) -> None:
+                print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+
+            def should_continue(self, result: RuleResult) -> bool:
+                # Continue validation even if this rule failed
+                return True
+
+            def can_handle(self, result: RuleResult) -> bool:
+                return isinstance(result, RuleResult)
+        ```
+    """
+
+    def handle_result(self, result: R_contra) -> None:
+        """
+        Handle a validation result.
+
+        Args:
+            result: The validation result to handle
+        """
+        ...
+
+    def should_continue(self, result: R_contra) -> bool:
+        """
+        Determine if validation should continue after this result.
+
+        Args:
+            result: The validation result to check
+
+        Returns:
+            True if validation should continue, False otherwise
+        """
+        ...
+
+    def can_handle(self, result: R_contra) -> bool:
+        """
+        Check if this handler can handle the result.
+
+        Args:
+            result: The validation result to check
+
+        Returns:
+            True if this handler can handle the result
+        """
+        ...
 
 
 class RuleResult(BaseModel):
-    """Immutable result of a rule validation."""
+    """
+    Immutable result of a rule validation.
+
+    This class provides a standardized way to represent validation results
+    with metadata and optional scores. It is immutable to prevent accidental
+    modification after creation.
+
+    Lifecycle:
+    1. Creation: Instantiated with validation outcome
+    2. Usage: Accessed by rules and handlers
+    3. Augmentation: New instances created with additional metadata
+
+    Examples:
+        ```python
+        # Create a successful validation result
+        result = RuleResult(
+            passed=True,
+            message="Text meets all requirements",
+            metadata={"char_count": 150, "word_count": 23},
+            score=0.95
+        )
+
+        # Access properties
+        if result.passed:
+            print(f"Validation passed: {result.message}")
+            print(f"Score: {result.score}")
+
+        # Create a new result with additional metadata
+        enhanced_result = result.with_metadata(rule_id="length_rule")
+        ```
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -255,16 +489,29 @@ class RuleResult(BaseModel):
 
     @property
     def failed(self) -> bool:
-        """Check if validation failed."""
+        """
+        Check if validation failed.
+
+        Returns:
+            True if validation failed, False if it passed
+        """
         return not self.passed
 
     def __bool__(self) -> bool:
-        """Convert to boolean."""
+        """
+        Convert to boolean.
+
+        Returns:
+            True if validation passed, False if it failed
+        """
         return self.passed
 
     def with_metadata(self, **kwargs: Any) -> "RuleResult":
         """
         Create a new result with additional metadata.
+
+        This method is useful for adding rule-specific information
+        to a result created by a validator.
 
         Args:
             **kwargs: Additional metadata to add
@@ -287,16 +534,29 @@ class RuleConfig(BaseModel):
     This class provides a consistent way to configure rules.
     All rule-specific configuration options should be placed in the params dictionary:
 
-    ```python
-    config = RuleConfig(
-        priority=RulePriority.HIGH,
-        cost=1.0,
-        params={
-            "option1": "value1",
-            "option2": "value2",
-        }
-    )
-    ```
+    Lifecycle:
+    1. Creation: Instantiated with configuration options
+    2. Usage: Accessed by rules during setup and validation
+    3. Modification: New instances created with updated options
+
+    Examples:
+        ```python
+        # Create a rule configuration
+        config = RuleConfig(
+            priority=RulePriority.HIGH,
+            cost=1.0,
+            params={
+                "option1": "value1",
+                "option2": "value2",
+            }
+        )
+
+        # Create a new configuration with updated options
+        updated_config = config.with_options(priority=RulePriority.CRITICAL)
+
+        # Create a new configuration with updated params
+        parameterized_config = config.with_params(option3="value3")
+        ```
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -324,6 +584,9 @@ class RuleConfig(BaseModel):
         """
         Create a new config with updated options.
 
+        This method is useful for updating top-level configuration
+        options without modifying the params dictionary.
+
         Args:
             **kwargs: Options to update
 
@@ -335,6 +598,9 @@ class RuleConfig(BaseModel):
     def with_params(self, **kwargs: Any) -> "RuleConfig":
         """
         Create a new config with updated params.
+
+        This method is useful for updating or adding rule-specific
+        parameters without modifying other configuration options.
 
         Args:
             **kwargs: Params to update
@@ -372,6 +638,34 @@ class Rule(Generic[T, R, V, H], ABC):
         R: The type of validation result
         V: The type of validator (must implement RuleValidator[T])
         H: The type of result handler (must implement RuleResultHandler[R])
+
+    Lifecycle:
+    1. Initialization: Set up with name, description, config, validator, handler
+    2. Validation Request: Receive input to validate
+    3. Delegation: Forward validation to validator
+    4. Result Processing: Apply rule-specific enhancements to results
+    5. Result Handling: Forward results to handler if provided
+
+    Examples:
+        ```python
+        from sifaka.rules.base import Rule, RuleResult, RuleConfig
+
+        class LengthRule(Rule[str, RuleResult, LengthValidator, None]):
+            def __init__(
+                self,
+                min_length: int,
+                name: str = "length_rule",
+                description: str = "Validates text length",
+                config: Optional[RuleConfig] = None,
+            ):
+                self.min_length = min_length
+                super().__init__(name=name, description=description, config=config)
+
+            def _create_default_validator(self) -> LengthValidator:
+                return LengthValidator(min_length=self.min_length)
+
+            # validate method is inherited from Rule base class
+        ```
     """
 
     def __init__(
@@ -391,6 +685,9 @@ class Rule(Generic[T, R, V, H], ABC):
             config: Rule configuration
             validator: Optional validator implementation
             result_handler: Optional handler for validation results
+
+        Raises:
+            ConfigurationError: If validator or handler doesn't meet requirements
         """
         self._name: Final[str] = name
         self._description: Final[str] = description
@@ -458,26 +755,55 @@ class Rule(Generic[T, R, V, H], ABC):
 
         Returns:
             A validator instance compatible with this rule
+
+        Raises:
+            NotImplementedError: If not implemented by subclass
         """
         raise NotImplementedError("Subclasses must implement _create_default_validator")
 
     @property
     def name(self) -> str:
-        """Get the rule name."""
+        """
+        Get the rule name.
+
+        Returns:
+            The name of the rule
+        """
         return self._name
 
     @property
     def description(self) -> str:
-        """Get the rule description."""
+        """
+        Get the rule description.
+
+        Returns:
+            The description of the rule
+        """
         return self._description
 
     @property
     def config(self) -> RuleConfig:
-        """Get the rule configuration."""
+        """
+        Get the rule configuration.
+
+        Returns:
+            The configuration of the rule
+        """
         return self._config
 
     def _get_cache_key(self, output: T, **kwargs: Any) -> str:
-        """Generate a cache key for the output."""
+        """
+        Generate a cache key for the output.
+
+        This method is used internally for caching validation results.
+
+        Args:
+            output: The output to generate a cache key for
+            **kwargs: Additional validation context
+
+        Returns:
+            A string cache key
+        """
         hasher = hashlib.md5()
         hasher.update(str(output).encode())
         hasher.update(str(self._config).encode())
@@ -532,14 +858,57 @@ class Rule(Generic[T, R, V, H], ABC):
 
 
 class FunctionValidator(BaseValidator[str]):
-    """Validator that wraps a function for validation."""
+    """
+    Validator that wraps a function for validation.
+
+    This validator makes it easy to use simple functions for validation
+    without creating a full validator class. It handles various return
+    types from the wrapped function and converts them to RuleResult objects.
+
+    Lifecycle:
+    1. Initialization: Wrap a validation function
+    2. Validation: Call the function with input
+    3. Result Conversion: Convert function output to RuleResult
+
+    Examples:
+        ```python
+        # Create a validator from a simple function
+        def is_long_enough(text: str) -> bool:
+            return len(text) > 10
+
+        validator = FunctionValidator(is_long_enough)
+
+        # Use the validator
+        result = validator.validate("Hello world")
+        ```
+    """
 
     def __init__(self, func: Callable[..., Any]) -> None:
-        """Initialize with a validation function."""
+        """
+        Initialize with a validation function.
+
+        Args:
+            func: The function to use for validation
+        """
         self._func = func
 
     def validate(self, output: str, **kwargs: Any) -> RuleResult:
-        """Validate using the wrapped function."""
+        """
+        Validate using the wrapped function.
+
+        This method calls the wrapped function and converts its
+        return value to a RuleResult.
+
+        Args:
+            output: The text to validate
+            **kwargs: Additional validation context
+
+        Returns:
+            Validation result
+
+        Raises:
+            ValidationError: If the function returns an invalid type
+        """
         # Handle empty text
         empty_result = self.handle_empty_text(output)
         if empty_result:
@@ -572,6 +941,26 @@ class FunctionRule(Rule[str, RuleResult, FunctionValidator, RuleResultHandler[Ru
     2. (str) -> RuleResult
     3. (str) -> tuple[bool, str]
     4. (str) -> tuple[bool, str, dict]
+
+    Lifecycle:
+    1. Initialization: Wrap a validation function
+    2. Validation: Delegate to FunctionValidator
+
+    Examples:
+        ```python
+        # Create a rule from a simple function
+        def contains_keywords(text: str, keywords: List[str]) -> bool:
+            return any(keyword in text.lower() for keyword in keywords)
+
+        rule = FunctionRule(
+            func=contains_keywords,
+            name="keyword_rule",
+            description="Checks if text contains required keywords"
+        )
+
+        # Use the rule with kwargs
+        result = rule.validate("Hello world", keywords=["hello", "world"])
+        ```
     """
 
     def __init__(
@@ -583,7 +972,15 @@ class FunctionRule(Rule[str, RuleResult, FunctionValidator, RuleResultHandler[Ru
         description: str = "",
         config: Optional[RuleConfig] = None,
     ) -> None:
-        """Initialize a function-based rule."""
+        """
+        Initialize a function-based rule.
+
+        Args:
+            func: The function to use for validation
+            name: The name of the rule
+            description: Description of the rule
+            config: Rule configuration
+        """
         self._func = func
         super().__init__(
             name=name,
@@ -592,46 +989,152 @@ class FunctionRule(Rule[str, RuleResult, FunctionValidator, RuleResultHandler[Ru
         )
 
     def _create_default_validator(self) -> FunctionValidator:
-        """Create a default validator from the function."""
+        """
+        Create a default validator from the function.
+
+        Returns:
+            A FunctionValidator wrapping the function
+        """
         return FunctionValidator(self._func)
 
 
 @runtime_checkable
 class RuleProtocol(Protocol):
-    """Protocol defining the interface for rules."""
+    """
+    Protocol defining the interface for rules.
+
+    This protocol is useful for type checking code that works with rules
+    without requiring a specific rule implementation.
+
+    Lifecycle:
+    1. Access: Get rule properties
+    2. Validation: Validate input against rule
+
+    Examples:
+        ```python
+        def process_with_rule(rule: RuleProtocol, text: str) -> None:
+            print(f"Validating with rule: {rule.name}")
+            result = rule.validate(text)
+            print(f"Result: {result.message}")
+        ```
+    """
 
     @property
     def name(self) -> str:
-        """Get rule name."""
+        """
+        Get rule name.
+
+        Returns:
+            The name of the rule
+        """
         ...
 
     @property
     def description(self) -> str:
-        """Get rule description."""
+        """
+        Get rule description.
+
+        Returns:
+            The description of the rule
+        """
         ...
 
     def validate(self, output: Any, **kwargs: Any) -> "RuleResult":
-        """Validate output against rule criteria."""
+        """
+        Validate output against rule criteria.
+
+        Args:
+            output: The output to validate
+            **kwargs: Additional validation context
+
+        Returns:
+            Validation result
+
+        Raises:
+            ValidationError: If validation fails
+        """
         ...
 
     @property
     def config(self) -> "RuleConfig":
-        """Get rule configuration."""
+        """
+        Get rule configuration.
+
+        Returns:
+            The configuration of the rule
+        """
         ...
+
+
+def create_rule(
+    rule_type: Type[Rule],
+    name: str,
+    description: str = "",
+    config: Optional[RuleConfig] = None,
+    validator: Optional[RuleValidator] = None,
+    **kwargs: Any
+) -> Rule:
+    """
+    Factory function to create a rule with standardized configuration.
+
+    This function simplifies the creation of rules by providing a
+    consistent interface. It's useful for creating rules in a generic way.
+
+    Args:
+        rule_type: The class of the rule to create
+        name: The name of the rule
+        description: Description of the rule
+        config: Optional rule configuration
+        validator: Optional validator implementation
+        **kwargs: Additional keyword arguments for the rule
+
+    Returns:
+        A configured rule instance
+
+    Examples:
+        ```python
+        # Create a length rule
+        from sifaka.rules.formatting.length import LengthRule, LengthValidator
+
+        validator = LengthValidator(min_chars=10, max_chars=100)
+        rule = create_rule(
+            rule_type=LengthRule,
+            name="custom_length_rule",
+            description="Custom rule for length validation",
+            validator=validator
+        )
+        ```
+    """
+    return rule_type(
+        name=name,
+        description=description,
+        config=config,
+        validator=validator,
+        **kwargs
+    )
 
 
 # Export these types
 __all__ = [
-    "Rule",
-    "RuleConfig",
-    "RuleResult",
-    "RuleProtocol",
-    "RuleValidator",
-    "BaseValidator",
-    "RuleResultHandler",
-    "FunctionValidator",
-    "FunctionRule",
+    # Exception classes
     "ValidationError",
     "ConfigurationError",
+    # Enum classes
     "RulePriority",
+    # Protocol classes
+    "Validatable",
+    "RuleValidator",
+    "RuleResultHandler",
+    "RuleProtocol",
+    # Model classes
+    "RuleResult",
+    "RuleConfig",
+    # Base classes
+    "BaseValidator",
+    "Rule",
+    # Concrete classes
+    "FunctionValidator",
+    "FunctionRule",
+    # Factory functions
+    "create_rule",
 ]
