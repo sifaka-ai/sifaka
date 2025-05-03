@@ -141,6 +141,11 @@ from typing import (
 from typing_extensions import TypeGuard
 
 
+# Default configuration values
+DEFAULT_MIN_CONFIDENCE = 0.7
+DEFAULT_MAX_ATTEMPTS = 3
+DEFAULT_CACHE_SIZE = 100
+
 # Input and output type variables
 T = TypeVar("T")  # Input type (usually str)
 R = TypeVar("R")  # Result type
@@ -1152,11 +1157,7 @@ class BaseCritic(ABC, Generic[T, R]):
         else:
             result = CriticResult.FAILURE
 
-        return CriticOutput(
-            result=result,
-            improved_text=improved_text,
-            metadata=metadata
-        )
+        return CriticOutput(result=result, improved_text=improved_text, metadata=metadata)
 
 
 @overload
@@ -1503,10 +1504,7 @@ class Critic(BaseCritic[str, str]):
             suggestions = ["Add more content", "Include specific examples"]
 
         return CriticMetadata(
-            score=score,
-            feedback=feedback,
-            issues=issues,
-            suggestions=suggestions
+            score=score, feedback=feedback, issues=issues, suggestions=suggestions
         )
 
 

@@ -5,6 +5,9 @@ the central component for text validation, improvement, and critiquing. The Crit
 class delegates specific operations to specialized components while maintaining
 a unified interface for text processing.
 
+This implementation uses the standardized state management approach, which provides
+consistent state handling across all components in the Sifaka framework.
+
 ## Factory Function Pattern
 
 This module follows the standard Sifaka factory function pattern:
@@ -119,7 +122,9 @@ print(f"Improved text: {improved_text}")
 ```
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, ClassVar, Union
+
+from pydantic import PrivateAttr
 
 from .base import BaseCritic
 from .models import CriticConfig, CriticMetadata
@@ -139,69 +144,40 @@ class CriticCore(BaseCritic):
     providing a unified interface for text processing while delegating
     specific operations to specialized components.
 
-    ## Lifecycle Management
+    This implementation uses the standardized state management approach with
+    a single _state attribute that manages all mutable state.
 
-    The CriticCore manages its lifecycle through three main phases:
+    ## State Management
 
-    1. **Initialization**
-       - Validates configuration
-       - Sets up managers
-       - Creates services
-       - Allocates resources
+    The CriticCore uses a standardized state management approach:
 
-    2. **Operation**
-       - Processes text input
-       - Delegates to services
-       - Manages responses
-       - Handles errors
+    1. **State Initialization**
+       - Creates a state object using create_critic_state()
+       - Stores all mutable state in the state object
+       - Accesses state through the state manager
 
-    3. **Cleanup**
-       - Releases resources
-       - Cleans up state
-       - Logs final status
+    2. **State Access**
+       - Uses state.get_state() to access the state object
+       - Updates state through the state object
+       - Maintains clear separation between configuration and state
 
-    ## Error Handling
-
-    The CriticCore implements comprehensive error handling:
-
-    1. **Input Validation**
-       - Validates text input
-       - Checks feedback format
-       - Verifies violation format
-
-    2. **Service Management**
-       - Handles service errors
-       - Manages resource allocation
-       - Controls state transitions
-
-    3. **Model Interaction**
-       - Handles provider errors
-       - Manages response parsing
-       - Validates output formats
-
-    ## Examples
-
-    ```python
-    from sifaka.critics.core import create_core_critic
-    from sifaka.models.providers import OpenAIProvider
-
-    # Create a core critic using the factory function
-    critic = create_core_critic(
-        name="core_critic",
-        description="A core critic implementation",
-        system_prompt="You are an expert editor...",
-        temperature=0.7,
-        max_tokens=1000,
-        llm_provider=OpenAIProvider(api_key="your-api-key")
-    )
-
-    # Use the critic
-    text = "This is a sample technical document."
-    is_valid = critic.validate(text)
-    critique = critic.critique(text)
-    improved_text = critic.improve(text, "The text needs more detail.")
-    ```
+    3. **State Components**
+       - model: The language model provider
+       - prompt_manager: The prompt manager
+       - response_parser: The response parser
+       - memory_manager: The memory manager
+       - critique_service: The critique service
+       - initialized: Whether the critic is initialized
+       - cache: A cache for storing temporary data
     """
+
+    # State management using StateManager
+    def _create_critic_state():
+        from sifaka.utils.state import create_critic_state
+
+        return create_critic_state()
+
+    _state = PrivateAttr(default_factory=_create_critic_state)
 
     def __init__(
         self,
@@ -216,12 +192,6 @@ class CriticCore(BaseCritic):
         This method sets up the core critic with its configuration and components.
         It creates or uses provided managers and services for text processing.
 
-        ## Lifecycle Steps
-        1. Configuration validation
-        2. Manager initialization
-        3. Service creation
-        4. Resource allocation
-
         Args:
             config: Configuration for the critic
             llm_provider: Language model provider
@@ -235,21 +205,27 @@ class CriticCore(BaseCritic):
         """
         super().__init__(config)
 
-        # Create managers
-        self._prompt_manager = prompt_manager or self._create_prompt_manager()
-        self._response_parser = response_parser or ResponseParser()
-        self._memory_manager = memory_manager
+        # Initialize state
+        state = self._state.get_state()
+        state.initialized = False
+        state.cache = {}
+
+        # Store components in state
+        state.cache["llm_provider"] = llm_provider
+        state.cache["prompt_manager"] = prompt_manager or self._create_prompt_manager()
+        state.cache["response_parser"] = response_parser or ResponseParser()
+        state.cache["memory_manager"] = memory_manager
 
         # Create services
-        self._critique_service = CritiqueService(
+        state.cache["critique_service"] = CritiqueService(
             llm_provider=llm_provider,
-            prompt_manager=self._prompt_manager,
-            response_parser=self._response_parser,
-            memory_manager=self._memory_manager,
+            prompt_manager=state.cache["prompt_manager"],
+            response_parser=state.cache["response_parser"],
+            memory_manager=state.cache["memory_manager"],
         )
 
-        # Store the language model provider
-        self._model = llm_provider
+        # Mark as initialized
+        state.initialized = True
 
     def validate(self, text: str) -> bool:
         """Validate text against quality standards.
@@ -257,11 +233,6 @@ class CriticCore(BaseCritic):
         This method checks if the given text meets the quality standards
         defined by the critic's configuration.
 
-        ## Lifecycle Steps
-        1. Input validation
-        2. Service delegation
-        3. Result processing
-
         Args:
             text: The text to validate
 
@@ -272,7 +243,20 @@ class CriticCore(BaseCritic):
             ValueError: If text is empty or invalid
             RuntimeError: If validation fails
         """
-        return self._critique_service.validate(text)
+        # Get state
+        state = self._state.get_state()
+
+        # Ensure initialized
+        if not state.initialized:
+            raise RuntimeError("CriticCore not properly initialized")
+
+        # Get critique service from state
+        critique_service = state.cache.get("critique_service")
+        if not critique_service:
+            raise RuntimeError("Critique service not available")
+
+        # Delegate to critique service
+        return critique_service.validate(text)
 
     def improve(self, text: str, violations: List[Dict[str, Any]]) -> str:
         """Improve text based on violations.
@@ -280,12 +264,6 @@ class CriticCore(BaseCritic):
         This method enhances the given text by addressing the specified
         violations and applying improvements.
 
-        ## Lifecycle Steps
-        1. Input validation
-        2. Violation processing
-        3. Service delegation
-        4. Result formatting
-
         Args:
             text: The text to improve
             violations: List of violations to address
@@ -297,19 +275,26 @@ class CriticCore(BaseCritic):
             ValueError: If text is empty or violations are invalid
             RuntimeError: If improvement fails
         """
-        return self._critique_service.improve(text, violations)
+        # Get state
+        state = self._state.get_state()
+
+        # Ensure initialized
+        if not state.initialized:
+            raise RuntimeError("CriticCore not properly initialized")
+
+        # Get critique service from state
+        critique_service = state.cache.get("critique_service")
+        if not critique_service:
+            raise RuntimeError("Critique service not available")
+
+        # Delegate to critique service
+        return critique_service.improve(text, violations)
 
     def critique(self, text: str) -> CriticMetadata:
         """Critique text and provide feedback.
 
         This method analyzes the given text and provides detailed feedback
         about its quality and potential improvements.
-
-        ## Lifecycle Steps
-        1. Input validation
-        2. Service delegation
-        3. Result processing
-        4. Metadata creation
 
         Args:
             text: The text to critique
@@ -321,19 +306,26 @@ class CriticCore(BaseCritic):
             ValueError: If text is empty or invalid
             RuntimeError: If critique fails
         """
-        return self._critique_service.critique(text)
+        # Get state
+        state = self._state.get_state()
+
+        # Ensure initialized
+        if not state.initialized:
+            raise RuntimeError("CriticCore not properly initialized")
+
+        # Get critique service from state
+        critique_service = state.cache.get("critique_service")
+        if not critique_service:
+            raise RuntimeError("Critique service not available")
+
+        # Delegate to critique service
+        return critique_service.critique(text)
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
         """Improve text based on feedback.
 
         This method enhances the given text using the provided feedback
         to guide the improvement process.
-
-        ## Lifecycle Steps
-        1. Input validation
-        2. Feedback processing
-        3. Service delegation
-        4. Result formatting
 
         Args:
             text: The text to improve
@@ -346,18 +338,26 @@ class CriticCore(BaseCritic):
             ValueError: If text is empty or feedback is invalid
             RuntimeError: If improvement fails
         """
-        return self._critique_service.improve(text, feedback)
+        # Get state
+        state = self._state.get_state()
+
+        # Ensure initialized
+        if not state.initialized:
+            raise RuntimeError("CriticCore not properly initialized")
+
+        # Get critique service from state
+        critique_service = state.cache.get("critique_service")
+        if not critique_service:
+            raise RuntimeError("Critique service not available")
+
+        # Delegate to critique service
+        return critique_service.improve(text, feedback)
 
     async def avalidate(self, text: str) -> bool:
         """Asynchronously validate text against quality standards.
 
         This method performs asynchronous validation of text against
         the quality standards defined by the critic's configuration.
-
-        ## Lifecycle Steps
-        1. Input validation
-        2. Service delegation
-        3. Result processing
 
         Args:
             text: The text to validate
@@ -369,19 +369,26 @@ class CriticCore(BaseCritic):
             ValueError: If text is empty or invalid
             RuntimeError: If validation fails
         """
-        return await self._critique_service.avalidate(text)
+        # Get state
+        state = self._state.get_state()
+
+        # Ensure initialized
+        if not state.initialized:
+            raise RuntimeError("CriticCore not properly initialized")
+
+        # Get critique service from state
+        critique_service = state.cache.get("critique_service")
+        if not critique_service:
+            raise RuntimeError("Critique service not available")
+
+        # Delegate to critique service
+        return await critique_service.avalidate(text)
 
     async def acritique(self, text: str) -> CriticMetadata:
         """Asynchronously critique text and provide feedback.
 
         This method performs asynchronous analysis of the given text
         and provides detailed feedback about its quality.
-
-        ## Lifecycle Steps
-        1. Input validation
-        2. Service delegation
-        3. Result processing
-        4. Metadata creation
 
         Args:
             text: The text to critique
@@ -393,19 +400,26 @@ class CriticCore(BaseCritic):
             ValueError: If text is empty or invalid
             RuntimeError: If critique fails
         """
-        return await self._critique_service.acritique(text)
+        # Get state
+        state = self._state.get_state()
+
+        # Ensure initialized
+        if not state.initialized:
+            raise RuntimeError("CriticCore not properly initialized")
+
+        # Get critique service from state
+        critique_service = state.cache.get("critique_service")
+        if not critique_service:
+            raise RuntimeError("Critique service not available")
+
+        # Delegate to critique service
+        return await critique_service.acritique(text)
 
     async def aimprove(self, text: str, violations: List[Dict[str, Any]]) -> str:
         """Asynchronously improve text based on violations.
 
         This method performs asynchronous improvement of the given text
         by addressing the specified violations.
-
-        ## Lifecycle Steps
-        1. Input validation
-        2. Violation processing
-        3. Service delegation
-        4. Result formatting
 
         Args:
             text: The text to improve
@@ -418,19 +432,26 @@ class CriticCore(BaseCritic):
             ValueError: If text is empty or violations are invalid
             RuntimeError: If improvement fails
         """
-        return await self._critique_service.aimprove(text, violations)
+        # Get state
+        state = self._state.get_state()
+
+        # Ensure initialized
+        if not state.initialized:
+            raise RuntimeError("CriticCore not properly initialized")
+
+        # Get critique service from state
+        critique_service = state.cache.get("critique_service")
+        if not critique_service:
+            raise RuntimeError("Critique service not available")
+
+        # Delegate to critique service
+        return await critique_service.aimprove(text, violations)
 
     async def aimprove_with_feedback(self, text: str, feedback: str) -> str:
         """Asynchronously improve text based on feedback.
 
         This method performs asynchronous improvement of the given text
         using the provided feedback to guide the process.
-
-        ## Lifecycle Steps
-        1. Input validation
-        2. Feedback processing
-        3. Service delegation
-        4. Result formatting
 
         Args:
             text: The text to improve
@@ -443,18 +464,26 @@ class CriticCore(BaseCritic):
             ValueError: If text is empty or feedback is invalid
             RuntimeError: If improvement fails
         """
-        return await self._critique_service.aimprove(text, feedback)
+        # Get state
+        state = self._state.get_state()
+
+        # Ensure initialized
+        if not state.initialized:
+            raise RuntimeError("CriticCore not properly initialized")
+
+        # Get critique service from state
+        critique_service = state.cache.get("critique_service")
+        if not critique_service:
+            raise RuntimeError("Critique service not available")
+
+        # Delegate to critique service
+        return await critique_service.aimprove(text, feedback)
 
     def _create_prompt_manager(self) -> PromptManager:
         """Create a default prompt manager.
 
         This method creates a default prompt manager instance using
         the critic's configuration.
-
-        ## Lifecycle Steps
-        1. Configuration validation
-        2. Manager creation
-        3. Resource allocation
 
         Returns:
             PromptManager: A configured prompt manager instance
@@ -463,7 +492,20 @@ class CriticCore(BaseCritic):
             ValueError: If configuration is invalid
             RuntimeError: If manager creation fails
         """
-        return DefaultPromptManager(self.config)
+        # Get state
+        state = self._state.get_state()
+
+        # Check if prompt manager is already in state cache
+        if "prompt_manager" in state.cache and state.cache["prompt_manager"]:
+            return state.cache["prompt_manager"]
+
+        # Create new prompt manager
+        prompt_manager = DefaultPromptManager(self.config)
+
+        # Store in state cache
+        state.cache["prompt_manager"] = prompt_manager
+
+        return prompt_manager
 
 
 def create_core_critic(
@@ -481,6 +523,7 @@ def create_core_critic(
     prompt_manager: Optional[PromptManager] = None,
     response_parser: Optional[ResponseParser] = None,
     memory_manager: Optional[MemoryManager] = None,
+    config: Optional[Union[Dict[str, Any], CriticConfig]] = None,
     **kwargs: Any,
 ) -> CriticCore:
     """
@@ -488,12 +531,6 @@ def create_core_critic(
 
     This factory function creates a configured CriticCore instance.
     It provides a standardized way to create critics with various configurations.
-
-    ## Lifecycle Steps
-    1. Parameter extraction
-    2. Configuration creation
-    3. Component initialization
-    4. Critic instantiation
 
     Args:
         name: Name of the critic
@@ -510,43 +547,101 @@ def create_core_critic(
         prompt_manager: Optional prompt manager to use
         response_parser: Optional response parser to use
         memory_manager: Optional memory manager to use
+        config: Optional pre-configured CriticConfig or dict
         **kwargs: Additional keyword arguments for the config
 
     Returns:
         CriticCore: The created critic
+
+    Examples:
+        ```python
+        from sifaka.critics.core import create_core_critic
+        from sifaka.models.openai import create_openai_provider
+
+        # Create a critic with default settings
+        critic = create_core_critic(
+            name="content_critic",
+            description="Evaluates content quality",
+            llm_provider=create_openai_provider(api_key="your-api-key")
+        )
+
+        # Create a critic with custom settings
+        critic = create_core_critic(
+            name="advanced_critic",
+            description="Advanced content evaluation",
+            system_prompt="You are an expert editor...",
+            temperature=0.7,
+            max_tokens=1000,
+            min_confidence=0.8,
+            llm_provider=create_openai_provider(api_key="your-api-key")
+        )
+
+        # Use the critic
+        is_valid = critic.validate("This is a sample text.")
+        feedback = critic.critique("This is a sample text.")
+        improved = critic.improve_with_feedback(
+            "This is a sample text.",
+            "Add more details about the topic."
+        )
+        ```
     """
-    # Extract config parameters
-    config_params = {}
-    if system_prompt is not None:
-        config_params["system_prompt"] = system_prompt
-    if temperature is not None:
-        config_params["temperature"] = temperature
-    if max_tokens is not None:
-        config_params["max_tokens"] = max_tokens
-    if min_confidence is not None:
-        config_params["min_confidence"] = min_confidence
-    if max_attempts is not None:
-        config_params["max_attempts"] = max_attempts
-    if cache_size is not None:
-        config_params["cache_size"] = cache_size
-    if priority is not None:
-        config_params["priority"] = priority
-    if cost is not None:
-        config_params["cost"] = cost
+    # Try to use standardize_critic_config if available
+    try:
+        from sifaka.utils.config import standardize_critic_config
 
-    # Add any remaining config parameters
-    config_params.update(kwargs)
+        # If standardize_critic_config is available, use it
+        critic_config = standardize_critic_config(
+            config=config,
+            name=name,
+            description=description,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            min_confidence=min_confidence,
+            max_attempts=max_attempts,
+            cache_size=cache_size,
+            priority=priority,
+            cost=cost,
+            **kwargs,
+        )
+    except (ImportError, AttributeError):
+        # Extract config parameters
+        config_params = {}
+        if system_prompt is not None:
+            config_params["system_prompt"] = system_prompt
+        if temperature is not None:
+            config_params["temperature"] = temperature
+        if max_tokens is not None:
+            config_params["max_tokens"] = max_tokens
+        if min_confidence is not None:
+            config_params["min_confidence"] = min_confidence
+        if max_attempts is not None:
+            config_params["max_attempts"] = max_attempts
+        if cache_size is not None:
+            config_params["cache_size"] = cache_size
+        if priority is not None:
+            config_params["priority"] = priority
+        if cost is not None:
+            config_params["cost"] = cost
 
-    # Create config
-    config = CriticConfig(
-        name=name,
-        description=description,
-        **config_params,
-    )
+        # Add any remaining config parameters
+        config_params.update(kwargs)
+
+        # Create config
+        if isinstance(config, CriticConfig):
+            critic_config = config
+        elif isinstance(config, dict):
+            critic_config = CriticConfig(**config)
+        else:
+            critic_config = CriticConfig(
+                name=name,
+                description=description,
+                **config_params,
+            )
 
     # Create critic
     return CriticCore(
-        config=config,
+        config=critic_config,
         llm_provider=llm_provider,
         prompt_manager=prompt_manager,
         response_parser=response_parser,

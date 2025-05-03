@@ -77,14 +77,14 @@ from .base import (
     TextClassifier,
 )
 from .bias import BiasDetector, create_bias_detector
-from .genre import GenreClassifier
+from .genre import GenreClassifier, create_genre_classifier
 from .language import LanguageClassifier, create_language_classifier
 from .ner import NERClassifier, create_ner_classifier
 from .profanity import ProfanityClassifier, create_profanity_classifier
-from .readability import ReadabilityClassifier
+from .readability import ReadabilityClassifier, create_readability_classifier
 from .sentiment import SentimentClassifier, create_sentiment_classifier
 from .spam import SpamClassifier, create_spam_classifier
-from .topic import TopicClassifier
+from .topic import TopicClassifier, create_topic_classifier
 from .toxicity import ToxicityClassifier, create_toxicity_classifier
 
 __all__ = [
@@ -117,4 +117,7 @@ __all__ = [
     "create_ner_classifier",
     "create_bias_detector",
     "create_language_classifier",
+    "create_genre_classifier",
+    "create_readability_classifier",
+    "create_topic_classifier",
 ]

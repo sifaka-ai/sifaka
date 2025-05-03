@@ -68,16 +68,16 @@ is_valid = parser.parse_validation_response(validation_response)
 print(f"Is valid: {is_valid}")
 
 # Parse a critique response
-critique_response = """
-SCORE: 0.8
-FEEDBACK: Good text quality
-ISSUES:
-- Could use more detail
-- Some grammar issues
-SUGGESTIONS:
-- Add specific examples
-- Fix grammar errors
-"""
+critique_response = (
+    "SCORE: 0.8\n"
+    "FEEDBACK: Good text quality\n"
+    "ISSUES:\n"
+    "- Could use more detail\n"
+    "- Some grammar issues\n"
+    "SUGGESTIONS:\n"
+    "- Add specific examples\n"
+    "- Fix grammar errors"
+)
 critique = parser.parse_critique_response(critique_response)
 print(f"Score: {critique['score']}")
 print(f"Feedback: {critique['feedback']}")
@@ -157,16 +157,16 @@ class ResponseParser:
         print(f"Is valid: {is_valid}")
 
         # Parse a critique response
-        critique_response = """
-        SCORE: 0.8
-        FEEDBACK: Good text quality
-        ISSUES:
-        - Could use more detail
-        - Some grammar issues
-        SUGGESTIONS:
-        - Add specific examples
-        - Fix grammar errors
-        """
+        critique_response = (
+            "SCORE: 0.8\n"
+            "FEEDBACK: Good text quality\n"
+            "ISSUES:\n"
+            "- Could use more detail\n"
+            "- Some grammar issues\n"
+            "SUGGESTIONS:\n"
+            "- Add specific examples\n"
+            "- Fix grammar errors"
+        )
         critique = parser.parse_critique_response(critique_response)
         print(f"Score: {critique['score']}")
         print(f"Feedback: {critique['feedback']}")
@@ -254,14 +254,14 @@ class ResponseParser:
             print(f"Score: {critique['score']}")  # 0.8
 
             # Parse a string response
-            response = """
-            SCORE: 0.8
-            FEEDBACK: Good text quality
-            ISSUES:
-            - Could use more detail
-            SUGGESTIONS:
-            - Add specific examples
-            """
+            response = (
+                "SCORE: 0.8\n"
+                "FEEDBACK: Good text quality\n"
+                "ISSUES:\n"
+                "- Could use more detail\n"
+                "SUGGESTIONS:\n"
+                "- Add specific examples"
+            )
             critique = parser.parse_critique_response(response)
             print(f"Score: {critique['score']}")  # 0.8
             ```
@@ -398,14 +398,14 @@ class ResponseParser:
 
         Examples:
             ```python
-            response = """
-            SCORE: 0.8
-            FEEDBACK: Good text quality
-            ISSUES:
-            - Could use more detail
-            SUGGESTIONS:
-            - Add specific examples
-            """
+            response = (
+                "SCORE: 0.8\n"
+                "FEEDBACK: Good text quality\n"
+                "ISSUES:\n"
+                "- Could use more detail\n"
+                "SUGGESTIONS:\n"
+                "- Add specific examples"
+            )
             critique = parser._parse_critique_string(response)
             print(f"Score: {critique['score']}")  # 0.8
             print(f"Feedback: {critique['feedback']}")  # "Good text quality"
