@@ -11,7 +11,7 @@ SentimentClassifier follows the standard Sifaka classifier architecture:
 1. **Public API**: classify() and batch_classify() methods (inherited)
 2. **Caching Layer**: _classify_impl() handles caching (inherited)
 3. **Core Logic**: _classify_impl_uncached() implements sentiment analysis
-4. **State Management**: Uses PrivateAttr for internal state
+4. **State Management**: Uses StateManager for internal state
 
 ## Lifecycle
 
@@ -81,12 +81,11 @@ from typing import (
     Type,
     TypeVar,
     Tuple,
-    cast,
     runtime_checkable,
 )
 
 from typing_extensions import TypeGuard
-from pydantic import ConfigDict, Field, PrivateAttr
+from pydantic import ConfigDict, PrivateAttr
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -94,6 +93,7 @@ from sifaka.classifiers.base import (
     ClassifierConfig,
 )
 from sifaka.utils.logging import get_logger
+from sifaka.utils.state import StateManager, ClassifierState, create_classifier_state
 
 logger = get_logger(__name__)
 
@@ -171,7 +171,7 @@ class SentimentClassifier(BaseClassifier[str, str]):
     1. **Public API**: classify() and batch_classify() methods (inherited)
     2. **Caching Layer**: _classify_impl() handles caching (inherited)
     3. **Core Logic**: _classify_impl_uncached() implements sentiment analysis
-    4. **State Management**: Uses PrivateAttr for internal state
+    4. **State Management**: Uses StateManager for internal state
 
     ## Lifecycle
 
@@ -227,11 +227,8 @@ class SentimentClassifier(BaseClassifier[str, str]):
     DEFAULT_POSITIVE_THRESHOLD: ClassVar[float] = 0.05
     DEFAULT_NEGATIVE_THRESHOLD: ClassVar[float] = -0.05
 
-    # Private attributes using PrivateAttr
-    _analyzer: Optional[SentimentAnalyzer] = PrivateAttr(default=None)
-    _initialized: bool = PrivateAttr(default=False)
-    _positive_threshold: float = PrivateAttr(default=DEFAULT_POSITIVE_THRESHOLD)
-    _negative_threshold: float = PrivateAttr(default=DEFAULT_NEGATIVE_THRESHOLD)
+    # State management using StateManager
+    _state = PrivateAttr(default_factory=create_classifier_state)
 
     # Pydantic configuration
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -277,20 +274,21 @@ class SentimentClassifier(BaseClassifier[str, str]):
         # Initialize base class
         super().__init__(name=name, description=description, config=config)
 
-        # Store analyzer for later use if provided
-        if analyzer is not None:
-            self._analyzer = analyzer
+        # Initialize state
+        state = self._state.get_state()
+        state.initialized = False
 
-        # Extract thresholds from config
-        self._positive_threshold = self.config.params.get(
+        # Store thresholds in state
+        state.cache["positive_threshold"] = self.config.params.get(
             "positive_threshold", self.DEFAULT_POSITIVE_THRESHOLD
         )
-        self._negative_threshold = self.config.params.get(
+        state.cache["negative_threshold"] = self.config.params.get(
             "negative_threshold", self.DEFAULT_NEGATIVE_THRESHOLD
         )
 
-        # Initialize state
-        self._initialized = False
+        # Store analyzer in state if provided
+        if analyzer is not None and self._validate_analyzer(analyzer):
+            state.cache["analyzer"] = analyzer
 
     def _validate_analyzer(self, analyzer: Any) -> TypeGuard[SentimentAnalyzer]:
         """
@@ -323,10 +321,21 @@ class SentimentClassifier(BaseClassifier[str, str]):
             RuntimeError: If VADER initialization fails
         """
         try:
+            # Get state
+            state = self._state.get_state()
+
+            # Check if analyzer is already in state
+            if "analyzer" in state.cache:
+                return state.cache["analyzer"]
+
             vader_module = importlib.import_module("vaderSentiment.vaderSentiment")
             analyzer = vader_module.SentimentIntensityAnalyzer()
-            self._validate_analyzer(analyzer)
-            return analyzer
+
+            # Validate and store in state
+            if self._validate_analyzer(analyzer):
+                state.cache["analyzer"] = analyzer
+                return analyzer
+
         except ImportError:
             raise ImportError(
                 "VADER package is required for SentimentClassifier. "
@@ -343,10 +352,19 @@ class SentimentClassifier(BaseClassifier[str, str]):
         It is called automatically when needed but can also be called
         explicitly to pre-initialize resources.
         """
-        if not self._initialized:
+        # Get state
+        state = self._state.get_state()
+
+        if not state.initialized:
             try:
-                self._analyzer = self._analyzer or self._load_vader()
-                self._initialized = True
+                # Load analyzer
+                analyzer = self._load_vader()
+
+                # Store in state
+                state.cache["analyzer"] = analyzer
+
+                # Mark as initialized
+                state.initialized = True
             except Exception as e:
                 logger.error("Failed to initialize sentiment analyzer: %s", e)
                 raise RuntimeError(f"Failed to initialize sentiment analyzer: {e}") from e
@@ -361,10 +379,17 @@ class SentimentClassifier(BaseClassifier[str, str]):
         Returns:
             Tuple of (sentiment_label, confidence)
         """
+        # Get state
+        state = self._state.get_state()
+
+        # Get thresholds from state
+        positive_threshold = state.cache.get("positive_threshold", self.DEFAULT_POSITIVE_THRESHOLD)
+        negative_threshold = state.cache.get("negative_threshold", self.DEFAULT_NEGATIVE_THRESHOLD)
+
         # Determine sentiment label
-        if compound_score >= self._positive_threshold:
+        if compound_score >= positive_threshold:
             label = "positive"
-        elif compound_score <= self._negative_threshold:
+        elif compound_score <= negative_threshold:
             label = "negative"
         else:
             label = "neutral"
@@ -387,8 +412,11 @@ class SentimentClassifier(BaseClassifier[str, str]):
         Returns:
             ClassificationResult with sentiment scores
         """
+        # Get state
+        state = self._state.get_state()
+
         # Ensure resources are initialized
-        if not self._initialized:
+        if not state.initialized:
             self.warm_up()
 
         # Handle empty or whitespace-only text
@@ -406,8 +434,13 @@ class SentimentClassifier(BaseClassifier[str, str]):
             )
 
         try:
+            # Get analyzer from state
+            analyzer = state.cache.get("analyzer")
+            if not analyzer:
+                raise RuntimeError("Sentiment analyzer not initialized")
+
             # Get sentiment scores from VADER
-            scores = self._analyzer.polarity_scores(text)
+            scores = analyzer.polarity_scores(text)
             compound_score = scores["compound"]
 
             # Determine sentiment label and confidence
@@ -536,8 +569,10 @@ class SentimentClassifier(BaseClassifier[str, str]):
             **kwargs,
         )
 
-        # Mark as initialized
-        instance._initialized = True
+        # Initialize state
+        state = instance._state.get_state()
+        state.cache["analyzer"] = analyzer
+        state.initialized = True
 
         return instance
 
