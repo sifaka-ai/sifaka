@@ -14,6 +14,7 @@ from typing import (
 )
 
 from typing_extensions import TypeGuard
+from pydantic import PrivateAttr
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -82,9 +83,10 @@ class ProfanityClassifier(BaseClassifier):
     # Class-level constants
     DEFAULT_LABELS: List[str] = ["clean", "profane", "unknown"]
     DEFAULT_COST: int = 1  # Low cost for dictionary-based check
-    # Class-level attributes for state management
-    _initialized: bool = False
-    _checker: Optional[ProfanityChecker] = None
+
+    # Private attributes using PrivateAttr for state management
+    _initialized: bool = PrivateAttr(default=False)
+    _checker: Optional[ProfanityChecker] = PrivateAttr(default=None)
 
     def __init__(
         self,
@@ -196,30 +198,38 @@ class ProfanityClassifier(BaseClassifier):
         Returns:
             CensorResult with censoring details
         """
-        censored = self._checker.censor(text)
+        if not self._checker:
+            raise RuntimeError("Profanity checker not initialized. Call warm_up() first.")
+
+        # Count total words
         total_words = len(text.split())
-        censored_count = sum(
-            1 for _, censored_char in zip(text, censored) if censored_char == self.censor_char
-        ) // max(len(self.censor_char), 1)
+
+        # Censor the text
+        censored_text = self._checker.censor(text)
+
+        # Count censored words by comparing original and censored text
+        censored_words = sum(1 for orig, censored in zip(text.split(), censored_text.split())
+                           if orig != censored)
 
         return CensorResult(
             original_text=text,
-            censored_text=censored,
-            censored_word_count=censored_count,
+            censored_text=censored_text,
+            censored_word_count=censored_words,
             total_word_count=total_words,
         )
 
-    def _classify_impl(self, text: str) -> ClassificationResult:
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
         """
-        Implement profanity classification logic.
+        Implement classification logic for profanity detection.
 
         Args:
             text: The text to classify
 
         Returns:
-            ClassificationResult with profanity check results
+            ClassificationResult with label and confidence
         """
-        self.warm_up()
+        if not self._initialized:
+            self.warm_up()
 
         try:
             # Note: Empty text is handled by BaseClassifier.classify
@@ -304,3 +314,54 @@ class ProfanityClassifier(BaseClassifier):
         )
 
         return instance
+
+
+def create_profanity_classifier(
+    name: str = "profanity_classifier",
+    description: str = "Detects profanity and inappropriate language",
+    custom_words: Optional[List[str]] = None,
+    censor_char: str = "*",
+    min_confidence: float = 0.5,
+    cache_size: int = 0,
+    cost: int = 1,
+    **kwargs,
+) -> ProfanityClassifier:
+    """
+    Factory function to create a profanity classifier.
+
+    Args:
+        name: Name of the classifier
+        description: Description of the classifier
+        custom_words: Optional list of custom profanity words to check for
+        censor_char: Character to use for censoring profane words
+        min_confidence: Minimum confidence for profanity classification
+        cache_size: Size of the classification cache (0 to disable)
+        cost: Computational cost of this classifier
+        **kwargs: Additional configuration parameters
+
+    Returns:
+        Configured ProfanityClassifier instance
+    """
+    # Prepare params
+    params = kwargs.pop("params", {})
+    params.update({
+        "custom_words": custom_words or [],
+        "censor_char": censor_char,
+        "min_confidence": min_confidence,
+    })
+
+    # Create config
+    config = ClassifierConfig(
+        labels=ProfanityClassifier.DEFAULT_LABELS,
+        cache_size=cache_size,
+        cost=cost,
+        params=params,
+    )
+
+    # Create and return classifier
+    return ProfanityClassifier(
+        name=name,
+        description=description,
+        config=config,
+        **kwargs,
+    )

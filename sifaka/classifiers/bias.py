@@ -6,9 +6,9 @@ import os
 import re
 import pickle
 import importlib
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, ClassVar
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, PrivateAttr
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -18,6 +18,20 @@ from sifaka.classifiers.base import (
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Default bias types to detect
+DEFAULT_BIAS_TYPES: List[str] = [
+    "gender",
+    "racial",
+    "political",
+    "age",
+    "socioeconomic",
+    "religious",
+    "cultural",
+    "educational",
+    "geographical",
+    "neutral",
+]
 
 
 class BiasDetector(BaseClassifier):
@@ -46,22 +60,19 @@ class BiasDetector(BaseClassifier):
     # Class constants
     DEFAULT_COST: float = 2.5
 
-    # Default bias types to detect
-    DEFAULT_BIAS_TYPES: List[str] = [
-        "gender",
-        "racial",
-        "political",
-        "age",
-        "socioeconomic",
-        "religious",
-        "cultural",
-        "educational",
-        "geographical",
-        "neutral",
-    ]
+    # Private attributes using PrivateAttr for state management
+    _vectorizer: Optional[Any] = PrivateAttr(default=None)
+    _model: Optional[Any] = PrivateAttr(default=None)
+    _pipeline: Optional[Any] = PrivateAttr(default=None)
+    _explanations: Dict[str, Any] = PrivateAttr(default_factory=dict)
+    _initialized: bool = PrivateAttr(default=False)
+    _sklearn_feature_extraction_text: Optional[Any] = PrivateAttr(default=None)
+    _sklearn_svm: Optional[Any] = PrivateAttr(default=None)
+    _sklearn_pipeline: Optional[Any] = PrivateAttr(default=None)
+    _sklearn_calibration: Optional[Any] = PrivateAttr(default=None)
 
     # Default keywords for each bias category to enhance detection
-    DEFAULT_BIAS_KEYWORDS: Dict[str, List[str]] = {
+    DEFAULT_BIAS_KEYWORDS: ClassVar[Dict[str, List[str]]] = {
         "gender": ["man", "woman", "male", "female", "gender", "sex", "sexual"],
         "racial": [
             "race",
@@ -110,25 +121,18 @@ class BiasDetector(BaseClassifier):
 
             # Add default bias types and keywords if not provided
             if "bias_types" not in params:
-                params["bias_types"] = self.DEFAULT_BIAS_TYPES
+                params["bias_types"] = DEFAULT_BIAS_TYPES
             if "bias_keywords" not in params:
                 params["bias_keywords"] = self.DEFAULT_BIAS_KEYWORDS
 
             config = ClassifierConfig(
-                labels=params.get("bias_types", self.DEFAULT_BIAS_TYPES),
+                labels=params.get("bias_types", DEFAULT_BIAS_TYPES),
                 cost=self.DEFAULT_COST,
                 min_confidence=params.get("min_confidence", 0.7),
                 params=params,
             )
 
         super().__init__(name=name, description=description, config=config)
-
-        # Initialize other attributes
-        self._vectorizer = None
-        self._model = None
-        self._pipeline = None
-        self._explanations = {}
-        self._initialized = False
 
     def _load_dependencies(self) -> None:
         """Load scikit-learn dependencies."""
@@ -466,12 +470,12 @@ class BiasDetector(BaseClassifier):
 
             # Add default bias types and keywords if not provided
             if "bias_types" not in params:
-                params["bias_types"] = cls.DEFAULT_BIAS_TYPES
+                params["bias_types"] = DEFAULT_BIAS_TYPES
             if "bias_keywords" not in params:
                 params["bias_keywords"] = cls.DEFAULT_BIAS_KEYWORDS
 
             config = ClassifierConfig(
-                labels=params.get("bias_types", cls.DEFAULT_BIAS_TYPES),
+                labels=params.get("bias_types", DEFAULT_BIAS_TYPES),
                 cost=cls.DEFAULT_COST,
                 min_confidence=params.get("min_confidence", 0.7),
                 params=params,

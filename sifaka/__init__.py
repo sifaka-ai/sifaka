@@ -2,18 +2,29 @@
 Sifaka: A framework for building reliable and reflective AI systems.
 """
 
-from sifaka.chain import Chain
-from sifaka.critics import PromptCritic
+# Apply compatibility patches early
+try:
+    from sifaka.utils.patches import apply_all_patches
+    apply_all_patches()
+except ImportError:
+    # If patches are not available, continue without them
+    pass
+
+from sifaka.chain import ChainCore, ChainResult
+from sifaka.critics import CriticCore, create_prompt_critic, create_reflexion_critic
+from sifaka.generation import Generator
+from sifaka.improvement import Improver, ImprovementResult
 from sifaka.models import AnthropicProvider, OpenAIProvider
+from sifaka.validation import Validator, ValidationResult
 
 from sifaka.rules import (
     LengthRule,
-    ProhibitedContentRule,
     Rule,
     RuleConfig,
-    SentimentRule,
-    ToxicityRule,
     create_length_rule,
+    create_prohibited_content_rule,
+    create_sentiment_rule,
+    create_toxicity_rule,
 )
 
 # Version information
@@ -21,7 +32,13 @@ __version__ = "0.1.0"
 
 __all__ = [
     # Core components
-    "Chain",
+    "ChainCore",
+    "ChainResult",
+    "Generator",
+    "Improver",
+    "ImprovementResult",
+    "Validator",
+    "ValidationResult",
     "Rule",
     "RuleConfig",
     # Model providers
@@ -29,10 +46,12 @@ __all__ = [
     "OpenAIProvider",
     # Rules
     "LengthRule",
-    "ProhibitedContentRule",
-    "SentimentRule",
-    "ToxicityRule",
     "create_length_rule",
+    "create_prohibited_content_rule",
+    "create_sentiment_rule",
+    "create_toxicity_rule",
     # Critics
-    "PromptCritic",
+    "CriticCore",
+    "create_prompt_critic",
+    "create_reflexion_critic",
 ]

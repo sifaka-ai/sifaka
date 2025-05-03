@@ -6,13 +6,32 @@ such as leading/trailing whitespace, spacing between words, and newline formatti
 """
 
 import re
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 
-from sifaka.rules.base import BaseValidator, Rule, RuleResult, Any
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
-@dataclass
-class WhitespaceConfig:
+# Import the original RuleResult for type hints
+from sifaka.rules.base import RuleResult as BaseRuleResult
+
+
+class RuleResult:
+    """Custom RuleResult class for whitespace validation."""
+
+    def __init__(self, passed: bool, rule_id: str, errors: List[str]):
+        """Initialize the rule result.
+
+        Args:
+            passed: Whether the validation passed
+            rule_id: The ID of the rule
+            errors: List of error messages
+        """
+        self.passed = passed
+        self.rule_id = rule_id
+        self.errors = errors
+        self.message = "Whitespace validation " + ("passed" if passed else "failed")
+
+
+class WhitespaceConfig(BaseModel):
     """Configuration for text whitespace validation.
 
     Attributes:
@@ -25,13 +44,48 @@ class WhitespaceConfig:
         normalize_whitespace: Whether to normalize whitespace during validation
     """
 
-    allow_leading_whitespace: bool = False
-    allow_trailing_whitespace: bool = False
-    allow_multiple_spaces: bool = False
-    allow_tabs: bool = False
-    allow_newlines: bool = True
-    max_newlines: Optional[int] = None
-    normalize_whitespace: bool = False
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    allow_leading_whitespace: bool = Field(
+        default=False,
+        description="Whether to allow whitespace at the beginning of text",
+    )
+    allow_trailing_whitespace: bool = Field(
+        default=False,
+        description="Whether to allow whitespace at the end of text",
+    )
+    allow_multiple_spaces: bool = Field(
+        default=False,
+        description="Whether to allow multiple consecutive spaces",
+    )
+    allow_tabs: bool = Field(
+        default=False,
+        description="Whether to allow tab characters",
+    )
+    allow_newlines: bool = Field(
+        default=True,
+        description="Whether to allow newline characters",
+    )
+    max_newlines: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Maximum number of consecutive newlines allowed",
+    )
+    normalize_whitespace: bool = Field(
+        default=False,
+        description="Whether to normalize whitespace during validation",
+    )
+
+    @field_validator("max_newlines")
+    @classmethod
+    def validate_max_newlines(cls, v: Optional[int], info) -> Optional[int]:
+        """Validate that max_newlines is only set if allow_newlines is True."""
+        # In Pydantic v2, ValidationInfo object is passed instead of a dict
+        # We need to access the data attribute to get the values
+        allow_newlines = info.data.get("allow_newlines", True)
+        if v is not None and not allow_newlines:
+            raise ValueError("max_newlines can only be set if allow_newlines is True")
+        return v
 
 
 class WhitespaceValidator:
@@ -154,7 +208,7 @@ class DefaultWhitespaceValidator(WhitespaceValidator):
         return []
 
 
-class WhitespaceRule(Rule):
+class WhitespaceRule:
     """Rule for validating text whitespace constraints."""
 
     def __init__(self, validator: WhitespaceValidator, config: Optional[Dict] = None, **kwargs):
@@ -165,10 +219,13 @@ class WhitespaceRule(Rule):
             config: Additional configuration for the rule
             **kwargs: Additional keyword arguments for the rule
         """
-        super().__init__(config=config, **kwargs)
         self.validator = validator
+        self.config = config
+        self.id = kwargs.get("id", "rule")
+        self.name = kwargs.get("name", "Whitespace Rule")
+        self.description = kwargs.get("description", "Validates whitespace constraints")
 
-    def validate(self, text: str, **kwargs) -> RuleResult:
+    def validate(self, text: str) -> RuleResult:
         """Evaluate text against whitespace constraints.
 
         Args:
@@ -177,7 +234,10 @@ class WhitespaceRule(Rule):
         Returns:
             RuleResult containing validation results
         """
+        # Use the validator to validate the text
         is_valid, errors = self.validator.validate(text)
+
+        # Create and return the result
         return RuleResult(
             passed=is_valid,
             rule_id=self.id,
@@ -212,6 +272,7 @@ def create_whitespace_rule(
     Returns:
         Configured WhitespaceRule
     """
+    # Create the whitespace configuration
     config = WhitespaceConfig(
         allow_leading_whitespace=allow_leading_whitespace,
         allow_trailing_whitespace=allow_trailing_whitespace,
@@ -221,8 +282,11 @@ def create_whitespace_rule(
         max_newlines=max_newlines,
         normalize_whitespace=normalize_whitespace,
     )
+
+    # Create the validator
     validator = DefaultWhitespaceValidator(config)
 
+    # Create and return the rule
     return WhitespaceRule(
         validator=validator,
         id=rule_id or "whitespace",

@@ -1,146 +1,97 @@
 """
 Content validation rules for Sifaka.
 
-.. deprecated:: 1.0.0
-   This module is deprecated and will be removed in version 2.0.0.
-   Use the following modules instead:
+This module provides a collection of content validation rules for text analysis.
+Each submodule focuses on a specific aspect of content validation:
 
-   - :mod:`sifaka.rules.content.prohibited` for prohibited content validation
-   - :mod:`sifaka.rules.content.tone` for tone consistency validation
-   - :mod:`sifaka.rules.content.safety` for safety validation
-   - :mod:`sifaka.rules.content.sentiment` for sentiment analysis
+- :mod:`sifaka.rules.content.prohibited`: Prohibited content detection
+- :mod:`sifaka.rules.content.tone`: Tone consistency validation
+- :mod:`sifaka.rules.content.safety`: Safety-related content validation
+- :mod:`sifaka.rules.content.sentiment`: Sentiment and emotional content analysis
 
-Migration guide:
-1. Replace imports:
-   - Old: from sifaka.rules.content import ProhibitedContentRule, ToneConsistencyRule
-   - New: from sifaka.rules.content.prohibited import ProhibitedContentRule
-         from sifaka.rules.content.tone import ToneConsistencyRule
-         from sifaka.rules.content.safety import ToxicityRule, BiasRule, HarmfulContentRule  # Safety module
-         from sifaka.rules.content.sentiment import SentimentRule, EmotionalContentRule  # Sentiment module
-
-2. Update configuration:
-   - Each module has its own set of parameters and validation logic
-   - See the respective module documentation for details
+The base module (:mod:`sifaka.rules.content.base`) provides common interfaces and
+implementations for content analysis and validation.
 
 Example:
-    Old code:
-    >>> from sifaka.rules.content import ProhibitedContentRule
-    >>> rule = ProhibitedContentRule()
+    >>> from sifaka.rules.content.prohibited import create_prohibited_content_rule
+    >>> from sifaka.rules.content.tone import create_tone_consistency_rule
+    >>> from sifaka.rules.content.safety import create_toxicity_rule, create_bias_rule
+    >>> from sifaka.rules.content.sentiment import create_sentiment_rule
 
-    New code:
-    >>> from sifaka.rules.content.prohibited import ProhibitedContentRule
-    >>> rule = ProhibitedContentRule()
+    >>> # Create rules
+    >>> prohibited_rule = create_prohibited_content_rule(
+    ...     terms=["inappropriate", "offensive"],
+    ...     threshold=0.5
+    ... )
+    >>> tone_rule = create_tone_consistency_rule(
+    ...     expected_tone="formal",
+    ...     threshold=0.8
+    ... )
+    >>> toxicity_rule = create_toxicity_rule(threshold=0.7)
+    >>> bias_rule = create_bias_rule(threshold=0.6)
+    >>> sentiment_rule = create_sentiment_rule(threshold=0.5)
+
+    >>> # Validate text
+    >>> text = "This is a formal and appropriate message."
+    >>> prohibited_result = prohibited_rule.validate(text)
+    >>> tone_result = tone_rule.validate(text)
+    >>> toxicity_result = toxicity_rule.validate(text)
+    >>> bias_result = bias_rule.validate(text)
+    >>> sentiment_result = sentiment_rule.validate(text)
 """
 
-# Re-export classes for backward compatibility
 from sifaka.rules.content.base import (
     ContentAnalyzer,
     ContentValidator,
     DefaultContentAnalyzer,
     DefaultToneAnalyzer,
     ToneAnalyzer,
+    IndicatorAnalyzer,
+    CategoryAnalyzer,
+    ContentAnalysis,
+    ToneAnalysis,
 )
+
 from sifaka.rules.content.prohibited import (
-    DefaultProhibitedContentValidator,
-    ProhibitedContentRule,
-    ProhibitedContentValidator,
-    ProhibitedTerms,
     create_prohibited_content_rule,
 )
+
 from sifaka.rules.content.tone import (
-    DefaultToneValidator,
-    ToneConsistencyRule,
-    ToneConsistencyValidator,
-    ToneIndicators,
     create_tone_consistency_rule,
+    create_tone_consistency_validator,
 )
 
-# New imports from safety module
 from sifaka.rules.content.safety import (
-    BiasCategories,
-    BiasRule,
-    BiasValidator,
-    DefaultBiasValidator,
-    DefaultHarmfulContentValidator,
-    DefaultToxicityValidator,
-    HarmfulCategories,
-    HarmfulContentRule,
-    HarmfulContentValidator,
-    ToxicityIndicators,
-    ToxicityRule,
-    ToxicityValidator,
+    create_toxicity_rule,
     create_bias_rule,
     create_harmful_content_rule,
-    create_toxicity_rule,
 )
 
-# New imports from sentiment module
 from sifaka.rules.content.sentiment import (
-    DEFAULT_EMOTION_CATEGORIES,
-    DEFAULT_NEGATIVE_WORDS,
-    DEFAULT_POSITIVE_WORDS,
-    DefaultEmotionalContentValidator,
-    DefaultSentimentValidator,
-    EmotionalContentConfig,
-    EmotionalContentRule,
-    EmotionalContentValidator,
-    EmotionCategories,
-    SentimentConfig,
-    SentimentRule,
-    SentimentValidator,
-    SentimentWords,
-    create_emotional_content_rule,
     create_sentiment_rule,
 )
 
-# Export public classes and functions
+
 __all__ = [
-    # Original exports
-    "ProhibitedContentRule",
-    "DefaultProhibitedContentValidator",
-    "ToneConsistencyRule",
-    "DefaultToneValidator",
-    "create_prohibited_content_rule",
-    "create_tone_consistency_rule",
+    # Base classes and protocols
     "ContentAnalyzer",
-    "ToneAnalyzer",
     "ContentValidator",
-    "ProhibitedContentValidator",
-    "ToneConsistencyValidator",
-    "ProhibitedTerms",
-    "ToneIndicators",
     "DefaultContentAnalyzer",
     "DefaultToneAnalyzer",
-    # Safety module exports
-    "ToxicityRule",
-    "ToxicityIndicators",
-    "ToxicityValidator",
-    "DefaultToxicityValidator",
-    "BiasRule",
-    "BiasCategories",
-    "BiasValidator",
-    "DefaultBiasValidator",
-    "HarmfulContentRule",
-    "HarmfulCategories",
-    "HarmfulContentValidator",
-    "DefaultHarmfulContentValidator",
+    "ToneAnalyzer",
+    "IndicatorAnalyzer",
+    "CategoryAnalyzer",
+    "ContentAnalysis",
+    "ToneAnalysis",
+    # Prohibited content
+    "create_prohibited_content_rule",
+    # Tone consistency
+    "create_tone_consistency_rule",
+    "create_tone_consistency_validator",
+    # Safety
     "create_toxicity_rule",
     "create_bias_rule",
     "create_harmful_content_rule",
-    # Sentiment module exports
-    "SentimentRule",
-    "SentimentConfig",
-    "SentimentWords",
-    "SentimentValidator",
-    "DefaultSentimentValidator",
-    "EmotionalContentRule",
-    "EmotionalContentConfig",
-    "EmotionCategories",
-    "EmotionalContentValidator",
-    "DefaultEmotionalContentValidator",
+    # Sentiment
     "create_sentiment_rule",
-    "create_emotional_content_rule",
-    "DEFAULT_POSITIVE_WORDS",
-    "DEFAULT_NEGATIVE_WORDS",
-    "DEFAULT_EMOTION_CATEGORIES",
 ]

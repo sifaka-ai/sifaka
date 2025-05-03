@@ -39,10 +39,23 @@ Usage Example:
     )
 """
 
+# Standard library
 import re
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Protocol, Tuple, runtime_checkable
+from collections import Counter
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+    runtime_checkable,
+)
 
+# Third-party
+from pydantic import BaseModel, Field, field_validator, ConfigDict, PrivateAttr
+
+# Sifaka
 from sifaka.rules.base import Rule, RuleConfig, RuleResult, RuleValidator
 from sifaka.rules.domain.base import BaseDomainValidator
 
@@ -59,14 +72,19 @@ __all__ = [
     # Factory functions
     "create_consistency_validator",
     "create_consistency_rule",
+    # Internal helpers (not exported but left here for discoverability)
+    "_PatternAnalyzer",
+    "_ContradictionAnalyzer",
+    "_RepetitionAnalyzer",
 ]
 
 
-@dataclass(frozen=True)
-class ConsistencyConfig(RuleConfig):
+class ConsistencyConfig(BaseModel):
     """Configuration for consistency rules."""
 
-    consistency_patterns: Dict[str, str] = field(
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    consistency_patterns: Dict[str, str] = Field(
         default_factory=lambda: {
             "present": r"\b(?:is|are|am|has|have|do|does)\b",
             "past": r"\b(?:was|were|had|did)\b",
@@ -80,9 +98,10 @@ class ConsistencyConfig(RuleConfig):
             "code_block": r"```[\s\S]*?```|`[^`]+`",
             "table_marker": r"\|[^|]+\|",
             "heading": r"(?m)^#{1,6}\s+\w+",
-        }
+        },
+        description="Dictionary of regex patterns for consistency checks",
     )
-    contradiction_indicators: List[Tuple[str, str]] = field(
+    contradiction_indicators: List[Tuple[str, str]] = Field(
         default_factory=lambda: [
             (r"\b(?:is|are)\b", r"\b(?:is not|are not|isn't|aren't)\b"),
             (r"\b(?:will|shall)\b", r"\b(?:will not|shall not|won't|shan't)\b"),
@@ -92,22 +111,46 @@ class ConsistencyConfig(RuleConfig):
             (r"\b(?:increase|rise)\b", r"\b(?:decrease|fall)\b"),
             (r"\b(?:more|greater)\b", r"\b(?:less|fewer)\b"),
             (r"\b(?:begin|start)\b", r"\b(?:end|finish)\b"),
-        ]
+        ],
+        description="List of positive/negative pattern pairs for contradiction detection",
     )
-    repetition_threshold: float = 0.3
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
+    repetition_threshold: float = Field(
+        default=0.3,
+        ge=0.0,
+        le=1.0,
+        description="Threshold for word repetition detection (0.0 to 1.0)",
+    )
+    cache_size: int = Field(
+        default=100,
+        ge=1,
+        description="Size of the validation cache",
+    )
+    priority: int = Field(
+        default=1,
+        ge=0,
+        description="Priority of the rule",
+    )
+    cost: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Cost of running the rule",
+    )
 
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        super().__post_init__()
-        if not 0.0 <= self.repetition_threshold <= 1.0:
-            raise ValueError("repetition_threshold must be between 0.0 and 1.0")
-        if not self.consistency_patterns:
+    @field_validator("consistency_patterns")
+    @classmethod
+    def validate_consistency_patterns(cls, v: Dict[str, str]) -> Dict[str, str]:
+        """Validate that consistency patterns are not empty."""
+        if not v:
             raise ValueError("Must provide at least one consistency pattern")
-        if not self.contradiction_indicators:
+        return v
+
+    @field_validator("contradiction_indicators")
+    @classmethod
+    def validate_contradiction_indicators(cls, v: List[Tuple[str, str]]) -> List[Tuple[str, str]]:
+        """Validate that contradiction indicators are not empty."""
+        if not v:
             raise ValueError("Must provide at least one contradiction indicator")
+        return v
 
 
 @runtime_checkable
@@ -119,18 +162,101 @@ class ConsistencyValidator(Protocol):
     def config(self) -> ConsistencyConfig: ...
 
 
+class _PatternAnalyzer(BaseModel):
+    """Analyze occurrences of configured regex patterns in a text."""
+
+    model_config = ConfigDict(frozen=True)
+
+    patterns: Dict[str, str] = Field(default_factory=dict)
+
+    # Compiled regex patterns stored privately to avoid re-compilation on each call
+    _compiled: Dict[str, re.Pattern] = PrivateAttr(default_factory=dict)
+
+    def model_post_init(self, __context: Any) -> None:  # type: ignore[override]
+        # Compile provided regex patterns for performance
+        self._compiled = {name: re.compile(expr) for name, expr in self.patterns.items()}
+
+    # Public API -----------------------------------------------------------
+    def analyze(self, text: str) -> Dict[str, int]:
+        """Return a mapping of pattern name to number of matches found in *text*."""
+
+        return {name: len(regex.findall(text)) for name, regex in self._compiled.items()}
+
+
+class _ContradictionAnalyzer(BaseModel):
+    """Detect positive/negative pattern contradictions in a text."""
+
+    model_config = ConfigDict(frozen=True)
+
+    indicators: List[Tuple[str, str]] = Field(default_factory=list)
+
+    _compiled: List[Tuple[re.Pattern, re.Pattern]] = PrivateAttr(default_factory=list)
+
+    def model_post_init(self, __context: Any) -> None:  # type: ignore[override]
+        self._compiled = [(re.compile(pos), re.compile(neg)) for pos, neg in self.indicators]
+
+    # Public API -----------------------------------------------------------
+    def analyze(self, text: str) -> List[Dict[str, Any]]:  # noqa: ANN401 – dynamic structure
+        """Return a list of detected contradictions with match details."""
+
+        contradictions: List[Dict[str, Any]] = []
+        for pos_regex, neg_regex in self._compiled:
+            pos_matches = pos_regex.findall(text)
+            neg_matches = neg_regex.findall(text)
+            if pos_matches and neg_matches:
+                contradictions.append(
+                    {
+                        "positive": pos_matches,
+                        "negative": neg_matches,
+                        "pattern": (pos_regex.pattern, neg_regex.pattern),
+                    }
+                )
+        return contradictions
+
+
+class _RepetitionAnalyzer(BaseModel):
+    """Identify words whose repetition rate exceeds a threshold."""
+
+    model_config = ConfigDict(frozen=True)
+
+    threshold: float = Field(gt=0.0, le=1.0, default=0.3)
+
+    # Public API -----------------------------------------------------------
+    def analyze(self, text: str) -> Dict[str, int]:
+        """Return a mapping of overly-repeated words to their counts."""
+
+        words = re.findall(r"\b\w+\b", text.lower())
+        total_words = len(words)
+        if total_words == 0:
+            return {}
+
+        counts: Counter[str] = Counter(
+            w for w in words if len(w) > 3  # focus on meaningful words
+        )
+
+        return {
+            word: count
+            for word, count in counts.items()
+            if count > 1 and count / total_words > self.threshold
+        }
+
+
 class DefaultConsistencyValidator(BaseDomainValidator):
     """Default implementation of consistency validation."""
 
     def __init__(self, config: ConsistencyConfig) -> None:
-        """Initialize with configuration."""
+        """Initialize validator with *config* and dedicated analyzer components."""
+
         super().__init__(config)
-        self._consistency_patterns = {
-            k: re.compile(pattern) for k, pattern in config.consistency_patterns.items()
-        }
-        self._contradiction_indicators = [
-            (re.compile(pos), re.compile(neg)) for pos, neg in config.contradiction_indicators
-        ]
+
+        # Compose responsibilities into dedicated, testable analyzer objects
+        self._pattern_analyzer = _PatternAnalyzer(patterns=config.consistency_patterns)
+        self._contradiction_analyzer = _ContradictionAnalyzer(
+            indicators=config.contradiction_indicators
+        )
+        self._repetition_analyzer = _RepetitionAnalyzer(
+            threshold=config.repetition_threshold
+        )
 
     @property
     def config(self) -> ConsistencyConfig:
@@ -138,65 +264,38 @@ class DefaultConsistencyValidator(BaseDomainValidator):
         return self._config
 
     def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate consistency in text."""
+        """Validate text for consistency patterns, contradictions, and repetition."""
+
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
         try:
-            # Check for consistency patterns
-            consistency_matches = {}
-            for name, pattern in self._consistency_patterns.items():
-                consistency_matches[name] = len(pattern.findall(text))
+            # Analyze patterns
+            pattern_counts = self._pattern_analyzer.analyze(text)
+            contradictions = self._contradiction_analyzer.analyze(text)
+            repetitions = self._repetition_analyzer.analyze(text)
 
-            # Check for contradictions
-            contradictions = []
-            for pos_pattern, neg_pattern in self._contradiction_indicators:
-                pos_matches = pos_pattern.findall(text)
-                neg_matches = neg_pattern.findall(text)
-                if pos_matches and neg_matches:
-                    contradictions.append(
-                        {
-                            "positive": pos_matches,
-                            "negative": neg_matches,
-                            "pattern": (pos_pattern.pattern, neg_pattern.pattern),
-                        }
-                    )
+            # Check for issues
+            has_contradictions = bool(contradictions)
+            has_repetitions = bool(repetitions)
 
-            # Check for excessive repetition
-            words = re.findall(r"\b\w+\b", text.lower())
-            word_counts = {}
-            for word in words:
-                if len(word) > 3:  # Only check for repetition of meaningful words
-                    word_counts[word] = word_counts.get(word, 0) + 1
-
-            total_words = len(words)
-            repeated_words = {
-                word: count
-                for word, count in word_counts.items()
-                if count > 1 and count / total_words > self.config.repetition_threshold
-            }
-
-            # Determine overall consistency
-            passed = not contradictions and not repeated_words
-            message = "Consistency validation "
-            if passed:
-                message += "passed"
-            else:
-                if contradictions:
-                    message += f"failed: found {len(contradictions)} contradictions"
-                elif repeated_words:
-                    message += "failed: excessive word repetition detected"
+            if has_contradictions or has_repetitions:
+                return RuleResult(
+                    passed=False,
+                    message="Inconsistencies found in text",
+                    metadata={
+                        "pattern_counts": pattern_counts,
+                        "contradictions": contradictions,
+                        "repetitions": repetitions,
+                    },
+                )
 
             return RuleResult(
-                passed=passed,
-                message=message,
-                metadata={
-                    "consistency_matches": consistency_matches,
-                    "contradictions": contradictions,
-                    "repeated_words": repeated_words,
-                    "repetition_threshold": self.config.repetition_threshold,
-                },
+                passed=True,
+                message="Text is consistent",
+                metadata={"pattern_counts": pattern_counts},
             )
+
         except Exception as e:
             return RuleResult(
                 passed=False,
@@ -260,8 +359,8 @@ def create_consistency_validator(
 
     Args:
         consistency_patterns: Dictionary of regex patterns for consistency checks
-        contradiction_indicators: List of tuples with positive and negative pattern pairs
-        repetition_threshold: Threshold for detecting excessive repetition (0.0 to 1.0)
+        contradiction_indicators: List of positive/negative pattern pairs
+        repetition_threshold: Threshold for word repetition detection
         **kwargs: Additional keyword arguments for the config
 
     Returns:
@@ -310,8 +409,8 @@ def create_consistency_rule(
         name: Name of the rule
         description: Description of the rule
         consistency_patterns: Dictionary of regex patterns for consistency checks
-        contradiction_indicators: List of tuples with positive and negative pattern pairs
-        repetition_threshold: Threshold for detecting excessive repetition (0.0 to 1.0)
+        contradiction_indicators: List of positive/negative pattern pairs
+        repetition_threshold: Threshold for word repetition detection
         **kwargs: Additional keyword arguments for the rule
 
     Returns:

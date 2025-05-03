@@ -18,7 +18,7 @@ load_dotenv()
 from sifaka.models.anthropic import AnthropicProvider
 from sifaka.models.base import ModelConfig
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
-from sifaka.chain import Chain
+from sifaka.chain import ChainOrchestrator
 
 # Import Guardrails components
 try:
@@ -32,7 +32,7 @@ except ImportError:
     print("⚠️ Guardrails is not installed. Please install it with 'pip install guardrails-ai'")
 
 # Import the Guardrails adapter
-from sifaka.rules.adapters.guardrails_adapter import create_guardrails_rule
+from sifaka.adapters.rules.guardrails_adapter import create_guardrails_rule
 
 # Configure Claude model
 model = AnthropicProvider(
@@ -95,7 +95,12 @@ if GUARDRAILS_AVAILABLE:
     )
 
     # Create a chain with the model, rule, and critic
-    chain = Chain(model=model, rules=[phone_rule], critic=critic, max_attempts=3)
+    chain = ChainOrchestrator(
+        model=model,
+        rules=[phone_rule],
+        critic=critic,
+        max_attempts=3
+    )
 
     # Prompt designed to generate a response with a phone number
     prompt = """

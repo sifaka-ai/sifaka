@@ -6,12 +6,11 @@ validate, and improve text outputs based on rule violations.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, Final, Optional, Protocol, runtime_checkable
+from typing import Any, Final, Protocol, runtime_checkable
 
 from .base import (
     BaseCritic,
     CriticConfig,
-    CriticMetadata,
     TextCritic,
     TextImprover,
     TextValidator,
@@ -60,6 +59,9 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
 
     This critic analyzes text for clarity, ambiguity, completeness, and effectiveness
     using a language model to generate feedback and validation scores.
+
+    This class follows the component-based architecture pattern by delegating to
+    specialized components for prompt management, response parsing, and memory management.
     """
 
     def __init__(
@@ -69,7 +71,6 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         llm_provider: Any = None,
         prompt_factory: Any = None,
         config: PromptCriticConfig = None,
-        model: LanguageModel = None,
     ) -> None:
         """Initialize the prompt critic.
 
@@ -79,11 +80,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             llm_provider: Language model provider
             prompt_factory: Prompt factory
             config: Configuration for the critic
-            model: Language model to use for critiquing (deprecated, use llm_provider instead)
         """
-        # For backward compatibility
-        if model is not None and llm_provider is None:
-            llm_provider = model
 
         if llm_provider is None:
             from pydantic import ValidationError
@@ -108,10 +105,26 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
 
         super().__init__(config)
 
+        # Create components
+        from .managers.prompt_factories import PromptCriticPromptManager
+        from .managers.response import ResponseParser
+        from .services.critique import CritiqueService
+
+        # Initialize components
+        self._prompt_manager = prompt_factory or PromptCriticPromptManager(config)
+        self._response_parser = ResponseParser()
+        self._memory_manager = None
+
+        # Create service
+        self._critique_service = CritiqueService(
+            llm_provider=llm_provider,
+            prompt_manager=self._prompt_manager,
+            response_parser=self._response_parser,
+            memory_manager=self._memory_manager,
+        )
+
+        # Store the language model provider
         self._model = llm_provider
-        self._prompt_factory = prompt_factory or DefaultPromptFactory()
-        self.llm_provider = llm_provider
-        self.prompt_factory = self._prompt_factory
 
     def improve(self, text: str, feedback: str = None) -> str:
         """Improve text based on feedback.
@@ -133,22 +146,33 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if feedback is None:
             feedback = "Please improve this text for clarity and effectiveness."
 
-        # Create improvement prompt using the prompt factory
-        improve_prompt = self._prompt_factory.create_improvement_prompt(text, feedback)
+        # Delegate to critique service
+        return self._critique_service.improve(text, feedback)
 
-        # Get improved version from the model
-        try:
-            response = self._model.invoke(improve_prompt)
+    def improve_with_feedback(self, text: str, feedback: str) -> str:
+        """Improve text based on specific feedback.
 
-            # Handle different response types
-            if isinstance(response, dict) and "improved_text" in response:
-                return response["improved_text"]
-            elif isinstance(response, str):
-                return response.strip()
-            else:
-                return "Failed to improve text: Invalid response format"
-        except Exception as e:
-            raise ValueError(f"Failed to improve text: {str(e)}") from e
+        This method is similar to improve() but requires feedback to be provided.
+        It uses the feedback to guide the improvement process.
+
+        Args:
+            text: The text to improve
+            feedback: Required feedback to guide the improvement
+
+        Returns:
+            str: The improved text
+
+        Raises:
+            ValueError: If text or feedback is empty
+            TypeError: If model returns non-string output
+        """
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("text must be a non-empty string")
+        if not isinstance(feedback, str) or not feedback.strip():
+            raise ValueError("feedback must be a non-empty string")
+
+        # Delegate to critique service
+        return self._critique_service.improve(text, feedback)
 
     def critique(self, text: str) -> dict:
         """Analyze text and provide detailed feedback.
@@ -166,68 +190,8 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        # Create critique prompt using the prompt factory
-        critique_prompt = self._prompt_factory.create_critique_prompt(text)
-
-        try:
-            # Get response from the model
-            response = self._model.invoke(critique_prompt)
-
-            # Handle different response types
-            if isinstance(response, dict):
-                # Ensure all required fields are present
-                result = {
-                    "score": response.get("score", 0.5),
-                    "feedback": response.get("feedback", "No feedback provided"),
-                    "issues": response.get("issues", []),
-                    "suggestions": response.get("suggestions", []),
-                }
-                return result
-            elif isinstance(response, str):
-                # Try to parse structured response
-                sections = response.strip().split("\n")
-                result = {"score": 0.5, "feedback": "", "issues": [], "suggestions": []}
-
-                current_section = None
-                for line in sections:
-                    line = line.strip()
-                    if not line:
-                        continue
-
-                    if line.startswith("SCORE:"):
-                        try:
-                            score_str = line.replace("SCORE:", "").strip()
-                            result["score"] = float(score_str)
-                        except ValueError:
-                            result["score"] = 0.5
-                    elif line.startswith("FEEDBACK:"):
-                        result["feedback"] = line.replace("FEEDBACK:", "").strip()
-                    elif line.startswith("ISSUES:"):
-                        current_section = "issues"
-                    elif line.startswith("SUGGESTIONS:"):
-                        current_section = "suggestions"
-                    elif line.startswith("-") and current_section:
-                        item = line.replace("-", "").strip()
-                        if item:
-                            result[current_section].append(item)
-
-                return result
-            else:
-                return {
-                    "score": 0.0,
-                    "feedback": "Failed to critique text: Invalid response format",
-                    "issues": ["Invalid response format"],
-                    "suggestions": ["Try again with clearer text"],
-                }
-
-        except Exception as e:
-            # Return failure result if parsing fails
-            return {
-                "score": 0.0,
-                "feedback": f"Failed to critique text: {str(e)}",
-                "issues": ["Failed to parse model response"],
-                "suggestions": ["Try again with clearer text"],
-            }
+        # Delegate to critique service
+        return self._critique_service.critique(text)
 
     def validate(self, text: str) -> bool:
         """Check if text meets quality standards.
@@ -244,146 +208,67 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        # Create validation prompt using the prompt factory
-        validation_prompt = self._prompt_factory.create_validation_prompt(text)
-
-        try:
-            # Get response from the model
-            response = self._model.invoke(validation_prompt)
-
-            # Handle different response types
-            if isinstance(response, dict):
-                # Check if the response has a valid field
-                if "valid" in response:
-                    return response["valid"]
-                # Fall back to score if available
-                elif "score" in response:
-                    return response["score"] >= self.config.min_confidence
-                else:
-                    return False
-            elif isinstance(response, str):
-                # Try to parse structured response
-                response_lower = response.lower()
-                if "valid: true" in response_lower:
-                    return True
-                elif "valid: false" in response_lower:
-                    return False
-                else:
-                    # Fall back to critique if validation fails
-                    critique_result = self.critique(text)
-                    return critique_result.get("score", 0.0) >= self.config.min_confidence
-            else:
-                return False
-        except ValueError as e:
-            # Re-raise ValueError to match test expectations
-            raise e
-        except Exception:
-            return False
+        # Delegate to critique service
+        return self._critique_service.validate(text)
 
     # Async methods
     async def avalidate(self, text: str) -> bool:
-        """Asynchronously validate text."""
+        """
+        Asynchronously validate text.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            True if the text meets quality standards, False otherwise
+
+        Raises:
+            ValueError: If text is empty
+        """
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        validation_prompt = self._prompt_factory.create_validation_prompt(text)
-
-        try:
-            response = await self._model.ainvoke(validation_prompt)
-            if isinstance(response, dict) and "valid" in response:
-                return response["valid"]
-            else:
-                return False
-        except Exception as e:
-            raise ValueError(f"Failed to validate text: {str(e)}") from e
+        # Delegate to critique service
+        return await self._critique_service.avalidate(text)
 
     async def acritique(self, text: str) -> dict:
-        """Asynchronously critique text."""
+        """
+        Asynchronously critique text.
+
+        Args:
+            text: The text to critique
+
+        Returns:
+            Dictionary containing score, feedback, issues, and suggestions
+
+        Raises:
+            ValueError: If text is empty
+        """
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        critique_prompt = self._prompt_factory.create_critique_prompt(text)
-
-        try:
-            response = await self._model.ainvoke(critique_prompt)
-            if isinstance(response, dict):
-                return response
-            else:
-                return {
-                    "score": 0.0,
-                    "feedback": "Failed to critique text: Invalid response format",
-                    "issues": ["Invalid response format"],
-                    "suggestions": ["Try again with clearer text"],
-                }
-        except Exception as e:
-            raise ValueError(f"Failed to critique text: {str(e)}") from e
+        # Delegate to critique service
+        return await self._critique_service.acritique(text)
 
     async def aimprove(self, text: str, feedback: str) -> str:
-        """Asynchronously improve text."""
+        """
+        Asynchronously improve text.
+
+        Args:
+            text: The text to improve
+            feedback: Feedback to guide the improvement
+
+        Returns:
+            The improved text
+
+        Raises:
+            ValueError: If text is empty
+        """
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        improve_prompt = self._prompt_factory.create_improvement_prompt(text, feedback)
-
-        try:
-            response = await self._model.ainvoke(improve_prompt)
-            if isinstance(response, dict) and "improved_text" in response:
-                return response["improved_text"]
-            elif isinstance(response, str):
-                return response.strip()
-            else:
-                return "Failed to improve text: Invalid response format"
-        except Exception as e:
-            raise ValueError(f"Failed to improve text: {str(e)}") from e
-
-
-# CriticMetadata class for backward compatibility
-class CriticMetadata(dict):
-    """Metadata for critic results."""
-
-    def __init__(
-        self,
-        score: float = 0.0,
-        feedback: str = "",
-        issues: list = None,
-        suggestions: list = None,
-        processing_time_ms: float = 0.0,
-        **kwargs,
-    ):
-        """Initialize with critic metadata."""
-        super().__init__(
-            score=score,
-            feedback=feedback,
-            issues=issues or [],
-            suggestions=suggestions or [],
-            processing_time_ms=processing_time_ms,
-            **kwargs,
-        )
-
-    @property
-    def score(self) -> float:
-        """Get the score."""
-        return self.get("score", 0.0)
-
-    @property
-    def feedback(self) -> str:
-        """Get the feedback."""
-        return self.get("feedback", "")
-
-    @property
-    def issues(self) -> list:
-        """Get the issues."""
-        return self.get("issues", [])
-
-    @property
-    def suggestions(self) -> list:
-        """Get the suggestions."""
-        return self.get("suggestions", [])
-
-    @property
-    def processing_time_ms(self) -> float:
-        """Get the processing time in milliseconds."""
-        return self.get("processing_time_ms", 0.0)
+        # Delegate to critique service
+        return await self._critique_service.aimprove(text, feedback)
 
 
 # Default configurations
@@ -481,14 +366,14 @@ class DefaultPromptFactory:
 
     @staticmethod
     def create_critic(
-        model: LanguageModel,
+        llm_provider: LanguageModel,
         config: PromptCriticConfig = None,
     ) -> PromptCritic:
         """
-        Create a prompt critic with the given model and configuration.
+        Create a prompt critic with the given language model provider and configuration.
 
         Args:
-            model: Language model to use for critiquing
+            llm_provider: Language model provider to use for critiquing
             config: Optional configuration (uses default if None)
 
         Returns:
@@ -496,11 +381,11 @@ class DefaultPromptFactory:
         """
         if config is None:
             config = DEFAULT_PROMPT_CONFIG
-        return PromptCritic(config=config, model=model)
+        return PromptCritic(config=config, llm_provider=llm_provider)
 
     @staticmethod
     def create_with_custom_prompt(
-        model: LanguageModel,
+        llm_provider: LanguageModel,
         system_prompt: str,
         min_confidence: float = 0.7,
         temperature: float = 0.7,
@@ -509,7 +394,7 @@ class DefaultPromptFactory:
         Create a prompt critic with a custom system prompt.
 
         Args:
-            model: Language model to use for critiquing
+            llm_provider: Language model provider to use for critiquing
             system_prompt: Custom system prompt
             min_confidence: Minimum confidence threshold
             temperature: Temperature for model generation
@@ -524,12 +409,12 @@ class DefaultPromptFactory:
             temperature=temperature,
             min_confidence=min_confidence,
         )
-        return PromptCritic(config=config, model=model)
+        return PromptCritic(config=config, llm_provider=llm_provider)
 
 
 # Function to create a prompt critic
 def create_prompt_critic(
-    model: LanguageModel,
+    llm_provider: LanguageModel,
     name: str = "factory_critic",
     description: str = "Evaluates and improves text using language models",
     system_prompt: str = DEFAULT_SYSTEM_PROMPT,
@@ -541,7 +426,7 @@ def create_prompt_critic(
     Create a prompt critic with the given parameters.
 
     Args:
-        model: Language model to use for critiquing
+        llm_provider: Language model provider to use for critiquing
         name: Name of the critic
         description: Description of the critic
         system_prompt: System prompt for the model
@@ -560,4 +445,6 @@ def create_prompt_critic(
         max_tokens=max_tokens,
         min_confidence=min_confidence,
     )
-    return PromptCritic(config=config, model=model, name=name, description=description)
+    return PromptCritic(
+        config=config, llm_provider=llm_provider, name=name, description=description
+    )

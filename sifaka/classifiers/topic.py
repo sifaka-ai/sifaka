@@ -3,8 +3,9 @@ Topic classifier using scikit-learn's LDA.
 """
 
 import importlib
-from typing import List, Optional
+from typing import List, Optional, Any
 
+from pydantic import PrivateAttr
 from sifaka.classifiers.base import (
     BaseClassifier,
     ClassificationResult,
@@ -25,6 +26,15 @@ class TopicClassifier(BaseClassifier):
     Requires scikit-learn to be installed:
     pip install scikit-learn
     """
+
+    # Private attributes using PrivateAttr for state management
+    _vectorizer: Optional[Any] = PrivateAttr(default=None)
+    _model: Optional[Any] = PrivateAttr(default=None)
+    _feature_names: Optional[Any] = PrivateAttr(default=None)
+    _topic_words: Optional[List[List[str]]] = PrivateAttr(default=None)
+    _initialized: bool = PrivateAttr(default=False)
+    _sklearn_feature_extraction_text: Optional[Any] = PrivateAttr(default=None)
+    _sklearn_decomposition: Optional[Any] = PrivateAttr(default=None)
 
     def __init__(
         self,
@@ -62,13 +72,6 @@ class TopicClassifier(BaseClassifier):
 
         # Initialize base class
         super().__init__(name=name, description=description, config=config)
-
-        # Initialize other attributes
-        self._vectorizer = None
-        self._model = None
-        self._feature_names = None
-        self._topic_words = None
-        self._initialized = False
 
     @property
     def num_topics(self) -> int:

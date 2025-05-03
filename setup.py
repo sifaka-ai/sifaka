@@ -26,9 +26,7 @@ extras_require = {
     "profanity": ["better-profanity>=0.7.0"],
     "language": ["langdetect>=1.0.9"],
     "readability": ["textstat>=0.7.3"],
-    # Integrations
-    "langgraph": ["langgraph>=0.0.19"],
-    "langchain": ["langchain>=0.1.9", "langchain-anthropic>=0.3.12", "langchain-openai>=0.3.14"],
+    "ner": ["spacy>=3.8.0"],
     # Development
     "dev": [
         "pytest>=8.0.2",
@@ -53,7 +51,7 @@ extras_require = {
 extras_require["classifiers"] = [
     dep
     for name, deps in extras_require.items()
-    if name in ["toxicity", "sentiment", "profanity", "language", "readability"]
+    if name in ["toxicity", "sentiment", "profanity", "language", "readability", "ner"]
     for dep in deps
 ]
 
@@ -64,7 +62,7 @@ extras_require["all"] = [
 
 setup(
     name="sifaka",
-    version="0.1.0",
+    version="0.1.1",
     description="A framework for building reliable and reflective AI systems",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",

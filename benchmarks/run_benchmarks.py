@@ -1,35 +1,45 @@
-#!/usr/bin/env python3
+"""
+Script to run Sifaka benchmarks.
+"""
 
-import sys
-from pathlib import Path
+import os
+from typing import Optional
 
-# Add the parent directory to the Python path to find the sifaka package
-parent_dir = str(Path(__file__).parent.parent)
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
+from sifaka.benchmarks.benchmark_guardrails import SifakaBenchmark, print_benchmark_results
+from sifaka.benchmarks.benchmark_config import GUARDRAILS_CONFIG
 
-from benchmark_classifiers import (
-    ClassifierBenchmark,
-    print_benchmark_results as print_classifier_results,
-)
-from benchmark_rules import RuleBenchmark, print_benchmark_results as print_rule_results
+
+def get_api_key(env_var: str) -> Optional[str]:
+    """Get API key from environment variable."""
+    return os.getenv(env_var)
 
 
 def main():
-    # Initialize benchmark suites
-    print("Initializing benchmark suites...")
-    classifier_benchmark = ClassifierBenchmark(num_samples=1000, warm_up_rounds=3)
-    rule_benchmark = RuleBenchmark(num_samples=1000, warm_up_rounds=3)
+    # Get API keys from environment variables
+    anthropic_api_key = get_api_key("ANTHROPIC_API_KEY")
+    guardrails_api_key = get_api_key("GUARDRAILS_API_KEY")
 
-    # Run classifier benchmarks
-    print("\nRunning classifier benchmarks...")
-    classifier_results = classifier_benchmark.run_all_benchmarks()
-    print_classifier_results(classifier_results)
+    # Configure Guardrails
+    guardrails_config = GUARDRAILS_CONFIG.copy()
+    if guardrails_api_key:
+        guardrails_config["api_key"] = guardrails_api_key
+    else:
+        guardrails_config = None
 
-    # Run rule benchmarks
-    print("\nRunning rule benchmarks...")
-    rule_results = rule_benchmark.run_all_benchmarks()
-    print_rule_results(rule_results)
+    # Initialize benchmark
+    benchmark = SifakaBenchmark(
+        num_samples=5,  # Reduced for faster testing
+        warm_up_rounds=2,
+        text_length=200,
+        api_key=anthropic_api_key,
+        guardrails_config=guardrails_config,
+    )
+
+    # Run benchmarks
+    results = benchmark.run_all_benchmarks(sample_size=5)  # Reduced sample size for faster testing
+
+    # Print results
+    print_benchmark_results(results)
 
 
 if __name__ == "__main__":

@@ -6,13 +6,14 @@ characteristics. Each classifier follows a consistent interface and can be used
 independently or integrated with rules.
 
 Architecture Overview:
-- Each classifier inherits from the base Classifier class
+- Each classifier inherits from the base BaseClassifier class
 - Classifiers return ClassificationResult objects with consistent structure
 - Classifiers can be combined with rules using ClassifierRule
 
 Available Classifiers:
 1. Base Classes:
-   - Classifier: Abstract base class for all classifiers
+   - BaseClassifier: Abstract base class for all classifiers
+   - Classifier: Alias for BaseClassifier
    - ClassificationResult: Standard result format
    - ClassifierConfig: Configuration for classifiers
    - ClassifierProtocol: Protocol for classifier implementations
@@ -31,16 +32,23 @@ Available Classifiers:
    - TopicClassifier: Identifies topics in text using LDA
    - GenreClassifier: Categorizes text into genres (news, fiction, academic, etc.)
 
-Usage Example:
-    from sifaka.classifiers import SentimentClassifier, ReadabilityClassifier
+4. Entity Analysis:
+   - NERClassifier: Identifies named entities (people, organizations, locations, etc.)
 
-    # Create classifiers
+Usage Example:
+    from sifaka.classifiers import SentimentClassifier, create_sentiment_classifier
+
+    # Create classifiers directly
     sentiment = SentimentClassifier()
-    readability = ReadabilityClassifier()
+
+    # Or use factory functions (recommended)
+    sentiment = create_sentiment_classifier(
+        positive_threshold=0.1,
+        negative_threshold=-0.1
+    )
 
     # Analyze text
     sentiment_result = sentiment.classify("This is fantastic!")
-    readability_result = readability.classify("The quantum mechanical model...")
 
     # Use with rules
     from sifaka.rules import ClassifierRule
@@ -48,38 +56,55 @@ Usage Example:
 """
 
 from .base import (
-    ClassificationResult,
+    BaseClassifier,
     Classifier,
+    ClassificationResult,
     ClassifierConfig,
     ClassifierProtocol,
     TextProcessor,
+    TextClassifier,
 )
 from .bias import BiasDetector
 from .genre import GenreClassifier
 from .language import LanguageClassifier
-from .profanity import ProfanityClassifier
+from .ner import NERClassifier, create_ner_classifier
+from .profanity import ProfanityClassifier, create_profanity_classifier
 from .readability import ReadabilityClassifier
-from .sentiment import SentimentClassifier
-from .spam import SpamClassifier
+from .sentiment import SentimentClassifier, create_sentiment_classifier
+from .spam import SpamClassifier, create_spam_classifier
 from .topic import TopicClassifier
-from .toxicity import ToxicityClassifier
+from .toxicity import ToxicityClassifier, create_toxicity_classifier
 
 __all__ = [
-    # Base
+    # Base Classes
+    "BaseClassifier",
     "Classifier",
     "ClassificationResult",
     "ClassifierConfig",
     "ClassifierProtocol",
     "TextProcessor",
-    # Content Analysis
+    "TextClassifier",
+
+    # Content Analysis Classes
     "SentimentClassifier",
     "ProfanityClassifier",
     "ToxicityClassifier",
     "SpamClassifier",
     "BiasDetector",
-    # Text Properties
+
+    # Text Properties Classes
     "ReadabilityClassifier",
     "LanguageClassifier",
     "TopicClassifier",
     "GenreClassifier",
+
+    # Entity Analysis
+    "NERClassifier",
+
+    # Factory Functions
+    "create_sentiment_classifier",
+    "create_toxicity_classifier",
+    "create_spam_classifier",
+    "create_profanity_classifier",
+    "create_ner_classifier",
 ]

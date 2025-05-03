@@ -48,8 +48,9 @@ Usage Example:
 """
 
 import json
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Literal, Optional, Protocol, Set, runtime_checkable
+from typing import Any, Dict, List, Literal, Optional, Protocol, Set, Tuple, runtime_checkable
+
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
 
@@ -66,92 +67,179 @@ class FormatValidator(Protocol):
     def validate(self, text: str, **kwargs) -> RuleResult: ...
 
 
-@dataclass(frozen=True)
-class FormatConfig(RuleConfig):
+class FormatConfig(BaseModel):
     """Configuration for format validation."""
 
-    required_format: FormatType = "plain_text"
-    # Markdown specific settings
-    markdown_elements: Set[str] = field(default_factory=lambda: {"headers", "lists", "code_blocks"})
-    # JSON specific settings
-    json_schema: Dict[str, Any] = field(default_factory=dict)
-    # Plain text specific settings
-    min_length: int = 1
-    max_length: Optional[int] = None
-    # Common settings
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        super().__post_init__()
-        if self.required_format not in ["markdown", "plain_text", "json"]:
+    required_format: FormatType = Field(
+        default="plain_text",
+        description="The required format type",
+    )
+    markdown_elements: Set[str] = Field(
+        default_factory=lambda: {"headers", "lists", "code_blocks"},
+        description="Set of required markdown elements",
+    )
+    json_schema: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="JSON schema for validation",
+    )
+    min_length: int = Field(
+        default=1,
+        ge=0,
+        description="Minimum text length",
+    )
+    max_length: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Maximum text length",
+    )
+    cache_size: int = Field(
+        default=100,
+        ge=1,
+        description="Size of the validation cache",
+    )
+    priority: int = Field(
+        default=1,
+        ge=0,
+        description="Priority of the rule",
+    )
+    cost: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Cost of running the rule",
+    )
+
+    @field_validator("required_format")
+    @classmethod
+    def validate_format_type(cls, v: FormatType) -> FormatType:
+        """Validate that format type is valid."""
+        if v not in ["markdown", "plain_text", "json"]:
             raise ValueError(
-                f"required_format must be one of: markdown, plain_text, json, got {self.required_format}"
+                f"required_format must be one of: markdown, plain_text, json, got {v}"
             )
-        if not isinstance(self.markdown_elements, set):
-            raise ValueError("markdown_elements must be a set of strings")
-        if self.min_length < 0:
-            raise ValueError("min_length must be non-negative")
-        if self.max_length is not None and self.max_length < self.min_length:
+        return v
+
+    @field_validator("max_length")
+    @classmethod
+    def validate_lengths(cls, v: Optional[int], values: Dict[str, Any]) -> Optional[int]:
+        """Validate that max_length is greater than min_length if specified."""
+        if v is not None and "min_length" in values and v < values["min_length"]:
             raise ValueError("max_length must be greater than or equal to min_length")
+        return v
 
 
-@dataclass(frozen=True)
-class MarkdownConfig(RuleConfig):
+class MarkdownConfig(BaseModel):
     """Configuration for markdown format validation."""
 
-    required_elements: List[str] = field(
-        default_factory=lambda: ["#", "*", "_", "`", ">", "-", "1.", "[", "]", "(", ")"]
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    required_elements: List[str] = Field(
+        default_factory=lambda: ["#", "*", "_", "`", ">", "-", "1.", "[", "]", "(", ")"],
+        description="List of required markdown elements",
     )
-    min_elements: int = 1
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
+    min_elements: int = Field(
+        default=1,
+        ge=0,
+        description="Minimum number of elements required",
+    )
+    cache_size: int = Field(
+        default=100,
+        ge=1,
+        description="Size of the validation cache",
+    )
+    priority: int = Field(
+        default=1,
+        ge=0,
+        description="Priority of the rule",
+    )
+    cost: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Cost of running the rule",
+    )
 
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        super().__post_init__()
-        if not self.required_elements:
+    @field_validator("required_elements")
+    @classmethod
+    def validate_elements(cls, v: List[str]) -> List[str]:
+        """Validate that at least one element is required."""
+        if not v:
             raise ValueError("Must provide at least one required element")
-        if self.min_elements < 0:
-            raise ValueError("min_elements must be non-negative")
+        return v
 
 
-@dataclass(frozen=True)
-class JsonConfig(RuleConfig):
+class JsonConfig(BaseModel):
     """Configuration for JSON format validation."""
 
-    strict: bool = True
-    allow_empty: bool = False
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        super().__post_init__()
+    strict: bool = Field(
+        default=True,
+        description="Whether to use strict JSON parsing",
+    )
+    allow_empty: bool = Field(
+        default=False,
+        description="Whether to allow empty JSON",
+    )
+    cache_size: int = Field(
+        default=100,
+        ge=1,
+        description="Size of the validation cache",
+    )
+    priority: int = Field(
+        default=1,
+        ge=0,
+        description="Priority of the rule",
+    )
+    cost: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Cost of running the rule",
+    )
 
 
-@dataclass(frozen=True)
-class PlainTextConfig(RuleConfig):
+class PlainTextConfig(BaseModel):
     """Configuration for plain text format validation."""
 
-    min_length: int = 1
-    max_length: Optional[int] = None
-    allow_empty: bool = False
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
-    def __post_init__(self) -> None:
-        """Validate configuration."""
-        super().__post_init__()
-        if self.min_length < 0:
-            raise ValueError("min_length must be non-negative")
-        if self.max_length is not None and self.max_length < self.min_length:
+    min_length: int = Field(
+        default=1,
+        ge=0,
+        description="Minimum text length",
+    )
+    max_length: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Maximum text length",
+    )
+    allow_empty: bool = Field(
+        default=False,
+        description="Whether to allow empty text",
+    )
+    cache_size: int = Field(
+        default=100,
+        ge=1,
+        description="Size of the validation cache",
+    )
+    priority: int = Field(
+        default=1,
+        ge=0,
+        description="Priority of the rule",
+    )
+    cost: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Cost of running the rule",
+    )
+
+    @field_validator("max_length")
+    @classmethod
+    def validate_lengths(cls, v: Optional[int], values: Dict[str, Any]) -> Optional[int]:
+        """Validate that max_length is greater than min_length if specified."""
+        if v is not None and "min_length" in values and v < values["min_length"]:
             raise ValueError("max_length must be greater than or equal to min_length")
+        return v
 
 
 class DefaultMarkdownValidator(BaseValidator[str]):
@@ -160,6 +248,9 @@ class DefaultMarkdownValidator(BaseValidator[str]):
     def __init__(self, config: MarkdownConfig) -> None:
         """Initialize with configuration."""
         self._config = config
+        self._analyzer = _MarkdownAnalyzer(
+            required_elements=config.required_elements, min_elements=config.min_elements
+        )
 
     @property
     def config(self) -> MarkdownConfig:
@@ -171,12 +262,14 @@ class DefaultMarkdownValidator(BaseValidator[str]):
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
-        found_elements = [element for element in self.config.required_elements if element in text]
-
-        passed = len(found_elements) >= self.config.min_elements
+        passed, found_elements = self._analyzer.analyze(text)
         return RuleResult(
             passed=passed,
-            message=f"Found {len(found_elements)} markdown elements",
+            message=(
+                f"Found {len(found_elements)} markdown elements"
+                if passed
+                else f"Insufficient markdown elements: found {len(found_elements)}, require {self.config.min_elements}"
+            ),
             metadata={
                 "found_elements": found_elements,
                 "required_min": self.config.min_elements,
@@ -190,6 +283,7 @@ class DefaultJsonValidator(BaseValidator[str]):
     def __init__(self, config: JsonConfig) -> None:
         """Initialize with configuration."""
         self._config = config
+        self._analyzer = _JsonAnalyzer(strict=config.strict, allow_empty=config.allow_empty)
 
     @property
     def config(self) -> JsonConfig:
@@ -201,26 +295,7 @@ class DefaultJsonValidator(BaseValidator[str]):
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
-        if not text.strip() and not self.config.allow_empty:
-            return RuleResult(
-                passed=False,
-                message="Empty JSON string not allowed",
-                metadata={"error": "empty_string"},
-            )
-
-        try:
-            json.loads(text)
-            return RuleResult(
-                passed=True,
-                message="Valid JSON format",
-                metadata={"strict": self.config.strict},
-            )
-        except json.JSONDecodeError as e:
-            return RuleResult(
-                passed=False,
-                message=f"Invalid JSON format: {str(e)}",
-                metadata={"error": str(e), "position": e.pos},
-            )
+        return self._analyzer.analyze(text)
 
 
 class DefaultPlainTextValidator(BaseValidator[str]):
@@ -229,6 +304,9 @@ class DefaultPlainTextValidator(BaseValidator[str]):
     def __init__(self, config: PlainTextConfig) -> None:
         """Initialize with configuration."""
         self._config = config
+        self._analyzer = _PlainTextAnalyzer(
+            min_length=config.min_length, max_length=config.max_length, allow_empty=config.allow_empty
+        )
 
     @property
     def config(self) -> PlainTextConfig:
@@ -240,45 +318,7 @@ class DefaultPlainTextValidator(BaseValidator[str]):
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
-        if not text.strip() and not self.config.allow_empty:
-            return RuleResult(
-                passed=False,
-                message="Empty text not allowed",
-                metadata={"error": "empty_string"},
-            )
-
-        text_length = len(text)
-        if text_length < self.config.min_length:
-            return RuleResult(
-                passed=False,
-                message=f"Text length {text_length} is below minimum {self.config.min_length}",
-                metadata={
-                    "length": text_length,
-                    "min_length": self.config.min_length,
-                    "max_length": self.config.max_length,
-                },
-            )
-
-        if self.config.max_length and text_length > self.config.max_length:
-            return RuleResult(
-                passed=False,
-                message=f"Text length {text_length} exceeds maximum {self.config.max_length}",
-                metadata={
-                    "length": text_length,
-                    "min_length": self.config.min_length,
-                    "max_length": self.config.max_length,
-                },
-            )
-
-        return RuleResult(
-            passed=True,
-            message="Valid plain text format",
-            metadata={
-                "length": text_length,
-                "min_length": self.config.min_length,
-                "max_length": self.config.max_length,
-            },
-        )
+        return self._analyzer.analyze(text)
 
 
 class FormatRule(Rule[str, RuleResult, BaseValidator[str], Any]):
@@ -776,12 +816,6 @@ def create_format_rule(
     )
 
 
-# For backward compatibility - these are aliases to maintain API compatibility
-MarkdownValidator = DefaultMarkdownValidator
-JsonValidator = DefaultJsonValidator
-PlainTextValidator = DefaultPlainTextValidator
-
-
 # Export public classes and functions
 __all__ = [
     # Rule classes
@@ -796,11 +830,8 @@ __all__ = [
     # Validator classes
     "FormatValidator",
     "DefaultFormatValidator",
-    "MarkdownValidator",
     "DefaultMarkdownValidator",
-    "JsonValidator",
     "DefaultJsonValidator",
-    "PlainTextValidator",
     "DefaultPlainTextValidator",
     # Validator factory functions
     "create_format_validator",
@@ -812,4 +843,92 @@ __all__ = [
     "create_markdown_rule",
     "create_json_rule",
     "create_plain_text_rule",
+    # Internal helpers
+    "_MarkdownAnalyzer",
+    "_JsonAnalyzer",
+    "_PlainTextAnalyzer",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Analyzer helpers
+# ---------------------------------------------------------------------------
+
+
+class _MarkdownAnalyzer(BaseModel):
+    """Count markdown element occurrences."""
+
+    required_elements: List[str] = Field(default_factory=list)
+    min_elements: int = 1
+
+    def analyze(self, text: str) -> Tuple[bool, List[str]]:
+        found = [el for el in self.required_elements if el in text]
+        return len(found) >= self.min_elements, found
+
+
+class _JsonAnalyzer(BaseModel):
+    """Validate JSON strings, optionally requiring non-empty."""
+
+    strict: bool = True
+    allow_empty: bool = False
+
+    def analyze(self, text: str) -> RuleResult:  # type: ignore[override]
+        if not isinstance(text, str):
+            raise ValueError("Input must be a string")
+
+        if not text.strip() and not self.allow_empty:
+            return RuleResult(
+                passed=False,
+                message="Empty JSON string not allowed",
+                metadata={"error": "empty_string"},
+            )
+
+        try:
+            json.loads(text)
+            return RuleResult(passed=True, message="Valid JSON format", metadata={"strict": self.strict})
+        except json.JSONDecodeError as e:
+            return RuleResult(
+                passed=False,
+                message=f"Invalid JSON format: {e}",
+                metadata={"error": str(e), "position": e.pos},
+            )
+
+
+class _PlainTextAnalyzer(BaseModel):
+    """Check plain text length constraints."""
+
+    min_length: int = 1
+    max_length: Optional[int] = None
+    allow_empty: bool = False
+
+    def analyze(self, text: str) -> RuleResult:  # type: ignore[override]
+        if not isinstance(text, str):
+            raise ValueError("Input must be a string")
+
+        if not text.strip() and not self.allow_empty:
+            return RuleResult(
+                passed=False,
+                message="Empty text not allowed",
+                metadata={"error": "empty_string"},
+            )
+
+        length = len(text)
+        if length < self.min_length:
+            return RuleResult(
+                passed=False,
+                message=f"Text length {length} below minimum {self.min_length}",
+                metadata={"length": length, "min_length": self.min_length, "max_length": self.max_length},
+            )
+
+        if self.max_length is not None and length > self.max_length:
+            return RuleResult(
+                passed=False,
+                message=f"Text length {length} exceeds maximum {self.max_length}",
+                metadata={"length": length, "min_length": self.min_length, "max_length": self.max_length},
+            )
+
+        return RuleResult(
+            passed=True,
+            message="Valid plain text format",
+            metadata={"length": length, "min_length": self.min_length, "max_length": self.max_length},
+        )

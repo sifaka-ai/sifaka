@@ -1,9 +1,21 @@
 """
 Length validation rules for text.
 
-This module provides validators and rules for checking text length constraints.
+This module provides validators and rules for checking text length constraints,
+including character count and word count validation. It follows the standard
+Sifaka validation pattern with separate validator and rule components.
+
+The module provides two main factory functions:
+- create_length_validator(): Creates a standalone validator
+- create_length_rule(): Creates a rule with a validator
+
+Lifecycle:
+    1. Configuration: Set up length constraints (min/max chars, min/max words)
+    2. Validation: Apply constraints to input text
+    3. Result: Return standardized validation results with detailed metadata
 
 Usage Example:
+    ```python
     from sifaka.rules.formatting.length import create_length_rule
 
     # Create a length rule using the factory function
@@ -17,12 +29,21 @@ Usage Example:
 
     # Validate text
     result = rule.validate("This is a test.")
+    print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+
+    # Access metadata
+    if not result.passed:
+        print(f"Character count: {result.metadata['char_count']}")
+        print(f"Word count: {result.metadata['word_count']}")
+        print(f"Errors: {result.metadata['errors']}")
+    ```
 """
 
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union, Any
+from typing import Dict, Optional
 
-from sifaka.rules.base import Rule, RuleResult, RuleConfig, BaseValidator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
+
+from sifaka.rules.base import Rule, RuleResult, BaseValidator
 
 
 __all__ = [
@@ -40,9 +61,28 @@ __all__ = [
 ]
 
 
-@dataclass(frozen=True)
-class LengthConfig(RuleConfig):
-    """Configuration for text length validation.
+class LengthConfig(BaseModel):
+    """
+    Configuration for text length validation.
+
+    This configuration class defines the parameters for length validation,
+    including character and word count constraints.
+
+    Examples:
+        ```python
+        from sifaka.rules.formatting.length import LengthConfig
+
+        # Create configuration
+        config = LengthConfig(
+            min_chars=10,
+            max_chars=100,
+            min_words=2,
+            max_words=20
+        )
+
+        # Use with validator
+        validator = DefaultLengthValidator(config)
+        ```
 
     Attributes:
         min_chars: Minimum number of characters allowed (inclusive)
@@ -51,14 +91,81 @@ class LengthConfig(RuleConfig):
         max_words: Maximum number of words allowed (inclusive)
     """
 
-    min_chars: Optional[int] = None
-    max_chars: Optional[int] = None
-    min_words: Optional[int] = None
-    max_words: Optional[int] = None
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    min_chars: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Minimum number of characters allowed (inclusive)",
+    )
+    max_chars: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Maximum number of characters allowed (inclusive)",
+    )
+    min_words: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Minimum number of words allowed (inclusive)",
+    )
+    max_words: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Maximum number of words allowed (inclusive)",
+    )
+
+    @field_validator("max_chars")
+    @classmethod
+    def validate_max_chars(cls, v: Optional[int], info) -> Optional[int]:
+        """Validate that max_chars is greater than min_chars if specified."""
+        if (
+            v is not None
+            and info.data.get("min_chars") is not None
+            and v < info.data.get("min_chars")
+        ):
+            raise ValueError("max_chars must be greater than or equal to min_chars")
+        return v
+
+    @field_validator("max_words")
+    @classmethod
+    def validate_max_words(cls, v: Optional[int], info) -> Optional[int]:
+        """Validate that max_words is greater than min_words if specified."""
+        if (
+            v is not None
+            and info.data.get("min_words") is not None
+            and v < info.data.get("min_words")
+        ):
+            raise ValueError("max_words must be greater than or equal to min_words")
+        return v
 
 
 class LengthValidator(BaseValidator[str]):
-    """Base class for text length validators."""
+    """
+    Base class for text length validators.
+
+    This abstract validator defines the interface for length validation
+    but delegates the actual validation logic to concrete implementations.
+
+    Lifecycle:
+        1. Initialization: Set up with length constraints
+        2. Validation: Apply constraints to input text
+        3. Result: Return standardized validation results
+
+    Examples:
+        ```python
+        from sifaka.rules.formatting.length import create_length_validator
+
+        # Create a validator using the factory function
+        validator = create_length_validator(
+            min_chars=10,
+            max_chars=100
+        )
+
+        # Validate text
+        result = validator.validate("This is a test")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+        ```
+    """
 
     def __init__(self, config: LengthConfig):
         """Initialize validator with a configuration.
@@ -88,7 +195,32 @@ class LengthValidator(BaseValidator[str]):
 
 
 class DefaultLengthValidator(LengthValidator):
-    """Default implementation of text length validator."""
+    """
+    Default implementation of text length validator.
+
+    This validator implements the standard length validation logic,
+    checking both character count and word count against configured constraints.
+
+    Lifecycle:
+        1. Initialization: Set up with length constraints
+        2. Validation: Check text against character and word count constraints
+        3. Result: Return detailed validation results with metadata
+
+    Examples:
+        ```python
+        from sifaka.rules.formatting.length import LengthConfig, DefaultLengthValidator
+
+        # Create configuration
+        config = LengthConfig(min_chars=10, max_chars=100)
+
+        # Create validator
+        validator = DefaultLengthValidator(config)
+
+        # Validate text
+        result = validator.validate("This is a test")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+        ```
+    """
 
     def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate text against length constraints.
@@ -143,7 +275,32 @@ class DefaultLengthValidator(LengthValidator):
 
 
 class LengthRuleValidator:
-    """Validator adapter that implements RuleValidator protocol for LengthValidator."""
+    """
+    Validator adapter that implements RuleValidator protocol for LengthValidator.
+
+    This adapter wraps a LengthValidator to make it compatible with the
+    Rule validation system by implementing the RuleValidator protocol.
+
+    Lifecycle:
+        1. Initialization: Wrap a LengthValidator
+        2. Validation: Delegate to the wrapped validator
+        3. Type Checking: Provide type information for validation
+
+    Examples:
+        ```python
+        from sifaka.rules.formatting.length import create_length_validator, LengthRuleValidator
+
+        # Create a validator
+        validator = create_length_validator(min_chars=10, max_chars=100)
+
+        # Create an adapter
+        adapter = LengthRuleValidator(validator)
+
+        # Use the adapter
+        if adapter.can_validate("This is a test"):
+            result = adapter.validate("This is a test")
+        ```
+    """
 
     def __init__(self, validator: LengthValidator):
         """Initialize with a LengthValidator."""
@@ -164,7 +321,39 @@ class LengthRuleValidator:
 
 
 class LengthRule(Rule):
-    """Rule for validating text length constraints."""
+    """
+    Rule for validating text length constraints.
+
+    This rule validates that text meets specified length requirements
+    in terms of character count and word count.
+
+    Lifecycle:
+        1. Initialization: Set up with length constraints
+        2. Validation: Check text against constraints
+        3. Result: Return standardized validation results with metadata
+
+    Examples:
+        ```python
+        from sifaka.rules.formatting.length import create_length_rule
+
+        # Create a rule using the factory function
+        rule = create_length_rule(
+            min_chars=10,
+            max_chars=100,
+            min_words=2,
+            max_words=20
+        )
+
+        # Validate text
+        result = rule.validate("This is a test")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+
+        # Access metadata
+        if not result.passed:
+            print(f"Character count: {result.metadata['char_count']}")
+            print(f"Word count: {result.metadata['word_count']}")
+        ```
+    """
 
     def __init__(
         self,
@@ -213,7 +402,8 @@ def create_length_validator(
     max_words: Optional[int] = None,
     **kwargs,
 ) -> LengthValidator:
-    """Create a length validator with the specified constraints.
+    """
+    Create a length validator with the specified constraints.
 
     This factory function creates a configured LengthValidator instance.
     It's useful when you need a validator without creating a full rule.
@@ -223,10 +413,41 @@ def create_length_validator(
         max_chars: Maximum number of characters allowed
         min_words: Minimum number of words allowed
         max_words: Maximum number of words allowed
-        **kwargs: Additional keyword arguments for the config
+        **kwargs: Additional configuration parameters including:
+            - priority: Priority level for validation
+            - cache_size: Size of the validation cache
+            - cost: Computational cost of validation
+            - params: Dictionary of additional parameters
 
     Returns:
         Configured LengthValidator
+
+    Examples:
+        ```python
+        from sifaka.rules.formatting.length import create_length_validator
+
+        # Create a basic validator
+        validator = create_length_validator(min_chars=10, max_chars=100)
+
+        # Create a validator with word count constraints
+        validator = create_length_validator(
+            min_chars=10,
+            max_chars=100,
+            min_words=2,
+            max_words=20
+        )
+
+        # Create a validator with additional configuration
+        validator = create_length_validator(
+            min_chars=10,
+            max_chars=100,
+            priority="HIGH",
+            cache_size=100
+        )
+        ```
+
+    Raises:
+        ValueError: If max_chars < min_chars or max_words < min_words
     """
     # Extract RuleConfig parameters from kwargs
     rule_config_params = {}
@@ -253,7 +474,8 @@ def create_length_rule(
     rule_id: Optional[str] = None,
     **kwargs,
 ) -> LengthRule:
-    """Create a length validation rule with the specified constraints.
+    """
+    Create a length validation rule with the specified constraints.
 
     This factory function creates a configured LengthRule instance.
     It uses create_length_validator internally to create the validator.
@@ -263,11 +485,45 @@ def create_length_rule(
         max_chars: Maximum number of characters allowed
         min_words: Minimum number of words allowed
         max_words: Maximum number of words allowed
-        rule_id: Identifier for the rule
-        **kwargs: Additional keyword arguments for the rule
+        rule_id: Identifier for the rule (also used as name if provided)
+        **kwargs: Additional keyword arguments including:
+            - priority: Priority level for validation
+            - cache_size: Size of the validation cache
+            - cost: Computational cost of validation
+            - params: Dictionary of additional parameters
+            - description: Description of the rule
 
     Returns:
         Configured LengthRule
+
+    Examples:
+        ```python
+        from sifaka.rules.formatting.length import create_length_rule
+
+        # Create a basic rule
+        rule = create_length_rule(min_chars=10, max_chars=100)
+
+        # Create a rule with word count constraints
+        rule = create_length_rule(
+            min_chars=10,
+            max_chars=100,
+            min_words=2,
+            max_words=20,
+            rule_id="comprehensive_length"
+        )
+
+        # Create a rule with additional configuration
+        rule = create_length_rule(
+            min_chars=10,
+            max_chars=100,
+            priority="HIGH",
+            cache_size=100,
+            description="Validates text length between 10-100 characters"
+        )
+        ```
+
+    Raises:
+        ValueError: If max_chars < min_chars or max_words < min_words
     """
     # Create validator using the validator factory
     validator = create_length_validator(

@@ -5,6 +5,60 @@ Sifaka is a framework for improving large language model (LLM) outputs through v
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+## Installation
+
+Sifaka can be installed with different sets of dependencies depending on your needs:
+
+### Basic Installation
+```bash
+pip install sifaka
+```
+
+### Installation with Specific Features
+
+```bash
+# Install with OpenAI support
+pip install "sifaka[openai]"
+
+# Install with Anthropic support
+pip install "sifaka[anthropic]"
+
+# Install with all classifiers
+pip install "sifaka[classifiers]"
+
+# Install with benchmarking tools
+pip install "sifaka[benchmark]"
+
+# Install everything (except development tools)
+pip install "sifaka[all]"
+```
+
+### Development Installation
+```bash
+git clone https://github.com/sifaka-ai/sifaka.git
+cd sifaka
+pip install -e ".[dev]"  # Install with development dependencies
+```
+
+## Optional Dependencies
+
+Sifaka's functionality can be extended through optional dependencies:
+
+### Model Providers
+- `openai`: OpenAI API support
+- `anthropic`: Anthropic Claude API support
+- `google-generativeai`: Google Gemini API support
+
+### Classifiers
+- `toxicity`: Toxicity detection using Detoxify
+- `sentiment`: Sentiment analysis using VADER
+- `profanity`: Profanity detection
+- `language`: Language detection
+- `readability`: Text readability analysis
+
+### Benchmarking
+- `benchmark`: Tools for performance benchmarking and analysis
+
 ## Key Features
 
 - ✅ **Validation Rules**: Enforce constraints like length limits and content restrictions
@@ -12,18 +66,6 @@ Sifaka is a framework for improving large language model (LLM) outputs through v
 - ✅ **Chain Architecture**: Create feedback loops for iterative improvement
 - ✅ **Model Agnostic**: Works with Claude, OpenAI, and other LLM providers
 - ✅ **Streamlined Configuration**: Unified configuration system using ClassifierConfig and RuleConfig
-
-## Installation
-
-```bash
-# Basic installation
-pip install sifaka
-
-# Development installation
-git clone https://github.com/your-username/sifaka.git
-cd sifaka
-pip install -e .
-```
 
 ## Core Components
 
@@ -85,13 +127,15 @@ reflexion_critic = create_reflexion_critic(
 
 ### 3. Chains
 
-Chains orchestrate the validation and improvement process:
+Chains orchestrate the validation and improvement process. Sifaka provides two ways to create chains:
+
+#### Simple Chain Creation
 
 ```python
-from sifaka.chain import Chain
+from sifaka.chain import ChainOrchestrator
 
 # Create a chain with a model, rules, and critic
-chain = Chain(
+chain = ChainOrchestrator(
     model=model,            # LLM Provider
     rules=[length_rule],    # Validation rules
     critic=critic,          # Improvement critic
@@ -102,26 +146,31 @@ chain = Chain(
 result = chain.run("Write about artificial intelligence")
 ```
 
-### Sifaka Workflow Diagram
+#### Advanced Chain Creation
 
-The diagram below illustrates the flow within the `Chain.run` method:
+For more control and customization, use the factory functions:
 
-```mermaid
-flowchart LR
-    A[Input Prompt] --> B(Chain.run)
-    subgraph Attempt Loop [Max Attempts]
-        B --> C{Generate Output w/ Model Provider}
-        C --> D[Output]
-        D --> E{Validate Output w/ Rules}
-        E -- Rule Results --> F{All Rules Passed?}
-        F -- No --> G{Critic Available & Attempts Left?}
-        G -- Yes --> H{Generate Feedback w/ Critic}
-        H --> I[Feedback]
-        I --> J{Combine Original Prompt + Feedback}
-        J --> C
-    end
-    F -- Yes --> K[✅ Final Output]
-    G -- No --> L[❌ Error / Last Failed Output]
+```python
+from sifaka.chain import create_simple_chain, create_backoff_chain
+
+# Create a simple chain with fixed retry attempts
+chain = create_simple_chain(
+    model=model,
+    rules=[length_rule],
+    critic=critic,
+    max_attempts=3,
+)
+
+# Create a chain with exponential backoff retry strategy
+chain = create_backoff_chain(
+    model=model,
+    rules=[length_rule],
+    critic=critic,
+    max_attempts=5,
+    initial_backoff=1.0,
+    backoff_factor=2.0,
+    max_backoff=60.0,
+)
 ```
 
 ### 4. Classifiers
@@ -205,7 +254,7 @@ from sifaka.models.anthropic import AnthropicProvider
 from sifaka.models.base import ModelConfig
 from sifaka.rules.formatting.length import create_length_rule
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
-from sifaka.chain import Chain
+from sifaka.chain import ChainOrchestrator
 
 # Configure Claude model
 model = AnthropicProvider(
@@ -238,7 +287,12 @@ critic = PromptCritic(
 )
 
 # Create chain with model, rule, and critic
-chain = Chain(model=model, rules=[length_rule], critic=critic, max_attempts=3)
+chain = ChainOrchestrator(
+    model=model,
+    rules=[length_rule],
+    critic=critic,
+    max_attempts=3
+)
 
 # Run the chain with a prompt that would naturally generate verbose output
 result = chain.run("Explain how large language models work in detail")
@@ -256,7 +310,7 @@ from sifaka.rules.base import RuleConfig
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.models import OpenAIProvider
 from sifaka.models.base import ModelConfig
-from sifaka.chain import Chain
+from sifaka.chain import ChainOrchestrator
 import os
 
 # Configure OpenAI model for content generation
@@ -283,13 +337,7 @@ classifier = ToxicityClassifier(
 toxicity_rule = create_toxicity_rule(
     config=RuleConfig(
         params={
-            "threshold": 0.6,
-            "indicators": [
-                "hate",
-                "offensive",
-                "vulgar",
-                "profanity",
-            ]
+            "threshold": 0.6
         }
     )
 )
@@ -308,7 +356,12 @@ critic = PromptCritic(
 )
 
 # Create chain with model, rule, and critic
-chain = Chain(model=model, rules=[toxicity_rule], critic=critic, max_attempts=3)
+chain = ChainOrchestrator(
+    model=model,
+    rules=[toxicity_rule],
+    critic=critic,
+    max_attempts=3
+)
 
 # Run the chain
 result = chain.run("Write a social media post about community values")
@@ -322,6 +375,7 @@ For complete, runnable examples, see the `/examples` directory:
 - `claude_expand_length_critic.py`: Demonstrates expanding text length
 - `toxicity_filtering.py`: Demonstrates content safety validation
 - `reflexion_critic_example.py`: Demonstrates using the ReflexionCritic to improve text through learning from past feedback
+- `advanced_chain_example.py`: Demonstrates the new chain architecture with different components and strategies
 
 ### Example 3: Reflexion-Based Learning
 
@@ -332,7 +386,7 @@ from sifaka.critics.reflexion import ReflexionCriticConfig, create_reflexion_cri
 from sifaka.models.openai import OpenAIProvider
 from sifaka.models.base import ModelConfig
 from sifaka.rules.formatting.length import create_length_rule
-from sifaka.chain import Chain
+from sifaka.chain import ChainOrchestrator
 import os
 
 # Configure OpenAI model
@@ -367,11 +421,11 @@ length_rule = create_length_rule(
 )
 
 # Create a chain with the model, rule, and reflexion critic
-chain = Chain(
+chain = ChainOrchestrator(
     model=model,
     rules=[length_rule],
     critic=reflexion_critic,
-    max_attempts=3,
+    max_attempts=3
 )
 
 # Process a series of prompts and observe how the critic improves over time
@@ -395,6 +449,34 @@ for prompt in prompts:
 # guide future improvements, making it more effective over time
 ```
 
+## Integration with Guardrails
+
+While Sifaka is designed to be "batteries included" with its built-in classifiers and rules, it also provides seamless integration with [Guardrails AI](https://www.guardrailsai.com/). This integration allows you to:
+
+- Use Guardrails' validation and transformation capabilities alongside Sifaka's native features
+- Leverage Guardrails' extensive rule library while maintaining Sifaka's flexibility
+- Combine both systems' strengths for robust content validation and transformation
+
+Example integration:
+```python
+from sifaka.rules.adapters.guardrails_adapter import GuardrailsAdapter
+from sifaka.domain import Domain
+
+# Create a Guardrails adapter
+guardrails_adapter = GuardrailsAdapter()
+
+# Use it in your domain configuration
+domain = Domain({
+    "name": "text",
+    "rules": {
+        "guardrails": {
+            "enabled": True,
+            "adapter": guardrails_adapter
+        }
+    }
+})
+```
+
 ## License
 
-MIT
+Sifaka is licensed under the MIT License. See [LICENSE](LICENSE) for details.

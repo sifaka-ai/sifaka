@@ -19,9 +19,8 @@ import psutil
 from tqdm import tqdm
 
 from sifaka.rules.base import Rule, RuleConfig, RuleResult, RulePriority
-from sifaka.rules.formatting.length import LengthRule, DefaultLengthValidator
-from sifaka.rules.prohibited_content import ProhibitedContentRule
-from sifaka.rules.pattern_rules import RepetitionRule, SymmetryRule
+from sifaka.rules.formatting.length import LengthRule, DefaultLengthValidator, create_length_rule
+from sifaka.rules.content.prohibited import create_prohibited_content_rule
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -48,70 +47,19 @@ class RuleBenchmark:
         """Initialize rules with proper validators and configs."""
         rules = {}
 
-        # Initialize LengthRule with config
-        length_config = RuleConfig(
-            cache_size=100,
-            priority=RulePriority.MEDIUM,
-            cost=1.0,
-            params={
-                "min_chars": 10,
-                "max_chars": 1000,
-            },
-        )
-        length_validator = DefaultLengthValidator(length_config)
-        rules["length"] = LengthRule(
-            name="length_rule",
-            description="Validates text length",
-            validator=length_validator,
-            config=RuleConfig(params={"min_chars": 10, "max_chars": 1000}),
+        # Use factory functions to create rules with minimal configuration
+        from sifaka.rules.formatting.length import create_length_rule
+        rules["length"] = create_length_rule(
+            min_chars=10,
+            max_chars=1000,
+            rule_id="length_rule"
         )
 
         # Initialize ProhibitedContentRule with config
-        rules["prohibited_content"] = ProhibitedContentRule(
-            name="prohibited_content_rule",
-            description="Checks for prohibited content",
-            config={
-                "prohibited_terms": ["bad", "terrible", "awful"],
-                "case_sensitive": False,
-                "cache_size": 100,
-                "priority": 1,
-                "cost": 1.0,
-            },
-        )
-
-        # Initialize SymmetryRule with config
-        rules["symmetry"] = SymmetryRule(
-            name="symmetry_rule",
-            description="Checks text symmetry",
-            config=RuleConfig(
-                priority=RulePriority.MEDIUM,
-                cache_size=100,
-                cost=1.0,
-                params={
-                    "mirror_mode": "horizontal",
-                    "preserve_whitespace": True,
-                    "preserve_case": True,
-                    "ignore_punctuation": False,
-                    "symmetry_threshold": 0.7,
-                },
-            ),
-        )
-
-        # Initialize RepetitionRule with config
-        rules["repetition"] = RepetitionRule(
-            name="repetition_rule",
-            description="Checks for text repetition",
-            config=RuleConfig(
-                priority=RulePriority.MEDIUM,
-                cache_size=100,
-                cost=1.0,
-                params={
-                    "pattern_type": "repeat",
-                    "pattern_length": 2,
-                    "case_sensitive": True,
-                    "allow_overlap": False,
-                },
-            ),
+        rules["prohibited_content"] = create_prohibited_content_rule(
+            terms=["bad", "terrible", "awful"],
+            case_sensitive=False,
+            name="prohibited_content_rule"
         )
 
         return rules
@@ -128,10 +76,10 @@ class RuleBenchmark:
 
         # Complex texts with potential rule violations
         complex_texts = [
-            "This text contains repeated words words and might trigger pattern rules.",
+            "This text contains bad words that should be flagged.",
             "A very very very long sentence that goes on and on and might exceed length limits.",
-            "Text with potential formatting issues.  Double spaces.   Triple spaces.",
-            "Code-like content: def function(): pass # Python rule test",
+            "Text with terrible content that should be detected.",
+            "This awful text should trigger the prohibited content rule.",
         ]
 
         # Generate variations

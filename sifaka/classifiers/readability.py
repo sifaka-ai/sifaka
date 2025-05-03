@@ -15,6 +15,7 @@ from typing import (
 )
 
 from typing_extensions import TypeGuard
+from pydantic import PrivateAttr
 
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -116,6 +117,10 @@ class ReadabilityClassifier(BaseClassifier):
         "graduate": (16.0, float("inf")),
     }
 
+    # Private attributes using PrivateAttr for state management
+    _analyzer: Optional[ReadabilityAnalyzer] = PrivateAttr(default=None)
+    _initialized: bool = PrivateAttr(default=False)
+
     def __init__(
         self,
         name: str = "readability_classifier",
@@ -153,7 +158,6 @@ class ReadabilityClassifier(BaseClassifier):
 
         # Store analyzer for later use
         self._analyzer = analyzer
-        self._initialized = False
 
     def _validate_analyzer(self, analyzer: Any) -> TypeGuard[ReadabilityAnalyzer]:
         """Validate that an analyzer implements the required protocol."""

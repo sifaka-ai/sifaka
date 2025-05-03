@@ -7,7 +7,12 @@ This package provides tools for:
 3. Visualization of results
 """
 
-from .benchmark_classifiers import ClassifierBenchmark, print_benchmark_results
+from .benchmark_classifiers import ClassifierBenchmark
 from .visualize_results import BenchmarkVisualizer
+from .benchmark_guardrails import SifakaBenchmark, print_benchmark_results
 
-__all__ = ["ClassifierBenchmark", "BenchmarkVisualizer", "print_benchmark_results"]
+__all__ = ["ClassifierBenchmark", "BenchmarkVisualizer", "print_benchmark_results", "SifakaBenchmark"]
+
+"""
+Sifaka benchmarks package.
+"""

@@ -40,6 +40,7 @@ Thumbs.db
 htmlcov/
 .pytest_cache/
 .tox/
+.hypothesis/
 
 # Distribution
 *.tar.gz

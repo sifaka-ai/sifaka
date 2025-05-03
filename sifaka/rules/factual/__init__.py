@@ -1,83 +1,139 @@
 """
-Fact-checking rules for Sifaka.
+Factual validation rules for Sifaka.
 
-.. deprecated:: 1.0.0
-   This module is deprecated and will be removed in version 2.0.0.
-   Use the following modules instead:
+This module provides rules for validating factual content in text, including:
+- Citation validation
+- Confidence validation
+- Consistency validation
+- Accuracy validation
 
-   - :mod:`sifaka.rules.factual.consistency` for factual consistency validation
-   - :mod:`sifaka.rules.factual.confidence` for confidence level validation
-   - :mod:`sifaka.rules.factual.citation` for citation validation
-   - :mod:`sifaka.rules.factual.accuracy` for factual accuracy validation
+Configuration Pattern:
+    This module follows the standard Sifaka configuration pattern:
+    - All rule-specific configuration is stored in RuleConfig.params
+    - Factory functions handle configuration
+    - Validator factory functions create standalone validators
 
-Migration guide:
-1. Replace imports:
-   - Old: from sifaka.rules.factual import FactualConsistencyRule, ConfidenceRule, CitationRule, FactualAccuracyRule
-   - New: from sifaka.rules.factual.consistency import FactualConsistencyRule
-         from sifaka.rules.factual.confidence import ConfidenceRule
-         from sifaka.rules.factual.citation import CitationRule
-         from sifaka.rules.factual.accuracy import FactualAccuracyRule
+Usage Example:
+    from sifaka.rules.factual import (
+        create_citation_rule,
+        create_confidence_rule,
+        create_consistency_rule,
+        create_accuracy_rule
+    )
 
-2. Update configuration:
-   - Each factual rule now has its own configuration class
-   - Each has its own set of parameters and validation logic
-   - See the respective module documentation for details
+    # Create a citation rule
+    citation_rule = create_citation_rule(
+        citation_patterns=[
+            r"\(\d{4}\)",  # (2024)
+            r"\[.*?\]",    # [Author, 2024]
+            r"\(.*?\)"     # (Author, 2024)
+        ],
+        min_citations=1,
+        max_citations=5
+    )
 
-Example:
-    Old code:
-    >>> from sifaka.rules.factual import FactualConsistencyRule
-    >>> rule = FactualConsistencyRule()
+    # Create a confidence rule
+    confidence_rule = create_confidence_rule(
+        confidence_indicators=[
+            "highly confident",
+            "very certain",
+            "definitely",
+            "without a doubt",
+            "absolutely"
+        ],
+        threshold=0.8
+    )
 
-    New code:
-    >>> from sifaka.rules.factual.consistency import FactualConsistencyRule
-    >>> rule = FactualConsistencyRule()
+    # Create a consistency rule
+    consistency_rule = create_consistency_rule(
+        contradiction_indicators=[
+            "however",
+            "but",
+            "although",
+            "despite",
+            "in contrast"
+        ],
+        threshold=0.7
+    )
+
+    # Create an accuracy rule
+    accuracy_rule = create_accuracy_rule(
+        knowledge_base=[
+            "The Earth is round",
+            "Water boils at 100°C at sea level",
+            "The capital of France is Paris"
+        ],
+        threshold=0.8
+    )
 """
 
-# Re-export classes for backward compatibility
-from sifaka.rules.factual.accuracy import (
-    DefaultFactualAccuracyValidator,
-    FactualAccuracyConfig,
-    FactualAccuracyRule,
-    create_factual_accuracy_rule,
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field, field_validator, ConfigDict
+
+from sifaka.rules.base import (
+    BaseValidator,
+    ConfigurationError,
+    Rule,
+    RuleConfig,
+    RuleResult,
+    RuleResultHandler,
+    ValidationError,
 )
-from sifaka.rules.factual.base import BaseFactualValidator, FactualValidator
+from sifaka.rules.factual.base import BaseFactualValidator
 from sifaka.rules.factual.citation import (
     CitationConfig,
-    CitationRule,
     DefaultCitationValidator,
+    CitationRule,
+    create_citation_validator,
     create_citation_rule,
 )
 from sifaka.rules.factual.confidence import (
     ConfidenceConfig,
-    ConfidenceRule,
     DefaultConfidenceValidator,
+    ConfidenceRule,
+    create_confidence_validator,
     create_confidence_rule,
 )
 from sifaka.rules.factual.consistency import (
-    DefaultFactualConsistencyValidator,
-    FactualConsistencyConfig,
-    FactualConsistencyRule,
-    create_factual_consistency_rule,
+    ConsistencyConfig,
+    DefaultConsistencyValidator,
+    ConsistencyRule,
+    create_consistency_validator,
+    create_consistency_rule,
+)
+from sifaka.rules.factual.accuracy import (
+    AccuracyConfig,
+    DefaultAccuracyValidator,
+    AccuracyRule,
+    create_accuracy_validator,
+    create_accuracy_rule,
 )
 
-# Export public classes and functions
+
 __all__ = [
-    "FactualConsistencyRule",
-    "FactualConsistencyConfig",
-    "DefaultFactualConsistencyValidator",
-    "ConfidenceRule",
-    "ConfidenceConfig",
-    "DefaultConfidenceValidator",
-    "CitationRule",
+    # Config classes
     "CitationConfig",
+    "ConfidenceConfig",
+    "ConsistencyConfig",
+    "AccuracyConfig",
+    # Validator classes
     "DefaultCitationValidator",
-    "FactualAccuracyRule",
-    "FactualAccuracyConfig",
-    "DefaultFactualAccuracyValidator",
-    "BaseFactualValidator",
-    "FactualValidator",
-    "create_factual_consistency_rule",
-    "create_confidence_rule",
+    "DefaultConfidenceValidator",
+    "DefaultConsistencyValidator",
+    "DefaultAccuracyValidator",
+    # Rule classes
+    "CitationRule",
+    "ConfidenceRule",
+    "ConsistencyRule",
+    "AccuracyRule",
+    # Factory functions
+    "create_citation_validator",
     "create_citation_rule",
-    "create_factual_accuracy_rule",
+    "create_confidence_validator",
+    "create_confidence_rule",
+    "create_consistency_validator",
+    "create_consistency_rule",
+    "create_accuracy_validator",
+    "create_accuracy_rule",
 ]

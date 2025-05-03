@@ -16,10 +16,19 @@ load_dotenv()
 
 from sifaka.models.openai import OpenAIProvider
 from sifaka.models.base import ModelConfig
-from sifaka.classifiers.language import LanguageClassifier, ClassifierConfig
-from sifaka.rules.adapters.classifier import create_classifier_rule
+from sifaka.classifiers.language import LanguageClassifier, ClassifierConfig, ClassificationResult
+from sifaka.adapters.rules.classifier import create_classifier_rule
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
-from sifaka.chain import Chain, ChainResult
+from sifaka.chain import ChainCore, ChainResult
+
+
+# Create a concrete implementation of LanguageClassifier
+class ConcreteLanguageClassifier(LanguageClassifier):
+    """A concrete implementation of LanguageClassifier that implements the required abstract method."""
+
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
+        """Delegate to the existing implementation in the parent class."""
+        return self._classify_impl(text)
 
 
 # Custom prompt factory for language detection
@@ -102,7 +111,7 @@ critic_model = OpenAIProvider(
 )
 
 # Create a language classifier using the factory method
-language_classifier = LanguageClassifier.create(
+language_classifier = ConcreteLanguageClassifier.create(
     name="language_detector",
     description="Detects the language of text",
     labels=["en", "es", "fr", "de"],  # Focus on a few languages
@@ -159,6 +168,8 @@ class DebugChain:
         self.language_critic = language_critic
         self.max_attempts = max_attempts
         self.verbose = verbose
+        # Store the prompt factory for direct access
+        self.prompt_factory = LanguagePromptFactory()
 
     def run(self, prompt: str) -> str:
         """Run the chain."""
@@ -199,7 +210,7 @@ class DebugChain:
 
             # Improve - translate to English
             print(f"\n[Step {attempt}.2] Improving language...")
-            improvement_prompt = self.language_critic.prompt_factory.create_improvement_prompt(
+            improvement_prompt = self.prompt_factory.create_improvement_prompt(
                 model_output, critique["feedback"]
             )
 

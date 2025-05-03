@@ -8,6 +8,7 @@ to guide future improvements.
 
 import os
 import logging
+from typing import List
 
 from sifaka.critics.reflexion import (
     ReflexionCriticConfig,
@@ -17,7 +18,7 @@ from sifaka.critics.reflexion import (
 from sifaka.models.openai import OpenAIProvider
 from sifaka.models.base import ModelConfig
 from sifaka.rules.formatting.length import create_length_rule
-from sifaka.chain import Chain
+from sifaka.chain import create_simple_chain
 
 # Configure logging
 logging.basicConfig(
@@ -35,6 +36,58 @@ openai_model = OpenAIProvider(
     model_name="gpt-3.5-turbo",
     config=ModelConfig(api_key=api_key, temperature=0.7, max_tokens=2048),
 )
+
+
+# Create a concrete implementation of ReflexionCritic
+class ConcreteReflexionCritic(ReflexionCritic):
+    """A concrete implementation of ReflexionCritic with the required abstract methods."""
+
+    def __init__(self, **kwargs):
+        """Initialize with custom memory buffer."""
+        super().__init__(**kwargs)
+        self._memory_buffer = []  # Simple list for storing reflections
+
+    def improve_with_feedback(self, text: str, feedback: str) -> str:
+        """Implement the required abstract method."""
+        return self.improve(text, feedback)
+
+    def _generate_reflection(self, original_text: str, feedback: str, improved_text: str) -> None:
+        """Generate a reflection based on the improvement process."""
+        reflection_prompt = self._prompt_manager.create_reflection_prompt(
+            original_text, feedback, improved_text
+        )
+
+        try:
+            response = self._model.invoke(reflection_prompt)
+
+            # Extract reflection from response
+            reflection = ""
+            if isinstance(response, dict) and "reflection" in response:
+                reflection = response["reflection"]
+            elif isinstance(response, str):
+                if "REFLECTION:" in response:
+                    parts = response.split("REFLECTION:")
+                    if len(parts) > 1:
+                        reflection = parts[1].strip()
+                else:
+                    reflection = response.strip()
+
+            # Add reflection to memory buffer
+            if reflection:
+                self._add_to_memory(reflection)
+        except Exception as e:
+            print(f"Error generating reflection: {e}")
+
+    def _add_to_memory(self, reflection: str) -> None:
+        """Add a reflection to the memory buffer."""
+        self._memory_buffer.append(reflection)
+        # Trim if needed
+        if len(self._memory_buffer) > self.config.memory_buffer_size:
+            self._memory_buffer = self._memory_buffer[-self.config.memory_buffer_size:]
+
+    def _get_relevant_reflections(self) -> List[str]:
+        """Override to use our simple memory buffer."""
+        return self._memory_buffer
 
 
 # Create a custom ReflexionCritic with additional logging
@@ -70,6 +123,11 @@ class LoggingReflexionCritic(ReflexionCritic):
                 logger.info(f"  Reflection {i+1}: {reflection}")
 
         return improved
+
+    def improve_with_feedback(self, text: str, feedback: str) -> str:
+        """Implement the required abstract method."""
+        logger.info(f"Improving with feedback: {feedback}")
+        return self.improve(text, feedback)
 
     def _generate_reflection(self, original_text: str, feedback: str, improved_text: str) -> None:
         """Override to log the reflection generation process."""
@@ -109,14 +167,14 @@ class LoggingReflexionCritic(ReflexionCritic):
         logger.info(f"Manually creating a reflection for prompt: {prompt}")
 
         # Generate a response
-        original_text = self.llm_provider.generate(prompt)
+        original_text = self._model.generate(prompt)
         feedback = f"Issue: {issue}. Suggestion: {suggestion}"
 
         # Create a short/condensed version of the text
         short_prompt = (
             f"Create a very concise version (under 50 words) of this text: {original_text}"
         )
-        improved_text = self.llm_provider.generate(short_prompt)
+        improved_text = self._model.generate(short_prompt)
 
         logger.info(f"Original text: {original_text[:100]}... (truncated)")
         logger.info(f"Feedback: {feedback}")
@@ -128,10 +186,30 @@ class LoggingReflexionCritic(ReflexionCritic):
         return original_text, improved_text
 
 
-# Create a reflexion critic using the factory function
-# Note: ReflexionCritic now returns a dictionary from critique() by default, so it works with Chain
-reflexion_critic = create_reflexion_critic(
-    model=openai_model,
+# Create a custom factory function that returns a concrete implementation
+def create_concrete_reflexion_critic(**kwargs):
+    """Create a concrete implementation of ReflexionCritic."""
+    config = ReflexionCriticConfig(
+        name=kwargs.get("name", "reflexion_critic"),
+        description=kwargs.get("description", "Improves text using reflections on past feedback"),
+        system_prompt=kwargs.get("system_prompt", "You are an expert editor that improves text through reflection."),
+        temperature=kwargs.get("temperature", 0.7),
+        max_tokens=kwargs.get("max_tokens", 1000),
+        min_confidence=kwargs.get("min_confidence", 0.7),
+        memory_buffer_size=kwargs.get("memory_buffer_size", 5),
+        reflection_depth=kwargs.get("reflection_depth", 1),
+    )
+
+    return ConcreteReflexionCritic(
+        config=config,
+        llm_provider=kwargs.get("llm_provider"),
+        name=kwargs.get("name", "reflexion_critic"),
+        description=kwargs.get("description", "Improves text using reflections on past feedback"),
+    )
+
+# Create a reflexion critic using our custom factory function
+reflexion_critic = create_concrete_reflexion_critic(
+    llm_provider=openai_model,
     name="length_reflexion_critic",
     description="A critic that helps adjust text length while learning from past attempts",
     system_prompt=(
@@ -175,12 +253,12 @@ def manually_create_reflection(critic, prompt, issue, suggestion):
     logger.info(f"Manually creating a reflection for prompt: {prompt}")
 
     # Generate a response
-    original_text = critic.llm_provider.generate(prompt)
+    original_text = critic._model.generate(prompt)
     feedback = f"Issue: {issue}. Suggestion: {suggestion}"
 
     # Create a short/condensed version of the text
     short_prompt = f"Create a very concise version (under 50 words) of this text: {original_text}"
-    improved_text = critic.llm_provider.generate(short_prompt)
+    improved_text = critic._model.generate(short_prompt)
 
     logger.info(f"Original text: {original_text[:100]}... (truncated)")
     logger.info(f"Feedback: {feedback}")
@@ -225,7 +303,7 @@ regular_rule = create_length_rule(
 )
 
 # Create two chains - first with the short rule to force iterations and generate reflections
-short_chain = Chain(
+short_chain = create_simple_chain(
     model=openai_model,
     rules=[short_rule],
     critic=reflexion_critic,
@@ -233,7 +311,7 @@ short_chain = Chain(
 )
 
 # And another with the regular rule
-regular_chain = Chain(
+regular_chain = create_simple_chain(
     model=openai_model,
     rules=[regular_rule],
     critic=reflexion_critic,
