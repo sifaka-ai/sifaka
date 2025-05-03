@@ -645,66 +645,6 @@ else:
     print("Set your ANTHROPIC_API_KEY to run this example")
 ```
 
-### Example 6: Using Guardrails Integration
-
-This example shows how to use a basic Guardrails validator with Sifaka:
-
-```python
-try:
-    # Import Guardrails validator and registration
-    from guardrails.validators import Validator
-    from guardrails.validators import register_validator
-
-    # Import Sifaka adapter for Guardrails
-    from sifaka.adapters.rules.guardrails_adapter import create_guardrails_rule
-
-    # Create and register a simple custom validator
-    @register_validator(name="contains_word", data_type="string")
-    class SimpleValidator(Validator):
-        """Checks if text contains a specific word."""
-
-        def __init__(self, word_to_find, on_fail="noop"):
-            super().__init__(on_fail=on_fail)
-            self.word_to_find = word_to_find
-
-        def validate(self, value, metadata=None):
-            if self.word_to_find in value:
-                return self.pass_validation(value)
-            else:
-                return self.fail_validation(value, f"Text must contain '{self.word_to_find}'")
-
-    # Create a Guardrails validator
-    validator = SimpleValidator(word_to_find="important")
-
-    # Create a Sifaka rule using the Guardrails validator
-    rule = create_guardrails_rule(
-        guardrails_validator=validator,
-        rule_id="important_word_rule",
-        name="Important Word Check",
-        description="Checks if text contains the word 'important'"
-    )
-
-    # Validate some text
-    valid_text = "This is an important point to consider."
-    invalid_text = "This is something to consider."
-
-    # Check valid text
-    result = rule.validate(valid_text)
-    print(f"Valid text: {result.passed}, Message: {result.message}")
-
-    # Check invalid text
-    result = rule.validate(invalid_text)
-    print(f"Invalid text: {result.passed}, Message: {result.message}")
-
-except ImportError:
-    print("Guardrails is not installed. Install with: pip install guardrails-ai")
-except Exception as e:
-    print(f"Error using Guardrails: {str(e)}")
-    print("This may be due to version compatibility issues.")
-    print("For more complex examples, see the Guardrails documentation:")
-    print("https://www.guardrailsai.com/docs/")
-```
-
 ## Advanced Chain Example
 
 This more advanced example shows how to create a chain with multiple rules and critics:
