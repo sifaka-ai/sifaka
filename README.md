@@ -75,44 +75,56 @@ Sifaka follows a modular architecture with several key components working togeth
 graph TD
     A[User Input] --> B[Chain]
     B --> C[Model Provider]
-    C --> D[Rules]
-    D --> E[Critics]
-    E --> F[Output]
-    D --> G[Classifiers]
-    G --> E
+    C --> D[Validation Manager]
+    D --> E[Rules]
+    E --> F[Critics]
+    F --> G[Result Formatter]
+    G --> H[Output]
+    D --> I[Classifiers]
+    I --> F
+    F --> C
+    subgraph Chain Core
+        B
+        D
+        G
+    end
 ```
 
 ### Core Components
 
-1. **Model Providers**
+1. **Chain Core**
+   - Orchestrates the entire process
+   - Manages retry strategies and error handling
+   - Coordinates between all components
+   - Includes:
+     - `ValidationManager`: Handles rule validation
+     - `PromptManager`: Manages prompt formatting
+     - `ResultFormatter`: Formats final output
+
+2. **Model Providers**
    - Interface with different LLM APIs (OpenAI, Anthropic, etc.)
    - Handle API key management and request formatting
    - Support streaming and non-streaming responses
 
-2. **Rules**
+3. **Rules**
    - Validate responses against specific criteria
    - Can be combined in rule chains
    - Support custom rule creation
    - Examples: length rules, style rules, content rules
 
-3. **Critics**
+4. **Critics**
    - Analyze and improve model outputs
    - Two main types:
      - `PromptCritic`: Single-pass improvement
      - `ReflexionCritic`: Learning-based improvement with memory
    - Can be chained for multi-step refinement
+   - Provide feedback to guide model retries
 
-4. **Classifiers**
+5. **Classifiers**
    - Analyze text for specific attributes
    - Support multiple classification types
    - Configurable thresholds and parameters
    - Can be used for content safety and quality control
-
-5. **Chains**
-   - Orchestrate the validation and improvement process
-   - Support different retry strategies
-   - Can combine multiple rules and critics
-   - Handle error cases and fallbacks
 
 ### Configuration System
 
