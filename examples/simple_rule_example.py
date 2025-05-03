@@ -23,7 +23,7 @@ from typing import Dict, List
 
 # Import Sifaka components
 from sifaka.rules.formatting.length import create_length_rule
-from sifaka.rules.formatting.style import create_style_rule
+from sifaka.rules.formatting.style import create_style_rule, CapitalizationStyle
 from sifaka.rules.content.prohibited import create_prohibited_content_rule
 
 
@@ -33,21 +33,21 @@ from sifaka.rules.content.prohibited import create_prohibited_content_rule
 def demonstrate_length_rule():
     """Demonstrate the usage of a length rule."""
     print("\n=== Length Rule Example ===\n")
-    
+
     # Create a length rule
     length_rule = create_length_rule(
         min_chars=10,
         max_chars=50,
         rule_id="length_constraint"
     )
-    
+
     # Test texts
     texts = [
         "Too short.",
         "This is a good length text that meets the requirements.",
         "This text is too long because it exceeds the maximum character limit that we have set for this example to demonstrate length validation."
     ]
-    
+
     # Validate each text
     for i, text in enumerate(texts):
         result = length_rule.validate(text)
@@ -61,14 +61,14 @@ def demonstrate_length_rule():
 def demonstrate_style_rule():
     """Demonstrate the usage of a style rule."""
     print("\n=== Style Rule Example ===\n")
-    
+
     # Create a style rule that requires sentence case
     style_rule = create_style_rule(
-        capitalization="sentence",
+        capitalization=CapitalizationStyle.SENTENCE_CASE,
         require_end_punctuation=True,
         rule_id="style_constraint"
     )
-    
+
     # Test texts
     texts = [
         "This is proper sentence case with punctuation.",
@@ -76,7 +76,7 @@ def demonstrate_style_rule():
         "This has no end punctuation",
         "ALL CAPS TEXT IS NOT SENTENCE CASE."
     ]
-    
+
     # Validate each text
     for i, text in enumerate(texts):
         result = style_rule.validate(text)
@@ -88,20 +88,20 @@ def demonstrate_style_rule():
 def demonstrate_prohibited_content_rule():
     """Demonstrate the usage of a prohibited content rule."""
     print("\n=== Prohibited Content Rule Example ===\n")
-    
+
     # Create a prohibited content rule
     prohibited_rule = create_prohibited_content_rule(
         terms=["bad", "inappropriate", "offensive"],
         rule_id="content_constraint"
     )
-    
+
     # Test texts
     texts = [
         "This is a good text with appropriate content.",
         "This text contains a bad word that should be flagged.",
         "Content with inappropriate or offensive language should be detected."
     ]
-    
+
     # Validate each text
     for i, text in enumerate(texts):
         result = prohibited_rule.validate(text)
@@ -118,23 +118,23 @@ def demonstrate_prohibited_content_rule():
 def validate_with_multiple_rules(text: str, rules: List) -> Dict:
     """
     Validate text with multiple rules.
-    
+
     Args:
         text: The text to validate
         rules: List of rules to apply
-        
+
     Returns:
         Dictionary with validation results
     """
     results = {}
     all_passed = True
-    
+
     for rule in rules:
         result = rule.validate(text)
         results[rule._name] = result
         if not result.passed:
             all_passed = False
-    
+
     return {
         "text": text,
         "all_passed": all_passed,
@@ -145,14 +145,14 @@ def validate_with_multiple_rules(text: str, rules: List) -> Dict:
 def demonstrate_multiple_rules():
     """Demonstrate using multiple rules together."""
     print("\n=== Multiple Rules Example ===\n")
-    
+
     # Create rules
     rules = [
         create_length_rule(min_chars=10, max_chars=100, rule_id="length_rule"),
-        create_style_rule(capitalization="sentence", rule_id="style_rule"),
+        create_style_rule(capitalization=CapitalizationStyle.SENTENCE_CASE, rule_id="style_rule"),
         create_prohibited_content_rule(terms=["bad", "inappropriate"], rule_id="content_rule")
     ]
-    
+
     # Test texts
     texts = [
         "This is a good text that passes all rules.",
@@ -160,18 +160,18 @@ def demonstrate_multiple_rules():
         "This contains a bad word that should be flagged.",
         "this starts with lowercase and is inappropriate."
     ]
-    
+
     # Validate each text with all rules
     for i, text in enumerate(texts):
         print(f"Text {i+1}: {text}")
-        
+
         validation = validate_with_multiple_rules(text, rules)
         print(f"All rules passed: {validation['all_passed']}")
-        
+
         print("Individual rule results:")
         for rule_name, result in validation['results'].items():
             print(f"  - {rule_name}: {'Passed' if result.passed else 'Failed'} - {result.message}")
-        
+
         print()
 
 
@@ -181,15 +181,15 @@ def demonstrate_multiple_rules():
 def main():
     """Run the main example."""
     print("Starting Simple Rule Example...")
-    
+
     # Demonstrate individual rules
     demonstrate_length_rule()
     demonstrate_style_rule()
     demonstrate_prohibited_content_rule()
-    
+
     # Demonstrate multiple rules
     demonstrate_multiple_rules()
-    
+
     print("Example completed successfully!")
 
 

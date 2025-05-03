@@ -27,9 +27,6 @@ extras_require = {
     "language": ["langdetect>=1.0.9"],
     "readability": ["textstat>=0.7.3"],
     "ner": ["spacy>=3.8.0"],
-    # Integrations
-    "langgraph": ["langgraph>=0.0.19"],
-    "langchain": ["langchain>=0.1.9", "langchain-anthropic>=0.3.12", "langchain-openai>=0.3.14"],
     # Development
     "dev": [
         "pytest>=8.0.2",

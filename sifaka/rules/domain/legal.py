@@ -2,56 +2,174 @@
 Legal domain-specific validation rules for Sifaka.
 
 This module provides validators and rules for checking legal content, citations, and terminology.
+It enables validation of legal documents against various requirements such as disclaimer presence,
+citation formatting, and legal terminology usage.
 
-Configuration Pattern:
-    This module follows the standard Sifaka configuration pattern:
-    - All rule-specific configuration is stored in RuleConfig.params
-    - The LegalConfig, LegalCitationConfig, and LegalTermsConfig classes extend RuleConfig
-      and provide type-safe access to parameters
-    - Factory functions (create_legal_rule, create_legal_citation_rule, create_legal_terms_rule)
-      handle configuration
+## Architecture Overview
 
-Usage Example:
-    from sifaka.rules.domain.legal import create_legal_rule, create_legal_citation_rule, create_legal_terms_rule
+The legal validation system follows a component-based architecture with three main rule types:
 
-    # Create a legal rule
-    legal_rule = create_legal_rule(
-        disclaimer_required=True,
-        legal_terms={
-            "jurisdiction": ["court", "venue", "forum"],
-            "liability": ["liability", "responsibility", "duty"]
-        }
-    )
+1. **Legal Content Rules**: Validate general legal content requirements
+   - Disclaimer presence and format
+   - Legal terminology usage
+   - Content structure
 
-    # Create a legal citation rule
-    citation_rule = create_legal_citation_rule(
-        citation_patterns=[r"\d+\s+U\.S\.\s+\d+", r"\d+\s+S\.\s*Ct\.\s+\d+"],
-        require_citations=True,
-        min_citations=1
-    )
+2. **Legal Citation Rules**: Validate legal citations
+   - Citation presence and count
+   - Citation format validation
+   - Citation requirements
 
-    # Create a legal terms rule
-    terms_rule = create_legal_terms_rule(
-        required_terms={"disclaimer", "notice"},
-        prohibited_terms={"guarantee", "warranty"}
-    )
+3. **Legal Terms Rules**: Validate legal terminology
+   - Required terms presence
+   - Prohibited terms absence
+   - Warning terms detection
 
-    # Validate text
-    result = legal_rule.validate("This legal document is subject to the jurisdiction of the court.")
+Each rule type follows a consistent pattern:
+- Configuration class (LegalConfig, LegalCitationConfig, LegalTermsConfig)
+- Protocol interface (LegalValidator, LegalCitationValidator, LegalTermsValidator)
+- Default validator implementation (DefaultLegalValidator, DefaultLegalCitationValidator, DefaultLegalTermsValidator)
+- Rule implementation (LegalRule, LegalCitationRule, LegalTermsRule)
+- Factory functions for creation (create_legal_rule, create_legal_citation_rule, create_legal_terms_rule)
 
-    # Alternative: Create with explicit RuleConfig
-    from sifaka.rules.base import BaseValidator, RuleConfig, Any
-    rule = LegalRule(
-        config=RuleConfig(
-            params={
-                "disclaimer_required": True,
-                "legal_terms": {
-                    "jurisdiction": ["court", "venue", "forum"],
-                    "liability": ["liability", "responsibility", "duty"]
-                }
-            }
-        )
-    )
+## Component Lifecycle
+
+### Configuration Classes
+1. **Creation**: Instantiate with default or custom values
+2. **Validation**: Values are validated by Pydantic
+3. **Usage**: Pass to validator and rule constructors
+
+### Validator Classes
+1. **Initialization**: Set up with configuration
+2. **Analyzer Creation**: Create specialized analyzers
+3. **Validation**: Check text against requirements
+4. **Result**: Return RuleResult with validation details
+
+### Rule Classes
+1. **Initialization**: Set up with configuration
+2. **Validator Creation**: Create validator if not provided
+3. **Validation**: Delegate to validator
+4. **Result**: Return RuleResult from validator
+
+## Error Handling Patterns
+
+The legal validation system implements several error handling patterns:
+
+1. **Configuration Validation**: Validates all configuration values
+   - Ensures required fields are present
+   - Validates field types and constraints
+   - Provides clear error messages for invalid configuration
+
+2. **Input Validation**: Validates input text
+   - Checks for proper string type
+   - Handles empty text appropriately
+   - Provides clear error messages for invalid input
+
+3. **Exception Handling**: Catches and handles exceptions
+   - Wraps validation logic in try/except blocks
+   - Returns failure results with error details
+   - Preserves original exception information
+
+## Usage Examples
+
+### Basic Legal Rule Usage
+
+```python
+from sifaka.rules.domain.legal import create_legal_rule
+
+# Create a legal rule
+legal_rule = create_legal_rule(
+    disclaimer_required=True,
+    legal_terms={
+        "jurisdiction": ["court", "venue", "forum"],
+        "liability": ["liability", "responsibility", "duty"]
+    }
+)
+
+# Validate text
+result = legal_rule.validate("This legal document is subject to the jurisdiction of the court.")
+print(f"Valid: {result.passed}")
+print(f"Message: {result.message}")
+print(f"Has disclaimer: {result.metadata.get('has_disclaimer')}")
+print(f"Legal term counts: {result.metadata.get('legal_term_counts')}")
+```
+
+### Legal Citation Rule Usage
+
+```python
+from sifaka.rules.domain.legal import create_legal_citation_rule
+
+# Create a legal citation rule
+citation_rule = create_legal_citation_rule(
+    citation_patterns=[r"\d+\s+U\.S\.\s+\d+", r"\d+\s+S\.\s*Ct\.\s+\d+"],
+    require_citations=True,
+    min_citations=1,
+    max_citations=10
+)
+
+# Validate text
+text = "As the Supreme Court held in 410 U.S. 113 and reaffirmed in 505 U.S. 833..."
+result = citation_rule.validate(text)
+print(f"Valid: {result.passed}")
+print(f"Message: {result.message}")
+print(f"Total citations: {result.metadata.get('total_citations')}")
+```
+
+### Legal Terms Rule Usage
+
+```python
+from sifaka.rules.domain.legal import create_legal_terms_rule
+
+# Create a legal terms rule
+terms_rule = create_legal_terms_rule(
+    required_terms={"disclaimer", "notice"},
+    prohibited_terms={"guarantee", "warranty"},
+    case_sensitive=False
+)
+
+# Validate text
+text = "DISCLAIMER: This document contains a legal notice and is provided for informational purposes only."
+result = terms_rule.validate(text)
+print(f"Valid: {result.passed}")
+print(f"Message: {result.message}")
+print(f"Legal terms found: {result.metadata.get('legal_terms_found')}")
+print(f"Warning terms found: {result.metadata.get('warning_terms_found')}")
+```
+
+### Using Multiple Rules Together
+
+```python
+from sifaka.rules.domain.legal import (
+    create_legal_rule,
+    create_legal_citation_rule,
+    create_legal_terms_rule
+)
+
+# Create rules
+legal_rule = create_legal_rule(disclaimer_required=True)
+citation_rule = create_legal_citation_rule(require_citations=True)
+terms_rule = create_legal_terms_rule(required_terms={"notice"})
+
+# Validate text
+text = "NOTICE: This document contains legal information. As held in 410 U.S. 113..."
+results = [
+    legal_rule.validate(text),
+    citation_rule.validate(text),
+    terms_rule.validate(text)
+]
+
+# Check if all rules passed
+all_passed = all(result.passed for result in results)
+print(f"All rules passed: {all_passed}")
+```
+
+## Configuration Pattern
+
+This module follows the standard Sifaka configuration pattern:
+- All rule-specific configuration is stored in specialized config classes
+- The LegalConfig, LegalCitationConfig, and LegalTermsConfig classes provide type-safe access to parameters
+- Factory functions (create_legal_rule, create_legal_citation_rule, create_legal_terms_rule) handle configuration
+- Validator factory functions create standalone validators
+- Rule factory functions create rules with validators
 """
 
 # Standard library
@@ -108,7 +226,90 @@ __all__ = [
 
 
 class LegalConfig(BaseModel):
-    """Configuration for legal rules."""
+    """
+    Configuration for legal rules.
+
+    This class defines the configuration options for legal content validation,
+    including legal terms, citation patterns, disclaimers, and validation settings.
+    It's used by DefaultLegalValidator and LegalRule to determine validation behavior.
+
+    ## Architecture
+
+    LegalConfig follows a component-based architecture:
+    - Uses Pydantic for schema validation
+    - Provides default values for all configuration options
+    - Includes field validators for critical parameters
+    - Supports immutability through frozen=True
+
+    ## Lifecycle
+
+    1. **Creation**: Instantiate with default or custom values
+       - Create directly with parameters
+       - Create from dictionary with model_validate
+       - Create through factory functions
+
+    2. **Validation**: Values are validated by Pydantic
+       - Type checking for all fields
+       - Custom validators for legal_terms, citation_patterns, and disclaimers
+       - Range validation for numeric fields
+
+    3. **Usage**: Pass to validators and rules
+       - Used by DefaultLegalValidator
+       - Used by LegalRule._create_default_validator
+       - Used by create_legal_validator
+
+    ## Error Handling
+
+    - Type validation through Pydantic
+    - Custom validators ensure legal_terms, citation_patterns, and disclaimers are not empty
+    - Range validation for numeric fields (cache_size, priority, cost)
+    - Immutability prevents accidental modification
+
+    ## Examples
+
+    Basic usage:
+
+    ```python
+    from sifaka.rules.domain.legal import LegalConfig
+
+    # Create with default values
+    config = LegalConfig()
+
+    # Create with custom values
+    config = LegalConfig(
+        legal_terms=["copyright", "trademark", "patent"],
+        citation_patterns=[r"\d+\s+U\.S\.\s+\d+", r"\d+\s+S\.\s*Ct\.\s+\d+"],
+        disclaimers=["This is not legal advice", "Consult an attorney"],
+        disclaimer_required=True,
+        cache_size=200,
+        priority=2,
+        cost=1.5
+    )
+
+    # Access configuration values
+    print(f"Legal terms: {config.legal_terms}")
+    print(f"Disclaimer required: {config.disclaimer_required}")
+    ```
+
+    Using with validators:
+
+    ```python
+    from sifaka.rules.domain.legal import LegalConfig, DefaultLegalValidator
+
+    # Create config
+    config = LegalConfig(
+        legal_terms=["copyright", "trademark"],
+        disclaimer_required=True
+    )
+
+    # Create validator with config
+    validator = DefaultLegalValidator(config)
+
+    # Validate text
+    result = validator.validate("This document contains copyright information.")
+    print(f"Valid: {result.passed}")
+    ```
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -194,7 +395,96 @@ class LegalConfig(BaseModel):
 
 
 class LegalCitationConfig(BaseModel):
-    """Configuration for legal citation validation."""
+    """
+    Configuration for legal citation validation.
+
+    This class defines the configuration options for legal citation validation,
+    including citation patterns, requirements, and validation settings.
+    It's used by DefaultLegalCitationValidator and LegalCitationRule to determine
+    validation behavior.
+
+    ## Architecture
+
+    LegalCitationConfig follows a component-based architecture:
+    - Uses Pydantic for schema validation
+    - Provides default values for all configuration options
+    - Includes field validators for critical parameters
+    - Enforces logical constraints between parameters
+
+    ## Lifecycle
+
+    1. **Creation**: Instantiate with default or custom values
+       - Create directly with parameters
+       - Create from dictionary with model_validate
+       - Create through factory functions
+
+    2. **Validation**: Values are validated by Pydantic
+       - Type checking for all fields
+       - Custom validators for citation_patterns
+       - Range validation for numeric fields
+       - Logical validation (max_citations >= min_citations)
+
+    3. **Usage**: Pass to validators and rules
+       - Used by DefaultLegalCitationValidator
+       - Used by LegalCitationRule._create_default_validator
+       - Used by create_legal_citation_validator
+
+    ## Error Handling
+
+    - Type validation through Pydantic
+    - Custom validators ensure citation_patterns contains only strings
+    - Range validation for numeric fields (min_citations, max_citations, cache_size, priority, cost)
+    - Logical validation ensures max_citations is greater than or equal to min_citations
+
+    ## Examples
+
+    Basic usage:
+
+    ```python
+    from sifaka.rules.domain.legal import LegalCitationConfig
+
+    # Create with default values
+    config = LegalCitationConfig()
+
+    # Create with custom values
+    config = LegalCitationConfig(
+        citation_patterns=[r"\d+\s+U\.S\.\s+\d+", r"\d+\s+S\.\s*Ct\.\s+\d+"],
+        require_citations=True,
+        min_citations=1,
+        max_citations=10,
+        cache_size=200,
+        priority=2,
+        cost=1.5
+    )
+
+    # Access configuration values
+    print(f"Citation patterns: {config.citation_patterns}")
+    print(f"Require citations: {config.require_citations}")
+    print(f"Min citations: {config.min_citations}")
+    print(f"Max citations: {config.max_citations}")
+    ```
+
+    Using with validators:
+
+    ```python
+    from sifaka.rules.domain.legal import LegalCitationConfig, DefaultLegalCitationValidator
+
+    # Create config
+    config = LegalCitationConfig(
+        citation_patterns=[r"\d+\s+U\.S\.\s+\d+"],
+        require_citations=True,
+        min_citations=1
+    )
+
+    # Create validator with config
+    validator = DefaultLegalCitationValidator(config)
+
+    # Validate text
+    result = validator.validate("The Supreme Court held in 410 U.S. 113 that...")
+    print(f"Valid: {result.passed}")
+    print(f"Total citations: {result.metadata.get('total_citations')}")
+    ```
+    """
 
     citation_patterns: List[str] = Field(
         default_factory=lambda: [
@@ -253,7 +543,94 @@ class LegalCitationConfig(BaseModel):
 
 
 class LegalTermsConfig(BaseModel):
-    """Configuration for legal terms validation."""
+    """
+    Configuration for legal terms validation.
+
+    This class defines the configuration options for legal terminology validation,
+    including legal terms, warning terms, required terms, prohibited terms, and
+    validation settings. It's used by DefaultLegalTermsValidator and LegalTermsRule
+    to determine validation behavior.
+
+    ## Architecture
+
+    LegalTermsConfig follows a component-based architecture:
+    - Uses Pydantic for schema validation
+    - Provides default values for all configuration options
+    - Supports case-sensitive and case-insensitive matching
+    - Allows flexible term categorization
+
+    ## Lifecycle
+
+    1. **Creation**: Instantiate with default or custom values
+       - Create directly with parameters
+       - Create from dictionary with model_validate
+       - Create through factory functions
+
+    2. **Validation**: Values are validated by Pydantic
+       - Type checking for all fields
+       - Range validation for numeric fields
+       - Set-based term storage for efficient lookups
+
+    3. **Usage**: Pass to validators and rules
+       - Used by DefaultLegalTermsValidator
+       - Used by LegalTermsRule._create_default_validator
+       - Used by create_legal_terms_validator
+
+    ## Error Handling
+
+    - Type validation through Pydantic
+    - Range validation for numeric fields (cache_size, priority, cost)
+    - Set-based term storage prevents duplicates
+
+    ## Examples
+
+    Basic usage:
+
+    ```python
+    from sifaka.rules.domain.legal import LegalTermsConfig
+
+    # Create with default values
+    config = LegalTermsConfig()
+
+    # Create with custom values
+    config = LegalTermsConfig(
+        legal_terms={"copyright", "trademark", "patent"},
+        warning_terms={"warning", "caution", "notice"},
+        required_terms={"disclaimer", "notice"},
+        prohibited_terms={"guarantee", "warranty"},
+        case_sensitive=False,
+        cache_size=200,
+        priority=2,
+        cost=1.5
+    )
+
+    # Access configuration values
+    print(f"Legal terms: {config.legal_terms}")
+    print(f"Required terms: {config.required_terms}")
+    print(f"Prohibited terms: {config.prohibited_terms}")
+    print(f"Case sensitive: {config.case_sensitive}")
+    ```
+
+    Using with validators:
+
+    ```python
+    from sifaka.rules.domain.legal import LegalTermsConfig, DefaultLegalTermsValidator
+
+    # Create config
+    config = LegalTermsConfig(
+        required_terms={"disclaimer", "notice"},
+        prohibited_terms={"guarantee", "warranty"}
+    )
+
+    # Create validator with config
+    validator = DefaultLegalTermsValidator(config)
+
+    # Validate text
+    result = validator.validate("DISCLAIMER: This document contains a legal notice.")
+    print(f"Valid: {result.passed}")
+    print(f"Legal terms found: {result.metadata.get('legal_terms_found')}")
+    ```
+    """
 
     legal_terms: Set[str] = Field(
         default_factory=lambda: {
@@ -306,7 +683,57 @@ class LegalTermsConfig(BaseModel):
 
 @runtime_checkable
 class LegalValidator(Protocol):
-    """Protocol for legal content validation."""
+    """
+    Protocol for legal content validation.
+
+    This protocol defines the interface that all legal content validators must implement.
+    It ensures that validators provide a consistent interface for validation and
+    configuration access.
+
+    ## Interface Requirements
+
+    Implementing classes must provide:
+    - A validate method that accepts text and returns a RuleResult
+    - A config property that returns a LegalConfig instance
+
+    ## Usage
+
+    This protocol enables runtime type checking and duck typing for legal validators:
+
+    ```python
+    from sifaka.rules.domain.legal import LegalValidator, DefaultLegalValidator, LegalConfig
+
+    # Create a validator
+    config = LegalConfig()
+    validator = DefaultLegalValidator(config)
+
+    # Check if an object implements the protocol
+    if isinstance(validator, LegalValidator):
+        # Use the validator
+        result = validator.validate("This is a legal document.")
+        print(f"Valid: {result.passed}")
+        print(f"Config: {validator.config}")
+    ```
+
+    Custom validators can also implement this protocol:
+
+    ```python
+    class CustomLegalValidator:
+        def __init__(self, config: LegalConfig):
+            self._config = config
+
+        @property
+        def config(self) -> LegalConfig:
+            return self._config
+
+        def validate(self, text: str) -> RuleResult:
+            # Custom validation logic
+            return RuleResult(passed=True, message="Custom validation passed")
+
+    # This will return True at runtime
+    isinstance(CustomLegalValidator(LegalConfig()), LegalValidator)
+    ```
+    """
 
     def validate(self, text: str) -> RuleResult: ...
     @property
@@ -315,7 +742,61 @@ class LegalValidator(Protocol):
 
 @runtime_checkable
 class LegalCitationValidator(Protocol):
-    """Protocol for legal citation validation."""
+    """
+    Protocol for legal citation validation.
+
+    This protocol defines the interface that all legal citation validators must implement.
+    It ensures that validators provide a consistent interface for validation and
+    configuration access.
+
+    ## Interface Requirements
+
+    Implementing classes must provide:
+    - A validate method that accepts text and returns a RuleResult
+    - A config property that returns a LegalCitationConfig instance
+
+    ## Usage
+
+    This protocol enables runtime type checking and duck typing for citation validators:
+
+    ```python
+    from sifaka.rules.domain.legal import (
+        LegalCitationValidator,
+        DefaultLegalCitationValidator,
+        LegalCitationConfig
+    )
+
+    # Create a validator
+    config = LegalCitationConfig()
+    validator = DefaultLegalCitationValidator(config)
+
+    # Check if an object implements the protocol
+    if isinstance(validator, LegalCitationValidator):
+        # Use the validator
+        result = validator.validate("As held in 410 U.S. 113...")
+        print(f"Valid: {result.passed}")
+        print(f"Config: {validator.config}")
+    ```
+
+    Custom validators can also implement this protocol:
+
+    ```python
+    class CustomCitationValidator:
+        def __init__(self, config: LegalCitationConfig):
+            self._config = config
+
+        @property
+        def config(self) -> LegalCitationConfig:
+            return self._config
+
+        def validate(self, text: str) -> RuleResult:
+            # Custom validation logic
+            return RuleResult(passed=True, message="Custom validation passed")
+
+    # This will return True at runtime
+    isinstance(CustomCitationValidator(LegalCitationConfig()), LegalCitationValidator)
+    ```
+    """
 
     def validate(self, text: str) -> RuleResult: ...
     @property
@@ -324,7 +805,61 @@ class LegalCitationValidator(Protocol):
 
 @runtime_checkable
 class LegalTermsValidator(Protocol):
-    """Protocol for legal terms validation."""
+    """
+    Protocol for legal terms validation.
+
+    This protocol defines the interface that all legal terminology validators must implement.
+    It ensures that validators provide a consistent interface for validation and
+    configuration access.
+
+    ## Interface Requirements
+
+    Implementing classes must provide:
+    - A validate method that accepts text and returns a RuleResult
+    - A config property that returns a LegalTermsConfig instance
+
+    ## Usage
+
+    This protocol enables runtime type checking and duck typing for terminology validators:
+
+    ```python
+    from sifaka.rules.domain.legal import (
+        LegalTermsValidator,
+        DefaultLegalTermsValidator,
+        LegalTermsConfig
+    )
+
+    # Create a validator
+    config = LegalTermsConfig()
+    validator = DefaultLegalTermsValidator(config)
+
+    # Check if an object implements the protocol
+    if isinstance(validator, LegalTermsValidator):
+        # Use the validator
+        result = validator.validate("DISCLAIMER: This document contains legal terms.")
+        print(f"Valid: {result.passed}")
+        print(f"Config: {validator.config}")
+    ```
+
+    Custom validators can also implement this protocol:
+
+    ```python
+    class CustomTermsValidator:
+        def __init__(self, config: LegalTermsConfig):
+            self._config = config
+
+        @property
+        def config(self) -> LegalTermsConfig:
+            return self._config
+
+        def validate(self, text: str) -> RuleResult:
+            # Custom validation logic
+            return RuleResult(passed=True, message="Custom validation passed")
+
+    # This will return True at runtime
+    isinstance(CustomTermsValidator(LegalTermsConfig()), LegalTermsValidator)
+    ```
+    """
 
     def validate(self, text: str) -> RuleResult: ...
     @property
@@ -337,7 +872,63 @@ class LegalTermsValidator(Protocol):
 
 
 class _DisclaimerAnalyzer(BaseModel):
-    """Detect whether a text contains at least one required disclaimer pattern."""
+    """
+    Detect whether a text contains at least one required disclaimer pattern.
+
+    This internal helper class analyzes text for the presence of legal disclaimers
+    using regular expression patterns. It follows the Single Responsibility Principle
+    by focusing solely on disclaimer detection.
+
+    ## Architecture
+
+    _DisclaimerAnalyzer follows a component-based architecture:
+    - Uses Pydantic for configuration validation
+    - Compiles regex patterns during initialization
+    - Provides a simple API for disclaimer detection
+
+    ## Lifecycle
+
+    1. **Initialization**: Set up with disclaimer patterns
+       - Initialize with list of disclaimer patterns
+       - Compile patterns with re.IGNORECASE for case-insensitive matching
+
+    2. **Detection**: Check text for disclaimers
+       - Search text for any compiled pattern
+       - Return boolean indicating presence of at least one disclaimer
+
+    ## Error Handling
+
+    - Pattern compilation during initialization
+    - Efficient pattern matching using pre-compiled regexes
+    - Boolean return value simplifies error handling
+
+    ## Examples
+
+    ```python
+    from sifaka.rules.domain.legal import _DisclaimerAnalyzer
+
+    # Create analyzer with disclaimer patterns
+    analyzer = _DisclaimerAnalyzer(
+        patterns=[
+            "This is not legal advice",
+            "Consult an attorney",
+            "For informational purposes only"
+        ]
+    )
+
+    # Check if text contains a disclaimer
+    has_disclaimer = analyzer.contains_disclaimer(
+        "DISCLAIMER: This document is for informational purposes only."
+    )
+    print(f"Has disclaimer: {has_disclaimer}")  # True
+
+    # Check text without disclaimer
+    has_disclaimer = analyzer.contains_disclaimer(
+        "This document contains legal information."
+    )
+    print(f"Has disclaimer: {has_disclaimer}")  # False
+    ```
+    """
 
     patterns: List[str] = Field(default_factory=list)
 
@@ -352,7 +943,68 @@ class _DisclaimerAnalyzer(BaseModel):
 
 
 class _LegalTermAnalyzer(BaseModel):
-    """Count occurrences of legal terms grouped by category."""
+    """
+    Count occurrences of legal terms grouped by category.
+
+    This internal helper class analyzes text for the presence and frequency of legal
+    terms organized by category. It follows the Single Responsibility Principle by
+    focusing solely on legal term analysis.
+
+    ## Architecture
+
+    _LegalTermAnalyzer follows a component-based architecture:
+    - Uses Pydantic for configuration validation
+    - Compiles regex patterns during initialization
+    - Organizes terms by category for structured analysis
+    - Uses word boundary matching for accurate term detection
+
+    ## Lifecycle
+
+    1. **Initialization**: Set up with categorized terms
+       - Initialize with dictionary mapping categories to term lists
+       - Compile patterns with word boundaries and case-insensitive matching
+       - Store compiled patterns by category
+
+    2. **Analysis**: Count term occurrences by category
+       - Search text for all compiled patterns in each category
+       - Count occurrences of each term
+       - Return dictionary mapping categories to occurrence counts
+
+    ## Error Handling
+
+    - Pattern compilation during initialization
+    - Efficient pattern matching using pre-compiled regexes
+    - Dictionary return value provides structured results
+
+    ## Examples
+
+    ```python
+    from sifaka.rules.domain.legal import _LegalTermAnalyzer
+
+    # Create analyzer with categorized legal terms
+    analyzer = _LegalTermAnalyzer(
+        terms={
+            "jurisdiction": ["court", "venue", "forum"],
+            "liability": ["liability", "responsibility", "duty"],
+            "confidentiality": ["confidential", "private", "sensitive"]
+        }
+    )
+
+    # Analyze text for legal terms
+    counts = analyzer.analyze(
+        "This document is subject to the jurisdiction of the court. "
+        "The parties accept no liability for any damages."
+    )
+
+    # Print counts by category
+    for category, count in counts.items():
+        print(f"{category}: {count}")
+    # Output:
+    # jurisdiction: 2
+    # liability: 1
+    # confidentiality: 0
+    ```
+    """
 
     terms: Dict[str, List[str]] = Field(default_factory=dict)
 
@@ -372,7 +1024,65 @@ class _LegalTermAnalyzer(BaseModel):
 
 
 class _CitationAnalyzer(BaseModel):
-    """Locate citations, validate formatting, and compute totals."""
+    """
+    Locate citations, validate formatting, and compute totals.
+
+    This internal helper class analyzes text for legal citations using regular
+    expression patterns. It follows the Single Responsibility Principle by
+    focusing solely on citation extraction and validation.
+
+    ## Architecture
+
+    _CitationAnalyzer follows a component-based architecture:
+    - Uses Pydantic for configuration validation
+    - Compiles regex patterns during initialization
+    - Provides methods for citation extraction and validation
+
+    ## Lifecycle
+
+    1. **Initialization**: Set up with citation patterns
+       - Initialize with list of citation regex patterns
+       - Compile patterns for efficient matching
+
+    2. **Extraction**: Extract citations from text
+       - Search text for all compiled patterns
+       - Extract matching citations
+       - Return list of found citations
+
+    3. **Validation**: Validate citation format
+       - Check if citations match expected patterns
+       - Return list of invalid citations
+
+    ## Error Handling
+
+    - Pattern compilation during initialization
+    - Efficient pattern matching using pre-compiled regexes
+    - List return values provide all matched or invalid citations
+
+    ## Examples
+
+    ```python
+    from sifaka.rules.domain.legal import _CitationAnalyzer
+
+    # Create analyzer with citation patterns
+    analyzer = _CitationAnalyzer(
+        patterns=[
+            r"\d+\s+U\.S\.\s+\d+",  # US Reports
+            r"\d+\s+S\.\s*Ct\.\s+\d+",  # Supreme Court Reporter
+            r"\d+\s+F\.\s*\d+d\s+\d+"  # Federal Reporter
+        ]
+    )
+
+    # Extract citations from text
+    text = "As the Supreme Court held in 410 U.S. 113 and reaffirmed in 505 U.S. 833..."
+    citations = analyzer.extract(text)
+    print(f"Citations found: {citations}")  # ['410 U.S. 113', '505 U.S. 833']
+
+    # Check for invalid citations
+    invalid = analyzer.invalid(citations)
+    print(f"Invalid citations: {invalid}")  # []
+    ```
+    """
 
     patterns: List[str] = Field(default_factory=list)
 
@@ -392,7 +1102,85 @@ class _CitationAnalyzer(BaseModel):
 
 
 class DefaultLegalValidator(BaseDomainValidator):
-    """Default implementation of legal content validation (delegates to analyzers)."""
+    """
+    Default implementation of legal content validation (delegates to analyzers).
+
+    This class implements the LegalValidator interface for legal content validation.
+    It delegates the actual validation logic to specialized analyzer components,
+    following the standard Sifaka delegation pattern.
+
+    ## Architecture
+
+    DefaultLegalValidator follows a component-based architecture:
+    - Inherits from BaseDomainValidator for common validation functionality
+    - Uses LegalConfig for configuration
+    - Delegates to _DisclaimerAnalyzer for disclaimer detection
+    - Delegates to _LegalTermAnalyzer for legal term analysis
+    - Implements LegalValidator protocol
+
+    ## Lifecycle
+
+    1. **Initialization**: Set up with configuration
+       - Initialize with LegalConfig
+       - Create _DisclaimerAnalyzer with disclaimer patterns
+       - Create _LegalTermAnalyzer with legal terms
+
+    2. **Validation**: Check text for legal content
+       - Validate input text type
+       - Delegate to analyzers for content analysis
+       - Check disclaimer requirements
+       - Return RuleResult with validation results and metadata
+
+    ## Error Handling
+
+    - Input validation (text must be a string)
+    - Exception handling with informative error messages
+    - Detailed metadata for debugging and analysis
+
+    ## Examples
+
+    Basic usage:
+
+    ```python
+    from sifaka.rules.domain.legal import DefaultLegalValidator, LegalConfig
+
+    # Create configuration
+    config = LegalConfig(
+        legal_terms={"jurisdiction": ["court", "venue", "forum"]},
+        disclaimers=["This is not legal advice"],
+        disclaimer_required=True
+    )
+
+    # Create validator
+    validator = DefaultLegalValidator(config)
+
+    # Validate text
+    result = validator.validate(
+        "DISCLAIMER: This is not legal advice. This document is subject to the jurisdiction of the court."
+    )
+    print(f"Valid: {result.passed}")
+    print(f"Message: {result.message}")
+    print(f"Has disclaimer: {result.metadata.get('has_disclaimer')}")
+    print(f"Legal term counts: {result.metadata.get('legal_term_counts')}")
+    ```
+
+    Using with factory function:
+
+    ```python
+    from sifaka.rules.domain.legal import create_legal_validator
+
+    # Create validator using factory function
+    validator = create_legal_validator(
+        legal_terms={"jurisdiction": ["court", "venue", "forum"]},
+        disclaimers=["This is not legal advice"],
+        disclaimer_required=True
+    )
+
+    # Validate text
+    result = validator.validate("This document is subject to the jurisdiction of the court.")
+    print(f"Valid: {result.passed}")
+    ```
+    """
 
     def __init__(self, config: LegalConfig) -> None:
         super().__init__(config)
@@ -525,7 +1313,9 @@ class DefaultLegalTermsValidator(BaseDomainValidator):
         flags = 0 if config.case_sensitive else re.IGNORECASE
 
         # Pre-compile sets for quick membership checks
-        self._legal_patterns = [re.compile(r"\b" + re.escape(t) + r"\b", flags) for t in config.legal_terms]
+        self._legal_patterns = [
+            re.compile(r"\b" + re.escape(t) + r"\b", flags) for t in config.legal_terms
+        ]
         self._warning_patterns = [
             re.compile(r"\b" + re.escape(t) + r"\b", flags) for t in config.warning_terms
         ]

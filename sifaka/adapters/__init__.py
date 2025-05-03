@@ -17,79 +17,35 @@ external libraries and services without tight coupling:
 
 Sifaka provides several types of adapters:
 
-1. **LangChain Adapters**: Integration with LangChain chains, agents, and memory
-2. **LangGraph Adapters**: Integration with LangGraph state graphs and nodes
-3. **Rules Adapters**: Adapters that convert external components to Sifaka rules
-4. **Classifier Adapters**: Special adapters for text classification systems
+1. **Rules Adapters**: Adapters that convert external components to Sifaka rules
+2. **Classifier Adapters**: Special adapters for text classification systems
 
 ## Usage Patterns
 
 The recommended way to use adapters is through factory functions:
 
 ```python
-# LangChain example
-from langchain.chains import LLMChain
-from sifaka.adapters import wrap_chain, create_simple_langchain
-from sifaka.rules.content import create_sentiment_rule
+from sifaka.adapters import ClassifierAdapter, create_classifier_rule
+from sifaka.classifiers.toxicity import ToxicityClassifier
 
-# Create rules
-rule = create_sentiment_rule(valid_labels=["positive", "neutral"])
+# Create a classifier
+classifier = ToxicityClassifier()
 
-# Method 1: Create a wrapped chain from existing components
-chain = LLMChain(...)
-wrapped_chain = wrap_chain(chain, rules=[rule])
-
-# Method 2: Create a chain with integrated Sifaka features
-sifaka_chain = create_simple_langchain(
-    llm=llm,
-    prompt=prompt,
-    rules=[rule],
-    critique=True
+# Create a rule from the classifier
+rule = create_classifier_rule(
+    classifier=classifier,
+    valid_labels=["non_toxic"],
+    threshold=0.8,
+    name="toxicity_rule",
+    description="Validates that text is not toxic"
 )
 
-# LangGraph example
-from langgraph.graph import StateGraph
-from sifaka.adapters import wrap_graph
-
-graph = StateGraph()
-# ... define graph nodes and edges
-
-sifaka_graph = wrap_graph(
-    graph=graph,
-    rules=[rule]
-)
+# Use the rule for validation
+result = rule.validate("This is a friendly message")
 ```
 
 For details on specific adapter implementations, see the respective module documentation.
 """
-
-# LangChain adapters
-from sifaka.adapters.langchain import (
-    ChainValidator,
-    ChainOutputProcessor,
-    ChainMemory,
-    ChainConfig,
-    SifakaChain,
-    RuleBasedValidator as LangChainRuleBasedValidator,
-    SifakaMemory,
-    create_simple_langchain,
-    wrap_chain,
-    wrap_memory,
-)
-
-# LangGraph adapters
-from sifaka.adapters.langgraph import (
-    GraphValidator,
-    GraphProcessor,
-    GraphNode,
-    GraphConfig,
-    SifakaGraph,
-    SifakaNode,
-    RuleBasedValidator as LangGraphRuleBasedValidator,
-    create_simple_graph,
-    wrap_graph,
-    wrap_node,
-)
 
 # Rules adapters
 from sifaka.adapters.rules import (
@@ -114,30 +70,6 @@ except ImportError:
     GUARDRAILS_AVAILABLE = False
 
 __all__ = [
-    # LangChain adapters
-    "ChainValidator",
-    "ChainOutputProcessor",
-    "ChainMemory",
-    "ChainConfig",
-    "SifakaChain",
-    "LangChainRuleBasedValidator",
-    "SifakaMemory",
-    "create_simple_langchain",
-    "wrap_chain",
-    "wrap_memory",
-
-    # LangGraph adapters
-    "GraphValidator",
-    "GraphProcessor",
-    "GraphNode",
-    "GraphConfig",
-    "SifakaGraph",
-    "SifakaNode",
-    "LangGraphRuleBasedValidator",
-    "create_simple_graph",
-    "wrap_graph",
-    "wrap_node",
-
     # Rules adapters
     "Adaptable",
     "BaseAdapter",

@@ -72,7 +72,16 @@ except RuntimeError as e:
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
 from datetime import datetime
-from typing import Any, Callable, Dict, Generic, Optional, Protocol, TypeVar, Union, runtime_checkable
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    Optional,
+    Protocol,
+    TypeVar,
+    runtime_checkable,
+)
 
 from sifaka.utils.logging import get_logger
 from sifaka.utils.tracing import Tracer
@@ -83,6 +92,7 @@ logger = get_logger(__name__)
 T = TypeVar("T", bound="ModelProvider")
 R = TypeVar("R")  # Return type for model operations
 C = TypeVar("C", bound="ModelConfig")  # Config type
+
 
 @dataclass(frozen=True)
 class ModelConfig:
@@ -720,8 +730,43 @@ class ModelProvider(ABC, Generic[C]):
         """
         Create a default configuration for this provider.
 
+        This method creates a default configuration when none is provided during
+        initialization. It's used by the constructor to ensure a valid configuration
+        is always available.
+
+        ## Lifecycle
+
+        1. **Creation**: Create a default ModelConfig instance
+           - Use default values for all parameters
+           - Cast to the generic type C for type safety
+
+        2. **Customization**: Provider-specific subclasses can override
+           - Override to provide model-specific defaults
+           - Override to use provider-specific config classes
+
+        ## Examples
+
+        Basic implementation:
+
+        ```python
+        def _create_default_config(self) -> ModelConfig:
+            return ModelConfig()
+        ```
+
+        Provider-specific implementation:
+
+        ```python
+        class AnthropicProvider(ModelProvider[AnthropicConfig]):
+            def _create_default_config(self) -> AnthropicConfig:
+                return AnthropicConfig(
+                    temperature=0.7,
+                    max_tokens=1000,
+                    system_prompt="You are a helpful assistant."
+                )
+        ```
+
         Returns:
-            A default configuration
+            A default configuration instance appropriate for this provider
         """
         return ModelConfig()  # type: ignore
 
@@ -755,11 +800,54 @@ class ModelProvider(ABC, Generic[C]):
         """
         Ensure an API client is available, creating a default one if needed.
 
+        This method implements the lazy initialization pattern for the API client.
+        It checks if an API client has been provided during initialization, and if not,
+        creates a default one using the _create_default_client method.
+
+        ## Lifecycle
+
+        1. **Check Existence**: Check if an API client already exists
+           - Return existing client if available
+           - Create default client if none exists
+
+        2. **Creation**: Create default client if needed
+           - Call _create_default_client abstract method
+           - Log the creation for debugging
+           - Store the created client for future use
+
+        3. **Validation**: Ensure client implements APIClient protocol
+           - Runtime type checking ensures protocol compliance
+           - Proper error propagation if creation fails
+
+        ## Error Handling
+
+        This method handles these error cases:
+        - Propagates exceptions from _create_default_client
+        - Logs client creation for debugging
+        - Ensures created client implements APIClient protocol
+
+        ## Examples
+
+        ```python
+        class MyModelProvider(ModelProvider):
+            def _create_default_client(self) -> APIClient:
+                # Implementation of abstract method
+                return MyAPIClient(base_url="https://api.example.com")
+
+            def generate(self, prompt: str, **kwargs) -> str:
+                # Get API client (creates default if needed)
+                client = self._ensure_api_client()
+
+                # Use client to send prompt
+                return client.send_prompt(prompt, self.config)
+        ```
+
         Returns:
-            The API client to use
+            The API client to use (existing or newly created)
 
         Raises:
             RuntimeError: If a default client cannot be created
+            TypeError: If the created client doesn't implement APIClient protocol
         """
         if self._api_client is None:
             logger.debug(f"Creating default API client for {self.model_name}")
@@ -770,11 +858,54 @@ class ModelProvider(ABC, Generic[C]):
         """
         Ensure a token counter is available, creating a default one if needed.
 
+        This method implements the lazy initialization pattern for the token counter.
+        It checks if a token counter has been provided during initialization, and if not,
+        creates a default one using the _create_default_token_counter method.
+
+        ## Lifecycle
+
+        1. **Check Existence**: Check if a token counter already exists
+           - Return existing counter if available
+           - Create default counter if none exists
+
+        2. **Creation**: Create default counter if needed
+           - Call _create_default_token_counter abstract method
+           - Log the creation for debugging
+           - Store the created counter for future use
+
+        3. **Validation**: Ensure counter implements TokenCounter protocol
+           - Runtime type checking ensures protocol compliance
+           - Proper error propagation if creation fails
+
+        ## Error Handling
+
+        This method handles these error cases:
+        - Propagates exceptions from _create_default_token_counter
+        - Logs counter creation for debugging
+        - Ensures created counter implements TokenCounter protocol
+
+        ## Examples
+
+        ```python
+        class MyModelProvider(ModelProvider):
+            def _create_default_token_counter(self) -> TokenCounter:
+                # Implementation of abstract method
+                return MyTokenCounter(model=self.model_name)
+
+            def count_tokens(self, text: str) -> int:
+                # Get token counter (creates default if needed)
+                counter = self._ensure_token_counter()
+
+                # Use counter to count tokens
+                return counter.count_tokens(text)
+        ```
+
         Returns:
-            The token counter to use
+            The token counter to use (existing or newly created)
 
         Raises:
             RuntimeError: If a default token counter cannot be created
+            TypeError: If the created counter doesn't implement TokenCounter protocol
         """
         if self._token_counter is None:
             logger.debug(f"Creating default token counter for {self.model_name}")
@@ -785,9 +916,64 @@ class ModelProvider(ABC, Generic[C]):
         """
         Record a trace event if tracing is enabled.
 
+        This method provides a standardized way to record events for monitoring,
+        debugging, and analysis. It only records events if tracing is enabled
+        in the configuration.
+
+        ## Lifecycle
+
+        1. **Check Enabled**: Check if tracing is enabled
+           - Skip recording if tracing is disabled
+           - Continue if tracing is enabled and tracer exists
+
+        2. **Generate ID**: Create a unique trace ID
+           - Combine model name with timestamp
+           - Ensures uniqueness across traces
+
+        3. **Record Event**: Add event to tracer
+           - Pass event type and data to tracer
+           - Associate with the generated trace ID
+
+        ## Common Event Types
+
+        - **generate**: Records generation events with performance metrics
+        - **token_count**: Records token counting operations
+        - **error**: Records errors that occur during operations
+        - **config_change**: Records configuration changes
+
+        ## Examples
+
+        ```python
+        class MyModelProvider(ModelProvider):
+            def generate(self, prompt: str, **kwargs) -> str:
+                # Record start of generation
+                self._trace_event(
+                    "generate_start",
+                    {
+                        "prompt_length": len(prompt),
+                        "temperature": self.config.temperature
+                    }
+                )
+
+                # Generate response
+                response = "Generated text"
+
+                # Record successful generation
+                self._trace_event(
+                    "generate_complete",
+                    {
+                        "prompt_length": len(prompt),
+                        "response_length": len(response),
+                        "duration_ms": 150
+                    }
+                )
+
+                return response
+        ```
+
         Args:
-            event_type: The type of event to record
-            data: The data to record with the event
+            event_type: The type of event to record (e.g., "generate", "token_count")
+            data: The data to record with the event as key-value pairs
         """
         if self._tracer and self._config.trace_enabled:
             trace_id = datetime.now().strftime(f"{self.model_name}_%Y%m%d%H%M%S")
@@ -979,7 +1165,7 @@ def create_model_provider(
     api_key: Optional[str] = None,
     temperature: float = 0.7,
     max_tokens: int = 1000,
-    **kwargs
+    **kwargs,
 ) -> T:
     """
     Factory function to create a model provider with a standardized configuration.
@@ -1049,9 +1235,5 @@ def create_model_provider(
         )
         ```
     """
-    config = ModelConfig(
-        temperature=temperature,
-        max_tokens=max_tokens,
-        api_key=api_key
-    )
+    config = ModelConfig(temperature=temperature, max_tokens=max_tokens, api_key=api_key)
     return provider_type(model_name=model_name, config=config, **kwargs)

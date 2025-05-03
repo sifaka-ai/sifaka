@@ -66,7 +66,87 @@ __all__ = [
 
 
 class ProhibitedContentConfig(BaseModel):
-    """Configuration for prohibited content validation."""
+    """
+    Configuration for prohibited content validation.
+
+    This class defines the configuration options for prohibited content validation,
+    including terms to check for, detection threshold, and matching options.
+    It's used by ProhibitedContentValidator implementations to determine validation behavior.
+
+    ## Lifecycle
+
+    1. **Creation**: Instantiate with default or custom values
+       - Create directly with parameters
+       - Create from dictionary with model_validate
+       - Create from RuleConfig.params
+
+    2. **Validation**: Values are validated by Pydantic
+       - Type checking for all fields
+       - Range validation for threshold (0.0-1.0)
+       - Minimum length validation for terms list
+       - Immutability enforced by frozen=True
+
+    3. **Usage**: Pass to validators and rules
+       - Used by ProhibitedContentAnalyzer
+       - Used by DefaultProhibitedContentValidator
+       - Used by ProhibitedContentRule._create_default_validator
+       - Used by create_prohibited_content_validator factory function
+
+    ## Error Handling
+
+    - Type validation through Pydantic
+    - Range validation for threshold (0.0-1.0)
+    - Immutability prevents accidental modification
+    - Extra fields rejected with extra="forbid"
+
+    ## Examples
+
+    Basic usage:
+
+    ```python
+    from sifaka.rules.content.prohibited import ProhibitedContentConfig
+
+    # Create with default values
+    config = ProhibitedContentConfig()
+
+    # Create with custom values
+    config = ProhibitedContentConfig(
+        terms=["inappropriate", "offensive", "vulgar"],
+        threshold=0.7,
+        case_sensitive=True
+    )
+
+    # Create from dictionary
+    config_dict = {
+        "terms": ["inappropriate", "offensive"],
+        "threshold": 0.8,
+        "case_sensitive": False
+    }
+    config = ProhibitedContentConfig.model_validate(config_dict)
+    ```
+
+    Using with validators:
+
+    ```python
+    from sifaka.rules.content.prohibited import (
+        ProhibitedContentConfig,
+        DefaultProhibitedContentValidator
+    )
+
+    # Create config
+    config = ProhibitedContentConfig(
+        terms=["inappropriate", "offensive"],
+        threshold=0.7
+    )
+
+    # Create validator with config
+    validator = DefaultProhibitedContentValidator(config)
+
+    # Validate text
+    result = validator.validate("This is a test.")
+    print(f"Valid: {result.passed}")
+    ```
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -105,7 +185,83 @@ class ProhibitedContentConfig(BaseModel):
 
 
 class ProhibitedContentAnalyzer:
-    """Analyzer for prohibited content detection."""
+    """
+    Analyzer for prohibited content detection.
+
+    This class is responsible for analyzing text for prohibited content using
+    a ProfanityClassifier. It follows the Single Responsibility Principle by
+    focusing solely on content analysis.
+
+    ## Architecture
+
+    ProhibitedContentAnalyzer follows a component-based architecture:
+    - Uses ProhibitedContentConfig for configuration
+    - Delegates classification to ProfanityClassifier
+    - Provides methods for analysis and capability checking
+
+    ## Lifecycle
+
+    1. **Initialization**: Set up with configuration
+       - Initialize with ProhibitedContentConfig
+       - Extract configuration parameters
+       - Create ProfanityClassifier with custom words
+
+    2. **Analysis**: Check text for prohibited content
+       - Delegate to ProfanityClassifier for content detection
+       - Interpret classification results
+       - Return RuleResult with validation results and metadata
+
+    3. **Capability Check**: Determine if text can be analyzed
+       - Check if input is a string
+       - Return boolean indicating capability
+
+    ## Error Handling
+
+    - Type checking for input text
+    - Delegation to ProfanityClassifier for classification errors
+    - Detailed metadata for debugging and analysis
+
+    ## Examples
+
+    Basic usage:
+
+    ```python
+    from sifaka.rules.content.prohibited import ProhibitedContentAnalyzer, ProhibitedContentConfig
+
+    # Create configuration
+    config = ProhibitedContentConfig(
+        terms=["inappropriate", "offensive"],
+        threshold=0.7
+    )
+
+    # Create analyzer
+    analyzer = ProhibitedContentAnalyzer(config)
+
+    # Check if text can be analyzed
+    if analyzer.can_analyze("This is a test."):
+        # Analyze text
+        result = analyzer.analyze("This is a test.")
+        print(f"Valid: {result.passed}")
+        print(f"Confidence: {result.metadata.get('confidence')}")
+        print(f"Label: {result.metadata.get('label')}")
+    ```
+
+    Using with custom terms:
+
+    ```python
+    # Create analyzer with custom terms
+    config = ProhibitedContentConfig(
+        terms=["custom_term1", "custom_term2"],
+        threshold=0.8,
+        case_sensitive=True
+    )
+    analyzer = ProhibitedContentAnalyzer(config)
+
+    # Analyze text containing custom terms
+    result = analyzer.analyze("This text contains custom_term1.")
+    print(f"Valid: {result.passed}")
+    ```
+    """
 
     def __init__(self, config: ProhibitedContentConfig) -> None:
         """Initialize with configuration.
@@ -158,7 +314,80 @@ class ProhibitedContentAnalyzer:
 
 
 class DefaultProhibitedContentValidator(BaseValidator[str]):
-    """Default validator for prohibited content."""
+    """
+    Default validator for prohibited content.
+
+    This class implements the BaseValidator interface for prohibited content validation.
+    It delegates the actual validation logic to a ProhibitedContentAnalyzer instance,
+    following the standard Sifaka delegation pattern.
+
+    ## Architecture
+
+    DefaultProhibitedContentValidator follows a component-based architecture:
+    - Inherits from BaseValidator for common validation functionality
+    - Uses ProhibitedContentConfig for configuration
+    - Delegates analysis to ProhibitedContentAnalyzer
+    - Handles empty text consistently using BaseValidator.handle_empty_text
+
+    ## Lifecycle
+
+    1. **Initialization**: Set up with configuration
+       - Initialize with ProhibitedContentConfig
+       - Create ProhibitedContentAnalyzer with configuration
+
+    2. **Validation**: Check text for prohibited content
+       - Handle empty text using BaseValidator.handle_empty_text
+       - Delegate to ProhibitedContentAnalyzer for content detection
+       - Return RuleResult with validation results
+
+    ## Error Handling
+
+    - Empty text handling through BaseValidator.handle_empty_text
+    - Delegation to ProhibitedContentAnalyzer for analysis errors
+    - Configuration validation through ProhibitedContentConfig
+
+    ## Examples
+
+    Basic usage:
+
+    ```python
+    from sifaka.rules.content.prohibited import (
+        DefaultProhibitedContentValidator,
+        ProhibitedContentConfig
+    )
+
+    # Create configuration
+    config = ProhibitedContentConfig(
+        terms=["inappropriate", "offensive"],
+        threshold=0.7
+    )
+
+    # Create validator
+    validator = DefaultProhibitedContentValidator(config)
+
+    # Validate text
+    result = validator.validate("This is a test.")
+    print(f"Valid: {result.passed}")
+
+    # Handle empty text
+    result = validator.validate("")
+    print(f"Empty text result: {result.passed}")
+    print(f"Message: {result.message}")
+    ```
+
+    Accessing configuration:
+
+    ```python
+    # Create validator
+    config = ProhibitedContentConfig(terms=["term1", "term2"])
+    validator = DefaultProhibitedContentValidator(config)
+
+    # Access configuration
+    print(f"Terms: {validator.config.terms}")
+    print(f"Threshold: {validator.config.threshold}")
+    print(f"Case sensitive: {validator.config.case_sensitive}")
+    ```
+    """
 
     def __init__(self, config: ProhibitedContentConfig) -> None:
         """Initialize with configuration.
@@ -197,7 +426,84 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
 class ProhibitedContentRule(
     Rule[str, RuleResult, DefaultProhibitedContentValidator, RuleResultHandler[RuleResult]]
 ):
-    """Rule for validating prohibited content."""
+    """
+    Rule for validating prohibited content.
+
+    This class implements the Rule interface for prohibited content validation.
+    It delegates the actual validation logic to a DefaultProhibitedContentValidator
+    instance, following the standard Sifaka delegation pattern.
+
+    ## Architecture
+
+    ProhibitedContentRule follows a component-based architecture:
+    - Inherits from Rule for common rule functionality
+    - Delegates validation to DefaultProhibitedContentValidator
+    - Uses RuleConfig for configuration
+    - Creates a default validator if none is provided
+
+    ## Lifecycle
+
+    1. **Initialization**: Set up with configuration and validator
+       - Initialize with name, description, config, and optional validator
+       - Create default validator if none is provided
+
+    2. **Validation**: Check text for prohibited content
+       - Delegate to validator for validation logic
+       - Add rule_id to metadata for traceability
+       - Return RuleResult with validation results
+
+    ## Error Handling
+
+    - Validator creation through _create_default_validator
+    - Validation delegation to validator
+    - Rule identification through rule_id in metadata
+
+    ## Examples
+
+    Basic usage:
+
+    ```python
+    from sifaka.rules.content.prohibited import ProhibitedContentRule
+    from sifaka.rules.base import RuleConfig
+
+    # Create rule with default validator
+    rule = ProhibitedContentRule(
+        name="prohibited_content_rule",
+        description="Validates text for prohibited content",
+        config=RuleConfig(
+            params={
+                "terms": ["inappropriate", "offensive"],
+                "threshold": 0.7,
+                "case_sensitive": False
+            }
+        )
+    )
+
+    # Validate text
+    result = rule.validate("This is a test.")
+    print(f"Valid: {result.passed}")
+
+    # Check rule identification
+    print(f"Rule ID: {result.metadata.get('rule_id')}")
+    ```
+
+    Using with factory function:
+
+    ```python
+    from sifaka.rules.content.prohibited import create_prohibited_content_rule
+
+    # Create rule using factory function
+    rule = create_prohibited_content_rule(
+        name="custom_prohibited_rule",
+        terms=["term1", "term2"],
+        threshold=0.8
+    )
+
+    # Validate text
+    result = rule.validate("This text contains term1.")
+    print(f"Valid: {result.passed}")
+    ```
+    """
 
     def __init__(
         self,
@@ -257,7 +563,71 @@ def create_prohibited_content_validator(
     case_sensitive: Optional[bool] = None,
     **kwargs: Any,
 ) -> DefaultProhibitedContentValidator:
-    """Create a prohibited content validator.
+    """
+    Create a prohibited content validator.
+
+    This factory function creates a configured DefaultProhibitedContentValidator instance.
+    It's useful when you need a validator without creating a full rule.
+
+    ## Lifecycle
+
+    1. **Parameter Processing**: Process input parameters
+       - Extract configuration parameters (terms, threshold, case_sensitive)
+       - Handle optional parameters with None values
+       - Collect additional parameters from kwargs
+
+    2. **Configuration Creation**: Create configuration object
+       - Create ProhibitedContentConfig with processed parameters
+       - Apply validation through Pydantic
+
+    3. **Validator Creation**: Create validator instance
+       - Create DefaultProhibitedContentValidator with configuration
+       - Return the configured validator
+
+    ## Error Handling
+
+    - Parameter validation through ProhibitedContentConfig
+    - Optional parameters handled gracefully
+    - Additional parameters passed through kwargs
+
+    ## Examples
+
+    Basic usage:
+
+    ```python
+    from sifaka.rules.content.prohibited import create_prohibited_content_validator
+
+    # Create validator with default settings
+    validator = create_prohibited_content_validator()
+
+    # Create validator with custom settings
+    validator = create_prohibited_content_validator(
+        terms=["inappropriate", "offensive"],
+        threshold=0.7,
+        case_sensitive=True
+    )
+
+    # Validate text
+    result = validator.validate("This is a test.")
+    print(f"Valid: {result.passed}")
+    ```
+
+    Using with additional configuration:
+
+    ```python
+    # Create validator with additional configuration
+    validator = create_prohibited_content_validator(
+        terms=["term1", "term2"],
+        threshold=0.8,
+        cache_size=200,
+        priority=2,
+        cost=0.5
+    )
+
+    # Access configuration
+    print(f"Terms: {validator.config.terms}")
+    print(f"Cache size: {validator.config.cache_size}")
+    ```
 
     Args:
         terms: List of prohibited terms to check for
@@ -295,7 +665,80 @@ def create_prohibited_content_rule(
     case_sensitive: Optional[bool] = None,
     **kwargs: Any,
 ) -> ProhibitedContentRule:
-    """Create a prohibited content rule.
+    """
+    Create a prohibited content rule.
+
+    This factory function creates a configured ProhibitedContentRule instance.
+    It uses create_prohibited_content_validator internally to create the validator.
+
+    ## Lifecycle
+
+    1. **Parameter Processing**: Process input parameters
+       - Extract rule parameters (name, description)
+       - Extract configuration parameters (terms, threshold, case_sensitive)
+       - Extract RuleConfig parameters (priority, cache_size, cost)
+       - Handle optional parameters with None values
+
+    2. **Validator Creation**: Create validator instance
+       - Call create_prohibited_content_validator with processed parameters
+       - Pass through relevant parameters
+
+    3. **Configuration Creation**: Create RuleConfig object
+       - Create params dictionary with processed parameters
+       - Create RuleConfig with params and rule parameters
+
+    4. **Rule Creation**: Create rule instance
+       - Create ProhibitedContentRule with name, description, config, and validator
+       - Return the configured rule
+
+    ## Error Handling
+
+    - Parameter validation through ProhibitedContentConfig
+    - Optional parameters handled gracefully
+    - RuleConfig parameters extracted and processed separately
+
+    ## Examples
+
+    Basic usage:
+
+    ```python
+    from sifaka.rules.content.prohibited import create_prohibited_content_rule
+
+    # Create rule with default settings
+    rule = create_prohibited_content_rule()
+
+    # Create rule with custom settings
+    rule = create_prohibited_content_rule(
+        name="custom_prohibited_rule",
+        description="Custom rule for prohibited content",
+        terms=["inappropriate", "offensive"],
+        threshold=0.7,
+        case_sensitive=True
+    )
+
+    # Validate text
+    result = rule.validate("This is a test.")
+    print(f"Valid: {result.passed}")
+    print(f"Rule ID: {result.metadata.get('rule_id')}")
+    ```
+
+    Using with additional configuration:
+
+    ```python
+    # Create rule with additional configuration
+    rule = create_prohibited_content_rule(
+        terms=["term1", "term2"],
+        threshold=0.8,
+        cache_size=200,
+        priority=2,
+        cost=0.5
+    )
+
+    # Access configuration
+    print(f"Rule name: {rule._name}")
+    print(f"Cache size: {rule.config.cache_size}")
+    print(f"Priority: {rule.config.priority}")
+    ```
 
     Args:
         name: The name of the rule

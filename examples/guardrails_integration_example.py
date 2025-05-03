@@ -32,7 +32,7 @@ except ImportError:
     print("⚠️ Guardrails is not installed. Please install it with 'pip install guardrails-ai'")
 
 # Import the Guardrails adapter
-from sifaka.rules.adapters.guardrails_adapter import create_guardrails_rule
+from sifaka.adapters.rules.guardrails_adapter import create_guardrails_rule
 
 # Configure Claude model
 model = AnthropicProvider(
