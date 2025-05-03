@@ -67,74 +67,82 @@ Sifaka's functionality can be extended through optional dependencies:
 - ✅ **Model Agnostic**: Works with Claude, OpenAI, and other LLM providers
 - ✅ **Streamlined Configuration**: Unified configuration system using ClassifierConfig and RuleConfig
 
-## Architecture
+## Core Concepts
 
-Sifaka follows a modular architecture with several key components working together:
+### What is a Chain?
+
+A Chain is the central orchestrator that processes text through a series of steps:
+1. Takes input text
+2. Sends it to a language model
+3. Validates the output
+4. Improves it if needed
+5. Returns the final result
 
 ```mermaid
 graph TD
-    subgraph Chain Core
-        PM[Prompt Manager]
-        VS[Validation Manager]
-        RS[Retry Strategy]
-        RF[Result Formatter]
+    subgraph Chain
+        direction LR
+        Input --> Model
+        Model --> Validation
+        Validation --> |Pass| Output
+        Validation --> |Fail| Critics
+        Critics --> Model
     end
-
-    I[Input] --> PM
-    PM --> MP[Model Provider]
-    MP --> VS
-    VS --> R[Rules]
-    VS --> C[Classifiers]
-
-    VS --> |Validation Failed| CR[Critics]
-    CR --> |Feedback| PM
-    VS --> |Validation Passed| RF
-    RF --> O[Output]
-
-    style Chain Core fill:#f5f5f5,stroke:#333,stroke-width:2px
 ```
 
-### Core Components
+### Components of a Chain
 
-1. **Chain Core**
-   - Central orchestrator containing:
-     - `PromptManager`: Handles prompt formatting and feedback incorporation
-     - `ValidationManager`: Coordinates rule and classifier validation
-     - `RetryStrategy`: Manages retry attempts and backoff
-     - `ResultFormatter`: Formats final outputs and feedback
+1. **Model Provider**
+   - Connects to LLMs (OpenAI, Claude, etc.)
+   - Handles the actual text generation
 
-2. **Model Providers**
-   - Interface with different LLM APIs (OpenAI, Anthropic, etc.)
-   - Handle API key management and request formatting
-   - Support streaming and non-streaming responses
+2. **Rules vs Classifiers**
+   - Rules: Binary pass/fail checks
+     - Example: "Text must be 100-200 words"
+     - Example: "Must not contain profanity"
+   - Classifiers: Analyze and categorize text
+     - Example: "Is this toxic or safe?"
+     - Example: "What language is this written in?"
+   - A Classifier can be turned into a Rule:
+     ```python
+     # Classifier says: "This text is in English (confidence: 0.9)"
+     # Rule says: "PASS if classifier says English with >0.7 confidence"
+     ```
 
-3. **Rules & Classifiers**
-   - Validate responses against specific criteria
-   - Rules: length, style, content restrictions
-   - Classifiers: toxicity, sentiment, profanity detection
-   - Can be combined and prioritized
-   - Support custom implementations
+3. **Critics**
+   - Help improve text that fails validation
+   - Two types:
+     - `PromptCritic`: One-shot improvement
+       ```
+       Input: "Text too long"
+       Output: "Here's how to make it shorter..."
+       ```
+     - `ReflexionCritic`: Learns from past attempts
+       ```
+       Attempt 1: "Too informal"
+       Attempt 2: "Better but still casual"
+       Attempt 3: "Now I understand - needs to be business formal"
+       ```
 
-4. **Critics**
-   - Analyze and improve model outputs when validation fails
-   - Two main types:
-     - `PromptCritic`: Single-pass improvement
-     - `ReflexionCritic`: Learning-based improvement with memory
-   - Provide feedback for retry attempts
+### How it Works
 
-### Flow Description
+1. You create a chain with your components:
+   ```python
+   chain = create_simple_chain(
+       model=claude_model,
+       rules=[length_rule, language_rule],
+       critic=writing_critic
+   )
+   ```
 
-1. Input is received by the Prompt Manager
-2. Prompt Manager formats and sends to Model Provider
-3. Model output is sent to Validation Manager
-4. Validation Manager coordinates Rules and Classifiers
-5. If validation fails:
-   - Critics analyze and provide feedback
-   - Feedback is sent back to Prompt Manager
-   - Process repeats with retry strategy
-6. If validation passes:
-   - Result Formatter processes the output
-   - Final result is returned
+2. The chain manages the improvement loop:
+   ```python
+   result = chain.run("Write about AI")
+   # 1. Sends to model
+   # 2. Checks rules
+   # 3. If fails, uses critic to improve
+   # 4. Tries again until success or max attempts
+   ```
 
 ## Configuration System
 
