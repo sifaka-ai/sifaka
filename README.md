@@ -67,6 +67,89 @@ Sifaka's functionality can be extended through optional dependencies:
 - ✅ **Model Agnostic**: Works with Claude, OpenAI, and other LLM providers
 - ✅ **Streamlined Configuration**: Unified configuration system using ClassifierConfig and RuleConfig
 
+## API Key Handling
+
+Sifaka provides a safe and flexible way to manage API keys for various model providers.
+
+### Setting Up API Keys
+
+You can provide API keys in several ways:
+
+1. **Environment Variables** (recommended):
+   ```python
+   # In your .env file
+   ANTHROPIC_API_KEY=your_anthropic_key_here
+   OPENAI_API_KEY=your_openai_key_here
+   GUARDRAILS_API_KEY=your_guardrails_key_here
+   ```
+
+   ```python
+   # In your Python code
+   from dotenv import load_dotenv
+   load_dotenv()  # Load keys from .env file
+
+   # Create provider without explicitly passing the key
+   from sifaka.models.anthropic import AnthropicProvider
+   model = AnthropicProvider(model_name="claude-3-haiku-20240307")
+   # The API key will be loaded from the environment
+   ```
+
+2. **Explicit Configuration**:
+   ```python
+   from sifaka.models.base import ModelConfig
+   from sifaka.models.anthropic import AnthropicProvider
+
+   model = AnthropicProvider(
+       model_name="claude-3-haiku-20240307",
+       config=ModelConfig(
+           api_key="your_api_key_here",
+           temperature=0.7,
+           max_tokens=1000,
+       )
+   )
+   ```
+
+### Handling Missing API Keys
+
+Sifaka has built-in safety checks to prevent API calls when keys are missing:
+
+```python
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+from sifaka.models.anthropic import AnthropicProvider
+from sifaka.models.base import ModelConfig
+
+# Check if API key is available
+api_key = os.environ.get("ANTHROPIC_API_KEY")
+if not api_key:
+    print("Warning: No API key found in environment variables.")
+    print("Using a placeholder for testing only.")
+    api_key = "test_key_for_examples"  # This won't work for real API calls
+
+# Initialize model with safety checks
+try:
+    model = AnthropicProvider(
+        model_name="claude-3-haiku-20240307",
+        config=ModelConfig(
+            api_key=api_key,
+            temperature=0.7,
+            max_tokens=1000,
+        )
+    )
+
+    # Will only run if a valid API key is available
+    if api_key != "test_key_for_examples":
+        response = model.generate("Hello, world!")
+        print(f"Model response: {response}")
+    else:
+        print("Skipping API call due to missing API key")
+
+except ValueError as e:
+    print(f"Error: {e}")
+    print("Please set your API key in the .env file or provide it directly")
+
 ## Core Components
 
 ### 1. Rules
@@ -116,7 +199,7 @@ from sifaka.models.anthropic import AnthropicProvider
 
 # Create a reflexion critic that uses Claude
 reflexion_critic = create_reflexion_critic(
-    model=claude_model,
+    llm_provider=claude_model,
     name="reflexion_critic",
     description="A critic that learns from past feedback",
     system_prompt="You are an editor who learns from past feedback to improve future edits.",
@@ -132,10 +215,10 @@ Chains orchestrate the validation and improvement process. Sifaka provides two w
 #### Simple Chain Creation
 
 ```python
-from sifaka.chain import ChainOrchestrator
+from sifaka.chain import create_simple_chain
 
 # Create a chain with a model, rules, and critic
-chain = ChainOrchestrator(
+chain = create_simple_chain(
     model=model,            # LLM Provider
     rules=[length_rule],    # Validation rules
     critic=critic,          # Improvement critic
@@ -151,7 +234,37 @@ result = chain.run("Write about artificial intelligence")
 For more control and customization, use the factory functions:
 
 ```python
+from sifaka.models.anthropic import AnthropicProvider
+from sifaka.models.base import ModelConfig
+from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
+from sifaka.rules.formatting.length import create_length_rule
 from sifaka.chain import create_simple_chain, create_backoff_chain
+
+# First, create a proper model provider
+model = AnthropicProvider(
+    model_name="claude-3-haiku-20240307",
+    config=ModelConfig(
+        api_key=api_key,
+        temperature=0.7,
+        max_tokens=1000,
+    )
+)
+
+# Create a length rule
+length_rule = create_length_rule(
+    min_words=100,
+    max_words=200
+)
+
+# Create a critic - make sure to pass the model object to llm_provider
+critic = PromptCritic(
+    llm_provider=model,  # Pass the model OBJECT here, not a string
+    config=PromptCriticConfig(
+        name="length_critic",
+        description="A critic that helps adjust text length",
+        system_prompt="You are an editor who specializes in adjusting text length."
+    )
+)
 
 # Create a simple chain with fixed retry attempts
 chain = create_simple_chain(
@@ -240,131 +353,434 @@ config = RuleConfig(
 
 ## Usage Examples
 
-### Example 1: Claude with Length Critic (Condense Text)
+### Example 1: Basic Length Rule
 
-This example uses Claude with a critic to reduce verbose responses:
+This example demonstrates how to use a simple length rule:
 
 ```python
-# Load environment variables (.env file with ANTHROPIC_API_KEY)
-from dotenv import load_dotenv
-load_dotenv()
+from sifaka.rules.formatting.length import create_length_rule
 
+# Create a length rule to ensure text is within 100-500 words
+length_rule = create_length_rule(
+    min_words=100,   # Minimum word count
+    max_words=500,   # Maximum word count
+    rule_id="word_limit_rule",
+    description="Ensures text is between 100-500 words"
+)
+
+# Validate some text
+text = "This is a short test."
+result = length_rule.validate(text)
+
+# Check if validation passed
+if result.passed:
+    print("Text meets length requirements")
+else:
+    print(f"Text failed length check: {result.message}")
+```
+
+### Example 2: Using a PromptCritic with Claude
+
+This example shows how to use a PromptCritic with Claude to improve text quality:
+
+```python
 import os
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env file
+
 from sifaka.models.anthropic import AnthropicProvider
 from sifaka.models.base import ModelConfig
-from sifaka.rules.formatting.length import create_length_rule
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
-from sifaka.chain import ChainOrchestrator
+
+# Get API key from environment
+api_key = os.environ.get("ANTHROPIC_API_KEY")
+if not api_key:
+    print("Warning: ANTHROPIC_API_KEY not found in environment variables")
+    print("Using a placeholder key for demonstration purposes only")
+    print("Set your ANTHROPIC_API_KEY to run this example with real API calls")
+    api_key = "placeholder_key"  # This won't work for actual API calls
 
 # Configure Claude model
 model = AnthropicProvider(
-    model_name="claude-3-sonnet-20240229",
+    model_name="claude-3-haiku-20240307",  # Fast, efficient model
     config=ModelConfig(
-        api_key=os.environ.get("ANTHROPIC_API_KEY"),
+        api_key=api_key,
         temperature=0.7,
-        max_tokens=1500,
+        max_tokens=1000,
     )
 )
 
-# Create length rule (max 400 words)
-length_rule = create_length_rule(
-    min_words=100,
-    max_words=500,
-    rule_id="word_limit_rule"
-)
-
-# Create critic to help condense text
+# Create a critic to help improve text
 critic = PromptCritic(
     llm_provider=model,
     config=PromptCriticConfig(
-        name="length_critic",
-        description="A critic that helps condense text while preserving meaning",
+        name="writing_critic",
+        description="A critic that improves writing clarity",
         system_prompt=(
-            "You are an editor who specializes in making text more concise "
-            "while preserving core content and meaning."
+            "You are an expert editor who helps improve writing clarity and structure. "
+            "Focus on making text more concise, clear, and engaging."
         )
     )
 )
 
-# Create chain with model, rule, and critic
-chain = ChainOrchestrator(
+# Example text to improve
+text = "The thing is that writing can be improved in various ways and stuff."
+
+# Only run if a valid API key is available (not the placeholder)
+if api_key != "placeholder_key":
+    try:
+        # Improve the text
+        improved_text = critic.improve(text)
+        print(f"Original: {text}")
+        print(f"Improved: {improved_text}")
+    except Exception as e:
+        print(f"Error: {e}")
+        print("This may be due to an invalid API key or network issue")
+else:
+    print("\nDemo mode: Would improve this text if API key was provided:")
+    print(f"Original: {text}")
+    print("Possible improvement: \"Writing can be improved through conciseness, clarity, and proper structure.\"")
+```
+
+### Example 3: Simple Chain with a Length Rule
+
+This example demonstrates a simple chain that uses a length rule and critic:
+
+```python
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+from sifaka.models.anthropic import AnthropicProvider
+from sifaka.models.base import ModelConfig
+from sifaka.rules.formatting.length import create_length_rule
+from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
+from sifaka.chain import create_simple_chain
+
+# Get API key (use a placeholder if not available)
+api_key = os.environ.get("ANTHROPIC_API_KEY", "your_api_key_here")
+
+# Configure Claude model
+model = AnthropicProvider(
+    model_name="claude-3-haiku-20240307",
+    config=ModelConfig(
+        api_key=api_key,
+        temperature=0.7,
+        max_tokens=1000,
+    )
+)
+
+# Create length rule (100-200 words)
+length_rule = create_length_rule(
+    min_words=100,
+    max_words=200,
+    rule_id="word_limit_rule",
+    description="Ensures text is between 100-200 words"
+)
+
+# Create critic to help with length adjustments
+critic = PromptCritic(
+    llm_provider=model,
+    config=PromptCriticConfig(
+        name="length_critic",
+        description="A critic that adjusts text length",
+        system_prompt=(
+            "You are an editor who specializes in adjusting text length. "
+            "Make text more concise while preserving key information. "
+            "Ensure the text is between 100-200 words."
+        )
+    )
+)
+
+# Create a simple chain with the model, rule, and critic
+chain = create_simple_chain(
     model=model,
     rules=[length_rule],
     critic=critic,
     max_attempts=3
 )
 
-# Run the chain with a prompt that would naturally generate verbose output
-result = chain.run("Explain how large language models work in detail")
+# Example prompt (would generate text likely over 200 words)
+prompt = "Explain the concept of machine learning in detail, including supervised, unsupervised, and reinforcement learning"
+
+# Only run if API key is available
+if api_key != "your_api_key_here":
+    # Run the chain
+    try:
+        result = chain.run(prompt)
+        print(f"Word count: {len(result.output.split())}")
+        print(f"Output: {result.output[:100]}...")
+    except Exception as e:
+        print(f"Error: {e}")
+else:
+    print("Set your ANTHROPIC_API_KEY to run this example")
 ```
 
-### Example 2: Content Safety Validation
+### Example 4: Using a Toxicity Classifier
 
-This example uses a toxicity classifier with a rule to ensure content safety:
+This example shows how to use a toxicity classifier to detect potentially harmful content:
 
 ```python
 from sifaka.classifiers.toxicity import ToxicityClassifier
 from sifaka.classifiers.base import ClassifierConfig
-from sifaka.rules.content.safety import create_toxicity_rule
-from sifaka.rules.base import RuleConfig
-from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
-from sifaka.models import OpenAIProvider
-from sifaka.models.base import ModelConfig
-from sifaka.chain import ChainOrchestrator
-import os
 
-# Configure OpenAI model for content generation
-model = OpenAIProvider(
-    model_name="gpt-4",
-    config=ModelConfig(
-        api_key=os.environ.get("OPENAI_API_KEY"),
-        temperature=0.7
-    )
-)
-
-# Configure toxicity classifier
+# Create a toxicity classifier
 classifier = ToxicityClassifier(
     config=ClassifierConfig(
         labels=["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate", "non_toxic"],
         params={
             "general_threshold": 0.5,
             "severe_toxic_threshold": 0.7,
+            "threat_threshold": 0.7,
         }
     )
 )
 
-# Create toxicity rule
-toxicity_rule = create_toxicity_rule(
-    config=RuleConfig(
-        params={
-            "threshold": 0.6
-        }
+# Example texts to classify
+texts = [
+    "I really enjoyed reading this article, it was informative and well-written.",
+    "This is absolutely terrible and I hate everything about it."
+]
+
+# Classify each text
+for text in texts:
+    try:
+        result = classifier.classify(text)
+        print(f"Text: {text}")
+        print(f"Classification: {result.label}, Confidence: {result.confidence:.2f}")
+        print()
+    except Exception as e:
+        print(f"Classification error: {e}")
+```
+
+### Example 5: Using ReflexionCritic with Concrete Implementation
+
+This example demonstrates how to use ReflexionCritic by creating a concrete implementation:
+
+```python
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+from sifaka.critics.reflexion import ReflexionCritic, ReflexionCriticConfig
+from sifaka.models.anthropic import AnthropicProvider
+from sifaka.models.base import ModelConfig
+
+# Get API key (use a placeholder if not available)
+api_key = os.environ.get("ANTHROPIC_API_KEY", "your_api_key_here")
+
+# Configure Claude model
+model = AnthropicProvider(
+    model_name="claude-3-haiku-20240307",
+    config=ModelConfig(
+        api_key=api_key,
+        temperature=0.7,
+        max_tokens=1000,
     )
 )
 
-# Create critic to help improve content that violates toxicity rules
+# Create a concrete implementation of ReflexionCritic
+class ConcreteReflexionCritic(ReflexionCritic):
+    """Concrete implementation of the ReflexionCritic abstract class."""
+
+    def improve_with_feedback(self, text: str, feedback: str) -> str:
+        """
+        Implement the required abstract method.
+
+        Args:
+            text: The text to improve
+            feedback: Feedback to guide improvement
+
+        Returns:
+            str: The improved text
+        """
+        # Simply delegate to the improve method
+        return self.improve(text, feedback)
+
+# Create a reflexion critic with our concrete implementation
+config = ReflexionCriticConfig(
+    name="learning_critic",
+    description="A critic that learns from past feedback",
+    system_prompt=(
+        "You are an expert editor who learns from past feedback to improve future edits. "
+        "Focus on identifying patterns in feedback and applying those lessons."
+    ),
+    memory_buffer_size=3,  # Store up to 3 reflections
+    reflection_depth=1     # How many levels of reflection to perform
+)
+
+reflexion_critic = ConcreteReflexionCritic(
+    llm_provider=model,
+    config=config
+)
+
+# Example text and feedback for multiple iterations
+texts = [
+    "The thing is that this sentence is not very good because it uses filler phrases.",
+    "This explanation could be better but I'm not sure how to fix it properly.",
+    "The report was completed yesterday and I think it turned out okay."
+]
+
+feedbacks = [
+    "Remove filler phrases like 'the thing is' and make more direct",
+    "Add specific details and examples to make the explanation clearer",
+    "Be more specific about the report's content and use active voice"
+]
+
+# Only run if API key is available
+if api_key != "your_api_key_here":
+    # Demonstrate multiple improvements with reflection
+    for i, (text, feedback) in enumerate(zip(texts, feedbacks)):
+        print(f"\nIteration {i+1}:")
+        print(f"Original: {text}")
+
+        # Improve with feedback
+        improved = reflexion_critic.improve(text, feedback)
+        print(f"Feedback: {feedback}")
+        print(f"Improved: {improved}")
+
+        # The critic learns from each interaction
+        print("(The critic is learning from this interaction to improve future edits)")
+else:
+    print("Set your ANTHROPIC_API_KEY to run this example")
+```
+
+### Example 6: Using Guardrails Integration
+
+This example shows how to use a basic Guardrails validator with Sifaka:
+
+```python
+try:
+    # Import Guardrails validator and registration
+    from guardrails.validators import Validator
+    from guardrails.validators import register_validator
+
+    # Import Sifaka adapter for Guardrails
+    from sifaka.adapters.rules.guardrails_adapter import create_guardrails_rule
+
+    # Create and register a simple custom validator
+    @register_validator(name="contains_word", data_type="string")
+    class SimpleValidator(Validator):
+        """Checks if text contains a specific word."""
+
+        def __init__(self, word_to_find, on_fail="noop"):
+            super().__init__(on_fail=on_fail)
+            self.word_to_find = word_to_find
+
+        def validate(self, value, metadata=None):
+            if self.word_to_find in value:
+                return self.pass_validation(value)
+            else:
+                return self.fail_validation(value, f"Text must contain '{self.word_to_find}'")
+
+    # Create a Guardrails validator
+    validator = SimpleValidator(word_to_find="important")
+
+    # Create a Sifaka rule using the Guardrails validator
+    rule = create_guardrails_rule(
+        guardrails_validator=validator,
+        rule_id="important_word_rule",
+        name="Important Word Check",
+        description="Checks if text contains the word 'important'"
+    )
+
+    # Validate some text
+    valid_text = "This is an important point to consider."
+    invalid_text = "This is something to consider."
+
+    # Check valid text
+    result = rule.validate(valid_text)
+    print(f"Valid text: {result.passed}, Message: {result.message}")
+
+    # Check invalid text
+    result = rule.validate(invalid_text)
+    print(f"Invalid text: {result.passed}, Message: {result.message}")
+
+except ImportError:
+    print("Guardrails is not installed. Install with: pip install guardrails-ai")
+except Exception as e:
+    print(f"Error using Guardrails: {str(e)}")
+    print("This may be due to version compatibility issues.")
+    print("For more complex examples, see the Guardrails documentation:")
+    print("https://www.guardrailsai.com/docs/")
+```
+
+## Advanced Chain Example
+
+This more advanced example shows how to create a chain with multiple rules and critics:
+
+```python
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+from sifaka.models.anthropic import AnthropicProvider
+from sifaka.models.base import ModelConfig
+from sifaka.rules.formatting.length import create_length_rule
+from sifaka.rules.formatting.style import create_style_rule, CapitalizationStyle
+from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
+from sifaka.chain import create_simple_chain
+
+# Get API key
+api_key = os.environ.get("ANTHROPIC_API_KEY", "your_api_key_here")
+
+# Configure model
+model = AnthropicProvider(
+    model_name="claude-3-haiku-20240307",
+    config=ModelConfig(
+        api_key=api_key,
+        temperature=0.7,
+        max_tokens=1200,
+    )
+)
+
+# Create multiple rules
+length_rule = create_length_rule(
+    min_words=100,
+    max_words=300,
+    rule_id="length_rule"
+)
+
+style_rule = create_style_rule(
+    capitalization=CapitalizationStyle.SENTENCE_CASE,
+    rule_id="style_rule"
+)
+
+# Create critic
 critic = PromptCritic(
     llm_provider=model,
     config=PromptCriticConfig(
-        name="content_safety_critic",
-        description="A critic that helps ensure content is appropriate and non-toxic",
+        name="quality_critic",
+        description="A critic that improves writing quality",
         system_prompt=(
-            "You are an editor who specializes in ensuring content is appropriate, "
-            "respectful, and free from offensive or harmful language."
+            "You are an expert editor who improves writing quality. "
+            "Ensure text uses sentence case capitalization and is between 100-300 words. "
+            "Make writing clear, direct, and engaging."
         )
     )
 )
 
-# Create chain with model, rule, and critic
-chain = ChainOrchestrator(
+# Create chain with both rules
+chain = create_simple_chain(
     model=model,
-    rules=[toxicity_rule],
+    rules=[length_rule, style_rule],
     critic=critic,
     max_attempts=3
 )
 
-# Run the chain
-result = chain.run("Write a social media post about community values")
+# Example prompt
+prompt = "Write a short explanation of how neural networks function."
+
+# Only run if API key is available
+if api_key != "your_api_key_here":
+    try:
+        result = chain.run(prompt)
+        print(f"Word count: {len(result.output.split())}")
+        print(f"Output: {result.output[:150]}...")
+    except Exception as e:
+        print(f"Error: {e}")
+else:
+    print("Set your ANTHROPIC_API_KEY to run this example")
 ```
 
 ## Full Examples
@@ -377,78 +793,6 @@ For complete, runnable examples, see the `/examples` directory:
 - `reflexion_critic_example.py`: Demonstrates using the ReflexionCritic to improve text through learning from past feedback
 - `advanced_chain_example.py`: Demonstrates the new chain architecture with different components and strategies
 
-### Example 3: Reflexion-Based Learning
-
-This example uses the ReflexionCritic to improve text by learning from past feedback:
-
-```python
-from sifaka.critics.reflexion import ReflexionCriticConfig, create_reflexion_critic
-from sifaka.models.openai import OpenAIProvider
-from sifaka.models.base import ModelConfig
-from sifaka.rules.formatting.length import create_length_rule
-from sifaka.chain import ChainOrchestrator
-import os
-
-# Configure OpenAI model
-model = OpenAIProvider(
-    model_name="gpt-3.5-turbo",
-    config=ModelConfig(
-        api_key=os.environ.get("OPENAI_API_KEY"),
-        temperature=0.7,
-        max_tokens=1500,
-    )
-)
-
-# Create a reflexion critic using the factory function
-reflexion_critic = create_reflexion_critic(
-    model=model,
-    name="reflexion_critic",
-    description="A critic that learns from past feedback",
-    system_prompt=(
-        "You are an expert editor who learns from past feedback to improve future edits. "
-        "Focus on identifying patterns in feedback and applying those lessons to new tasks."
-    ),
-    memory_buffer_size=5,  # Store up to 5 reflections
-    reflection_depth=1     # Perform 1 level of reflection
-)
-
-# Create a length rule
-length_rule = create_length_rule(
-    min_words=50,
-    max_words=225,
-    rule_id="word_length_rule",
-    description="Ensures text is between 50-300 words",
-)
-
-# Create a chain with the model, rule, and reflexion critic
-chain = ChainOrchestrator(
-    model=model,
-    rules=[length_rule],
-    critic=reflexion_critic,
-    max_attempts=3
-)
-
-# Process a series of prompts and observe how the critic improves over time
-prompts = [
-    "Explain the concept of machine learning in detail.",
-    "Describe the process of photosynthesis in plants.",
-    "Explain how the internet works.",
-]
-
-for prompt in prompts:
-    try:
-        result = chain.run(prompt)
-        # Process successful result
-        print(f"Output: {result.output}")
-    except ValueError as e:
-        # Handle validation failure
-        print(f"Validation failed: {e}")
-
-
-# The reflexion critic's memory buffer now contains reflections that will
-# guide future improvements, making it more effective over time
-```
-
 ## Integration with Guardrails
 
 While Sifaka is designed to be "batteries included" with its built-in classifiers and rules, it also provides seamless integration with [Guardrails AI](https://www.guardrailsai.com/). This integration allows you to:
@@ -459,7 +803,7 @@ While Sifaka is designed to be "batteries included" with its built-in classifier
 
 Example integration:
 ```python
-from sifaka.rules.adapters.guardrails_adapter import GuardrailsAdapter
+from sifaka.adapters.rules.guardrails_adapter import GuardrailsAdapter
 from sifaka.domain import Domain
 
 # Create a Guardrails adapter
@@ -480,3 +824,5 @@ domain = Domain({
 ## License
 
 Sifaka is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+

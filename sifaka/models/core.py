@@ -157,7 +157,7 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
 
         Raises:
             TypeError: If prompt is not a string
-            ValueError: If prompt is empty
+            ValueError: If prompt is empty or API key is missing
             RuntimeError: If an error occurs during generation
         """
         if not isinstance(prompt, str):
@@ -172,6 +172,15 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
             api_key=kwargs.pop("api_key", self.config.api_key),
             trace_enabled=kwargs.pop("trace_enabled", self.config.trace_enabled),
         )
+
+        # Verify API key is set before attempting to generate
+        if not config.api_key:
+            model_specific_env = f"{self.__class__.__name__.replace('Provider', '').upper()}_API_KEY"
+            raise ValueError(
+                f"API key is missing. Please provide an API key either by setting the "
+                f"{model_specific_env} environment variable or by passing it explicitly "
+                f"via the api_key parameter or config."
+            )
 
         return self._generation_service.generate(prompt, config)
 
