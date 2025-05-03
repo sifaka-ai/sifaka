@@ -73,60 +73,70 @@ Sifaka follows a modular architecture with several key components working togeth
 
 ```mermaid
 graph TD
-    A[User Input] --> B[Chain]
-    B --> C[Model Provider]
-    C --> D[Validation Manager]
-    D --> E[Rules]
-    E --> F[Critics]
-    F --> G[Result Formatter]
-    G --> H[Output]
-    D --> I[Classifiers]
-    I --> F
-    F --> C
     subgraph Chain Core
-        B
-        D
-        G
+        PM[Prompt Manager]
+        VS[Validation Manager]
+        RS[Retry Strategy]
+        RF[Result Formatter]
     end
+
+    I[Input] --> PM
+    PM --> MP[Model Provider]
+    MP --> VS
+    VS --> R[Rules]
+    VS --> C[Classifiers]
+
+    VS --> |Validation Failed| CR[Critics]
+    CR --> |Feedback| PM
+    VS --> |Validation Passed| RF
+    RF --> O[Output]
+
+    style Chain Core fill:#f5f5f5,stroke:#333,stroke-width:2px
 ```
 
 ### Core Components
 
 1. **Chain Core**
-   - Orchestrates the entire process
-   - Manages retry strategies and error handling
-   - Coordinates between all components
-   - Includes:
-     - `ValidationManager`: Handles rule validation
-     - `PromptManager`: Manages prompt formatting
-     - `ResultFormatter`: Formats final output
+   - Central orchestrator containing:
+     - `PromptManager`: Handles prompt formatting and feedback incorporation
+     - `ValidationManager`: Coordinates rule and classifier validation
+     - `RetryStrategy`: Manages retry attempts and backoff
+     - `ResultFormatter`: Formats final outputs and feedback
 
 2. **Model Providers**
    - Interface with different LLM APIs (OpenAI, Anthropic, etc.)
    - Handle API key management and request formatting
    - Support streaming and non-streaming responses
 
-3. **Rules**
+3. **Rules & Classifiers**
    - Validate responses against specific criteria
-   - Can be combined in rule chains
-   - Support custom rule creation
-   - Examples: length rules, style rules, content rules
+   - Rules: length, style, content restrictions
+   - Classifiers: toxicity, sentiment, profanity detection
+   - Can be combined and prioritized
+   - Support custom implementations
 
 4. **Critics**
-   - Analyze and improve model outputs
+   - Analyze and improve model outputs when validation fails
    - Two main types:
      - `PromptCritic`: Single-pass improvement
      - `ReflexionCritic`: Learning-based improvement with memory
-   - Can be chained for multi-step refinement
-   - Provide feedback to guide model retries
+   - Provide feedback for retry attempts
 
-5. **Classifiers**
-   - Analyze text for specific attributes
-   - Support multiple classification types
-   - Configurable thresholds and parameters
-   - Can be used for content safety and quality control
+### Flow Description
 
-### Configuration System
+1. Input is received by the Prompt Manager
+2. Prompt Manager formats and sends to Model Provider
+3. Model output is sent to Validation Manager
+4. Validation Manager coordinates Rules and Classifiers
+5. If validation fails:
+   - Critics analyze and provide feedback
+   - Feedback is sent back to Prompt Manager
+   - Process repeats with retry strategy
+6. If validation passes:
+   - Result Formatter processes the output
+   - Final result is returned
+
+## Configuration System
 
 Sifaka uses a streamlined configuration system with two main configuration classes:
 
