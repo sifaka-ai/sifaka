@@ -37,7 +37,7 @@ class TestCritiqueService(unittest.TestCase):
             llm_provider=self.llm_provider,
             prompt_manager=self.prompt_manager,
             response_parser=self.response_parser,
-            memory_manager=self.memory_manager
+            memory_manager=self.memory_manager,
         )
 
         # Set up common prompt responses
@@ -55,7 +55,7 @@ class TestCritiqueService(unittest.TestCase):
             "score": 0.8,
             "feedback": "Good content",
             "issues": ["Minor issue"],
-            "suggestions": ["Suggestion"]
+            "suggestions": ["Suggestion"],
         }
         self.response_parser.parse_improvement_response.return_value = "Improved text"
         self.response_parser.parse_reflection_response.return_value = "Reflection"
@@ -72,7 +72,7 @@ class TestCritiqueService(unittest.TestCase):
         service = CritiqueService(
             llm_provider=self.llm_provider,
             prompt_manager=self.prompt_manager,
-            response_parser=self.response_parser
+            response_parser=self.response_parser,
         )
         self.assertEqual(service._model, self.llm_provider)
         self.assertEqual(service._prompt_manager, self.prompt_manager)
@@ -118,12 +118,15 @@ class TestCritiqueService(unittest.TestCase):
         result = self.service.critique("Test text")
 
         # Verify result
-        self.assertEqual(result, {
-            "score": 0.8,
-            "feedback": "Good content",
-            "issues": ["Minor issue"],
-            "suggestions": ["Suggestion"]
-        })
+        self.assertEqual(
+            result,
+            {
+                "score": 0.8,
+                "feedback": "Good content",
+                "issues": ["Minor issue"],
+                "suggestions": ["Suggestion"],
+            },
+        )
 
         # Verify interactions
         self.prompt_manager.create_critique_prompt.assert_called_once_with("Test text")
@@ -182,11 +185,13 @@ class TestCritiqueService(unittest.TestCase):
         # Create a test violations list
         violations = [
             {"rule_name": "Grammar", "message": "Fix grammar"},
-            {"rule_name": "Style", "message": "Improve style"}
+            {"rule_name": "Style", "message": "Improve style"},
         ]
 
         # Mock the _violations_to_feedback method
-        with patch.object(self.service, '_violations_to_feedback', return_value="Formatted feedback") as mock_format:
+        with patch.object(
+            self.service, "_violations_to_feedback", return_value="Formatted feedback"
+        ) as mock_format:
             result = self.service.improve("Test text", violations)
 
             # Verify _violations_to_feedback was called
@@ -205,7 +210,7 @@ class TestCritiqueService(unittest.TestCase):
         service = CritiqueService(
             llm_provider=self.llm_provider,
             prompt_manager=self.prompt_manager,
-            response_parser=self.response_parser
+            response_parser=self.response_parser,
         )
 
         # Should work without memory manager
@@ -215,7 +220,9 @@ class TestCritiqueService(unittest.TestCase):
         self.assertEqual(result, "Improved text")
 
         # Create improvement prompt should be called without reflections
-        self.prompt_manager.create_improvement_prompt.assert_called_with("Test text", "Feedback", None)
+        self.prompt_manager.create_improvement_prompt.assert_called_with(
+            "Test text", "Feedback", None
+        )
 
     def test_improve_empty_text(self):
         """Test improve method with empty text."""
@@ -244,41 +251,40 @@ class TestCritiqueService(unittest.TestCase):
     def test_violations_to_feedback(self):
         """Test _violations_to_feedback method."""
         # Empty violations
-        self.assertEqual(
-            self.service._violations_to_feedback([]),
-            "No issues found."
-        )
+        self.assertEqual(self.service._violations_to_feedback([]), "No issues found.")
 
         # Single violation
         violations = [{"rule_name": "Grammar", "message": "Fix grammar"}]
         self.assertEqual(
             self.service._violations_to_feedback(violations),
-            "The following issues were found:\n- Grammar: Fix grammar\n"
+            "The following issues were found:\n- Grammar: Fix grammar\n",
         )
 
         # Multiple violations
         violations = [
             {"rule_name": "Grammar", "message": "Fix grammar"},
-            {"rule_name": "Style", "message": "Improve style"}
+            {"rule_name": "Style", "message": "Improve style"},
         ]
-        expected = "The following issues were found:\n- Grammar: Fix grammar\n- Style: Improve style\n"
+        expected = (
+            "The following issues were found:\n- Grammar: Fix grammar\n- Style: Improve style\n"
+        )
         self.assertEqual(self.service._violations_to_feedback(violations), expected)
 
         # Violations with missing keys
         violations = [
             {"rule_name": "Grammar", "other_key": "value"},  # Missing message
-            {"message": "Improve style"}  # Missing rule_name
+            {"message": "Improve style"},  # Missing rule_name
         ]
-        expected = "The following issues were found:\n- Grammar: Unknown issue\n- Rule 2: Improve style\n"
+        expected = (
+            "The following issues were found:\n- Grammar: Unknown issue\n- Rule 2: Improve style\n"
+        )
         self.assertEqual(self.service._violations_to_feedback(violations), expected)
 
     def test_generate_reflection(self):
         """Test _generate_reflection method."""
         # Call the method
         self.service._generate_reflection(
-            original_text="Original",
-            feedback="Feedback",
-            improved_text="Improved"
+            original_text="Original", feedback="Feedback", improved_text="Improved"
         )
 
         # Verify interactions
@@ -295,14 +301,12 @@ class TestCritiqueService(unittest.TestCase):
         service = CritiqueService(
             llm_provider=self.llm_provider,
             prompt_manager=self.prompt_manager,
-            response_parser=self.response_parser
+            response_parser=self.response_parser,
         )
 
         # Should do nothing without memory manager
         service._generate_reflection(
-            original_text="Original",
-            feedback="Feedback",
-            improved_text="Improved"
+            original_text="Original", feedback="Feedback", improved_text="Improved"
         )
 
         # No interactions should happen
@@ -316,9 +320,7 @@ class TestCritiqueService(unittest.TestCase):
 
         # Should not propagate the exception
         self.service._generate_reflection(
-            original_text="Original",
-            feedback="Feedback",
-            improved_text="Improved"
+            original_text="Original", feedback="Feedback", improved_text="Improved"
         )
 
         # Verify interactions
@@ -335,9 +337,7 @@ class TestCritiqueService(unittest.TestCase):
 
         # Should not add anything to memory
         self.service._generate_reflection(
-            original_text="Original",
-            feedback="Feedback",
-            improved_text="Improved"
+            original_text="Original", feedback="Feedback", improved_text="Improved"
         )
 
         # Verify interactions
@@ -353,7 +353,7 @@ class TestCritiqueServiceAsync:
     """Tests for asynchronous methods of CritiqueService."""
 
     @pytest.fixture
-    async def service(self):
+    def service(self):
         """Create a service for testing."""
         # Create mock objects
         llm_provider = MagicMock()
@@ -368,12 +368,14 @@ class TestCritiqueServiceAsync:
 
         response_parser = MagicMock(spec=ResponseParser)
         response_parser.parse_validation_response = MagicMock(return_value=True)
-        response_parser.parse_critique_response = MagicMock(return_value={
-            "score": 0.8,
-            "feedback": "Good content",
-            "issues": ["Minor issue"],
-            "suggestions": ["Suggestion"]
-        })
+        response_parser.parse_critique_response = MagicMock(
+            return_value={
+                "score": 0.8,
+                "feedback": "Good content",
+                "issues": ["Minor issue"],
+                "suggestions": ["Suggestion"],
+            }
+        )
         response_parser.parse_improvement_response = MagicMock(return_value="Improved text")
         response_parser.parse_reflection_response = MagicMock(return_value="Reflection")
 
@@ -385,8 +387,11 @@ class TestCritiqueServiceAsync:
             llm_provider=llm_provider,
             prompt_manager=prompt_manager,
             response_parser=response_parser,
-            memory_manager=memory_manager
+            memory_manager=memory_manager,
         )
+
+        # Set the model attribute directly for testing
+        service._model = llm_provider
 
         return service
 
@@ -452,7 +457,7 @@ class TestCritiqueServiceAsync:
             "score": 0.8,
             "feedback": "Good content",
             "issues": ["Minor issue"],
-            "suggestions": ["Suggestion"]
+            "suggestions": ["Suggestion"],
         }
 
         # Verify interactions
@@ -499,7 +504,9 @@ class TestCritiqueServiceAsync:
         service._memory_manager.get_memory.assert_called_once()
         service._prompt_manager.create_improvement_prompt.assert_called_once()
         service._model.ainvoke.assert_any_call("improvement prompt")
-        service._response_parser.parse_improvement_response.assert_called_once_with("model response")
+        service._response_parser.parse_improvement_response.assert_called_once_with(
+            "model response"
+        )
 
     @pytest.mark.asyncio
     async def test_aimprove_with_violations_feedback(self, service):
@@ -507,11 +514,13 @@ class TestCritiqueServiceAsync:
         # Create a test violations list
         violations = [
             {"rule_name": "Grammar", "message": "Fix grammar"},
-            {"rule_name": "Style", "message": "Improve style"}
+            {"rule_name": "Style", "message": "Improve style"},
         ]
 
         # Mock the _violations_to_feedback method
-        with patch.object(service, '_violations_to_feedback', return_value="Formatted feedback") as mock_format:
+        with patch.object(
+            service, "_violations_to_feedback", return_value="Formatted feedback"
+        ) as mock_format:
             result = await service.aimprove("Test text", violations)
 
             # Verify _violations_to_feedback was called
@@ -529,9 +538,7 @@ class TestCritiqueServiceAsync:
         """Test _generate_reflection_async method."""
         # Call the method
         await service._generate_reflection_async(
-            original_text="Original",
-            feedback="Feedback",
-            improved_text="Improved"
+            original_text="Original", feedback="Feedback", improved_text="Improved"
         )
 
         # Verify interactions
@@ -550,9 +557,7 @@ class TestCritiqueServiceAsync:
 
         # Should not propagate the exception
         await service._generate_reflection_async(
-            original_text="Original",
-            feedback="Feedback",
-            improved_text="Improved"
+            original_text="Original", feedback="Feedback", improved_text="Improved"
         )
 
         # Verify interactions
