@@ -39,6 +39,7 @@ from sifaka.classifiers.base import (
 )
 from sifaka.adapters.rules.classifier import create_classifier_rule
 from sifaka.rules.formatting.length import create_length_rule
+from sifaka.rules.base import Rule, RuleResult, RuleConfig
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.chain import (
     ChainCore,
@@ -48,7 +49,6 @@ from sifaka.chain import (
     ResultFormatter,
     SimpleRetryStrategy,
 )
-from sifaka.rules.base import Rule, RuleResult
 
 
 # Create concrete implementations of all classifiers
@@ -430,9 +430,9 @@ class BatchedCritic(PromptCritic):
 class BatchedFeedbackChain(ChainCore[str]):
     """Chain implementation with batched feedback for multiple rules."""
 
-    def __init__(self, model, rules, batched_critic, max_attempts=5, verbose=True):
+    def __init__(self, model, rules, batched_critic, max_attempts=5, verbose=True, prioritize_by_cost=True):
         """Initialize chain with model, rules, and batched critic."""
-        validation_manager = ValidationManager[str](rules)
+        validation_manager = ValidationManager[str](rules, prioritize_by_cost=prioritize_by_cost)
         prompt_manager = PromptManager()
         retry_strategy = SimpleRetryStrategy[str](max_attempts=max_attempts)
         result_formatter = ResultFormatter[str]()
@@ -533,6 +533,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
         config=ClassifierConfig(
             labels=["positive", "neutral", "negative", "unknown"],
             min_confidence=0.2,  # Further lowered confidence requirement
+            cost=3,  # Medium cost
         ),
     )
     sentiment_rule = create_classifier_rule(
@@ -541,6 +542,11 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
         description="Ensures text has neutral or positive sentiment",
         threshold=0.2,  # Further lowered threshold
         valid_labels=["positive", "neutral"],
+    )
+    # Make sure the rule has the same cost as the classifier
+    sentiment_rule._config = RuleConfig(
+        cost=3,
+        params=sentiment_rule._config.params
     )
     rules.append(sentiment_rule)
 
@@ -551,6 +557,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
         config=ClassifierConfig(
             labels=["positive", "neutral", "negative", "unknown"],
             min_confidence=0.0,  # No confidence requirement for neutrality
+            cost=4,  # Medium-high cost
             params={
                 # Much wider band for neutrality - allowing more leeway
                 "positive_threshold": 0.6,  # Up from 0.4
@@ -565,6 +572,11 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
         threshold=0.0,  # No threshold requirement
         valid_labels=["neutral"],  # Only accept neutral label
     )
+    # Make sure the rule has the same cost as the classifier
+    neutrality_rule._config = RuleConfig(
+        cost=4,
+        params=neutrality_rule._config.params
+    )
     rules.append(neutrality_rule)
 
     # 3. ReadabilityClassifier - allow wider range of readability (EVEN EASIER)
@@ -574,6 +586,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
         config=ClassifierConfig(
             labels=["simple", "moderate", "complex"],
             min_confidence=0.3,  # Further lowered confidence requirement
+            cost=5,  # Medium-high cost
             params={
                 "min_confidence": 0.3,
                 "grade_level_bounds": {
@@ -591,6 +604,11 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
         threshold=0.3,  # Further lowered threshold
         valid_labels=["simple", "moderate"],  # "simple" first for emphasis
     )
+    # Make sure the rule has the same cost as the classifier
+    readability_rule._config = RuleConfig(
+        cost=5,
+        params=readability_rule._config.params
+    )
     rules.append(readability_rule)
 
     # 4. LanguageClassifier - require English (SLIGHTLY EASIER)
@@ -600,6 +618,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
         config=ClassifierConfig(
             labels=["en", "es", "fr", "de", "other"],
             min_confidence=0.6,  # Slightly lower confidence
+            cost=2,  # Low cost
             params={
                 "min_confidence": 0.6,
                 "seed": 0,
@@ -614,6 +633,11 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
         description="Ensures text is in English",
         threshold=0.6,  # Slightly lower threshold
         valid_labels=["en"],
+    )
+    # Make sure the rule has the same cost as the classifier
+    language_rule._config = RuleConfig(
+        cost=2,
+        params=language_rule._config.params
     )
     rules.append(language_rule)
 
@@ -637,6 +661,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
         config=ClassifierConfig(
             labels=["biased", "unbiased"],
             min_confidence=0.4,  # Further lowered confidence requirement
+            cost=7,  # High cost
             params={
                 "min_confidence": 0.4,
                 "bias_keywords": {
@@ -655,7 +680,22 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
         threshold=0.4,  # Further lowered threshold
         valid_labels=["unbiased"],
     )
+    # Make sure the rule has the same cost as the classifier
+    bias_rule._config = RuleConfig(
+        cost=7,
+        params=bias_rule._config.params
+    )
     rules.append(bias_rule)
+
+    # 12. Length rule - enforce fewer words (EVEN EASIER)
+    length_rule = create_length_rule(
+        min_words=500,  # Further reduced from 700
+        max_words=2700,
+        rule_id="length_rule",
+        description="Ensures text is of appropriate length",
+        config=RuleConfig(cost=1),  # Lowest cost
+    )
+    rules.append(length_rule)
 
     # 6. ProfanityClassifier - ensure content is clean (NEW)
     profanity_classifier = ConcreteProfanityClassifier(
@@ -664,6 +704,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
         config=ClassifierConfig(
             labels=["clean", "profane", "unknown"],
             min_confidence=0.3,  # Low confidence requirement
+            cost=6,  # High cost
             params={
                 "custom_words": ["controversial", "offensive", "explicit"],
                 "censor_char": "*",
@@ -678,6 +719,11 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
         description="Ensures text is free from profanity",
         threshold=0.3,  # Low threshold
         valid_labels=["clean"],
+    )
+    # Make sure the rule has the same cost as the classifier
+    profanity_rule._config = RuleConfig(
+        cost=6,
+        params=profanity_rule._config.params
     )
     rules.append(profanity_rule)
     print("Added profanity rule")
@@ -712,6 +758,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
         config=ClassifierConfig(
             labels=["ham", "spam"],
             min_confidence=0.3,  # Low confidence requirement for easier passing
+            cost=6,  # High cost
             params={
                 "max_features": 1000,
                 "use_bigrams": True,
@@ -725,6 +772,11 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
         description="Ensures text is not spam-like",
         threshold=0.3,  # Low threshold for easier passing
         valid_labels=["ham"],
+    )
+    # Make sure the rule has the same cost as the classifier
+    spam_rule._config = RuleConfig(
+        cost=6,
+        params=spam_rule._config.params
     )
     rules.append(spam_rule)
     print("Added spam rule")
@@ -748,6 +800,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
         config=ClassifierConfig(
             labels=["news", "fiction", "academic", "technical", "blog"],
             min_confidence=0.3,  # Lowered from 0.4
+            cost=4,  # Medium-high cost
             params={
                 "min_confidence": 0.3,
                 "max_features": 2000,
@@ -763,6 +816,11 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
         description="Ensures text is an appropriate informational genre",
         threshold=0.3,  # Lowered from 0.4
         valid_labels=["news", "academic", "technical", "blog"],  # Everything except fiction
+    )
+    # Make sure the rule has the same cost as the classifier
+    genre_rule._config = RuleConfig(
+        cost=4,
+        params=genre_rule._config.params
     )
     rules.append(genre_rule)
 
@@ -792,6 +850,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
                 "topic_2",
                 "topic_3",
             ],  # Initial labels, will be replaced after fitting
+            cost=3,  # Medium cost
             params={
                 "num_topics": 4,
                 "min_confidence": 0.3,  # Low confidence requirement for easier passing
@@ -813,6 +872,11 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
         threshold=0.3,  # Low threshold for easier passing
         valid_labels=topic_classifier.config.labels,  # Use all available topic labels
     )
+    # Make sure the rule has the same cost as the classifier
+    topic_rule._config = RuleConfig(
+        cost=3,
+        params=topic_rule._config.params
+    )
     rules.append(topic_rule)
     print("Added topic rule")
 
@@ -831,6 +895,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
                     "identity_hate",
                     "non_toxic",
                 ],
+                cost=8,  # Highest cost
                 params={
                     "model_name": "original",
                     "general_threshold": 0.05,  # Very low threshold to detect actual toxic content
@@ -849,6 +914,11 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
             threshold=0.01,  # Very low threshold
             valid_labels=["non_toxic"],
         )
+        # Make sure the rule has the same cost as the classifier
+        toxicity_rule._config = RuleConfig(
+            cost=8,
+            params=toxicity_rule._config.params
+        )
         rules.append(toxicity_rule)
         print("Added toxicity rule")
     except ImportError:
@@ -856,15 +926,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
     except Exception as e:
         print(f"Could not add toxicity rule: {str(e)}")
 
-    # 12. Length rule - enforce fewer words (EVEN EASIER)
-    length_rule = create_length_rule(
-        min_words=500,  # Further reduced from 700
-        max_words=2700,
-        rule_id="length_rule",
-        description="Ensures text is of appropriate length",
-    )
-    rules.append(length_rule)
-
+    print(f"Created {len(rules)} rules")
     return rules
 
 
@@ -910,7 +972,15 @@ def run_advanced_example():
         batched_critic=batched_critic,
         max_attempts=2,
         verbose=True,
+        prioritize_by_cost=True,
     )
+
+    # Print out the rules sorted by cost
+    print("\n=== Rules sorted by cost ===")
+    for i, rule in enumerate(chain.validation_manager.rules):
+        cost = getattr(rule.config, "cost", "unknown")
+        print(f"{i+1}. {rule.name} (cost: {cost})")
+    print()
 
     # Random topic prompt for OpenAI to generate 2,500 words
     prompt = """
