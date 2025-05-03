@@ -103,7 +103,9 @@ print(f"Improved text: {improved_text}")
 """
 
 from dataclasses import dataclass
-from typing import Any, Final, Protocol, runtime_checkable
+from typing import Any, Final, Protocol, runtime_checkable, Optional, Dict
+
+from pydantic import PrivateAttr
 
 from .base import (
     BaseCritic,
@@ -112,6 +114,7 @@ from .base import (
     TextImprover,
     TextValidator,
 )
+from sifaka.utils import CriticState, create_critic_state
 
 
 @runtime_checkable
@@ -230,6 +233,9 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     This class follows the component-based architecture pattern by delegating to
     specialized components for prompt management, response parsing, and memory management.
     """
+
+    # State management using StateManager
+    _state = PrivateAttr(default_factory=create_critic_state)
 
     def __init__(
         self,

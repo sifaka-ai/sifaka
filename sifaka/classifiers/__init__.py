@@ -76,9 +76,9 @@ from .base import (
     TextProcessor,
     TextClassifier,
 )
-from .bias import BiasDetector
+from .bias import BiasDetector, create_bias_detector
 from .genre import GenreClassifier
-from .language import LanguageClassifier
+from .language import LanguageClassifier, create_language_classifier
 from .ner import NERClassifier, create_ner_classifier
 from .profanity import ProfanityClassifier, create_profanity_classifier
 from .readability import ReadabilityClassifier
@@ -115,4 +115,6 @@ __all__ = [
     "create_spam_classifier",
     "create_profanity_classifier",
     "create_ner_classifier",
+    "create_bias_detector",
+    "create_language_classifier",
 ]

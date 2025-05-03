@@ -1,5 +1,8 @@
 """
 Language classifier using langdetect.
+
+This module provides a classifier for detecting the language of text using
+the langdetect library, which is a port of Google's language-detection library.
 """
 
 import importlib
@@ -12,6 +15,7 @@ from typing import (
     Optional,
     Protocol,
     Sequence,
+    Union,
     runtime_checkable,
 )
 
@@ -24,6 +28,7 @@ from sifaka.classifiers.base import (
     ClassifierConfig,
 )
 from sifaka.utils.logging import get_logger
+from sifaka.utils import standardize_classifier_config
 
 logger = get_logger(__name__)
 
@@ -355,3 +360,80 @@ class LanguageClassifier(BaseClassifier):
         )
 
         return instance
+
+
+def create_language_classifier(
+    name: str = "language_classifier",
+    description: str = "Detects text language",
+    min_confidence: float = 0.1,
+    fallback_lang: str = "en",
+    fallback_confidence: float = 0.0,
+    seed: int = 0,
+    cache_size: int = 100,
+    cost: float = LanguageClassifier.DEFAULT_COST,
+    config: Optional[Union[Dict[str, Any], ClassifierConfig]] = None,
+    **kwargs: Any,
+) -> LanguageClassifier:
+    """
+    Create a language classifier.
+
+    This factory function creates a LanguageClassifier with the specified
+    configuration options.
+
+    Args:
+        name: Name of the classifier
+        description: Description of the classifier
+        min_confidence: Minimum confidence threshold for language detection
+        fallback_lang: Language code to use when confidence is too low
+        fallback_confidence: Confidence to assign to fallback language
+        seed: Random seed for consistent results
+        cache_size: Size of the cache for memoization
+        cost: Cost of running the classifier
+        config: Optional classifier configuration
+        **kwargs: Additional configuration parameters
+
+    Returns:
+        A LanguageClassifier instance
+
+    Examples:
+        ```python
+        from sifaka.classifiers.language import create_language_classifier
+
+        # Create a language classifier with default settings
+        classifier = create_language_classifier()
+
+        # Create a language classifier with custom settings
+        classifier = create_language_classifier(
+            name="custom_language_classifier",
+            description="Custom language detector with specific settings",
+            min_confidence=0.2,
+            fallback_lang="fr",
+            cache_size=200
+        )
+
+        # Classify text
+        result = classifier.classify("Hello, world!")
+        print(f"Language: {result.label}, Name: {result.metadata['language_name']}")
+        print(f"Confidence: {result.confidence:.2f}")
+        ```
+    """
+    # Use standardize_classifier_config to handle different config formats
+    classifier_config = standardize_classifier_config(
+        config=config,
+        labels=list(LanguageClassifier.LANGUAGE_NAMES.keys()),
+        cost=cost,
+        cache_size=cache_size,
+        params={
+            "min_confidence": min_confidence,
+            "fallback_lang": fallback_lang,
+            "fallback_confidence": fallback_confidence,
+            "seed": seed,
+        },
+        **kwargs,
+    )
+
+    return LanguageClassifier(
+        name=name,
+        description=description,
+        config=classifier_config,
+    )

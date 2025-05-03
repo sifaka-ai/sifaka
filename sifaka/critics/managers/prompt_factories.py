@@ -215,7 +215,7 @@ class PromptCriticPromptManager(PromptManager):
         Implementation of create_critique_prompt.
 
         This method creates a specialized critique prompt for PromptCritic,
-        requesting the model to analyze the text and provide detailed feedback.
+        requesting the model to analyze and provide feedback on the text.
 
         Lifecycle:
         1. Input validation
@@ -233,23 +233,30 @@ class PromptCriticPromptManager(PromptManager):
         Raises:
             ValueError: If text is empty
             RuntimeError: If prompt creation fails
+
+        Examples:
+            ```python
+            # Create a critique prompt
+            text = "This is a sample text to critique."
+            prompt = manager._create_critique_prompt_impl(text)
+            print(prompt)
+            ```
         """
-        return f"""Please critique the following text:
+        if not text or not isinstance(text, str):
+            raise ValueError("Invalid text: must be non-empty string")
+        return f"""Analyze the following text and provide a detailed critique:
 
-        TEXT TO CRITIQUE:
-        {text}
+{text}
 
-        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-        SCORE: [number between 0 and 1]
-        FEEDBACK: [your general feedback]
-        ISSUES:
-        - [issue 1]
-        - [issue 2]
-        SUGGESTIONS:
-        - [suggestion 1]
-        - [suggestion 2]
-
-        CRITIQUE:"""
+Please provide your critique in the following format:
+SCORE: [0-1]
+FEEDBACK: [general feedback]
+ISSUES:
+- [specific issue 1]
+- [specific issue 2]
+SUGGESTIONS:
+- [suggestion 1]
+- [suggestion 2]"""
 
     def _create_improvement_prompt_impl(
         self, text: str, feedback: str, reflections: Optional[List[str]] = None
@@ -258,20 +265,19 @@ class PromptCriticPromptManager(PromptManager):
         Implementation of create_improvement_prompt.
 
         This method creates a specialized improvement prompt for PromptCritic,
-        requesting the model to improve the text based on feedback.
+        requesting the model to improve the text based on feedback and reflections.
 
         Lifecycle:
         1. Input validation
-        2. Feedback processing
-        3. Template selection
-        4. Variable substitution
-        5. Format validation
-        6. Error handling
+        2. Template selection
+        3. Variable substitution
+        4. Format validation
+        5. Error handling
 
         Args:
             text: The text to improve
-            feedback: Feedback to guide the improvement
-            reflections: Optional reflections to include in the prompt
+            feedback: The feedback to incorporate
+            reflections: Optional list of previous reflections
 
         Returns:
             A prompt for improving the text
@@ -279,19 +285,35 @@ class PromptCriticPromptManager(PromptManager):
         Raises:
             ValueError: If text or feedback is empty
             RuntimeError: If prompt creation fails
+
+        Examples:
+            ```python
+            # Create an improvement prompt
+            text = "This is a sample text to improve."
+            feedback = "The text needs more detail and better structure."
+            reflections = ["Previous improvement focused on clarity"]
+            prompt = manager._create_improvement_prompt_impl(text, feedback, reflections)
+            print(prompt)
+            ```
         """
-        return f"""Please improve the following text based on the feedback:
+        if not text or not isinstance(text, str):
+            raise ValueError("Invalid text: must be non-empty string")
+        if not feedback or not isinstance(feedback, str):
+            raise ValueError("Invalid feedback: must be non-empty string")
 
-        TEXT TO IMPROVE:
-        {text}
+        prompt = f"""Improve the following text based on the feedback and previous reflections:
 
-        FEEDBACK:
-        {feedback}
+Text:
+{text}
 
-        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-        IMPROVED_TEXT: [your improved version of the text]
+Feedback:
+{feedback}"""
 
-        IMPROVED VERSION:"""
+        if reflections:
+            prompt += "\n\nPrevious reflections:\n" + "\n".join(f"- {r}" for r in reflections)
+
+        prompt += "\n\nPlease provide the improved text in the following format:\nIMPROVED_TEXT: [improved text]"
+        return prompt
 
     def _create_reflection_prompt_impl(
         self, original_text: str, feedback: str, improved_text: str
@@ -300,7 +322,7 @@ class PromptCriticPromptManager(PromptManager):
         Implementation of create_reflection_prompt.
 
         This method creates a specialized reflection prompt for PromptCritic,
-        requesting the model to reflect on the improvement and what was learned.
+        requesting the model to reflect on the improvement process.
 
         Lifecycle:
         1. Input validation
@@ -311,31 +333,46 @@ class PromptCriticPromptManager(PromptManager):
 
         Args:
             original_text: The original text
-            feedback: The feedback received
-            improved_text: The improved text
+            feedback: The feedback provided
+            improved_text: The improved version of the text
 
         Returns:
-            A prompt for reflecting on the improvement
+            A prompt for reflecting on the improvement process
 
         Raises:
             ValueError: If any input is empty
             RuntimeError: If prompt creation fails
+
+        Examples:
+            ```python
+            # Create a reflection prompt
+            original = "This is the original text."
+            feedback = "The text needed more detail."
+            improved = "This is the improved text with more detail."
+            prompt = manager._create_reflection_prompt_impl(original, feedback, improved)
+            print(prompt)
+            ```
         """
-        return f"""Please reflect on the following text improvement:
+        if not original_text or not isinstance(original_text, str):
+            raise ValueError("Invalid original text: must be non-empty string")
+        if not feedback or not isinstance(feedback, str):
+            raise ValueError("Invalid feedback: must be non-empty string")
+        if not improved_text or not isinstance(improved_text, str):
+            raise ValueError("Invalid improved text: must be non-empty string")
 
-        ORIGINAL TEXT:
-        {original_text}
+        return f"""Reflect on the improvement process:
 
-        FEEDBACK:
-        {feedback}
+Original text:
+{original_text}
 
-        IMPROVED TEXT:
-        {improved_text}
+Feedback:
+{feedback}
 
-        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-        REFLECTION: [your reflection on what was improved and why]
+Improved text:
+{improved_text}
 
-        REFLECTION:"""
+Please provide your reflection in the following format:
+REFLECTION: [your reflection on the improvement process]"""
 
 
 class ReflexionCriticPromptManager(PromptManager):
@@ -343,8 +380,8 @@ class ReflexionCriticPromptManager(PromptManager):
     Prompt manager for ReflexionCritic.
 
     This class provides prompt creation methods for ReflexionCritic, implementing
-    specialized prompt templates that incorporate previous reflections for
-    improved text generation.
+    specialized prompt templates that incorporate memory and reflections for
+    validation, critique, improvement, and reflection operations.
 
     ## Lifecycle Management
 
@@ -357,7 +394,8 @@ class ReflexionCriticPromptManager(PromptManager):
        - Allocates resources
 
     2. **Operation**
-       - Creates reflection-aware prompts
+       - Creates specialized prompts
+       - Incorporates memory
        - Handles template variables
        - Validates formats
        - Manages errors
@@ -375,11 +413,13 @@ class ReflexionCriticPromptManager(PromptManager):
        - Validates text input
        - Checks feedback format
        - Verifies reflection format
+       - Validates memory items
 
     2. **Template Management**
        - Handles missing variables
        - Validates template syntax
        - Manages format errors
+       - Incorporates memory safely
 
     3. **Resource Management**
        - Handles allocation failures
@@ -397,20 +437,19 @@ class ReflexionCriticPromptManager(PromptManager):
     # Create different types of prompts
     text = "This is a sample text."
     feedback = "The text needs more detail."
-    reflections = ["Previous improvement focused on clarity", "Added more examples"]
+    reflections = ["Previous improvement focused on clarity"]
+
+    # Validation prompt
+    validation_prompt = manager.create_validation_prompt(text)
+    print(validation_prompt)
+
+    # Critique prompt
+    critique_prompt = manager.create_critique_prompt(text)
+    print(critique_prompt)
 
     # Improvement prompt with reflections
-    improvement_prompt = manager.create_improvement_prompt(
-        text, feedback, reflections
-    )
+    improvement_prompt = manager.create_improvement_prompt(text, feedback, reflections)
     print(improvement_prompt)
-
-    # Reflection prompt
-    improved_text = "This is an improved version of the text."
-    reflection_prompt = manager.create_reflection_prompt(
-        text, feedback, improved_text
-    )
-    print(reflection_prompt)
     ```
     """
 
@@ -437,24 +476,30 @@ class ReflexionCriticPromptManager(PromptManager):
         Raises:
             ValueError: If text is empty
             RuntimeError: If prompt creation fails
+
+        Examples:
+            ```python
+            # Create a validation prompt
+            text = "This is a sample text to validate."
+            prompt = manager._create_validation_prompt_impl(text)
+            print(prompt)
+            ```
         """
-        return f"""Please Validate the following text:
+        if not text or not isinstance(text, str):
+            raise ValueError("Invalid text: must be non-empty string")
+        return f"""Validate the following text:
 
-        TEXT TO VALIDATE:
-        {text}
+{text}
 
-        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-        VALID: [true/false]
-        REASON: [reason for validation result]
-
-        VALIDATION:"""
+Please provide your validation in the following format:
+VALID: [true/false]"""
 
     def _create_critique_prompt_impl(self, text: str) -> str:
         """
         Implementation of create_critique_prompt.
 
         This method creates a specialized critique prompt for ReflexionCritic,
-        requesting the model to analyze the text and provide detailed feedback.
+        requesting the model to analyze and provide feedback on the text.
 
         Lifecycle:
         1. Input validation
@@ -472,23 +517,30 @@ class ReflexionCriticPromptManager(PromptManager):
         Raises:
             ValueError: If text is empty
             RuntimeError: If prompt creation fails
+
+        Examples:
+            ```python
+            # Create a critique prompt
+            text = "This is a sample text to critique."
+            prompt = manager._create_critique_prompt_impl(text)
+            print(prompt)
+            ```
         """
-        return f"""Please critique the following text:
+        if not text or not isinstance(text, str):
+            raise ValueError("Invalid text: must be non-empty string")
+        return f"""Analyze the following text and provide a detailed critique:
 
-        TEXT TO CRITIQUE:
-        {text}
+{text}
 
-        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-        SCORE: [number between 0 and 1]
-        FEEDBACK: [your general feedback]
-        ISSUES:
-        - [issue 1]
-        - [issue 2]
-        SUGGESTIONS:
-        - [suggestion 1]
-        - [suggestion 2]
-
-        CRITIQUE:"""
+Please provide your critique in the following format:
+SCORE: [0-1]
+FEEDBACK: [general feedback]
+ISSUES:
+- [specific issue 1]
+- [specific issue 2]
+SUGGESTIONS:
+- [suggestion 1]
+- [suggestion 2]"""
 
     def _create_improvement_prompt_impl(
         self, text: str, feedback: str, reflections: Optional[List[str]] = None
@@ -497,22 +549,19 @@ class ReflexionCriticPromptManager(PromptManager):
         Implementation of create_improvement_prompt.
 
         This method creates a specialized improvement prompt for ReflexionCritic,
-        requesting the model to improve the text based on feedback and previous
-        reflections.
+        requesting the model to improve the text based on feedback and reflections.
 
         Lifecycle:
         1. Input validation
-        2. Feedback processing
-        3. Reflection integration
-        4. Template selection
-        5. Variable substitution
-        6. Format validation
-        7. Error handling
+        2. Template selection
+        3. Variable substitution
+        4. Format validation
+        5. Error handling
 
         Args:
             text: The text to improve
-            feedback: Feedback to guide the improvement
-            reflections: Optional reflections to include in the prompt
+            feedback: The feedback to incorporate
+            reflections: Optional list of previous reflections
 
         Returns:
             A prompt for improving the text
@@ -520,27 +569,34 @@ class ReflexionCriticPromptManager(PromptManager):
         Raises:
             ValueError: If text or feedback is empty
             RuntimeError: If prompt creation fails
+
+        Examples:
+            ```python
+            # Create an improvement prompt
+            text = "This is a sample text to improve."
+            feedback = "The text needs more detail and better structure."
+            reflections = ["Previous improvement focused on clarity"]
+            prompt = manager._create_improvement_prompt_impl(text, feedback, reflections)
+            print(prompt)
+            ```
         """
-        prompt = f"""Please improve the following text based on the feedback:
+        if not text or not isinstance(text, str):
+            raise ValueError("Invalid text: must be non-empty string")
+        if not feedback or not isinstance(feedback, str):
+            raise ValueError("Invalid feedback: must be non-empty string")
 
-        TEXT TO IMPROVE:
-        {text}
+        prompt = f"""Improve the following text based on the feedback and previous reflections:
 
-        FEEDBACK:
-        {feedback}
-        """
+Text:
+{text}
 
-        if reflections and len(reflections) > 0:
-            prompt += "\n\nREFLECTIONS FROM PREVIOUS IMPROVEMENTS:\n"
-            for i, reflection in enumerate(reflections):
-                prompt += f"{i+1}. {reflection}\n"
+Feedback:
+{feedback}"""
 
-        prompt += """
-        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-        IMPROVED_TEXT: [your improved version of the text]
+        if reflections:
+            prompt += "\n\nPrevious reflections:\n" + "\n".join(f"- {r}" for r in reflections)
 
-        IMPROVED VERSION:"""
-
+        prompt += "\n\nPlease provide the improved text in the following format:\nIMPROVED_TEXT: [improved text]"
         return prompt
 
     def _create_reflection_prompt_impl(
@@ -550,7 +606,7 @@ class ReflexionCriticPromptManager(PromptManager):
         Implementation of create_reflection_prompt.
 
         This method creates a specialized reflection prompt for ReflexionCritic,
-        requesting the model to reflect on the improvement and what was learned.
+        requesting the model to reflect on the improvement process.
 
         Lifecycle:
         1. Input validation
@@ -561,28 +617,43 @@ class ReflexionCriticPromptManager(PromptManager):
 
         Args:
             original_text: The original text
-            feedback: The feedback received
-            improved_text: The improved text
+            feedback: The feedback provided
+            improved_text: The improved version of the text
 
         Returns:
-            A prompt for reflecting on the improvement
+            A prompt for reflecting on the improvement process
 
         Raises:
             ValueError: If any input is empty
             RuntimeError: If prompt creation fails
+
+        Examples:
+            ```python
+            # Create a reflection prompt
+            original = "This is the original text."
+            feedback = "The text needed more detail."
+            improved = "This is the improved text with more detail."
+            prompt = manager._create_reflection_prompt_impl(original, feedback, improved)
+            print(prompt)
+            ```
         """
-        return f"""Please reflect on the following text improvement:
+        if not original_text or not isinstance(original_text, str):
+            raise ValueError("Invalid original text: must be non-empty string")
+        if not feedback or not isinstance(feedback, str):
+            raise ValueError("Invalid feedback: must be non-empty string")
+        if not improved_text or not isinstance(improved_text, str):
+            raise ValueError("Invalid improved text: must be non-empty string")
 
-        ORIGINAL TEXT:
-        {original_text}
+        return f"""Reflect on the improvement process:
 
-        FEEDBACK:
-        {feedback}
+Original text:
+{original_text}
 
-        IMPROVED TEXT:
-        {improved_text}
+Feedback:
+{feedback}
 
-        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-        REFLECTION: [your reflection on what was improved and why]
+Improved text:
+{improved_text}
 
-        REFLECTION:"""
+Please provide your reflection in the following format:
+REFLECTION: [your reflection on the improvement process]"""

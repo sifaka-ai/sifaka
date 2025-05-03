@@ -201,30 +201,44 @@ class MemoryManager:
 
         Lifecycle:
         1. Input validation
-        2. Item processing
-        3. Buffer update
+        2. Buffer management
+        3. Item storage
         4. Error handling
 
         Args:
-            item: The item to add to memory
+            item: The string item to add to memory
 
         Raises:
-            ValueError: If item is invalid
-            RuntimeError: If addition fails
-        """
-        if not item or not item.strip():
-            return
+            ValueError: If item is empty or invalid
+            RuntimeError: If memory operation fails
 
-        # Add to memory buffer
-        self._memory_buffer.append(item.strip())
-        logger.debug(f"Added item to memory buffer (size: {len(self._memory_buffer)})")
+        Examples:
+            ```python
+            # Add a single item
+            memory_manager.add_to_memory("First reflection")
+
+            # Add multiple items
+            for i in range(3):
+                memory_manager.add_to_memory(f"Reflection {i}")
+
+            # Add an item that will cause buffer overflow
+            memory_manager = MemoryManager(buffer_size=2)
+            memory_manager.add_to_memory("First")  # Stored
+            memory_manager.add_to_memory("Second")  # Stored
+            memory_manager.add_to_memory("Third")  # First is removed
+            ```
+        """
+        if not item or not isinstance(item, str):
+            raise ValueError("Invalid memory item: must be non-empty string")
+        self._memory_buffer.append(item)
 
     def get_memory(self, max_items: Optional[int] = None) -> List[str]:
         """
-        Get items from memory.
+        Retrieve items from memory.
 
-        This method retrieves items from the memory buffer, optionally
-        limiting the number of items returned.
+        This method returns items from the memory buffer, optionally
+        limiting the number of items returned. Items are returned in
+        chronological order (oldest first).
 
         Lifecycle:
         1. Parameter validation
@@ -233,27 +247,48 @@ class MemoryManager:
         4. Error handling
 
         Args:
-            max_items: The maximum number of items to retrieve
+            max_items: Optional maximum number of items to return.
+                      If None, returns all items.
 
         Returns:
-            A list of memory items
+            A list of memory items, ordered from oldest to newest
 
         Raises:
             ValueError: If max_items is invalid
-            RuntimeError: If retrieval fails
-        """
-        if not max_items:
-            return list(self._memory_buffer)
+            RuntimeError: If memory retrieval fails
 
-        # Get the most recent items up to max_items
-        return list(self._memory_buffer)[-max_items:]
+        Examples:
+            ```python
+            # Get all items
+            memory_manager.add_to_memory("First")
+            memory_manager.add_to_memory("Second")
+            all_items = memory_manager.get_memory()
+            print(all_items)  # ["First", "Second"]
+
+            # Get limited items
+            memory_manager.add_to_memory("Third")
+            recent_items = memory_manager.get_memory(max_items=2)
+            print(recent_items)  # ["Second", "Third"]
+
+            # Get items from empty memory
+            memory_manager.clear_memory()
+            items = memory_manager.get_memory()
+            print(items)  # []
+            ```
+        """
+        if max_items is not None and max_items < 0:
+            raise ValueError("max_items must be non-negative")
+        items = list(self._memory_buffer)
+        if max_items is not None:
+            items = items[-max_items:]
+        return items
 
     def clear_memory(self) -> None:
         """
         Clear all items from memory.
 
-        This method removes all items from the memory buffer and
-        resets the memory state.
+        This method removes all items from the memory buffer, effectively
+        resetting the memory state. The buffer size remains unchanged.
 
         Lifecycle:
         1. State validation
@@ -262,18 +297,30 @@ class MemoryManager:
         4. Error handling
 
         Raises:
-            RuntimeError: If clearing fails
+            RuntimeError: If memory clearing fails
+
+        Examples:
+            ```python
+            # Clear populated memory
+            memory_manager.add_to_memory("First")
+            memory_manager.add_to_memory("Second")
+            memory_manager.clear_memory()
+            print(memory_manager.memory_size)  # 0
+
+            # Clear empty memory
+            memory_manager.clear_memory()
+            print(memory_manager.memory_size)  # 0
+            ```
         """
         self._memory_buffer.clear()
-        logger.debug("Cleared memory buffer")
 
     @property
     def memory_size(self) -> int:
         """
-        Get the number of items in memory.
+        Get the current number of items in memory.
 
-        This method returns the current number of items stored
-        in the memory buffer.
+        This property returns the current number of items stored in
+        the memory buffer, which will be between 0 and the buffer size.
 
         Lifecycle:
         1. State validation
@@ -281,9 +328,21 @@ class MemoryManager:
         3. Error handling
 
         Returns:
-            The number of items in memory
+            The number of items currently in memory
 
-        Raises:
-            RuntimeError: If size calculation fails
+        Examples:
+            ```python
+            # Check empty memory
+            print(memory_manager.memory_size)  # 0
+
+            # Check populated memory
+            memory_manager.add_to_memory("First")
+            memory_manager.add_to_memory("Second")
+            print(memory_manager.memory_size)  # 2
+
+            # Check after clearing
+            memory_manager.clear_memory()
+            print(memory_manager.memory_size)  # 0
+            ```
         """
         return len(self._memory_buffer)
