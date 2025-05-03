@@ -86,8 +86,22 @@ graph TD
         Model --> Validation
         Validation --> |Pass| Output
         Validation --> |Fail| Critics
-        Critics --> Model
+        Critics --> |Feedback| Model
+        Model --> |Retry| Validation
+        Validation --> |Max Attempts| Error
+        Validation --> |Pass| Output
     end
+
+    subgraph Monitoring
+        direction TB
+        Model --> |Metrics| Monitor
+        Validation --> |Metrics| Monitor
+        Critics --> |Metrics| Monitor
+        Monitor --> |Logs| Logging
+    end
+
+    style Chain fill:#f9f9f9,stroke:#333,stroke-width:2px
+    style Monitoring fill:#f0f0f0,stroke:#333,stroke-width:2px
 ```
 
 ### Components of a Chain
@@ -95,6 +109,8 @@ graph TD
 1. **Model Provider**
    - Connects to LLMs (OpenAI, Claude, etc.)
    - Handles the actual text generation
+   - Supports retry mechanisms
+   - Implements rate limiting and caching
 
 2. **Rules vs Classifiers**
    - Rules: Binary pass/fail checks
@@ -124,6 +140,12 @@ graph TD
        Attempt 3: "Now I understand - needs to be business formal"
        ```
 
+4. **Monitoring**
+   - Tracks performance metrics
+   - Monitors validation results
+   - Logs improvement attempts
+   - Provides detailed statistics
+
 ### How it Works
 
 1. You create a chain with your components:
@@ -131,7 +153,8 @@ graph TD
    chain = create_simple_chain(
        model=claude_model,
        rules=[length_rule, language_rule],
-       critic=writing_critic
+       critic=writing_critic,
+       monitor=performance_monitor
    )
    ```
 
@@ -141,7 +164,9 @@ graph TD
    # 1. Sends to model
    # 2. Checks rules
    # 3. If fails, uses critic to improve
-   # 4. Tries again until success or max attempts
+   # 4. Retries with improved prompt
+   # 5. Continues until success or max attempts
+   # 6. Monitors and logs all steps
    ```
 
 ## Configuration System

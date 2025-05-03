@@ -2,6 +2,8 @@
 Adapter for using Guardrails validators as rules.
 
 This module provides adapters for using validators from the Guardrails library as Sifaka rules.
+It enables seamless integration between Guardrails' validation capabilities and Sifaka's
+rule system, allowing for sophisticated content validation.
 
 Usage Example:
     from guardrails.hub import RegexMatch

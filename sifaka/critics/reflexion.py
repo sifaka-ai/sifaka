@@ -550,14 +550,8 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     DEFAULT_NAME = "reflexion_critic"
     DEFAULT_DESCRIPTION = "Improves text using reflections on past feedback"
 
-    # State management using StateManager
-    @staticmethod
-    def _create_critic_state():
-        from sifaka.utils import create_critic_state
-
-        return create_critic_state()
-
-    _state = PrivateAttr(default_factory=_create_critic_state)
+    # State management
+    _initialized = PrivateAttr(default=False)
 
     def __init__(
         self,
@@ -576,6 +570,9 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             prompt_factory: Prompt factory
             config: Configuration for the critic
         """
+        # Initialize state
+        self._initialized = False
+
         # Validate required parameters
         if llm_provider is None:
             from pydantic import ValidationError
@@ -604,33 +601,31 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         # Initialize base class
         super().__init__(config)
 
-        # Initialize state
-        state = self._state.get_state()
-        state.initialized = False
-        state.cache = {}
-
         # Import required components
         from .managers.prompt_factories import ReflexionCriticPromptManager
         from .managers.response import ResponseParser
         from .managers.memory import MemoryManager
         from .services.critique import CritiqueService
 
-        # Create and store components in state
-        state.cache["llm_provider"] = llm_provider
-        state.cache["prompt_manager"] = prompt_factory or ReflexionCriticPromptManager(config)
-        state.cache["response_parser"] = ResponseParser()
-        state.cache["memory_manager"] = MemoryManager(buffer_size=config.memory_buffer_size)
+        # Initialize components as attributes
+        self._model = llm_provider
+        self._prompt_manager = prompt_factory or ReflexionCriticPromptManager(config)
+        self._response_parser = ResponseParser()
+        self._memory_manager = MemoryManager(buffer_size=config.memory_buffer_size)
 
-        # Create and store service in state
-        state.cache["critique_service"] = CritiqueService(
+        # Create service
+        self._critique_service = CritiqueService(
             llm_provider=llm_provider,
-            prompt_manager=state.cache["prompt_manager"],
-            response_parser=state.cache["response_parser"],
-            memory_manager=state.cache["memory_manager"],
+            prompt_manager=self._prompt_manager,
+            response_parser=self._response_parser,
+            memory_manager=self._memory_manager,
         )
 
+        # Cache for storing temporary data
+        self._cache = {}
+
         # Mark as initialized
-        state.initialized = True
+        self._initialized = True
 
     @property
     def config(self) -> ReflexionCriticConfig:
@@ -654,20 +649,12 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        # Get state
-        state = self._state.get_state()
-
         # Ensure initialized
-        if not state.initialized:
+        if not self._initialized:
             raise RuntimeError("ReflexionCritic not properly initialized")
 
-        # Get critique service from state
-        critique_service = state.cache.get("critique_service")
-        if not critique_service:
-            raise RuntimeError("Critique service not available")
-
         # Delegate to critique service
-        return critique_service.validate(text)
+        return self._critique_service.validate(text)
 
     def improve(self, text: str, feedback: str = None) -> str:
         """Improve text based on feedback and reflections.
@@ -687,17 +674,9 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        # Get state
-        state = self._state.get_state()
-
         # Ensure initialized
-        if not state.initialized:
+        if not self._initialized:
             raise RuntimeError("ReflexionCritic not properly initialized")
-
-        # Get critique service from state
-        critique_service = state.cache.get("critique_service")
-        if not critique_service:
-            raise RuntimeError("Critique service not available")
 
         # Handle different feedback types
         if isinstance(feedback, list):
@@ -709,7 +688,7 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             feedback_str = feedback
 
         # Delegate to critique service - the critique service handles reflection generation
-        return critique_service.improve(text, feedback_str)
+        return self._critique_service.improve(text, feedback_str)
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
         """Improve text based on specific feedback.
@@ -727,11 +706,8 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        # Get state
-        state = self._state.get_state()
-
         # Ensure initialized
-        if not state.initialized:
+        if not self._initialized:
             raise RuntimeError("ReflexionCritic not properly initialized")
 
         return self.improve(text, feedback)
@@ -754,20 +730,12 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        # Get state
-        state = self._state.get_state()
-
         # Ensure initialized
-        if not state.initialized:
+        if not self._initialized:
             raise RuntimeError("ReflexionCritic not properly initialized")
 
-        # Get critique service from state
-        critique_service = state.cache.get("critique_service")
-        if not critique_service:
-            raise RuntimeError("Critique service not available")
-
         # Delegate to critique service
-        return critique_service.critique(text)
+        return self._critique_service.critique(text)
 
     def _violations_to_feedback(self, violations: List[Dict[str, Any]]) -> str:
         """Convert rule violations to feedback text.
@@ -799,11 +767,8 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             # - Grammar: Subject-verb agreement error"
             ```
         """
-        # Get state
-        state = self._state.get_state()
-
-        # Store violations in state cache for potential future use
-        state.cache["last_violations"] = violations
+        # Store violations in cache for potential future use
+        self._cache["last_violations"] = violations
 
         # Handle empty violations
         if not violations:
@@ -816,8 +781,8 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             message = violation.get("message", "Unknown issue")
             feedback += f"- {rule_name}: {message}\n"
 
-        # Store formatted feedback in state cache
-        state.cache["last_formatted_feedback"] = feedback
+        # Store formatted feedback in cache
+        self._cache["last_formatted_feedback"] = feedback
 
         return feedback
 
@@ -863,11 +828,8 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             # }
             ```
         """
-        # Get state
-        state = self._state.get_state()
-
-        # Store raw response in state cache
-        state.cache["last_raw_response"] = response
+        # Store raw response in cache
+        self._cache["last_raw_response"] = response
 
         # Initialize result structure
         result = {
@@ -918,8 +880,8 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             logger.error(f"Error parsing critique response: {str(e)}")
             pass
 
-        # Store parsed result in state cache
-        state.cache["last_parsed_critique"] = result
+        # Store parsed result in cache
+        self._cache["last_parsed_critique"] = result
 
         return result
 
@@ -945,23 +907,15 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             # ]
             ```
         """
-        # Get state
-        state = self._state.get_state()
-
         # Ensure initialized
-        if not state.initialized:
+        if not self._initialized:
             raise RuntimeError("ReflexionCritic not properly initialized")
 
-        # Get memory manager from state
-        memory_manager = state.cache.get("memory_manager")
-        if not memory_manager:
-            raise RuntimeError("Memory manager not available")
-
         # Get reflections from memory manager
-        reflections = memory_manager.get_memory()
+        reflections = self._memory_manager.get_memory()
 
-        # Store reflections in state cache
-        state.cache["last_reflections"] = reflections
+        # Store reflections in cache
+        self._cache["last_reflections"] = reflections
 
         return reflections
 
@@ -986,20 +940,12 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        # Get state
-        state = self._state.get_state()
-
         # Ensure initialized
-        if not state.initialized:
+        if not self._initialized:
             raise RuntimeError("ReflexionCritic not properly initialized")
 
-        # Get critique service from state
-        critique_service = state.cache.get("critique_service")
-        if not critique_service:
-            raise RuntimeError("Critique service not available")
-
         # Delegate to critique service
-        return await critique_service.avalidate(text)
+        return await self._critique_service.avalidate(text)
 
     async def acritique(self, text: str) -> dict:
         """Asynchronously critique text.
@@ -1025,23 +971,15 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        # Get state
-        state = self._state.get_state()
-
         # Ensure initialized
-        if not state.initialized:
+        if not self._initialized:
             raise RuntimeError("ReflexionCritic not properly initialized")
 
-        # Get critique service from state
-        critique_service = state.cache.get("critique_service")
-        if not critique_service:
-            raise RuntimeError("Critique service not available")
-
         # Delegate to critique service
-        result = await critique_service.acritique(text)
+        result = await self._critique_service.acritique(text)
 
-        # Store result in state cache
-        state.cache["last_async_critique"] = result
+        # Store result in cache
+        self._cache["last_async_critique"] = result
 
         return result
 
@@ -1066,17 +1004,9 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        # Get state
-        state = self._state.get_state()
-
         # Ensure initialized
-        if not state.initialized:
+        if not self._initialized:
             raise RuntimeError("ReflexionCritic not properly initialized")
-
-        # Get critique service from state
-        critique_service = state.cache.get("critique_service")
-        if not critique_service:
-            raise RuntimeError("Critique service not available")
 
         # Handle different feedback types
         if isinstance(feedback, list):
@@ -1087,14 +1017,14 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         else:
             feedback_str = feedback
 
-        # Store feedback in state cache
-        state.cache["last_async_feedback"] = feedback_str
+        # Store feedback in cache
+        self._cache["last_async_feedback"] = feedback_str
 
         # Delegate to critique service - the critique service handles reflection generation
-        result = await critique_service.aimprove(text, feedback_str)
+        result = await self._critique_service.aimprove(text, feedback_str)
 
-        # Store result in state cache
-        state.cache["last_async_improved_text"] = result
+        # Store result in cache
+        self._cache["last_async_improved_text"] = result
 
         return result
 
@@ -1115,15 +1045,12 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text is empty
             RuntimeError: If model interaction fails or critic is not properly initialized
         """
-        # Get state
-        state = self._state.get_state()
-
         # Ensure initialized
-        if not state.initialized:
+        if not self._initialized:
             raise RuntimeError("ReflexionCritic not properly initialized")
 
-        # Store the specific feedback request in state cache
-        state.cache["last_specific_feedback"] = feedback
+        # Store the specific feedback request in cache
+        self._cache["last_specific_feedback"] = feedback
 
         return await self.aimprove(text, feedback)
 

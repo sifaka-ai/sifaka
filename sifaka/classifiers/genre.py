@@ -88,7 +88,21 @@ class GenreClassifier(BaseClassifier):
         state.cache = {}
 
     def _load_dependencies(self) -> Dict[str, Any]:
-        """Load scikit-learn dependencies."""
+        """
+        Load required dependencies for genre classification.
+
+        This method imports and initializes the necessary scikit-learn
+        components for text classification.
+
+        Returns:
+            Dictionary containing loaded dependencies:
+            - 'CountVectorizer': For text vectorization
+            - 'RandomForestClassifier': For genre classification
+            - 'TfidfTransformer': For TF-IDF transformation
+
+        Raises:
+            ImportError: If scikit-learn is not installed
+        """
         try:
             # Import necessary scikit-learn modules
             sklearn_modules = {
@@ -108,7 +122,17 @@ class GenreClassifier(BaseClassifier):
             raise RuntimeError(f"Failed to load scikit-learn modules: {e}")
 
     def warm_up(self) -> None:
-        """Initialize the model if needed."""
+        """
+        Warm up the classifier by initializing the RandomForest model.
+
+        This method prepares the classifier for use by:
+        1. Loading required dependencies
+        2. Initializing the vectorizer and classifier
+        3. Loading a pre-trained model if available
+
+        Raises:
+            RuntimeError: If model initialization fails
+        """
         # Get state
         state = self._state.get_state()
 
@@ -154,7 +178,21 @@ class GenreClassifier(BaseClassifier):
             state.initialized = True
 
     def _save_model(self, path: str) -> None:
-        """Save the model to a file."""
+        """
+        Save the trained model to disk.
+
+        This method saves:
+        1. The trained RandomForest classifier
+        2. The fitted vectorizer
+        3. The label encoder
+
+        Args:
+            path: Path where to save the model files
+
+        Raises:
+            IOError: If model saving fails
+            RuntimeError: If model is not trained
+        """
         # Get state
         state = self._state.get_state()
 
@@ -178,7 +216,21 @@ class GenreClassifier(BaseClassifier):
             state.error = f"Failed to save model: {e}"
 
     def _load_model(self, path: str) -> None:
-        """Load the model from a file."""
+        """
+        Load a pre-trained model from disk.
+
+        This method loads:
+        1. The trained RandomForest classifier
+        2. The fitted vectorizer
+        3. The label encoder
+
+        Args:
+            path: Path from where to load the model files
+
+        Raises:
+            IOError: If model loading fails
+            ValueError: If model files are invalid
+        """
         # Get state
         state = self._state.get_state()
 
@@ -263,7 +315,20 @@ class GenreClassifier(BaseClassifier):
         return self
 
     def _extract_feature_importances(self) -> Dict[str, Dict[str, float]]:
-        """Extract and return the most important features for each genre."""
+        """
+        Extract feature importances from the trained model.
+
+        This method analyzes the RandomForest model to determine:
+        1. Most important features for each genre
+        2. Feature importance scores
+        3. Word importance rankings
+
+        Returns:
+            Dictionary mapping genres to feature importance scores
+
+        Raises:
+            RuntimeError: If model is not trained
+        """
         # Get state
         state = self._state.get_state()
 
@@ -290,13 +355,26 @@ class GenreClassifier(BaseClassifier):
 
     def _classify_impl(self, text: str) -> ClassificationResult:
         """
-        Implement genre classification logic.
+        Classify a single text into genres.
+
+        This method:
+        1. Vectorizes the input text
+        2. Applies the RandomForest model
+        3. Returns the predicted genre and confidence scores
 
         Args:
             text: The text to classify
 
         Returns:
-            ClassificationResult with genre label and confidence
+            ClassificationResult containing:
+            - predicted_genre: The most likely genre
+            - confidence: Confidence score for the prediction
+            - genre_distribution: Distribution across all genres
+            - feature_importances: Importance of text features
+
+        Raises:
+            ValueError: If text is empty or invalid
+            RuntimeError: If classification fails
         """
         # Get state
         state = self._state.get_state()
@@ -340,13 +418,22 @@ class GenreClassifier(BaseClassifier):
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
         """
-        Classify multiple texts efficiently.
+        Classify multiple texts into genres.
+
+        This method efficiently processes multiple texts by:
+        1. Vectorizing all texts at once
+        2. Applying the RandomForest model in batch
+        3. Returning genre predictions for each text
 
         Args:
             texts: List of texts to classify
 
         Returns:
-            List of ClassificationResults
+            List of ClassificationResults, one for each input text
+
+        Raises:
+            ValueError: If texts list is empty or contains invalid entries
+            RuntimeError: If batch classification fails
         """
         # Get state
         state = self._state.get_state()
@@ -409,18 +496,27 @@ class GenreClassifier(BaseClassifier):
         **kwargs,
     ) -> "GenreClassifier":
         """
-        Create and train a genre classifier in one step.
+        Create a pre-trained genre classifier from labeled data.
+
+        This method:
+        1. Creates a new classifier instance
+        2. Fits the RandomForest model on the provided data
+        3. Returns the trained classifier
 
         Args:
-            texts: List of texts to train on
-            labels: List of genre labels
-            name: Name of the classifier
+            texts: List of training texts
+            labels: List of corresponding genre labels
+            name: Name for the classifier
             description: Description of the classifier
             config: Optional classifier configuration
-            **kwargs: Additional configuration parameters
+            **kwargs: Additional keyword arguments for configuration
 
         Returns:
-            Trained GenreClassifier
+            A trained GenreClassifier instance
+
+        Raises:
+            ValueError: If training data is invalid or inconsistent
+            RuntimeError: If model training fails
         """
         # If no config provided, create a default one
         if config is None:

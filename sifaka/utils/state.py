@@ -33,11 +33,11 @@ class StateManager(Generic[T]):
             ))
             
             def warm_up(self) -> None:
-                """Initialize the component."""
+                # Initialize the component.
                 self._state.initialize()
                 
             def get_state(self) -> Dict[str, Any]:
-                """Get the component's state."""
+                # Get the component's state.
                 return self._state.get_state()
         ```
     """
@@ -141,7 +141,7 @@ class ComponentState(BaseModel):
             _state: ClassifierState = PrivateAttr(default_factory=ClassifierState)
             
             def warm_up(self) -> None:
-                """Initialize the classifier."""
+                # Initialize the classifier.
                 if not self._state.initialized:
                     self._state.model = self._load_model()
                     self._state.initialized = True
@@ -176,7 +176,7 @@ class ClassifierState(ComponentState):
             _state: ClassifierState = PrivateAttr(default_factory=ClassifierState)
             
             def warm_up(self) -> None:
-                """Initialize the classifier."""
+                # Initialize the classifier.
                 if not self._state.initialized:
                     self._state.model = self._load_model()
                     self._state.initialized = True
@@ -210,7 +210,7 @@ class RuleState(ComponentState):
             _state: RuleState = PrivateAttr(default_factory=RuleState)
             
             def warm_up(self) -> None:
-                """Initialize the rule."""
+                # Initialize the rule.
                 if not self._state.initialized:
                     self._state.validator = self._create_validator()
                     self._state.initialized = True
@@ -242,7 +242,7 @@ class CriticState(ComponentState):
             _state: CriticState = PrivateAttr(default_factory=CriticState)
             
             def warm_up(self) -> None:
-                """Initialize the critic."""
+                # Initialize the critic.
                 if not self._state.initialized:
                     self._state.model = self._load_model()
                     self._state.initialized = True
@@ -275,7 +275,7 @@ class ModelState(ComponentState):
             _state: ModelState = PrivateAttr(default_factory=ModelState)
             
             def warm_up(self) -> None:
-                """Initialize the model provider."""
+                # Initialize the model provider.
                 if not self._state.initialized:
                     self._state.client = self._create_client()
                     self._state.initialized = True

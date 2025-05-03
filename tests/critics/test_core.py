@@ -11,7 +11,8 @@ import pytest
 from typing import Dict, List, Any
 
 from sifaka.critics.core import CriticCore
-from sifaka.critics.models import CriticConfig, CriticMetadata
+from sifaka.critics.models import CriticMetadata
+from sifaka.critics.base import CriticConfig as BaseCriticConfig
 from sifaka.critics.managers.memory import MemoryManager
 from sifaka.critics.managers.prompt import PromptManager
 from sifaka.critics.managers.response import ResponseParser
@@ -27,22 +28,19 @@ class TestCriticCore(unittest.TestCase):
         self.prompt_manager = MagicMock(spec=PromptManager)
         self.response_parser = MagicMock(spec=ResponseParser)
         self.memory_manager = MagicMock(spec=MemoryManager)
-        self.config = CriticConfig(
-            name="test_critic",
-            description="Test critic",
-            min_confidence=0.7,
-            max_attempts=3
+        self.config = BaseCriticConfig(
+            name="test_critic", description="Test critic", min_confidence=0.7, max_attempts=3
         )
 
         # Mock the CritiqueService
         self.mock_critique_service = MagicMock()
-        with patch('sifaka.critics.core.CritiqueService', return_value=self.mock_critique_service):
+        with patch("sifaka.critics.core.CritiqueService", return_value=self.mock_critique_service):
             self.critic = CriticCore(
                 config=self.config,
                 llm_provider=self.llm_provider,
                 prompt_manager=self.prompt_manager,
                 response_parser=self.response_parser,
-                memory_manager=self.memory_manager
+                memory_manager=self.memory_manager,
             )
 
     def test_initialization(self):
@@ -61,13 +59,12 @@ class TestCriticCore(unittest.TestCase):
         mock_default_prompt_manager = MagicMock()
 
         # Mock the creator methods
-        with patch('sifaka.critics.core.DefaultPromptManager', return_value=mock_default_prompt_manager):
-            with patch('sifaka.critics.core.ResponseParser', return_value=MagicMock()):
-                with patch('sifaka.critics.core.CritiqueService', return_value=MagicMock()):
-                    critic = CriticCore(
-                        config=self.config,
-                        llm_provider=self.llm_provider
-                    )
+        with patch(
+            "sifaka.critics.core.DefaultPromptManager", return_value=mock_default_prompt_manager
+        ):
+            with patch("sifaka.critics.core.ResponseParser", return_value=MagicMock()):
+                with patch("sifaka.critics.core.CritiqueService", return_value=MagicMock()):
+                    critic = CriticCore(config=self.config, llm_provider=self.llm_provider)
 
                     # Verify default managers were created
                     self.assertEqual(critic._prompt_manager, mock_default_prompt_manager)
@@ -91,7 +88,9 @@ class TestCriticCore(unittest.TestCase):
     def test_validate_with_empty_text(self):
         """Test validate method with empty text."""
         # Configure mock to raise ValueError for empty text
-        self.mock_critique_service.validate.side_effect = ValueError("text must be a non-empty string")
+        self.mock_critique_service.validate.side_effect = ValueError(
+            "text must be a non-empty string"
+        )
 
         # Verify the exception is propagated
         with self.assertRaises(ValueError):
@@ -115,7 +114,9 @@ class TestCriticCore(unittest.TestCase):
     def test_improve_with_empty_text(self):
         """Test improve method with empty text."""
         # Configure mock to raise ValueError for empty text
-        self.mock_critique_service.improve.side_effect = ValueError("text must be a non-empty string")
+        self.mock_critique_service.improve.side_effect = ValueError(
+            "text must be a non-empty string"
+        )
 
         # Verify the exception is propagated
         with self.assertRaises(ValueError):
@@ -128,7 +129,7 @@ class TestCriticCore(unittest.TestCase):
             "score": 0.8,
             "feedback": "Good text",
             "issues": ["minor issue"],
-            "suggestions": ["small suggestion"]
+            "suggestions": ["small suggestion"],
         }
         self.mock_critique_service.critique.return_value = critique_result
 
@@ -187,11 +188,8 @@ class TestCriticCoreAsync:
         prompt_manager = MagicMock(spec=PromptManager)
         response_parser = MagicMock(spec=ResponseParser)
         memory_manager = MagicMock(spec=MemoryManager)
-        config = CriticConfig(
-            name="test_critic",
-            description="Test critic",
-            min_confidence=0.7,
-            max_attempts=3
+        config = BaseCriticConfig(
+            name="test_critic", description="Test critic", min_confidence=0.7, max_attempts=3
         )
 
         # Mock the CritiqueService with AsyncMock methods
@@ -200,13 +198,13 @@ class TestCriticCoreAsync:
         mock_critique_service.acritique = AsyncMock()
         mock_critique_service.aimprove = AsyncMock()
 
-        with patch('sifaka.critics.core.CritiqueService', return_value=mock_critique_service):
+        with patch("sifaka.critics.core.CritiqueService", return_value=mock_critique_service):
             critic = CriticCore(
                 config=config,
                 llm_provider=llm_provider,
                 prompt_manager=prompt_manager,
                 response_parser=response_parser,
-                memory_manager=memory_manager
+                memory_manager=memory_manager,
             )
 
         return critic
@@ -234,7 +232,7 @@ class TestCriticCoreAsync:
             "score": 0.9,
             "feedback": "Great text",
             "issues": [],
-            "suggestions": ["minor suggestion"]
+            "suggestions": ["minor suggestion"],
         }
         critic._critique_service.acritique.return_value = critique_result
 

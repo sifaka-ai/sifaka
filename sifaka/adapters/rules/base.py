@@ -5,7 +5,13 @@
 Base classes and protocols for adapter-based rules.
 
 This module provides the foundation for adapting various components to function as validation rules,
-such as classifiers, models, or external services.
+such as classifiers, models, or external services. It defines the core interfaces and base classes
+that enable the adapter pattern implementation throughout the Sifaka framework.
+
+Key Components:
+1. Adaptable Protocol: Defines the interface for components that can be adapted
+2. BaseAdapter: Abstract base class for implementing specific adapters
+3. Validation Types: Support for different input types and validation strategies
 
 See examples in the tests/ directory for usage patterns.
 """
@@ -65,80 +71,67 @@ class Adaptable(Protocol):
 
 class BaseAdapter(BaseValidator[T], Generic[T, A]):
     """
-    Base class for adapters that convert components to validators.
+    Base class for implementing adapters that convert components to validators.
 
-    This abstract class provides the foundation for adapting external
-    components to work with Sifaka's rule system. It handles common
-    tasks like validating the adaptee and providing an interface for
-    validation.
+    This class serves as the foundation for creating adapters that bridge between
+    external components and Sifaka's validation system. It handles the core
+    adaptation logic while allowing specific implementations to customize behavior.
 
-    Type Parameters:
-        T: The input type to validate
-        A: The adaptee type, must implement Adaptable
+    Attributes:
+        adaptee: The component being adapted
+        validation_type: The type of input this adapter validates
 
-    ## Lifecycle
+    Lifecycle:
+    1. Initialization: Set up with adaptee and configuration
+    2. Validation: Convert adaptee's functionality to validation
+    3. Result Handling: Standardize validation results
 
-    1. **Initialization**: Receive component to adapt
-       - Validate adaptee implements required protocol
-       - Store reference to adaptee
-       - Set up any additional configuration
-
-    2. **Validation**: Process input through adaptee
-       - Handle empty or invalid inputs
-       - Preprocess input if necessary
-       - Pass input to adaptee with appropriate parameters
-       - Catch and handle any adaptee errors
-
-    3. **Result Conversion**: Translate adaptee outputs to RuleResults
-       - Convert adaptee-specific outputs to standard RuleResults
-       - Include appropriate metadata from adaptee
-       - Set passed/failed status based on adaptee response
-
-    ## Error Handling
-
-    Implementations should handle these error cases:
-
-    - **Adaptee Validation**: Check at initialization that adaptee meets requirements
-    - **Empty Inputs**: Handle empty inputs with the handle_empty_text() method
-    - **Adaptee Errors**: Catch and properly handle errors from the adaptee
-    - **Input Type Errors**: Validate input types before processing
+    Examples:
+        ```python
+        class CustomAdapter(BaseAdapter[str, CustomComponent]):
+            def validate(self, input_value: str, **kwargs) -> RuleResult:
+                # Convert component's functionality to validation
+                result = self.adaptee.process(input_value)
+                return RuleResult(
+                    passed=result.is_valid,
+                    message=result.message,
+                    metadata={"confidence": result.confidence}
+                )
+        ```
     """
 
     @property
     def validation_type(self) -> type:
         """
-        Get the type of input this validator can validate.
+        Get the type of input this adapter validates.
 
         Returns:
-            The type this validator can validate (default: str)
+            The type of input this adapter accepts for validation
         """
-        return str
+        return T
 
     def __init__(self, adaptee: A) -> None:
         """
-        Initialize with adaptee.
+        Initialize the adapter with a component to adapt.
 
         Args:
-            adaptee: The component being adapted
+            adaptee: The component to adapt for validation
 
         Raises:
-            ConfigurationError: If adaptee doesn't implement Adaptable protocol
+            ConfigurationError: If the adaptee is invalid or incompatible
         """
-        self._validate_adaptee(adaptee)
         self._adaptee = adaptee
+        self._validate_adaptee(adaptee)
 
     def _validate_adaptee(self, adaptee: Any) -> None:
         """
-        Validate that adaptee implements the required protocol.
-
-        This internal method ensures the adaptee meets the requirements
-        for adaptation.
+        Validate that the adaptee is compatible with this adapter.
 
         Args:
             adaptee: The component to validate
 
         Raises:
-            ConfigurationError: If adaptee doesn't implement Adaptable protocol
+            ConfigurationError: If the adaptee is invalid or incompatible
         """
         if not isinstance(adaptee, Adaptable):
             raise ConfigurationError(
@@ -148,64 +141,54 @@ class BaseAdapter(BaseValidator[T], Generic[T, A]):
     @property
     def adaptee(self) -> A:
         """
-        Get the adaptee.
+        Get the component being adapted.
 
         Returns:
-            The component being adapted
+            The component instance being adapted
         """
         return self._adaptee
 
     def handle_empty_text(self, text: str) -> Optional[RuleResult]:
         """
-        Handle empty text validation.
-
-        This method provides consistent handling of empty text inputs
-        across different adapters.
+        Handle empty or invalid input text.
 
         Args:
-            text: The text to check
+            text: The input text to check
 
         Returns:
-            RuleResult if text is empty, None otherwise
+            RuleResult if the text is empty or invalid, None otherwise
         """
-        if not isinstance(text, str):
-            return None
-
-        if not text.strip():
+        if not text or not text.strip():
             return RuleResult(
-                passed=True,
-                message="Empty text validation skipped",
-                metadata={"reason": "empty_input", "adaptee_name": self.adaptee.name},
+                passed=False,
+                message="Empty text provided",
+                metadata={"input_length": len(text)}
             )
         return None
 
     def validate(self, input_value: T, **kwargs) -> RuleResult:
         """
-        Validate using the adaptee.
-
-        This method should be implemented by subclasses to perform
-        the actual validation using the adaptee.
+        Validate the input value using the adapted component.
 
         Args:
-            input_value: Input to validate
-            **kwargs: Additional validation context
+            input_value: The value to validate
+            **kwargs: Additional validation parameters
 
         Returns:
-            RuleResult with validation results
+            RuleResult containing validation outcome and metadata
 
         Raises:
-            ValidationError: If validation fails
-            NotImplementedError: If not implemented by subclass
+            ValidationError: If validation fails due to an error
         """
         try:
-            # Handle empty text if input is a string
+            # Handle empty text if applicable
             if isinstance(input_value, str):
                 empty_result = self.handle_empty_text(input_value)
                 if empty_result:
                     return empty_result
 
-            # This is an abstract method that should be implemented by subclasses
-            raise NotImplementedError("Subclasses must implement the validate method")
+            # Delegate to specific implementation
+            return self._validate_impl(input_value, **kwargs)
         except Exception as e:
             raise ValidationError(f"Validation failed: {str(e)}") from e
 

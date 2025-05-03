@@ -90,7 +90,21 @@ class TopicClassifier(BaseClassifier):
         return self.config.params.get("top_words_per_topic", 10)
 
     def _load_dependencies(self) -> Dict[str, Any]:
-        """Load scikit-learn dependencies."""
+        """
+        Load required dependencies for topic classification.
+
+        This method imports and initializes the necessary scikit-learn
+        components for LDA topic modeling.
+
+        Returns:
+            Dictionary containing loaded dependencies:
+            - 'CountVectorizer': For text vectorization
+            - 'LatentDirichletAllocation': For topic modeling
+            - 'TfidfTransformer': For TF-IDF transformation
+
+        Raises:
+            ImportError: If scikit-learn is not installed
+        """
         try:
             # Import necessary scikit-learn modules
             sklearn_modules = {
@@ -110,7 +124,15 @@ class TopicClassifier(BaseClassifier):
 
     def warm_up(self) -> None:
         """
-        Initialize the model if not already initialized.
+        Warm up the classifier by initializing the LDA model.
+
+        This method prepares the classifier for use by:
+        1. Loading required dependencies
+        2. Initializing the vectorizer and LDA model
+        3. Setting up the topic-word matrix
+
+        Raises:
+            RuntimeError: If model initialization fails
         """
         # Get state
         state = self._state.get_state()
@@ -189,13 +211,26 @@ class TopicClassifier(BaseClassifier):
 
     def _classify_impl(self, text: str) -> ClassificationResult:
         """
-        Implement topic classification logic.
+        Classify a single text into topics.
+
+        This method:
+        1. Vectorizes the input text
+        2. Applies the LDA model to get topic distributions
+        3. Returns the dominant topic and confidence scores
 
         Args:
             text: The text to classify
 
         Returns:
-            ClassificationResult with detected topic and confidence
+            ClassificationResult containing:
+            - dominant_topic: The most likely topic
+            - confidence: Confidence score for the dominant topic
+            - topic_distribution: Distribution across all topics
+            - top_words: Most representative words for each topic
+
+        Raises:
+            ValueError: If text is empty or invalid
+            RuntimeError: If classification fails
         """
         # Get state
         state = self._state.get_state()
@@ -243,13 +278,22 @@ class TopicClassifier(BaseClassifier):
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
         """
-        Classify multiple texts efficiently.
+        Classify multiple texts into topics.
+
+        This method efficiently processes multiple texts by:
+        1. Vectorizing all texts at once
+        2. Applying the LDA model in batch
+        3. Returning topic distributions for each text
 
         Args:
             texts: List of texts to classify
 
         Returns:
-            List of ClassificationResults
+            List of ClassificationResults, one for each input text
+
+        Raises:
+            ValueError: If texts list is empty or contains invalid entries
+            RuntimeError: If batch classification fails
         """
         # Get state
         state = self._state.get_state()
@@ -313,17 +357,26 @@ class TopicClassifier(BaseClassifier):
         **kwargs,
     ) -> "TopicClassifier":
         """
-        Create and train a topic classifier in one step.
+        Create a pre-trained topic classifier from a corpus.
+
+        This method:
+        1. Creates a new classifier instance
+        2. Fits the LDA model on the provided corpus
+        3. Returns the trained classifier
 
         Args:
-            corpus: List of texts to train on
-            name: Name of the classifier
+            corpus: List of texts to train the model on
+            name: Name for the classifier
             description: Description of the classifier
             config: Optional classifier configuration
-            **kwargs: Additional configuration parameters
+            **kwargs: Additional keyword arguments for configuration
 
         Returns:
-            Trained TopicClassifier instance
+            A trained TopicClassifier instance
+
+        Raises:
+            ValueError: If corpus is empty or invalid
+            RuntimeError: If model training fails
         """
         # Create default config if not provided
         if config is None:

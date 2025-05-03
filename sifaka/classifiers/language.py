@@ -370,7 +370,7 @@ def create_language_classifier(
     fallback_confidence: float = 0.0,
     seed: int = 0,
     cache_size: int = 100,
-    cost: float = LanguageClassifier.DEFAULT_COST,
+    cost: float = 1,  # Default cost for language classifier
     config: Optional[Union[Dict[str, Any], ClassifierConfig]] = None,
     **kwargs: Any,
 ) -> LanguageClassifier:

@@ -50,6 +50,8 @@ Interface with various AI models for text generation.
 - Error handling
 - Rate limiting
 - Caching
+- Batch processing
+- Timeout handling
 
 ### 3. Validation System
 Ensures generated content meets specified criteria.
@@ -59,6 +61,7 @@ Ensures generated content meets specified criteria.
   - Length rules
   - Toxicity detection
   - Content classification
+  - Topic matching
   - Custom rules
 
 - **Validators**: Apply rules to content
@@ -66,6 +69,7 @@ Ensures generated content meets specified criteria.
   - Early termination
   - Error collection
   - Result aggregation
+  - Confidence scoring
 
 ### 4. Improvement System
 Enhances generated content that fails validation.
@@ -76,12 +80,14 @@ Enhances generated content that fails validation.
   - Error identification
   - Improvement suggestions
   - Quality assessment
+  - Confidence scoring
 
 - **Improvers**: Apply suggested changes
   - Content modification
   - Style adjustment
   - Error correction
   - Quality enhancement
+  - Batch processing
 
 ### 5. Monitoring System
 Tracks system performance and behavior.
@@ -91,7 +97,9 @@ Tracks system performance and behavior.
 - Error tracking
 - Resource monitoring
 - Usage statistics
+- Cache statistics
 - Alerting
+- Detailed logging
 
 ## Data Flow
 
@@ -127,24 +135,35 @@ Tracks system performance and behavior.
 - Rate limiting
 - Token limits
 - Network issues
+- Invalid prompts
+- Model timeouts
+- Batch processing errors
 
 ### 2. Validation Errors
 - Rule violations
 - Content issues
 - Format problems
 - Quality concerns
+- Topic mismatches
+- Toxicity detection
+- Confidence threshold failures
 
 ### 3. Improvement Errors
 - Critic failures
 - Improver issues
 - Content conflicts
 - Resource constraints
+- Confidence threshold failures
+- Maximum attempts exceeded
+- Batch processing errors
 
 ### 4. Recovery Strategies
 - Automatic retries
 - Fallback providers
 - Simplified validation
 - Error reporting
+- State preservation
+- Graceful degradation
 
 ## Configuration
 
@@ -154,21 +173,27 @@ chain_config = {
     "model": {
         "provider": "openai",
         "model_name": "gpt-3.5-turbo",
-        "temperature": 0.7
+        "temperature": 0.7,
+        "max_tokens": 1000
     },
     "validation": {
         "rules": [
             {"type": "length", "min": 10, "max": 1000},
-            {"type": "toxicity", "threshold": 0.7}
+            {"type": "toxicity", "threshold": 0.7},
+            {"type": "topic", "allowed_topics": ["technology", "science"]}
         ]
     },
     "improvement": {
         "enabled": True,
-        "max_attempts": 3
+        "max_attempts": 3,
+        "critic": {
+            "type": "content",
+            "confidence_threshold": 0.8
+        }
     },
     "monitoring": {
         "enabled": True,
-        "metrics": ["performance", "errors", "usage"]
+        "metrics": ["performance", "errors", "usage", "cache_stats"]
     }
 }
 ```
@@ -179,6 +204,9 @@ Each component can be configured independently:
 - Validation rule parameters
 - Improvement strategies
 - Monitoring options
+- Cache settings
+- Timeout values
+- Batch sizes
 
 ## Best Practices
 
@@ -187,24 +215,34 @@ Each component can be configured independently:
 - Define validation criteria
 - Plan improvement strategies
 - Consider monitoring needs
+- Design for scalability
+- Plan for error handling
 
 ### 2. Component Selection
 - Choose appropriate model providers
 - Define relevant validation rules
 - Select suitable critics
 - Configure monitoring
+- Consider performance requirements
+- Plan for resource usage
 
 ### 3. Error Handling
 - Implement comprehensive validation
 - Plan for common failures
 - Set up monitoring
 - Define recovery strategies
+- Handle edge cases
+- Implement graceful degradation
 
 ### 4. Performance Optimization
 - Use appropriate model sizes
 - Implement caching
 - Optimize validation
 - Monitor resource usage
+- Use batch processing when possible
+- Implement early termination for validation
+- Configure appropriate timeouts
+- Use appropriate confidence thresholds
 
 ## Examples
 
@@ -231,16 +269,16 @@ from sifaka.chain import ChainCore
 from sifaka.models import create_openai_provider
 from sifaka.rules import create_length_rule, create_toxicity_rule
 from sifaka.critics import create_content_critic
-from sifaka.monitoring import create_metrics_monitor
+from sifaka.monitoring import PerformanceMonitor
 
 # Create components
-model = create_openai_provider("gpt-4")
+model = create_openai_provider("gpt-3.5-turbo")
 rules = [
-    create_length_rule(min=100, max=1000),
+    create_length_rule(min=10, max=1000),
     create_toxicity_rule(threshold=0.7)
 ]
 critic = create_content_critic()
-monitor = create_metrics_monitor()
+monitor = PerformanceMonitor()
 
 # Create chain
 chain = ChainCore(
@@ -250,6 +288,8 @@ chain = ChainCore(
     monitor=monitor
 )
 
-# Run chain
-result = chain.run("Write a technical article")
+# Run chain with monitoring
+result = chain.run("Write a short story")
+metrics = monitor.get_metrics()
+monitor.log_metrics()
 ```
