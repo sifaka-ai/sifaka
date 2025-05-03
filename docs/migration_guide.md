@@ -8,7 +8,6 @@ The Sifaka codebase has undergone a significant reorganization to improve mainta
 
 1. **Creation of adapters directory**
    - New `/sifaka/adapters/` directory for integration code
-   - Moved integration files to appropriate adapter modules
    - Added rule adapters in `/sifaka/adapters/rules/`
 
 2. **Model provider consolidation**
@@ -18,6 +17,7 @@ The Sifaka codebase has undergone a significant reorganization to improve mainta
 3. **Removal of incomplete modules**
    - Removed the incomplete `/sifaka/domain` directory
    - Kept domain-specific rules in `/sifaka/rules/domain/`
+   - Removed LangChain and LangGraph integrations
 
 4. **Import path changes**
    - Updated import paths to reflect the new structure
@@ -29,8 +29,6 @@ The Sifaka codebase has undergone a significant reorganization to improve mainta
 
 | Old Path | New Path | Notes |
 |----------|----------|-------|
-| `sifaka/integrations/langchain.py` | `sifaka/adapters/langchain.py` | Functionality unchanged |
-| `sifaka/integrations/langgraph.py` | `sifaka/adapters/langgraph.py` | Functionality unchanged |
 | `sifaka/integrations/anthropic.py` | `sifaka/models/anthropic.py` | Consolidated with existing Anthropic code |
 
 ### Deleted Files
@@ -39,8 +37,8 @@ The following files were deleted as part of the restructuring:
 
 - `/sifaka/domain/*` - Incomplete domain implementation
 - `/sifaka/integrations/anthropic.py` - Consolidated into models/anthropic.py
-- `/sifaka/integrations/langchain.py` - Moved to adapters/langchain.py
-- `/sifaka/integrations/langgraph.py` - Moved to adapters/langgraph.py
+- `/sifaka/integrations/langchain.py`, `/sifaka/adapters/langchain.py` - Removed LangChain integration
+- `/sifaka/integrations/langgraph.py`, `/sifaka/adapters/langgraph.py` - Removed LangGraph integration
 
 ### New Files
 
@@ -60,13 +58,9 @@ Update your import statements as follows:
 
 ```python
 # Old imports
-from sifaka.integrations.langchain import LangChainAdapter
-from sifaka.integrations.langgraph import LangGraphAdapter
 from sifaka.integrations.anthropic import AnthropicProvider
 
 # New imports
-from sifaka.adapters.langchain import LangChainAdapter
-from sifaka.adapters.langgraph import LangGraphAdapter
 from sifaka.models.anthropic import AnthropicProvider
 ```
 
@@ -150,6 +144,26 @@ from sifaka.models.anthropic import AnthropicModel
 from sifaka.models.anthropic import AnthropicProvider
 ```
 
+### LangChain and LangGraph Integration Removal
+
+If you were using LangChain or LangGraph integrations, you'll need to switch to the native Sifaka chain architecture:
+
+```python
+# Old approach with LangChain (no longer supported)
+from sifaka.adapters.langchain import LangChainAdapter
+model = AnthropicProvider(model="claude-3-sonnet")
+chain = LangChainAdapter.create_chain(model)
+result = chain.run("Generate content about AI")
+
+# New approach with Sifaka's native chain
+from sifaka.chain import ChainOrchestrator
+from sifaka.models.anthropic import AnthropicProvider
+
+model = AnthropicProvider(model="claude-3-sonnet")
+chain = ChainOrchestrator(model=model)
+result = chain.run("Generate content about AI")
+```
+
 ## Additional Notes
 
 ### Version Compatibility
@@ -163,35 +177,31 @@ After updating your import paths, run your tests to ensure everything is working
 1. All import paths have been updated
 2. Any direct instantiation of moved classes uses the correct paths
 3. Code that relied on the domain module has been updated to use appropriate alternatives
+4. Any code that used LangChain or LangGraph integrations has been migrated to native Sifaka chains
 
 ## Example Migration
 
 ### Before
 
 ```python
-from sifaka.integrations.langchain import LangChainAdapter
 from sifaka.integrations.anthropic import AnthropicProvider
 from sifaka.domain import Domain, DomainConfig
 
 # Create model
 model = AnthropicProvider(model="claude-2")
 
-# Create chain
-chain = LangChainAdapter.create_chain(model)
-
 # Create domain
 domain_config = DomainConfig(name="example_domain")
 domain = Domain(config=domain_config)
 
-# Use domain with chain
-result = chain.run("Generate content about AI")
+# Use model and domain
+result = model.generate("Generate content about AI")
 validated = domain.validate(result)
 ```
 
 ### After
 
 ```python
-from sifaka.adapters.langchain import LangChainAdapter
 from sifaka.models.anthropic import AnthropicProvider
 from sifaka.chain import create_validation_chain
 from sifaka.rules.formatting.length import create_length_rule
@@ -199,17 +209,14 @@ from sifaka.rules.formatting.length import create_length_rule
 # Create model
 model = AnthropicProvider(model="claude-3-sonnet")
 
-# Create LangChain adapter
-langchain_adapter = LangChainAdapter.create_chain(model)
-
 # Create validation chain
 validation_chain = create_validation_chain(
     name="content_validation",
     rules=[create_length_rule(min_chars=10, max_chars=1000)]
 )
 
-# Use the chains
-result = langchain_adapter.run("Generate content about AI")
+# Use the model and chain
+result = model.generate("Generate content about AI")
 validation_result = validation_chain.process(result)
 print(f"Validation passed: {validation_result.all_passed}")
 ```

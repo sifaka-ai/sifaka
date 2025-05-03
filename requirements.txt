@@ -27,10 +27,6 @@ httpx>=0.28.1
 tenacity>=8.2.3
 
 # Optional integrations
-langgraph>=0.0.19  # Optional: for LangGraph integration
-langchain>=0.1.9  # Optional: for LangChain integration
-langchain-anthropic>=0.3.12
-langchain-openai>=0.3.14
 guardrails-ai>=0.6.6  # Updated to latest version to fix pkg_resources deprecation
 
 # Development

@@ -274,3 +274,192 @@ sequenceDiagram
 ```
 
 These diagrams provide a visual representation of the key relationships and interactions between Sifaka components. They can be rendered directly in GitHub or any Markdown viewer that supports Mermaid.
+
+```mermaid
+classDiagram
+    %% Model Components
+    class ModelProviderCore {
+        <<interface>>
+        +get_provider_name()
+        +generate(prompt, params)
+    }
+
+    class ModelProvider {
+        <<abstract>>
+        +model_name: str
+        +config: ModelConfig
+        +get_default_config()
+        +generate(prompt, params)
+    }
+
+    class AnthropicProvider {
+        +get_provider_name()
+        +generate(prompt, params)
+    }
+
+    class OpenAIProvider {
+        +get_provider_name()
+        +generate(prompt, params)
+    }
+
+    %% Rule Components
+    class Rule {
+        <<abstract>>
+        +name: str
+        +description: str
+        +id: str
+        +validator: RuleValidator
+        +validate(text)
+    }
+
+    class RuleValidator {
+        <<interface>>
+        +validate(text)
+    }
+
+    class LengthRule {
+        +validate(text)
+    }
+
+    class ToxicityRule {
+        +validate(text)
+    }
+
+    %% Classifier Components
+    class Classifier {
+        <<abstract>>
+        +name: str
+        +description: str
+        +config: ClassifierConfig
+        +classify(text)
+    }
+
+    class ToxicityClassifier {
+        +classify(text)
+    }
+
+    class SentimentClassifier {
+        +classify(text)
+    }
+
+    %% Critic Components
+    class TextCritic {
+        <<interface>>
+        +critique(text)
+        +improve(text, feedback)
+    }
+
+    class PromptCritic {
+        +system_prompt: str
+        +critique(text)
+        +improve(text, feedback)
+    }
+
+    class ReflexionCritic {
+        +memory: Memory
+        +critique(text)
+        +improve(text, feedback)
+        +reflect(text, result)
+    }
+
+    %% Chain Components
+    class ChainCore {
+        +model: ModelProvider
+        +run(prompt)
+    }
+
+    class ChainOrchestrator {
+        +model: ModelProvider
+        +rules: List[Rule]
+        +critic: TextCritic
+        +run(prompt)
+    }
+
+    %% Adapter Components
+    class RuleAdapter {
+        <<interface>>
+        +adapt(component)
+        +validate(text)
+    }
+
+    class ClassifierAdapter {
+        +classifier: Classifier
+        +validate(text)
+    }
+
+    class GuardrailsAdapter {
+        +rules: List[Rule]
+        +validate(text)
+        +run(model, prompt)
+    }
+
+    %% Relationships
+    ModelProviderCore <|.. ModelProvider
+    ModelProvider <|-- AnthropicProvider
+    ModelProvider <|-- OpenAIProvider
+
+    RuleValidator --o Rule
+    Rule <|-- LengthRule
+    Rule <|-- ToxicityRule
+
+    Classifier <|-- ToxicityClassifier
+    Classifier <|-- SentimentClassifier
+
+    TextCritic <|.. PromptCritic
+    TextCritic <|.. ReflexionCritic
+
+    ChainCore <|-- ChainOrchestrator
+
+    RuleAdapter <|.. ClassifierAdapter
+    RuleAdapter <|.. GuardrailsAdapter
+
+    ModelProvider --o ChainCore
+    Rule --o ChainOrchestrator
+    TextCritic --o ChainOrchestrator
+    ChainCore <|-- ChainOrchestrator
+
+    Classifier --o ClassifierAdapter
+    Rule --o GuardrailsAdapter
+```
+
+```mermaid
+graph TD
+    SifakaChain[SifakaChain] --> Model
+    SifakaChain --> Rule
+    SifakaChain --> Classifier
+    SifakaChain --> Critic
+
+    ClassifierAdapter[ClassifierAdapter] --> Classifier
+    ClassifierAdapter --> Rule
+
+    GuardrailsAdapter[GuardrailsAdapter] --> Rule
+    GuardrailsAdapter --> SifakaChain
+
+    class SifakaChain {
+        +process(input): output
+    }
+
+    class Rule {
+        +validate(text): result
+    }
+
+    class Classifier {
+        +classify(text): result
+    }
+
+    class Critic {
+        +improve(text, feedback): improved_text
+    }
+
+    class ClassifierAdapter {
+        +validate(text): result
+    }
+
+    class GuardrailsAdapter {
+        +run(prompt): result
+    }
+
+    class Model {
+        +generate(prompt): text
+    }
+```

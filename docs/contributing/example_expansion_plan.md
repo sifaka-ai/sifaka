@@ -1,158 +1,122 @@
 # Example Expansion Plan
 
-This document outlines the plan for expanding Sifaka's examples to demonstrate its capabilities and help users understand how to use the framework effectively.
+This document outlines the plan for expanding the examples in the Sifaka codebase. It identifies areas where new examples are needed and prioritizes them based on user needs.
 
-## Current State
+## Current Status
 
-Sifaka currently has a few examples, but needs a more comprehensive set covering all major components and common use cases.
+| Example Type | Status | Notes |
+|--------------|--------|-------|
+| Basic Usage | ✅ Complete | Simple examples for core functionality |
+| Classifier Integration | ✅ Complete | Examples for using classifiers |
+| Rules | 🟡 Partial | Missing examples for some rule types |
+| Critics | 🟡 Partial | Missing examples for some critic types |
+| Chains | 🟡 Partial | Missing examples for some chain types |
+| Guardrails Integration | ✅ Complete | Examples for Guardrails |
+| Error Handling | 🔴 Missing | No examples for error handling |
 
-## Goals
+## Example Expansion Priorities
 
-1. Create a complete set of examples covering all major components
-2. Develop examples for common use cases
-3. Provide advanced examples demonstrating best practices
-4. Ensure all examples follow consistent standards
-5. Make examples accessible to users with different levels of experience
+The following are prioritized based on user needs and complexity:
+
+### Highest Priority (P0)
+
+- [x] Basic Rule Usage
+- [x] Toxicity Classification
+- [x] Chain Architecture
+- [x] Claude Integration
+- [x] OpenAI GPT Integration
+- [ ] Error Handling and Recovery
+
+### High Priority (P1)
+
+- [ ] Domain-Specific Rules
+- [ ] Advanced Rules Composition
+- [ ] ReflexionCritic Usage
+- [ ] Multi-step Chain Processing
+- [ ] Customizing Validators
+- [ ] Benchmarking Example
+
+### Medium Priority (P2)
+
+- [ ] Custom Classifier Implementation
+- [ ] Response Formatting
+- [ ] Advanced Chain Configuration
+- [ ] Logging and Tracing
+- [ ] Performance Optimization
+- [ ] Guardrails Advanced Usage
+
+### Lower Priority (P3)
+
+- [ ] Testing Examples
+- [ ] Factory Function Patterns
+- [ ] Advanced Configuration
+- [ ] CLI Tool Example
+- [ ] Custom Model Integration
+- [ ] Real-world Applications
+
+## Example Structure
+
+Each example should follow this structure:
+
+1. **File Header** - Description, purpose, and requirements
+2. **Imports** - All necessary imports
+3. **Configuration** - Any required setup or API keys
+4. **Implementation** - The actual example code with comments
+5. **Output Handling** - How to process and display results
+6. **Error Handling** - How to handle common errors
+7. **Cleanup** - Any necessary cleanup
+
+## Implementation Plan
+
+| Example | Assigned To | Target Date | Status |
+|---------|------------|-------------|--------|
+| Error Handling | @quality-team | June 15 | 🟡 In Progress |
+| Domain-Specific Rules | @rule-expert | June 22 | 🔴 Not Started |
+| Advanced Rules Composition | @rule-expert | June 30 | 🔴 Not Started |
+| ReflexionCritic Usage | @ml-team | July 7 | 🔴 Not Started |
 
 ## Example Categories
 
 ### Basic Examples
 
-- [x] Length Validation Example (`claude_length_critic.py`)
-- [x] Length Expansion Example (`claude_expand_length_critic.py`)
-- [x] Toxicity Filtering Example (`toxicity_filtering.py`)
-- [x] Reflexion Critic Example (`reflexion_critic_example.py`)
-- [ ] Simple Rule Example
-- [ ] Multiple Rules Example
-- [ ] Basic Chain Example
+- [x] Simple Rule Example
+- [x] Simple Chain Example
+- [x] Simple Critic Example
+- [x] Claude Integration Example
+- [x] OpenAI Integration Example
+- [ ] Gemini Integration Example
 
-### Component Examples
+### Intermediate Examples
 
-- [ ] Rules Examples
-  - [ ] Formatting Rules Example
-  - [ ] Content Rules Example
-  - [ ] Factual Rules Example
-  - [ ] Domain-Specific Rules Example
-  
-- [ ] Validators Examples
-  - [ ] Custom Validator Example
-  - [ ] Validator Composition Example
-  
-- [ ] Classifiers Examples
-  - [ ] Sentiment Classifier Example
-  - [ ] Toxicity Classifier Example
-  - [ ] NER Classifier Example
-  - [ ] Classifier as Rule Example
-  
-- [ ] Critics Examples
-  - [ ] Prompt Critic Example
-  - [ ] Reflexion Critic Example
-  - [ ] Style Critic Example
-  - [ ] Custom Critic Example
-  
-- [ ] Chains Examples
-  - [ ] Simple Chain Example
-  - [ ] Validation Chain Example
-  - [ ] Improvement Chain Example
-  - [ ] Custom Chain Example
-  
-- [ ] Model Providers Examples
-  - [ ] OpenAI Provider Example
-  - [ ] Anthropic Provider Example
-  - [ ] Gemini Provider Example
-  - [ ] Custom Provider Example
-
-### Use Case Examples
-
-- [ ] Content Moderation Example
-- [ ] Text Summarization Example
-- [ ] Style Transfer Example
-- [ ] Question Answering Example
-- [ ] Code Generation Example
-- [ ] Multi-step Processing Example
-
-### Integration Examples
-
-- [ ] LangChain Integration Example
-- [ ] LangGraph Integration Example
-- [ ] Guardrails Integration Example
-- [ ] Custom Integration Example
+- [x] Toxicity Classification
+- [x] Sentiment Analysis
+- [x] Rule Composition
+- [ ] Custom Rule Creation
+- [ ] Advanced Chain Configuration
+- [ ] Error Handling and Recovery
 
 ### Advanced Examples
 
-- [ ] Advanced Chain Configuration Example
-- [ ] Custom Component Example
-- [ ] Performance Optimization Example
-- [ ] Error Handling Example
-- [ ] Testing Example
+- [ ] Multi-stage Processing Pipeline
+- [ ] Custom Critic Implementation
+- [ ] Response Formatting for Different Outputs
+- [ ] Performance Optimization
+- [ ] Benchmarking and Evaluation
+- [ ] Domain-Specific Applications
 
-## Implementation Plan
+## Success Metrics
 
-### Phase 1: Basic Examples (Weeks 1-2)
-
-Focus on simple examples that demonstrate core functionality:
-- [ ] Simple Rule Example
-- [ ] Multiple Rules Example
-- [ ] Basic Chain Example
-- [ ] Basic Classifier Example
-- [ ] Basic Critic Example
-
-### Phase 2: Component Examples (Weeks 3-4)
-
-Expand to cover all major components in detail:
-- [ ] Rules Examples (all types)
-- [ ] Validators Examples
-- [ ] Classifiers Examples
-- [ ] Critics Examples
-- [ ] Chains Examples
-- [ ] Model Providers Examples
-
-### Phase 3: Use Case Examples (Weeks 5-6)
-
-Add examples focused on specific use cases:
-- [ ] Content Moderation Example
-- [ ] Text Summarization Example
-- [ ] Style Transfer Example
-- [ ] Question Answering Example
-- [ ] Code Generation Example
-
-### Phase 4: Advanced and Integration Examples (Weeks 7-8)
-
-Complete the examples with advanced topics and integration examples:
-- [ ] Integration Examples
-- [ ] Advanced Examples
-- [ ] Performance Optimization Example
-- [ ] Error Handling Example
-
-## Example Template
-
-All examples should follow the [Example Template](../templates/example_template.py) and adhere to the [Example Standards](./example_standards.md).
+- Each example category has at least 3 examples
+- All examples have consistent structure and documentation
+- Examples cover at least 90% of Sifaka's core functionality
+- Feedback from users indicates examples are helpful
+- Reduction in support questions about basic functionality
 
 ## Review Process
 
 Each example should be reviewed for:
-1. Technical accuracy
-2. Completeness
-3. Clarity
-4. Consistency with standards
-5. Quality of code and comments
-
-## Tracking Progress
-
-Progress will be tracked in this document by marking completed examples with [x].
-
-## Prioritization Criteria
-
-Examples are prioritized based on:
-1. User impact (how many users will benefit)
-2. Complexity (how difficult the topic is to understand)
-3. Dependency (whether other examples depend on it)
-4. Current example gaps
-
-## Next Steps
-
-1. Create the Simple Rule Example
-2. Create the Multiple Rules Example
-3. Create the Basic Chain Example
-4. Review and refine the example template based on initial examples
-5. Continue with Phase 1 examples
+1. Technical accuracy and best practices
+2. Documentation quality and clarity
+3. Completeness (covers the feature adequately)
+4. Error handling and edge cases
+5. Consistency with other examples

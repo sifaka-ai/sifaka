@@ -26,12 +26,6 @@ pip install "sifaka[anthropic]"
 # Install with all classifiers
 pip install "sifaka[classifiers]"
 
-# Install with LangGraph integration
-pip install "sifaka[langgraph]"
-
-# Install with LangChain integration
-pip install "sifaka[langchain]"
-
 # Install with benchmarking tools
 pip install "sifaka[benchmark]"
 
@@ -61,10 +55,6 @@ Sifaka's functionality can be extended through optional dependencies:
 - `profanity`: Profanity detection
 - `language`: Language detection
 - `readability`: Text readability analysis
-
-### Integrations
-- `langgraph`: LangGraph integration for complex workflows
-- `langchain`: LangChain integration for chain-based processing
 
 ### Benchmarking
 - `benchmark`: Tools for performance benchmarking and analysis
@@ -347,13 +337,7 @@ classifier = ToxicityClassifier(
 toxicity_rule = create_toxicity_rule(
     config=RuleConfig(
         params={
-            "threshold": 0.6,
-            "indicators": [
-                "hate",
-                "offensive",
-                "vulgar",
-                "profanity",
-            ]
+            "threshold": 0.6
         }
     )
 )

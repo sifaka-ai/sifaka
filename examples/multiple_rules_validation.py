@@ -50,6 +50,10 @@ class SimpleProfanityClassifier(BaseClassifier):
             },
         )
 
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
+        """Implementation of the required abstract method."""
+        return self._classify_impl(text)
+
 
 # Create a simplified mock toxicity classifier
 class SimpleToxicityClassifier(BaseClassifier):
@@ -92,6 +96,10 @@ class SimpleToxicityClassifier(BaseClassifier):
             },
         )
 
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
+        """Implementation of the required abstract method."""
+        return self._classify_impl(text)
+
 
 # Sample text for validation
 sample_texts = [
@@ -123,7 +131,7 @@ length_rule = create_length_rule(
 prohibited_rule = create_prohibited_content_rule(
     name="prohibited_content",
     terms=["illegal", "trafficking", "scam"],
-    rule_config={"priority": RulePriority.HIGH},
+    priority=RulePriority.HIGH,
 )
 
 # Create classifier rules
@@ -132,10 +140,6 @@ sentiment_rule = create_classifier_rule(
     name="sentiment_validation",
     threshold=0.3,  # Minimum confidence threshold
     valid_labels=["positive", "neutral"],  # Allow positive or neutral sentiment
-    rule_config={
-        "threshold": 0.3,  # Minimum positive sentiment score required
-        "negative_threshold": 0.7,  # Maximum negative sentiment allowed
-    },
 )
 
 profanity_rule = create_classifier_rule(
@@ -143,7 +147,7 @@ profanity_rule = create_classifier_rule(
     name="profanity_validation",
     threshold=0.5,
     valid_labels=["clean"],
-    rule_config={"priority": RulePriority.HIGH},
+    severity="high",
 )
 
 toxicity_rule = create_classifier_rule(
@@ -151,7 +155,7 @@ toxicity_rule = create_classifier_rule(
     name="toxicity_validation",
     threshold=0.5,
     valid_labels=["non-toxic"],
-    rule_config={"priority": RulePriority.CRITICAL},
+    severity="critical",
 )
 
 # Create a list of all rules to apply

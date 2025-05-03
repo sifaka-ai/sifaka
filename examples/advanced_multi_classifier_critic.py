@@ -37,7 +37,7 @@ from sifaka.classifiers.base import (
     BaseClassifier,
     ClassificationResult,
 )
-from sifaka.rules.adapters import create_classifier_rule
+from sifaka.adapters.rules.classifier import create_classifier_rule
 from sifaka.rules.formatting.length import create_length_rule
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.chain import (
@@ -49,6 +49,79 @@ from sifaka.chain import (
     SimpleRetryStrategy,
 )
 from sifaka.rules.base import Rule, RuleResult
+
+
+# Create concrete implementations of all classifiers
+class ConcreteSentimentClassifier(SentimentClassifier):
+    """Concrete implementation of SentimentClassifier."""
+
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
+        """Implementation of the required abstract method."""
+        return self._classify_impl(text)
+
+
+class ConcreteReadabilityClassifier(ReadabilityClassifier):
+    """Concrete implementation of ReadabilityClassifier."""
+
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
+        """Implementation of the required abstract method."""
+        return self._classify_impl(text)
+
+
+class ConcreteLanguageClassifier(LanguageClassifier):
+    """Concrete implementation of LanguageClassifier."""
+
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
+        """Implementation of the required abstract method."""
+        return self._classify_impl(text)
+
+
+class ConcreteBiasDetector(BiasDetector):
+    """Concrete implementation of BiasDetector."""
+
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
+        """Implementation of the required abstract method."""
+        return self._classify_impl(text)
+
+
+class ConcreteGenreClassifier(GenreClassifier):
+    """Concrete implementation of GenreClassifier."""
+
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
+        """Implementation of the required abstract method."""
+        return self._classify_impl(text)
+
+
+class ConcreteProfanityClassifier(ProfanityClassifier):
+    """Concrete implementation of ProfanityClassifier."""
+
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
+        """Implementation of the required abstract method."""
+        return self._classify_impl(text)
+
+
+class ConcreteSpamClassifier(SpamClassifier):
+    """Concrete implementation of SpamClassifier."""
+
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
+        """Implementation of the required abstract method."""
+        return self._classify_impl(text)
+
+
+class ConcreteTopicClassifier(TopicClassifier):
+    """Concrete implementation of TopicClassifier."""
+
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
+        """Implementation of the required abstract method."""
+        return self._classify_impl(text)
+
+
+class ConcreteToxicityClassifier(ToxicityClassifier):
+    """Concrete implementation of ToxicityClassifier."""
+
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
+        """Implementation of the required abstract method."""
+        return self._classify_impl(text)
 
 
 # Custom prompt factory for batched feedback
@@ -224,7 +297,7 @@ class BatchedCritic(PromptCritic):
             config: Configuration options
         """
         # Create custom prompt factory
-        prompt_factory = BatchedFeedbackPromptFactory()
+        self._prompt_factory = BatchedFeedbackPromptFactory()
 
         # Use provided config or create default
         if config is None:
@@ -252,7 +325,7 @@ class BatchedCritic(PromptCritic):
             name=name,
             description=description,
             llm_provider=llm_provider,
-            prompt_factory=prompt_factory,
+            prompt_factory=self._prompt_factory,
             config=config,
         )
 
@@ -285,7 +358,7 @@ class BatchedCritic(PromptCritic):
             )
 
         # Create improvement prompt with all violations
-        improvement_prompt = self.prompt_factory.create_improvement_prompt(text, violations)
+        improvement_prompt = self._prompt_factory.create_improvement_prompt(text, violations)
 
         # Debug output
         print("\n=== DEBUG: IMPROVEMENT PROMPT ===")
@@ -454,7 +527,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
     rules = []
 
     # 1. SentimentClassifier - require neutral or positive sentiment (EVEN EASIER)
-    sentiment_classifier = SentimentClassifier(
+    sentiment_classifier = ConcreteSentimentClassifier(
         name="sentiment_classifier",
         description="Analyzes text sentiment",
         config=ClassifierConfig(
@@ -472,7 +545,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
     rules.append(sentiment_rule)
 
     # 2. Neutrality SentimentClassifier - specifically require neutral content (EVEN EASIER)
-    neutrality_classifier = SentimentClassifier(
+    neutrality_classifier = ConcreteSentimentClassifier(
         name="neutrality_classifier",
         description="Analyzes text for moderate neutrality",
         config=ClassifierConfig(
@@ -495,7 +568,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
     rules.append(neutrality_rule)
 
     # 3. ReadabilityClassifier - allow wider range of readability (EVEN EASIER)
-    readability_classifier = ReadabilityClassifier(
+    readability_classifier = ConcreteReadabilityClassifier(
         name="readability_classifier",
         description="Evaluates reading difficulty level",
         config=ClassifierConfig(
@@ -521,7 +594,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
     rules.append(readability_rule)
 
     # 4. LanguageClassifier - require English (SLIGHTLY EASIER)
-    language_classifier = LanguageClassifier(
+    language_classifier = ConcreteLanguageClassifier(
         name="language_classifier",
         description="Identifies the language of text",
         config=ClassifierConfig(
@@ -556,7 +629,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
     ]
     dummy_labels = ["biased", "biased", "biased", "unbiased", "unbiased", "unbiased"]
 
-    bias_detector = BiasDetector.create_pretrained(
+    bias_detector = ConcreteBiasDetector.create_pretrained(
         texts=dummy_texts,
         labels=dummy_labels,
         name="bias_detector",
@@ -585,7 +658,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
     rules.append(bias_rule)
 
     # 6. ProfanityClassifier - ensure content is clean (NEW)
-    profanity_classifier = ProfanityClassifier(
+    profanity_classifier = ConcreteProfanityClassifier(
         name="profanity_classifier",
         description="Detects profanity and inappropriate language",
         config=ClassifierConfig(
@@ -631,7 +704,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
     ham_labels = ["ham"] * len(ham_texts)
     spam_labels = ["spam"] * len(spam_texts)
 
-    spam_classifier = SpamClassifier.create_pretrained(
+    spam_classifier = ConcreteSpamClassifier.create_pretrained(
         texts=ham_texts + spam_texts,
         labels=ham_labels + spam_labels,
         name="spam_classifier",
@@ -667,7 +740,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
     ]
     genre_labels = ["news", "fiction", "academic", "technical", "blog"]
 
-    genre_classifier = GenreClassifier.create_pretrained(
+    genre_classifier = ConcreteGenreClassifier.create_pretrained(
         texts=genre_texts,
         labels=genre_labels,
         name="genre_classifier",
@@ -708,7 +781,7 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
         "Financial markets have experienced volatility due to global economic uncertainty.",
     ]
 
-    topic_classifier = TopicClassifier.create_pretrained(
+    topic_classifier = ConcreteTopicClassifier.create_pretrained(
         corpus=topic_corpus,
         name="topic_classifier",
         description="Identifies main topics in text",
@@ -732,19 +805,20 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
     print("Topic labels:", topic_classifier.config.labels)
 
     # The rule will pass if any topic has sufficient confidence
-    # We don't specify valid_labels because they're dynamically generated from the topics
+    # We need to specify valid_labels based on the dynamically generated topics
     topic_rule = create_classifier_rule(
         classifier=topic_classifier,
         name="topic_rule",
         description="Ensures text contains clear topic focus",
         threshold=0.3,  # Low threshold for easier passing
+        valid_labels=topic_classifier.config.labels,  # Use all available topic labels
     )
     rules.append(topic_rule)
     print("Added topic rule")
 
     # 10. ToxicityClassifier - ensure content is not toxic (NEW)
     try:
-        toxicity_classifier = ToxicityClassifier(
+        toxicity_classifier = ConcreteToxicityClassifier(
             name="toxicity_classifier",
             description="Detects toxic content in text",
             config=ClassifierConfig(

@@ -18,6 +18,20 @@ from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+# Default genres to classify
+DEFAULT_GENRES: List[str] = [
+    "news",
+    "fiction",
+    "academic",
+    "technical",
+    "blog",
+    "social_media",
+    "email",
+    "marketing",
+    "legal",
+    "creative",
+]
+
 
 class GenreClassifier(BaseClassifier):
     """
@@ -32,18 +46,6 @@ class GenreClassifier(BaseClassifier):
 
     # Class constants
     DEFAULT_COST: float = 2.0
-    DEFAULT_GENRES: List[str] = [
-        "news",
-        "fiction",
-        "academic",
-        "technical",
-        "blog",
-        "social_media",
-        "email",
-        "marketing",
-        "legal",
-        "creative",
-    ]
 
     # Private attributes using PrivateAttr for state management
     _vectorizer: Optional[Any] = PrivateAttr(default=None)
@@ -70,7 +72,7 @@ class GenreClassifier(BaseClassifier):
         if not self.config:
             # Create default config
             self.config = ClassifierConfig(
-                labels=self.DEFAULT_GENRES,
+                labels=DEFAULT_GENRES,
                 cost=self.DEFAULT_COST,
                 min_confidence=0.6,
                 params={
@@ -80,7 +82,7 @@ class GenreClassifier(BaseClassifier):
                     "model_path": None,
                     "use_ngrams": True,
                     "n_estimators": 100,
-                    "default_genres": self.DEFAULT_GENRES,
+                    "default_genres": DEFAULT_GENRES,
                 },
             )
 
@@ -387,7 +389,7 @@ class GenreClassifier(BaseClassifier):
         if config is None:
             # Create config with default params
             config = ClassifierConfig(
-                labels=cls.DEFAULT_GENRES,
+                labels=DEFAULT_GENRES,
                 cost=cls.DEFAULT_COST,
                 min_confidence=0.6,
                 params={
@@ -397,7 +399,7 @@ class GenreClassifier(BaseClassifier):
                     "model_path": None,
                     "use_ngrams": True,
                     "n_estimators": 100,
-                    "default_genres": cls.DEFAULT_GENRES,
+                    "default_genres": DEFAULT_GENRES,
                 },
             )
 

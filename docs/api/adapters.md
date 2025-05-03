@@ -11,122 +11,12 @@ The adapters module provides integration interfaces between Sifaka components an
 ```
 sifaka.adapters
 ├── __init__.py         # Package initialization
-├── langchain.py        # LangChain integration
-├── langgraph.py        # LangGraph integration
 └── rules/              # Rule adapters
     ├── __init__.py     # Rule adapters initialization
     ├── base.py         # Base adapter functionality
     ├── classifier.py   # Classifier-to-rule adapter
     └── guardrails_adapter.py  # Integration with Guardrails
 ```
-
-## LangChain Adapter
-
-### `LangChainAdapter`
-
-Adapts Sifaka's models to be used with LangChain components.
-
-```python
-from sifaka.adapters.langchain import LangChainAdapter
-from sifaka.models.anthropic import AnthropicProvider
-
-model = AnthropicProvider(model="claude-3-haiku")
-chain = LangChainAdapter.create_chain(model=model, verbose=True)
-
-result = chain.invoke({"input": "Generate a poem about AI"})
-print(result)
-```
-
-#### Methods
-
-##### `create_chain(model, **kwargs)`
-
-Creates a LangChain chain using a Sifaka model provider.
-
-**Parameters:**
-- `model` (ModelProvider): A Sifaka model provider
-- `verbose` (bool, optional): Whether to enable verbose output
-- `memory` (bool, optional): Whether to include memory
-- `memory_key` (str, optional): Key to use for memory
-- `**kwargs`: Additional arguments to pass to the LangChain chain
-
-**Returns:**
-- A LangChain chain wrapped in the adapter interface
-
-##### `get_underlying_chain()`
-
-Returns the underlying LangChain chain.
-
-**Returns:**
-- The LangChain chain instance
-
-##### `invoke(inputs, **kwargs)`
-
-Invokes the chain with the given inputs.
-
-**Parameters:**
-- `inputs` (Dict): The inputs to pass to the chain
-- `**kwargs`: Additional arguments to pass to the chain run method
-
-**Returns:**
-- The output of the chain
-
-## LangGraph Adapter
-
-### `LangGraphAdapter`
-
-Adapts Sifaka's models and rules to be used with LangGraph components.
-
-```python
-from sifaka.adapters.langgraph import LangGraphAdapter
-from sifaka.models.anthropic import AnthropicProvider
-from sifaka.rules.formatting.length import create_length_rule
-
-model = AnthropicProvider(model="claude-3-haiku")
-rule = create_length_rule(min_chars=10, max_chars=100)
-
-graph = LangGraphAdapter.create_graph(
-    model=model,
-    rules=[rule],
-    max_iterations=3
-)
-
-result = graph.invoke({"input": "Generate a short story"})
-print(result)
-```
-
-#### Methods
-
-##### `create_graph(model, rules=None, **kwargs)`
-
-Creates a LangGraph graph using a Sifaka model provider and rules.
-
-**Parameters:**
-- `model` (ModelProvider): A Sifaka model provider
-- `rules` (List[Rule], optional): Sifaka rules to validate output
-- `max_iterations` (int, optional): Maximum iterations for the graph
-- `**kwargs`: Additional arguments to pass to the LangGraph builder
-
-**Returns:**
-- A LangGraph graph wrapped in the adapter interface
-
-##### `get_underlying_graph()`
-
-Returns the underlying LangGraph graph.
-
-**Returns:**
-- The LangGraph graph instance
-
-##### `invoke(inputs, **kwargs)`
-
-Invokes the graph with the given inputs.
-
-**Parameters:**
-- `inputs` (Dict): The inputs to pass to the graph
-- `**kwargs`: Additional arguments to pass to the graph invoke method
-
-**Returns:**
-- The output of the graph
 
 ## Rule Adapters
 
@@ -296,13 +186,9 @@ class CustomAdapter(BaseAdapter):
 Adapters provide translation of errors between Sifaka and external frameworks:
 
 ```python
-from sifaka.adapters.langchain import LangChainAdapter
-from sifaka.models.anthropic import AnthropicProvider
-
 try:
-    model = AnthropicProvider(model="claude-3-haiku")
-    chain = LangChainAdapter.create_chain(model)
-    result = chain.invoke({"input": "Generate a poem"})
+    # Use an adapter
+    result = guardrails.run(model, "Generate a poem")
 except Exception as e:
     print(f"Error: {e}")
 

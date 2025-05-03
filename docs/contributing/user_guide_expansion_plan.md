@@ -1,150 +1,101 @@
 # User Guide Expansion Plan
 
-This document outlines the plan for expanding Sifaka's user guides to make the framework more accessible and easier to use.
+This document outlines the plan for expanding Sifaka's user documentation. It identifies specific areas where new guides are needed and prioritizes them based on user needs.
 
-## Current State
+## Current Documentation Status
 
-Sifaka currently has some basic documentation, but lacks comprehensive user guides for many components and use cases. This plan aims to address these gaps.
+| Documentation Type | Status | Notes |
+|-------------------|--------|-------|
+| README.md | ✅ Complete | Basic overview, installation, and examples |
+| API Docs | 🟡 Partial | Some modules lack detailed documentation |
+| User Guides | 🟡 Partial | Limited coverage of key use cases |
+| Tutorials | 🔴 Minimal | Only basic examples provided |
 
-## Goals
+## User Guide Expansion Priorities
 
-1. Create a complete set of user guides covering all major components
-2. Develop task-oriented guides for common use cases
-3. Provide conceptual guides explaining key patterns and principles
-4. Ensure all guides follow consistent standards
-5. Make guides accessible to users with different levels of experience
+The following are prioritized based on user needs and complexity:
 
-## User Guide Categories
+### Highest Priority (P0)
 
-### Getting Started Guides
+- [x] Quick Start Guide
+- [x] Basic Rule Creation Guide
+- [x] Classifier Usage Guide
+- [x] Chain Architecture Guide
+- [ ] Model Provider Configuration Guide
+- [ ] Rule Validator Customization Guide
 
-- [x] Installation Guide
-- [ ] Quick Start Guide
-- [ ] Basic Concepts Guide
-- [ ] First Sifaka Project Guide
+### High Priority (P1)
 
-### Component Guides
-
-- [ ] Rules Guide
-  - [ ] Built-in Rules Guide
-  - [ ] Custom Rules Guide
-  - [ ] Rule Configuration Guide
-  
-- [ ] Validators Guide
-  - [ ] Built-in Validators Guide
-  - [ ] Custom Validators Guide
-  - [ ] Validator Patterns Guide
-  
-- [ ] Classifiers Guide
-  - [ ] Built-in Classifiers Guide
-  - [ ] Custom Classifiers Guide
-  - [ ] Classifier Integration Guide
-  
-- [ ] Critics Guide
-  - [ ] Prompt Critics Guide
-  - [ ] Reflexion Critics Guide
-  - [ ] Custom Critics Guide
-  
-- [ ] Chains Guide
-  - [ ] Chain Architecture Guide
-  - [ ] Chain Configuration Guide
-  - [ ] Custom Chain Components Guide
-  
-- [ ] Model Providers Guide
-  - [ ] OpenAI Integration Guide
-  - [ ] Anthropic Integration Guide
-  - [ ] Gemini Integration Guide
-  - [ ] Custom Provider Guide
-
-### Task-Oriented Guides
-
-- [ ] Content Validation Guide
-- [ ] Text Improvement Guide
-- [ ] Content Safety Guide
-- [ ] Text Generation Guide
-- [ ] Multi-step Processing Guide
-
-### Conceptual Guides
-
-- [ ] Component Architecture Guide
-- [ ] Factory Function Patterns Guide
-- [ ] Configuration Management Guide
-- [ ] Error Handling Guide
-- [ ] Testing Sifaka Components Guide
-
-### Integration Guides
-
-- [ ] LangChain Integration Guide
-- [ ] LangGraph Integration Guide
-- [ ] Guardrails Integration Guide
-- [ ] Custom Integration Guide
-
-## Implementation Plan
-
-### Phase 1: Core Guides (Weeks 1-2)
-
-Focus on essential guides that provide a foundation for using Sifaka:
-- [ ] Quick Start Guide
-- [ ] Basic Concepts Guide
-- [ ] Rules Guide
-- [ ] Chains Guide
-- [ ] Model Providers Guide
-
-### Phase 2: Component Guides (Weeks 3-4)
-
-Expand to cover all major components in detail:
-- [ ] Validators Guide
-- [ ] Classifiers Guide
-- [ ] Critics Guide
-- [ ] Built-in Rules Guide
-- [ ] Chain Architecture Guide
-
-### Phase 3: Task-Oriented Guides (Weeks 5-6)
-
-Add guides focused on specific tasks and use cases:
-- [ ] Content Validation Guide
-- [ ] Text Improvement Guide
-- [ ] Content Safety Guide
-- [ ] Text Generation Guide
-- [ ] Multi-step Processing Guide
-
-### Phase 4: Advanced and Integration Guides (Weeks 7-8)
-
-Complete the documentation with advanced topics and integration guides:
-- [ ] Custom Components Guides
-- [ ] Integration Guides
-- [ ] Advanced Patterns Guides
+- [ ] Error Handling Best Practices
+- [ ] Critic Implementation Guide
+- [ ] Rule Combination Strategies
 - [ ] Performance Optimization Guide
+- [ ] Domain-Specific Rules Guide
+- [ ] Testing Guide
 
-## Guide Template
+### Medium Priority (P2)
 
-All guides should follow the [User Guide Template](../templates/user_guide_template.md) and adhere to the [User Guide Standards](./user_guide_standards.md).
+- [ ] Advanced Chain Architecture
+- [ ] Custom Classifier Implementation
+- [ ] Content Safety Guide
+- [ ] Advanced Critic Patterns
+- [ ] Rule Extension Pattern
+- [ ] Guardrails Integration Guide
+
+### Lower Priority (P3)
+
+- [ ] Benchmarking Guide
+- [ ] Advanced Configuration Options
+- [ ] Implementation Strategy Guide
+- [ ] Monitoring and Observability
+- [ ] Advanced Response Formatting
+- [ ] Edge Case Handling
+
+## Guide Structure
+
+Each guide should follow this structure:
+
+1. **Introduction** - What the guide covers and who it's for
+2. **Prerequisites** - What the reader needs to know/have
+3. **Core Concepts** - Key ideas and terminology
+4. **Step-by-Step Examples** - Practical implementations
+5. **Common Patterns** - Typical usage patterns
+6. **Troubleshooting** - Common issues and solutions
+7. **Advanced Usage** - More complex scenarios
+8. **Next Steps** - Related guides and further reading
+
+## Implementation Assignments
+
+| Guide | Assigned To | Target Date | Status |
+|-------|------------|-------------|--------|
+| Quick Start Guide | @dev-lead | [Completed] | ✅ |
+| Basic Rule Creation | @rule-expert | [Completed] | ✅ |
+| Classifier Usage | @ml-team | [Completed] | ✅ |
+| Chain Architecture | @arch-team | [Completed] | ✅ |
+| Model Provider Config | @integration-team | June 15 | 🟡 In Progress |
+| Rule Validator Custom | @rule-expert | June 22 | 🟡 In Progress |
+| Error Handling | @quality-team | June 30 | 🔴 Not Started |
+| Critic Implementation | @ml-team | July 7 | 🔴 Not Started |
 
 ## Review Process
 
-Each guide should be reviewed for:
-1. Technical accuracy
-2. Completeness
-3. Clarity
-4. Consistency with standards
-5. Quality of examples
+1. Draft guide submitted as PR
+2. Technical review by 2+ team members
+3. User experience review by docs team
+4. Revision based on feedback
+5. Final approval and merge
 
-## Tracking Progress
+## Success Metrics
 
-Progress will be tracked in this document by marking completed guides with [x].
+- Reduction in "how to" questions in issues/discussions
+- Increased usage of advanced features
+- Positive feedback on documentation usability
+- Reduced onboarding time for new users
 
-## Prioritization Criteria
+## Next Evaluation
 
-Guides are prioritized based on:
-1. User impact (how many users will benefit)
-2. Complexity (how difficult the topic is to understand)
-3. Dependency (whether other guides depend on it)
-4. Current documentation gaps
-
-## Next Steps
-
-1. Create the Quick Start Guide
-2. Create the Basic Concepts Guide
-3. Create the Rules Guide
-4. Review and refine the guide template based on initial guides
-5. Continue with Phase 1 guides
+The plan will be evaluated and updated monthly based on:
+- User feedback
+- GitHub issue patterns
+- New feature additions
+- Completion progress
