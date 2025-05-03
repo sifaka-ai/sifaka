@@ -48,7 +48,20 @@ print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 """
 
-from typing import Any, Callable, Dict, List, Optional, Protocol, Type, Union, TypeVar, Generic, cast, runtime_checkable
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Type,
+    Union,
+    TypeVar,
+    Generic,
+    cast,
+    runtime_checkable,
+)
 
 from pydantic import BaseModel, Field, validate_arguments, validate_call
 
@@ -256,6 +269,7 @@ class ClassifierRule(Rule):
         name: Optional[str] = None,
         description: Optional[str] = None,
         severity: str = "error",
+        config: Optional[RuleConfig] = None,
     ) -> None:
         """
         Initialize a classifier rule.
@@ -270,6 +284,7 @@ class ClassifierRule(Rule):
             name: Name of the rule
             description: Description of the rule
             severity: Severity of the rule
+            config: Optional RuleConfig object
 
         Raises:
             TypeError: If classifier does not implement the Classifier protocol
@@ -281,13 +296,19 @@ class ClassifierRule(Rule):
 
         # Get labels from the classifier's config
         all_labels = []
-        if hasattr(classifier.config, 'get'):
-            all_labels = classifier.config.get('labels', [])
-        elif hasattr(classifier.config, 'labels'):
+        if hasattr(classifier.config, "get"):
+            all_labels = classifier.config.get("labels", [])
+        elif hasattr(classifier.config, "labels"):
             all_labels = classifier.config.labels
 
+        # Check for valid_labels or invalid_labels in config params if not provided directly
         if valid_labels is None and invalid_labels is None:
-            raise ValueError("Either valid_labels or invalid_labels must be provided")
+            if config and "valid_labels" in config.params:
+                valid_labels = config.params["valid_labels"]
+            elif config and "invalid_labels" in config.params:
+                invalid_labels = config.params["invalid_labels"]
+            else:
+                raise ValueError("Either valid_labels or invalid_labels must be provided")
 
         if invalid_labels is not None and valid_labels is not None:
             raise ValueError("Only one of valid_labels or invalid_labels can be provided")
@@ -295,6 +316,10 @@ class ClassifierRule(Rule):
         # Derive valid labels from invalid labels if needed
         if valid_labels is None and invalid_labels is not None:
             valid_labels = [label for label in all_labels if label not in invalid_labels]
+
+        # Get threshold from config if not provided directly
+        if threshold == 0.5 and config and "threshold" in config.params:
+            threshold = config.params["threshold"]
 
         # Set name and description based on classifier if not provided
         if name is None:
@@ -305,12 +330,15 @@ class ClassifierRule(Rule):
                 f"with confidence >= {threshold}"
             )
 
-        # Create rule configuration
-        rule_config = RuleConfig(params={
-            "threshold": threshold,
-            "valid_labels": valid_labels,
-            "invalid_labels": invalid_labels,
-        })
+        # Use provided config or create a new one
+        rule_config = config or RuleConfig()
+
+        # Ensure params contains the necessary configuration
+        rule_config = rule_config.with_params(
+            threshold=threshold,
+            valid_labels=valid_labels,
+            invalid_labels=invalid_labels,
+        )
 
         # Store essential attributes
         self._classifier = classifier
@@ -395,7 +423,9 @@ class ClassifierRule(Rule):
             "confidence": confidence,
             "threshold": self._classifier_config.threshold,
             "valid_labels": self._classifier_config.valid_labels,
-            "classification_result": result.model_dump() if hasattr(result, "model_dump") else result,
+            "classification_result": (
+                result.model_dump() if hasattr(result, "model_dump") else result
+            ),
             "rule_id": self._rule_id,
             "severity": self._severity,
         }
@@ -408,9 +438,7 @@ class ClassifierRule(Rule):
             )
         else:
             if not is_valid_label:
-                message = (
-                    f"Classified as '{label}' which is not in valid labels {self._classifier_config.valid_labels}"
-                )
+                message = f"Classified as '{label}' which is not in valid labels {self._classifier_config.valid_labels}"
                 metadata["errors"] = [message]
             else:
                 message = (
@@ -468,8 +496,8 @@ class ClassifierRule(Rule):
                     "error_type": type(e).__name__,
                     "rule_id": self._rule_id,
                     "severity": self._severity,
-                    "errors": [error_message]
-                }
+                    "errors": [error_message],
+                },
             )
 
     def _create_default_validator(self) -> BaseValidator[str]:
@@ -480,6 +508,7 @@ class ClassifierRule(Rule):
         Returns:
             A validator that uses the classifier for validation
         """
+
         # Create a simple validator that uses the classifier
         class ClassifierValidator(BaseValidator[str]):
             def __init__(self, rule: ClassifierRule):
@@ -633,9 +662,7 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
                 )
             else:
                 if not is_valid_label:
-                    message = (
-                        f"Classified as '{label}' which is not in valid labels {self._config.valid_labels}"
-                    )
+                    message = f"Classified as '{label}' which is not in valid labels {self._config.valid_labels}"
                 else:
                     message = (
                         f"Classified as '{label}' with confidence {confidence:.2f}, "
@@ -655,7 +682,7 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
                 metadata={
                     "error_type": type(e).__name__,
                     "adaptee_name": self.classifier.name,
-                }
+                },
             )
 
 
@@ -670,12 +697,15 @@ def create_classifier_rule(
     name: Optional[str] = None,
     description: Optional[str] = None,
     severity: str = "error",
+    config: Optional[RuleConfig] = None,
+    **kwargs: Any,
 ) -> ClassifierRule:
     """
     Create a rule from a classifier.
 
     This factory function creates a ClassifierRule with the specified
-    configuration options.
+    configuration options. It follows the standard Sifaka configuration pattern
+    by using RuleConfig with params for all configuration options.
 
     Args:
         classifier: Classifier to use for validation
@@ -687,6 +717,8 @@ def create_classifier_rule(
         name: Name of the rule
         description: Description of the rule
         severity: Severity of the rule
+        config: Optional RuleConfig object
+        **kwargs: Additional configuration options
 
     Returns:
         A rule that uses the classifier for validation
@@ -695,11 +727,12 @@ def create_classifier_rule(
         ```python
         from sifaka.adapters.rules import create_classifier_rule
         from sifaka.classifiers.content import ToxicityClassifier
+        from sifaka.rules.base import RuleConfig
 
         # Create a classifier
         classifier = ToxicityClassifier()
 
-        # Create a rule from the classifier
+        # Create a rule from the classifier with direct parameters
         rule = create_classifier_rule(
             classifier=classifier,
             threshold=0.7,
@@ -707,8 +740,38 @@ def create_classifier_rule(
             name="safety_rule",
             description="Ensures text is safe and non-toxic"
         )
+
+        # Create a rule with a RuleConfig
+        rule_config = RuleConfig(
+            priority="HIGH",
+            cost=5,
+            params={
+                "threshold": 0.8,
+                "valid_labels": ["safe"],
+            }
+        )
+        rule = create_classifier_rule(
+            classifier=classifier,
+            config=rule_config,
+            name="high_priority_safety_rule",
+            description="High priority safety validation"
+        )
         ```
     """
+    # Import here to avoid circular imports
+    from sifaka.utils import standardize_rule_config
+
+    # Create standardized rule configuration
+    rule_params = {
+        "threshold": threshold,
+        "valid_labels": valid_labels,
+        "invalid_labels": invalid_labels,
+        "extraction_function": extraction_function,
+    }
+
+    # Standardize the configuration
+    rule_config = standardize_rule_config(config=config, params=rule_params, **kwargs)
+
     return ClassifierRule(
         classifier=classifier,
         threshold=threshold,
@@ -719,6 +782,7 @@ def create_classifier_rule(
         name=name,
         description=description,
         severity=severity,
+        config=rule_config,
     )
 
 
@@ -728,12 +792,15 @@ def create_classifier_adapter(
     valid_labels: Optional[List[str]] = None,
     invalid_labels: Optional[List[str]] = None,
     extraction_function: Optional[Callable[[str], str]] = None,
+    config: Optional[Dict[str, Any]] = None,
+    **kwargs: Any,
 ) -> ClassifierAdapter:
     """
     Create an adapter from a classifier.
 
     This factory function creates a ClassifierAdapter with the specified
-    configuration options.
+    configuration options. It follows the standard Sifaka configuration pattern
+    by using a consistent approach to configuration.
 
     Args:
         classifier: Classifier to use for validation
@@ -741,6 +808,8 @@ def create_classifier_adapter(
         valid_labels: List of valid labels
         invalid_labels: List of invalid labels
         extraction_function: Function to extract text to classify from input
+        config: Optional configuration dictionary
+        **kwargs: Additional configuration options
 
     Returns:
         An adapter that uses the classifier for validation
@@ -753,17 +822,39 @@ def create_classifier_adapter(
         # Create a classifier
         classifier = SentimentClassifier()
 
-        # Create an adapter from the classifier
+        # Create an adapter from the classifier with direct parameters
         adapter = create_classifier_adapter(
             classifier=classifier,
             threshold=0.8,
             valid_labels=["positive", "neutral"]
+        )
+
+        # Create an adapter with a configuration dictionary
+        adapter = create_classifier_adapter(
+            classifier=classifier,
+            config={
+                "threshold": 0.8,
+                "valid_labels": ["positive", "neutral"]
+            }
         )
         ```
     """
     # First check if the classifier is valid
     if not isinstance(classifier, Classifier):
         raise ValueError(f"Expected a Classifier, got {type(classifier)}")
+
+    # Extract configuration from config dictionary if provided
+    if config:
+        threshold = config.get("threshold", threshold)
+        valid_labels = config.get("valid_labels", valid_labels)
+        invalid_labels = config.get("invalid_labels", invalid_labels)
+        extraction_function = config.get("extraction_function", extraction_function)
+
+    # Extract configuration from kwargs if provided
+    threshold = kwargs.get("threshold", threshold)
+    valid_labels = kwargs.get("valid_labels", valid_labels)
+    invalid_labels = kwargs.get("invalid_labels", invalid_labels)
+    extraction_function = kwargs.get("extraction_function", extraction_function)
 
     return ClassifierAdapter(
         classifier=classifier,

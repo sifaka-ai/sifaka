@@ -6,6 +6,112 @@ agents to learn from feedback without requiring weight updates. It employs a pro
 where agents reflect on feedback they receive and maintain these reflections in memory
 to improve future decision-making.
 
+## Component Lifecycle
+
+### Reflexion Critic Lifecycle
+
+1. **Initialization Phase**
+   - Configuration validation
+   - Memory buffer setup
+   - Provider initialization
+   - Factory setup
+   - Resource allocation
+
+2. **Operation Phase**
+   - Text validation
+   - Critique generation
+   - Reflection processing
+   - Text improvement
+   - Memory management
+
+3. **Cleanup Phase**
+   - Memory cleanup
+   - Resource release
+   - State reset
+   - Error recovery
+
+### Component Interactions
+
+1. **Language Model Provider**
+   - Receives formatted prompts
+   - Returns model responses
+   - Handles model-specific formatting
+
+2. **Memory Manager**
+   - Stores past reflections
+   - Retrieves relevant reflections
+   - Manages memory buffer
+
+3. **Prompt Factory**
+   - Creates reflection-aware prompts
+   - Manages template variables
+   - Validates prompt formats
+
+### Error Handling and Recovery
+
+1. **Input Validation Errors**
+   - Empty or invalid text inputs
+   - Invalid feedback format
+   - Invalid reflection format
+   - Recovery: Return appropriate error messages
+
+2. **Memory Management Errors**
+   - Buffer overflow
+   - Invalid reflection format
+   - Memory access errors
+   - Recovery: Buffer cleanup and state preservation
+
+3. **Model Interaction Errors**
+   - Provider connection failures
+   - Response parsing errors
+   - Format validation failures
+   - Recovery: Retry with fallback strategies
+
+## Examples
+
+```python
+from sifaka.critics.reflexion import ReflexionCritic, ReflexionCriticConfig
+from sifaka.models.providers import OpenAIProvider
+
+# Create a language model provider
+provider = OpenAIProvider(api_key="your-api-key")
+
+# Create a reflexion critic configuration
+config = ReflexionCriticConfig(
+    name="my_reflexion_critic",
+    description="A critic that learns from past feedback",
+    system_prompt="You are an expert editor that learns from past improvements.",
+    temperature=0.7,
+    max_tokens=1000,
+    memory_buffer_size=5,
+    reflection_depth=2
+)
+
+# Create a reflexion critic
+critic = ReflexionCritic(
+    name="my_reflexion_critic",
+    description="A critic that learns from past feedback",
+    llm_provider=provider,
+    config=config
+)
+
+# Validate text
+text = "This is a sample technical document."
+is_valid = critic.validate(text)
+print(f"Text is valid: {is_valid}")
+
+# Critique text
+critique = critic.critique(text)
+print(f"Critique: {critique}")
+
+# Improve text with feedback
+feedback = "The text needs more detail and better structure."
+improved_text = critic.improve(text, feedback)
+print(f"Improved text: {improved_text}")
+
+# The critic will now use this experience to improve future text
+```
+
 The core concept behind Reflexion is verbal reinforcement learning - using language
 itself as the mechanism for agent improvement. This approach allows language agents to
 verbally reflect on task feedback signals and maintain these reflections in an episodic
@@ -26,7 +132,70 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class ReflexionCriticConfig(CriticConfig):
-    """Configuration for the reflexion critic."""
+    """Configuration for the reflexion critic.
+
+    This configuration class extends the base CriticConfig with reflexion-specific
+    parameters that control the behavior of the ReflexionCritic.
+
+    ## Configuration Parameters
+
+    1. **System Prompt**
+       - Controls the base behavior of the model
+       - Should emphasize reflection and learning
+       - Default: "You are an expert editor that improves text through reflection."
+
+    2. **Temperature**
+       - Controls the randomness of model responses
+       - Range: 0.0 to 1.0
+       - Default: 0.7
+
+    3. **Max Tokens**
+       - Maximum number of tokens in model responses
+       - Must be positive
+       - Default: 1000
+
+    4. **Memory Buffer Size**
+       - Number of reflections to maintain in memory
+       - Must be non-negative
+       - Default: 5
+
+    5. **Reflection Depth**
+       - Number of reflection iterations to perform
+       - Must be positive
+       - Default: 1
+
+    ## Error Handling
+
+    The configuration implements comprehensive validation:
+
+    1. **System Prompt Validation**
+       - Ensures non-empty prompt
+       - Validates prompt format
+
+    2. **Parameter Validation**
+       - Temperature range check
+       - Token limit validation
+       - Memory buffer validation
+       - Reflection depth validation
+
+    ## Examples
+
+    ```python
+    from sifaka.critics.reflexion import ReflexionCriticConfig
+
+    # Create a basic configuration
+    config = ReflexionCriticConfig()
+
+    # Create a custom configuration
+    custom_config = ReflexionCriticConfig(
+        system_prompt="You are an expert technical writer that learns from feedback.",
+        temperature=0.5,
+        max_tokens=2000,
+        memory_buffer_size=10,
+        reflection_depth=2
+    )
+    ```
+    """
 
     system_prompt: str = "You are an expert editor that improves text through reflection."
     temperature: float = 0.7
@@ -50,17 +219,109 @@ class ReflexionCriticConfig(CriticConfig):
 
 
 class ReflexionPromptFactory:
-    """Factory for creating reflexion-specific prompts."""
+    """Factory for creating reflexion-specific prompts.
+
+    This factory creates specialized prompts that incorporate reflection and memory
+    into the text improvement process.
+
+    ## Lifecycle Management
+
+    The ReflexionPromptFactory manages its lifecycle through three main phases:
+
+    1. **Initialization**
+       - Template setup
+       - Format validation
+       - Error handling setup
+
+    2. **Operation**
+       - Creates reflection-aware prompts
+       - Handles template variables
+       - Validates formats
+
+    3. **Cleanup**
+       - Resets state
+       - Logs final status
+
+    ## Error Handling
+
+    The ReflexionPromptFactory implements comprehensive error handling:
+
+    1. **Input Validation**
+       - Validates text input
+       - Checks feedback format
+       - Verifies reflection format
+
+    2. **Template Management**
+       - Handles missing variables
+       - Validates template syntax
+       - Manages format errors
+
+    ## Examples
+
+    ```python
+    from sifaka.critics.reflexion import ReflexionPromptFactory
+
+    # Create a prompt factory
+    factory = ReflexionPromptFactory()
+
+    # Create different types of prompts
+    text = "This is a sample text."
+    feedback = "The text needs more detail."
+    reflections = ["Previous improvement focused on clarity", "Added more examples"]
+
+    # Validation prompt
+    validation_prompt = factory.create_validation_prompt(text)
+    print(validation_prompt)
+
+    # Critique prompt
+    critique_prompt = factory.create_critique_prompt(text)
+    print(critique_prompt)
+
+    # Improvement prompt with reflections
+    improvement_prompt = factory.create_improvement_prompt(
+        text, feedback, reflections
+    )
+    print(improvement_prompt)
+    ```
+    """
 
     def create_validation_prompt(self, text: str) -> str:
-        """
-        Create a prompt for validating text.
+        """Create a prompt for validating text.
+
+        This method creates a structured prompt for validating text quality using
+        the language model. The prompt is designed to elicit a clear validation
+        response with a boolean result and supporting reasoning.
+
+        ## Lifecycle Steps
+        1. Input validation
+        2. Prompt template formatting
+        3. Response format specification
 
         Args:
             text: The text to validate
 
         Returns:
-            str: The validation prompt
+            str: The validation prompt with clear response format instructions
+
+        Raises:
+            ValueError: If text is empty or invalid
+
+        Examples:
+            ```python
+            text = "This is a sample technical document."
+            prompt = factory.create_validation_prompt(text)
+            # Returns:
+            # "Please validate the following text:
+            #
+            # TEXT TO VALIDATE:
+            # This is a sample technical document.
+            #
+            # FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
+            # VALID: [true/false]
+            # REASON: [reason for validation result]
+            #
+            # VALIDATION:"
+            ```
         """
         return f"""Please validate the following text:
 
@@ -74,14 +335,48 @@ class ReflexionPromptFactory:
         VALIDATION:"""
 
     def create_critique_prompt(self, text: str) -> str:
-        """
-        Create a prompt for critiquing text.
+        """Create a prompt for critiquing text.
+
+        This method creates a structured prompt for critiquing text quality using
+        the language model. The prompt is designed to elicit a comprehensive critique
+        including a score, general feedback, specific issues, and improvement suggestions.
+
+        ## Lifecycle Steps
+        1. Input validation
+        2. Prompt template formatting
+        3. Response format specification
 
         Args:
             text: The text to critique
 
         Returns:
-            str: The critique prompt
+            str: The critique prompt with clear response format instructions
+
+        Raises:
+            ValueError: If text is empty or invalid
+
+        Examples:
+            ```python
+            text = "This is a sample technical document."
+            prompt = factory.create_critique_prompt(text)
+            # Returns:
+            # "Please critique the following text:
+            #
+            # TEXT TO CRITIQUE:
+            # This is a sample technical document.
+            #
+            # FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
+            # SCORE: [number between 0 and 1]
+            # FEEDBACK: [your general feedback]
+            # ISSUES:
+            # - [issue 1]
+            # - [issue 2]
+            # SUGGESTIONS:
+            # - [suggestion 1]
+            # - [suggestion 2]
+            #
+            # CRITIQUE:"
+            ```
         """
         return f"""Please critique the following text:
 
@@ -103,16 +398,54 @@ class ReflexionPromptFactory:
     def create_improvement_prompt(
         self, text: str, feedback: str, reflections: List[str] = None
     ) -> str:
-        """
-        Create a prompt for improving text with reflections.
+        """Create a prompt for improving text with reflections.
+
+        This method creates a structured prompt for improving text using the language
+        model. The prompt incorporates feedback and previous reflections to guide
+        the improvement process.
+
+        ## Lifecycle Steps
+        1. Input validation
+        2. Reflection formatting
+        3. Prompt template formatting
+        4. Response format specification
 
         Args:
             text: The text to improve
             feedback: Feedback to guide the improvement
-            reflections: Optional list of previous reflections
+            reflections: Optional list of previous reflections to incorporate
 
         Returns:
-            str: The improvement prompt
+            str: The improvement prompt with clear response format instructions
+
+        Raises:
+            ValueError: If text or feedback is empty or invalid
+            TypeError: If reflections is not a list
+
+        Examples:
+            ```python
+            text = "This is a sample technical document."
+            feedback = "The text needs more detail and better structure."
+            reflections = ["Previous improvement focused on clarity", "Added more examples"]
+            prompt = factory.create_improvement_prompt(text, feedback, reflections)
+            # Returns:
+            # "Please improve the following text:
+            #
+            # TEXT TO IMPROVE:
+            # This is a sample technical document.
+            #
+            # FEEDBACK:
+            # The text needs more detail and better structure.
+            #
+            # PREVIOUS REFLECTIONS:
+            # 1. Previous improvement focused on clarity
+            # 2. Added more examples
+            #
+            # FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
+            # IMPROVED_TEXT: [improved text]
+            #
+            # IMPROVEMENT:"
+            ```
         """
         reflection_text = ""
         if reflections and len(reflections) > 0:
@@ -134,8 +467,16 @@ class ReflexionPromptFactory:
         IMPROVEMENT:"""
 
     def create_reflection_prompt(self, text: str, feedback: str, improved_text: str) -> str:
-        """
-        Create a prompt for generating a reflection.
+        """Create a prompt for generating a reflection.
+
+        This method creates a structured prompt for generating reflections on the
+        text improvement process. The prompt guides the model to analyze what went
+        well, what went wrong, and what could be improved in future iterations.
+
+        ## Lifecycle Steps
+        1. Input validation
+        2. Prompt template formatting
+        3. Response format specification
 
         Args:
             text: The original text
@@ -143,7 +484,37 @@ class ReflexionPromptFactory:
             improved_text: The improved text
 
         Returns:
-            str: The reflection prompt
+            str: The reflection prompt with clear response format instructions
+
+        Raises:
+            ValueError: If any input is empty or invalid
+
+        Examples:
+            ```python
+            text = "This is a sample technical document."
+            feedback = "The text needs more detail and better structure."
+            improved_text = "This is a well-structured technical document with detailed explanations..."
+            prompt = factory.create_reflection_prompt(text, feedback, improved_text)
+            # Returns:
+            # "Please reflect on the following text improvement process:
+            #
+            # ORIGINAL TEXT:
+            # This is a sample technical document.
+            #
+            # FEEDBACK RECEIVED:
+            # The text needs more detail and better structure.
+            #
+            # IMPROVED TEXT:
+            # This is a well-structured technical document with detailed explanations...
+            #
+            # Reflect on what went well, what went wrong, and what could be improved in future iterations.
+            # Focus on specific patterns, mistakes, or strategies that could be applied to similar tasks.
+            #
+            # FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
+            # REFLECTION: [your reflection]
+            #
+            # REFLECTION:"
+            ```
         """
         return f"""Please reflect on the following text improvement process:
 
@@ -166,14 +537,87 @@ class ReflexionPromptFactory:
 
 
 class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
-    """A critic that uses the Reflexion approach to improve text.
+    """A critic that uses reflection to improve text quality.
 
-    This critic maintains a memory of reflections on previous improvements,
-    which it uses to guide future improvements. It follows the Reflexion
-    framework's approach of verbal reinforcement learning.
+    This critic implements the Reflexion approach, which enables learning from
+    feedback without requiring weight updates. It maintains a memory buffer of
+    past reflections to improve future text generation.
 
-    This class follows the component-based architecture pattern by delegating to
-    specialized components for prompt management, response parsing, and memory management.
+    ## Lifecycle Management
+
+    The ReflexionCritic manages its lifecycle through three main phases:
+
+    1. **Initialization**
+       - Validates configuration
+       - Sets up memory buffer
+       - Initializes provider
+       - Configures factory
+       - Allocates resources
+
+    2. **Operation**
+       - Validates text input
+       - Generates critiques
+       - Processes reflections
+       - Improves text quality
+       - Updates memory
+
+    3. **Cleanup**
+       - Cleans up memory
+       - Releases resources
+       - Resets state
+       - Logs final status
+
+    ## Error Handling
+
+    The ReflexionCritic implements comprehensive error handling:
+
+    1. **Input Validation**
+       - Validates text input
+       - Checks feedback format
+       - Verifies reflection format
+
+    2. **Memory Management**
+       - Handles buffer overflow
+       - Manages reflection storage
+       - Validates memory access
+
+    3. **Model Interaction**
+       - Handles provider errors
+       - Manages response parsing
+       - Validates output formats
+
+    ## Examples
+
+    ```python
+    from sifaka.critics.reflexion import ReflexionCritic, ReflexionCriticConfig
+    from sifaka.models.providers import OpenAIProvider
+
+    # Create a language model provider
+    provider = OpenAIProvider(api_key="your-api-key")
+
+    # Create a reflexion critic
+    critic = ReflexionCritic(
+        name="my_reflexion_critic",
+        description="A critic that learns from past feedback",
+        llm_provider=provider
+    )
+
+    # Validate text
+    text = "This is a sample technical document."
+    is_valid = critic.validate(text)
+    print(f"Text is valid: {is_valid}")
+
+    # Critique text
+    critique = critic.critique(text)
+    print(f"Critique: {critique}")
+
+    # Improve text with feedback
+    feedback = "The text needs more detail and better structure."
+    improved_text = critic.improve(text, feedback)
+    print(f"Improved text: {improved_text}")
+
+    # The critic will now use this experience to improve future text
+    ```
     """
 
     def __init__(
@@ -331,11 +775,37 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     def _violations_to_feedback(self, violations: List[Dict[str, Any]]) -> str:
         """Convert rule violations to feedback text.
 
+        This method transforms a list of rule violations into a human-readable
+        feedback string that can be used to guide text improvement.
+
+        ## Lifecycle Steps
+        1. Input validation
+        2. Feedback formatting
+        3. Error handling
+
         Args:
-            violations: List of rule violations
+            violations: List of rule violations, where each violation is a dictionary
+                      containing 'rule_name' and 'message' keys
 
         Returns:
-            str: Formatted feedback
+            str: Formatted feedback string
+
+        Raises:
+            TypeError: If violations is not a list
+            ValueError: If violations contain invalid data
+
+        Examples:
+            ```python
+            violations = [
+                {"rule_name": "Clarity", "message": "Sentence too complex"},
+                {"rule_name": "Grammar", "message": "Subject-verb agreement error"}
+            ]
+            feedback = critic._violations_to_feedback(violations)
+            # Returns:
+            # "The following issues were found:
+            # - Clarity: Sentence too complex
+            # - Grammar: Subject-verb agreement error"
+            ```
         """
         if not violations:
             return "No issues found."
@@ -351,11 +821,50 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     def _parse_critique_response(self, response: str) -> Dict[str, Any]:
         """Parse a critique response string into a structured format.
 
+        This method processes the raw response from the language model and
+        extracts structured data including score, feedback, issues, and suggestions.
+
+        ## Lifecycle Steps
+        1. Response validation
+        2. Data extraction
+        3. Error handling
+        4. Result formatting
+
         Args:
-            response: The response string from the model
+            response: Raw response string from the language model
 
         Returns:
-            dict: Structured critique data
+            dict: Structured critique data containing:
+                - score: float between 0 and 1
+                - feedback: General feedback text
+                - issues: List of specific issues
+                - suggestions: List of improvement suggestions
+
+        Raises:
+            ValueError: If response format is invalid
+            TypeError: If response cannot be parsed
+
+        Examples:
+            ```python
+            response = '''
+            SCORE: 0.7
+            FEEDBACK: The text needs improvement
+            ISSUES:
+            - Unclear structure
+            - Missing examples
+            SUGGESTIONS:
+            - Add more examples
+            - Improve organization
+            '''
+            result = critic._parse_critique_response(response)
+            # Returns:
+            # {
+            #     "score": 0.7,
+            #     "feedback": "The text needs improvement",
+            #     "issues": ["Unclear structure", "Missing examples"],
+            #     "suggestions": ["Add more examples", "Improve organization"]
+            # }
+            ```
         """
         result = {
             "score": 0.0,
@@ -408,25 +917,59 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     def _get_relevant_reflections(self) -> List[str]:
         """Get relevant reflections from the memory buffer.
 
+        This method retrieves the most relevant reflections from the memory buffer
+        to guide the current text improvement process.
+
+        ## Lifecycle Steps
+        1. Memory access
+        2. Reflection filtering
+        3. Result formatting
+
         Returns:
-            List[str]: Relevant reflections
+            List[str]: List of relevant reflections
+
+        Examples:
+            ```python
+            reflections = critic._get_relevant_reflections()
+            # Returns:
+            # [
+            #     "Previous improvement focused on clarity",
+            #     "Added more examples in last iteration"
+            # ]
+            ```
         """
         # Get reflections from memory manager
         return self._memory_manager.get_memory()
 
     # Async methods
     async def avalidate(self, text: str) -> bool:
-        """
-        Asynchronously validate text.
+        """Asynchronously validate text.
+
+        This method performs asynchronous validation of text using the language model.
+        It checks if the text meets quality standards and returns a boolean result.
+
+        ## Lifecycle Steps
+        1. Input validation
+        2. Model interaction
+        3. Response processing
+        4. Result formatting
 
         Args:
             text: The text to validate
 
         Returns:
-            True if the text meets quality standards, False otherwise
+            bool: True if the text meets quality standards, False otherwise
 
         Raises:
             ValueError: If text is empty
+            RuntimeError: If model interaction fails
+
+        Examples:
+            ```python
+            text = "This is a sample technical document."
+            is_valid = await critic.avalidate(text)
+            print(f"Text is valid: {is_valid}")
+            ```
         """
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
@@ -435,18 +978,38 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         return await self._critique_service.avalidate(text)
 
     async def acritique(self, text: str) -> dict:
-        """
-        Asynchronously critique text.
+        """Asynchronously critique text.
+
+        This method performs asynchronous critique of text using the language model.
+        It analyzes the text and provides detailed feedback in a structured format.
+
+        ## Lifecycle Steps
+        1. Input validation
+        2. Model interaction
+        3. Response parsing
+        4. Result formatting
 
         Args:
             text: The text to critique
 
         Returns:
-            Dictionary containing score, feedback, issues, and suggestions
+            dict: Structured critique data containing:
+                - score: float between 0 and 1
+                - feedback: General feedback text
+                - issues: List of specific issues
+                - suggestions: List of improvement suggestions
 
         Raises:
             ValueError: If text is empty
-            TypeError: If model returns invalid output
+            RuntimeError: If model interaction fails
+
+        Examples:
+            ```python
+            text = "This is a sample technical document."
+            critique = await critic.acritique(text)
+            print(f"Score: {critique['score']}")
+            print(f"Feedback: {critique['feedback']}")
+            ```
         """
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
@@ -455,18 +1018,35 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         return await self._critique_service.acritique(text)
 
     async def aimprove(self, text: str, feedback: str = None) -> str:
-        """
-        Asynchronously improve text.
+        """Asynchronously improve text.
+
+        This method performs asynchronous improvement of text using the language model.
+        It incorporates feedback and reflections to enhance the text quality.
+
+        ## Lifecycle Steps
+        1. Input validation
+        2. Feedback processing
+        3. Model interaction
+        4. Result formatting
 
         Args:
             text: The text to improve
-            feedback: Feedback to guide the improvement
+            feedback: Optional feedback to guide the improvement
 
         Returns:
-            The improved text
+            str: The improved text
 
         Raises:
             ValueError: If text is empty
+            RuntimeError: If model interaction fails
+
+        Examples:
+            ```python
+            text = "This is a sample technical document."
+            feedback = "The text needs more detail and better structure."
+            improved_text = await critic.aimprove(text, feedback)
+            print(f"Improved text: {improved_text}")
+            ```
         """
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
@@ -486,7 +1066,14 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     async def aimprove_with_feedback(self, text: str, feedback: str) -> str:
         """Asynchronously improve text based on specific feedback.
 
-        This method implements the required async abstract method.
+        This method implements the required async abstract method from BaseCritic.
+        It performs asynchronous improvement of text using specific feedback.
+
+        ## Lifecycle Steps
+        1. Input validation
+        2. Feedback processing
+        3. Model interaction
+        4. Result formatting
 
         Args:
             text: The text to improve
@@ -497,6 +1084,15 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
 
         Raises:
             ValueError: If text is empty
+            RuntimeError: If model interaction fails
+
+        Examples:
+            ```python
+            text = "This is a sample technical document."
+            feedback = "The text needs more detail and better structure."
+            improved_text = await critic.aimprove_with_feedback(text, feedback)
+            print(f"Improved text: {improved_text}")
+            ```
         """
         return await self.aimprove(text, feedback)
 
@@ -522,7 +1118,6 @@ DEFAULT_REFLEXION_CONFIG = ReflexionCriticConfig(
 )
 
 
-# Function to create a reflexion critic
 def create_reflexion_critic(
     llm_provider: LanguageModel,
     name: str = "reflexion_critic",
@@ -534,22 +1129,60 @@ def create_reflexion_critic(
     memory_buffer_size: int = 5,
     reflection_depth: int = 1,
 ) -> ReflexionCritic:
-    """
-    Create a reflexion critic with the given parameters.
+    """Create a reflexion critic with the given parameters.
+
+    This helper function creates and configures a ReflexionCritic instance with
+    the specified parameters. It provides a convenient way to create a critic
+    with custom settings.
+
+    ## Lifecycle Steps
+    1. Parameter validation
+    2. Configuration creation
+    3. Critic instantiation
+    4. Resource allocation
 
     Args:
         llm_provider: Language model provider to use for critiquing
         name: Name of the critic
         description: Description of the critic
         system_prompt: System prompt for the model
-        temperature: Temperature for model generation
+        temperature: Temperature for model generation (0.0 to 1.0)
         max_tokens: Maximum tokens for model generation
-        min_confidence: Minimum confidence threshold
+        min_confidence: Minimum confidence threshold (0.0 to 1.0)
         memory_buffer_size: Maximum number of reflections to store
         reflection_depth: How many levels of reflection to perform
 
     Returns:
         ReflexionCritic: Configured reflexion critic
+
+    Raises:
+        ValueError: If any parameter is invalid
+        TypeError: If llm_provider is not a valid LanguageModel
+
+    Examples:
+        ```python
+        from sifaka.models.providers import OpenAIProvider
+
+        # Create a language model provider
+        provider = OpenAIProvider(api_key="your-api-key")
+
+        # Create a reflexion critic with custom settings
+        critic = create_reflexion_critic(
+            llm_provider=provider,
+            name="custom_critic",
+            description="A critic with custom settings",
+            system_prompt="You are an expert technical writer...",
+            temperature=0.5,
+            max_tokens=2000,
+            min_confidence=0.8,
+            memory_buffer_size=10,
+            reflection_depth=2
+        )
+
+        # Use the critic
+        text = "This is a sample technical document."
+        improved_text = critic.improve(text)
+        ```
     """
     config = ReflexionCriticConfig(
         name=name,

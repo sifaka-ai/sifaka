@@ -1,7 +1,124 @@
 """
 Factory functions for creating critics.
 
-This module provides factory functions for creating different types of critics.
+This module provides factory functions for creating different types of critics,
+including prompt-based critics and reflexion critics. These factories handle
+the configuration and initialization of critics with their required components.
+
+## Component Overview
+
+1. **Factory Functions**
+   - `create_prompt_critic`: Creates a prompt-based critic
+   - `create_reflexion_critic`: Creates a reflexion critic
+
+2. **Dependencies**
+   - Language model providers
+   - Prompt managers
+   - Response parsers
+   - Memory managers (for reflexion critics)
+
+## Factory Lifecycle
+
+1. **Initialization**
+   - Validate input parameters
+   - Create configuration objects
+   - Initialize required managers
+   - Configure critic components
+
+2. **Configuration**
+   - Set default values
+   - Apply custom configurations
+   - Validate settings
+   - Create immutable instances
+
+3. **Component Assembly**
+   - Create prompt managers
+   - Initialize response parsers
+   - Set up memory managers
+   - Configure critic core
+
+## Error Handling
+
+1. **Validation Errors**
+   - Invalid parameter values
+   - Missing required components
+   - Configuration conflicts
+   - Resource initialization failures
+
+2. **Recovery Strategies**
+   - Default value fallbacks
+   - Parameter validation
+   - Error logging
+   - Graceful degradation
+
+## Examples
+
+Creating a prompt critic:
+
+```python
+from sifaka.critics.factories import create_prompt_critic
+from sifaka.llm import OpenAIModel
+
+# Create a language model provider
+llm_provider = OpenAIModel(api_key="your-api-key")
+
+# Create a prompt critic
+critic = create_prompt_critic(
+    llm_provider=llm_provider,
+    name="my_critic",
+    description="A custom prompt critic",
+    min_confidence=0.8,
+    system_prompt="You are an expert editor."
+)
+
+# Use the critic
+result = critic.validate("Some text to validate")
+```
+
+Creating a reflexion critic:
+
+```python
+from sifaka.critics.factories import create_reflexion_critic
+from sifaka.llm import OpenAIModel
+
+# Create a language model provider
+llm_provider = OpenAIModel(api_key="your-api-key")
+
+# Create a reflexion critic
+critic = create_reflexion_critic(
+    llm_provider=llm_provider,
+    name="my_reflexion_critic",
+    description="A reflexion critic that learns from feedback",
+    memory_buffer_size=10,
+    reflection_depth=2
+)
+
+# Use the critic
+result = critic.improve("Text to improve")
+```
+
+Using custom configurations:
+
+```python
+from sifaka.critics.models import PromptCriticConfig
+from sifaka.critics.factories import create_prompt_critic
+from sifaka.llm import OpenAIModel
+
+# Create a custom configuration
+config = PromptCriticConfig(
+    name="custom_critic",
+    description="A critic with custom settings",
+    min_confidence=0.9,
+    temperature=0.5
+)
+
+# Create a critic with the custom configuration
+llm_provider = OpenAIModel(api_key="your-api-key")
+critic = create_prompt_critic(
+    llm_provider=llm_provider,
+    config=config
+)
+```
 """
 
 from typing import Any
@@ -37,6 +154,40 @@ def create_prompt_critic(
     This factory function creates a configured prompt critic instance
     that uses a language model to evaluate and improve text.
 
+    ## Lifecycle Management
+
+    1. **Initialization**
+       - Validate input parameters
+       - Create configuration object
+       - Initialize prompt manager
+       - Set up response parser
+
+    2. **Configuration**
+       - Apply default values
+       - Handle custom configuration
+       - Validate settings
+       - Create immutable instance
+
+    3. **Component Assembly**
+       - Create prompt manager
+       - Initialize response parser
+       - Configure critic core
+       - Return configured instance
+
+    ## Error Handling
+
+    1. **Validation Errors**
+       - Invalid parameter values
+       - Missing required components
+       - Configuration conflicts
+       - Resource initialization failures
+
+    2. **Recovery**
+       - Default value fallbacks
+       - Parameter validation
+       - Error logging
+       - Graceful degradation
+
     Args:
         llm_provider: Language model provider to use
         name: Name of the critic
@@ -54,6 +205,27 @@ def create_prompt_critic(
 
     Returns:
         A configured prompt critic
+
+    Examples:
+        ```python
+        from sifaka.critics.factories import create_prompt_critic
+        from sifaka.llm import OpenAIModel
+
+        # Create a language model provider
+        llm_provider = OpenAIModel(api_key="your-api-key")
+
+        # Create a prompt critic
+        critic = create_prompt_critic(
+            llm_provider=llm_provider,
+            name="my_critic",
+            description="A custom prompt critic",
+            min_confidence=0.8,
+            system_prompt="You are an expert editor."
+        )
+
+        # Use the critic
+        result = critic.validate("Some text to validate")
+        ```
     """
     # Use provided config or create one from parameters
     if config is None:
@@ -112,6 +284,42 @@ def create_reflexion_critic(
     that uses a language model to evaluate and improve text, while maintaining
     a memory of past improvements to guide future improvements.
 
+    ## Lifecycle Management
+
+    1. **Initialization**
+       - Validate input parameters
+       - Create configuration object
+       - Initialize prompt manager
+       - Set up response parser
+       - Configure memory manager
+
+    2. **Configuration**
+       - Apply default values
+       - Handle custom configuration
+       - Validate settings
+       - Create immutable instance
+
+    3. **Component Assembly**
+       - Create prompt manager
+       - Initialize response parser
+       - Set up memory manager
+       - Configure critic core
+       - Return configured instance
+
+    ## Error Handling
+
+    1. **Validation Errors**
+       - Invalid parameter values
+       - Missing required components
+       - Configuration conflicts
+       - Resource initialization failures
+
+    2. **Recovery**
+       - Default value fallbacks
+       - Parameter validation
+       - Error logging
+       - Graceful degradation
+
     Args:
         llm_provider: Language model provider to use
         name: Name of the critic
@@ -131,6 +339,27 @@ def create_reflexion_critic(
 
     Returns:
         A configured reflexion critic
+
+    Examples:
+        ```python
+        from sifaka.critics.factories import create_reflexion_critic
+        from sifaka.llm import OpenAIModel
+
+        # Create a language model provider
+        llm_provider = OpenAIModel(api_key="your-api-key")
+
+        # Create a reflexion critic
+        critic = create_reflexion_critic(
+            llm_provider=llm_provider,
+            name="my_reflexion_critic",
+            description="A reflexion critic that learns from feedback",
+            memory_buffer_size=10,
+            reflection_depth=2
+        )
+
+        # Use the critic
+        result = critic.improve("Text to improve")
+        ```
     """
     # Use provided config or create one from parameters
     if config is None:
