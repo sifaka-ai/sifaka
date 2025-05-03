@@ -7,6 +7,7 @@ like text reflection and analysis.
 """
 
 from typing import Optional, Dict, Any
+import os
 
 import anthropic
 import tiktoken
@@ -35,11 +36,29 @@ class AnthropicClient(APIClient):
 
     def __init__(self, api_key: Optional[str] = None) -> None:
         """Initialize the Anthropic client."""
+        # Check for API key in environment if not provided
+        if not api_key:
+            api_key = os.environ.get("ANTHROPIC_API_KEY")
+
+        # Validate API key
+        if not api_key:
+            logger.warning("No Anthropic API key provided and ANTHROPIC_API_KEY environment variable not set")
+
         self.client = Anthropic(api_key=api_key)
         logger.debug("Initialized Anthropic client")
 
     def send_prompt(self, prompt: str, config: ModelConfig) -> str:
         """Send a prompt to Anthropic and return the response."""
+        # Get API key from config or client
+        api_key = config.api_key or getattr(self.client, "api_key", None)
+
+        # Check for missing API key
+        if not api_key:
+            raise ValueError(
+                "No API key provided. Please provide an API key either by setting the "
+                "ANTHROPIC_API_KEY environment variable or by passing it explicitly."
+            )
+
         try:
             response = self.client.messages.create(
                 model="claude-3-opus-20240229",
@@ -190,6 +209,42 @@ class AnthropicProvider(ModelProviderCore):
             api_client=api_client,
             token_counter=token_counter,
         )
+
+    def invoke(self, prompt: str, **kwargs) -> str:
+        """
+        Invoke the model with a prompt (delegates to generate).
+
+        This method is needed for compatibility with the critique service
+        which expects an 'invoke' method.
+
+        Args:
+            prompt: The prompt to send to the model
+            **kwargs: Additional keyword arguments to pass to the model
+
+        Returns:
+            The generated text response
+        """
+        return self.generate(prompt, **kwargs)
+
+    async def ainvoke(self, prompt: str, **kwargs) -> str:
+        """
+        Asynchronously invoke the model with a prompt.
+
+        This method delegates to agenerate if it exists, or falls back to
+        synchronous generate.
+
+        Args:
+            prompt: The prompt to send to the model
+            **kwargs: Additional keyword arguments to pass to the model
+
+        Returns:
+            The generated text response
+        """
+        if hasattr(self, "agenerate"):
+            return await self.agenerate(prompt, **kwargs)
+
+        # Fall back to synchronous generate
+        return self.generate(prompt, **kwargs)
 
     def _create_default_client(self) -> APIClient:
         """Create a default Anthropic client."""

@@ -292,6 +292,23 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         # Delegate to critique service - the critique service handles reflection generation
         return self._critique_service.improve(text, feedback_str)
 
+    def improve_with_feedback(self, text: str, feedback: str) -> str:
+        """Improve text based on specific feedback.
+
+        This method implements the required abstract method from BaseCritic.
+
+        Args:
+            text: The text to improve
+            feedback: Feedback to guide the improvement
+
+        Returns:
+            str: The improved text
+
+        Raises:
+            ValueError: If text is empty
+        """
+        return self.improve(text, feedback)
+
     def critique(self, text: str) -> dict:
         """Analyze text and provide detailed feedback.
 
@@ -465,6 +482,23 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
 
         # Delegate to critique service - the critique service handles reflection generation
         return await self._critique_service.aimprove(text, feedback_str)
+
+    async def aimprove_with_feedback(self, text: str, feedback: str) -> str:
+        """Asynchronously improve text based on specific feedback.
+
+        This method implements the required async abstract method.
+
+        Args:
+            text: The text to improve
+            feedback: Feedback to guide the improvement
+
+        Returns:
+            str: The improved text
+
+        Raises:
+            ValueError: If text is empty
+        """
+        return await self.aimprove(text, feedback)
 
 
 # Default configurations
