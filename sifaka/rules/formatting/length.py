@@ -567,5 +567,4 @@ def create_length_rule(
         name=name,
         description=description,
         config=config,
-        **kwargs,
     )
