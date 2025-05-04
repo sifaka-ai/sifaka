@@ -56,6 +56,7 @@ Sifaka's functionality can be extended through optional dependencies:
 - `language`: Language detection
 - `readability`: Text readability analysis
 - `ner`: Named Entity Recognition using spaCy
+- and so on
 
 ### Integrations
 - `guardrails-ai`: Integration with Guardrails AI for advanced validation
@@ -89,8 +90,6 @@ For detailed API reference documentation, see the [docs/api_reference](docs/api_
 - [Adapters API](docs/api_reference/adapters/README.md) - API reference for adapters
 
 ### Specific Implementations
-
-- [NER Classifier](docs/components/ner_classifier.md) - Named Entity Recognition
 - [Guardrails Integration](docs/components/guardrails_integration.md) - Integration with Guardrails AI
 
 ## Key Features
@@ -114,29 +113,13 @@ A Chain is the central orchestrator that processes text through a series of step
 5. Returns the final result
 
 ```mermaid
-graph TD
-    subgraph Chain
-        direction LR
-        Input --> Model
-        Model --> Validation
-        Validation --> |Pass| Output
-        Validation --> |Fail| Critics
-        Critics --> |Feedback| Model
-        Model --> |Retry| Validation
-        Validation --> |Max Attempts| Error
-        Validation --> |Pass| Output
-    end
-
-    subgraph Monitoring
-        direction TB
-        Model --> |Metrics| Monitor
-        Validation --> |Metrics| Monitor
-        Critics --> |Metrics| Monitor
-        Monitor --> |Logs| Logging
-    end
-
-    style Chain fill:#f9f9f9,stroke:#333,stroke-width:2px
-    style Monitoring fill:#f0f0f0,stroke:#333,stroke-width:2px
+graph LR
+    Input --> Model
+    Model --> Validation
+    Validation -->|Pass| Output
+    Validation -->|Fail| Critics
+    Critics -->|Feedback| Model
+    Model -->|Retry| Validation
 ```
 
 ### Components of a Chain
@@ -235,17 +218,15 @@ Sifaka uses a streamlined configuration system with two main configuration class
 ```mermaid
 classDiagram
     class ClassifierConfig {
-        +List[str] labels
-        +float cost
-        +float min_confidence
-        +Dict params
+        +labels
+        +min_confidence
+        +params
     }
 
     class RuleConfig {
-        +RulePriority priority
-        +int cache_size
-        +float cost
-        +Dict params
+        +priority
+        +cost
+        +params
     }
 ```
 
