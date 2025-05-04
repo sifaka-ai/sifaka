@@ -7,14 +7,14 @@ across different components in Sifaka.
 
 from typing import Dict, Any, List
 
-from sifaka.rules.base import RuleConfig, Rule
+from sifaka.rules.base import RuleConfig, Rule, RulePriority
 from sifaka.classifiers.base import ClassifierConfig
 from sifaka.critics.models import CriticConfig, PromptCriticConfig
-from sifaka.utils import (
+from sifaka.utils.config import (
     standardize_rule_config,
-    standardize_classifier_config,
     standardize_critic_config,
 )
+from sifaka.utils.config import standardize_classifier_config
 from sifaka.adapters.rules import create_classifier_rule
 from sifaka.classifiers.toxicity import create_toxicity_classifier
 from sifaka.critics.factories import create_prompt_critic
@@ -27,40 +27,36 @@ def demonstrate_rule_config() -> None:
 
     # 1. Create a rule config with direct parameters
     config1 = RuleConfig(
-        priority="HIGH",
+        priority=RulePriority.HIGH,
         cost=5,
         params={
             "min_length": 10,
             "max_length": 100,
-        }
+        },
     )
     print(f"Direct config: {config1}")
 
     # 2. Create a rule config using standardize_rule_config
     config2 = standardize_rule_config(
-        priority="MEDIUM",
+        priority=RulePriority.MEDIUM,
         params={
             "min_length": 20,
             "max_length": 200,
-        }
+        },
     )
     print(f"Standardized config: {config2}")
 
     # 3. Update an existing config
-    config3 = standardize_rule_config(
-        config=config1,
-        params={"min_length": 30},
-        cost=10
-    )
+    config3 = standardize_rule_config(config=config1, params={"min_length": 30}, cost=10)
     print(f"Updated config: {config3}")
 
     # 4. Create from dictionary
     config_dict = {
-        "priority": "LOW",
+        "priority": RulePriority.LOW,
         "params": {
             "min_length": 5,
             "max_length": 50,
-        }
+        },
     }
     config4 = standardize_rule_config(config=config_dict)
     print(f"Config from dict: {config4}")
@@ -77,7 +73,7 @@ def demonstrate_classifier_config() -> None:
         params={
             "model_name": "sentiment-large",
             "threshold": 0.7,
-        }
+        },
     )
     print(f"Direct config: {config1}")
 
@@ -88,15 +84,13 @@ def demonstrate_classifier_config() -> None:
         params={
             "max_features": 1000,
             "use_bigrams": True,
-        }
+        },
     )
     print(f"Standardized config: {config2}")
 
     # 3. Update an existing config
     config3 = standardize_classifier_config(
-        config=config1,
-        params={"threshold": 0.8},
-        min_confidence=0.9
+        config=config1, params={"threshold": 0.8}, min_confidence=0.9
     )
     print(f"Updated config: {config3}")
 
@@ -107,7 +101,7 @@ def demonstrate_classifier_config() -> None:
         "params": {
             "model_name": "toxicity-v2",
             "threshold": 0.6,
-        }
+        },
     }
     config4 = standardize_classifier_config(config=config_dict)
     print(f"Config from dict: {config4}")
@@ -125,7 +119,7 @@ def demonstrate_critic_config() -> None:
         max_attempts=3,
         params={
             "system_prompt": "You are an expert editor.",
-        }
+        },
     )
     print(f"Direct config: {config1}")
 
@@ -138,7 +132,7 @@ def demonstrate_critic_config() -> None:
         params={
             "system_prompt": "You are an expert technical editor.",
             "temperature": 0.7,
-        }
+        },
     )
     print(f"Standardized config: {config2}")
 
@@ -149,7 +143,7 @@ def demonstrate_critic_config() -> None:
         description="A prompt-based critic",
         system_prompt="You are an expert editor.",
         temperature=0.7,
-        max_tokens=1000
+        max_tokens=1000,
     )
     print(f"Specialized config: {prompt_config}")
 
@@ -157,7 +151,7 @@ def demonstrate_critic_config() -> None:
     config3 = standardize_critic_config(
         config=config1,
         params={"system_prompt": "You are an expert technical writer."},
-        min_confidence=0.9
+        min_confidence=0.9,
     )
     print(f"Updated config: {config3}")
 
@@ -175,7 +169,7 @@ def demonstrate_factory_functions() -> None:
         threat_threshold=0.7,
         cache_size=100,
         min_confidence=0.6,
-        cost=5
+        cost=5,
     )
     print(f"Toxicity classifier: {toxicity_classifier.name}")
     print(f"Classifier config: {toxicity_classifier.config}")
@@ -187,13 +181,13 @@ def demonstrate_factory_functions() -> None:
         params={
             "threshold": 0.8,
             "valid_labels": ["non-toxic"],
-        }
+        },
     )
     toxicity_rule = create_classifier_rule(
         classifier=toxicity_classifier,
         config=rule_config,
         name="toxicity_rule",
-        description="Ensures text is not toxic"
+        description="Ensures text is not toxic",
     )
     print(f"Toxicity rule: {toxicity_rule.name}")
     print(f"Rule config: {toxicity_rule.config}")
@@ -207,12 +201,9 @@ def demonstrate_factory_functions() -> None:
         max_attempts=3,
         system_prompt="You are an expert editor.",
         temperature=0.7,
-        max_tokens=1000
+        max_tokens=1000,
     )
-    critic = create_prompt_critic(
-        llm_provider=model,
-        config=critic_config
-    )
+    critic = create_prompt_critic(llm_provider=model, config=critic_config)
     print(f"Critic: {critic.config.name}")
     print(f"Critic config: {critic.config}")
 

@@ -32,8 +32,9 @@ from pydantic import PrivateAttr
 from sifaka.classifiers.base import (
     BaseClassifier,
     ClassificationResult,
+    ClassifierConfig,
 )
-from sifaka.utils.config import ClassifierConfig, standardize_classifier_config
+from sifaka.classifiers.config import standardize_classifier_config
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import ClassifierState, create_classifier_state
 

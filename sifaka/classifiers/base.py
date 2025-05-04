@@ -131,26 +131,28 @@ Each classifier type may also provide specialized factory functions for easier i
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-
-# No longer using lru_cache directly
 from typing import (
     Any,
     Dict,
     Generic,
     List,
+    Optional,
     Protocol,
     Type,
     TypeVar,
+    Union,
     runtime_checkable,
 )
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from sifaka.utils.config import ClassifierConfig
+from sifaka.utils.logging import get_logger
+from sifaka.utils.state import StateManager, create_classifier_state
 
-# Input and output type vars
-T = TypeVar("T")  # Input type (usually str)
-R = TypeVar("R")  # Result type
+logger = get_logger(__name__)
+
+T = TypeVar("T")  # Type of input text
+R = TypeVar("R")  # Type of classification result
 
 
 @runtime_checkable
