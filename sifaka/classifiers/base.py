@@ -3,6 +3,17 @@ Base classes for Sifaka classifiers.
 
 This module provides the core interfaces and base implementations for text classification,
 including protocols, configuration classes, result types, and the base classifier class.
+Classifiers work alongside rules and critics to provide a complete validation and improvement system.
+
+## Integration with Rules and Critics
+
+Classifiers complement rules and critics in the following ways:
+- Rules provide binary validation (pass/fail)
+- Critics provide nuanced feedback and improvement suggestions
+- Classifiers provide semantic understanding and categorization
+- Rules can use classifier outputs for content validation
+- Critics can use classifier outputs to guide improvements
+- Classifiers can trigger rule violations or critic improvements
 
 ## Architecture Overview
 
@@ -120,24 +131,28 @@ Each classifier type may also provide specialized factory functions for easier i
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-
-# No longer using lru_cache directly
 from typing import (
     Any,
     Dict,
     Generic,
     List,
+    Optional,
     Protocol,
     Type,
     TypeVar,
+    Union,
     runtime_checkable,
 )
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# Input and output type vars
-T = TypeVar("T")  # Input type (usually str)
-R = TypeVar("R")  # Result type
+from sifaka.utils.logging import get_logger
+from sifaka.utils.state import StateManager, create_classifier_state
+
+logger = get_logger(__name__)
+
+T = TypeVar("T")  # Type of input text
+R = TypeVar("R")  # Type of classification result
 
 
 @runtime_checkable

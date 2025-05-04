@@ -14,8 +14,16 @@ from dotenv import load_dotenv
 # Load environment variables from .env file (containing ANTHROPIC_API_KEY)
 load_dotenv()
 
+# Verify API key is available
+api_key = os.environ.get("ANTHROPIC_API_KEY")
+if not api_key:
+    raise ValueError(
+        "ANTHROPIC_API_KEY environment variable not set. "
+        "Please set it in your environment or in a .env file."
+    )
+
 # Import Sifaka components
-from sifaka.models.anthropic import AnthropicProvider
+from sifaka.models.anthropic import create_anthropic_provider
 from sifaka.models.base import ModelConfig
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.chain import ChainOrchestrator
@@ -34,14 +42,13 @@ except ImportError:
 # Import the Guardrails adapter
 from sifaka.adapters.rules.guardrails_adapter import create_guardrails_rule
 
-# Configure Claude model
-model = AnthropicProvider(
+# Configure Claude model using the factory function
+model = create_anthropic_provider(
     model_name="claude-3-sonnet-20240229",
-    config=ModelConfig(
-        api_key=os.environ.get("ANTHROPIC_API_KEY"),
-        temperature=0.7,
-        max_tokens=1500,
-    ),
+    temperature=0.7,
+    max_tokens=1500,
+    api_key=api_key,  # Use the verified API key
+    trace_enabled=True,
 )
 
 # Only proceed if Guardrails is available
@@ -78,8 +85,6 @@ if GUARDRAILS_AVAILABLE:
 
     # Create a critic to help improve responses that don't meet the rule
     critic = PromptCritic(
-        name="phone_format_critic",
-        description="Helps ensure text contains a properly formatted phone number",
         llm_provider=model,
         config=PromptCriticConfig(
             name="phone_format_critic",
@@ -95,12 +100,7 @@ if GUARDRAILS_AVAILABLE:
     )
 
     # Create a chain with the model, rule, and critic
-    chain = ChainOrchestrator(
-        model=model,
-        rules=[phone_rule],
-        critic=critic,
-        max_attempts=3
-    )
+    chain = ChainOrchestrator(model=model, rules=[phone_rule], critic=critic, max_attempts=3)
 
     # Prompt designed to generate a response with a phone number
     prompt = """

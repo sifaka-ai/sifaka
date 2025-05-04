@@ -2,6 +2,8 @@
 Adapter for using Guardrails validators as rules.
 
 This module provides adapters for using validators from the Guardrails library as Sifaka rules.
+It enables seamless integration between Guardrails' validation capabilities and Sifaka's
+rule system, allowing for sophisticated content validation.
 
 Usage Example:
     from guardrails.hub import RegexMatch
@@ -21,6 +23,8 @@ Usage Example:
 """
 
 from typing import Any, Dict, Optional, Union, Protocol, runtime_checkable
+
+from pydantic import PrivateAttr
 
 try:
     from guardrails.validator_base import Validator as GuardrailsValidator
@@ -46,6 +50,7 @@ except ImportError:
 
 from sifaka.rules.base import BaseValidator, RuleResult, Rule, RuleConfig
 from sifaka.adapters.rules.base import Adaptable, BaseAdapter
+from sifaka.utils.state import AdapterState, StateManager, create_adapter_state, create_rule_state
 
 
 @runtime_checkable
@@ -122,6 +127,7 @@ class GuardrailsValidatorAdapter(BaseValidator[str]):
             raise ImportError(
                 "Guardrails is not installed. Please install it with 'pip install guardrails-ai'"
             )
+
         self._guardrails_validator = guardrails_validator
 
     @property
@@ -177,10 +183,11 @@ class GuardrailsValidatorAdapter(BaseValidator[str]):
 
         try:
             # Call the Guardrails validator
-            gr_result = self._guardrails_validator.validate(output, metadata=kwargs)
+            gr_result = self.guardrails_validator.validate(output, metadata=kwargs)
 
             # Convert Guardrails result to Sifaka RuleResult
             return self._convert_guardrails_result(gr_result)
+
         except Exception as e:
             # Handle any exceptions from the Guardrails validator
             return RuleResult(
@@ -188,9 +195,9 @@ class GuardrailsValidatorAdapter(BaseValidator[str]):
                 message=f"Guardrails validation error: {str(e)}",
                 metadata={
                     "error_type": type(e).__name__,
-                    "validator": self._guardrails_validator.__class__.__name__,
-                    "errors": [str(e)]
-                }
+                    "validator": self.guardrails_validator.__class__.__name__,
+                    "errors": [str(e)],
+                },
             )
 
     @property
@@ -233,62 +240,49 @@ class GuardrailsRule(Rule):
         rule_id: Optional[str] = None,
         name: Optional[str] = None,
         description: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ):
         """
-        Initialize with a Guardrails validator.
+        Initialize the rule with a Guardrails validator.
 
         Args:
             guardrails_validator: The Guardrails validator to use
-            rule_id: Unique identifier for the rule
-            name: Name of the rule
-            description: Description of the rule
-            **kwargs: Additional configuration for the rule
-
-        Raises:
-            ImportError: If Guardrails is not installed
+            rule_id: Optional unique identifier for the rule
+            name: Optional display name for the rule
+            description: Optional description of what the rule validates
+            **kwargs: Additional configuration options
         """
         if not GUARDRAILS_AVAILABLE:
             raise ImportError(
                 "Guardrails is not installed. Please install it with 'pip install guardrails-ai'"
             )
 
-        # Set default name and description if not provided
-        if name is None:
-            name = f"guardrails_{guardrails_validator.__class__.__name__}"
-        if description is None:
-            description = f"Rule using Guardrails validator: {guardrails_validator.__class__.__name__}"
+        # Generate default name and description if not provided
+        validator_name = guardrails_validator.__class__.__name__
+        rule_name = name or f"Guardrails {validator_name}"
+        rule_description = description or f"Validates text using {validator_name}"
 
-        # Create rule configuration
-        rule_config = RuleConfig(
-            params={
-                "guardrails_validator_type": guardrails_validator.__class__.__name__,
-            }
-        )
-
+        # Store the Guardrails validator
         self._guardrails_validator = guardrails_validator
-        self._rule_id = rule_id or name
-        self._adapter = GuardrailsValidatorAdapter(guardrails_validator)
+        self._rule_id = rule_id or f"guardrails_{validator_name.lower()}"
 
+        # Initialize base rule
         super().__init__(
-            name=name,
-            description=description,
-            config=rule_config,
-            **kwargs
+            name=rule_name,
+            description=rule_description,
+            **kwargs,
         )
+
+        # Create the validator adapter
+        self._validator = self._create_default_validator()
 
     def _create_default_validator(self) -> BaseValidator[str]:
-        """
-        Create a default validator for this rule.
-
-        Returns:
-            The GuardrailsValidatorAdapter
-        """
-        return self._adapter
+        """Create the default validator adapter."""
+        return GuardrailsValidatorAdapter(self._guardrails_validator)
 
     @property
     def guardrails_validator(self) -> GuardrailsValidator:
-        """Get the Guardrails validator being used."""
+        """Get the underlying Guardrails validator."""
         return self._guardrails_validator
 
     @property
@@ -301,15 +295,14 @@ class GuardrailsRule(Rule):
         Validate text using the Guardrails validator.
 
         Args:
-            text: Text to validate
+            text: The text to validate
             **kwargs: Additional validation context
 
         Returns:
-            Validation result
+            RuleResult indicating if validation passed
         """
-        result = self._adapter.validate(text, **kwargs)
-        # Add rule_id to metadata
-        return result.with_metadata(rule_id=self._rule_id)
+        result = self._validator.validate(text, **kwargs)
+        return result.with_metadata(rule_id=self.rule_id)
 
 
 def create_guardrails_rule(
@@ -317,7 +310,7 @@ def create_guardrails_rule(
     rule_id: Optional[str] = None,
     name: Optional[str] = None,
     description: Optional[str] = None,
-    **kwargs
+    **kwargs,
 ) -> GuardrailsRule:
     """
     Create a Sifaka rule that uses a Guardrails validator.
@@ -354,7 +347,7 @@ def create_guardrails_rule(
         rule_id=rule_id,
         name=name,
         description=description,
-        **kwargs
+        **kwargs,
     )
 
 

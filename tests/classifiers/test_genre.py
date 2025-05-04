@@ -25,7 +25,7 @@ class TestableGenreClassifier(GenreClassifier):
         return ClassificationResult(
             label="fiction",
             confidence=0.7,
-            metadata={"top_features": {"word1": 0.1, "word2": 0.5, "fiction": 0.4}}
+            metadata={"top_features": {"word1": 0.1, "word2": 0.5, "fiction": 0.4}},
         )
 
 
@@ -36,7 +36,11 @@ class TestGenreClassifier(unittest.TestCase):
         """Set up test dependencies."""
         # Mock scikit-learn dependencies
         self.mock_tfidf = MagicMock()
-        self.mock_tfidf.return_value.get_feature_names_out.return_value = ["word1", "word2", "fiction"]
+        self.mock_tfidf.return_value.get_feature_names_out.return_value = [
+            "word1",
+            "word2",
+            "fiction",
+        ]
 
         self.mock_random_forest = MagicMock()
         self.mock_random_forest.return_value.feature_importances_ = [0.1, 0.5, 0.4]
@@ -67,8 +71,8 @@ class TestGenreClassifier(unittest.TestCase):
                     "random_state": 42,
                     "use_ngrams": True,
                     "n_estimators": 50,
-                }
-            )
+                },
+            ),
         )
 
     def tearDown(self):
@@ -106,15 +110,10 @@ class TestGenreClassifier(unittest.TestCase):
     def test_init_custom_config(self):
         """Test initialization with custom configuration."""
         config = ClassifierConfig(
-            labels=["news", "fiction"],
-            cost=1.5,
-            min_confidence=0.8,
-            params={"use_ngrams": False}
+            labels=["news", "fiction"], cost=1.5, min_confidence=0.8, params={"use_ngrams": False}
         )
         classifier = TestableGenreClassifier(
-            name="custom_classifier",
-            description="Custom classifier",
-            config=config
+            name="custom_classifier", description="Custom classifier", config=config
         )
         self.assertEqual(classifier.name, "custom_classifier")
         self.assertEqual(classifier.description, "Custom classifier")
@@ -126,8 +125,9 @@ class TestGenreClassifier(unittest.TestCase):
     def test_warm_up(self):
         """Test warm_up method initializes the model."""
         self.classifier.warm_up()
-        self.assertTrue(self.classifier._initialized)
-        self.assertIsNotNone(self.classifier._pipeline)
+        state = self.classifier._state_manager.get_state()
+        self.assertTrue(state.initialized)
+        self.assertIsNotNone(state.pipeline)
 
         # Check that the dependencies were loaded
         self.assertIsNotNone(self.classifier._sklearn_feature_extraction_text)
@@ -182,9 +182,8 @@ class TestGenreClassifier(unittest.TestCase):
 
         try:
             # Set up feature_importances for completeness
-            self.classifier._feature_importances = {
-                "fiction": {"word1": 0.1, "word2": 0.2}
-            }
+            state = self.classifier._state_manager.get_state()
+            state.cache["feature_importances"] = {"fiction": {"word1": 0.1, "word2": 0.2}}
 
             # Save the model
             self.classifier._save_model(model_path)
@@ -206,9 +205,10 @@ class TestGenreClassifier(unittest.TestCase):
                 new_classifier._load_model(model_path)
 
             # Check that the model was loaded
-            self.assertIsNotNone(new_classifier._pipeline)
-            self.assertIsNotNone(new_classifier._vectorizer)
-            self.assertIsNotNone(new_classifier._model)
+            state = new_classifier._state_manager.get_state()
+            self.assertIsNotNone(state.pipeline)
+            self.assertIsNotNone(state.vectorizer)
+            self.assertIsNotNone(state.model)
 
         finally:
             # Clean up
@@ -232,7 +232,7 @@ class TestGenreClassifier(unittest.TestCase):
         texts = [
             "This is a news article about current events.",
             "Once upon a time in a fictional world...",
-            "Technical documentation for a software library."
+            "Technical documentation for a software library.",
         ]
         labels = ["news", "fiction", "technical"]
 
@@ -243,14 +243,18 @@ class TestGenreClassifier(unittest.TestCase):
         self.assertIs(result, self.classifier)
 
         # Check that the model was initialized and trained
-        self.assertTrue(self.classifier._initialized)
-        self.assertIsNotNone(self.classifier._pipeline)
+        state = self.classifier._state_manager.get_state()
+        self.assertTrue(state.initialized)
+        self.assertIsNotNone(state.pipeline)
 
         # Check that fit was called on the pipeline
         self.mock_pipeline.return_value.fit.assert_called_once()
 
         # Check that custom labels were set
-        self.assertEqual(self.classifier._custom_labels, ["fiction", "news", "technical"])  # sorted
+        state = self.classifier._state_manager.get_state()
+        self.assertEqual(
+            state.cache.get("custom_labels"), ["fiction", "news", "technical"]
+        )  # sorted
 
         # Check that config was updated
         self.assertEqual(self.classifier._config.labels, ["fiction", "news", "technical"])
@@ -275,8 +279,13 @@ class TestGenreClassifier(unittest.TestCase):
         """Test _extract_feature_importances method."""
         # Setup
         self.classifier.warm_up()
-        self.classifier._vectorizer.get_feature_names_out.return_value = ["word1", "word2", "fiction"]
-        self.classifier._model.feature_importances_ = [0.1, 0.5, 0.4]
+        state = self.classifier._state_manager.get_state()
+        state.vectorizer.get_feature_names_out.return_value = [
+            "word1",
+            "word2",
+            "fiction",
+        ]
+        state.model.feature_importances_ = [0.1, 0.5, 0.4]
 
         # Call the method
         importances = self.classifier._extract_feature_importances()
@@ -298,7 +307,8 @@ class TestGenreClassifier(unittest.TestCase):
         self.classifier.warm_up()
 
         # Remove feature_importances_ from model
-        self.classifier._model = MagicMock()  # no feature_importances_
+        state = self.classifier._state_manager.get_state()
+        state.model = MagicMock()  # no feature_importances_
 
         # Call the method
         importances = self.classifier._extract_feature_importances()
@@ -307,7 +317,8 @@ class TestGenreClassifier(unittest.TestCase):
         self.assertEqual(importances, {})
 
         # Test with exception
-        self.classifier._vectorizer.get_feature_names_out.side_effect = Exception("Error")
+        state = self.classifier._state_manager.get_state()
+        state.vectorizer.get_feature_names_out.side_effect = Exception("Error")
         importances = self.classifier._extract_feature_importances()
         self.assertEqual(importances, {})
 
@@ -328,24 +339,29 @@ class TestGenreClassifier(unittest.TestCase):
         self.classifier.warm_up()
 
         # Mock pipeline predict_proba
-        self.classifier._pipeline.predict_proba.return_value = [[0.2, 0.7, 0.1]]
+        state = self.classifier._state_manager.get_state()
+        state.pipeline.predict_proba.return_value = [[0.2, 0.7, 0.1]]
 
         # Set feature importances
-        self.classifier._feature_importances = {
+        state.cache["feature_importances"] = {
             "fiction": {"word1": 0.1, "word2": 0.5, "fiction": 0.4}
         }
 
         # Test with a patched _classify_impl_uncached method
-        with patch.object(self.classifier, '_classify_impl_uncached', return_value=ClassificationResult(
-            label="fiction",
-            confidence=0.7,
-            metadata={
-                "probabilities": {"news": 0.2, "fiction": 0.7, "technical": 0.1},
-                "threshold": 0.6,
-                "is_confident": True,
-                "top_features": {"word1": 0.1, "word2": 0.5, "fiction": 0.4}
-            }
-        )):
+        with patch.object(
+            self.classifier,
+            "_classify_impl_uncached",
+            return_value=ClassificationResult(
+                label="fiction",
+                confidence=0.7,
+                metadata={
+                    "probabilities": {"news": 0.2, "fiction": 0.7, "technical": 0.1},
+                    "threshold": 0.6,
+                    "is_confident": True,
+                    "top_features": {"word1": 0.1, "word2": 0.5, "fiction": 0.4},
+                },
+            ),
+        ):
             # Classify text
             result = self.classifier._classify_impl("This is a fictional story.")
 
@@ -359,8 +375,10 @@ class TestGenreClassifier(unittest.TestCase):
         # Create a new classifier
         classifier = TestableGenreClassifier()
 
-        # Override _pipeline to make sure it's not initialized
-        classifier._pipeline = None
+        # Override state to make sure it's not initialized
+        state = classifier._state_manager.get_state()
+        state.initialized = False
+        state.pipeline = None
 
         with self.assertRaises(RuntimeError):
             classifier.batch_classify(["Test text"])
@@ -372,35 +390,36 @@ class TestGenreClassifier(unittest.TestCase):
 
         # Mock batch_classify to return our test results
         original_batch_classify = self.classifier.batch_classify
-        self.classifier.batch_classify = MagicMock(return_value=[
-            ClassificationResult(
-                label="fiction",
-                confidence=0.7,
-                metadata={
-                    "probabilities": {"news": 0.2, "fiction": 0.7, "technical": 0.1},
-                    "threshold": 0.6,
-                    "is_confident": True,
-                    "top_features": {"word1": 0.1, "word2": 0.5}
-                }
-            ),
-            ClassificationResult(
-                label="news",
-                confidence=0.8,
-                metadata={
-                    "probabilities": {"news": 0.8, "fiction": 0.1, "technical": 0.1},
-                    "threshold": 0.6,
-                    "is_confident": True,
-                    "top_features": {"word1": 0.2, "word2": 0.3}
-                }
-            )
-        ])
+        self.classifier.batch_classify = MagicMock(
+            return_value=[
+                ClassificationResult(
+                    label="fiction",
+                    confidence=0.7,
+                    metadata={
+                        "probabilities": {"news": 0.2, "fiction": 0.7, "technical": 0.1},
+                        "threshold": 0.6,
+                        "is_confident": True,
+                        "top_features": {"word1": 0.1, "word2": 0.5},
+                    },
+                ),
+                ClassificationResult(
+                    label="news",
+                    confidence=0.8,
+                    metadata={
+                        "probabilities": {"news": 0.8, "fiction": 0.1, "technical": 0.1},
+                        "threshold": 0.6,
+                        "is_confident": True,
+                        "top_features": {"word1": 0.2, "word2": 0.3},
+                    },
+                ),
+            ]
+        )
 
         try:
             # Classify texts
-            results = self.classifier.batch_classify([
-                "This is a fictional story.",
-                "This is a news article."
-            ])
+            results = self.classifier.batch_classify(
+                ["This is a fictional story.", "This is a news article."]
+            )
 
             # Check results
             self.assertEqual(len(results), 2)
@@ -426,18 +445,17 @@ class TestGenreClassifier(unittest.TestCase):
         texts = [
             "This is a news article about current events.",
             "Once upon a time in a fictional world...",
-            "Technical documentation for a software library."
+            "Technical documentation for a software library.",
         ]
         labels = ["news", "fiction", "technical"]
 
         # Mock fit method
-        with patch('sifaka.classifiers.genre.GenreClassifier.fit', return_value=TestableGenreClassifier()):
+        with patch(
+            "sifaka.classifiers.genre.GenreClassifier.fit", return_value=TestableGenreClassifier()
+        ):
             # Create pretrained classifier
             classifier = TestableGenreClassifier.create_pretrained(
-                texts=texts,
-                labels=labels,
-                name="pretrained",
-                description="Pretrained classifier"
+                texts=texts, labels=labels, name="pretrained", description="Pretrained classifier"
             )
 
             # Check that the classifier was created
@@ -450,18 +468,20 @@ class TestGenreClassifier(unittest.TestCase):
             labels=["custom1", "custom2"],
             cost=3.0,
             min_confidence=0.9,
-            params={"custom_param": True}
+            params={"custom_param": True},
         )
 
         # Mock fit method
-        with patch('sifaka.classifiers.genre.GenreClassifier.fit', return_value=TestableGenreClassifier()):
+        with patch(
+            "sifaka.classifiers.genre.GenreClassifier.fit", return_value=TestableGenreClassifier()
+        ):
             # Create pretrained classifier with custom config
             classifier = TestableGenreClassifier.create_pretrained(
                 texts=["text1", "text2"],
                 labels=["label1", "label2"],
                 name="custom_pretrained",
                 description="Custom pretrained",
-                config=config
+                config=config,
             )
 
             # Check that the classifier was created with the right name

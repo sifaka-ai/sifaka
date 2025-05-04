@@ -5,7 +5,19 @@ This module provides validators and rules for checking text length constraints,
 including character count and word count validation. It follows the standard
 Sifaka validation pattern with separate validator and rule components.
 
-The module provides two main factory functions:
+The module implements the delegation pattern where:
+- LengthRule delegates validation work to LengthValidator
+- LengthValidator handles the core validation logic
+- LengthRule manages configuration and result handling
+
+Key Components:
+- LengthConfig: Configuration for length constraints
+- LengthValidator: Base validator for length checks
+- DefaultLengthValidator: Default implementation of length validation
+- LengthRuleValidator: Validator adapter for LengthValidator
+- LengthRule: Rule that uses a validator to enforce length constraints
+
+Factory Functions:
 - create_length_validator(): Creates a standalone validator
 - create_length_rule(): Creates a rule with a validator
 
@@ -39,11 +51,12 @@ Usage Example:
     ```
 """
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict, PrivateAttr
 
-from sifaka.rules.base import Rule, RuleResult, BaseValidator
+from sifaka.rules.base import Rule, RuleResult, BaseValidator, RuleConfig
+from sifaka.utils.state import RuleState, create_rule_state, StateManager
 
 
 __all__ = [
@@ -360,7 +373,7 @@ class LengthRule(Rule):
         validator: LengthValidator,
         name: str = "length_rule",
         description: str = "Validates text length",
-        config: Optional[Dict] = None,
+        config: Optional[RuleConfig] = None,
         **kwargs,
     ):
         """Initialize the length rule.
@@ -372,27 +385,18 @@ class LengthRule(Rule):
             config: Additional configuration for the rule
             **kwargs: Additional keyword arguments for the rule
         """
-        self._length_validator = validator
-        self._rule_id = kwargs.pop("rule_id", name)  # Extract rule_id if present, default to name
-        super().__init__(name=name, description=description, config=config, **kwargs)
+        # Create the validator adapter
+        validator_adapter = LengthRuleValidator(validator)
+
+        # Initialize base class with the validator adapter
+        super().__init__(
+            name=name, description=description, config=config, validator=validator_adapter, **kwargs
+        )
 
     def _create_default_validator(self) -> LengthRuleValidator:
         """Create a default validator adapter for this rule."""
-        return LengthRuleValidator(self._length_validator)
-
-    def validate(self, text: str, **kwargs) -> RuleResult:
-        """Evaluate text against length constraints.
-
-        Args:
-            text: The text to evaluate
-            **kwargs: Additional validation context
-
-        Returns:
-            RuleResult containing validation results
-        """
-        result = self._length_validator.validate(text, **kwargs)
-        # Add rule_id to metadata
-        return result.with_metadata(rule_id=self._rule_id)
+        # This is not used since we pass the validator in __init__
+        raise NotImplementedError("Validator is created in __init__")
 
 
 def create_length_validator(
@@ -531,19 +535,36 @@ def create_length_rule(
         max_chars=max_chars,
         min_words=min_words,
         max_words=max_words,
-        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
     )
 
-    # Extract rule-specific kwargs
-    rule_kwargs = {
-        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
-    }
+    # Extract rule config parameters
+    priority = kwargs.pop("priority", None)
+    cache_size = kwargs.pop("cache_size", None)
+    cost = kwargs.pop("cost", None)
+    params = kwargs.pop("params", {})
+
+    # Create rule config
+    config = None
+    if any([priority, cache_size, cost, params]):
+        config = RuleConfig(
+            priority=priority,
+            cache_size=cache_size,
+            cost=cost,
+            params=params,
+        )
 
     # Use rule_id as name if provided, otherwise use "length_rule"
     name = rule_id if rule_id else "length_rule"
 
+    # Extract description if provided
+    description = kwargs.pop(
+        "description",
+        f"Validates text length (chars: {min_chars}-{max_chars}, words: {min_words}-{max_words})",
+    )
+
     return LengthRule(
         validator=validator,
         name=name,
-        **rule_kwargs,
+        description=description,
+        config=config,
     )

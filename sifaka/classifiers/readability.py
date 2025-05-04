@@ -1,10 +1,13 @@
 """
-Readability classifier that analyzes text complexity.
+Readability classifiers for Sifaka.
+
+This module provides classifiers for assessing the readability of text content.
 """
 
 import importlib
 import statistics
 from abc import abstractmethod
+from dataclasses import dataclass
 from typing import (
     Any,
     Dict,
@@ -12,6 +15,8 @@ from typing import (
     Optional,
     Protocol,
     runtime_checkable,
+    ClassVar,
+    Union,
 )
 
 from typing_extensions import TypeGuard
@@ -22,7 +27,9 @@ from sifaka.classifiers.base import (
     ClassificationResult,
     ClassifierConfig,
 )
+from sifaka.classifiers.config import standardize_classifier_config
 from sifaka.utils.logging import get_logger
+from sifaka.utils.state import ClassifierState, create_classifier_state
 
 logger = get_logger(__name__)
 
@@ -105,11 +112,11 @@ class ReadabilityClassifier(BaseClassifier):
     """
 
     # Class-level constants
-    DEFAULT_LABELS: List[str] = ["elementary", "middle", "high", "college", "graduate"]
-    DEFAULT_COST: int = 1  # Low cost for statistical analysis
+    DEFAULT_LABELS: ClassVar[List[str]] = ["elementary", "middle", "high", "college", "graduate"]
+    DEFAULT_COST: ClassVar[int] = 1  # Low cost for statistical analysis
 
     # Default grade level bounds
-    DEFAULT_GRADE_LEVEL_BOUNDS: Dict[str, tuple[float, float]] = {
+    DEFAULT_GRADE_LEVEL_BOUNDS: ClassVar[Dict[str, tuple[float, float]]] = {
         "elementary": (0.0, 6.0),
         "middle": (6.0, 9.0),
         "high": (9.0, 12.0),
@@ -117,9 +124,8 @@ class ReadabilityClassifier(BaseClassifier):
         "graduate": (16.0, float("inf")),
     }
 
-    # Private attributes using PrivateAttr for state management
-    _analyzer: Optional[ReadabilityAnalyzer] = PrivateAttr(default=None)
-    _initialized: bool = PrivateAttr(default=False)
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
     def __init__(
         self,
@@ -156,8 +162,13 @@ class ReadabilityClassifier(BaseClassifier):
         # Initialize base class first
         super().__init__(name=name, description=description, config=config)
 
-        # Store analyzer for later use
-        self._analyzer = analyzer
+        # Initialize state
+        state = self._state_manager.get_state()
+        state.initialized = False
+        state.cache = {}
+
+        # Store analyzer in state
+        state.cache["analyzer"] = analyzer
 
     def _validate_analyzer(self, analyzer: Any) -> TypeGuard[ReadabilityAnalyzer]:
         """Validate that an analyzer implements the required protocol."""
@@ -183,9 +194,19 @@ class ReadabilityClassifier(BaseClassifier):
 
     def warm_up(self) -> None:
         """Initialize the analyzer if needed."""
-        if not self._initialized:
-            self._analyzer = self._analyzer or self._load_textstat()
-            self._initialized = True
+        # Get state
+        state = self._state_manager.get_state()
+
+        # Check if already initialized
+        if not state.initialized:
+            # Get analyzer from state cache or load textstat
+            analyzer = state.cache.get("analyzer") or self._load_textstat()
+
+            # Store analyzer in state
+            state.model = analyzer
+
+            # Mark as initialized
+            state.initialized = True
 
     def _get_grade_level(self, grade: float) -> str:
         """Convert grade level to readability label."""
@@ -218,7 +239,12 @@ class ReadabilityClassifier(BaseClassifier):
 
     def _calculate_metrics(self, text: str) -> ReadabilityMetrics:
         """Calculate comprehensive readability metrics."""
-        analyzer = self._analyzer
+        # Get state
+        state = self._state_manager.get_state()
+
+        # Get analyzer from state
+        analyzer = state.model
+
         words = text.split()
         unique_words = set(word.lower() for word in words)
 
@@ -288,6 +314,10 @@ class ReadabilityClassifier(BaseClassifier):
         Returns:
             ClassificationResult with readability level and confidence
         """
+        # Get state
+        state = self._state_manager.get_state()
+
+        # Ensure initialized
         self.warm_up()
 
         try:
@@ -340,6 +370,7 @@ class ReadabilityClassifier(BaseClassifier):
 
         except Exception as e:
             logger.error("Failed to classify text readability: %s", e)
+            state.error = f"Failed to classify text readability: {e}"
             return ClassificationResult(
                 label="unknown",
                 confidence=0.0,
@@ -376,17 +407,24 @@ class ReadabilityClassifier(BaseClassifier):
 
         # Create default config if not provided
         if config is None:
+            # Extract configuration parameters
+            min_confidence = kwargs.pop("min_confidence", 0.7)
+            cache_size = kwargs.pop("cache_size", 100)
+            cost = kwargs.pop("cost", cls.DEFAULT_COST)
             params = kwargs.pop("params", {})
 
             # Ensure grade_level_bounds is present
             if "grade_level_bounds" not in params:
                 params["grade_level_bounds"] = cls.DEFAULT_GRADE_LEVEL_BOUNDS
 
-            # Create config with params
-            config = ClassifierConfig(
+            # Create config with standardized approach
+            config = standardize_classifier_config(
                 labels=cls.DEFAULT_LABELS,
-                cost=cls.DEFAULT_COST,
+                cost=cost,
+                min_confidence=min_confidence,
+                cache_size=cache_size,
                 params=params,
+                **kwargs,
             )
 
         # Create instance with validated analyzer
@@ -395,7 +433,91 @@ class ReadabilityClassifier(BaseClassifier):
             description=description,
             analyzer=analyzer,
             config=config,
-            **kwargs,
         )
 
         return instance
+
+
+def create_readability_classifier(
+    name: str = "readability_classifier",
+    description: str = "Analyzes text readability",
+    analyzer: Optional[ReadabilityAnalyzer] = None,
+    grade_level_bounds: Optional[Dict[str, tuple[float, float]]] = None,
+    min_confidence: float = 0.7,
+    cache_size: int = 100,
+    cost: float = ReadabilityClassifier.DEFAULT_COST,
+    config: Optional[Union[Dict[str, Any], ClassifierConfig]] = None,
+    **kwargs: Any,
+) -> ReadabilityClassifier:
+    """
+    Create a readability classifier.
+
+    This factory function creates a ReadabilityClassifier with the specified
+    configuration options.
+
+    Args:
+        name: Name of the classifier
+        description: Description of the classifier
+        analyzer: Custom readability analyzer implementation
+        grade_level_bounds: Dictionary mapping readability levels to grade ranges
+        min_confidence: Minimum confidence threshold
+        cache_size: Size of the cache for memoization
+        cost: Cost of running the classifier
+        config: Optional classifier configuration
+        **kwargs: Additional configuration parameters
+
+    Returns:
+        A ReadabilityClassifier instance
+
+    Examples:
+        ```python
+        from sifaka.classifiers.readability import create_readability_classifier
+
+        # Create a readability classifier with default settings
+        classifier = create_readability_classifier()
+
+        # Create a readability classifier with custom settings
+        classifier = create_readability_classifier(
+            name="custom_readability_classifier",
+            description="Custom readability analyzer with specific grade levels",
+            grade_level_bounds={
+                "elementary": (0.0, 5.0),
+                "middle": (5.0, 8.0),
+                "high": (8.0, 12.0),
+                "college": (12.0, 16.0),
+                "graduate": (16.0, float("inf")),
+            },
+            min_confidence=0.8,
+            cache_size=200
+        )
+
+        # Classify text
+        result = classifier.classify("This is a sample text to analyze for readability.")
+        print(f"Reading level: {result.label}, Grade level: {result.metadata['grade_level']:.1f}")
+        ```
+    """
+    # Use standardize_classifier_config to handle different config formats
+    params = kwargs.pop("params", {})
+
+    # Ensure grade_level_bounds is present
+    if grade_level_bounds is not None:
+        params["grade_level_bounds"] = grade_level_bounds
+    elif "grade_level_bounds" not in params:
+        params["grade_level_bounds"] = ReadabilityClassifier.DEFAULT_GRADE_LEVEL_BOUNDS
+
+    classifier_config = standardize_classifier_config(
+        config=config,
+        labels=ReadabilityClassifier.DEFAULT_LABELS,
+        min_confidence=min_confidence,
+        cost=cost,
+        cache_size=cache_size,
+        params=params,
+        **kwargs,
+    )
+
+    return ReadabilityClassifier(
+        name=name,
+        description=description,
+        analyzer=analyzer,
+        config=classifier_config,
+    )

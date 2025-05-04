@@ -5,15 +5,17 @@ This module provides the OpenAIProvider class which implements the ModelProvider
 interface for OpenAI models.
 """
 
-from typing import Optional, Any
+from typing import Optional, Any, Dict, ClassVar, Union
 
 import openai
 import tiktoken
 from openai import OpenAI
+from pydantic import PrivateAttr
 
 from sifaka.models.base import APIClient, ModelConfig, TokenCounter
 from sifaka.models.core import ModelProviderCore
 from sifaka.utils.logging import get_logger
+from sifaka.utils.state import create_model_state, ModelState, StateManager
 
 logger = get_logger(__name__)
 
@@ -70,9 +72,12 @@ class OpenAIProvider(ModelProviderCore):
     and built-in token counting.
     """
 
+    # Class constants
+    DEFAULT_MODEL: ClassVar[str] = "gpt-4-turbo"
+
     def __init__(
         self,
-        model_name: str = "gpt-4-turbo",
+        model_name: str = DEFAULT_MODEL,
         config: Optional[ModelConfig] = None,
         api_client: Optional[APIClient] = None,
         token_counter: Optional[TokenCounter] = None,
@@ -94,6 +99,7 @@ class OpenAIProvider(ModelProviderCore):
         except ImportError:
             raise ImportError("OpenAI package is required. Install with: pip install openai")
 
+        # Initialize parent class first
         super().__init__(
             model_name=model_name,
             config=config,
@@ -122,3 +128,55 @@ class OpenAIProvider(ModelProviderCore):
             The generated text
         """
         return self.generate(prompt)
+
+
+def create_openai_provider(
+    model_name: str = OpenAIProvider.DEFAULT_MODEL,
+    temperature: float = 0.7,
+    max_tokens: int = 1000,
+    api_key: Optional[str] = None,
+    trace_enabled: bool = True,
+    config: Optional[Union[Dict[str, Any], ModelConfig]] = None,
+    api_client: Optional[APIClient] = None,
+    token_counter: Optional[TokenCounter] = None,
+    **kwargs: Any,
+) -> OpenAIProvider:
+    """
+    Create an OpenAI model provider.
+
+    This factory function creates an OpenAIProvider with the specified
+    configuration options.
+
+    Args:
+        model_name: Name of the model to use (e.g., "gpt-4-turbo", "gpt-3.5-turbo")
+        temperature: Temperature for generation (0-1)
+        max_tokens: Maximum number of tokens to generate
+        api_key: OpenAI API key
+        trace_enabled: Whether to enable tracing
+        config: Optional model configuration
+        api_client: Optional API client to use
+        token_counter: Optional token counter to use
+        **kwargs: Additional configuration options
+
+    Returns:
+        An initialized OpenAIProvider instance
+    """
+    # Create configuration
+    if config is None:
+        config = ModelConfig(
+            temperature=temperature,
+            max_tokens=max_tokens,
+            api_key=api_key,
+            trace_enabled=trace_enabled,
+            **kwargs,
+        )
+    elif isinstance(config, dict):
+        config = ModelConfig(**{**config, **kwargs})
+
+    # Create provider
+    return OpenAIProvider(
+        model_name=model_name,
+        config=config,
+        api_client=api_client,
+        token_counter=token_counter,
+    )

@@ -6,17 +6,18 @@ interface for Anthropic Claude models, and additional Anthropic-specific functio
 like text reflection and analysis.
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, ClassVar, Union
 import os
 
 import anthropic
 import tiktoken
 from anthropic import Anthropic
-from pydantic import BaseModel
+from pydantic import BaseModel, PrivateAttr
 
 from sifaka.models.base import APIClient, ModelConfig, TokenCounter
 from sifaka.models.core import ModelProviderCore
 from sifaka.utils.logging import get_logger
+from sifaka.utils.state import create_model_state
 
 logger = get_logger(__name__)
 
@@ -39,10 +40,17 @@ class AnthropicClient(APIClient):
         # Check for API key in environment if not provided
         if not api_key:
             api_key = os.environ.get("ANTHROPIC_API_KEY")
+            logger.debug(f"Retrieved API key from environment: {api_key[:10]}...")
 
         # Validate API key
         if not api_key:
-            logger.warning("No Anthropic API key provided and ANTHROPIC_API_KEY environment variable not set")
+            logger.warning(
+                "No Anthropic API key provided and ANTHROPIC_API_KEY environment variable not set"
+            )
+        elif not api_key.startswith("sk-ant-api"):
+            logger.warning(
+                f"API key format appears incorrect. Expected to start with 'sk-ant-api', got: {api_key[:10]}..."
+            )
 
         self.client = Anthropic(api_key=api_key)
         logger.debug("Initialized Anthropic client")
@@ -51,6 +59,7 @@ class AnthropicClient(APIClient):
         """Send a prompt to Anthropic and return the response."""
         # Get API key from config or client
         api_key = config.api_key or getattr(self.client, "api_key", None)
+        logger.debug(f"Using API key: {api_key[:10]}...")
 
         # Check for missing API key
         if not api_key:
@@ -145,12 +154,7 @@ Please provide your analysis in a structured format."""
                 model=self.model,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
+                messages=[{"role": "user", "content": prompt}],
             )
 
             # Parse the response
@@ -179,9 +183,12 @@ class AnthropicProvider(ModelProviderCore):
     and built-in token counting.
     """
 
+    # Class constants
+    DEFAULT_MODEL: ClassVar[str] = "claude-3-opus-20240229"
+
     def __init__(
         self,
-        model_name: str = "claude-3-opus-20240229",
+        model_name: str = DEFAULT_MODEL,
         config: Optional[ModelConfig] = None,
         api_client: Optional[APIClient] = None,
         token_counter: Optional[TokenCounter] = None,
@@ -255,9 +262,7 @@ class AnthropicProvider(ModelProviderCore):
         return AnthropicTokenCounter(model=self.model_name)
 
     def create_reflector(
-        self,
-        temperature: float = 0.7,
-        max_tokens: int = 1000
+        self, temperature: float = 0.7, max_tokens: int = 1000
     ) -> AnthropicReflector:
         """
         Create a reflector for text analysis.
@@ -273,5 +278,93 @@ class AnthropicProvider(ModelProviderCore):
             api_key=self.config.api_key,
             model=self.model_name,
             temperature=temperature,
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
         )
+
+
+def create_anthropic_provider(
+    model_name: str = AnthropicProvider.DEFAULT_MODEL,
+    temperature: float = 0.7,
+    max_tokens: int = 1000,
+    api_key: Optional[str] = None,
+    trace_enabled: bool = True,
+    config: Optional[Union[Dict[str, Any], ModelConfig]] = None,
+    api_client: Optional[APIClient] = None,
+    token_counter: Optional[TokenCounter] = None,
+    **kwargs: Any,
+) -> AnthropicProvider:
+    """
+    Create an Anthropic model provider.
+
+    This factory function creates an AnthropicProvider with the specified
+    configuration options.
+
+    Args:
+        model_name: Name of the model to use (e.g., "claude-3-opus-20240229", "claude-3-sonnet-20240229")
+        temperature: Temperature for generation (0-1)
+        max_tokens: Maximum number of tokens to generate
+        api_key: Anthropic API key
+        trace_enabled: Whether to enable tracing
+        config: Optional model configuration
+        api_client: Optional API client to use
+        token_counter: Optional token counter to use
+        **kwargs: Additional configuration parameters
+
+    Returns:
+        An AnthropicProvider instance
+
+    Examples:
+        ```python
+        from sifaka.models.anthropic import create_anthropic_provider
+        import os
+
+        # Create a provider with default settings
+        provider = create_anthropic_provider(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+
+        # Create a provider with custom settings
+        provider = create_anthropic_provider(
+            model_name="claude-3-sonnet-20240229",
+            temperature=0.8,
+            max_tokens=2000,
+            api_key=os.environ.get("ANTHROPIC_API_KEY")
+        )
+
+        # Generate text
+        response = provider.generate("Explain quantum computing in simple terms.")
+        print(response)
+        ```
+    """
+    # Try to use standardize_model_config if available
+    try:
+        from sifaka.utils.config import standardize_model_config
+
+        # Use standardize_model_config to handle different config formats
+        model_config = standardize_model_config(
+            config=config,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            api_key=api_key,
+            trace_enabled=trace_enabled,
+            **kwargs,
+        )
+    except (ImportError, AttributeError):
+        # Create config manually
+        if isinstance(config, ModelConfig):
+            model_config = config
+        elif isinstance(config, dict):
+            model_config = ModelConfig(**config)
+        else:
+            model_config = ModelConfig(
+                temperature=temperature,
+                max_tokens=max_tokens,
+                api_key=api_key,
+                trace_enabled=trace_enabled,
+                **kwargs,
+            )
+
+    return AnthropicProvider(
+        model_name=model_name,
+        config=model_config,
+        api_client=api_client,
+        token_counter=token_counter,
+    )

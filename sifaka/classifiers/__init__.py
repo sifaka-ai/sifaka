@@ -36,23 +36,35 @@ Available Classifiers:
    - NERClassifier: Identifies named entities (people, organizations, locations, etc.)
 
 Usage Example:
-    from sifaka.classifiers import SentimentClassifier, create_sentiment_classifier
+    from sifaka.classifiers import create_sentiment_classifier, create_toxicity_classifier
 
-    # Create classifiers directly
-    sentiment = SentimentClassifier()
-
-    # Or use factory functions (recommended)
+    # Create classifiers using factory functions (recommended)
     sentiment = create_sentiment_classifier(
         positive_threshold=0.1,
-        negative_threshold=-0.1
+        negative_threshold=-0.1,
+        cache_size=100
     )
 
     # Analyze text
     sentiment_result = sentiment.classify("This is fantastic!")
+    print(f"Sentiment: {sentiment_result.label}, Confidence: {sentiment_result.confidence:.2f}")
+    print(f"Compound score: {sentiment_result.metadata['compound_score']:.2f}")
+
+    # Create another classifier
+    toxicity = create_toxicity_classifier(
+        general_threshold=0.5,
+        cache_size=100
+    )
 
     # Use with rules
-    from sifaka.rules import ClassifierRule
-    sentiment_rule = ClassifierRule(classifier=sentiment)
+    from sifaka.adapters.rules.classifier import create_classifier_rule
+    sentiment_rule = create_classifier_rule(
+        classifier=sentiment,
+        name="sentiment_rule",
+        description="Ensures text has positive sentiment",
+        threshold=0.6,
+        valid_labels=["positive"]
+    )
 """
 
 from .base import (
@@ -64,15 +76,15 @@ from .base import (
     TextProcessor,
     TextClassifier,
 )
-from .bias import BiasDetector
-from .genre import GenreClassifier
-from .language import LanguageClassifier
+from .bias import BiasDetector, create_bias_detector
+from .genre import GenreClassifier, create_genre_classifier
+from .language import LanguageClassifier, create_language_classifier
 from .ner import NERClassifier, create_ner_classifier
 from .profanity import ProfanityClassifier, create_profanity_classifier
-from .readability import ReadabilityClassifier
+from .readability import ReadabilityClassifier, create_readability_classifier
 from .sentiment import SentimentClassifier, create_sentiment_classifier
 from .spam import SpamClassifier, create_spam_classifier
-from .topic import TopicClassifier
+from .topic import TopicClassifier, create_topic_classifier
 from .toxicity import ToxicityClassifier, create_toxicity_classifier
 
 __all__ = [
@@ -84,27 +96,28 @@ __all__ = [
     "ClassifierProtocol",
     "TextProcessor",
     "TextClassifier",
-
     # Content Analysis Classes
     "SentimentClassifier",
     "ProfanityClassifier",
     "ToxicityClassifier",
     "SpamClassifier",
     "BiasDetector",
-
     # Text Properties Classes
     "ReadabilityClassifier",
     "LanguageClassifier",
     "TopicClassifier",
     "GenreClassifier",
-
     # Entity Analysis
     "NERClassifier",
-
     # Factory Functions
     "create_sentiment_classifier",
     "create_toxicity_classifier",
     "create_spam_classifier",
     "create_profanity_classifier",
     "create_ner_classifier",
+    "create_bias_detector",
+    "create_language_classifier",
+    "create_genre_classifier",
+    "create_readability_classifier",
+    "create_topic_classifier",
 ]

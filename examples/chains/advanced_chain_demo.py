@@ -23,7 +23,7 @@ from sifaka.chain import (
     create_backoff_chain,
 )
 from sifaka.critics import create_prompt_critic, PromptCriticConfig
-from sifaka.models.openai import OpenAIProvider
+from sifaka.models.openai import OpenAIProvider, create_openai_provider
 from sifaka.models.base import ModelConfig
 from sifaka.rules.formatting.length import create_length_rule
 from sifaka.rules.content.prohibited import create_prohibited_content_rule
@@ -40,9 +40,11 @@ def run_simple_chain():
     logger.info("Running simple chain example...")
 
     # Create a model provider
-    model = OpenAIProvider(
+    model = create_openai_provider(
         model_name="gpt-3.5-turbo",
-        config=ModelConfig(temperature=0.7, max_tokens=500),
+        temperature=0.7,
+        max_tokens=500,
+        api_key=os.environ.get("OPENAI_API_KEY"),
     )
 
     # Create rules
@@ -54,11 +56,12 @@ def run_simple_chain():
     # Create a critic
     critic = create_prompt_critic(
         llm_provider=model,
-        config=PromptCriticConfig(
-            name="editor_critic",
-            description="Expert editor that improves text",
-            system_prompt="You are an expert editor that improves text while maintaining its original meaning.",
-        ),
+        name="editor_critic",
+        description="Expert editor that improves text",
+        system_prompt="You are an expert editor that improves text while maintaining its original meaning.",
+        temperature=0.7,
+        max_tokens=500,
+        min_confidence=0.7,
     )
 
     # Create a chain using the factory function
@@ -89,9 +92,11 @@ def run_backoff_chain():
     logger.info("Running backoff chain example...")
 
     # Create a model provider
-    model = OpenAIProvider(
+    model = create_openai_provider(
         model_name="gpt-3.5-turbo",
-        config=ModelConfig(temperature=0.7, max_tokens=500),
+        temperature=0.7,
+        max_tokens=500,
+        api_key=os.environ.get("OPENAI_API_KEY"),
     )
 
     # Create rules
@@ -103,11 +108,12 @@ def run_backoff_chain():
     # Create a critic
     critic = create_prompt_critic(
         llm_provider=model,
-        config=PromptCriticConfig(
-            name="editor_critic",
-            description="Expert editor that improves text",
-            system_prompt="You are an expert editor that improves text while maintaining its original meaning.",
-        ),
+        name="editor_critic",
+        description="Expert editor that improves text",
+        system_prompt="You are an expert editor that improves text while maintaining its original meaning.",
+        temperature=0.7,
+        max_tokens=500,
+        min_confidence=0.7,
     )
 
     # Create a chain using the factory function
@@ -141,9 +147,11 @@ def run_custom_chain():
     logger.info("Running custom chain example...")
 
     # Create a model provider
-    model = OpenAIProvider(
+    model = create_openai_provider(
         model_name="gpt-3.5-turbo",
-        config=ModelConfig(temperature=0.7, max_tokens=500),
+        temperature=0.7,
+        max_tokens=500,
+        api_key=os.environ.get("OPENAI_API_KEY"),
     )
 
     # Create rules
@@ -155,26 +163,27 @@ def run_custom_chain():
     # Create a critic
     critic = create_prompt_critic(
         llm_provider=model,
-        config=PromptCriticConfig(
-            name="editor_critic",
-            description="Expert editor that improves text",
-            system_prompt="You are an expert editor that improves text while maintaining its original meaning.",
-        ),
+        name="editor_critic",
+        description="Expert editor that improves text",
+        system_prompt="You are an expert editor that improves text while maintaining its original meaning.",
+        temperature=0.7,
+        max_tokens=500,
+        min_confidence=0.7,
     )
 
     # Create custom components
-    validation_manager = ValidationManager[str](rules)
+    validation_manager = ValidationManager(rules)
     prompt_manager = PromptManager()
-    retry_strategy = BackoffRetryStrategy[str](
+    retry_strategy = BackoffRetryStrategy(
         max_attempts=5,
         initial_backoff=1.0,
         backoff_factor=2.0,
         max_backoff=60.0,
     )
-    result_formatter = ResultFormatter[str]()
+    result_formatter = ResultFormatter()
 
     # Create a chain with custom components
-    chain = ChainCore[str](
+    chain = ChainCore(
         model=model,
         validation_manager=validation_manager,
         prompt_manager=prompt_manager,
@@ -211,9 +220,11 @@ def run_custom_prompt_manager():
             return f"System: {feedback}\n\nUser: {original_prompt}"
 
     # Create a model provider
-    model = OpenAIProvider(
+    model = create_openai_provider(
         model_name="gpt-3.5-turbo",
-        config=ModelConfig(temperature=0.7, max_tokens=500),
+        temperature=0.7,
+        max_tokens=500,
+        api_key=os.environ.get("OPENAI_API_KEY"),
     )
 
     # Create rules
@@ -225,21 +236,22 @@ def run_custom_prompt_manager():
     # Create a critic
     critic = create_prompt_critic(
         llm_provider=model,
-        config=PromptCriticConfig(
-            name="editor_critic",
-            description="Expert editor that improves text",
-            system_prompt="You are an expert editor that improves text while maintaining its original meaning.",
-        ),
+        name="editor_critic",
+        description="Expert editor that improves text",
+        system_prompt="You are an expert editor that improves text while maintaining its original meaning.",
+        temperature=0.7,
+        max_tokens=500,
+        min_confidence=0.7,
     )
 
     # Create custom components
-    validation_manager = ValidationManager[str](rules)
+    validation_manager = ValidationManager(rules)
     prompt_manager = CustomPromptManager()
-    retry_strategy = SimpleRetryStrategy[str](max_attempts=3)
-    result_formatter = ResultFormatter[str]()
+    retry_strategy = SimpleRetryStrategy(max_attempts=3)
+    result_formatter = ResultFormatter()
 
     # Create a chain with custom components
-    chain = ChainCore[str](
+    chain = ChainCore(
         model=model,
         validation_manager=validation_manager,
         prompt_manager=prompt_manager,

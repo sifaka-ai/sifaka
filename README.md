@@ -55,9 +55,43 @@ Sifaka's functionality can be extended through optional dependencies:
 - `profanity`: Profanity detection
 - `language`: Language detection
 - `readability`: Text readability analysis
+- `ner`: Named Entity Recognition using spaCy
+
+### Integrations
+- `guardrails-ai`: Integration with Guardrails AI for advanced validation
 
 ### Benchmarking
 - `benchmark`: Tools for performance benchmarking and analysis
+
+## Documentation
+
+Sifaka provides comprehensive documentation to help you get started and understand the framework:
+
+### Component Documentation
+
+For detailed documentation on specific components, see the [docs/components](docs/components) directory:
+
+- [Rules](docs/components/rules.md) - Binary pass/fail validation of text
+- [Classifiers](docs/components/classifiers.md) - Analysis and categorization of text
+- [Critics](docs/components/critics.md) - Feedback and suggestions for improving text
+- [Model Providers](docs/components/model_providers.md) - Connection to language models for text generation
+- [Chains](docs/components/chains.md) - Orchestration of models, rules, and critics
+
+### API Reference
+
+For detailed API reference documentation, see the [docs/api_reference](docs/api_reference) directory:
+
+- [Rules API](docs/api_reference/rules/README.md) - API reference for rules and validators
+- [Classifiers API](docs/api_reference/classifiers/README.md) - API reference for classifiers
+- [Critics API](docs/api_reference/critics/README.md) - API reference for critics
+- [Models API](docs/api_reference/models/README.md) - API reference for model providers
+- [Chain API](docs/api_reference/chain/README.md) - API reference for chains
+- [Adapters API](docs/api_reference/adapters/README.md) - API reference for adapters
+
+### Specific Implementations
+
+- [NER Classifier](docs/components/ner_classifier.md) - Named Entity Recognition
+- [Guardrails Integration](docs/components/guardrails_integration.md) - Integration with Guardrails AI
 
 ## Key Features
 
@@ -66,6 +100,7 @@ Sifaka's functionality can be extended through optional dependencies:
 - ✅ **Chain Architecture**: Create feedback loops for iterative improvement
 - ✅ **Model Agnostic**: Works with Claude, OpenAI, and other LLM providers
 - ✅ **Streamlined Configuration**: Unified configuration system using ClassifierConfig and RuleConfig
+- ✅ **Standardized State Management**: Consistent state handling across all components
 
 ## Core Concepts
 
@@ -86,8 +121,22 @@ graph TD
         Model --> Validation
         Validation --> |Pass| Output
         Validation --> |Fail| Critics
-        Critics --> Model
+        Critics --> |Feedback| Model
+        Model --> |Retry| Validation
+        Validation --> |Max Attempts| Error
+        Validation --> |Pass| Output
     end
+
+    subgraph Monitoring
+        direction TB
+        Model --> |Metrics| Monitor
+        Validation --> |Metrics| Monitor
+        Critics --> |Metrics| Monitor
+        Monitor --> |Logs| Logging
+    end
+
+    style Chain fill:#f9f9f9,stroke:#333,stroke-width:2px
+    style Monitoring fill:#f0f0f0,stroke:#333,stroke-width:2px
 ```
 
 ### Components of a Chain
@@ -95,6 +144,8 @@ graph TD
 1. **Model Provider**
    - Connects to LLMs (OpenAI, Claude, etc.)
    - Handles the actual text generation
+   - Supports retry mechanisms
+   - Implements rate limiting and caching
 
 2. **Rules vs Classifiers**
    - Rules: Binary pass/fail checks
@@ -124,14 +175,39 @@ graph TD
        Attempt 3: "Now I understand - needs to be business formal"
        ```
 
+4. **Monitoring**
+   - Tracks performance metrics
+   - Monitors validation results
+   - Logs improvement attempts
+   - Provides detailed statistics
+
 ### How it Works
 
 1. You create a chain with your components:
    ```python
+   from sifaka.chain import create_simple_chain
+   from sifaka.models import create_anthropic_provider
+   from sifaka.rules import create_length_rule
+   from sifaka.rules.language import create_language_rule
+   from sifaka.critics import create_prompt_critic
+
+   # Create components
+   model = create_anthropic_provider("claude-3-opus-20240229")
+   rules = [
+       create_length_rule(min_chars=10, max_chars=1000),
+       create_language_rule(allowed_languages=["en"])
+   ]
+   critic = create_prompt_critic(
+       llm_provider=model,
+       system_prompt="You are an expert editor that improves text."
+   )
+
+   # Create chain
    chain = create_simple_chain(
-       model=claude_model,
-       rules=[length_rule, language_rule],
-       critic=writing_critic
+       model=model,
+       rules=rules,
+       critic=critic,
+       max_attempts=3
    )
    ```
 
@@ -141,7 +217,15 @@ graph TD
    # 1. Sends to model
    # 2. Checks rules
    # 3. If fails, uses critic to improve
-   # 4. Tries again until success or max attempts
+   # 4. Retries with improved prompt
+   # 5. Continues until success or max attempts
+   # 6. Returns detailed results
+
+   # Access the results
+   print(f"Output: {result.output}")
+   print(f"All rules passed: {all(r.passed for r in result.rule_results)}")
+   if result.critique_details:
+       print(f"Critique feedback: {result.critique_details.get('feedback', '')}")
    ```
 
 ## Configuration System
@@ -178,23 +262,35 @@ Sifaka provides seamless integration with [Guardrails AI](https://www.guardrails
 
 Example integration:
 ```python
-from sifaka.adapters.rules.guardrails_adapter import GuardrailsAdapter
-from sifaka.domain import Domain
+from sifaka.adapters.rules.guardrails import create_guardrails_rule
+from sifaka.chain import create_simple_chain
+from sifaka.models import create_openai_provider
 
-guardrails_adapter = GuardrailsAdapter()
-domain = Domain({
-    "name": "text",
-    "rules": {
-        "guardrails": {
-            "enabled": True,
-            "adapter": guardrails_adapter
-        }
-    }
-})
+# Create a guardrails rule
+guardrails_rule = create_guardrails_rule(
+    name="guardrails_validator",
+    description="Validates text using Guardrails",
+    rail_spec="""
+    <rail version="0.1">
+    <output>
+        <string name="text" format="no-profanity" />
+    </output>
+    </rail>
+    """
+)
+
+# Create a chain with the guardrails rule
+model = create_openai_provider("gpt-4")
+chain = create_simple_chain(
+    model=model,
+    rules=[guardrails_rule],
+    max_attempts=3
+)
+
+# Run the chain
+result = chain.run("Write a short story")
 ```
 
 ## License
 
 Sifaka is licensed under the MIT License. See [LICENSE](LICENSE) for details.
-
-

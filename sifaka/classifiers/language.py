@@ -1,5 +1,15 @@
 """
-Language classifier using langdetect.
+Language detection classifiers for Sifaka.
+
+This module provides classifiers for detecting the language of text content.
+
+## Architecture
+
+LanguageClassifier follows the standard Sifaka classifier architecture:
+1. **Public API**: classify() and batch_classify() methods (inherited)
+2. **Caching Layer**: _classify_impl() handles caching (inherited)
+3. **Core Logic**: _classify_impl() implements language detection
+4. **State Management**: Uses StateManager for internal state
 """
 
 import importlib
@@ -12,6 +22,7 @@ from typing import (
     Optional,
     Protocol,
     Sequence,
+    Union,
     runtime_checkable,
 )
 
@@ -23,7 +34,9 @@ from sifaka.classifiers.base import (
     ClassificationResult,
     ClassifierConfig,
 )
+from sifaka.classifiers.config import standardize_classifier_config
 from sifaka.utils.logging import get_logger
+from sifaka.utils.state import ClassifierState, create_classifier_state
 
 logger = get_logger(__name__)
 
@@ -120,9 +133,8 @@ class LanguageClassifier(BaseClassifier):
 
     DEFAULT_COST: int = 1  # Low cost for statistical analysis
 
-    # Define private attributes that Pydantic v2 will properly handle
-    _detector: Optional[LanguageDetector] = PrivateAttr(default=None)
-    _initialized: bool = PrivateAttr(default=False)
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
     def __init__(
         self,
@@ -142,10 +154,6 @@ class LanguageClassifier(BaseClassifier):
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        # Store detector for later use
-        self._detector = detector
-        self._initialized = False
-
         # Create config if not provided
         if config is None:
             # Extract params from kwargs if present
@@ -162,6 +170,14 @@ class LanguageClassifier(BaseClassifier):
         # Initialize base class
         super().__init__(name=name, description=description, config=config)
 
+        # Initialize state
+        state = self._state_manager.get_state()
+        state.initialized = False
+
+        # Store detector in state if provided
+        if detector is not None and self._validate_detector(detector):
+            state.cache["detector"] = detector
+
     def _validate_detector(self, detector: Any) -> TypeGuard[LanguageDetector]:
         """Validate that a detector implements the required protocol."""
         if not isinstance(detector, LanguageDetector):
@@ -173,6 +189,13 @@ class LanguageClassifier(BaseClassifier):
     def _load_langdetect(self) -> LanguageDetector:
         """Load the language detector."""
         try:
+            # Get state
+            state = self._state_manager.get_state()
+
+            # Check if detector is already in state
+            if "detector" in state.cache:
+                return state.cache["detector"]
+
             langdetect = importlib.import_module("langdetect")
             # Set seed for consistent results
             seed = self.config.params.get("seed", 0)
@@ -193,8 +216,10 @@ class LanguageClassifier(BaseClassifier):
             # Create wrapper with langdetect functions
             detector = LangDetectWrapper(langdetect.detect_langs, langdetect.detect)
 
-            self._validate_detector(detector)
-            return detector
+            # Validate and store in state
+            if self._validate_detector(detector):
+                state.cache["detector"] = detector
+                return detector
 
         except ImportError:
             raise ImportError(
@@ -206,9 +231,18 @@ class LanguageClassifier(BaseClassifier):
 
     def warm_up(self) -> None:
         """Initialize the language detector if needed."""
-        if not self._initialized:
-            self._detector = self._detector or self._load_langdetect()
-            self._initialized = True
+        # Get state
+        state = self._state_manager.get_state()
+
+        if not state.initialized:
+            # Load detector
+            detector = self._load_langdetect()
+
+            # Store in state
+            state.cache["detector"] = detector
+
+            # Mark as initialized
+            state.initialized = True
 
     def get_language_name(self, lang_code: str) -> str:
         """Get full language name from language code."""
@@ -224,7 +258,12 @@ class LanguageClassifier(BaseClassifier):
         Returns:
             ClassificationResult with detected language
         """
-        self.warm_up()
+        # Get state
+        state = self._state_manager.get_state()
+
+        # Ensure resources are initialized
+        if not state.initialized:
+            self.warm_up()
 
         # Get configuration from params
         min_confidence = self.config.params.get("min_confidence", 0.1)
@@ -232,8 +271,13 @@ class LanguageClassifier(BaseClassifier):
         fallback_confidence = self.config.params.get("fallback_confidence", 0.0)
 
         try:
+            # Get detector from state
+            detector = state.cache.get("detector")
+            if not detector:
+                raise RuntimeError("Language detector not initialized")
+
             # Get language probabilities
-            lang_probs = self._detector.detect_langs(text)
+            lang_probs = detector.detect_langs(text)
 
             # Find the most likely language
             best_lang = None
@@ -354,4 +398,86 @@ class LanguageClassifier(BaseClassifier):
             **kwargs,
         )
 
+        # Initialize state
+        state = instance._state.get_state()
+        state.cache["detector"] = detector
+        state.initialized = True
+
         return instance
+
+
+def create_language_classifier(
+    name: str = "language_classifier",
+    description: str = "Detects text language",
+    min_confidence: float = 0.1,
+    fallback_lang: str = "en",
+    fallback_confidence: float = 0.0,
+    seed: int = 0,
+    cache_size: int = 100,
+    cost: float = 1,  # Default cost for language classifier
+    config: Optional[Union[Dict[str, Any], ClassifierConfig]] = None,
+    **kwargs: Any,
+) -> LanguageClassifier:
+    """
+    Create a language classifier.
+
+    This factory function creates a LanguageClassifier with the specified
+    configuration options.
+
+    Args:
+        name: Name of the classifier
+        description: Description of the classifier
+        min_confidence: Minimum confidence threshold for language detection
+        fallback_lang: Language code to use when confidence is too low
+        fallback_confidence: Confidence to assign to fallback language
+        seed: Random seed for consistent results
+        cache_size: Size of the cache for memoization
+        cost: Cost of running the classifier
+        config: Optional classifier configuration
+        **kwargs: Additional configuration parameters
+
+    Returns:
+        A LanguageClassifier instance
+
+    Examples:
+        ```python
+        from sifaka.classifiers.language import create_language_classifier
+
+        # Create a language classifier with default settings
+        classifier = create_language_classifier()
+
+        # Create a language classifier with custom settings
+        classifier = create_language_classifier(
+            name="custom_language_classifier",
+            description="Custom language detector with specific settings",
+            min_confidence=0.2,
+            fallback_lang="fr",
+            cache_size=200
+        )
+
+        # Classify text
+        result = classifier.classify("Hello, world!")
+        print(f"Language: {result.label}, Name: {result.metadata['language_name']}")
+        print(f"Confidence: {result.confidence:.2f}")
+        ```
+    """
+    # Use standardize_classifier_config to handle different config formats
+    classifier_config = standardize_classifier_config(
+        config=config,
+        labels=list(LanguageClassifier.LANGUAGE_NAMES.keys()),
+        cost=cost,
+        cache_size=cache_size,
+        params={
+            "min_confidence": min_confidence,
+            "fallback_lang": fallback_lang,
+            "fallback_confidence": fallback_confidence,
+            "seed": seed,
+        },
+        **kwargs,
+    )
+
+    return LanguageClassifier(
+        name=name,
+        description=description,
+        config=classifier_config,
+    )
