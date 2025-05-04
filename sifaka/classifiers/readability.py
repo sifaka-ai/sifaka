@@ -1,13 +1,13 @@
 """
-Readability classifier that analyzes text complexity.
+Readability classifiers for Sifaka.
 
-This module provides a classifier for analyzing the readability level of text
-using various metrics such as Flesch-Kincaid, Gunning Fog, and SMOG Index.
+This module provides classifiers for assessing the readability of text content.
 """
 
 import importlib
 import statistics
 from abc import abstractmethod
+from dataclasses import dataclass
 from typing import (
     Any,
     Dict,
@@ -25,11 +25,10 @@ from pydantic import PrivateAttr
 from sifaka.classifiers.base import (
     BaseClassifier,
     ClassificationResult,
-    ClassifierConfig,
 )
+from sifaka.utils.config import ClassifierConfig, standardize_classifier_config
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import ClassifierState, create_classifier_state
-from sifaka.utils.config import standardize_classifier_config
 
 logger = get_logger(__name__)
 

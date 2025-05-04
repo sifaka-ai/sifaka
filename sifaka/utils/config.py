@@ -5,17 +5,108 @@ This module provides utility functions for handling configuration objects
 consistently across the Sifaka framework.
 """
 
-from typing import Any, Dict, Optional, Type, TypeVar, Union, cast
+from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union, cast
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from sifaka.rules.base import RuleConfig
-from sifaka.classifiers.base import ClassifierConfig
 from sifaka.critics.models import CriticConfig
 from sifaka.models.config import ModelConfig
 from sifaka.chain.config import ChainConfig, RetryConfig, ValidationConfig
 
 T = TypeVar("T", bound=BaseModel)
+C = TypeVar("C")  # For ClassifierConfig generic type
+
+
+class ClassifierConfig(Generic[C]):
+    """
+    Immutable configuration for classifiers.
+
+    This class provides a standardized way to configure classifiers with
+    immutable properties. It follows the same pattern as RuleConfig, where
+    all classifier-specific configuration options are placed in the params dictionary.
+
+    The immutable design ensures configuration consistency during classifier
+    operation and prevents accidental modification of settings.
+
+    ## Lifecycle
+
+    1. **Creation**: Instantiate with required and optional parameters
+       - Provide labels list (required)
+       - Set cache_size, cost, and min_confidence as needed
+       - Add classifier-specific options in params dictionary
+
+    2. **Validation**: Values are validated in __post_init__
+       - Labels must be a list of strings
+       - Cache size must be non-negative
+       - Cost must be non-negative
+       - Min confidence must be between 0 and 1
+
+    3. **Usage**: Access configuration properties during classification
+       - Read labels list for valid classification outputs
+       - Use cache_size for result caching
+       - Access min_confidence for threshold checks
+       - Read classifier-specific params as needed
+
+    4. **Modification**: Create new instances with updated values
+       - Use with_options() to update top-level properties
+       - Use with_params() to update classifier-specific parameters
+       - Original configuration remains unchanged (immutable)
+
+    Args:
+        labels: List of valid classification labels
+        cache_size: Size of the classification result cache (0 to disable)
+        cost: Computational cost of using this classifier
+        min_confidence: Minimum confidence threshold for valid classifications
+        params: Dictionary of classifier-specific parameters
+    """
+
+    labels: List[str]
+    cache_size: int = 0
+    cost: int = 1
+    min_confidence: float = 0.5
+    params: Dict[str, Any] = Field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Validate configuration values."""
+        if not isinstance(self.labels, list) or not all(
+            isinstance(label, str) for label in self.labels
+        ):
+            raise ValueError("labels must be a list of strings")
+        if self.cache_size < 0:
+            raise ValueError("cache_size must be non-negative")
+        if self.cost < 0:
+            raise ValueError("cost must be non-negative")
+        if not 0 <= self.min_confidence <= 1:
+            raise ValueError("min_confidence must be between 0 and 1")
+
+    def with_options(self, **kwargs: Any) -> "ClassifierConfig[C]":
+        """
+        Create a new config with updated top-level options.
+
+        Args:
+            **kwargs: Options to update (labels, cache_size, cost, min_confidence)
+
+        Returns:
+            New ClassifierConfig instance with updated options
+        """
+        current = self.model_dump()
+        current.update(kwargs)
+        return ClassifierConfig[C](**current)
+
+    def with_params(self, **kwargs: Any) -> "ClassifierConfig[C]":
+        """
+        Create a new config with updated parameters.
+
+        Args:
+            **kwargs: Parameters to update in the params dictionary
+
+        Returns:
+            New ClassifierConfig instance with updated parameters
+        """
+        current = self.model_dump()
+        current["params"] = {**current["params"], **kwargs}
+        return ClassifierConfig[C](**current)
 
 
 def standardize_rule_config(

@@ -1,8 +1,7 @@
 """
-Language classifier using langdetect.
+Language detection classifiers for Sifaka.
 
-This module provides a classifier for detecting the language of text using
-the langdetect library, which is a port of Google's language-detection library.
+This module provides classifiers for detecting the language of text content.
 
 ## Architecture
 
@@ -33,10 +32,9 @@ from pydantic import PrivateAttr
 from sifaka.classifiers.base import (
     BaseClassifier,
     ClassificationResult,
-    ClassifierConfig,
 )
+from sifaka.utils.config import ClassifierConfig, standardize_classifier_config
 from sifaka.utils.logging import get_logger
-from sifaka.utils.config import standardize_classifier_config
 from sifaka.utils.state import ClassifierState, create_classifier_state
 
 logger = get_logger(__name__)

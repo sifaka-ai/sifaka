@@ -146,6 +146,8 @@ from typing import (
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from sifaka.utils.config import ClassifierConfig
+
 # Input and output type vars
 T = TypeVar("T")  # Input type (usually str)
 R = TypeVar("R")  # Result type

@@ -144,7 +144,7 @@ from .managers.validation import ValidationManager
 from .result import ChainResult
 from .strategies.retry import RetryStrategy
 from ..utils.logging import get_logger
-from ..utils.state import create_chain_state
+from ..utils.state import ChainState
 
 logger = get_logger(__name__)
 
@@ -178,16 +178,17 @@ class ChainCore(BaseModel, Generic[OutputType]):
     ChainCore uses the standardized state management approach:
 
     1. **State Initialization**
-       - Creates a state object using create_chain_state()
+       - Creates a state object using ChainState
        - Stores all components in the state object
-       - Accesses components through the state manager
+       - Accesses components through the state object
 
     2. **State Access**
-       - Uses _state_manager.get_state() to access the state object
+       - Uses state directly to access components
        - Updates state through the state object
        - Maintains clear separation between configuration and state
 
     3. **State Components**
+       - model: The model provider
        - generator: The text generator
        - validation_manager: The validation manager
        - prompt_manager: The prompt manager
@@ -307,8 +308,8 @@ class ChainCore(BaseModel, Generic[OutputType]):
     # Pydantic configuration
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_chain_state)
+    # State management using ChainState
+    _state: ChainState = PrivateAttr(default_factory=ChainState)
 
     def __init__(
         self,
@@ -388,22 +389,23 @@ class ChainCore(BaseModel, Generic[OutputType]):
         # Initialize the base class
         super().__init__()
 
-        # Get state
-        state = self._state_manager.get_state()
+        # Initialize state
+        self._state = ChainState()
+        self._state.initialized = False
 
         # Store components in state
-        state.model = model
-        state.validation_manager = validation_manager
-        state.prompt_manager = prompt_manager
-        state.retry_strategy = retry_strategy
-        state.result_formatter = result_formatter
-        state.critic = critic
+        self._state.model = model
+        self._state.validation_manager = validation_manager
+        self._state.prompt_manager = prompt_manager
+        self._state.retry_strategy = retry_strategy
+        self._state.result_formatter = result_formatter
+        self._state.critic = critic
 
         # Create generator
-        state.generator = Generator[OutputType](model)
+        self._state.generator = Generator[OutputType](model)
 
         # Mark as initialized
-        state.initialized = True
+        self._state.initialized = True
 
     @property
     def model(self) -> ModelProvider:
@@ -417,7 +419,9 @@ class ChainCore(BaseModel, Generic[OutputType]):
         Returns:
             The model provider used by this chain
         """
-        return self._state_manager.get_state().model
+        if not self._state.initialized:
+            raise RuntimeError("ChainCore not properly initialized")
+        return self._state.model
 
     @property
     def validation_manager(self) -> ValidationManager[OutputType]:
@@ -431,7 +435,9 @@ class ChainCore(BaseModel, Generic[OutputType]):
         Returns:
             The validation manager used by this chain
         """
-        return self._state_manager.get_state().validation_manager
+        if not self._state.initialized:
+            raise RuntimeError("ChainCore not properly initialized")
+        return self._state.validation_manager
 
     @property
     def prompt_manager(self) -> PromptManager:
@@ -445,7 +451,9 @@ class ChainCore(BaseModel, Generic[OutputType]):
         Returns:
             The prompt manager used by this chain
         """
-        return self._state_manager.get_state().prompt_manager
+        if not self._state.initialized:
+            raise RuntimeError("ChainCore not properly initialized")
+        return self._state.prompt_manager
 
     @property
     def retry_strategy(self) -> RetryStrategy[OutputType]:
@@ -461,7 +469,9 @@ class ChainCore(BaseModel, Generic[OutputType]):
         Returns:
             The retry strategy used by this chain
         """
-        return self._state_manager.get_state().retry_strategy
+        if not self._state.initialized:
+            raise RuntimeError("ChainCore not properly initialized")
+        return self._state.retry_strategy
 
     @property
     def result_formatter(self) -> ResultFormatter[OutputType]:
@@ -475,7 +485,9 @@ class ChainCore(BaseModel, Generic[OutputType]):
         Returns:
             The result formatter used by this chain
         """
-        return self._state_manager.get_state().result_formatter
+        if not self._state.initialized:
+            raise RuntimeError("ChainCore not properly initialized")
+        return self._state.result_formatter
 
     @property
     def critic(self) -> Optional[CriticCore]:
@@ -490,7 +502,9 @@ class ChainCore(BaseModel, Generic[OutputType]):
         Returns:
             The critic used by this chain, or None if not set
         """
-        return self._state_manager.get_state().critic
+        if not self._state.initialized:
+            raise RuntimeError("ChainCore not properly initialized")
+        return self._state.critic
 
     @property
     def generator(self) -> Generator[OutputType]:
@@ -504,7 +518,9 @@ class ChainCore(BaseModel, Generic[OutputType]):
         Returns:
             The generator used by this chain
         """
-        return self._state_manager.get_state().generator
+        if not self._state.initialized:
+            raise RuntimeError("ChainCore not properly initialized")
+        return self._state.generator
 
     def run(self, prompt: str) -> ChainResult[OutputType]:
         """
@@ -571,25 +587,15 @@ class ChainCore(BaseModel, Generic[OutputType]):
         Raises:
             ValueError: If validation fails after max attempts
         """
-        # Get state
-        state = self._state_manager.get_state()
-
-        # Ensure initialized
-        if not state.initialized:
+        if not self._state.initialized:
             raise RuntimeError("ChainCore not properly initialized")
 
-        # Run the retry strategy
-        try:
-            return state.retry_strategy.run(
-                prompt=prompt,
-                generator=state.generator,
-                validation_manager=state.validation_manager,
-                prompt_manager=state.prompt_manager,
-                result_formatter=state.result_formatter,
-                critic=state.critic,
-            )
-        except Exception as e:
-            # Log the error
-            logger.error(f"Error running chain: {e}")
-            # Re-raise with context
-            raise RuntimeError(f"Error running chain: {e}") from e
+        # Delegate to retry strategy
+        return self._state.retry_strategy.run(
+            prompt=prompt,
+            generator=self._state.generator,
+            validation_manager=self._state.validation_manager,
+            prompt_manager=self._state.prompt_manager,
+            result_formatter=self._state.result_formatter,
+            critic=self._state.critic,
+        )

@@ -56,8 +56,7 @@ from typing import Dict, Optional, Any
 from pydantic import BaseModel, Field, field_validator, ConfigDict, PrivateAttr
 
 from sifaka.rules.base import Rule, RuleResult, BaseValidator, RuleConfig
-from sifaka.utils.state import RuleState, create_rule_state
-from sifaka.core.classifier_state import StateManager
+from sifaka.utils.state import RuleState, create_rule_state, StateManager
 
 
 __all__ = [

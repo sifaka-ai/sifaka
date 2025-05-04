@@ -315,6 +315,7 @@ class ChainState(ComponentState):
         ```
     """
 
+    model: Optional[Any] = None
     generator: Optional[Any] = None
     validation_manager: Optional[Any] = None
     prompt_manager: Optional[Any] = None

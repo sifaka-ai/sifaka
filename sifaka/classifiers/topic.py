@@ -5,6 +5,8 @@ This module provides a classifier for extracting topics from text using
 Latent Dirichlet Allocation (LDA) from scikit-learn.
 """
 
+import os
+import pickle
 import importlib
 from typing import List, Optional, Any, Dict, ClassVar, Union
 
@@ -12,11 +14,10 @@ from pydantic import PrivateAttr
 from sifaka.classifiers.base import (
     BaseClassifier,
     ClassificationResult,
-    ClassifierConfig,
 )
+from sifaka.utils.config import ClassifierConfig, standardize_classifier_config
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import ClassifierState, create_classifier_state
-from sifaka.utils.config import standardize_classifier_config
 
 logger = get_logger(__name__)
 

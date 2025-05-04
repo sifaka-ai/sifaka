@@ -1,8 +1,8 @@
 """
-Bias detection classifier using support vector machines.
+Bias detection classifiers for Sifaka.
 
-This module provides a classifier for detecting various forms of bias in text,
-including gender bias, racial bias, political bias, and more.
+This module provides classifiers that detect various types of bias in text,
+including gender bias, racial bias, and other forms of discriminatory language.
 """
 
 import os
@@ -16,10 +16,9 @@ from pydantic import ConfigDict, PrivateAttr
 from sifaka.classifiers.base import (
     BaseClassifier,
     ClassificationResult,
-    ClassifierConfig,
 )
+from sifaka.utils.config import ClassifierConfig, standardize_classifier_config
 from sifaka.utils.logging import get_logger
-from sifaka.utils.config import standardize_classifier_config
 from sifaka.utils.state import ClassifierState, create_classifier_state
 
 logger = get_logger(__name__)
