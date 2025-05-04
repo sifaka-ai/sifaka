@@ -26,16 +26,16 @@ class StateManager(Generic[T]):
         class MyComponent(BaseModel):
             # Configuration
             name: str
-            
+
             # State manager
             _state = PrivateAttr(default_factory=lambda: StateManager(
                 initializer=lambda: {"model": None, "cache": {}}
             ))
-            
+
             def warm_up(self) -> None:
                 # Initialize the component.
                 self._state.initialize()
-                
+
             def get_state(self) -> Dict[str, Any]:
                 # Get the component's state.
                 return self._state.get_state()
@@ -132,14 +132,14 @@ class ComponentState(BaseModel):
             model: Optional[Any] = None
             cache: Dict[str, Any] = {}
             feature_names: List[str] = []
-            
+
         class MyClassifier(BaseModel):
             # Configuration
             name: str
-            
+
             # State
             _state: ClassifierState = PrivateAttr(default_factory=ClassifierState)
-            
+
             def warm_up(self) -> None:
                 # Initialize the classifier.
                 if not self._state.initialized:
@@ -171,10 +171,10 @@ class ClassifierState(ComponentState):
         class MyClassifier(BaseModel):
             # Configuration
             name: str
-            
+
             # State
             _state: ClassifierState = PrivateAttr(default_factory=ClassifierState)
-            
+
             def warm_up(self) -> None:
                 # Initialize the classifier.
                 if not self._state.initialized:
@@ -205,10 +205,10 @@ class RuleState(ComponentState):
         class MyRule(BaseModel):
             # Configuration
             name: str
-            
+
             # State
             _state: RuleState = PrivateAttr(default_factory=RuleState)
-            
+
             def warm_up(self) -> None:
                 # Initialize the rule.
                 if not self._state.initialized:
@@ -237,10 +237,10 @@ class CriticState(ComponentState):
         class MyCritic(BaseModel):
             # Configuration
             name: str
-            
+
             # State
             _state: CriticState = PrivateAttr(default_factory=CriticState)
-            
+
             def warm_up(self) -> None:
                 # Initialize the critic.
                 if not self._state.initialized:
@@ -270,10 +270,10 @@ class ModelState(ComponentState):
         class MyModelProvider(BaseModel):
             # Configuration
             name: str
-            
+
             # State
             _state: ModelState = PrivateAttr(default_factory=ModelState)
-            
+
             def warm_up(self) -> None:
                 # Initialize the model provider.
                 if not self._state.initialized:
@@ -288,9 +288,43 @@ class ModelState(ComponentState):
     cache: Dict[str, Any] = {}
 
 
-def create_state_manager(
-    state_class: Type[T], **kwargs: Any
-) -> StateManager[T]:
+class ChainState(ComponentState):
+    """
+    State for chains.
+
+    This class represents the state of a chain component.
+    It includes common state variables used by chains.
+
+    Examples:
+        ```python
+        from sifaka.utils.state import ChainState
+
+        class MyChain(BaseModel):
+            # Configuration
+            name: str
+
+            # State
+            _state_manager: ChainState = PrivateAttr(default_factory=create_chain_state)
+
+            def initialize(self) -> None:
+                # Initialize the chain.
+                if not self._state_manager.get_state().initialized:
+                    state = self._state_manager.get_state()
+                    state.generator = self._create_generator()
+                    state.initialized = True
+        ```
+    """
+
+    generator: Optional[Any] = None
+    validation_manager: Optional[Any] = None
+    prompt_manager: Optional[Any] = None
+    retry_strategy: Optional[Any] = None
+    result_formatter: Optional[Any] = None
+    critic: Optional[Any] = None
+    cache: Dict[str, Any] = {}
+
+
+def create_state_manager(state_class: Type[T], **kwargs: Any) -> StateManager[T]:
     """
     Create a state manager for a specific state class.
 
@@ -354,3 +388,16 @@ def create_model_state(**kwargs: Any) -> StateManager[ModelState]:
         A state manager for a model provider
     """
     return create_state_manager(ModelState, **kwargs)
+
+
+def create_chain_state(**kwargs: Any) -> StateManager[ChainState]:
+    """
+    Create a state manager for a chain.
+
+    Args:
+        **kwargs: Additional arguments to pass to the ChainState constructor
+
+    Returns:
+        A state manager for a chain
+    """
+    return create_state_manager(ChainState, **kwargs)

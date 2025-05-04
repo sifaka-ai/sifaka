@@ -28,7 +28,8 @@ from sifaka.classifiers.base import (
     ClassifierConfig,
 )
 from sifaka.utils.logging import get_logger
-from sifaka.utils import ClassifierState, create_classifier_state, standardize_classifier_config
+from sifaka.core.classifier_state import ClassifierState, create_classifier_state
+from sifaka.core.classifier_config import standardize_classifier_config
 
 logger = get_logger(__name__)
 
@@ -124,7 +125,7 @@ class ReadabilityClassifier(BaseClassifier):
     }
 
     # State management using StateManager
-    _state = PrivateAttr(default_factory=create_classifier_state)
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
     def __init__(
         self,
@@ -162,7 +163,7 @@ class ReadabilityClassifier(BaseClassifier):
         super().__init__(name=name, description=description, config=config)
 
         # Initialize state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
         state.initialized = False
         state.cache = {}
 
@@ -194,7 +195,7 @@ class ReadabilityClassifier(BaseClassifier):
     def warm_up(self) -> None:
         """Initialize the analyzer if needed."""
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Check if already initialized
         if not state.initialized:
@@ -239,7 +240,7 @@ class ReadabilityClassifier(BaseClassifier):
     def _calculate_metrics(self, text: str) -> ReadabilityMetrics:
         """Calculate comprehensive readability metrics."""
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Get analyzer from state
         analyzer = state.model
@@ -314,7 +315,7 @@ class ReadabilityClassifier(BaseClassifier):
             ClassificationResult with readability level and confidence
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         self.warm_up()

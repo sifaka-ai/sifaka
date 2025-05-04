@@ -228,7 +228,7 @@ class SentimentClassifier(BaseClassifier[str, str]):
     DEFAULT_NEGATIVE_THRESHOLD: ClassVar[float] = -0.05
 
     # State management using StateManager
-    _state = PrivateAttr(default_factory=create_classifier_state)
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
     # Pydantic configuration
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -275,7 +275,7 @@ class SentimentClassifier(BaseClassifier[str, str]):
         super().__init__(name=name, description=description, config=config)
 
         # Initialize state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
         state.initialized = False
 
         # Store thresholds in state
@@ -322,7 +322,7 @@ class SentimentClassifier(BaseClassifier[str, str]):
         """
         try:
             # Get state
-            state = self._state.get_state()
+            state = self._state_manager.get_state()
 
             # Check if analyzer is already in state
             if "analyzer" in state.cache:
@@ -353,7 +353,7 @@ class SentimentClassifier(BaseClassifier[str, str]):
         explicitly to pre-initialize resources.
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         if not state.initialized:
             try:
@@ -380,7 +380,7 @@ class SentimentClassifier(BaseClassifier[str, str]):
             Tuple of (sentiment_label, confidence)
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Get thresholds from state
         positive_threshold = state.cache.get("positive_threshold", self.DEFAULT_POSITIVE_THRESHOLD)
@@ -413,7 +413,7 @@ class SentimentClassifier(BaseClassifier[str, str]):
             ClassificationResult with sentiment scores
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure resources are initialized
         if not state.initialized:

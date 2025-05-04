@@ -15,7 +15,7 @@ from typing import List
 # Import Sifaka components
 from sifaka.adapters.rules import ClassifierAdapter
 from sifaka.rules.formatting.length import create_length_rule
-from sifaka.rules.base import Rule, RuleResult, RuleValidator
+from sifaka.rules.base import Rule, RuleResult, RuleValidator, RuleProtocol, RuleConfig
 from sifaka.utils.logging import get_logger
 
 # Setup logging
@@ -76,7 +76,7 @@ def example_classifier_adapter():
         logger.info(f"Message: {sentiment_result.message}")
 
 
-class CompositeRuleAdapter(Rule):
+class CompositeRuleAdapter(RuleProtocol):
     """
     Custom adapter that composes multiple rules with logical operations.
 
@@ -89,6 +89,7 @@ class CompositeRuleAdapter(Rule):
         name: str = "composite_rule",
         description: str = "Composite rule that combines multiple rules",
         operator: str = "AND",
+        config: RuleConfig = None,
         **kwargs,
     ):
         """
@@ -99,32 +100,31 @@ class CompositeRuleAdapter(Rule):
             name: Name of the rule
             description: Description of the rule
             operator: Logical operator to use ('AND' or 'OR')
+            config: Optional rule configuration
         """
-        super().__init__(name=name, description=description, **kwargs)
+        self._name = name
+        self._description = description
+        self._config = config or RuleConfig()
         self.rules = rules
         self.operator = operator.upper()
 
         if self.operator not in ["AND", "OR"]:
             raise ValueError(f"Operator must be 'AND' or 'OR', got {operator}")
 
-    def _create_default_validator(self) -> RuleValidator:
-        """
-        Create a default validator for this rule.
+    @property
+    def name(self) -> str:
+        """Get the rule name."""
+        return self._name
 
-        Required implementation for the abstract Rule class.
+    @property
+    def description(self) -> str:
+        """Get the rule description."""
+        return self._description
 
-        Returns:
-            A validator that uses the validate method
-        """
-
-        class CompositeValidator(RuleValidator):
-            def __init__(self, rule):
-                self.rule = rule
-
-            def validate(self, text: str, **kwargs) -> RuleResult:
-                return self.rule.validate(text, **kwargs)
-
-        return CompositeValidator(self)
+    @property
+    def config(self) -> RuleConfig:
+        """Get the rule configuration."""
+        return self._config
 
     def validate(self, text: str, **kwargs) -> RuleResult:
         """Run all rules and combine results according to the operator."""

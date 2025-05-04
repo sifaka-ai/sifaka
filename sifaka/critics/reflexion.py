@@ -649,7 +649,7 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             raise ValueError("text must be a non-empty string")
 
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:
@@ -682,7 +682,7 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             raise ValueError("text must be a non-empty string")
 
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:
@@ -722,7 +722,7 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             RuntimeError: If critic is not properly initialized
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:
@@ -749,7 +749,7 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             raise ValueError("text must be a non-empty string")
 
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:
@@ -794,7 +794,7 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ```
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Store violations in state cache for potential future use
         if "cache" not in state.cache:
@@ -861,7 +861,7 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ```
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure cache exists in state
         if "cache" not in state.cache:
@@ -947,7 +947,7 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ```
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:
@@ -991,7 +991,7 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             raise ValueError("text must be a non-empty string")
 
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:
@@ -1030,7 +1030,7 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             raise ValueError("text must be a non-empty string")
 
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:
@@ -1075,7 +1075,7 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             raise ValueError("text must be a non-empty string")
 
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:
@@ -1128,7 +1128,7 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             RuntimeError: If model interaction fails or critic is not properly initialized
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:

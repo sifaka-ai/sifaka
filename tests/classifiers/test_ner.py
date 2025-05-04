@@ -38,14 +38,14 @@ def test_ner_classifier_initialization():
     """Test NER classifier initialization."""
     # Create a classifier
     classifier = NERClassifier(name="test_ner")
-    
+
     # Check that state is initialized correctly
-    assert classifier._state is not None
-    
+    assert classifier._state_manager is not None
+
     # State should not be initialized yet
-    state = classifier._state.get_state()
+    state = classifier._state_manager.get_state()
     assert not state.initialized
-    
+
     # Cache should be empty
     assert "engine" not in state.cache
 
@@ -54,17 +54,17 @@ def test_ner_classifier_warm_up():
     """Test NER classifier warm up."""
     # Create a mock engine
     mock_engine = MockNEREngine()
-    
+
     # Create a classifier with the mock engine
     classifier = NERClassifier(name="test_ner", engine=mock_engine)
-    
+
     # Warm up the classifier
     classifier.warm_up()
-    
+
     # Check that state is initialized
-    state = classifier._state.get_state()
+    state = classifier._state_manager.get_state()
     assert state.initialized
-    
+
     # Check that engine is in cache
     assert "engine" in state.cache
     assert state.cache["engine"] is mock_engine
@@ -74,13 +74,13 @@ def test_extract_entities():
     """Test entity extraction."""
     # Create a mock engine
     mock_engine = MockNEREngine()
-    
+
     # Create a classifier with the mock engine
     classifier = NERClassifier(name="test_ner", engine=mock_engine)
-    
+
     # Extract entities
     result = classifier._extract_entities("This text mentions a person named John Doe")
-    
+
     # Check result
     assert isinstance(result, EntityResult)
     assert result.entity_count == 1
@@ -92,13 +92,13 @@ def test_classify():
     """Test classification."""
     # Create a mock engine
     mock_engine = MockNEREngine()
-    
+
     # Create a classifier with the mock engine
     classifier = NERClassifier(name="test_ner", engine=mock_engine)
-    
+
     # Classify text
     result = classifier.classify("This text mentions a person named John Doe")
-    
+
     # Check result
     assert isinstance(result, ClassificationResult)
     assert result.label == "person"
@@ -111,13 +111,13 @@ def test_empty_text():
     """Test classification with empty text."""
     # Create a mock engine
     mock_engine = MockNEREngine()
-    
+
     # Create a classifier with the mock engine
     classifier = NERClassifier(name="test_ner", engine=mock_engine)
-    
+
     # Classify empty text
     result = classifier.classify("")
-    
+
     # Check result
     assert isinstance(result, ClassificationResult)
     assert result.label == "unknown"
@@ -127,7 +127,7 @@ def test_empty_text():
 def test_factory_function():
     """Test factory function."""
     # Mock the _load_spacy method to avoid actual loading
-    with patch.object(NERClassifier, '_load_spacy', return_value=MockNEREngine()):
+    with patch.object(NERClassifier, "_load_spacy", return_value=MockNEREngine()):
         # Create a classifier using the factory function
         classifier = create_ner_classifier(
             name="test_factory",
@@ -135,7 +135,7 @@ def test_factory_function():
             entity_types=["person", "organization"],
             min_confidence=0.7,
         )
-        
+
         # Check classifier
         assert classifier.name == "test_factory"
         assert "model_name" in classifier.config.params

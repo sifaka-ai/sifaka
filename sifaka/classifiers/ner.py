@@ -84,7 +84,7 @@ class NERClassifier(BaseClassifier):
     """
 
     # State management using StateManager
-    _state = PrivateAttr(default_factory=create_classifier_state)
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
     # Define class-level constants with ClassVar annotation
     DEFAULT_LABELS: ClassVar[List[str]] = [
@@ -132,7 +132,7 @@ class NERClassifier(BaseClassifier):
         super().__init__(name=name, description=description, config=config)
 
         # Initialize state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
         state.initialized = False
 
         # Store engine in state if provided
@@ -149,7 +149,7 @@ class NERClassifier(BaseClassifier):
         """Load the spaCy NER engine."""
         try:
             # Get state
-            state = self._state.get_state()
+            state = self._state_manager.get_state()
 
             # Check if engine is already in state
             if "engine" in state.cache:
@@ -203,7 +203,7 @@ class NERClassifier(BaseClassifier):
     def warm_up(self) -> None:
         """Initialize the NER engine if needed."""
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         if not state.initialized:
             # Load engine if not already in state
@@ -225,7 +225,7 @@ class NERClassifier(BaseClassifier):
             EntityResult with entity details
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure resources are initialized
         if not state.initialized:

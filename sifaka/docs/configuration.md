@@ -1,0 +1,1 @@
+from sifaka.core.classifier_config import standardize_classifier_config

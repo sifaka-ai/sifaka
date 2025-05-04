@@ -19,7 +19,8 @@ from sifaka.classifiers.base import (
     ClassifierConfig,
 )
 from sifaka.utils.logging import get_logger
-from sifaka.utils import standardize_classifier_config, ClassifierState, create_classifier_state
+from sifaka.core.classifier_config import standardize_classifier_config
+from sifaka.core.classifier_state import ClassifierState, create_classifier_state
 
 logger = get_logger(__name__)
 

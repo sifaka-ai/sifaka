@@ -5,7 +5,19 @@ This module provides validators and rules for checking text length constraints,
 including character count and word count validation. It follows the standard
 Sifaka validation pattern with separate validator and rule components.
 
-The module provides two main factory functions:
+The module implements the delegation pattern where:
+- LengthRule delegates validation work to LengthValidator
+- LengthValidator handles the core validation logic
+- LengthRule manages configuration and result handling
+
+Key Components:
+- LengthConfig: Configuration for length constraints
+- LengthValidator: Base validator for length checks
+- DefaultLengthValidator: Default implementation of length validation
+- LengthRuleValidator: Validator adapter for LengthValidator
+- LengthRule: Rule that uses a validator to enforce length constraints
+
+Factory Functions:
 - create_length_validator(): Creates a standalone validator
 - create_length_rule(): Creates a rule with a validator
 
@@ -44,7 +56,8 @@ from typing import Dict, Optional, Any
 from pydantic import BaseModel, Field, field_validator, ConfigDict, PrivateAttr
 
 from sifaka.rules.base import Rule, RuleResult, BaseValidator, RuleConfig
-from sifaka.utils import RuleState, create_rule_state
+from sifaka.core.rule_state import RuleState, create_rule_state
+from sifaka.core.classifier_state import StateManager
 
 
 __all__ = [
@@ -356,9 +369,6 @@ class LengthRule(Rule):
         ```
     """
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_rule_state)
-
     def __init__(
         self,
         validator: LengthValidator,
@@ -376,51 +386,18 @@ class LengthRule(Rule):
             config: Additional configuration for the rule
             **kwargs: Additional keyword arguments for the rule
         """
-        # Initialize state
-        state = self._state_manager.get_state()
-        state.cache = {}
+        # Create the validator adapter
+        validator_adapter = LengthRuleValidator(validator)
 
-        # Store validator in state
-        rule_id = kwargs.pop("rule_id", name)  # Extract rule_id if present, default to name
-        state.cache["rule_id"] = rule_id
-        state.cache["length_validator"] = validator
-
-        # Initialize base class
-        super().__init__(name=name, description=description, config=config, **kwargs)
+        # Initialize base class with the validator adapter
+        super().__init__(
+            name=name, description=description, config=config, validator=validator_adapter, **kwargs
+        )
 
     def _create_default_validator(self) -> LengthRuleValidator:
         """Create a default validator adapter for this rule."""
-        # Get state
-        state = self._state_manager.get_state()
-
-        # Get validator from state
-        length_validator = state.cache.get("length_validator")
-
-        # Create and return adapter
-        return LengthRuleValidator(length_validator)
-
-    def validate(self, text: str, **kwargs) -> RuleResult:
-        """Evaluate text against length constraints.
-
-        Args:
-            text: The text to evaluate
-            **kwargs: Additional validation context
-
-        Returns:
-            RuleResult containing validation results
-        """
-        # Get state
-        state = self._state_manager.get_state()
-
-        # Get validator and rule_id from state
-        length_validator = state.cache.get("length_validator")
-        rule_id = state.cache.get("rule_id")
-
-        # Validate text
-        result = length_validator.validate(text, **kwargs)
-
-        # Add rule_id to metadata
-        return result.with_metadata(rule_id=rule_id)
+        # This is not used since we pass the validator in __init__
+        raise NotImplementedError("Validator is created in __init__")
 
 
 def create_length_validator(
@@ -591,6 +568,5 @@ def create_length_rule(
         name=name,
         description=description,
         config=config,
-        rule_id=rule_id,
         **kwargs,
     )

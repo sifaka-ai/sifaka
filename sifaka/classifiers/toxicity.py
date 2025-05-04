@@ -90,7 +90,8 @@ from sifaka.classifiers.base import (
     ClassifierConfig,
 )
 from sifaka.utils.logging import get_logger
-from sifaka.utils import ClassifierState, create_classifier_state, standardize_classifier_config
+from sifaka.core.classifier_state import ClassifierState, create_classifier_state
+from sifaka.core.classifier_config import standardize_classifier_config
 from sifaka.classifiers.toxicity_model import ToxicityModel
 
 logger = get_logger(__name__)

@@ -3,7 +3,17 @@ Base module for critics that provide feedback and validation on prompts.
 
 This module provides the foundational components for the Sifaka critic framework,
 including base classes, protocols, and type definitions for text validation,
-improvement, and critiquing.
+improvement, and critiquing. Critics work alongside rules to provide a complete
+validation and improvement system.
+
+## Integration with Rules
+
+Critics complement rules in the following ways:
+- Rules provide binary validation (pass/fail)
+- Critics provide nuanced feedback and improvement suggestions
+- Rules focus on specific constraints (length, style, content)
+- Critics analyze overall text quality and coherence
+- Rules can trigger critic improvements when violations occur
 
 ## Component Overview
 

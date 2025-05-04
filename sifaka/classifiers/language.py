@@ -36,8 +36,8 @@ from sifaka.classifiers.base import (
     ClassifierConfig,
 )
 from sifaka.utils.logging import get_logger
-from sifaka.utils import standardize_classifier_config
-from sifaka.utils.state import StateManager, ClassifierState, create_classifier_state
+from sifaka.core.classifier_config import standardize_classifier_config
+from sifaka.core.classifier_state import ClassifierState, create_classifier_state
 
 logger = get_logger(__name__)
 
@@ -135,7 +135,7 @@ class LanguageClassifier(BaseClassifier):
     DEFAULT_COST: int = 1  # Low cost for statistical analysis
 
     # State management using StateManager
-    _state = PrivateAttr(default_factory=create_classifier_state)
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
     def __init__(
         self,
@@ -172,7 +172,7 @@ class LanguageClassifier(BaseClassifier):
         super().__init__(name=name, description=description, config=config)
 
         # Initialize state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
         state.initialized = False
 
         # Store detector in state if provided
@@ -191,7 +191,7 @@ class LanguageClassifier(BaseClassifier):
         """Load the language detector."""
         try:
             # Get state
-            state = self._state.get_state()
+            state = self._state_manager.get_state()
 
             # Check if detector is already in state
             if "detector" in state.cache:
@@ -233,7 +233,7 @@ class LanguageClassifier(BaseClassifier):
     def warm_up(self) -> None:
         """Initialize the language detector if needed."""
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         if not state.initialized:
             # Load detector
@@ -260,7 +260,7 @@ class LanguageClassifier(BaseClassifier):
             ClassificationResult with detected language
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure resources are initialized
         if not state.initialized:
