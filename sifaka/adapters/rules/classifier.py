@@ -595,7 +595,10 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         Raises:
             ConfigurationError: If configuration is invalid
         """
-        # Initialize base class
+        # Initialize pydantic model
+        super(BaseAdapter, self).__init__()
+
+        # Initialize base adapter
         super().__init__(classifier)
 
         # Get state

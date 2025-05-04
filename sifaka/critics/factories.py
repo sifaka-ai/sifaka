@@ -129,6 +129,7 @@ from .managers.memory import MemoryManager
 from .managers.prompt_factories import PromptCriticPromptManager, ReflexionCriticPromptManager
 from .managers.response import ResponseParser
 from ..utils.logging import get_logger
+from ..utils.config import standardize_critic_config
 
 logger = get_logger(__name__)
 
@@ -172,23 +173,22 @@ def create_prompt_critic(
     Returns:
         A configured prompt critic
     """
-    # Create configuration
-    if config is None:
-        config = PromptCriticConfig(
-            name=name,
-            description=description,
-            min_confidence=min_confidence,
-            max_attempts=max_attempts,
-            cache_size=cache_size,
-            priority=priority,
-            cost=cost,
-            system_prompt=system_prompt,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            **kwargs,
-        )
-    elif isinstance(config, dict):
-        config = PromptCriticConfig(**{**config, **kwargs})
+    # Create configuration using the standardization utility
+    config = standardize_critic_config(
+        config=config,
+        config_class=PromptCriticConfig,
+        name=name,
+        description=description,
+        min_confidence=min_confidence,
+        max_attempts=max_attempts,
+        cache_size=cache_size,
+        priority=priority,
+        cost=cost,
+        system_prompt=system_prompt,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        **kwargs,
+    )
 
     # Create prompt manager
     prompt_manager = PromptCriticPromptManager(config=config)

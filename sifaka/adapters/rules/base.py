@@ -18,7 +18,7 @@ See examples in the tests/ directory for usage patterns.
 
 from typing import Any, Dict, Generic, Optional, Protocol, Type, TypeVar, cast, runtime_checkable
 
-from pydantic import PrivateAttr
+from pydantic import BaseModel, PrivateAttr, ConfigDict
 from sifaka.rules.base import BaseValidator, ConfigurationError, RuleResult, ValidationError
 from sifaka.utils.state import AdapterState, StateManager, create_adapter_state
 
@@ -71,7 +71,7 @@ class Adaptable(Protocol):
         ...
 
 
-class BaseAdapter(BaseValidator[T], Generic[T, A]):
+class BaseAdapter(BaseModel, BaseValidator[T], Generic[T, A]):
     """
     Base class for implementing adapters that convert components to validators.
 
@@ -101,6 +101,9 @@ class BaseAdapter(BaseValidator[T], Generic[T, A]):
                 )
         ```
     """
+
+    # Pydantic configuration
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     # State management using StateManager
     _state_manager = PrivateAttr(default_factory=create_adapter_state)

@@ -229,38 +229,37 @@ def standardize_critic_config(
         )
         ```
     """
-    # Start with empty params dictionary
-    final_params: Dict[str, Any] = {}
+    # Get the model fields
+    model_fields = set(config_class.model_fields.keys())
 
-    # If params is provided, use it as the base
-    if params:
-        final_params.update(params)
+    # Separate kwargs into model fields and extra params
+    model_kwargs = {k: v for k, v in kwargs.items() if k in model_fields}
+    extra_kwargs = {k: v for k, v in kwargs.items() if k not in model_fields}
 
     # If config is a dictionary
     if isinstance(config, dict):
         # Extract params from the dictionary
         dict_params = config.pop("params", {}) if config else {}
-        final_params.update(dict_params)
+        extra_kwargs.update(dict_params)
 
-        # Create config with the remaining options and the merged params
-        return cast(
-            T, config_class(**({} if config is None else config), params=final_params, **kwargs)
+        # Create config with the remaining options
+        config_dict = (
+            {} if config is None else {k: v for k, v in config.items() if k in model_fields}
         )
+        config_dict.update(model_kwargs)
+        return cast(T, config_class(**config_dict))
 
     # If config is a CriticConfig
     elif isinstance(config, CriticConfig):
-        # Merge the existing params with the new params
-        final_params.update(config.params)
-
         # Create a new config with the updated params
-        # Note: This assumes all CriticConfig subclasses have a similar interface
-        config_dict = {**config.model_dump(), "params": final_params, **kwargs}
+        config_dict = {k: v for k, v in config.model_dump().items() if k in model_fields}
+        config_dict.update(model_kwargs)
         return cast(T, config_class(**config_dict))
 
     # If no config is provided
     else:
-        # Create a new config with the params and kwargs
-        return cast(T, config_class(params=final_params, **kwargs))
+        # Create a new config with the model kwargs
+        return cast(T, config_class(**model_kwargs))
 
 
 def standardize_model_config(

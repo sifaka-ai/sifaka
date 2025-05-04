@@ -1049,8 +1049,14 @@ class BaseCritic(ABC, Generic[T, R]):
         Raises:
             ValueError: If configuration is invalid
         """
-        if not isinstance(self._config, CriticConfig):
-            raise ValueError("config must be a CriticConfig instance")
+        from .models import CriticConfig as PydanticCriticConfig
+
+        if not (
+            isinstance(self._config, CriticConfig) or isinstance(self._config, PydanticCriticConfig)
+        ):
+            raise ValueError(
+                "config must be a CriticConfig instance (either dataclass or pydantic model)"
+            )
 
     def is_valid_text(self, text: Any) -> TypeGuard[T]:
         """
