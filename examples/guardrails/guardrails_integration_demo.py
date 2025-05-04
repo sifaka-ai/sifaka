@@ -14,6 +14,14 @@ from dotenv import load_dotenv
 # Load environment variables from .env file (containing ANTHROPIC_API_KEY)
 load_dotenv()
 
+# Verify API key is available
+api_key = os.environ.get("ANTHROPIC_API_KEY")
+if not api_key:
+    raise ValueError(
+        "ANTHROPIC_API_KEY environment variable not set. "
+        "Please set it in your environment or in a .env file."
+    )
+
 # Import Sifaka components
 from sifaka.models.anthropic import create_anthropic_provider
 from sifaka.models.base import ModelConfig
@@ -39,7 +47,7 @@ model = create_anthropic_provider(
     model_name="claude-3-sonnet-20240229",
     temperature=0.7,
     max_tokens=1500,
-    api_key=os.environ.get("ANTHROPIC_API_KEY"),
+    api_key=api_key,  # Use the verified API key
     trace_enabled=True,
 )
 

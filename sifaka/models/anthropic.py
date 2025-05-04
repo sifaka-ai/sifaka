@@ -40,11 +40,16 @@ class AnthropicClient(APIClient):
         # Check for API key in environment if not provided
         if not api_key:
             api_key = os.environ.get("ANTHROPIC_API_KEY")
+            logger.debug(f"Retrieved API key from environment: {api_key[:10]}...")
 
         # Validate API key
         if not api_key:
             logger.warning(
                 "No Anthropic API key provided and ANTHROPIC_API_KEY environment variable not set"
+            )
+        elif not api_key.startswith("sk-ant-api"):
+            logger.warning(
+                f"API key format appears incorrect. Expected to start with 'sk-ant-api', got: {api_key[:10]}..."
             )
 
         self.client = Anthropic(api_key=api_key)
@@ -54,6 +59,7 @@ class AnthropicClient(APIClient):
         """Send a prompt to Anthropic and return the response."""
         # Get API key from config or client
         api_key = config.api_key or getattr(self.client, "api_key", None)
+        logger.debug(f"Using API key: {api_key[:10]}...")
 
         # Check for missing API key
         if not api_key:
@@ -180,9 +186,6 @@ class AnthropicProvider(ModelProviderCore):
     # Class constants
     DEFAULT_MODEL: ClassVar[str] = "claude-3-opus-20240229"
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_model_state)
-
     def __init__(
         self,
         model_name: str = DEFAULT_MODEL,
@@ -207,16 +210,6 @@ class AnthropicProvider(ModelProviderCore):
         except ImportError:
             raise ImportError("Anthropic package is required. Install with: pip install anthropic")
 
-        # Initialize state
-        state = self._state_manager.get_state()
-        state.initialized = False
-        state.cache = {}
-
-        # Store components in state
-        state.cache["api_client"] = api_client
-        state.cache["token_counter"] = token_counter
-        state.cache["reflector"] = None
-
         super().__init__(
             model_name=model_name,
             config=config,
@@ -238,13 +231,6 @@ class AnthropicProvider(ModelProviderCore):
         Returns:
             The generated text response
         """
-        # Get state
-        state = self._state_manager.get_state()
-
-        # Ensure initialized
-        if not state.initialized:
-            state.initialized = True
-
         return self.generate(prompt, **kwargs)
 
     async def ainvoke(self, prompt: str, **kwargs) -> str:
@@ -261,13 +247,6 @@ class AnthropicProvider(ModelProviderCore):
         Returns:
             The generated text response
         """
-        # Get state
-        state = self._state_manager.get_state()
-
-        # Ensure initialized
-        if not state.initialized:
-            state.initialized = True
-
         if hasattr(self, "agenerate"):
             return await self.agenerate(prompt, **kwargs)
 
@@ -276,37 +255,11 @@ class AnthropicProvider(ModelProviderCore):
 
     def _create_default_client(self) -> APIClient:
         """Create a default Anthropic client."""
-        # Get state
-        state = self._state_manager.get_state()
-
-        # Check if client is already in state cache
-        if "api_client" in state.cache and state.cache["api_client"]:
-            return state.cache["api_client"]
-
-        # Create new client
-        client = AnthropicClient(api_key=self.config.api_key)
-
-        # Store in state cache
-        state.cache["api_client"] = client
-
-        return client
+        return AnthropicClient(api_key=self.config.api_key)
 
     def _create_default_token_counter(self) -> TokenCounter:
         """Create a default token counter for the current model."""
-        # Get state
-        state = self._state_manager.get_state()
-
-        # Check if token counter is already in state cache
-        if "token_counter" in state.cache and state.cache["token_counter"]:
-            return state.cache["token_counter"]
-
-        # Create new token counter
-        token_counter = AnthropicTokenCounter(model=self.model_name)
-
-        # Store in state cache
-        state.cache["token_counter"] = token_counter
-
-        return token_counter
+        return AnthropicTokenCounter(model=self.model_name)
 
     def create_reflector(
         self, temperature: float = 0.7, max_tokens: int = 1000
@@ -321,32 +274,12 @@ class AnthropicProvider(ModelProviderCore):
         Returns:
             An AnthropicReflector instance
         """
-        # Get state
-        state = self._state_manager.get_state()
-
-        # Check if reflector is already in state cache
-        if "reflector" in state.cache and state.cache["reflector"]:
-            # Check if parameters match
-            reflector = state.cache["reflector"]
-            if (
-                reflector.temperature == temperature
-                and reflector.max_tokens == max_tokens
-                and reflector.model == self.model_name
-            ):
-                return reflector
-
-        # Create new reflector
-        reflector = AnthropicReflector(
+        return AnthropicReflector(
             api_key=self.config.api_key,
             model=self.model_name,
             temperature=temperature,
             max_tokens=max_tokens,
         )
-
-        # Store in state cache
-        state.cache["reflector"] = reflector
-
-        return reflector
 
 
 def create_anthropic_provider(

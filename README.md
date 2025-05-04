@@ -55,9 +55,30 @@ Sifaka's functionality can be extended through optional dependencies:
 - `profanity`: Profanity detection
 - `language`: Language detection
 - `readability`: Text readability analysis
+- `ner`: Named Entity Recognition using spaCy
+
+### Integrations
+- `guardrails-ai`: Integration with Guardrails AI for advanced validation
 
 ### Benchmarking
 - `benchmark`: Tools for performance benchmarking and analysis
+
+## Documentation
+
+For detailed documentation on specific components, see the [docs/components](docs/components) directory:
+
+### Core Components
+
+- [Rules](docs/components/rules.md) - Binary pass/fail validation of text
+- [Classifiers](docs/components/classifiers.md) - Analysis and categorization of text
+- [Critics](docs/components/critics.md) - Feedback and suggestions for improving text
+- [Model Providers](docs/components/model_providers.md) - Connection to language models for text generation
+- [Chains](docs/components/chains.md) - Orchestration of models, rules, and critics
+
+### Specific Implementations
+
+- [NER Classifier](docs/components/ner_classifier.md) - Named Entity Recognition
+- [Guardrails Integration](docs/components/guardrails_integration.md) - Integration with Guardrails AI
 
 ## Key Features
 
@@ -260,4 +281,3 @@ result = chain.run("Write a short story")
 ## License
 
 Sifaka is licensed under the MIT License. See [LICENSE](LICENSE) for details.
-
