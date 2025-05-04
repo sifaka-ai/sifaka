@@ -324,6 +324,39 @@ class ChainState(ComponentState):
     cache: Dict[str, Any] = {}
 
 
+class AdapterState(ComponentState):
+    """
+    State for adapters.
+
+    This class represents the state of an adapter component.
+    It includes common state variables used by adapters.
+
+    Examples:
+        ```python
+        from sifaka.utils.state import AdapterState
+
+        class MyAdapter(BaseModel):
+            # Configuration
+            name: str
+
+            # State
+            _state_manager: AdapterState = PrivateAttr(default_factory=create_adapter_state)
+
+            def initialize(self) -> None:
+                # Initialize the adapter.
+                if not self._state_manager.get_state().initialized:
+                    state = self._state_manager.get_state()
+                    state.adaptee_cache = self._create_adaptee_cache()
+                    state.initialized = True
+        ```
+    """
+
+    adaptee: Optional[Any] = None
+    adaptee_cache: Dict[str, Any] = {}
+    config_cache: Dict[str, Any] = {}
+    cache: Dict[str, Any] = {}
+
+
 def create_state_manager(state_class: Type[T], **kwargs: Any) -> StateManager[T]:
     """
     Create a state manager for a specific state class.
@@ -401,3 +434,16 @@ def create_chain_state(**kwargs: Any) -> StateManager[ChainState]:
         A state manager for a chain
     """
     return create_state_manager(ChainState, **kwargs)
+
+
+def create_adapter_state(**kwargs: Any) -> StateManager[AdapterState]:
+    """
+    Create a state manager for an adapter.
+
+    Args:
+        **kwargs: Additional arguments to pass to the AdapterState constructor
+
+    Returns:
+        A state manager for an adapter
+    """
+    return create_state_manager(AdapterState, **kwargs)

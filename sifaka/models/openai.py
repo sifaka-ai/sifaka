@@ -15,7 +15,7 @@ from pydantic import PrivateAttr
 from sifaka.models.base import APIClient, ModelConfig, TokenCounter
 from sifaka.models.core import ModelProviderCore
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import create_model_state
+from sifaka.utils.state import create_model_state, ModelState, StateManager
 
 logger = get_logger(__name__)
 
@@ -75,9 +75,6 @@ class OpenAIProvider(ModelProviderCore):
     # Class constants
     DEFAULT_MODEL: ClassVar[str] = "gpt-4-turbo"
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_model_state)
-
     def __init__(
         self,
         model_name: str = DEFAULT_MODEL,
@@ -102,15 +99,7 @@ class OpenAIProvider(ModelProviderCore):
         except ImportError:
             raise ImportError("OpenAI package is required. Install with: pip install openai")
 
-        # Initialize state
-        state = self._state_manager.get_state()
-        state.initialized = False
-        state.cache = {}
-
-        # Store components in state
-        state.cache["api_client"] = api_client
-        state.cache["token_counter"] = token_counter
-
+        # Initialize parent class first
         super().__init__(
             model_name=model_name,
             config=config,
@@ -120,37 +109,11 @@ class OpenAIProvider(ModelProviderCore):
 
     def _create_default_client(self) -> APIClient:
         """Create a default OpenAI client."""
-        # Get state
-        state = self._state_manager.get_state()
-
-        # Check if client is already in state cache
-        if "api_client" in state.cache and state.cache["api_client"]:
-            return state.cache["api_client"]
-
-        # Create new client
-        client = OpenAIClient(api_key=self.config.api_key)
-
-        # Store in state cache
-        state.cache["api_client"] = client
-
-        return client
+        return OpenAIClient(api_key=self.config.api_key)
 
     def _create_default_token_counter(self) -> TokenCounter:
         """Create a default token counter for the current model."""
-        # Get state
-        state = self._state_manager.get_state()
-
-        # Check if token counter is already in state cache
-        if "token_counter" in state.cache and state.cache["token_counter"]:
-            return state.cache["token_counter"]
-
-        # Create new token counter
-        token_counter = OpenAITokenCounter(model=self.model_name)
-
-        # Store in state cache
-        state.cache["token_counter"] = token_counter
-
-        return token_counter
+        return OpenAITokenCounter(model=self.model_name)
 
     def invoke(self, prompt: str) -> Any:
         """
@@ -164,13 +127,6 @@ class OpenAIProvider(ModelProviderCore):
         Returns:
             The generated text
         """
-        # Get state
-        state = self._state_manager.get_state()
-
-        # Ensure initialized
-        if not state.initialized:
-            state.initialized = True
-
         return self.generate(prompt)
 
 
@@ -200,63 +156,27 @@ def create_openai_provider(
         config: Optional model configuration
         api_client: Optional API client to use
         token_counter: Optional token counter to use
-        **kwargs: Additional configuration parameters
+        **kwargs: Additional configuration options
 
     Returns:
-        An OpenAIProvider instance
-
-    Examples:
-        ```python
-        from sifaka.models.openai import create_openai_provider
-        import os
-
-        # Create a provider with default settings
-        provider = create_openai_provider(api_key=os.environ.get("OPENAI_API_KEY"))
-
-        # Create a provider with custom settings
-        provider = create_openai_provider(
-            model_name="gpt-4-turbo",
-            temperature=0.8,
-            max_tokens=2000,
-            api_key=os.environ.get("OPENAI_API_KEY")
-        )
-
-        # Generate text
-        response = provider.generate("Explain quantum computing in simple terms.")
-        print(response)
-        ```
+        An initialized OpenAIProvider instance
     """
-    # Try to use standardize_model_config if available
-    try:
-        from sifaka.utils.config import standardize_model_config
-
-        # Use standardize_model_config to handle different config formats
-        model_config = standardize_model_config(
-            config=config,
+    # Create configuration
+    if config is None:
+        config = ModelConfig(
             temperature=temperature,
             max_tokens=max_tokens,
             api_key=api_key,
             trace_enabled=trace_enabled,
             **kwargs,
         )
-    except (ImportError, AttributeError):
-        # Create config manually
-        if isinstance(config, ModelConfig):
-            model_config = config
-        elif isinstance(config, dict):
-            model_config = ModelConfig(**config)
-        else:
-            model_config = ModelConfig(
-                temperature=temperature,
-                max_tokens=max_tokens,
-                api_key=api_key,
-                trace_enabled=trace_enabled,
-                **kwargs,
-            )
+    elif isinstance(config, dict):
+        config = ModelConfig(**{**config, **kwargs})
 
+    # Create provider
     return OpenAIProvider(
         model_name=model_name,
-        config=model_config,
+        config=config,
         api_client=api_client,
         token_counter=token_counter,
     )

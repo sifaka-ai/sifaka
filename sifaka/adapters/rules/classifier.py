@@ -595,20 +595,25 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         Raises:
             ConfigurationError: If configuration is invalid
         """
+        # Initialize base class
         super().__init__(classifier)
 
-        # Create configuration
-        self._config = ClassifierRuleConfig(
+        # Get state
+        state = self._state_manager.get_state()
+
+        # Create configuration and store in state
+        config = ClassifierRuleConfig(
             threshold=threshold,
             valid_labels=valid_labels if valid_labels is not None else [],
             invalid_labels=invalid_labels,
             extraction_function=extraction_function,
         )
+        state.config_cache["classifier_config"] = config
 
     @property
     def config(self) -> ClassifierRuleConfig:
         """Get the adapter configuration."""
-        return self._config
+        return self._state_manager.get_state().config_cache["classifier_config"]
 
     @property
     def classifier(self) -> Classifier:
@@ -618,12 +623,12 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
     @property
     def valid_labels(self) -> List[str]:
         """Get the valid labels for this adapter."""
-        return self._config.valid_labels
+        return self.config.valid_labels
 
     @property
     def threshold(self) -> float:
         """Get the confidence threshold for this adapter."""
-        return self._config.threshold
+        return self.config.threshold
 
     def validate(self, input_text: str, **kwargs) -> RuleResult:
         """
@@ -651,10 +656,14 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
             return empty_result
 
         try:
+            # Get state and config
+            state = self._state_manager.get_state()
+            config = self.config
+
             # Extract text to classify if needed
             text_to_classify = input_text
-            if self._config.extraction_function:
-                text_to_classify = self._config.extraction_function(input_text)
+            if config.extraction_function:
+                text_to_classify = config.extraction_function(input_text)
 
             # Get classification result
             result = self.classifier.classify(text_to_classify)
@@ -664,15 +673,15 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
             confidence = result.confidence
 
             # Check if label is valid
-            is_valid_label = label in self._config.valid_labels
-            passed = is_valid_label and confidence >= self._config.threshold
+            is_valid_label = label in config.valid_labels
+            passed = is_valid_label and confidence >= config.threshold
 
             # Prepare metadata
             metadata = {
                 "label": label,
                 "confidence": confidence,
-                "threshold": self._config.threshold,
-                "valid_labels": self._config.valid_labels,
+                "threshold": config.threshold,
+                "valid_labels": config.valid_labels,
                 "adaptee_name": self.classifier.name,
             }
 
@@ -680,16 +689,24 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
             if passed:
                 message = (
                     f"Classified as '{label}' with confidence {confidence:.2f}, "
-                    f"which is >= threshold {self._config.threshold} and in valid labels"
+                    f"which is >= threshold {config.threshold} and in valid labels"
                 )
             else:
                 if not is_valid_label:
-                    message = f"Classified as '{label}' which is not in valid labels {self._config.valid_labels}"
+                    message = f"Classified as '{label}' which is not in valid labels {config.valid_labels}"
                 else:
                     message = (
                         f"Classified as '{label}' with confidence {confidence:.2f}, "
-                        f"which is < threshold {self._config.threshold}"
+                        f"which is < threshold {config.threshold}"
                     )
+
+            # Cache result in state if needed
+            if kwargs.get("cache_result", True):
+                state.cache[text_to_classify] = {
+                    "result": result,
+                    "passed": passed,
+                    "message": message,
+                }
 
             return RuleResult(
                 passed=passed,

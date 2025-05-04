@@ -171,40 +171,10 @@ def create_prompt_critic(
 
     Returns:
         A configured prompt critic
-
-    Examples:
-        ```python
-        from sifaka.critics.factories import create_prompt_critic
-        from sifaka.models.openai import create_openai_provider
-
-        # Create a language model provider
-        provider = create_openai_provider(api_key="your-api-key")
-
-        # Create a prompt critic with default settings
-        critic = create_prompt_critic(llm_provider=provider)
-
-        # Create a prompt critic with custom settings
-        critic = create_prompt_critic(
-            llm_provider=provider,
-            name="my_critic",
-            description="A custom prompt critic",
-            min_confidence=0.8,
-            system_prompt="You are an expert editor."
-        )
-
-        # Use the critic
-        result = critic.validate("Some text to validate")
-        ```
     """
-    # Try to use standardize_critic_config if available
-    try:
-        from sifaka.utils.config import standardize_critic_config
-        from .models import PromptCriticConfig
-
-        # If standardize_critic_config is available, use it
-        critic_config = standardize_critic_config(
-            config=config,
-            config_class=PromptCriticConfig,
+    # Create configuration
+    if config is None:
+        config = PromptCriticConfig(
             name=name,
             description=description,
             min_confidence=min_confidence,
@@ -217,44 +187,24 @@ def create_prompt_critic(
             max_tokens=max_tokens,
             **kwargs,
         )
-    except (ImportError, AttributeError):
-        # Use provided config or create one from parameters
-        if config is None:
-            from .models import PromptCriticConfig
+    elif isinstance(config, dict):
+        config = PromptCriticConfig(**{**config, **kwargs})
 
-            critic_config = PromptCriticConfig(
-                name=name,
-                description=description,
-                min_confidence=min_confidence,
-                max_attempts=max_attempts,
-                cache_size=cache_size,
-                priority=priority,
-                cost=cost,
-                system_prompt=system_prompt,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                **kwargs,
-            )
-        elif isinstance(config, dict):
-            from .models import PromptCriticConfig
+    # Create prompt manager
+    prompt_manager = PromptCriticPromptManager(config=config)
 
-            critic_config = PromptCriticConfig(**config)
-        else:
-            critic_config = config
-
-    # Create managers
-    prompt_manager = PromptCriticPromptManager(critic_config)
+    # Create response parser
     response_parser = ResponseParser()
 
-    # Create critic - filter out any kwargs not accepted by CriticCore
+    # Create core kwargs
     core_kwargs = {
-        "config": critic_config,
+        "config": config,
         "llm_provider": llm_provider,
         "prompt_manager": prompt_manager,
         "response_parser": response_parser,
     }
 
-    # Create critic
+    # Create and return critic
     return CriticCore(**core_kwargs)
 
 
@@ -279,8 +229,7 @@ def create_reflexion_critic(
     Create a reflexion critic with the given parameters.
 
     This factory function creates a configured reflexion critic instance
-    that uses a language model to evaluate and improve text, while maintaining
-    a memory of past improvements to guide future improvements.
+    that uses a language model and memory to evaluate and improve text.
 
     Args:
         llm_provider: Language model provider to use
@@ -294,47 +243,17 @@ def create_reflexion_critic(
         system_prompt: System prompt for the model
         temperature: Temperature for model generation
         max_tokens: Maximum tokens for model generation
-        memory_buffer_size: Maximum number of reflections to store
-        reflection_depth: How many levels of reflection to perform
+        memory_buffer_size: Size of the memory buffer
+        reflection_depth: Depth of reflection
         config: Optional critic configuration (overrides other parameters)
         **kwargs: Additional keyword arguments for the critic
 
     Returns:
         A configured reflexion critic
-
-    Examples:
-        ```python
-        from sifaka.critics.factories import create_reflexion_critic
-        from sifaka.models.openai import create_openai_provider
-
-        # Create a language model provider
-        provider = create_openai_provider(api_key="your-api-key")
-
-        # Create a reflexion critic with default settings
-        critic = create_reflexion_critic(llm_provider=provider)
-
-        # Create a reflexion critic with custom settings
-        critic = create_reflexion_critic(
-            llm_provider=provider,
-            name="my_reflexion_critic",
-            description="A reflexion critic that learns from feedback",
-            memory_buffer_size=10,
-            reflection_depth=2
-        )
-
-        # Use the critic
-        result = critic.improve("Text to improve")
-        ```
     """
-    # Try to use standardize_critic_config if available
-    try:
-        from sifaka.utils.config import standardize_critic_config
-        from .models import ReflexionCriticConfig
-
-        # If standardize_critic_config is available, use it
-        critic_config = standardize_critic_config(
-            config=config,
-            config_class=ReflexionCriticConfig,
+    # Create configuration
+    if config is None:
+        config = ReflexionCriticConfig(
             name=name,
             description=description,
             min_confidence=min_confidence,
@@ -349,49 +268,26 @@ def create_reflexion_critic(
             reflection_depth=reflection_depth,
             **kwargs,
         )
-    except (ImportError, AttributeError):
-        # Use provided config or create one from parameters
-        if config is None:
-            from .models import ReflexionCriticConfig
+    elif isinstance(config, dict):
+        config = ReflexionCriticConfig(**{**config, **kwargs})
 
-            critic_config = ReflexionCriticConfig(
-                name=name,
-                description=description,
-                min_confidence=min_confidence,
-                max_attempts=max_attempts,
-                cache_size=cache_size,
-                priority=priority,
-                cost=cost,
-                system_prompt=system_prompt,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                memory_buffer_size=memory_buffer_size,
-                reflection_depth=reflection_depth,
-                **kwargs,
-            )
-        elif isinstance(config, dict):
-            from .models import ReflexionCriticConfig
+    # Create prompt manager
+    prompt_manager = ReflexionCriticPromptManager(config=config)
 
-            critic_config = ReflexionCriticConfig(**config)
-        else:
-            critic_config = config
-
-    # Create managers
-    prompt_manager = ReflexionCriticPromptManager(critic_config)
+    # Create response parser
     response_parser = ResponseParser()
 
-    # Use the buffer size from the config (which could be from the provided config parameter)
-    buffer_size = getattr(critic_config, "memory_buffer_size", memory_buffer_size)
-    memory_manager = MemoryManager(buffer_size=buffer_size)
+    # Create memory manager
+    memory_manager = MemoryManager(buffer_size=memory_buffer_size)
 
-    # Create critic - filter out any kwargs not accepted by CriticCore
+    # Create core kwargs
     core_kwargs = {
-        "config": critic_config,
+        "config": config,
         "llm_provider": llm_provider,
         "prompt_manager": prompt_manager,
         "response_parser": response_parser,
         "memory_manager": memory_manager,
     }
 
-    # Create critic
+    # Create and return critic
     return CriticCore(**core_kwargs)

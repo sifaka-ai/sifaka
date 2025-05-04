@@ -18,7 +18,9 @@ See examples in the tests/ directory for usage patterns.
 
 from typing import Any, Dict, Generic, Optional, Protocol, Type, TypeVar, cast, runtime_checkable
 
+from pydantic import PrivateAttr
 from sifaka.rules.base import BaseValidator, ConfigurationError, RuleResult, ValidationError
+from sifaka.utils.state import AdapterState, StateManager, create_adapter_state
 
 
 T = TypeVar("T")  # Input type
@@ -100,6 +102,9 @@ class BaseAdapter(BaseValidator[T], Generic[T, A]):
         ```
     """
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_adapter_state)
+
     @property
     def validation_type(self) -> type:
         """
@@ -120,8 +125,13 @@ class BaseAdapter(BaseValidator[T], Generic[T, A]):
         Raises:
             ConfigurationError: If the adaptee is invalid or incompatible
         """
-        self._adaptee = adaptee
+        # Validate adaptee
         self._validate_adaptee(adaptee)
+
+        # Initialize state
+        state = self._state_manager.get_state()
+        state.adaptee = adaptee
+        state.initialized = True
 
     def _validate_adaptee(self, adaptee: Any) -> None:
         """
@@ -146,7 +156,7 @@ class BaseAdapter(BaseValidator[T], Generic[T, A]):
         Returns:
             The component instance being adapted
         """
-        return self._adaptee
+        return self._state_manager.get_state().adaptee
 
     def handle_empty_text(self, text: str) -> Optional[RuleResult]:
         """
@@ -160,9 +170,7 @@ class BaseAdapter(BaseValidator[T], Generic[T, A]):
         """
         if not text or not text.strip():
             return RuleResult(
-                passed=False,
-                message="Empty text provided",
-                metadata={"input_length": len(text)}
+                passed=False, message="Empty text provided", metadata={"input_length": len(text)}
             )
         return None
 
@@ -194,9 +202,7 @@ class BaseAdapter(BaseValidator[T], Generic[T, A]):
 
 
 def create_adapter(
-    adapter_type: Type[BaseAdapter[T, A]],
-    adaptee: A,
-    **kwargs: Any
+    adapter_type: Type[BaseAdapter[T, A]], adaptee: A, **kwargs: Any
 ) -> BaseAdapter[T, A]:
     """
     Factory function to create an adapter with standardized configuration.
@@ -217,6 +223,8 @@ def create_adapter(
         ConfigurationError: If adaptee doesn't implement required protocol
     """
     if not issubclass(adapter_type, BaseAdapter):
-        raise ConfigurationError(f"adapter_type must be a subclass of BaseAdapter, got {adapter_type}")
+        raise ConfigurationError(
+            f"adapter_type must be a subclass of BaseAdapter, got {adapter_type}"
+        )
 
     return adapter_type(adaptee=adaptee, **kwargs)

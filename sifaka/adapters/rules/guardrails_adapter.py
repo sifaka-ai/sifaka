@@ -24,6 +24,8 @@ Usage Example:
 
 from typing import Any, Dict, Optional, Union, Protocol, runtime_checkable
 
+from pydantic import PrivateAttr
+
 try:
     from guardrails.validator_base import Validator as GuardrailsValidator
     from guardrails.classes import ValidationResult, PassResult, FailResult
@@ -48,6 +50,7 @@ except ImportError:
 
 from sifaka.rules.base import BaseValidator, RuleResult, Rule, RuleConfig
 from sifaka.adapters.rules.base import Adaptable, BaseAdapter
+from sifaka.utils.state import AdapterState, StateManager, create_adapter_state, create_rule_state
 
 
 @runtime_checkable
@@ -108,6 +111,9 @@ class GuardrailsValidatorAdapter(BaseValidator[str]):
         ```
     """
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_adapter_state)
+
     def __init__(self, guardrails_validator: GuardrailsValidator):
         """
         Initialize with a Guardrails validator.
@@ -124,12 +130,16 @@ class GuardrailsValidatorAdapter(BaseValidator[str]):
             raise ImportError(
                 "Guardrails is not installed. Please install it with 'pip install guardrails-ai'"
             )
-        self._guardrails_validator = guardrails_validator
+
+        # Initialize state
+        state = self._state_manager.get_state()
+        state.adaptee = guardrails_validator
+        state.initialized = True
 
     @property
     def guardrails_validator(self) -> GuardrailsValidator:
         """Get the Guardrails validator being adapted."""
-        return self._guardrails_validator
+        return self._state_manager.get_state().adaptee
 
     def _convert_guardrails_result(self, gr_result: ValidationResult) -> RuleResult:
         """
@@ -177,23 +187,42 @@ class GuardrailsValidatorAdapter(BaseValidator[str]):
         if empty_result:
             return empty_result
 
+        # Get state
+        state = self._state_manager.get_state()
+
+        # Check cache if caching is enabled
+        if kwargs.get("use_cache", True) and output in state.cache:
+            return state.cache[output]
+
         try:
             # Call the Guardrails validator
-            gr_result = self._guardrails_validator.validate(output, metadata=kwargs)
+            gr_result = self.guardrails_validator.validate(output, metadata=kwargs)
 
             # Convert Guardrails result to Sifaka RuleResult
-            return self._convert_guardrails_result(gr_result)
+            result = self._convert_guardrails_result(gr_result)
+
+            # Cache result if caching is enabled
+            if kwargs.get("use_cache", True):
+                state.cache[output] = result
+
+            return result
         except Exception as e:
             # Handle any exceptions from the Guardrails validator
-            return RuleResult(
+            error_result = RuleResult(
                 passed=False,
                 message=f"Guardrails validation error: {str(e)}",
                 metadata={
                     "error_type": type(e).__name__,
-                    "validator": self._guardrails_validator.__class__.__name__,
-                    "errors": [str(e)]
-                }
+                    "validator": self.guardrails_validator.__class__.__name__,
+                    "errors": [str(e)],
+                },
             )
+
+            # Cache error result if caching is enabled
+            if kwargs.get("use_cache", True):
+                state.cache[output] = error_result
+
+            return error_result
 
     @property
     def validation_type(self) -> type:
@@ -229,13 +258,16 @@ class GuardrailsRule(Rule):
         ```
     """
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
+
     def __init__(
         self,
         guardrails_validator: GuardrailsValidator,
         rule_id: Optional[str] = None,
         name: Optional[str] = None,
         description: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Initialize with a Guardrails validator.
@@ -259,7 +291,9 @@ class GuardrailsRule(Rule):
         if name is None:
             name = f"guardrails_{guardrails_validator.__class__.__name__}"
         if description is None:
-            description = f"Rule using Guardrails validator: {guardrails_validator.__class__.__name__}"
+            description = (
+                f"Rule using Guardrails validator: {guardrails_validator.__class__.__name__}"
+            )
 
         # Create rule configuration
         rule_config = RuleConfig(
@@ -268,16 +302,14 @@ class GuardrailsRule(Rule):
             }
         )
 
-        self._guardrails_validator = guardrails_validator
-        self._rule_id = rule_id or name
-        self._adapter = GuardrailsValidatorAdapter(guardrails_validator)
+        # Initialize state
+        state = self._state_manager.get_state()
+        state.cache["guardrails_validator"] = guardrails_validator
+        state.cache["rule_id"] = rule_id or name
+        state.cache["adapter"] = GuardrailsValidatorAdapter(guardrails_validator)
+        state.initialized = True
 
-        super().__init__(
-            name=name,
-            description=description,
-            config=rule_config,
-            **kwargs
-        )
+        super().__init__(name=name, description=description, config=rule_config, **kwargs)
 
     def _create_default_validator(self) -> BaseValidator[str]:
         """
@@ -286,17 +318,17 @@ class GuardrailsRule(Rule):
         Returns:
             The GuardrailsValidatorAdapter
         """
-        return self._adapter
+        return self._state_manager.get_state().cache["adapter"]
 
     @property
     def guardrails_validator(self) -> GuardrailsValidator:
         """Get the Guardrails validator being used."""
-        return self._guardrails_validator
+        return self._state_manager.get_state().cache["guardrails_validator"]
 
     @property
     def rule_id(self) -> str:
         """Get the rule ID."""
-        return self._rule_id
+        return self._state_manager.get_state().cache["rule_id"]
 
     def validate(self, text: str, **kwargs) -> RuleResult:
         """
@@ -309,9 +341,18 @@ class GuardrailsRule(Rule):
         Returns:
             Validation result
         """
-        result = self._adapter.validate(text, **kwargs)
+        # Get state
+        state = self._state_manager.get_state()
+
+        # Get adapter and rule_id from state
+        adapter = state.cache["adapter"]
+        rule_id = state.cache["rule_id"]
+
+        # Validate using adapter
+        result = adapter.validate(text, **kwargs)
+
         # Add rule_id to metadata
-        return result.with_metadata(rule_id=self._rule_id)
+        return result.with_metadata(rule_id=rule_id)
 
 
 def create_guardrails_rule(
@@ -319,7 +360,7 @@ def create_guardrails_rule(
     rule_id: Optional[str] = None,
     name: Optional[str] = None,
     description: Optional[str] = None,
-    **kwargs
+    **kwargs,
 ) -> GuardrailsRule:
     """
     Create a Sifaka rule that uses a Guardrails validator.
@@ -356,7 +397,7 @@ def create_guardrails_rule(
         rule_id=rule_id,
         name=name,
         description=description,
-        **kwargs
+        **kwargs,
     )
 
 
