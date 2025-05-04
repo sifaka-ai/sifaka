@@ -66,6 +66,7 @@ import importlib
 from abc import abstractmethod
 from typing import (
     Any,
+    ClassVar,
     Dict,
     List,
     Optional,
@@ -201,11 +202,11 @@ class ProfanityClassifier(BaseClassifier):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     # Class-level constants
-    DEFAULT_LABELS: List[str] = ["clean", "profane", "unknown"]
-    DEFAULT_COST: int = 1  # Low cost for dictionary-based check
+    DEFAULT_LABELS: ClassVar[List[str]] = ["clean", "profane", "unknown"]
+    DEFAULT_COST: ClassVar[int] = 1  # Low cost for dictionary-based check
 
     # State management using StateManager
-    _state = PrivateAttr(default_factory=create_classifier_state)
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
     def __init__(
         self,
@@ -239,7 +240,7 @@ class ProfanityClassifier(BaseClassifier):
         super().__init__(name=name, description=description, config=config)
 
         # Initialize state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
         state.initialized = False
 
         # Store checker in state if provided
@@ -259,7 +260,7 @@ class ProfanityClassifier(BaseClassifier):
         """Load the profanity checker."""
         try:
             # Get state
-            state = self._state.get_state()
+            state = self._state_manager.get_state()
 
             # Check if checker is already in state
             if "checker" in state.cache:
@@ -314,7 +315,7 @@ class ProfanityClassifier(BaseClassifier):
         self.warm_up()
 
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         if "checker" in state.cache:
             checker = state.cache["checker"]
@@ -323,7 +324,7 @@ class ProfanityClassifier(BaseClassifier):
     def warm_up(self) -> None:
         """Initialize the profanity checker if needed."""
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         if not state.initialized:
             # Load profanity checker
@@ -342,7 +343,7 @@ class ProfanityClassifier(BaseClassifier):
             CensorResult with censoring details
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         if not state.initialized or "checker" not in state.cache:
             raise RuntimeError("Profanity checker not initialized. Call warm_up() first.")
@@ -378,14 +379,19 @@ class ProfanityClassifier(BaseClassifier):
             ClassificationResult with label and confidence
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         if not state.initialized:
             self.warm_up()
 
         try:
-            # Note: Empty text is handled by BaseClassifier.classify
-            # so we don't need to handle it here
+            # Handle empty text
+            if not text:
+                return ClassificationResult(
+                    label="unknown",
+                    confidence=0.0,
+                    metadata={"reason": "empty_text"},
+                )
 
             # Get checker from state
             checker = state.cache["checker"]
@@ -518,9 +524,17 @@ class ProfanityClassifier(BaseClassifier):
             ValueError: If the checker doesn't implement the ProfanityChecker protocol
         """
         # Validate checker first
-        if not isinstance(checker, ProfanityChecker):
+        try:
+            # Test required methods to ensure it implements the protocol
+            checker.contains_profanity("test")
+            checker.censor("test")
+            _ = checker.profane_words
+            checker.profane_words = {"test"}
+            _ = checker.censor_char
+            checker.censor_char = "*"
+        except (AttributeError, TypeError) as e:
             raise ValueError(
-                f"Checker must implement ProfanityChecker protocol, got {type(checker)}"
+                f"Checker must implement ProfanityChecker protocol, got {type(checker)}: {e}"
             )
 
         # Create config if not provided

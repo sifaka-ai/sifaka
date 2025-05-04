@@ -3,6 +3,14 @@ Named Entity Recognition (NER) classifier using spaCy.
 
 This classifier identifies and categorizes named entities in text such as
 people, organizations, locations, dates, etc.
+
+## Architecture
+
+NERClassifier follows the standard Sifaka classifier architecture:
+1. **Public API**: classify() and batch_classify() methods (inherited)
+2. **Caching Layer**: _classify_impl() handles caching (inherited)
+3. **Core Logic**: _classify_impl_uncached() implements entity recognition
+4. **State Management**: Uses StateManager for internal state
 """
 
 import importlib
@@ -29,6 +37,7 @@ from sifaka.classifiers.base import (
     ClassifierConfig,
 )
 from sifaka.utils.logging import get_logger
+from sifaka.utils.state import StateManager, ClassifierState, create_classifier_state
 
 logger = get_logger(__name__)
 
@@ -74,9 +83,8 @@ class NERClassifier(BaseClassifier):
     pip install sifaka[ner]
     """
 
-    # Private attributes using PrivateAttr for state management
-    _initialized: bool = PrivateAttr(default=False)
-    _engine: Optional[NEREngine] = PrivateAttr(default=None)
+    # State management using StateManager
+    _state = PrivateAttr(default_factory=create_classifier_state)
 
     # Define class-level constants with ClassVar annotation
     DEFAULT_LABELS: ClassVar[List[str]] = [
@@ -107,10 +115,6 @@ class NERClassifier(BaseClassifier):
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        # Store engine for later use if provided
-        if engine is not None:
-            self._engine = engine
-
         # Create config if not provided
         if config is None:
             # Extract params from kwargs if present
@@ -127,6 +131,14 @@ class NERClassifier(BaseClassifier):
         # Initialize base class
         super().__init__(name=name, description=description, config=config)
 
+        # Initialize state
+        state = self._state.get_state()
+        state.initialized = False
+
+        # Store engine in state if provided
+        if engine is not None and self._validate_engine(engine):
+            state.cache["engine"] = engine
+
     def _validate_engine(self, engine: Any) -> TypeGuard[NEREngine]:
         """Validate that an engine implements the required protocol."""
         if not isinstance(engine, NEREngine):
@@ -136,6 +148,13 @@ class NERClassifier(BaseClassifier):
     def _load_spacy(self) -> NEREngine:
         """Load the spaCy NER engine."""
         try:
+            # Get state
+            state = self._state.get_state()
+
+            # Check if engine is already in state
+            if "engine" in state.cache:
+                return state.cache["engine"]
+
             spacy = importlib.import_module("spacy")
 
             # Get model name from params or use default
@@ -161,8 +180,10 @@ class NERClassifier(BaseClassifier):
             # Create wrapper with spaCy model
             engine = SpacyNERWrapper(nlp)
 
-            self._validate_engine(engine)
-            return engine
+            # Validate and store in state
+            if self._validate_engine(engine):
+                state.cache["engine"] = engine
+                return engine
 
         except ImportError:
             raise ImportError(
@@ -181,9 +202,17 @@ class NERClassifier(BaseClassifier):
 
     def warm_up(self) -> None:
         """Initialize the NER engine if needed."""
-        if not self._initialized:
-            self._engine = self._engine or self._load_spacy()
-            self._initialized = True
+        # Get state
+        state = self._state.get_state()
+
+        if not state.initialized:
+            # Load engine if not already in state
+            if "engine" not in state.cache:
+                engine = self._load_spacy()
+                state.cache["engine"] = engine
+
+            # Mark as initialized
+            state.initialized = True
 
     def _extract_entities(self, text: str) -> EntityResult:
         """
@@ -195,11 +224,23 @@ class NERClassifier(BaseClassifier):
         Returns:
             EntityResult with entity details
         """
+        # Get state
+        state = self._state.get_state()
+
+        # Ensure resources are initialized
+        if not state.initialized:
+            self.warm_up()
+
+        # Get engine from state
+        engine = state.cache.get("engine")
+        if not engine:
+            raise RuntimeError("NER engine not initialized")
+
         # Process the text with the NER engine
-        doc = self._engine.process(text)
+        doc = engine.process(text)
 
         # Extract entities
-        entity_tuples = self._engine.get_entities(doc)
+        entity_tuples = engine.get_entities(doc)
 
         # Convert to structured format
         entities = []
@@ -345,6 +386,11 @@ class NERClassifier(BaseClassifier):
             **kwargs,
         )
 
+        # Initialize state
+        state = instance._state.get_state()
+        state.cache["engine"] = engine
+        state.initialized = True
+
         return instance
 
 
@@ -376,11 +422,13 @@ def create_ner_classifier(
     """
     # Prepare params
     params = kwargs.pop("params", {})
-    params.update({
-        "model_name": model_name,
-        "entity_types": entity_types or NERClassifier.DEFAULT_LABELS,
-        "min_confidence": min_confidence,
-    })
+    params.update(
+        {
+            "model_name": model_name,
+            "entity_types": entity_types or NERClassifier.DEFAULT_LABELS,
+            "min_confidence": min_confidence,
+        }
+    )
 
     # Create config
     config = ClassifierConfig(

@@ -5,6 +5,7 @@ from pydantic import PrivateAttr
 
 from sifaka.models.base import ModelProvider, ModelConfig
 from sifaka.utils.logging import get_logger
+from sifaka.utils.state import create_model_state
 
 logger = get_logger(__name__)
 
@@ -16,12 +17,7 @@ class MockProvider(ModelProvider):
     DEFAULT_MODEL: ClassVar[str] = "mock-model"
 
     # State management using StateManager
-    def _create_model_state():
-        from sifaka.utils.state import create_model_state
-
-        return create_model_state()
-
-    _state = PrivateAttr(default_factory=_create_model_state)
+    _state_manager = PrivateAttr(default_factory=create_model_state)
 
     def __init__(
         self, model_name: str = DEFAULT_MODEL, config: Optional[ModelConfig] = None, **kwargs: Any
@@ -35,7 +31,7 @@ class MockProvider(ModelProvider):
             **kwargs: Additional configuration parameters
         """
         # Initialize state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
         state.initialized = False
         state.cache = {}
 
@@ -81,7 +77,7 @@ class MockProvider(ModelProvider):
             A dictionary containing the generated text and usage statistics
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Log the request
         logger.debug(f"Mock provider generating response for prompt: {prompt[:50]}...")
@@ -124,7 +120,7 @@ class MockProvider(ModelProvider):
             The generated text
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:

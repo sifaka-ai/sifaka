@@ -114,7 +114,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
     1. **Public API**: classify() and batch_classify() methods (inherited)
     2. **Caching Layer**: _classify_impl() handles caching (inherited)
     3. **Core Logic**: _classify_impl_uncached() implements toxicity detection
-    4. **State Management**: Uses PrivateAttr for internal state
+    4. **State Management**: Uses StateManager for internal state
 
     ## Lifecycle
 
@@ -181,7 +181,23 @@ class ToxicityClassifier(BaseClassifier[str, str]):
     DEFAULT_GENERAL_THRESHOLD: ClassVar[float] = 0.5
 
     # State management using StateManager
-    _state = PrivateAttr(default_factory=create_classifier_state)
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
+
+    # Properties for backward compatibility with tests
+    @property
+    def _initialized(self) -> bool:
+        """Get initialization status from state manager."""
+        return self._state_manager.get_state().initialized
+
+    @property
+    def _model(self) -> Any:
+        """Get model from state manager."""
+        return self._state_manager.get_state().model
+
+    @property
+    def _model_name(self) -> str:
+        """Get model name from config params."""
+        return self.config.params.get("model_name", "original")
 
     def __init__(
         self,
@@ -227,7 +243,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
         super().__init__(name=name, description=description, config=config)
 
         # Initialize state manager
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
         state.initialized = False
 
     def _validate_model(self, model: Any) -> TypeGuard[ToxicityModel]:
@@ -260,7 +276,9 @@ class ToxicityClassifier(BaseClassifier[str, str]):
         """
         try:
             detoxify_module = importlib.import_module("detoxify")
-            model = detoxify_module.Detoxify(model_type=self._model_name)
+            # Get model name from config params
+            model_name = self.config.params.get("model_name", "original")
+            model = detoxify_module.Detoxify(model_type=model_name)
             self._validate_model(model)
             return model
         except ImportError:
@@ -283,7 +301,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
             RuntimeError: If model initialization fails
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Check if already initialized
         if not state.initialized:
@@ -322,7 +340,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
             Dictionary of threshold values for different toxicity categories
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Get thresholds from state cache or use defaults
         if "thresholds" in state.cache:
@@ -395,7 +413,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
             ClassificationResult with toxicity scores
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure resources are initialized
         if not state.initialized:
@@ -462,7 +480,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
             List of ClassificationResults with toxicity scores
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Validate input
         self.validate_batch_input(texts)
@@ -654,7 +672,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
         )
 
         # Set the model and mark as initialized
-        state = instance._state.get_state()
+        state = instance._state_manager.get_state()
         state.model = model
         state.initialized = True
 

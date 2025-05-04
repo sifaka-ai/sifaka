@@ -14,6 +14,7 @@ from pydantic import PrivateAttr
 from sifaka.models.base import APIClient, ModelConfig, TokenCounter
 from sifaka.models.core import ModelProviderCore
 from sifaka.utils.logging import get_logger
+from sifaka.utils.state import create_model_state
 
 logger = get_logger(__name__)
 
@@ -80,12 +81,7 @@ class GeminiProvider(ModelProviderCore):
     DEFAULT_MODEL: ClassVar[str] = "gemini-pro"
 
     # State management using StateManager
-    def _create_model_state():
-        from sifaka.utils.state import create_model_state
-
-        return create_model_state()
-
-    _state = PrivateAttr(default_factory=_create_model_state)
+    _state_manager = PrivateAttr(default_factory=create_model_state)
 
     def __init__(
         self,
@@ -114,7 +110,7 @@ class GeminiProvider(ModelProviderCore):
             )
 
         # Initialize state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
         state.initialized = False
         state.cache = {}
 
@@ -137,7 +133,7 @@ class GeminiProvider(ModelProviderCore):
             A default Gemini API client
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Check if client is already in state cache
         if "api_client" in state.cache and state.cache["api_client"]:
@@ -159,7 +155,7 @@ class GeminiProvider(ModelProviderCore):
             A default token counter for Gemini models
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Check if token counter is already in state cache
         if "token_counter" in state.cache and state.cache["token_counter"]:
@@ -187,7 +183,7 @@ class GeminiProvider(ModelProviderCore):
             The generated text
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:

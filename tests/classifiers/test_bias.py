@@ -51,10 +51,11 @@ class TestableBiasDetector(BiasDetector):
         super().__init__(name=name, description=description, config=config, **kwargs)
 
         # Set up mock pipeline for testing
-        self._pipeline = MagicMock()
-        self._pipeline.predict.return_value = ["gender"]
-        self._pipeline.predict_proba.return_value = [[0.2, 0.7, 0.1]]  # neutral, gender, racial
-        self._pipeline.fit = MagicMock()
+        state = self._state_manager.get_state()
+        state.pipeline = MagicMock()
+        state.pipeline.predict.return_value = ["gender"]
+        state.pipeline.predict_proba.return_value = [[0.2, 0.7, 0.1]]  # neutral, gender, racial
+        state.pipeline.fit = MagicMock()
 
         # Set up sklearn dependencies
         self._sklearn_feature_extraction_text = MagicMock()
@@ -67,8 +68,9 @@ class TestableBiasDetector(BiasDetector):
         self._sklearn_calibration.CalibratedClassifierCV = MagicMock()
 
         # Mark as initialized for testing
-        self._initialized = True
-        self._explanations = {}
+        state = self._state_manager.get_state()
+        state.initialized = True
+        state.cache["explanations"] = {}
 
     def _extract_bias_features(self, text: str) -> Dict[str, float]:
         """Extract bias-related features from text."""
@@ -83,7 +85,8 @@ class TestableBiasDetector(BiasDetector):
     def _extract_explanations(self) -> None:
         """Extract feature coefficients for explanations."""
         # For testing, create mock explanations
-        self._explanations = {
+        state = self._state_manager.get_state()
+        state.cache["explanations"] = {
             "neutral": {
                 "positive": {"neutral_word1": 0.8, "neutral_word2": 0.6},
                 "negative": {"bias_word1": -0.3, "bias_word2": -0.2},
@@ -123,7 +126,8 @@ class TestableBiasDetector(BiasDetector):
     def _save_model(self, path: str) -> None:
         """Override to handle pickling MagicMock objects."""
         # Check if initialized
-        if not self._initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("Model not initialized")
 
         # For testing, create a file with expected keys
@@ -141,10 +145,11 @@ class TestableBiasDetector(BiasDetector):
     def _load_model(self, path: str) -> None:
         """Override to handle loading test models."""
         # For testing, set up mock components (path is unused but required by the interface)
-        self._vectorizer = MagicMock()
-        self._model = MagicMock()
-        self._pipeline = MagicMock()
-        self._initialized = True
+        state = self._state_manager.get_state()
+        state.vectorizer = MagicMock()
+        state.model = MagicMock()
+        state.pipeline = MagicMock()
+        state.initialized = True
 
     def warm_up(self) -> None:
         """Override warm_up method for testing."""
@@ -152,11 +157,12 @@ class TestableBiasDetector(BiasDetector):
         self._load_dependencies()
 
         # Set up mock components
-        self._vectorizer = MagicMock()
-        self._model = MagicMock()
+        state = self._state_manager.get_state()
+        state.vectorizer = MagicMock()
+        state.model = MagicMock()
 
         # Set initialized to True
-        self._initialized = True
+        state.initialized = True
 
     def fit(self, texts: List[str], labels: List[str]) -> "TestableBiasDetector":
         """Override fit method for testing."""
@@ -169,12 +175,13 @@ class TestableBiasDetector(BiasDetector):
             self._mock_pipeline_return_value.fit = MagicMock()
 
         # Call fit on the pipeline with the texts and labels
-        self._pipeline.fit(texts, labels)
+        state = self._state_manager.get_state()
+        state.pipeline.fit(texts, labels)
 
         # Set up mock components
-        self._vectorizer = MagicMock()
-        self._model = MagicMock()
-        self._initialized = True
+        state.vectorizer = MagicMock()
+        state.model = MagicMock()
+        state.initialized = True
 
         # Extract explanations
         self._extract_explanations()
@@ -312,11 +319,14 @@ class TestBiasDetector(unittest.TestCase):
         # Call warm_up
         self.detector.warm_up()
 
+        # Get state
+        state = self.detector._state_manager.get_state()
+
         # Check that the model was initialized
-        self.assertTrue(self.detector._initialized)
-        self.assertIsNotNone(self.detector._vectorizer)
-        self.assertIsNotNone(self.detector._model)
-        self.assertIsNotNone(self.detector._pipeline)
+        self.assertTrue(state.initialized)
+        self.assertIsNotNone(state.vectorizer)
+        self.assertIsNotNone(state.model)
+        self.assertIsNotNone(state.pipeline)
 
         # Check that the dependencies were loaded
         self.assertIsNotNone(self.detector._sklearn_feature_extraction_text)
@@ -397,10 +407,11 @@ class TestBiasDetector(unittest.TestCase):
             new_detector._load_model(model_path)
 
             # Check that the model was loaded
-            self.assertTrue(new_detector._initialized)
-            self.assertIsNotNone(new_detector._vectorizer)
-            self.assertIsNotNone(new_detector._model)
-            self.assertIsNotNone(new_detector._pipeline)
+            new_state = new_detector._state_manager.get_state()
+            self.assertTrue(new_state.initialized)
+            self.assertIsNotNone(new_state.vectorizer)
+            self.assertIsNotNone(new_state.model)
+            self.assertIsNotNone(new_state.pipeline)
         finally:
             # Clean up
             if os.path.exists(model_path):
@@ -410,7 +421,8 @@ class TestBiasDetector(unittest.TestCase):
         """Test _save_model raises RuntimeError when model is not initialized."""
         # Create a new detector that is not initialized
         detector = TestableBiasDetector()
-        detector._initialized = False
+        state = detector._state_manager.get_state()
+        state.initialized = False
 
         # Try to save the model
         with self.assertRaises(RuntimeError):
@@ -433,7 +445,8 @@ class TestBiasDetector(unittest.TestCase):
         labels = ["gender", "gender", "gender", "neutral", "neutral"]
 
         # Create a mock pipeline.fit method
-        self.detector._pipeline.fit = MagicMock()
+        state = self.detector._state_manager.get_state()
+        state.pipeline.fit = MagicMock()
 
         # Train the model
         result = self.detector.fit(texts, labels)
@@ -442,13 +455,13 @@ class TestBiasDetector(unittest.TestCase):
         self.assertIs(result, self.detector)
 
         # Check that the model was trained
-        self.assertTrue(self.detector._initialized)
-        self.assertIsNotNone(self.detector._vectorizer)
-        self.assertIsNotNone(self.detector._model)
-        self.assertIsNotNone(self.detector._pipeline)
+        self.assertTrue(state.initialized)
+        self.assertIsNotNone(state.vectorizer)
+        self.assertIsNotNone(state.model)
+        self.assertIsNotNone(state.pipeline)
 
         # Check that fit was called on the pipeline
-        self.detector._pipeline.fit.assert_called_once_with(texts, labels)
+        state.pipeline.fit.assert_called_once_with(texts, labels)
 
     def test_fit_with_model_path(self):
         """Test fit method saves model when model_path is provided."""
@@ -469,26 +482,28 @@ class TestBiasDetector(unittest.TestCase):
     def test_extract_explanations(self):
         """Test _extract_explanations method."""
         # Setup mock model with coefficients
-        self.detector._initialized = True
-        self.detector._vectorizer = MagicMock()
-        self.detector._vectorizer.get_feature_names_out.return_value = ["word1", "word2", "bias"]
+        state = self.detector._state_manager.get_state()
+        state.initialized = True
+        state.vectorizer = MagicMock()
+        state.vectorizer.get_feature_names_out.return_value = ["word1", "word2", "bias"]
 
-        self.detector._model = MagicMock()
-        self.detector._model.base_estimator = MagicMock()
-        self.detector._model.base_estimator.coef_ = [[0.1, 0.5, 0.8], [-0.2, 0.3, -0.4]]
+        state.model = MagicMock()
+        state.model.base_estimator = MagicMock()
+        state.model.base_estimator.coef_ = [[0.1, 0.5, 0.8], [-0.2, 0.3, -0.4]]
 
         # Call the method
         self.detector._extract_explanations()
 
         # Check the explanations
-        self.assertIn("neutral", self.detector._explanations)
-        self.assertIn("gender", self.detector._explanations)
+        explanations = state.cache["explanations"]
+        self.assertIn("neutral", explanations)
+        self.assertIn("gender", explanations)
 
         # Check that each explanation has positive and negative features
-        self.assertIn("positive", self.detector._explanations["neutral"])
-        self.assertIn("negative", self.detector._explanations["neutral"])
-        self.assertIn("positive", self.detector._explanations["gender"])
-        self.assertIn("negative", self.detector._explanations["gender"])
+        self.assertIn("positive", explanations["neutral"])
+        self.assertIn("negative", explanations["neutral"])
+        self.assertIn("positive", explanations["gender"])
+        self.assertIn("negative", explanations["gender"])
 
     def test_classify_not_initialized(self):
         """Test _classify_impl raises RuntimeError when model is not initialized."""
@@ -507,8 +522,9 @@ class TestBiasDetector(unittest.TestCase):
         self.detector.warm_up()
 
         # Mock pipeline predictions
-        self.detector._pipeline.predict.return_value = ["gender"]
-        self.detector._pipeline.predict_proba.return_value = [[0.2, 0.7, 0.1]]
+        state = self.detector._state_manager.get_state()
+        state.pipeline.predict.return_value = ["gender"]
+        state.pipeline.predict_proba.return_value = [[0.2, 0.7, 0.1]]
 
         # Mock _extract_bias_features
         original_extract = self.detector._extract_bias_features
@@ -539,8 +555,10 @@ class TestBiasDetector(unittest.TestCase):
         # Create a new detector
         detector = TestableBiasDetector()
 
-        # Override _pipeline to make sure it's not initialized
-        detector._pipeline = None
+        # Override pipeline in state to make sure it's not initialized
+        state = detector._state_manager.get_state()
+        state.pipeline = None
+        state.initialized = False
 
         with self.assertRaises(RuntimeError):
             detector.batch_classify(["Test text"])
@@ -551,8 +569,9 @@ class TestBiasDetector(unittest.TestCase):
         self.detector.warm_up()
 
         # Mock pipeline predictions for multiple texts
-        self.detector._pipeline.predict.return_value = ["gender", "neutral"]
-        self.detector._pipeline.predict_proba.return_value = [
+        state = self.detector._state_manager.get_state()
+        state.pipeline.predict.return_value = ["gender", "neutral"]
+        state.pipeline.predict_proba.return_value = [
             [0.2, 0.7, 0.1],  # First text: gender
             [0.8, 0.1, 0.1],  # Second text: neutral
         ]
@@ -630,8 +649,9 @@ class TestBiasDetector(unittest.TestCase):
         )
         self.detector._classify_impl = MagicMock(return_value=mock_result)
 
-        # Mock explanations
-        self.detector._explanations = {
+        # Mock explanations in state cache
+        state = self.detector._state_manager.get_state()
+        state.cache["explanations"] = {
             "gender": {"positive": {"woman": 0.8, "man": 0.6}, "negative": {"neutral": -0.3}}
         }
 

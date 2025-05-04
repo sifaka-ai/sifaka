@@ -133,6 +133,7 @@ from .managers.prompt import DefaultPromptManager, PromptManager
 from .managers.response import ResponseParser
 from .services.critique import CritiqueService
 from ..utils.logging import get_logger
+from ..utils.state import create_critic_state
 
 logger = get_logger(__name__)
 
@@ -171,8 +172,8 @@ class CriticCore(BaseCritic):
        - cache: A cache for storing temporary data
     """
 
-    # State management
-    _initialized = PrivateAttr(default=False)
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
 
     def __init__(
         self,
@@ -201,24 +202,25 @@ class CriticCore(BaseCritic):
         super().__init__(config)
 
         # Initialize state
-        self._initialized = False
+        state = self._state_manager.get_state()
+        state.initialized = False
 
-        # Store components as attributes
-        self._model = llm_provider
-        self._memory_manager = memory_manager
-        self._prompt_manager = prompt_manager or self._create_prompt_manager()
-        self._response_parser = response_parser or ResponseParser()
+        # Store components in state
+        state.model = llm_provider
+        state.memory_manager = memory_manager
+        state.prompt_manager = prompt_manager or self._create_prompt_manager()
+        state.response_parser = response_parser or ResponseParser()
 
-        # Create services
-        self._critique_service = CritiqueService(
+        # Create services and store in state cache
+        state.cache["critique_service"] = CritiqueService(
             llm_provider=llm_provider,
-            prompt_manager=self._prompt_manager,
-            response_parser=self._response_parser,
+            prompt_manager=state.prompt_manager,
+            response_parser=state.response_parser,
             memory_manager=memory_manager,
         )
 
         # Mark as initialized
-        self._initialized = True
+        state.initialized = True
 
     def validate(self, text: str) -> bool:
         """Validate text against quality standards.
@@ -236,12 +238,20 @@ class CriticCore(BaseCritic):
             ValueError: If text is empty or invalid
             RuntimeError: If validation fails
         """
+        # Get state
+        state = self._state_manager.get_state()
+
         # Ensure initialized
-        if not self._initialized:
+        if not state.initialized:
             raise RuntimeError("CriticCore not properly initialized")
 
+        # Get critique service from state
+        critique_service = state.cache.get("critique_service")
+        if not critique_service:
+            raise RuntimeError("Critique service not initialized")
+
         # Delegate to critique service
-        return self._critique_service.validate(text)
+        return critique_service.validate(text)
 
     def improve(self, text: str, violations: List[Dict[str, Any]]) -> str:
         """Improve text based on violations.
@@ -260,12 +270,20 @@ class CriticCore(BaseCritic):
             ValueError: If text is empty or violations are invalid
             RuntimeError: If improvement fails
         """
+        # Get state
+        state = self._state_manager.get_state()
+
         # Ensure initialized
-        if not self._initialized:
+        if not state.initialized:
             raise RuntimeError("CriticCore not properly initialized")
 
+        # Get critique service from state
+        critique_service = state.cache.get("critique_service")
+        if not critique_service:
+            raise RuntimeError("Critique service not initialized")
+
         # Delegate to critique service
-        return self._critique_service.improve(text, violations)
+        return critique_service.improve(text, violations)
 
     def critique(self, text: str) -> CriticMetadata:
         """Critique text and provide feedback.
@@ -283,12 +301,20 @@ class CriticCore(BaseCritic):
             ValueError: If text is empty or invalid
             RuntimeError: If critique fails
         """
+        # Get state
+        state = self._state_manager.get_state()
+
         # Ensure initialized
-        if not self._initialized:
+        if not state.initialized:
             raise RuntimeError("CriticCore not properly initialized")
 
+        # Get critique service from state
+        critique_service = state.cache.get("critique_service")
+        if not critique_service:
+            raise RuntimeError("Critique service not initialized")
+
         # Delegate to critique service
-        result = self._critique_service.critique(text)
+        result = critique_service.critique(text)
 
         # Convert dictionary to CriticMetadata if needed
         if isinstance(result, dict):
@@ -325,12 +351,20 @@ class CriticCore(BaseCritic):
             ValueError: If text is empty or feedback is invalid
             RuntimeError: If improvement fails
         """
+        # Get state
+        state = self._state_manager.get_state()
+
         # Ensure initialized
-        if not self._initialized:
+        if not state.initialized:
             raise RuntimeError("CriticCore not properly initialized")
 
+        # Get critique service from state
+        critique_service = state.cache.get("critique_service")
+        if not critique_service:
+            raise RuntimeError("Critique service not initialized")
+
         # Delegate to critique service
-        return self._critique_service.improve(text, feedback)
+        return critique_service.improve(text, feedback)
 
     async def avalidate(self, text: str) -> bool:
         """Asynchronously validate text against quality standards.
@@ -348,12 +382,20 @@ class CriticCore(BaseCritic):
             ValueError: If text is empty or invalid
             RuntimeError: If validation fails
         """
+        # Get state
+        state = self._state_manager.get_state()
+
         # Ensure initialized
-        if not self._initialized:
+        if not state.initialized:
             raise RuntimeError("CriticCore not properly initialized")
 
+        # Get critique service from state
+        critique_service = state.cache.get("critique_service")
+        if not critique_service:
+            raise RuntimeError("Critique service not initialized")
+
         # Delegate to critique service
-        return await self._critique_service.avalidate(text)
+        return await critique_service.avalidate(text)
 
     async def acritique(self, text: str) -> CriticMetadata:
         """Asynchronously critique text and provide feedback.
@@ -371,12 +413,20 @@ class CriticCore(BaseCritic):
             ValueError: If text is empty or invalid
             RuntimeError: If critique fails
         """
+        # Get state
+        state = self._state_manager.get_state()
+
         # Ensure initialized
-        if not self._initialized:
+        if not state.initialized:
             raise RuntimeError("CriticCore not properly initialized")
 
+        # Get critique service from state
+        critique_service = state.cache.get("critique_service")
+        if not critique_service:
+            raise RuntimeError("Critique service not initialized")
+
         # Delegate to critique service
-        result = await self._critique_service.acritique(text)
+        result = await critique_service.acritique(text)
 
         # Convert dictionary to CriticMetadata if needed
         if isinstance(result, dict):
@@ -413,12 +463,20 @@ class CriticCore(BaseCritic):
             ValueError: If text is empty or violations are invalid
             RuntimeError: If improvement fails
         """
+        # Get state
+        state = self._state_manager.get_state()
+
         # Ensure initialized
-        if not self._initialized:
+        if not state.initialized:
             raise RuntimeError("CriticCore not properly initialized")
 
+        # Get critique service from state
+        critique_service = state.cache.get("critique_service")
+        if not critique_service:
+            raise RuntimeError("Critique service not initialized")
+
         # Delegate to critique service
-        return await self._critique_service.aimprove(text, violations)
+        return await critique_service.aimprove(text, violations)
 
     async def aimprove_with_feedback(self, text: str, feedback: str) -> str:
         """Asynchronously improve text based on feedback.
@@ -437,12 +495,20 @@ class CriticCore(BaseCritic):
             ValueError: If text is empty or feedback is invalid
             RuntimeError: If improvement fails
         """
+        # Get state
+        state = self._state_manager.get_state()
+
         # Ensure initialized
-        if not self._initialized:
+        if not state.initialized:
             raise RuntimeError("CriticCore not properly initialized")
 
+        # Get critique service from state
+        critique_service = state.cache.get("critique_service")
+        if not critique_service:
+            raise RuntimeError("Critique service not initialized")
+
         # Delegate to critique service
-        return await self._critique_service.aimprove(text, feedback)
+        return await critique_service.aimprove(text, feedback)
 
     def _create_prompt_manager(self) -> PromptManager:
         """Create a default prompt manager.

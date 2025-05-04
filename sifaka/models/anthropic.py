@@ -17,6 +17,7 @@ from pydantic import BaseModel, PrivateAttr
 from sifaka.models.base import APIClient, ModelConfig, TokenCounter
 from sifaka.models.core import ModelProviderCore
 from sifaka.utils.logging import get_logger
+from sifaka.utils.state import create_model_state
 
 logger = get_logger(__name__)
 
@@ -180,12 +181,7 @@ class AnthropicProvider(ModelProviderCore):
     DEFAULT_MODEL: ClassVar[str] = "claude-3-opus-20240229"
 
     # State management using StateManager
-    def _create_model_state():
-        from sifaka.utils.state import create_model_state
-
-        return create_model_state()
-
-    _state = PrivateAttr(default_factory=_create_model_state)
+    _state_manager = PrivateAttr(default_factory=create_model_state)
 
     def __init__(
         self,
@@ -212,7 +208,7 @@ class AnthropicProvider(ModelProviderCore):
             raise ImportError("Anthropic package is required. Install with: pip install anthropic")
 
         # Initialize state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
         state.initialized = False
         state.cache = {}
 
@@ -243,7 +239,7 @@ class AnthropicProvider(ModelProviderCore):
             The generated text response
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:
@@ -266,7 +262,7 @@ class AnthropicProvider(ModelProviderCore):
             The generated text response
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:
@@ -281,7 +277,7 @@ class AnthropicProvider(ModelProviderCore):
     def _create_default_client(self) -> APIClient:
         """Create a default Anthropic client."""
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Check if client is already in state cache
         if "api_client" in state.cache and state.cache["api_client"]:
@@ -298,7 +294,7 @@ class AnthropicProvider(ModelProviderCore):
     def _create_default_token_counter(self) -> TokenCounter:
         """Create a default token counter for the current model."""
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Check if token counter is already in state cache
         if "token_counter" in state.cache and state.cache["token_counter"]:
@@ -326,7 +322,7 @@ class AnthropicProvider(ModelProviderCore):
             An AnthropicReflector instance
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Check if reflector is already in state cache
         if "reflector" in state.cache and state.cache["reflector"]:

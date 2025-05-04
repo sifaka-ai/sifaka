@@ -79,7 +79,7 @@ class SpamClassifier(BaseClassifier[str, str]):
     DEFAULT_COST: ClassVar[int] = 1.5  # Slightly higher cost for ML-based model
 
     # State management using StateManager
-    _state = PrivateAttr(default_factory=create_classifier_state)
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
     def __init__(
         self,
@@ -115,7 +115,7 @@ class SpamClassifier(BaseClassifier[str, str]):
         super().__init__(name=name, description=description, config=config)
 
         # Initialize state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
         state.initialized = False
 
         # Try to load model if path is provided
@@ -127,7 +127,7 @@ class SpamClassifier(BaseClassifier[str, str]):
         """Load scikit-learn dependencies."""
         try:
             # Get state
-            state = self._state.get_state()
+            state = self._state_manager.get_state()
 
             # Import necessary scikit-learn modules
             state.cache["sklearn_feature_extraction_text"] = importlib.import_module(
@@ -150,7 +150,7 @@ class SpamClassifier(BaseClassifier[str, str]):
     def warm_up(self) -> None:
         """Initialize the model if needed."""
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         if not state.initialized:
             # Load dependencies
@@ -199,7 +199,7 @@ class SpamClassifier(BaseClassifier[str, str]):
     def _save_model(self, path: str) -> None:
         """Save the model to a file."""
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         try:
             with open(path, "wb") as f:
@@ -211,7 +211,7 @@ class SpamClassifier(BaseClassifier[str, str]):
     def _load_model(self, path: str) -> None:
         """Load the model from a file."""
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         try:
             with open(path, "rb") as f:
@@ -249,7 +249,7 @@ class SpamClassifier(BaseClassifier[str, str]):
         self.warm_up()
 
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Fit the pipeline
         state.pipeline.fit(texts, label_indices)
@@ -272,7 +272,7 @@ class SpamClassifier(BaseClassifier[str, str]):
             ClassificationResult with prediction details
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         if not state.initialized:
             self.warm_up()
@@ -316,7 +316,7 @@ class SpamClassifier(BaseClassifier[str, str]):
         self.validate_batch_input(texts)
 
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         if not state.initialized:
             self.warm_up()

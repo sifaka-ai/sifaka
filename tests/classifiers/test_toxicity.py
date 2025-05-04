@@ -93,9 +93,17 @@ def test_init(mock_import):
     assert classifier.config.cost == ToxicityClassifier.DEFAULT_COST
 
     # Check default thresholds in params
-    assert classifier.config.params["general_threshold"] == ToxicityClassifier.DEFAULT_GENERAL_THRESHOLD
-    assert classifier.config.params["severe_toxic_threshold"] == ToxicityClassifier.DEFAULT_SEVERE_TOXIC_THRESHOLD
-    assert classifier.config.params["threat_threshold"] == ToxicityClassifier.DEFAULT_THREAT_THRESHOLD
+    assert (
+        classifier.config.params["general_threshold"]
+        == ToxicityClassifier.DEFAULT_GENERAL_THRESHOLD
+    )
+    assert (
+        classifier.config.params["severe_toxic_threshold"]
+        == ToxicityClassifier.DEFAULT_SEVERE_TOXIC_THRESHOLD
+    )
+    assert (
+        classifier.config.params["threat_threshold"] == ToxicityClassifier.DEFAULT_THREAT_THRESHOLD
+    )
 
 
 @patch("importlib.import_module")
@@ -108,7 +116,7 @@ def test_custom_init(mock_import):
         general_threshold=0.6,
         severe_toxic_threshold=0.8,
         threat_threshold=0.75,
-        model_name="unbiased"
+        model_name="unbiased",
     )
 
     assert classifier.name == "custom_toxicity"
@@ -139,14 +147,16 @@ def test_create_with_custom_model(mock_toxicity_model):
         model=mock_toxicity_model,
         name="custom_model_classifier",
         description="Custom model toxicity detector",
-        general_threshold=0.4
+        general_threshold=0.4,
     )
 
     assert classifier.name == "custom_model_classifier"
     assert classifier.description == "Custom model toxicity detector"
     assert classifier.config.params["general_threshold"] == 0.4
-    assert classifier._initialized is True
-    assert classifier._model is mock_toxicity_model
+    # Check state through state manager
+    state = classifier._state_manager.get_state()
+    assert state.initialized is True
+    assert state.model is mock_toxicity_model
 
 
 def test_create_with_invalid_model():
@@ -184,7 +194,7 @@ def test_factory_function():
             severe_toxic_threshold=0.85,
             threat_threshold=0.8,
             cache_size=100,
-            cost=3
+            cost=3,
         )
 
         assert classifier.name == "factory_toxicity"
@@ -208,21 +218,23 @@ def test_warm_up():
         mock_import.return_value = mock_detoxify
 
         classifier = ToxicityClassifier()
-        assert classifier._initialized is False
-        assert classifier._model is None
+        # Check state through state manager
+        state = classifier._state_manager.get_state()
+        assert state.initialized is False
+        assert state.model is None
 
         classifier.warm_up()
-        assert classifier._initialized is True
-        assert classifier._model is not None
+        # Check state after warm_up
+        state = classifier._state_manager.get_state()
+        assert state.initialized is True
+        assert state.model is not None
         assert mock_import.called
 
 
 def test_get_toxicity_label():
     """Test _get_toxicity_label method with different scores."""
     classifier = ToxicityClassifier(
-        general_threshold=0.5,
-        severe_toxic_threshold=0.7,
-        threat_threshold=0.7
+        general_threshold=0.5, severe_toxic_threshold=0.7, threat_threshold=0.7
     )
 
     # Test severe toxic detection
@@ -232,7 +244,7 @@ def test_get_toxicity_label():
         "obscene": 0.4,
         "threat": 0.3,
         "insult": 0.5,
-        "identity_hate": 0.2
+        "identity_hate": 0.2,
     }
     label, confidence = classifier._get_toxicity_label(scores)
     assert label == "severe_toxic"
@@ -245,7 +257,7 @@ def test_get_toxicity_label():
         "obscene": 0.4,
         "threat": 0.75,  # Above threshold
         "insult": 0.5,
-        "identity_hate": 0.2
+        "identity_hate": 0.2,
     }
     label, confidence = classifier._get_toxicity_label(scores)
     assert label == "threat"
@@ -258,7 +270,7 @@ def test_get_toxicity_label():
         "obscene": 0.4,
         "threat": 0.2,
         "insult": 0.5,
-        "identity_hate": 0.2
+        "identity_hate": 0.2,
     }
     label, confidence = classifier._get_toxicity_label(scores)
     assert label == "toxic"
@@ -271,7 +283,7 @@ def test_get_toxicity_label():
         "obscene": 0.2,
         "threat": 0.1,
         "insult": 0.2,
-        "identity_hate": 0.1
+        "identity_hate": 0.1,
     }
     label, confidence = classifier._get_toxicity_label(scores)
     assert label == "non_toxic"
@@ -283,7 +295,7 @@ def test_get_toxicity_label():
         "obscene": 0.003,
         "threat": 0.001,
         "insult": 0.004,
-        "identity_hate": 0.001
+        "identity_hate": 0.001,
     }
     label, confidence = classifier._get_toxicity_label(scores)
     assert label == "non_toxic"
@@ -295,7 +307,7 @@ def test_classify_with_mock_model(mock_toxicity_model):
     classifier = ToxicityClassifier.create_with_custom_model(
         model=mock_toxicity_model,
         general_threshold=0.5,
-        severe_toxic_threshold=0.7  # Set threshold high enough that "toxic" will be chosen
+        severe_toxic_threshold=0.7,  # Set threshold high enough that "toxic" will be chosen
     )
 
     # Test toxic text
@@ -323,8 +335,7 @@ def test_classify_with_mock_model(mock_toxicity_model):
 def test_batch_classify_with_mock_model(mock_toxicity_model):
     """Test batch classification with mock model."""
     classifier = ToxicityClassifier.create_with_custom_model(
-        model=mock_toxicity_model,
-        general_threshold=0.05  # Low threshold for testing
+        model=mock_toxicity_model, general_threshold=0.05  # Low threshold for testing
     )
 
     texts = ["First text", "Second text", "Third text"]

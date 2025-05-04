@@ -65,7 +65,7 @@ class BiasDetector(BaseClassifier):
     DEFAULT_COST: ClassVar[float] = 2.5
 
     # State management using StateManager
-    _state = PrivateAttr(default_factory=create_classifier_state)
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
     # Default keywords for each bias category to enhance detection
     DEFAULT_BIAS_KEYWORDS: ClassVar[Dict[str, List[str]]] = {
@@ -154,7 +154,7 @@ class BiasDetector(BaseClassifier):
     def warm_up(self) -> None:
         """Initialize the model if needed."""
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Check if already initialized
         if state.initialized:
@@ -216,7 +216,7 @@ class BiasDetector(BaseClassifier):
     def _save_model(self, path: str) -> None:
         """Save the trained model to disk."""
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Check if initialized
         if not state.initialized:
@@ -237,7 +237,7 @@ class BiasDetector(BaseClassifier):
     def _load_model(self, path: str) -> None:
         """Load a trained model from disk."""
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         with open(path, "rb") as f:
             data = pickle.load(f)
@@ -268,7 +268,7 @@ class BiasDetector(BaseClassifier):
             raise ValueError("Empty training data")
 
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Load scikit-learn dependencies
         sklearn = self._load_dependencies()
@@ -316,7 +316,7 @@ class BiasDetector(BaseClassifier):
     def _extract_explanations(self) -> None:
         """Extract feature coefficients for explanations."""
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         try:
             if not hasattr(state.model, "base_estimator"):
@@ -368,7 +368,7 @@ class BiasDetector(BaseClassifier):
     def _classify_impl(self, text: str) -> ClassificationResult:
         """Implement classification logic."""
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Check if initialized
         if not state.initialized:
@@ -409,7 +409,7 @@ class BiasDetector(BaseClassifier):
             List of ClassificationResults
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Check if initialized
         if not state.initialized:
@@ -476,7 +476,7 @@ class BiasDetector(BaseClassifier):
             raise ValueError(f"Invalid bias type: {bias_type}. Must be one of {self.config.labels}")
 
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Get the classification result without explanation to avoid recursion
         result = self._classify_impl(text)
