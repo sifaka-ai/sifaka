@@ -357,7 +357,7 @@ class LengthRule(Rule):
     """
 
     # State management using StateManager
-    _state = PrivateAttr(default_factory=create_rule_state)
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
 
     def __init__(
         self,
@@ -377,7 +377,7 @@ class LengthRule(Rule):
             **kwargs: Additional keyword arguments for the rule
         """
         # Initialize state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
         state.cache = {}
 
         # Store validator in state
@@ -391,7 +391,7 @@ class LengthRule(Rule):
     def _create_default_validator(self) -> LengthRuleValidator:
         """Create a default validator adapter for this rule."""
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Get validator from state
         length_validator = state.cache.get("length_validator")
@@ -410,7 +410,7 @@ class LengthRule(Rule):
             RuleResult containing validation results
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Get validator and rule_id from state
         length_validator = state.cache.get("length_validator")

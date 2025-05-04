@@ -15,7 +15,7 @@ Requirements:
 
 To run this example:
 ```bash
-python -m sifaka.examples.simple_rule_example
+python -m sifaka.examples.rules.simple_rules_demo
 ```
 """
 
@@ -30,22 +30,19 @@ from sifaka.rules.content.prohibited import create_prohibited_content_rule
 # SECTION 1: Creating Individual Rules
 # -----------------------------------
 
+
 def demonstrate_length_rule():
     """Demonstrate the usage of a length rule."""
     print("\n=== Length Rule Example ===\n")
 
     # Create a length rule
-    length_rule = create_length_rule(
-        min_chars=10,
-        max_chars=50,
-        rule_id="length_constraint"
-    )
+    length_rule = create_length_rule(min_chars=10, max_chars=50, rule_id="length_constraint")
 
     # Test texts
     texts = [
         "Too short.",
         "This is a good length text that meets the requirements.",
-        "This text is too long because it exceeds the maximum character limit that we have set for this example to demonstrate length validation."
+        "This text is too long because it exceeds the maximum character limit that we have set for this example to demonstrate length validation.",
     ]
 
     # Validate each text
@@ -66,7 +63,7 @@ def demonstrate_style_rule():
     style_rule = create_style_rule(
         capitalization=CapitalizationStyle.SENTENCE_CASE,
         require_end_punctuation=True,
-        rule_id="style_constraint"
+        rule_id="style_constraint",
     )
 
     # Test texts
@@ -74,7 +71,7 @@ def demonstrate_style_rule():
         "This is proper sentence case with punctuation.",
         "this starts with lowercase letter.",
         "This has no end punctuation",
-        "ALL CAPS TEXT IS NOT SENTENCE CASE."
+        "ALL CAPS TEXT IS NOT SENTENCE CASE.",
     ]
 
     # Validate each text
@@ -91,15 +88,14 @@ def demonstrate_prohibited_content_rule():
 
     # Create a prohibited content rule
     prohibited_rule = create_prohibited_content_rule(
-        terms=["bad", "inappropriate", "offensive"],
-        rule_id="content_constraint"
+        terms=["bad", "inappropriate", "offensive"], rule_id="content_constraint"
     )
 
     # Test texts
     texts = [
         "This is a good text with appropriate content.",
         "This text contains a bad word that should be flagged.",
-        "Content with inappropriate or offensive language should be detected."
+        "Content with inappropriate or offensive language should be detected.",
     ]
 
     # Validate each text
@@ -114,6 +110,7 @@ def demonstrate_prohibited_content_rule():
 
 # SECTION 2: Combining Multiple Rules
 # ---------------------------------
+
 
 def validate_with_multiple_rules(text: str, rules: List) -> Dict:
     """
@@ -135,11 +132,7 @@ def validate_with_multiple_rules(text: str, rules: List) -> Dict:
         if not result.passed:
             all_passed = False
 
-    return {
-        "text": text,
-        "all_passed": all_passed,
-        "results": results
-    }
+    return {"text": text, "all_passed": all_passed, "results": results}
 
 
 def demonstrate_multiple_rules():
@@ -150,7 +143,7 @@ def demonstrate_multiple_rules():
     rules = [
         create_length_rule(min_chars=10, max_chars=100, rule_id="length_rule"),
         create_style_rule(capitalization=CapitalizationStyle.SENTENCE_CASE, rule_id="style_rule"),
-        create_prohibited_content_rule(terms=["bad", "inappropriate"], rule_id="content_rule")
+        create_prohibited_content_rule(terms=["bad", "inappropriate"], rule_id="content_rule"),
     ]
 
     # Test texts
@@ -158,7 +151,7 @@ def demonstrate_multiple_rules():
         "This is a good text that passes all rules.",
         "short",
         "This contains a bad word that should be flagged.",
-        "this starts with lowercase and is inappropriate."
+        "this starts with lowercase and is inappropriate.",
     ]
 
     # Validate each text with all rules
@@ -169,7 +162,7 @@ def demonstrate_multiple_rules():
         print(f"All rules passed: {validation['all_passed']}")
 
         print("Individual rule results:")
-        for rule_name, result in validation['results'].items():
+        for rule_name, result in validation["results"].items():
             print(f"  - {rule_name}: {'Passed' if result.passed else 'Failed'} - {result.message}")
 
         print()
@@ -177,6 +170,7 @@ def demonstrate_multiple_rules():
 
 # SECTION 3: Main Example
 # ----------------------
+
 
 def main():
     """Run the main example."""
