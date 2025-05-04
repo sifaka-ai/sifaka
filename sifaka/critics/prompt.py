@@ -114,7 +114,7 @@ from .base import (
     TextImprover,
     TextValidator,
 )
-from ..utils.state import create_critic_state
+from ..utils.state import CriticState
 
 
 @runtime_checkable
@@ -234,8 +234,8 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     specialized components for prompt management, response parsing, and memory management.
     """
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_critic_state)
+    # State management using CriticState
+    _state: CriticState = PrivateAttr(default_factory=CriticState)
 
     def __init__(
         self,
@@ -265,8 +265,8 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             RuntimeError: If provider setup fails
         """
         # Initialize state
-        state = self._state_manager.get_state()
-        state.initialized = False
+        self._state = CriticState()
+        self._state.initialized = False
 
         if llm_provider is None:
             from pydantic import ValidationError
@@ -297,21 +297,21 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         from .services.critique import CritiqueService
 
         # Store components in state
-        state.model = llm_provider
-        state.prompt_manager = prompt_factory or PromptCriticPromptManager(config)
-        state.response_parser = ResponseParser()
-        state.memory_manager = None
+        self._state.model = llm_provider
+        self._state.prompt_manager = prompt_factory or PromptCriticPromptManager(config)
+        self._state.response_parser = ResponseParser()
+        self._state.memory_manager = None
 
         # Create service and store in state cache
-        state.cache["critique_service"] = CritiqueService(
+        self._state.cache["critique_service"] = CritiqueService(
             llm_provider=llm_provider,
-            prompt_manager=state.prompt_manager,
-            response_parser=state.response_parser,
-            memory_manager=state.memory_manager,
+            prompt_manager=self._state.prompt_manager,
+            response_parser=self._state.response_parser,
+            memory_manager=self._state.memory_manager,
         )
 
         # Mark as initialized
-        state.initialized = True
+        self._state.initialized = True
 
     def improve(self, text: str, feedback: str = None) -> str:
         """Improve text based on feedback.
@@ -328,7 +328,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             TypeError: If model returns non-string output
         """
         # Get state
-        state = self._state_manager.get_state()
+        state = self._state
 
         # Ensure initialized
         if not state.initialized:
@@ -366,7 +366,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             TypeError: If model returns non-string output
         """
         # Get state
-        state = self._state_manager.get_state()
+        state = self._state
 
         # Ensure initialized
         if not state.initialized:
@@ -399,7 +399,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             TypeError: If model returns invalid output
         """
         # Get state
-        state = self._state_manager.get_state()
+        state = self._state
 
         # Ensure initialized
         if not state.initialized:
@@ -429,7 +429,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text is empty
         """
         # Get state
-        state = self._state_manager.get_state()
+        state = self._state
 
         # Ensure initialized
         if not state.initialized:
@@ -461,7 +461,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text is empty
         """
         # Get state
-        state = self._state_manager.get_state()
+        state = self._state
 
         # Ensure initialized
         if not state.initialized:
@@ -492,7 +492,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text is empty
         """
         # Get state
-        state = self._state_manager.get_state()
+        state = self._state
 
         # Ensure initialized
         if not state.initialized:
@@ -524,7 +524,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text is empty
         """
         # Get state
-        state = self._state_manager.get_state()
+        state = self._state
 
         # Ensure initialized
         if not state.initialized:

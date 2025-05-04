@@ -106,7 +106,7 @@ Sifaka provides utility functions to standardize configuration handling:
 ### standardize_rule_config
 
 ```python
-from sifaka.utils import standardize_rule_config
+from sifaka.utils.config import standardize_rule_config
 
 # Create a rule config with direct parameters
 config = standardize_rule_config(
@@ -139,7 +139,7 @@ dict_config = standardize_rule_config(config=config_dict)
 ### standardize_classifier_config
 
 ```python
-from sifaka.utils import standardize_classifier_config
+from sifaka.utils.config import standardize_classifier_config
 
 # Create a classifier config with direct parameters
 config = standardize_classifier_config(
@@ -162,7 +162,7 @@ updated_config = standardize_classifier_config(
 ### standardize_critic_config
 
 ```python
-from sifaka.utils import standardize_critic_config
+from sifaka.utils.config import standardize_critic_config
 from sifaka.critics.models import PromptCriticConfig
 
 # Create a critic config with direct parameters

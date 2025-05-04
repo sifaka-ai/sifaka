@@ -10,7 +10,7 @@ from typing import Dict, Any, List
 
 from sifaka.models.config import ModelConfig, OpenAIConfig, AnthropicConfig
 from sifaka.chain.config import ChainConfig, RetryConfig, BackoffRetryConfig, ValidationConfig
-from sifaka.utils import (
+from sifaka.utils.config import (
     standardize_model_config,
     standardize_chain_config,
     standardize_retry_config,
@@ -36,7 +36,7 @@ def demonstrate_model_config() -> None:
         params={
             "system_prompt": "You are a helpful assistant.",
             "top_p": 0.9,
-        }
+        },
     )
     print(f"Direct config: {config1}")
 
@@ -47,15 +47,13 @@ def demonstrate_model_config() -> None:
         params={
             "system_prompt": "You are an expert coder.",
             "top_p": 0.95,
-        }
+        },
     )
     print(f"Standardized config: {config2}")
 
     # 3. Update an existing config
     config3 = standardize_model_config(
-        config=config1,
-        params={"system_prompt": "You are an expert writer."},
-        temperature=0.9
+        config=config1, params={"system_prompt": "You are an expert writer."}, temperature=0.9
     )
     print(f"Updated config: {config3}")
 
@@ -66,7 +64,7 @@ def demonstrate_model_config() -> None:
         "params": {
             "system_prompt": "You are a helpful assistant.",
             "top_p": 0.8,
-        }
+        },
     }
     config4 = standardize_model_config(config=config_dict)
     print(f"Config from dict: {config4}")
@@ -79,7 +77,7 @@ def demonstrate_model_config() -> None:
         params={
             "frequency_penalty": 0.5,
             "presence_penalty": 0.5,
-        }
+        },
     )
     print(f"OpenAI config: {openai_config}")
 
@@ -90,7 +88,7 @@ def demonstrate_model_config() -> None:
         params={
             "top_k": 50,
             "top_p": 0.9,
-        }
+        },
     )
     print(f"Anthropic config: {anthropic_config}")
 
@@ -105,7 +103,7 @@ def demonstrate_chain_config() -> None:
         params={
             "system_prompt": "You are a helpful assistant.",
             "use_critic": True,
-        }
+        },
     )
     print(f"Direct config: {config1}")
 
@@ -115,15 +113,13 @@ def demonstrate_chain_config() -> None:
         params={
             "system_prompt": "You are an expert coder.",
             "use_critic": False,
-        }
+        },
     )
     print(f"Standardized config: {config2}")
 
     # 3. Update an existing config
     config3 = standardize_chain_config(
-        config=config1,
-        params={"system_prompt": "You are an expert writer."},
-        max_attempts=4
+        config=config1, params={"system_prompt": "You are an expert writer."}, max_attempts=4
     )
     print(f"Updated config: {config3}")
 
@@ -133,7 +129,7 @@ def demonstrate_chain_config() -> None:
         "params": {
             "system_prompt": "You are a helpful assistant.",
             "use_critic": True,
-        }
+        },
     }
     config4 = standardize_chain_config(config=config_dict)
     print(f"Config from dict: {config4}")
@@ -148,7 +144,7 @@ def demonstrate_retry_config() -> None:
         max_attempts=3,
         params={
             "use_backoff": False,
-        }
+        },
     )
     print(f"Direct config: {config1}")
 
@@ -157,7 +153,7 @@ def demonstrate_retry_config() -> None:
         max_attempts=5,
         params={
             "use_backoff": True,
-        }
+        },
     )
     print(f"Standardized config: {config2}")
 
@@ -170,7 +166,7 @@ def demonstrate_retry_config() -> None:
         max_backoff=60.0,
         params={
             "jitter": True,
-        }
+        },
     )
     print(f"Backoff config: {backoff_config}")
 
@@ -184,7 +180,7 @@ def demonstrate_validation_config() -> None:
         prioritize_by_cost=True,
         params={
             "fail_fast": True,
-        }
+        },
     )
     print(f"Direct config: {config1}")
 
@@ -193,7 +189,7 @@ def demonstrate_validation_config() -> None:
         prioritize_by_cost=False,
         params={
             "fail_fast": False,
-        }
+        },
     )
     print(f"Standardized config: {config2}")
 
@@ -211,15 +207,12 @@ def demonstrate_model_with_config() -> None:
         params={
             "frequency_penalty": 0.5,
             "presence_penalty": 0.5,
-        }
+        },
     )
 
     # Create an OpenAI provider with the configuration
     try:
-        openai_provider = OpenAIProvider(
-            model_name="gpt-3.5-turbo",
-            config=openai_config
-        )
+        openai_provider = OpenAIProvider(model_name="gpt-3.5-turbo", config=openai_config)
         print(f"Created OpenAI provider with config: {openai_provider.config}")
     except Exception as e:
         print(f"Could not create OpenAI provider: {e}")
@@ -233,14 +226,13 @@ def demonstrate_model_with_config() -> None:
         params={
             "top_k": 50,
             "top_p": 0.9,
-        }
+        },
     )
 
     # Create an Anthropic provider with the configuration
     try:
         anthropic_provider = AnthropicProvider(
-            model_name="claude-3-sonnet-20240229",
-            config=anthropic_config
+            model_name="claude-3-sonnet-20240229", config=anthropic_config
         )
         print(f"Created Anthropic provider with config: {anthropic_provider.config}")
     except Exception as e:
@@ -262,15 +254,14 @@ def demonstrate_chain_with_config() -> None:
         prioritize_by_cost=True,
         params={
             "fail_fast": True,
-        }
+        },
     )
 
     # Create a validation manager with the configuration
     validation_manager = ValidationManager(
-        rules=rules,
-        prioritize_by_cost=validation_config.prioritize_by_cost
+        rules=rules, prioritize_by_cost=validation_config.prioritize_by_cost
     )
-    print(f"Created validation manager with prioritize_by_cost: {validation_manager._prioritize_by_cost}")
+    print(f"Created validation manager with {len(validation_manager.rules)} rules")
 
     # Create a retry configuration
     retry_config = standardize_retry_config(
@@ -281,7 +272,7 @@ def demonstrate_chain_with_config() -> None:
         max_backoff=60.0,
         params={
             "jitter": True,
-        }
+        },
     )
 
     # Create a retry strategy with the configuration
@@ -289,7 +280,7 @@ def demonstrate_chain_with_config() -> None:
         max_attempts=retry_config.max_attempts,
         initial_backoff=retry_config.initial_backoff,
         backoff_factor=retry_config.backoff_factor,
-        max_backoff=retry_config.max_backoff
+        max_backoff=retry_config.max_backoff,
     )
     print(f"Created retry strategy with max_attempts: {retry_strategy._max_attempts}")
 
@@ -299,7 +290,7 @@ def demonstrate_chain_with_config() -> None:
         params={
             "system_prompt": "You are a helpful assistant.",
             "use_critic": True,
-        }
+        },
     )
     print(f"Created chain config: {chain_config}")
 

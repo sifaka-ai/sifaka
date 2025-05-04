@@ -14,11 +14,13 @@ from sifaka.critics.reflexion import (
     ReflexionCriticConfig,
     create_reflexion_critic,
     ReflexionCritic,
+    ReflexionPromptFactory,
 )
 from sifaka.models.openai import OpenAIProvider
 from sifaka.models.base import ModelConfig
 from sifaka.rules.formatting.length import create_length_rule
 from sifaka.chain import create_simple_chain
+from sifaka.utils.state import create_critic_state, CriticState
 
 # Configure logging
 logging.basicConfig(
@@ -44,7 +46,21 @@ class ConcreteReflexionCritic(ReflexionCritic):
 
     def __init__(self, **kwargs):
         """Initialize with custom memory buffer."""
+        # Initialize state manager first
+        self._state_manager = create_critic_state()
+
+        # Create prompt factory if not provided
+        if "prompt_factory" not in kwargs:
+            kwargs["prompt_factory"] = ReflexionPromptFactory()
+
         super().__init__(**kwargs)
+
+        # Initialize state with model and other required components
+        state = self._state_manager.get_state()
+        state.model = kwargs.get("llm_provider")
+        state.prompt_manager = kwargs.get("prompt_factory")
+        state.initialized = True
+
         self._memory_buffer = []  # Simple list for storing reflections
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
@@ -53,12 +69,13 @@ class ConcreteReflexionCritic(ReflexionCritic):
 
     def _generate_reflection(self, original_text: str, feedback: str, improved_text: str) -> None:
         """Generate a reflection based on the improvement process."""
-        reflection_prompt = self._prompt_manager.create_reflection_prompt(
+        state = self._state_manager.get_state()
+        reflection_prompt = state.prompt_manager.create_reflection_prompt(
             original_text, feedback, improved_text
         )
 
         try:
-            response = self._model.invoke(reflection_prompt)
+            response = state.model.invoke(reflection_prompt)
 
             # Extract reflection from response
             reflection = ""
@@ -83,7 +100,7 @@ class ConcreteReflexionCritic(ReflexionCritic):
         self._memory_buffer.append(reflection)
         # Trim if needed
         if len(self._memory_buffer) > self.config.memory_buffer_size:
-            self._memory_buffer = self._memory_buffer[-self.config.memory_buffer_size:]
+            self._memory_buffer = self._memory_buffer[-self.config.memory_buffer_size :]
 
     def _get_relevant_reflections(self) -> List[str]:
         """Override to use our simple memory buffer."""
@@ -192,7 +209,9 @@ def create_concrete_reflexion_critic(**kwargs):
     config = ReflexionCriticConfig(
         name=kwargs.get("name", "reflexion_critic"),
         description=kwargs.get("description", "Improves text using reflections on past feedback"),
-        system_prompt=kwargs.get("system_prompt", "You are an expert editor that improves text through reflection."),
+        system_prompt=kwargs.get(
+            "system_prompt", "You are an expert editor that improves text through reflection."
+        ),
         temperature=kwargs.get("temperature", 0.7),
         max_tokens=kwargs.get("max_tokens", 1000),
         min_confidence=kwargs.get("min_confidence", 0.7),
@@ -206,6 +225,7 @@ def create_concrete_reflexion_critic(**kwargs):
         name=kwargs.get("name", "reflexion_critic"),
         description=kwargs.get("description", "Improves text using reflections on past feedback"),
     )
+
 
 # Create a reflexion critic using our custom factory function
 reflexion_critic = create_concrete_reflexion_critic(
@@ -252,13 +272,17 @@ def manually_create_reflection(critic, prompt, issue, suggestion):
     """Manually create and add a reflection to demonstrate the process."""
     logger.info(f"Manually creating a reflection for prompt: {prompt}")
 
+    # Get state and model
+    state = critic._state_manager.get_state()
+    model = state.model
+
     # Generate a response
-    original_text = critic._model.generate(prompt)
+    original_text = model.generate(prompt)
     feedback = f"Issue: {issue}. Suggestion: {suggestion}"
 
     # Create a short/condensed version of the text
     short_prompt = f"Create a very concise version (under 50 words) of this text: {original_text}"
-    improved_text = critic._model.generate(short_prompt)
+    improved_text = model.generate(short_prompt)
 
     logger.info(f"Original text: {original_text[:100]}... (truncated)")
     logger.info(f"Feedback: {feedback}")

@@ -14,7 +14,7 @@ from sifaka.utils.config import (
     standardize_rule_config,
     standardize_critic_config,
 )
-from sifaka.utils.config import standardize_classifier_config
+from sifaka.classifiers.config import standardize_classifier_config
 from sifaka.adapters.rules import create_classifier_rule
 from sifaka.classifiers.toxicity import create_toxicity_classifier
 from sifaka.critics.factories import create_prompt_critic
@@ -176,7 +176,7 @@ def demonstrate_factory_functions() -> None:
 
     # 2. Create a rule from the classifier with standardized configuration
     rule_config = RuleConfig(
-        priority="HIGH",
+        priority=RulePriority.HIGH,
         cost=5,
         params={
             "threshold": 0.8,

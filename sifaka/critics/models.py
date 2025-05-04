@@ -141,7 +141,7 @@ except ValidationError as e:
 ```
 """
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -210,7 +210,7 @@ class CriticConfig(BaseModel):
         ```
     """
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(frozen=True)
 
     name: str = Field(description="Name of the critic", min_length=1)
     description: str = Field(description="Description of the critic", min_length=1)
@@ -221,6 +221,7 @@ class CriticConfig(BaseModel):
     cache_size: int = Field(default=100, description="Size of the cache", ge=0)
     priority: int = Field(default=1, description="Priority of the critic", ge=0)
     cost: float = Field(default=1.0, description="Cost of using the critic", ge=0.0)
+    params: Dict[str, Any] = Field(default_factory=dict, description="Additional parameters")
 
     @field_validator("name")
     @classmethod
@@ -331,6 +332,8 @@ class PromptCriticConfig(CriticConfig):
         )
         ```
     """
+
+    model_config = ConfigDict(frozen=True)
 
     system_prompt: str = Field(
         default="You are an expert editor that improves text.",

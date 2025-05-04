@@ -3,11 +3,27 @@
 from typing import Dict, Any, Optional, ClassVar, Union
 from pydantic import PrivateAttr
 
-from sifaka.models.base import ModelProvider, ModelConfig
+from sifaka.models.base import ModelProvider, ModelConfig, APIClient, TokenCounter
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import create_model_state
+from sifaka.utils.state import ModelState
 
 logger = get_logger(__name__)
+
+
+class MockAPIClient(APIClient):
+    """Mock API client for testing."""
+
+    def send_prompt(self, prompt: str, config: ModelConfig) -> str:
+        """Send a mock prompt and return a response."""
+        return f"Mock response to: {prompt}"
+
+
+class MockTokenCounter(TokenCounter):
+    """Mock token counter for testing."""
+
+    def count_tokens(self, text: str) -> int:
+        """Count tokens in text by splitting on whitespace."""
+        return len(text.split())
 
 
 class MockProvider(ModelProvider):
@@ -15,9 +31,6 @@ class MockProvider(ModelProvider):
 
     # Class constants
     DEFAULT_MODEL: ClassVar[str] = "mock-model"
-
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_model_state)
 
     def __init__(
         self, model_name: str = DEFAULT_MODEL, config: Optional[ModelConfig] = None, **kwargs: Any
@@ -30,11 +43,6 @@ class MockProvider(ModelProvider):
             config: Optional model configuration
             **kwargs: Additional configuration parameters
         """
-        # Initialize state
-        state = self._state_manager.get_state()
-        state.initialized = False
-        state.cache = {}
-
         # Create default config if not provided
         if config is None:
             try:
@@ -57,13 +65,15 @@ class MockProvider(ModelProvider):
                 )
 
         # Initialize base class
-        super().__init__(config)
+        super().__init__(model_name, config)
 
-        # Store model name
-        self.model_name = model_name
+    def _create_default_client(self) -> APIClient:
+        """Create a default mock API client."""
+        return MockAPIClient()
 
-        # Mark as initialized
-        state.initialized = True
+    def _create_default_token_counter(self) -> TokenCounter:
+        """Create a default mock token counter."""
+        return MockTokenCounter()
 
     def generate(self, prompt: str, **kwargs: Any) -> Dict[str, Any]:
         """
@@ -76,26 +86,10 @@ class MockProvider(ModelProvider):
         Returns:
             A dictionary containing the generated text and usage statistics
         """
-        # Get state
-        state = self._state_manager.get_state()
-
-        # Log the request
-        logger.debug(f"Mock provider generating response for prompt: {prompt[:50]}...")
-
-        # Store the prompt in state cache
-        state.cache["last_prompt"] = prompt
-
         # Calculate token counts
         prompt_tokens = len(prompt.split())
         completion_tokens = 10
         total_tokens = prompt_tokens + completion_tokens
-
-        # Store token counts in state cache
-        state.cache["token_counts"] = {
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens,
-            "total_tokens": total_tokens,
-        }
 
         return {
             "text": f"Mock response to: {prompt}",
@@ -119,13 +113,6 @@ class MockProvider(ModelProvider):
         Returns:
             The generated text
         """
-        # Get state
-        state = self._state_manager.get_state()
-
-        # Ensure initialized
-        if not state.initialized:
-            state.initialized = True
-
         # Generate response
         response = self.generate(prompt, **kwargs)
 
