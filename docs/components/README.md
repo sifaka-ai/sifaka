@@ -4,11 +4,12 @@ This directory contains documentation for specific components in the Sifaka fram
 
 ## Core Components
 
-- [Rules](rules.md) - Binary pass/fail validation of text
-- [Classifiers](classifiers.md) - Analysis and categorization of text
-- [Critics](critics.md) - Feedback and suggestions for improving text
-- [Model Providers](model_providers.md) - Connection to language models for text generation
-- [Chains](chains.md) - Orchestration of models, rules, and critics
+- [Rules](rules.md) - Binary pass/fail validation of text ([API Reference](../api_reference/rules/README.md))
+- [Classifiers](classifiers.md) - Analysis and categorization of text ([API Reference](../api_reference/classifiers/README.md))
+- [Critics](critics.md) - Feedback and suggestions for improving text ([API Reference](../api_reference/critics/README.md))
+- [Model Providers](model_providers.md) - Connection to language models for text generation ([API Reference](../api_reference/models/README.md))
+- [Chains](chains.md) - Orchestration of models, rules, and critics ([API Reference](../api_reference/chain/README.md))
+- [Adapters](../api_reference/adapters/README.md) - Integration with external frameworks and systems
 
 ## Specific Implementations
 

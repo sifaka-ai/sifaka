@@ -65,15 +65,28 @@ Sifaka's functionality can be extended through optional dependencies:
 
 ## Documentation
 
-For detailed documentation on specific components, see the [docs/components](docs/components) directory:
+Sifaka provides comprehensive documentation to help you get started and understand the framework:
 
-### Core Components
+### Component Documentation
+
+For detailed documentation on specific components, see the [docs/components](docs/components) directory:
 
 - [Rules](docs/components/rules.md) - Binary pass/fail validation of text
 - [Classifiers](docs/components/classifiers.md) - Analysis and categorization of text
 - [Critics](docs/components/critics.md) - Feedback and suggestions for improving text
 - [Model Providers](docs/components/model_providers.md) - Connection to language models for text generation
 - [Chains](docs/components/chains.md) - Orchestration of models, rules, and critics
+
+### API Reference
+
+For detailed API reference documentation, see the [docs/api_reference](docs/api_reference) directory:
+
+- [Rules API](docs/api_reference/rules/README.md) - API reference for rules and validators
+- [Classifiers API](docs/api_reference/classifiers/README.md) - API reference for classifiers
+- [Critics API](docs/api_reference/critics/README.md) - API reference for critics
+- [Models API](docs/api_reference/models/README.md) - API reference for model providers
+- [Chain API](docs/api_reference/chain/README.md) - API reference for chains
+- [Adapters API](docs/api_reference/adapters/README.md) - API reference for adapters
 
 ### Specific Implementations
 
