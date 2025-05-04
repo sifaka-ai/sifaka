@@ -2,6 +2,57 @@
 
 This directory contains example scripts demonstrating various Sifaka capabilities.
 
+## Directory Structure
+
+```
+examples/
+├── adapters/
+│   └── adapter_basic.py
+├── chains/
+│   └── advanced_chain_demo.py
+├── classifiers/
+│   ├── ner_classifier_basic.py
+│   ├── ner_classifier_with_reflection.py
+│   └── spam_classifier_demo.py
+├── configuration/
+│   ├── configuration_standardized.py
+│   └── model_chain_config_standardized.py
+├── critics/
+│   ├── multi_classifier_critic_advanced.py
+│   └── reflexion_critic_demo.py
+├── guardrails/
+│   └── guardrails_integration_demo.py
+├── language/
+│   └── language_correction_chain.py
+├── length_control/
+│   ├── claude_length_expander.py
+│   └── claude_length_reducer.py
+├── rules/
+│   ├── multiple_rules_validation_demo.py
+│   ├── rule_cost_prioritization_demo.py
+│   ├── simple_rules_demo.py
+│   └── toxicity_rule_demo.py
+├── state_management/
+│   └── state_management_standardized.py
+└── README.md
+```
+
+Each sub-directory groups examples by their primary concept. For instance, all rule–centric examples live in `rules/`, while examples focusing on critics are under `critics/`.
+
+## Running Examples
+
+Use Python's module execution flag `-m` with the full dotted path below. E.g.:
+
+```bash
+# Run the short-to-long length expansion demo
+python -m sifaka.examples.length_control.claude_length_expander
+
+# Run the Reflexion critic demo
+python -m sifaka.examples.critics.reflexion_critic_demo
+```
+
+Below are a few highlights.
+
 ## Length Control Examples with Claude
 
 ### Prerequisites
@@ -20,7 +71,7 @@ Before running the examples, make sure to:
 
 ### Examples
 
-#### 1. Reducing Response Length (`claude_length_critic.py`)
+#### 1. Reducing Response Length (`length_control/claude_length_reducer.py`)
 
 This example demonstrates how to use Claude with a Length Critic to reduce verbose responses. It:
 - Configures Claude to generate a comprehensive explanation (typically 500+ words)
@@ -29,10 +80,10 @@ This example demonstrates how to use Claude with a Length Critic to reduce verbo
 
 Run it with:
 ```bash
-python -m sifaka.examples.claude_length_critic
+python -m sifaka.examples.length_control.claude_length_reducer
 ```
 
-#### 2. Expanding Response Length (`claude_expand_length_critic.py`)
+#### 2. Expanding Response Length (`length_control/claude_length_expander.py`)
 
 This example shows how to use Claude with a Length Critic to expand brief responses. It:
 - Asks Claude for a brief explanation (typically 150 words)
@@ -41,10 +92,10 @@ This example shows how to use Claude with a Length Critic to expand brief respon
 
 Run it with:
 ```bash
-python -m sifaka.examples.claude_expand_length_critic
+python -m sifaka.examples.length_control.claude_length_expander
 ```
 
-#### 3. ReflexionCritic Example (`reflexion_critic_example.py`)
+#### 3. ReflexionCritic Example (`critics/reflexion_critic_demo.py`)
 
 This example demonstrates how to use the ReflexionCritic to improve text by maintaining a memory of past improvements. It:
 - Creates a ReflexionCritic that uses OpenAI's GPT-3.5 model
@@ -60,7 +111,7 @@ The example showcases:
 
 Run it with:
 ```bash
-python examples/reflexion_critic_example.py
+python -m sifaka.examples.critics.reflexion_critic_demo
 ```
 
 ## How It Works

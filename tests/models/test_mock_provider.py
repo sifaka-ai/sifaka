@@ -2,7 +2,6 @@
 Tests for the MockProvider class.
 """
 
-import pytest
 from unittest.mock import MagicMock
 from sifaka.models.mock import MockProvider
 from sifaka.models.base import APIClient, TokenCounter
@@ -46,39 +45,49 @@ class TestMockProvider:
 
     def test_initialization(self):
         """Test initialization with valid config."""
+        # Create a provider using a dictionary config
         config = {
-            "name": "test_mock",
-            "description": "Test mock provider"
+            "temperature": 0.7,
+            "max_tokens": 100,
+            "api_key": "mock-api-key",
+            "trace_enabled": True,
+            "params": {},
         }
 
-        provider = ConcreteMockProvider(config)
+        provider = ConcreteMockProvider(model_name="test-model", config=config)
 
         # We're just verifying the provider initializes successfully
-        assert isinstance(provider, ConcreteMockProvider)
+        assert provider.model_name == "test-model"
 
     def test_initialization_with_params(self):
         """Test initialization with params."""
+        # Create a provider with custom params
         config = {
-            "name": "test_mock",
-            "description": "Test mock provider",
-            "params": {
-                "custom_param": "custom_value"
-            }
+            "temperature": 0.7,
+            "max_tokens": 100,
+            "api_key": "mock-api-key",
+            "trace_enabled": True,
+            "params": {"custom_param": "custom_value"},
         }
 
-        provider = ConcreteMockProvider(config)
+        provider = ConcreteMockProvider(model_name="test-model", config=config)
 
         # We're just verifying the provider initializes successfully
-        assert isinstance(provider, ConcreteMockProvider)
+        assert provider.model_name == "test-model"
+        assert provider.config.params.get("custom_param") == "custom_value"
 
     def test_generate(self):
         """Test generate method."""
+        # Create a provider using a dictionary config
         config = {
-            "name": "test_mock",
-            "description": "Test mock provider"
+            "temperature": 0.7,
+            "max_tokens": 100,
+            "api_key": "mock-api-key",
+            "trace_enabled": True,
+            "params": {},
         }
 
-        provider = ConcreteMockProvider(config)
+        provider = ConcreteMockProvider(model_name="test-model", config=config)
 
         # Test with a simple prompt
         prompt = "Hello, world!"
@@ -94,12 +103,16 @@ class TestMockProvider:
 
     def test_generate_with_empty_prompt(self):
         """Test generate method with empty prompt."""
+        # Create a provider using a dictionary config
         config = {
-            "name": "test_mock",
-            "description": "Test mock provider"
+            "temperature": 0.7,
+            "max_tokens": 100,
+            "api_key": "mock-api-key",
+            "trace_enabled": True,
+            "params": {},
         }
 
-        provider = ConcreteMockProvider(config)
+        provider = ConcreteMockProvider(model_name="test-model", config=config)
 
         # Test with empty prompt
         prompt = ""
