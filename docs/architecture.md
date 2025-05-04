@@ -248,16 +248,16 @@ Each component can be configured independently:
 
 ### 1. Basic Chain
 ```python
-from sifaka.chain import ChainCore
+from sifaka.chain import create_simple_chain
 from sifaka.models import create_openai_provider
 from sifaka.rules import create_length_rule
 
 # Create components
 model = create_openai_provider("gpt-3.5-turbo")
-rules = [create_length_rule(min=10, max=1000)]
+rules = [create_length_rule(min_chars=10, max_chars=1000)]
 
 # Create chain
-chain = ChainCore(model=model, rules=rules)
+chain = create_simple_chain(model=model, rules=rules)
 
 # Run chain
 result = chain.run("Write a short story")
@@ -265,31 +265,65 @@ result = chain.run("Write a short story")
 
 ### 2. Advanced Chain
 ```python
-from sifaka.chain import ChainCore
+from sifaka.chain import create_backoff_chain
 from sifaka.models import create_openai_provider
 from sifaka.rules import create_length_rule, create_toxicity_rule
-from sifaka.critics import create_content_critic
-from sifaka.monitoring import PerformanceMonitor
+from sifaka.critics import create_prompt_critic
 
 # Create components
 model = create_openai_provider("gpt-3.5-turbo")
 rules = [
-    create_length_rule(min=10, max=1000),
+    create_length_rule(min_chars=10, max_chars=1000),
     create_toxicity_rule(threshold=0.7)
 ]
-critic = create_content_critic()
-monitor = PerformanceMonitor()
+critic = create_prompt_critic(
+    llm_provider=model,
+    system_prompt="You are an expert editor that improves text."
+)
 
-# Create chain
-chain = ChainCore(
+# Create chain with backoff retry strategy
+chain = create_backoff_chain(
     model=model,
     rules=rules,
     critic=critic,
-    monitor=monitor
+    max_attempts=3,
+    initial_backoff=1.0,
+    backoff_factor=2.0,
+    max_backoff=60.0
 )
 
-# Run chain with monitoring
+# Run chain
 result = chain.run("Write a short story")
-metrics = monitor.get_metrics()
-monitor.log_metrics()
+print(f"Output: {result.output}")
+print(f"All rules passed: {all(r.passed for r in result.rule_results)}")
+```
+
+### 3. Using ChainOrchestrator
+```python
+from sifaka.chain import ChainOrchestrator
+from sifaka.models import create_openai_provider
+from sifaka.rules import create_length_rule, create_toxicity_rule
+from sifaka.critics import create_prompt_critic
+
+# Create components
+model = create_openai_provider("gpt-3.5-turbo")
+rules = [
+    create_length_rule(min_chars=10, max_chars=1000),
+    create_toxicity_rule(threshold=0.7)
+]
+critic = create_prompt_critic(
+    llm_provider=model,
+    system_prompt="You are an expert editor that improves text."
+)
+
+# Create chain orchestrator
+chain = ChainOrchestrator(
+    model=model,
+    rules=rules,
+    critic=critic,
+    max_attempts=3
+)
+
+# Run chain
+result = chain.run("Write a short story")
 ```

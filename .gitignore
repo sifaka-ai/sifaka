@@ -52,4 +52,4 @@ htmlcov/
 # Local development
 .env
 .env.local
-.cursor/
+.cursor/.env
