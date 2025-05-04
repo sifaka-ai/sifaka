@@ -8,6 +8,7 @@ Each submodule focuses on a specific aspect of content validation:
 - :mod:`sifaka.rules.content.tone`: Tone consistency validation
 - :mod:`sifaka.rules.content.safety`: Safety-related content validation
 - :mod:`sifaka.rules.content.sentiment`: Sentiment and emotional content analysis
+- :mod:`sifaka.rules.content.language`: Language validation
 
 The base module (:mod:`sifaka.rules.content.base`) provides common interfaces and
 implementations for content analysis and validation.
@@ -17,6 +18,7 @@ Example:
     >>> from sifaka.rules.content.tone import create_tone_consistency_rule
     >>> from sifaka.rules.content.safety import create_toxicity_rule, create_bias_rule
     >>> from sifaka.rules.content.sentiment import create_sentiment_rule
+    >>> from sifaka.rules.content.language import create_language_rule
 
     >>> # Create rules
     >>> prohibited_rule = create_prohibited_content_rule(
@@ -31,6 +33,9 @@ Example:
     >>> bias_rule = create_bias_rule(threshold=0.6)
     >>> sentiment_rule = create_sentiment_rule(threshold=0.5)
 
+    >>> # Create a language rule
+    >>> language_rule = create_language_rule(allowed_languages=["en"])
+
     >>> # Validate text
     >>> text = "This is a formal and appropriate message."
     >>> prohibited_result = prohibited_rule.validate(text)
@@ -38,6 +43,7 @@ Example:
     >>> toxicity_result = toxicity_rule.validate(text)
     >>> bias_result = bias_rule.validate(text)
     >>> sentiment_result = sentiment_rule.validate(text)
+    >>> language_result = language_rule.validate(text)
 """
 
 from sifaka.rules.content.base import (
@@ -71,6 +77,11 @@ from sifaka.rules.content.sentiment import (
     create_sentiment_rule,
 )
 
+from sifaka.rules.content.language import (
+    create_language_rule,
+    create_language_validator,
+)
+
 
 __all__ = [
     # Base classes and protocols
@@ -94,4 +105,7 @@ __all__ = [
     "create_harmful_content_rule",
     # Sentiment
     "create_sentiment_rule",
+    # Language
+    "create_language_rule",
+    "create_language_validator",
 ]

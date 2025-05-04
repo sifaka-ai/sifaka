@@ -160,6 +160,7 @@ from .formatting.format import FormatRule, create_plain_text_rule, create_json_r
 from .content.prohibited import create_prohibited_content_rule
 from .content.safety import HarmfulContentRule, create_toxicity_rule
 from .content.sentiment import create_sentiment_rule
+from .content.language import create_language_rule
 
 # Import from the adapters module
 from sifaka.adapters.rules import (
@@ -211,4 +212,6 @@ __all__ = [
     "FactualAccuracyRule",
     # Sentiment
     "create_sentiment_rule",
+    # Language
+    "create_language_rule",
 ]

@@ -171,11 +171,15 @@ graph LR
    from sifaka.chain import create_simple_chain
    from sifaka.models import create_anthropic_provider
    from sifaka.rules import create_length_rule
-   from sifaka.rules.language import create_language_rule
+   from sifaka.rules import create_language_rule
    from sifaka.critics import create_prompt_critic
+   import os
 
    # Create components
-   model = create_anthropic_provider("claude-3-opus-20240229")
+   model = create_anthropic_provider(
+       model_name="claude-3-opus-20240229",
+       api_key=os.environ.get("ANTHROPIC_API_KEY")  # Get API key from environment variable
+   )
    rules = [
        create_length_rule(min_chars=10, max_chars=1000),
        create_language_rule(allowed_languages=["en"])
@@ -243,25 +247,29 @@ Sifaka provides seamless integration with [Guardrails AI](https://www.guardrails
 
 Example integration:
 ```python
-from sifaka.adapters.rules.guardrails import create_guardrails_rule
+from sifaka.adapters.rules.guardrails_adapter import create_guardrails_rule
 from sifaka.chain import create_simple_chain
 from sifaka.models import create_openai_provider
+import os
 
-# Create a guardrails rule
+# Import the Guardrails validator from the hub
+from guardrails.hub import ProfanityFree
+
+# First create a Guardrails validator
+profanity_validator = ProfanityFree()
+
+# Create a guardrails rule using the validator
 guardrails_rule = create_guardrails_rule(
-    name="guardrails_validator",
-    description="Validates text using Guardrails",
-    rail_spec="""
-    <rail version="0.1">
-    <output>
-        <string name="text" format="no-profanity" />
-    </output>
-    </rail>
-    """
+    guardrails_validator=profanity_validator,
+    name="profanity_rule",
+    description="Validates text is free of profanity"
 )
 
 # Create a chain with the guardrails rule
-model = create_openai_provider("gpt-4")
+model = create_openai_provider(
+    model_name="gpt-4",
+    api_key=os.environ.get("OPENAI_API_KEY")  # Get API key from environment variable
+)
 chain = create_simple_chain(
     model=model,
     rules=[guardrails_rule],
