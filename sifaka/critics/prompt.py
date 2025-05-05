@@ -102,7 +102,7 @@ print(f"Improved text: {improved_text}")
 ```
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Final, Protocol, runtime_checkable, Optional, Dict, List, Tuple
 
 from pydantic import PrivateAttr
@@ -154,58 +154,7 @@ class PromptCriticConfig(CriticConfig):
             raise ValueError("max_tokens must be positive")
 
 
-# Add a dedicated improvement history class
-@dataclass
-class ImprovementIteration:
-    """Represents a single iteration in the improvement process."""
-
-    original_text: str
-    feedback: str
-    improved_text: str
-    timestamp: float = field(default_factory=lambda: __import__("time").time())
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for serialization."""
-        return {
-            "original_text": self.original_text,
-            "feedback": self.feedback,
-            "improved_text": self.improved_text,
-            "timestamp": self.timestamp,
-        }
-
-
-@dataclass
-class ImprovementHistory:
-    """Tracks the history of improvements for a text."""
-
-    iterations: List[ImprovementIteration] = field(default_factory=list)
-    max_history: int = 10
-
-    def add_iteration(self, original: str, feedback: str, improved: str) -> None:
-        """Add a new iteration to the history."""
-        self.iterations.append(
-            ImprovementIteration(original_text=original, feedback=feedback, improved_text=improved)
-        )
-        # Maintain max history length
-        if len(self.iterations) > self.max_history:
-            self.iterations = self.iterations[-self.max_history :]
-
-    def get_last_iteration(self) -> Optional[ImprovementIteration]:
-        """Get the most recent iteration."""
-        if not self.iterations:
-            return None
-        return self.iterations[-1]
-
-    def get_all_iterations(self) -> List[ImprovementIteration]:
-        """Get all iterations in chronological order."""
-        return self.iterations.copy()
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert history to dictionary for serialization."""
-        return {
-            "iterations": [it.to_dict() for it in self.iterations],
-            "count": len(self.iterations),
-        }
+# Memory management is now handled by MemoryManager
 
 
 class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
@@ -352,11 +301,16 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         from .managers.response import ResponseParser
         from .services.critique import CritiqueService
 
+        # Import memory manager
+        from .managers.memory import MemoryManager
+
         # Store components in state
         self._state.model = llm_provider
         self._state.prompt_manager = prompt_factory or PromptCriticPromptManager(config)
         self._state.response_parser = ResponseParser()
-        self._state.memory_manager = None
+        self._state.memory_manager = MemoryManager(
+            buffer_size=10
+        )  # Same as ImprovementHistory max_history
 
         # Create service and store in state cache
         self._state.cache["critique_service"] = CritiqueService(
@@ -365,9 +319,6 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             response_parser=self._state.response_parser,
             memory_manager=self._state.memory_manager,
         )
-
-        # Initialize improvement history
-        self._state.cache["improvement_history"] = ImprovementHistory()
 
         # Mark as initialized
         self._state.initialized = True
@@ -404,10 +355,18 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         # Delegate to critique service
         improved_text = critique_service.improve(text, feedback)
 
-        # Track improvement history
-        history = self._state.cache.get("improvement_history")
-        if history:
-            history.add_iteration(text, feedback, improved_text)
+        # Track improvement in memory manager
+        import json
+
+        memory_item = json.dumps(
+            {
+                "original_text": text,
+                "feedback": feedback,
+                "improved_text": improved_text,
+                "timestamp": __import__("time").time(),
+            }
+        )
+        self._state.memory_manager.add_to_memory(memory_item)
 
         return improved_text
 
@@ -445,16 +404,24 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         # Delegate to critique service
         improved_text = critique_service.improve(text, feedback)
 
-        # Track improvement history
-        history = self._state.cache.get("improvement_history")
-        if history:
-            history.add_iteration(text, feedback, improved_text)
+        # Track improvement in memory manager
+        import json
+
+        memory_item = json.dumps(
+            {
+                "original_text": text,
+                "feedback": feedback,
+                "improved_text": improved_text,
+                "timestamp": __import__("time").time(),
+            }
+        )
+        self._state.memory_manager.add_to_memory(memory_item)
 
         return improved_text
 
     def improve_with_history(
         self, text: str, feedback: str = None
-    ) -> Tuple[str, ImprovementHistory]:
+    ) -> Tuple[str, List[Dict[str, Any]]]:
         """Improve text and return both the result and improvement history.
 
         This method provides a way to track the improvement process and maintain
@@ -465,21 +432,34 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             feedback: Feedback to guide the improvement (optional)
 
         Returns:
-            Tuple containing improved text and the improvement history
+            Tuple containing improved text and the improvement history as a list of dictionaries
 
         Raises:
             ValueError: If text is empty
             TypeError: If model returns non-string output
         """
         improved_text = self.improve(text, feedback)
-        history = self._state.cache.get("improvement_history")
-        return improved_text, history
 
-    def get_improvement_history(self) -> ImprovementHistory:
+        # Get memory items and parse them
+        import json
+
+        memory_items = self._state.memory_manager.get_memory()
+        parsed_items = []
+
+        for item in memory_items:
+            try:
+                parsed_items.append(json.loads(item))
+            except json.JSONDecodeError:
+                # Skip items that can't be parsed
+                continue
+
+        return improved_text, parsed_items
+
+    def get_improvement_history(self) -> List[Dict[str, Any]]:
         """Get the improvement history for this critic.
 
         Returns:
-            The improvement history object containing all tracked iterations
+            A list of dictionaries containing improvement iterations
 
         Raises:
             RuntimeError: If the critic is not initialized
@@ -487,24 +467,34 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if not self._state.initialized:
             raise RuntimeError("PromptCritic not properly initialized")
 
-        history = self._state.cache.get("improvement_history")
-        if not history:
-            history = ImprovementHistory()
-            self._state.cache["improvement_history"] = history
+        # Get memory items and parse them
+        import json
 
-        return history
+        memory_items = self._state.memory_manager.get_memory()
+        parsed_items = []
 
-    def get_last_improvement(self) -> Optional[ImprovementIteration]:
+        for item in memory_items:
+            try:
+                parsed_items.append(json.loads(item))
+            except json.JSONDecodeError:
+                # Skip items that can't be parsed
+                continue
+
+        return parsed_items
+
+    def get_last_improvement(self) -> Optional[Dict[str, Any]]:
         """Get the most recent improvement iteration.
 
         Returns:
-            The most recent improvement iteration or None if no improvements exist
+            The most recent improvement iteration as a dictionary or None if no improvements exist
 
         Raises:
             RuntimeError: If the critic is not initialized
         """
         history = self.get_improvement_history()
-        return history.get_last_iteration()
+        if not history:
+            return None
+        return history[-1]
 
     def close_feedback_loop(
         self, text: str, generator_response: str, feedback: str = None
@@ -715,10 +705,18 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
 
             improved_text = await asyncio.to_thread(critique_service.improve, text, feedback)
 
-        # Track improvement history
-        history = self._state.cache.get("improvement_history")
-        if history:
-            history.add_iteration(text, feedback, improved_text)
+        # Track improvement in memory manager
+        import json
+
+        memory_item = json.dumps(
+            {
+                "original_text": text,
+                "feedback": feedback,
+                "improved_text": improved_text,
+                "timestamp": __import__("time").time(),
+            }
+        )
+        self._state.memory_manager.add_to_memory(memory_item)
 
         return improved_text
 
@@ -782,21 +780,29 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
 
         return improved_text, report
 
-    async def aget_improvement_history(self) -> ImprovementHistory:
+    async def aget_improvement_history(self) -> List[Dict[str, Any]]:
         """Asynchronously get the improvement history.
 
         Returns:
-            The improvement history object
+            A list of dictionaries containing improvement iterations
         """
         if not self._state.initialized:
             raise RuntimeError("PromptCritic not properly initialized")
 
-        history = self._state.cache.get("improvement_history")
-        if not history:
-            history = ImprovementHistory()
-            self._state.cache["improvement_history"] = history
+        # Get memory items and parse them
+        import json
 
-        return history
+        memory_items = self._state.memory_manager.get_memory()
+        parsed_items = []
+
+        for item in memory_items:
+            try:
+                parsed_items.append(json.loads(item))
+            except json.JSONDecodeError:
+                # Skip items that can't be parsed
+                continue
+
+        return parsed_items
 
 
 # Default configurations
