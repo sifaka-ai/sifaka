@@ -135,23 +135,8 @@ class LanguageModel(Protocol):
         ...
 
 
-@dataclass(frozen=True)
-class PromptCriticConfig(CriticConfig):
-    """Configuration for the prompt critic."""
-
-    system_prompt: str = "You are an expert editor that improves text."
-    temperature: float = 0.7
-    max_tokens: int = 1000
-
-    def __post_init__(self) -> None:
-        """Validate prompt critic specific configuration."""
-        super().__post_init__()
-        if not self.system_prompt or not self.system_prompt.strip():
-            raise ValueError("system_prompt cannot be empty")
-        if not 0 <= self.temperature <= 1:
-            raise ValueError("temperature must be between 0 and 1")
-        if self.max_tokens < 1:
-            raise ValueError("max_tokens must be positive")
+# Import the Pydantic PromptCriticConfig
+from .models import PromptCriticConfig
 
 
 # Memory management is now handled by MemoryManager
@@ -1040,6 +1025,4 @@ def create_prompt_critic(
         max_tokens=max_tokens,
         min_confidence=min_confidence,
     )
-    return PromptCritic(
-        config=config, llm_provider=llm_provider, name=name, description=description
-    )
+    return PromptCritic(config=config, llm_provider=llm_provider)

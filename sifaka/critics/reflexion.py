@@ -23,13 +23,13 @@ Example:
     ```
 """
 
-from dataclasses import dataclass
 import logging
 from typing import Any, Dict, List, Optional, Union, cast
 
 from pydantic import PrivateAttr
 
-from .base import BaseCritic, CriticConfig
+from .base import BaseCritic
+from .models import ReflexionCriticConfig
 from .protocols import TextCritic, TextImprover, TextValidator
 from .prompt import LanguageModel
 
@@ -37,33 +37,7 @@ from .prompt import LanguageModel
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
-class ReflexionCriticConfig(CriticConfig):
-    """Configuration for the reflexion critic.
-
-    This configuration class extends the base CriticConfig with reflexion-specific
-    parameters that control the behavior of the ReflexionCritic.
-    """
-
-    system_prompt: str = "You are an expert editor that improves text through reflection."
-    temperature: float = 0.7
-    max_tokens: int = 1000
-    memory_buffer_size: int = 5
-    reflection_depth: int = 1  # How many levels of reflection to perform
-
-    def __post_init__(self) -> None:
-        """Validate reflexion critic specific configuration."""
-        super().__post_init__()
-        if not self.system_prompt or not self.system_prompt.strip():
-            raise ValueError("system_prompt cannot be empty")
-        if not 0 <= self.temperature <= 1:
-            raise ValueError("temperature must be between 0 and 1")
-        if self.max_tokens < 1:
-            raise ValueError("max_tokens must be positive")
-        if self.memory_buffer_size < 0:
-            raise ValueError("memory_buffer_size must be non-negative")
-        if self.reflection_depth < 1:
-            raise ValueError("reflection_depth must be positive")
+# Import the Pydantic ReflexionCriticConfig from models.py
 
 
 # Note: This class is kept for backward compatibility with tests

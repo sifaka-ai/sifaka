@@ -27,7 +27,6 @@ Critics complement rules in the following ways:
    - `Critic`: Concrete implementation of BaseCritic
 
 3. **Data Models**
-   - `CriticConfig`: Configuration for critics
    - `CriticMetadata`: Metadata for critic results
    - `CriticOutput`: Output from critic operations
 
@@ -96,10 +95,11 @@ Critics complement rules in the following ways:
 ## Examples
 
 ```python
-from sifaka.critics.base import BaseCritic, CriticConfig, CriticMetadata
+from sifaka.critics.base import BaseCritic
+from sifaka.critics.models import CriticConfig, CriticMetadata
 
 class MyCritic(BaseCritic[str, str]):
-    def __init__(self, config: CriticConfig[str]):
+    def __init__(self, config: CriticConfig):
         super().__init__(config)
 
     def validate(self, text: str) -> bool:
@@ -137,7 +137,6 @@ from enum import Enum, auto
 from typing import (
     Any,
     Dict,
-    Final,
     Generic,
     List,
     Optional,
@@ -150,6 +149,8 @@ from typing import (
 
 from typing_extensions import TypeGuard
 
+# Import the Pydantic models
+from .models import CriticConfig, CriticMetadata
 
 # Default configuration values
 DEFAULT_MIN_CONFIDENCE = 0.7
@@ -181,123 +182,6 @@ class CriticResult(str, Enum):
     SUCCESS = auto()
     NEEDS_IMPROVEMENT = auto()
     FAILURE = auto()
-
-
-@dataclass(frozen=True)
-class CriticConfig(Generic[T]):
-    """Immutable configuration for critics.
-
-    This class defines the configuration options for critics, including
-    name, description, confidence thresholds, and other settings.
-
-    ## Lifecycle Management
-
-    1. **Initialization**
-       - Set configuration values
-       - Validate parameters
-       - Create immutable instance
-
-    2. **Usage**
-       - Access configuration values
-       - Create modified instances
-       - Validate settings
-
-    3. **Validation**
-       - Check parameter ranges
-       - Verify required fields
-       - Ensure immutability
-
-    ## Error Handling
-
-    1. **Validation Errors**
-       - Empty name or description
-       - Invalid confidence range
-       - Negative values
-       - Invalid parameters
-
-    2. **Recovery**
-       - Default values
-       - Parameter adjustment
-       - Error messages
-
-    Examples:
-        ```python
-        config = CriticConfig(
-            name="my_critic",
-            description="A custom critic",
-            min_confidence=0.8,
-            max_attempts=3
-        )
-
-        # Create modified config
-        new_config = config.with_params(
-            min_confidence=0.9,
-            cache_size=200
-        )
-        ```
-    """
-
-    name: str
-    description: str
-    min_confidence: float = 0.7
-    max_attempts: int = 3
-    cache_size: int = 100
-    priority: int = 1
-    cost: float = 1.0
-    params: Dict[str, Any] = field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        """Validate configuration values."""
-        if not self.name or not self.name.strip():
-            raise ValueError("name cannot be empty or whitespace")
-        if not self.description or not self.description.strip():
-            raise ValueError("description cannot be empty or whitespace")
-        if not 0 <= self.min_confidence <= 1:
-            raise ValueError("min_confidence must be between 0 and 1")
-        if self.max_attempts < 1:
-            raise ValueError("max_attempts must be positive")
-        if self.cache_size < 0:
-            raise ValueError("cache_size must be non-negative")
-        if self.priority < 0:
-            raise ValueError("priority must be non-negative")
-        if self.cost < 0:
-            raise ValueError("cost must be non-negative")
-
-    def with_params(self, **kwargs: Any) -> "CriticConfig[T]":
-        """Create a new config with updated parameters.
-
-        This method creates a new CriticConfig instance with updated
-        parameter values while preserving other settings.
-
-        Args:
-            **kwargs: Parameter updates
-
-        Returns:
-            New CriticConfig instance
-
-        Examples:
-            ```python
-            config = CriticConfig(
-                name="my_critic",
-                description="A custom critic"
-            )
-            new_config = config.with_params(
-                min_confidence=0.9,
-                cache_size=200
-            )
-            ```
-        """
-        new_params = {**self.params, **kwargs}
-        return CriticConfig(
-            name=self.name,
-            description=self.description,
-            min_confidence=self.min_confidence,
-            max_attempts=self.max_attempts,
-            cache_size=self.cache_size,
-            priority=self.priority,
-            cost=self.cost,
-            params=new_params,
-        )
 
 
 @dataclass(frozen=True)
@@ -499,7 +383,8 @@ class TextValidator(Protocol[T]):
     Implementing a simple text validator:
 
     ```python
-    from sifaka.critics.base import TextValidator, CriticConfig
+    from sifaka.critics.base import TextValidator
+    from sifaka.critics.models import CriticConfig
     from typing import runtime_checkable
 
     class LengthValidator:
@@ -538,7 +423,8 @@ class TextValidator(Protocol[T]):
     Using with error handling:
 
     ```python
-    from sifaka.critics.base import TextValidator, CriticConfig
+    from sifaka.critics.base import TextValidator
+    from sifaka.critics.models import CriticConfig
     import logging
 
     logger = logging.getLogger(__name__)
@@ -574,7 +460,7 @@ class TextValidator(Protocol[T]):
     """
 
     @property
-    def config(self) -> CriticConfig[T]:
+    def config(self) -> CriticConfig:
         """
         Get validator configuration.
 
@@ -634,7 +520,8 @@ class TextImprover(Protocol[T, R]):
     Implementing a simple text improver:
 
     ```python
-    from sifaka.critics.base import TextImprover, CriticConfig
+    from sifaka.critics.base import TextImprover
+    from sifaka.critics.models import CriticConfig
     from typing import Dict, List, Any, runtime_checkable
 
     class SimpleImprover:
@@ -682,7 +569,8 @@ class TextImprover(Protocol[T, R]):
     Using with error handling:
 
     ```python
-    from sifaka.critics.base import TextImprover, CriticConfig
+    from sifaka.critics.base import TextImprover
+    from sifaka.critics.models import CriticConfig
     import logging
 
     logger = logging.getLogger(__name__)
@@ -725,7 +613,7 @@ class TextImprover(Protocol[T, R]):
     """
 
     @property
-    def config(self) -> CriticConfig[T]:
+    def config(self) -> CriticConfig:
         """
         Get improver configuration.
 
@@ -785,7 +673,8 @@ class TextCritic(Protocol[T, R]):
     Implementing a simple text critic:
 
     ```python
-    from sifaka.critics.base import TextCritic, CriticConfig, CriticMetadata
+    from sifaka.critics.base import TextCritic, CriticMetadata
+    from sifaka.critics.models import CriticConfig
     from typing import runtime_checkable
 
     class SimpleCritic:
@@ -852,7 +741,8 @@ class TextCritic(Protocol[T, R]):
     Using with error handling:
 
     ```python
-    from sifaka.critics.base import TextCritic, CriticConfig, CriticMetadata
+    from sifaka.critics.base import TextCritic, CriticMetadata
+    from sifaka.critics.models import CriticConfig
     import logging
     import time
 
@@ -906,7 +796,7 @@ class TextCritic(Protocol[T, R]):
     """
 
     @property
-    def config(self) -> CriticConfig[T]:
+    def config(self) -> CriticConfig:
         """
         Get critic configuration.
 
@@ -981,10 +871,12 @@ class BaseCritic(ABC, Generic[T, R]):
     Implementing a custom critic:
 
     ```python
-    from sifaka.critics.base import BaseCritic, CriticConfig, CriticMetadata
+    from sifaka.critics.base import BaseCritic
+    from sifaka.critics.models import CriticConfig
+    from sifaka.critics.base import CriticMetadata
 
     class MyCritic(BaseCritic[str, str]):
-        def __init__(self, config: CriticConfig[str]):
+        def __init__(self, config: CriticConfig):
             super().__init__(config)
 
         def validate(self, text: str) -> bool:
@@ -1016,7 +908,7 @@ class BaseCritic(ABC, Generic[T, R]):
     ```
     """
 
-    def __init__(self, config: CriticConfig[T]) -> None:
+    def __init__(self, config: CriticConfig) -> None:
         """
         Initialize a BaseCritic instance.
 
@@ -1030,7 +922,7 @@ class BaseCritic(ABC, Generic[T, R]):
         self._validate_config()
 
     @property
-    def config(self) -> CriticConfig[T]:
+    def config(self) -> CriticConfig:
         """
         Get critic configuration.
 
@@ -1049,14 +941,8 @@ class BaseCritic(ABC, Generic[T, R]):
         Raises:
             ValueError: If configuration is invalid
         """
-        from .models import CriticConfig as PydanticCriticConfig
-
-        if not (
-            isinstance(self._config, CriticConfig) or isinstance(self._config, PydanticCriticConfig)
-        ):
-            raise ValueError(
-                "config must be a CriticConfig instance (either dataclass or pydantic model)"
-            )
+        if not isinstance(self._config, CriticConfig):
+            raise ValueError("config must be a CriticConfig instance")
 
     def is_valid_text(self, text: Any) -> TypeGuard[T]:
         """
@@ -1181,7 +1067,7 @@ def create_critic(
     critic_class: Type[C],
     name: str,
     description: str,
-    config: CriticConfig[Any],
+    config: CriticConfig,
 ) -> C:
     """
     Create a critic with a configuration.
@@ -1200,7 +1086,8 @@ def create_critic(
 
     Examples:
         ```python
-        from sifaka.critics.base import create_critic, CriticConfig
+        from sifaka.critics.base import create_critic
+        from sifaka.critics.models import CriticConfig
 
         config = CriticConfig(
             name="my_critic",
@@ -1269,7 +1156,7 @@ def create_critic(
     cache_size: int = DEFAULT_CACHE_SIZE,
     priority: int = 1,
     cost: float = 1.0,
-    config: Optional[CriticConfig[Any]] = None,
+    config: Optional[CriticConfig] = None,
     **kwargs: Any,
 ) -> C:
     """
@@ -1296,6 +1183,7 @@ def create_critic(
     Examples:
         ```python
         from sifaka.critics.base import create_critic
+        from sifaka.critics.models import CriticConfig
 
         # Create with configuration
         critic = create_critic(
@@ -1576,7 +1464,6 @@ def create_basic_critic(
 __all__ = [
     "Critic",
     "BaseCritic",
-    "CriticConfig",
     "CriticMetadata",
     "CriticOutput",
     "CriticResult",
