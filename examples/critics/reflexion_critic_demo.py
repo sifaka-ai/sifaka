@@ -11,11 +11,11 @@ import logging
 from typing import List
 
 from sifaka.critics.reflexion import (
-    ReflexionCriticConfig,
     create_reflexion_critic,
     ReflexionCritic,
     ReflexionPromptFactory,
 )
+from sifaka.critics.models import ReflexionCriticConfig
 from sifaka.models.openai import OpenAIProvider
 from sifaka.models.base import ModelConfig
 from sifaka.rules.formatting.length import create_length_rule
@@ -245,8 +245,6 @@ def create_concrete_reflexion_critic(**kwargs):
     return ConcreteReflexionCritic(
         config=config,
         llm_provider=kwargs.get("llm_provider"),
-        name=kwargs.get("name", "reflexion_critic"),
-        description=kwargs.get("description", "Improves text using reflections on past feedback"),
     )
 
 
@@ -282,7 +280,7 @@ reflexion_critic = LoggingReflexionCritic(
         ),
         memory_buffer_size=5,  # Store up to 5 reflections
         reflection_depth=1,  # Perform 1 level of reflection
-    ),
+    )
 )
 """
 
