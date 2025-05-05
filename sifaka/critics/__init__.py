@@ -3,7 +3,7 @@ Critics functionality for Sifaka.
 
 This package provides components for critiquing, validating, and improving text:
 - CriticCore: Core implementation with component-based architecture
-- Factory functions for creating critics (create_prompt_critic, create_reflexion_critic, create_constitutional_critic, create_self_refine_critic)
+- Factory functions for creating critics (create_prompt_critic, create_reflexion_critic, create_constitutional_critic, create_self_refine_critic, create_self_rag_critic)
 - Specialized managers and services for different aspects of critics
 """
 
@@ -20,6 +20,11 @@ from .self_refine import (
     SelfRefineCritic,
     SelfRefineCriticConfig,
     create_self_refine_critic,
+)
+from .self_rag import (
+    SelfRAGCritic,
+    SelfRAGCriticConfig,
+    create_self_rag_critic,
 )
 
 # Import managers and services for advanced usage
@@ -97,6 +102,21 @@ DEFAULT_SELF_REFINE_CONFIG = SelfRefineCriticConfig(
     max_iterations=3,
 )
 
+# Default configuration for self-rag critics
+DEFAULT_SELF_RAG_CONFIG = SelfRAGCriticConfig(
+    name="Default Self-RAG Critic",
+    description="Improves text through self-reflective retrieval-augmented generation",
+    min_confidence=0.7,
+    max_attempts=3,
+    cache_size=100,
+    priority=1,
+    cost=1.0,
+    system_prompt="You are an expert at deciding when to retrieve information and reflecting on its relevance.",
+    temperature=0.7,
+    max_tokens=1000,
+    retrieval_threshold=0.5,
+)
+
 __all__ = [
     # Core components
     "CriticCore",
@@ -108,14 +128,17 @@ __all__ = [
     "ReflexionCriticConfig",
     "ConstitutionalCriticConfig",
     "SelfRefineCriticConfig",
+    "SelfRAGCriticConfig",
     # Critics
     "ConstitutionalCritic",
     "SelfRefineCritic",
+    "SelfRAGCritic",
     # Factory functions
     "create_prompt_critic",
     "create_reflexion_critic",
     "create_constitutional_critic",
     "create_self_refine_critic",
+    "create_self_rag_critic",
     # Managers
     "DefaultPromptManager",
     "MemoryManager",
@@ -130,4 +153,5 @@ __all__ = [
     "DEFAULT_REFLEXION_CONFIG",
     "DEFAULT_CONSTITUTIONAL_CONFIG",
     "DEFAULT_SELF_REFINE_CONFIG",
+    "DEFAULT_SELF_RAG_CONFIG",
 ]
