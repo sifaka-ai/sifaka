@@ -59,6 +59,24 @@ class ConcreteReflexionCritic(ReflexionCritic):
         state = self._state_manager.get_state()
         state.model = kwargs.get("llm_provider")
         state.prompt_manager = kwargs.get("prompt_factory")
+
+        # Import required components
+        from sifaka.critics.managers.response import ResponseParser
+        from sifaka.critics.managers.memory import MemoryManager
+        from sifaka.critics.services.critique import CritiqueService
+
+        # Create components
+        state.response_parser = ResponseParser()
+        state.memory_manager = MemoryManager(buffer_size=self.config.memory_buffer_size)
+
+        # Create service and store in state cache (not directly in state)
+        state.cache["critique_service"] = CritiqueService(
+            llm_provider=state.model,
+            prompt_manager=state.prompt_manager,
+            response_parser=state.response_parser,
+            memory_manager=state.memory_manager,
+        )
+
         state.initialized = True
 
         self._memory_buffer = []  # Simple list for storing reflections
@@ -149,13 +167,14 @@ class LoggingReflexionCritic(ReflexionCritic):
     def _generate_reflection(self, original_text: str, feedback: str, improved_text: str) -> None:
         """Override to log the reflection generation process."""
         logger.info("Generating reflection...")
-        reflection_prompt = self._prompt_factory.create_reflection_prompt(
+        state = self._state_manager.get_state()
+        reflection_prompt = state.prompt_manager.create_reflection_prompt(
             original_text, feedback, improved_text
         )
         logger.info(f"Reflection prompt: {reflection_prompt}")
 
         try:
-            response = self._model.invoke(reflection_prompt)
+            response = state.model.invoke(reflection_prompt)
             logger.info(f"Reflection response: {response}")
 
             # Extract reflection from response
@@ -183,15 +202,19 @@ class LoggingReflexionCritic(ReflexionCritic):
         """Manually create and add a reflection to demonstrate the process."""
         logger.info(f"Manually creating a reflection for prompt: {prompt}")
 
+        # Get state and model
+        state = self._state_manager.get_state()
+        model = state.model
+
         # Generate a response
-        original_text = self._model.generate(prompt)
+        original_text = model.generate(prompt)
         feedback = f"Issue: {issue}. Suggestion: {suggestion}"
 
         # Create a short/condensed version of the text
         short_prompt = (
             f"Create a very concise version (under 50 words) of this text: {original_text}"
         )
-        improved_text = self._model.generate(short_prompt)
+        improved_text = model.generate(short_prompt)
 
         logger.info(f"Original text: {original_text[:100]}... (truncated)")
         logger.info(f"Feedback: {feedback}")

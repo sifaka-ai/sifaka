@@ -36,7 +36,9 @@ from sifaka.chain.managers import PromptManager, ValidationManager
 from sifaka.chain.result import ChainResult
 from sifaka.chain.strategies import SimpleRetryStrategy
 from sifaka.classifiers import NERClassifier
-from sifaka.critics import create_reflexion_critic, ReflexionCriticConfig
+
+# Import critic components
+from sifaka.critics.core import create_core_critic
 from sifaka.models.base import ModelProvider, ModelConfig
 from sifaka.models.openai import OpenAIProvider
 from sifaka.models.anthropic import AnthropicProvider
@@ -477,22 +479,20 @@ def create_ner_chain(
     # Create result formatter
     result_formatter = NERResultFormatter()
 
-    # Create reflexion critic
-    reflexion_config = ReflexionCriticConfig(
-        name="NER Reflexion Critic",
-        description="Improves entity recognition through reflection",
-        min_confidence=0.7,
-        max_attempts=max_attempts,
+    # Create core critic
+
+    critic = create_core_critic(
+        name="NER Core Critic",
+        description="Improves entity recognition",
+        llm_provider=model_provider,
         system_prompt=REFLEXION_SYSTEM_PROMPT,
         temperature=DEFAULT_TEMPERATURE,
         max_tokens=DEFAULT_MAX_TOKENS,
-        memory_buffer_size=5,
-        reflection_depth=2,
-    )
-
-    critic = create_reflexion_critic(
-        llm_provider=model_provider,
-        config=reflexion_config,
+        min_confidence=0.7,
+        max_attempts=max_attempts,
+        cache_size=100,
+        priority=1,
+        cost=1.0,
     )
 
     # Create retry strategy

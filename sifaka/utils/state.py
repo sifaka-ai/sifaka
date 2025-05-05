@@ -28,17 +28,14 @@ class StateManager(Generic[T]):
             name: str
 
             # State manager
-            _state = PrivateAttr(default_factory=lambda: StateManager(
-                initializer=lambda: {"model": None, "cache": {}}
-            ))
+            _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
             def warm_up(self) -> None:
                 # Initialize the component.
-                self._state.initialize()
-
-            def get_state(self) -> Dict[str, Any]:
-                # Get the component's state.
-                return self._state.get_state()
+                state = self._state_manager.get_state()
+                if not state.initialized:
+                    state.model = self._load_model()
+                    state.initialized = True
         ```
     """
 
@@ -126,7 +123,7 @@ class ComponentState(BaseModel):
 
     Examples:
         ```python
-        from sifaka.utils.state import ComponentState
+        from sifaka.utils.state import ComponentState, create_classifier_state
 
         class ClassifierState(ComponentState):
             model: Optional[Any] = None
@@ -138,13 +135,14 @@ class ComponentState(BaseModel):
             name: str
 
             # State
-            _state: ClassifierState = PrivateAttr(default_factory=ClassifierState)
+            _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
             def warm_up(self) -> None:
                 # Initialize the classifier.
-                if not self._state.initialized:
-                    self._state.model = self._load_model()
-                    self._state.initialized = True
+                state = self._state_manager.get_state()
+                if not state.initialized:
+                    state.model = self._load_model()
+                    state.initialized = True
         ```
     """
 
@@ -166,20 +164,21 @@ class ClassifierState(ComponentState):
 
     Examples:
         ```python
-        from sifaka.utils.state import ClassifierState
+        from sifaka.utils.state import create_classifier_state
 
         class MyClassifier(BaseModel):
             # Configuration
             name: str
 
             # State
-            _state: ClassifierState = PrivateAttr(default_factory=ClassifierState)
+            _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
             def warm_up(self) -> None:
                 # Initialize the classifier.
-                if not self._state.initialized:
-                    self._state.model = self._load_model()
-                    self._state.initialized = True
+                state = self._state_manager.get_state()
+                if not state.initialized:
+                    state.model = self._load_model()
+                    state.initialized = True
         ```
     """
 
@@ -200,20 +199,21 @@ class RuleState(ComponentState):
 
     Examples:
         ```python
-        from sifaka.utils.state import RuleState
+        from sifaka.utils.state import create_rule_state
 
         class MyRule(BaseModel):
             # Configuration
             name: str
 
             # State
-            _state: RuleState = PrivateAttr(default_factory=RuleState)
+            _state_manager = PrivateAttr(default_factory=create_rule_state)
 
             def warm_up(self) -> None:
                 # Initialize the rule.
-                if not self._state.initialized:
-                    self._state.validator = self._create_validator()
-                    self._state.initialized = True
+                state = self._state_manager.get_state()
+                if not state.initialized:
+                    state.validator = self._create_validator()
+                    state.initialized = True
         ```
     """
 
@@ -232,20 +232,21 @@ class CriticState(ComponentState):
 
     Examples:
         ```python
-        from sifaka.utils.state import CriticState
+        from sifaka.utils.state import create_critic_state
 
         class MyCritic(BaseModel):
             # Configuration
             name: str
 
             # State
-            _state: CriticState = PrivateAttr(default_factory=CriticState)
+            _state_manager = PrivateAttr(default_factory=create_critic_state)
 
             def warm_up(self) -> None:
                 # Initialize the critic.
-                if not self._state.initialized:
-                    self._state.model = self._load_model()
-                    self._state.initialized = True
+                state = self._state_manager.get_state()
+                if not state.initialized:
+                    state.model = self._load_model()
+                    state.initialized = True
         ```
     """
 
@@ -265,20 +266,21 @@ class ModelState(ComponentState):
 
     Examples:
         ```python
-        from sifaka.utils.state import ModelState
+        from sifaka.utils.state import create_model_state
 
         class MyModelProvider(BaseModel):
             # Configuration
             name: str
 
             # State
-            _state: ModelState = PrivateAttr(default_factory=ModelState)
+            _state_manager = PrivateAttr(default_factory=create_model_state)
 
             def warm_up(self) -> None:
                 # Initialize the model provider.
-                if not self._state.initialized:
-                    self._state.client = self._create_client()
-                    self._state.initialized = True
+                state = self._state_manager.get_state()
+                if not state.initialized:
+                    state.client = self._create_client()
+                    state.initialized = True
         ```
     """
 
@@ -297,19 +299,19 @@ class ChainState(ComponentState):
 
     Examples:
         ```python
-        from sifaka.utils.state import ChainState
+        from sifaka.utils.state import create_chain_state
 
         class MyChain(BaseModel):
             # Configuration
             name: str
 
             # State
-            _state_manager: ChainState = PrivateAttr(default_factory=create_chain_state)
+            _state_manager = PrivateAttr(default_factory=create_chain_state)
 
             def initialize(self) -> None:
                 # Initialize the chain.
-                if not self._state_manager.get_state().initialized:
-                    state = self._state_manager.get_state()
+                state = self._state_manager.get_state()
+                if not state.initialized:
                     state.generator = self._create_generator()
                     state.initialized = True
         ```
@@ -334,19 +336,19 @@ class AdapterState(ComponentState):
 
     Examples:
         ```python
-        from sifaka.utils.state import AdapterState
+        from sifaka.utils.state import create_adapter_state
 
         class MyAdapter(BaseModel):
             # Configuration
             name: str
 
             # State
-            _state_manager: AdapterState = PrivateAttr(default_factory=create_adapter_state)
+            _state_manager = PrivateAttr(default_factory=create_adapter_state)
 
             def initialize(self) -> None:
                 # Initialize the adapter.
-                if not self._state_manager.get_state().initialized:
-                    state = self._state_manager.get_state()
+                state = self._state_manager.get_state()
+                if not state.initialized:
                     state.adaptee_cache = self._create_adaptee_cache()
                     state.initialized = True
         ```

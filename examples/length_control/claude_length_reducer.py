@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Example demonstrating usage of Claude with a Length Critic to reduce response length.
 
@@ -85,3 +86,8 @@ try:
 
 except ValueError as e:
     print(f"❌ Error: {e}")
+except Exception as e:
+    print(f"❌ Unexpected error: {e}")
+    import traceback
+
+    traceback.print_exc()

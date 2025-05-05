@@ -102,8 +102,8 @@ print(f"Improved text: {improved_text}")
 ```
 """
 
-from dataclasses import dataclass
-from typing import Any, Final, Protocol, runtime_checkable, Optional, Dict
+from dataclasses import dataclass, field
+from typing import Any, Final, Protocol, runtime_checkable, Optional, Dict, List, Tuple
 
 from pydantic import PrivateAttr
 
@@ -114,7 +114,7 @@ from .base import (
     TextImprover,
     TextValidator,
 )
-from ..utils.state import CriticState
+from ..utils.state import create_critic_state
 
 
 @runtime_checkable
@@ -152,6 +152,60 @@ class PromptCriticConfig(CriticConfig):
             raise ValueError("temperature must be between 0 and 1")
         if self.max_tokens < 1:
             raise ValueError("max_tokens must be positive")
+
+
+# Add a dedicated improvement history class
+@dataclass
+class ImprovementIteration:
+    """Represents a single iteration in the improvement process."""
+
+    original_text: str
+    feedback: str
+    improved_text: str
+    timestamp: float = field(default_factory=lambda: __import__("time").time())
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "original_text": self.original_text,
+            "feedback": self.feedback,
+            "improved_text": self.improved_text,
+            "timestamp": self.timestamp,
+        }
+
+
+@dataclass
+class ImprovementHistory:
+    """Tracks the history of improvements for a text."""
+
+    iterations: List[ImprovementIteration] = field(default_factory=list)
+    max_history: int = 10
+
+    def add_iteration(self, original: str, feedback: str, improved: str) -> None:
+        """Add a new iteration to the history."""
+        self.iterations.append(
+            ImprovementIteration(original_text=original, feedback=feedback, improved_text=improved)
+        )
+        # Maintain max history length
+        if len(self.iterations) > self.max_history:
+            self.iterations = self.iterations[-self.max_history :]
+
+    def get_last_iteration(self) -> Optional[ImprovementIteration]:
+        """Get the most recent iteration."""
+        if not self.iterations:
+            return None
+        return self.iterations[-1]
+
+    def get_all_iterations(self) -> List[ImprovementIteration]:
+        """Get all iterations in chronological order."""
+        return self.iterations.copy()
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert history to dictionary for serialization."""
+        return {
+            "iterations": [it.to_dict() for it in self.iterations],
+            "count": len(self.iterations),
+        }
 
 
 class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
@@ -234,8 +288,8 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     specialized components for prompt management, response parsing, and memory management.
     """
 
-    # State management using CriticState
-    _state: CriticState = PrivateAttr(default_factory=CriticState)
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
 
     def __init__(
         self,
@@ -264,10 +318,6 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If configuration is invalid
             RuntimeError: If provider setup fails
         """
-        # Initialize state
-        self._state = CriticState()
-        self._state.initialized = False
-
         if llm_provider is None:
             from pydantic import ValidationError
 
@@ -291,27 +341,34 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
 
         super().__init__(config)
 
+        # Initialize state
+        state = self._state_manager.get_state()
+        state.initialized = False
+
         # Create components
         from .managers.prompt_factories import PromptCriticPromptManager
         from .managers.response import ResponseParser
         from .services.critique import CritiqueService
 
         # Store components in state
-        self._state.model = llm_provider
-        self._state.prompt_manager = prompt_factory or PromptCriticPromptManager(config)
-        self._state.response_parser = ResponseParser()
-        self._state.memory_manager = None
+        state.model = llm_provider
+        state.prompt_manager = prompt_factory or PromptCriticPromptManager(config)
+        state.response_parser = ResponseParser()
+        state.memory_manager = None
 
         # Create service and store in state cache
-        self._state.cache["critique_service"] = CritiqueService(
+        state.cache["critique_service"] = CritiqueService(
             llm_provider=llm_provider,
-            prompt_manager=self._state.prompt_manager,
-            response_parser=self._state.response_parser,
-            memory_manager=self._state.memory_manager,
+            prompt_manager=state.prompt_manager,
+            response_parser=state.response_parser,
+            memory_manager=state.memory_manager,
         )
 
+        # Initialize improvement history
+        state.cache["improvement_history"] = ImprovementHistory()
+
         # Mark as initialized
-        self._state.initialized = True
+        state.initialized = True
 
     def improve(self, text: str, feedback: str = None) -> str:
         """Improve text based on feedback.
@@ -328,7 +385,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             TypeError: If model returns non-string output
         """
         # Get state
-        state = self._state
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:
@@ -346,7 +403,14 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             raise RuntimeError("Critique service not initialized")
 
         # Delegate to critique service
-        return critique_service.improve(text, feedback)
+        improved_text = critique_service.improve(text, feedback)
+
+        # Track improvement history
+        history = state.cache.get("improvement_history")
+        if history:
+            history.add_iteration(text, feedback, improved_text)
+
+        return improved_text
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
         """Improve text based on specific feedback.
@@ -366,7 +430,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             TypeError: If model returns non-string output
         """
         # Get state
-        state = self._state
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:
@@ -383,7 +447,117 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             raise RuntimeError("Critique service not initialized")
 
         # Delegate to critique service
-        return critique_service.improve(text, feedback)
+        improved_text = critique_service.improve(text, feedback)
+
+        # Track improvement history
+        history = state.cache.get("improvement_history")
+        if history:
+            history.add_iteration(text, feedback, improved_text)
+
+        return improved_text
+
+    def improve_with_history(
+        self, text: str, feedback: str = None
+    ) -> Tuple[str, ImprovementHistory]:
+        """Improve text and return both the result and improvement history.
+
+        This method provides a way to track the improvement process and maintain
+        a record of the changes made.
+
+        Args:
+            text: The text to improve
+            feedback: Feedback to guide the improvement (optional)
+
+        Returns:
+            Tuple containing improved text and the improvement history
+
+        Raises:
+            ValueError: If text is empty
+            TypeError: If model returns non-string output
+        """
+        improved_text = self.improve(text, feedback)
+        state = self._state_manager.get_state()
+        history = state.cache.get("improvement_history")
+        return improved_text, history
+
+    def get_improvement_history(self) -> ImprovementHistory:
+        """Get the improvement history for this critic.
+
+        Returns:
+            The improvement history object containing all tracked iterations
+
+        Raises:
+            RuntimeError: If the critic is not initialized
+        """
+        state = self._state_manager.get_state()
+        if not state.initialized:
+            raise RuntimeError("PromptCritic not properly initialized")
+
+        history = state.cache.get("improvement_history")
+        if not history:
+            history = ImprovementHistory()
+            state.cache["improvement_history"] = history
+
+        return history
+
+    def get_last_improvement(self) -> Optional[ImprovementIteration]:
+        """Get the most recent improvement iteration.
+
+        Returns:
+            The most recent improvement iteration or None if no improvements exist
+
+        Raises:
+            RuntimeError: If the critic is not initialized
+        """
+        history = self.get_improvement_history()
+        return history.get_last_iteration()
+
+    def close_feedback_loop(
+        self, text: str, generator_response: str, feedback: str = None
+    ) -> Tuple[str, Dict[str, Any]]:
+        """Complete a feedback loop between a generator and this critic.
+
+        This method explicitly handles the feedback loop by:
+        1. Taking the original text and generator's response
+        2. Providing feedback on the generator's response
+        3. Improving the response based on feedback
+        4. Returning both the improved response and a report of the process
+
+        Args:
+            text: The original input text
+            generator_response: The response produced by a generator
+            feedback: Optional specific feedback (will generate critique if None)
+
+        Returns:
+            Tuple containing the improved text and a report dictionary with details
+
+        Raises:
+            ValueError: If inputs are invalid
+            RuntimeError: If the critic is not initialized
+        """
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("text must be a non-empty string")
+        if not isinstance(generator_response, str) or not generator_response.strip():
+            raise ValueError("generator_response must be a non-empty string")
+
+        # Generate feedback if not provided
+        if feedback is None:
+            critique_result = self.critique(generator_response)
+            feedback = critique_result.get("feedback", "")
+
+        # Improve the response
+        improved_text = self.improve(generator_response, feedback)
+
+        # Create report
+        report = {
+            "original_input": text,
+            "generator_response": generator_response,
+            "critic_feedback": feedback,
+            "improved_response": improved_text,
+            "has_changes": improved_text != generator_response,
+        }
+
+        return improved_text, report
 
     def critique(self, text: str) -> dict:
         """Analyze text and provide detailed feedback.
@@ -399,7 +573,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             TypeError: If model returns invalid output
         """
         # Get state
-        state = self._state
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:
@@ -429,7 +603,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text is empty
         """
         # Get state
-        state = self._state
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:
@@ -446,22 +620,22 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         # Delegate to critique service
         return critique_service.validate(text)
 
-    # Async methods
+    # Enhanced async methods
     async def avalidate(self, text: str) -> bool:
-        """
-        Asynchronously validate text.
+        """Asynchronously validate text.
 
         Args:
             text: The text to validate
 
         Returns:
-            True if the text meets quality standards, False otherwise
+            bool: True if valid, False otherwise
 
         Raises:
             ValueError: If text is empty
+            TypeError: If model returns invalid output
         """
         # Get state
-        state = self._state
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:
@@ -475,12 +649,17 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if not critique_service:
             raise RuntimeError("Critique service not initialized")
 
-        # Delegate to critique service
-        return await critique_service.avalidate(text)
+        # Check if service supports async
+        if hasattr(critique_service, "avalidate"):
+            return await critique_service.avalidate(text)
+        else:
+            # Fallback to sync method in async context
+            import asyncio
+
+            return await asyncio.to_thread(critique_service.validate, text)
 
     async def acritique(self, text: str) -> dict:
-        """
-        Asynchronously critique text.
+        """Asynchronously analyze text and provide detailed feedback.
 
         Args:
             text: The text to critique
@@ -490,9 +669,10 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
 
         Raises:
             ValueError: If text is empty
+            TypeError: If model returns invalid output
         """
         # Get state
-        state = self._state
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:
@@ -506,25 +686,31 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if not critique_service:
             raise RuntimeError("Critique service not initialized")
 
-        # Delegate to critique service
-        return await critique_service.acritique(text)
+        # Check if service supports async
+        if hasattr(critique_service, "acritique"):
+            return await critique_service.acritique(text)
+        else:
+            # Fallback to sync method in async context
+            import asyncio
 
-    async def aimprove(self, text: str, feedback: str) -> str:
-        """
-        Asynchronously improve text.
+            return await asyncio.to_thread(critique_service.critique, text)
+
+    async def aimprove(self, text: str, feedback: str = None) -> str:
+        """Asynchronously improve text based on feedback.
 
         Args:
             text: The text to improve
             feedback: Feedback to guide the improvement
 
         Returns:
-            The improved text
+            str: The improved text
 
         Raises:
             ValueError: If text is empty
+            TypeError: If model returns non-string output
         """
         # Get state
-        state = self._state
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         if not state.initialized:
@@ -533,13 +719,106 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
+        if feedback is None:
+            feedback = "Please improve this text for clarity and effectiveness."
+
         # Get critique service from state
         critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not initialized")
 
-        # Delegate to critique service
-        return await critique_service.aimprove(text, feedback)
+        # Check if service supports async
+        if hasattr(critique_service, "aimprove"):
+            improved_text = await critique_service.aimprove(text, feedback)
+        else:
+            # Fallback to sync method in async context
+            import asyncio
+
+            improved_text = await asyncio.to_thread(critique_service.improve, text, feedback)
+
+        # Track improvement history
+        history = state.cache.get("improvement_history")
+        if history:
+            history.add_iteration(text, feedback, improved_text)
+
+        return improved_text
+
+    async def aimprove_with_feedback(self, text: str, feedback: str) -> str:
+        """Asynchronously improve text with specific feedback.
+
+        Args:
+            text: The text to improve
+            feedback: Required feedback to guide the improvement
+
+        Returns:
+            str: The improved text
+
+        Raises:
+            ValueError: If text or feedback is empty
+            TypeError: If model returns non-string output
+        """
+        if not isinstance(feedback, str) or not feedback.strip():
+            raise ValueError("feedback must be a non-empty string")
+
+        return await self.aimprove(text, feedback)
+
+    async def aclose_feedback_loop(
+        self, text: str, generator_response: str, feedback: str = None
+    ) -> Tuple[str, Dict[str, Any]]:
+        """Asynchronously complete a feedback loop between generator and critic.
+
+        Args:
+            text: The original input text
+            generator_response: The response produced by a generator
+            feedback: Optional specific feedback (will generate critique if None)
+
+        Returns:
+            Tuple containing the improved text and a report dictionary with details
+
+        Raises:
+            ValueError: If inputs are invalid
+            RuntimeError: If the critic is not initialized
+        """
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("text must be a non-empty string")
+        if not isinstance(generator_response, str) or not generator_response.strip():
+            raise ValueError("generator_response must be a non-empty string")
+
+        # Generate feedback if not provided
+        if feedback is None:
+            critique_result = await self.acritique(generator_response)
+            feedback = critique_result.get("feedback", "")
+
+        # Improve the response
+        improved_text = await self.aimprove(generator_response, feedback)
+
+        # Create report
+        report = {
+            "original_input": text,
+            "generator_response": generator_response,
+            "critic_feedback": feedback,
+            "improved_response": improved_text,
+            "has_changes": improved_text != generator_response,
+        }
+
+        return improved_text, report
+
+    async def aget_improvement_history(self) -> ImprovementHistory:
+        """Asynchronously get the improvement history.
+
+        Returns:
+            The improvement history object
+        """
+        state = self._state_manager.get_state()
+        if not state.initialized:
+            raise RuntimeError("PromptCritic not properly initialized")
+
+        history = state.cache.get("improvement_history")
+        if not history:
+            history = ImprovementHistory()
+            state.cache["improvement_history"] = history
+
+        return history
 
 
 # Default configurations
