@@ -15,6 +15,17 @@ from .constitutional import (
     create_constitutional_critic,
 )
 from .factories import create_prompt_critic, create_reflexion_critic
+from .lac import (
+    FeedbackCritic,
+    ValueCritic,
+    LACCritic,
+    FeedbackCriticConfig,
+    ValueCriticConfig,
+    LACCriticConfig,
+    create_feedback_critic,
+    create_value_critic,
+    create_lac_critic,
+)
 from .models import CriticConfig, CriticMetadata, PromptCriticConfig, ReflexionCriticConfig
 from .self_refine import (
     SelfRefineCritic,
@@ -117,6 +128,48 @@ DEFAULT_SELF_RAG_CONFIG = SelfRAGCriticConfig(
     retrieval_threshold=0.5,
 )
 
+# Default configuration for feedback critics
+DEFAULT_FEEDBACK_CONFIG = FeedbackCriticConfig(
+    name="Default Feedback Critic",
+    description="Provides natural language feedback for text",
+    min_confidence=0.7,
+    max_attempts=3,
+    cache_size=100,
+    priority=1,
+    cost=1.0,
+    system_prompt="You are an expert at providing constructive feedback.",
+    temperature=0.7,
+    max_tokens=1000,
+)
+
+# Default configuration for value critics
+DEFAULT_VALUE_CONFIG = ValueCriticConfig(
+    name="Default Value Critic",
+    description="Estimates numeric values for text",
+    min_confidence=0.7,
+    max_attempts=3,
+    cache_size=100,
+    priority=1,
+    cost=1.0,
+    system_prompt="You are an expert at estimating the quality of responses.",
+    temperature=0.3,
+    max_tokens=100,
+)
+
+# Default configuration for LAC critics
+DEFAULT_LAC_CONFIG = LACCriticConfig(
+    name="Default LAC Critic",
+    description="Combines language feedback and value scoring",
+    min_confidence=0.7,
+    max_attempts=3,
+    cache_size=100,
+    priority=1,
+    cost=1.0,
+    system_prompt="You are an expert at evaluating and improving text.",
+    temperature=0.7,
+    max_tokens=1000,
+)
+
 __all__ = [
     # Core components
     "CriticCore",
@@ -129,16 +182,25 @@ __all__ = [
     "ConstitutionalCriticConfig",
     "SelfRefineCriticConfig",
     "SelfRAGCriticConfig",
+    "FeedbackCriticConfig",
+    "ValueCriticConfig",
+    "LACCriticConfig",
     # Critics
     "ConstitutionalCritic",
     "SelfRefineCritic",
     "SelfRAGCritic",
+    "FeedbackCritic",
+    "ValueCritic",
+    "LACCritic",
     # Factory functions
     "create_prompt_critic",
     "create_reflexion_critic",
     "create_constitutional_critic",
     "create_self_refine_critic",
     "create_self_rag_critic",
+    "create_feedback_critic",
+    "create_value_critic",
+    "create_lac_critic",
     # Managers
     "DefaultPromptManager",
     "MemoryManager",
@@ -154,4 +216,7 @@ __all__ = [
     "DEFAULT_CONSTITUTIONAL_CONFIG",
     "DEFAULT_SELF_REFINE_CONFIG",
     "DEFAULT_SELF_RAG_CONFIG",
+    "DEFAULT_FEEDBACK_CONFIG",
+    "DEFAULT_VALUE_CONFIG",
+    "DEFAULT_LAC_CONFIG",
 ]
