@@ -10,6 +10,7 @@ ensuring type safety and validation for critic-related data structures.
    - `CriticConfig`: Base configuration for critics
    - `PromptCriticConfig`: Configuration for prompt-based critics
    - `ReflexionCriticConfig`: Configuration for reflexion critics
+   - `ConstitutionalCriticConfig`: Configuration for constitutional critics
 
 2. **Metadata Models**
    - `CriticMetadata`: Metadata for critic results
@@ -75,7 +76,7 @@ ensuring type safety and validation for critic-related data structures.
 Creating and using configuration models:
 
 ```python
-from sifaka.critics.models import CriticConfig, PromptCriticConfig, ReflexionCriticConfig
+from sifaka.critics.models import CriticConfig, PromptCriticConfig, ReflexionCriticConfig, ConstitutionalCriticConfig
 
 # Create a basic critic config
 basic_config = CriticConfig(
@@ -99,6 +100,14 @@ reflexion_config = ReflexionCriticConfig(
     description="A reflexion critic",
     memory_buffer_size=5,
     reflection_depth=2
+)
+
+# Create a constitutional critic config
+constitutional_config = ConstitutionalCriticConfig(
+    name="constitutional_critic",
+    description="A constitutional critic",
+    principles=["Do not provide harmful content.", "Explain reasoning clearly."],
+    system_prompt="You are an expert at evaluating content against principles."
 )
 ```
 
@@ -438,6 +447,122 @@ class ReflexionCriticConfig(PromptCriticConfig):
     reflection_depth: int = Field(
         default=1, description="How many levels of reflection to perform", gt=0
     )
+
+
+class ConstitutionalCriticConfig(PromptCriticConfig):
+    """
+    Configuration for constitutional critics.
+
+    This model extends PromptCriticConfig with constitutional-specific settings
+    for critics that evaluate responses against a set of principles.
+
+    ## Lifecycle Management
+
+    1. **Initialization**
+       - Set base configuration
+       - Configure constitutional settings
+       - Validate field values
+       - Create immutable instance
+
+    2. **Validation**
+       - Check field types
+       - Verify value ranges
+       - Ensure required fields
+       - Validate custom rules
+
+    3. **Usage**
+       - Access configuration values
+       - Create modified instances
+       - Serialize to/from JSON
+       - Validate against schema
+
+    Examples:
+        ```python
+        from sifaka.critics.models import ConstitutionalCriticConfig
+
+        # Create a constitutional critic config
+        principles = [
+            "Do not provide harmful content.",
+            "Explain reasoning clearly."
+        ]
+
+        config = ConstitutionalCriticConfig(
+            name="constitutional_critic",
+            description="A constitutional critic",
+            principles=principles,
+            system_prompt="You are an expert at evaluating content against principles.",
+            temperature=0.7,
+            max_tokens=1000
+        )
+
+        # Access configuration values
+        print(f"Principles: {config.principles}")
+        print(f"System prompt: {config.system_prompt}")
+
+        # Create modified config
+        new_config = config.model_copy(
+            update={"temperature": 0.8}
+        )
+        ```
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    principles: List[str] = Field(
+        description="List of principles to evaluate responses against", min_length=1
+    )
+    system_prompt: str = Field(
+        default="You are an expert at evaluating content against principles.",
+        description="System prompt for the model",
+        min_length=1,
+    )
+    critique_prompt_template: str = Field(
+        default=(
+            "You are an AI assistant tasked with ensuring alignment to the following principles:\n\n"
+            "{principles}\n\n"
+            "Please evaluate the following response in light of these principles and provide a critique if any are violated.\n\n"
+            "Task:\n{task}\n\n"
+            "Response:\n{response}\n\n"
+            "Critique:"
+        ),
+        description="Template for critique prompts",
+    )
+    improvement_prompt_template: str = Field(
+        default=(
+            "You are an AI assistant tasked with ensuring alignment to the following principles:\n\n"
+            "{principles}\n\n"
+            "The following response violates one or more of these principles:\n\n"
+            "Task:\n{task}\n\n"
+            "Response:\n{response}\n\n"
+            "Critique:\n{critique}\n\n"
+            "Please rewrite the response to address the critique while still answering the original task:"
+        ),
+        description="Template for improvement prompts",
+    )
+
+    @field_validator("principles")
+    @classmethod
+    def principles_must_not_be_empty(cls, v: List[str]) -> List[str]:
+        """
+        Validate that principles is not empty.
+
+        This validator ensures that the principles field is not empty and
+        contains valid strings.
+
+        Args:
+            v: The principles value to validate
+
+        Returns:
+            The validated principles
+
+        Raises:
+            ValueError: If principles is empty or contains empty strings
+        """
+        if not v:
+            raise ValueError("principles cannot be empty")
+        if not all(isinstance(p, str) and p.strip() for p in v):
+            raise ValueError("principles must be non-empty strings")
+        return v
 
 
 class CriticMetadata(BaseModel):
