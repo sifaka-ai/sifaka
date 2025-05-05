@@ -355,3 +355,15 @@ def create_reflexion_critic(
     return ReflexionCritic(
         config=config, llm_provider=llm_provider, name=name, description=description
     )
+
+
+"""
+@misc{shinn2023reflexion,
+      title={Reflexion: Language Agents with Verbal Reinforcement Learning},
+      author={Noah Shinn and Federico Cassano and Edward Berman and Ashwin Gopinath and Karthik Narasimhan and Shunyu Yao},
+      year={2023},
+      eprint={2303.11366},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI}
+}
+"""
