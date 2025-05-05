@@ -16,9 +16,9 @@ from sifaka.critics.reflexion import (
     ReflexionCriticConfig,
     create_reflexion_critic,
     ReflexionPromptFactory,
-    DEFAULT_REFLEXION_CONFIG,
-    DEFAULT_REFLEXION_SYSTEM_PROMPT,
+    DEFAULT_SYSTEM_PROMPT as DEFAULT_REFLEXION_SYSTEM_PROMPT,
 )
+from sifaka.critics import DEFAULT_REFLEXION_CONFIG
 from sifaka.critics.base import CriticMetadata
 
 
@@ -39,8 +39,10 @@ class MockModel:
         if "validate" in prompt.lower():
             return self.responses.get("validate", "VALID: true\nREASON: Good content")
         elif "critique" in prompt.lower():
-            return self.responses.get("critique",
-                "SCORE: 0.8\nFEEDBACK: Good content\nISSUES:\n- Minor grammar issues\nSUGGESTIONS:\n- Fix grammar")
+            return self.responses.get(
+                "critique",
+                "SCORE: 0.8\nFEEDBACK: Good content\nISSUES:\n- Minor grammar issues\nSUGGESTIONS:\n- Fix grammar",
+            )
         elif "improve" in prompt.lower():
             return self.responses.get("improve", "IMPROVED_TEXT: This is improved text.")
         elif "reflect" in prompt.lower():
@@ -64,12 +66,14 @@ class MockReflexionCritic:
         self._memory_manager = MagicMock()
         self._memory_manager.get_memory.return_value = []
         self._violations_to_feedback = MagicMock(return_value="Feedback from violations")
-        self._parse_critique_response = MagicMock(return_value={
-            "score": 0.8,
-            "feedback": "Test feedback",
-            "issues": ["Issue 1"],
-            "suggestions": ["Suggestion 1"]
-        })
+        self._parse_critique_response = MagicMock(
+            return_value={
+                "score": 0.8,
+                "feedback": "Test feedback",
+                "issues": ["Issue 1"],
+                "suggestions": ["Suggestion 1"],
+            }
+        )
 
         # Store other kwargs for testing
         for key, value in kwargs.items():
@@ -92,13 +96,10 @@ class MockReflexionCritic:
                 score=0.0,
                 feedback="Invalid text",
                 issues=["Empty text"],
-                suggestions=["Provide content"]
+                suggestions=["Provide content"],
             )
         return CriticMetadata(
-            score=0.8,
-            feedback="Good content",
-            issues=["Minor issue"],
-            suggestions=["Suggestion"]
+            score=0.8, feedback="Good content", issues=["Minor issue"], suggestions=["Suggestion"]
         )
 
     def improve(self, text, feedback=None):
@@ -135,27 +136,27 @@ class MockReflexionCritic:
 
 
 # Patch the create_reflexion_critic function to return our mock
-@patch('sifaka.critics.reflexion.ReflexionCritic', MockReflexionCritic)
+@patch("sifaka.critics.reflexion.ReflexionCritic", MockReflexionCritic)
 def patched_create_reflexion_critic(*args, **kwargs):
     """Patched version of create_reflexion_critic that returns a MockReflexionCritic."""
     # Create a config object first if it doesn't exist
-    if 'config' not in kwargs and len(args) == 0:
+    if "config" not in kwargs and len(args) == 0:
         config = ReflexionCriticConfig(
-            name=kwargs.get('name', 'reflexion_critic'),
-            description=kwargs.get('description', 'Mock reflexion critic'),
-            system_prompt=kwargs.get('system_prompt', 'System prompt'),
-            temperature=kwargs.get('temperature', 0.7),
-            max_tokens=kwargs.get('max_tokens', 1000),
-            memory_buffer_size=kwargs.get('memory_buffer_size', 5),
-            reflection_depth=kwargs.get('reflection_depth', 1)
+            name=kwargs.get("name", "reflexion_critic"),
+            description=kwargs.get("description", "Mock reflexion critic"),
+            system_prompt=kwargs.get("system_prompt", "System prompt"),
+            temperature=kwargs.get("temperature", 0.7),
+            max_tokens=kwargs.get("max_tokens", 1000),
+            memory_buffer_size=kwargs.get("memory_buffer_size", 5),
+            reflection_depth=kwargs.get("reflection_depth", 1),
         )
-        kwargs['config'] = config
+        kwargs["config"] = config
 
     return MockReflexionCritic(
-        llm_provider=kwargs.get('llm_provider'),
-        name=kwargs.get('name'),
-        description=kwargs.get('description'),
-        config=kwargs.get('config')
+        llm_provider=kwargs.get("llm_provider"),
+        name=kwargs.get("name"),
+        description=kwargs.get("description"),
+        config=kwargs.get("config"),
     )
 
 
@@ -194,7 +195,9 @@ class TestReflexionPromptFactory(unittest.TestCase):
     def test_create_improvement_prompt_with_reflections(self):
         """Test creation of improvement prompt with reflections."""
         reflections = ["First reflection", "Second reflection"]
-        prompt = self.factory.create_improvement_prompt(self.test_text, self.test_feedback, reflections)
+        prompt = self.factory.create_improvement_prompt(
+            self.test_text, self.test_feedback, reflections
+        )
         self.assertIn("TEXT TO IMPROVE:", prompt)
         self.assertIn(self.test_text, prompt)
         self.assertIn("FEEDBACK:", prompt)
@@ -206,7 +209,9 @@ class TestReflexionPromptFactory(unittest.TestCase):
     def test_create_reflection_prompt(self):
         """Test creation of reflection prompt."""
         improved_text = "This is improved text"
-        prompt = self.factory.create_reflection_prompt(self.test_text, self.test_feedback, improved_text)
+        prompt = self.factory.create_reflection_prompt(
+            self.test_text, self.test_feedback, improved_text
+        )
         self.assertIn("ORIGINAL TEXT:", prompt)
         self.assertIn(self.test_text, prompt)
         self.assertIn("FEEDBACK RECEIVED:", prompt)
@@ -300,7 +305,7 @@ class TestReflexionCriticConfig(unittest.TestCase):
             )
 
 
-@patch('sifaka.critics.reflexion.ReflexionCritic', MockReflexionCritic)
+@patch("sifaka.critics.reflexion.ReflexionCritic", MockReflexionCritic)
 class TestReflexionCritic(unittest.TestCase):
     """Tests for ReflexionCritic."""
 
@@ -319,19 +324,21 @@ class TestReflexionCritic(unittest.TestCase):
             name="test_critic",
             description="Test critic for testing",
             llm_provider=self.mock_model,
-            config=self.config
+            config=self.config,
         )
 
     def test_init_without_llm_provider(self):
         """Test initialization without llm_provider."""
         # We're using a mock, so we need to simulate the error
-        with patch.object(MockReflexionCritic, '__init__', side_effect=ValueError("llm_provider is required")):
+        with patch.object(
+            MockReflexionCritic, "__init__", side_effect=ValueError("llm_provider is required")
+        ):
             with self.assertRaises(ValueError):
                 MockReflexionCritic(
                     name="test_critic",
                     description="Test critic for testing",
                     llm_provider=None,
-                    config=self.config
+                    config=self.config,
                 )
 
     def test_validate_valid_text(self):
@@ -342,7 +349,7 @@ class TestReflexionCritic(unittest.TestCase):
     def test_validate_invalid_text(self):
         """Test validation with invalid text."""
         # Mock the validate method to return False
-        with patch.object(MockReflexionCritic, 'validate', return_value=False):
+        with patch.object(MockReflexionCritic, "validate", return_value=False):
             result = self.critic.validate("This is a test")
             self.assertFalse(result)
 
@@ -377,7 +384,7 @@ class TestReflexionCritic(unittest.TestCase):
         """Test improve with violations list as feedback."""
         violations = [
             {"rule_name": "Test Rule", "message": "Test message"},
-            {"rule_name": "Another Rule", "message": "Another message"}
+            {"rule_name": "Another Rule", "message": "Another message"},
         ]
 
         result = self.critic.improve("This is a test", violations)
@@ -404,7 +411,7 @@ class TestReflexionCritic(unittest.TestCase):
 
 
 @pytest.mark.asyncio
-@patch('sifaka.critics.reflexion.create_reflexion_critic', patched_create_reflexion_critic)
+@patch("sifaka.critics.reflexion.create_reflexion_critic", patched_create_reflexion_critic)
 async def test_avalidate():
     """Test async validate method."""
     mock_model = MockModel({"validate": "VALID: true\nREASON: This is valid."})
@@ -416,12 +423,12 @@ async def test_avalidate():
 
 
 @pytest.mark.asyncio
-@patch('sifaka.critics.reflexion.create_reflexion_critic', patched_create_reflexion_critic)
+@patch("sifaka.critics.reflexion.create_reflexion_critic", patched_create_reflexion_critic)
 async def test_acritique():
     """Test async critique method."""
-    mock_model = MockModel({
-        "critique": "SCORE: 0.8\nFEEDBACK: Good content\nISSUES:\n- Issue\nSUGGESTIONS:\n- Fix it"
-    })
+    mock_model = MockModel(
+        {"critique": "SCORE: 0.8\nFEEDBACK: Good content\nISSUES:\n- Issue\nSUGGESTIONS:\n- Fix it"}
+    )
     critic = patched_create_reflexion_critic(llm_provider=mock_model)
 
     # The critic already has proper async methods implemented
@@ -434,7 +441,7 @@ async def test_acritique():
 
 
 @pytest.mark.asyncio
-@patch('sifaka.critics.reflexion.create_reflexion_critic', patched_create_reflexion_critic)
+@patch("sifaka.critics.reflexion.create_reflexion_critic", patched_create_reflexion_critic)
 async def test_aimprove():
     """Test async improve method."""
     mock_model = MockModel({"improve": "IMPROVED_TEXT: This is improved text."})
@@ -445,7 +452,7 @@ async def test_aimprove():
     assert result == "Improved: This is a test"
 
 
-@patch('sifaka.critics.reflexion.ReflexionCritic', MockReflexionCritic)
+@patch("sifaka.critics.reflexion.ReflexionCritic", MockReflexionCritic)
 def test_create_reflexion_critic():
     """Test create_reflexion_critic factory function."""
     mock_model = MockModel()
@@ -455,14 +462,14 @@ def test_create_reflexion_critic():
         description="Created by factory",
         system_prompt="Custom system prompt",
         memory_buffer_size=10,
-        reflection_depth=2
+        reflection_depth=2,
     )
 
     critic = patched_create_reflexion_critic(
         llm_provider=mock_model,
         config=config,
         name="factory_critic",
-        description="Created by factory"
+        description="Created by factory",
     )
 
     assert isinstance(critic, MockReflexionCritic)
@@ -471,7 +478,7 @@ def test_create_reflexion_critic():
     assert critic.config.memory_buffer_size == 10
 
 
-@patch('sifaka.critics.reflexion.ReflexionCritic', MockReflexionCritic)
+@patch("sifaka.critics.reflexion.ReflexionCritic", MockReflexionCritic)
 def test_violations_to_feedback():
     """Test _violations_to_feedback method."""
     mock_model = MockModel()
@@ -479,7 +486,7 @@ def test_violations_to_feedback():
 
     violations = [
         {"rule_name": "Test Rule", "message": "Test message"},
-        {"rule_name": "Another Rule", "message": "Another message"}
+        {"rule_name": "Another Rule", "message": "Another message"},
     ]
 
     # Use the public improve method since we can't easily test the private method
@@ -494,7 +501,7 @@ def test_violations_to_feedback():
     assert len(args[0]) == 2
 
 
-@patch('sifaka.critics.reflexion.ReflexionCritic', MockReflexionCritic)
+@patch("sifaka.critics.reflexion.ReflexionCritic", MockReflexionCritic)
 def test_parse_critique_response():
     """Test _parse_critique_response method."""
     mock_model = MockModel()
