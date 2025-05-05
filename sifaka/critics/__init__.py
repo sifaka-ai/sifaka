@@ -3,7 +3,7 @@ Critics functionality for Sifaka.
 
 This package provides components for critiquing, validating, and improving text:
 - CriticCore: Core implementation with component-based architecture
-- Factory functions for creating critics (create_prompt_critic, create_reflexion_critic, create_constitutional_critic)
+- Factory functions for creating critics (create_prompt_critic, create_reflexion_critic, create_constitutional_critic, create_self_refine_critic)
 - Specialized managers and services for different aspects of critics
 """
 
@@ -16,6 +16,11 @@ from .constitutional import (
 )
 from .factories import create_prompt_critic, create_reflexion_critic
 from .models import CriticConfig, CriticMetadata, PromptCriticConfig, ReflexionCriticConfig
+from .self_refine import (
+    SelfRefineCritic,
+    SelfRefineCriticConfig,
+    create_self_refine_critic,
+)
 
 # Import managers and services for advanced usage
 from .managers import (
@@ -77,6 +82,21 @@ DEFAULT_CONSTITUTIONAL_CONFIG = ConstitutionalCriticConfig(
     ],
 )
 
+# Default configuration for self-refine critics
+DEFAULT_SELF_REFINE_CONFIG = SelfRefineCriticConfig(
+    name="Default Self-Refine Critic",
+    description="Improves text through iterative self-critique and revision",
+    min_confidence=0.7,
+    max_attempts=3,
+    cache_size=100,
+    priority=1,
+    cost=1.0,
+    system_prompt="You are an expert at critiquing and revising content.",
+    temperature=0.7,
+    max_tokens=1000,
+    max_iterations=3,
+)
+
 __all__ = [
     # Core components
     "CriticCore",
@@ -87,12 +107,15 @@ __all__ = [
     "PromptCriticConfig",
     "ReflexionCriticConfig",
     "ConstitutionalCriticConfig",
+    "SelfRefineCriticConfig",
     # Critics
     "ConstitutionalCritic",
+    "SelfRefineCritic",
     # Factory functions
     "create_prompt_critic",
     "create_reflexion_critic",
     "create_constitutional_critic",
+    "create_self_refine_critic",
     # Managers
     "DefaultPromptManager",
     "MemoryManager",
@@ -106,4 +129,5 @@ __all__ = [
     "DEFAULT_PROMPT_CONFIG",
     "DEFAULT_REFLEXION_CONFIG",
     "DEFAULT_CONSTITUTIONAL_CONFIG",
+    "DEFAULT_SELF_REFINE_CONFIG",
 ]
