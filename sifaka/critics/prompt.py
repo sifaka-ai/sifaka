@@ -484,14 +484,13 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         Raises:
             RuntimeError: If the critic is not initialized
         """
-        state = self._state_manager.get_state()
-        if not state.initialized:
+        if not self._state.initialized:
             raise RuntimeError("PromptCritic not properly initialized")
 
-        history = state.cache.get("improvement_history")
+        history = self._state.cache.get("improvement_history")
         if not history:
             history = ImprovementHistory()
-            state.cache["improvement_history"] = history
+            self._state.cache["improvement_history"] = history
 
         return history
 
