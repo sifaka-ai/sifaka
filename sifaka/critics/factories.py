@@ -125,6 +125,7 @@ from typing import Any, Dict, Optional, Union
 
 from .models import CriticConfig, PromptCriticConfig, ReflexionCriticConfig
 from .core import CriticCore
+from .reflexion import ReflexionCritic
 from .managers.memory import MemoryManager
 from .managers.prompt_factories import PromptCriticPromptManager, ReflexionCriticPromptManager
 from .managers.response import ResponseParser
@@ -284,10 +285,8 @@ def create_reflexion_critic(
     core_kwargs = {
         "config": config,
         "llm_provider": llm_provider,
-        "prompt_manager": prompt_manager,
-        "response_parser": response_parser,
-        "memory_manager": memory_manager,
+        "prompt_factory": prompt_manager,
     }
 
     # Create and return critic
-    return CriticCore(**core_kwargs)
+    return ReflexionCritic(**core_kwargs)

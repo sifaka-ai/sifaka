@@ -172,8 +172,8 @@ class CriticCore(BaseCritic):
        - cache: A cache for storing temporary data
     """
 
-    # State management using StateManager
-    _state: CriticState = PrivateAttr(default_factory=CriticState)
+    # State management using direct state
+    _state = PrivateAttr(default_factory=lambda: None)
 
     def __init__(
         self,
@@ -202,6 +202,8 @@ class CriticCore(BaseCritic):
         super().__init__(config)
 
         # Initialize state
+        from ..utils.state import CriticState
+
         self._state = CriticState()
         self._state.initialized = False
 
