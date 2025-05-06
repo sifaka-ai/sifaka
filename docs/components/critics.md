@@ -20,7 +20,7 @@ graph TD
         PM --> LLM[Language Model]
         LLM --> RP
     end
-    
+
     subgraph Flow
         Input[Input Text] --> C
         Feedback[Feedback] --> C
@@ -223,11 +223,26 @@ if not is_valid:
     # Critique text
     critique = critic.critique(text)
     print(f"Feedback: {critique.feedback}")
-    
+
     # Improve text
     improved = critic.improve(text, critique.feedback)
     print(f"Improved text: {improved}")
 ```
+
+## Comparing Critics
+
+Sifaka provides several types of critics, each with its own strengths and weaknesses. To help you choose the right critic for your use case, you can use the critic comparison example:
+
+```python
+from sifaka.examples.critics.critic_comparison_example import run_critic_comparison
+
+# Run the comparison
+run_critic_comparison()
+```
+
+This will compare the performance of different critics (PromptCritic, ReflexionCritic, SelfRefineCritic, SelfRAGCritic, ConstitutionalCritic) using different model providers (OpenAI GPT-4, Anthropic Claude-3-Opus) and display the results in a formatted table.
+
+For more details, see the [Critic Comparison Example](../examples/critic_comparison.md) documentation.
 
 ## Critic Interfaces
 
@@ -302,40 +317,40 @@ from sifaka.utils.state import create_critic_state
 
 class SimpleRuleBasedCritic(BaseCritic):
     """A simple rule-based critic that doesn't use a language model."""
-    
+
     # State management using StateManager
     _state_manager = PrivateAttr(default_factory=create_critic_state)
-    
+
     def __init__(self, config: CriticConfig):
         """Initialize the critic."""
         super().__init__(config)
-        
+
         # Initialize state
         state = self._state_manager.get_state()
-        
+
         # Set up rules from config
         state.rules = self.config.params.get("rules", {})
-        
+
         # Mark as initialized
         state.initialized = True
-    
+
     def validate(self, text: str) -> bool:
         """Validate text against rules."""
         # Get state
         state = self._state_manager.get_state()
-        
+
         # Check if text passes all rules
         for rule_name, rule_func in state.rules.items():
             if not rule_func(text):
                 return False
-        
+
         return True
-    
+
     def critique(self, text: str) -> CriticMetadata:
         """Critique text and provide feedback."""
         # Get state
         state = self._state_manager.get_state()
-        
+
         # Check each rule and collect issues
         issues = []
         suggestions = []
@@ -343,18 +358,18 @@ class SimpleRuleBasedCritic(BaseCritic):
             if not rule_func(text):
                 issues.append(f"Failed rule: {rule_name}")
                 suggestions.append(state.rules.get(f"{rule_name}_fix", "Fix this issue"))
-        
+
         # Calculate score based on number of passing rules
         total_rules = len(state.rules)
         passing_rules = total_rules - len(issues)
         score = passing_rules / total_rules if total_rules > 0 else 1.0
-        
+
         # Create feedback
         if issues:
             feedback = f"The text has {len(issues)} issues that need to be addressed."
         else:
             feedback = "The text passes all rules."
-        
+
         # Return metadata
         return CriticMetadata(
             score=score,
@@ -362,22 +377,22 @@ class SimpleRuleBasedCritic(BaseCritic):
             issues=issues,
             suggestions=suggestions
         )
-    
+
     def improve(self, text: str, feedback: Optional[Any] = None) -> str:
         """Improve text based on rules."""
         # Get state
         state = self._state_manager.get_state()
-        
+
         # Start with original text
         improved = text
-        
+
         # Apply fixes for each failing rule
         for rule_name, rule_func in state.rules.items():
             if not rule_func(improved):
                 fix_func = state.rules.get(f"{rule_name}_fix_func")
                 if fix_func:
                     improved = fix_func(improved)
-        
+
         return improved
 
 # Factory function
@@ -396,12 +411,12 @@ def create_simple_rule_based_critic(
             "min_length": lambda text: len(text) >= 10,
             "min_length_fix": "Make the text longer",
             "min_length_fix_func": lambda text: text + " Additional content to meet minimum length.",
-            
+
             "has_punctuation": lambda text: any(c in text for c in ".!?"),
             "has_punctuation_fix": "Add proper punctuation",
             "has_punctuation_fix_func": lambda text: text + "." if not any(c in text for c in ".!?") else text,
         }
-    
+
     # Create configuration
     config = CriticConfig(
         name=name,
@@ -411,7 +426,7 @@ def create_simple_rule_based_critic(
         params={"rules": rules},
         **kwargs
     )
-    
+
     # Create and return critic
     return SimpleRuleBasedCritic(config)
 
@@ -425,7 +440,7 @@ if not is_valid:
     print("Issues:")
     for issue in critique.issues:
         print(f"- {issue}")
-    
+
     improved = critic.improve(text)
     print(f"Improved text: {improved}")
 ```
