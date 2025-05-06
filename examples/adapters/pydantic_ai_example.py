@@ -10,9 +10,10 @@ The example shows:
 3. Creating a Sifaka adapter for PydanticAI
 4. Using the adapter as a PydanticAI output validator
 5. Running the agent and handling validation failures
+6. Integrating GuardRails validators with PydanticAI
 
 Requirements:
-    pip install pydantic-ai sifaka
+    pip install pydantic-ai sifaka guardrails-ai
 
 Note: This example requires OpenAI API keys set as environment variables:
     - OPENAI_API_KEY for OpenAI models
@@ -20,6 +21,7 @@ Note: This example requires OpenAI API keys set as environment variables:
 
 import os
 import logging
+import re
 from typing import List, Optional
 
 # Import PydanticAI components
@@ -35,6 +37,17 @@ from sifaka.rules.formatting.length import create_length_rule
 from sifaka.rules.content.prohibited import create_prohibited_content_rule
 from sifaka.models.openai import create_openai_provider
 from sifaka.critics.reflexion import create_reflexion_critic
+
+# Import GuardRails components (if available)
+try:
+    from guardrails.validator_base import Validator, register_validator
+    from guardrails.classes import ValidationResult, PassResult, FailResult
+    from sifaka.adapters.rules.guardrails_adapter import create_guardrails_rule
+
+    GUARDRAILS_AVAILABLE = True
+except ImportError:
+    GUARDRAILS_AVAILABLE = False
+    print("⚠️ GuardRails is not installed. Please install it with 'pip install guardrails-ai'")
 
 # Configure logging
 logging.basicConfig(
@@ -62,6 +75,17 @@ class OrderSummary(BaseModel):
     items: List[OrderItem] = Field(..., description="The items in the order")
     total: float = Field(..., description="The total price of the order")
     notes: str = Field(..., description="Summary notes for the order")
+
+
+class OrderSummaryWithContact(BaseModel):
+    """A summary of an order with contact information."""
+
+    order_id: int = Field(..., description="The order ID")
+    customer: str = Field(..., description="The customer name")
+    items: List[OrderItem] = Field(..., description="The items in the order")
+    total: float = Field(..., description="The total price of the order")
+    notes: str = Field(..., description="Summary notes for the order")
+    contact_phone: str = Field(..., description="Customer contact phone number")
 
 
 def example_basic_adapter():
@@ -226,6 +250,103 @@ def example_adapter_with_reflexion_critic():
         logger.error(f"Error running agent: {e}")
 
 
+def example_guardrails_with_reflexion():
+    """Example using a PydanticAI adapter with GuardRails phone number validator and reflexion critic."""
+    if not GUARDRAILS_AVAILABLE:
+        logger.warning("GuardRails is not installed. Skipping example.")
+        return
+
+    logger.info("Running PydanticAI adapter with GuardRails and reflexion critic example")
+
+    # Create a PydanticAI agent with the contact phone model
+    agent = Agent("openai:gpt-4", output_type=OrderSummaryWithContact)
+
+    # Create a model provider for the critic
+    model_provider = create_openai_provider(
+        model_name="gpt-4",
+        api_key=os.environ.get("OPENAI_API_KEY"),
+    )
+
+    # Create a custom GuardRails validator for phone numbers
+    @register_validator(name="phone_number_validator", data_type="string")
+    class PhoneNumberValidator(Validator):
+        """Validator that checks if a value matches a US phone number pattern."""
+
+        def __init__(self, on_fail="exception"):
+            """Initialize the validator."""
+            super().__init__(on_fail=on_fail)
+            self.pattern = re.compile(r"\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}")
+
+        def _validate(self, value, metadata):
+            """Validate if the value contains a valid US phone number."""
+            if not self.pattern.search(value):
+                return FailResult(
+                    actual_value=value,
+                    error_message="Value must contain a valid US phone number (e.g., 555-123-4567)",
+                )
+            return PassResult(actual_value=value, validated_value=value)
+
+    # Create an instance of our custom validator
+    phone_validator = PhoneNumberValidator(on_fail="exception")
+
+    # Create a Sifaka rule using the GuardRails validator
+    phone_rule = create_guardrails_rule(
+        guardrails_validator=phone_validator,
+        rule_id="phone_number_format",
+        field_path="contact_phone",  # Only validate the contact_phone field
+    )
+
+    # Create Sifaka rules - including the phone number rule
+    rules = [
+        create_length_rule(
+            min_chars=100,  # Require longer notes
+            max_chars=500,
+            name="notes_length",
+            description="Ensures notes are between 100 and 500 characters",
+            field_path="notes",  # Only validate the notes field
+        ),
+        phone_rule,  # Add the phone number rule
+    ]
+
+    # Create a reflexion critic
+    reflexion_critic = create_reflexion_critic(
+        llm_provider=model_provider,
+        system_prompt=(
+            "You are an expert editor that improves order summaries through reflection. "
+            "When you receive feedback about issues, reflect on why they occurred and "
+            "how to fix them. Pay special attention to phone numbers - they should be "
+            "in a valid US format like (XXX) XXX-XXXX or XXX-XXX-XXXX. "
+            "Then provide an improved version."
+        ),
+    )
+
+    # Create a Sifaka adapter with the reflexion critic
+    sifaka_adapter = create_pydantic_adapter_with_critic(
+        rules=rules,
+        output_model=OrderSummaryWithContact,
+        critic=reflexion_critic,
+        max_refine=2,
+    )
+
+    # Register the adapter as an output validator
+    @agent.output_validator
+    def validate_with_sifaka(
+        ctx: RunContext, output: OrderSummaryWithContact
+    ) -> OrderSummaryWithContact:
+        return sifaka_adapter(ctx, output)
+
+    # Run the agent - intentionally ask for a phone number to trigger validation
+    prompt = (
+        "Create an order summary for customer John Doe with 3 items. "
+        "Include a contact phone number for the customer."
+    )
+    try:
+        result = agent.run_sync(prompt)
+        logger.info(f"Order summary: {result.output}")
+    except Exception as e:
+        logger.error(f"Error running agent: {e}")
+
+
 if __name__ == "__main__":
     # Check if OpenAI API key is set
     if not os.environ.get("OPENAI_API_KEY"):
@@ -236,3 +357,4 @@ if __name__ == "__main__":
     example_basic_adapter()
     example_adapter_with_critic()
     example_adapter_with_reflexion_critic()
+    example_guardrails_with_reflexion()  # Run the new example
