@@ -278,11 +278,11 @@ def example_guardrails_with_reflexion():
             self.pattern = re.compile(r"\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}")
 
         def _validate(self, value, metadata):
-            """Validate if the value contains a valid US phone number."""
-            if not self.pattern.search(value):
+            """Validate if the value contains a US phone number and fail if it does."""
+            if self.pattern.search(value):
                 return FailResult(
                     actual_value=value,
-                    error_message="Value must contain a valid US phone number (e.g., 555-123-4567)",
+                    error_message="Value must NOT contain a phone number for privacy reasons",
                 )
             return PassResult(actual_value=value, validated_value=value)
 
@@ -291,9 +291,7 @@ def example_guardrails_with_reflexion():
 
     # Create a Sifaka rule using the GuardRails validator
     phone_rule = create_guardrails_rule(
-        guardrails_validator=phone_validator,
-        rule_id="phone_number_format",
-        field_path="contact_phone",  # Only validate the contact_phone field
+        guardrails_validator=phone_validator, rule_id="phone_number_format"
     )
 
     # Create Sifaka rules - including the phone number rule
@@ -314,9 +312,11 @@ def example_guardrails_with_reflexion():
         system_prompt=(
             "You are an expert editor that improves order summaries through reflection. "
             "When you receive feedback about issues, reflect on why they occurred and "
-            "how to fix them. Pay special attention to phone numbers - they should be "
-            "in a valid US format like (XXX) XXX-XXXX or XXX-XXX-XXXX. "
-            "Then provide an improved version."
+            "how to fix them. Pay special attention to privacy concerns - phone numbers "
+            "should NOT be included in order summaries for privacy and security reasons. "
+            "If you find any phone numbers in the format like (XXX) XXX-XXXX or XXX-XXX-XXXX, "
+            "remove them completely from the contact_phone field. "
+            "Then provide an improved version that respects privacy guidelines."
         ),
     )
 
@@ -338,7 +338,8 @@ def example_guardrails_with_reflexion():
     # Run the agent - intentionally ask for a phone number to trigger validation
     prompt = (
         "Create an order summary for customer John Doe with 3 items. "
-        "Include a contact phone number for the customer."
+        "Make sure to include a contact phone number (e.g., 555-123-4567) for the customer "
+        "in the contact_phone field. This is very important."
     )
     try:
         result = agent.run_sync(prompt)

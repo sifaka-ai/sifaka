@@ -139,7 +139,12 @@ class SifakaPydanticAdapter:
 
         logger = logging.getLogger("sifaka.adapters.pydantic_ai")
 
-        logger.info(f"PydanticAI adapter processing output (attempt {ctx.state.retries + 1})")
+        # Check if ctx has a state attribute with retries
+        retries = 0
+        if hasattr(ctx, "state") and hasattr(ctx.state, "retries"):
+            retries = ctx.state.retries
+
+        logger.info(f"PydanticAI adapter processing output (attempt {retries + 1})")
 
         # Convert Pydantic model to dict for validation
         serialize_method = getattr(output, self.config.serialize_method, None)
@@ -186,20 +191,24 @@ class SifakaPydanticAdapter:
             logger.warning(f"  Issue {i+1}: {issue}")
 
         # If we have a critic and haven't exceeded max refinement attempts, retry
-        if ctx.state.retries < self.config.max_refine:
+        # Check if ctx has a state attribute with retries
+        retries = 0
+        if hasattr(ctx, "state") and hasattr(ctx.state, "retries"):
+            retries = ctx.state.retries
+
+        if retries < self.config.max_refine:
             # Format issues for the model to understand
             formatted_issues = "\n".join([f"- {issue}" for issue in issues])
             error_message = (
                 f"Validation failed:\n{formatted_issues}\nPlease fix these issues and try again."
             )
 
-            logger.info(
-                f"Requesting refinement (attempt {ctx.state.retries + 1}/{self.config.max_refine})"
-            )
+            logger.info(f"Requesting refinement (attempt {retries + 1}/{self.config.max_refine})")
 
             # If we have a critic, log that information
             if self.critic:
-                logger.info(f"Using critic: {self.critic.name} for additional guidance")
+                critic_name = getattr(self.critic, "name", type(self.critic).__name__)
+                logger.info(f"Using critic: {critic_name} for additional guidance")
 
             # Raise ModelRetry to trigger a retry with the error message
             raise ModelRetry(error_message)
