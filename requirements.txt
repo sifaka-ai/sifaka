@@ -28,6 +28,7 @@ tenacity>=8.2.3
 
 # Optional integrations
 guardrails-ai>=0.6.6  # Updated to latest version to fix pkg_resources deprecation
+pydantic-ai>=0.7.1  # Required for PydanticAI adapter and examples
 
 # Development
 pytest>=8.0.2

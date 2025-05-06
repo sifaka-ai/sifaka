@@ -12,9 +12,10 @@ The example measures:
 1. Time spent (execution time)
 2. Number of revisions/iterations
 3. Quality of output (using a simple heuristic)
+4. Output length
 
 Requirements:
-    pip install sifaka
+    pip install "sifaka[openai,anthropic]"
 
 Note: This example requires API keys set as environment variables:
     - OPENAI_API_KEY for OpenAI models
@@ -24,7 +25,7 @@ Note: This example requires API keys set as environment variables:
 import os
 import time
 import logging
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Tuple
 from dataclasses import dataclass
 
 # Import Sifaka components
@@ -87,11 +88,12 @@ def evaluate_quality(text: str) -> float:
 
 def test_prompt_critic(llm_provider: Any, input_text: str, task: str) -> Tuple[str, int]:
     """Test the PromptCritic and return the improved text and number of revisions."""
+    # Note: 'task' parameter is included for consistent interface with other test functions
     critic = create_prompt_critic(
         llm_provider=llm_provider,
         name="test_prompt_critic",
         description="A critic for testing",
-        system_prompt="You are an expert editor that improves text.",
+        system_prompt=f"You are an expert editor that improves text for this task: {task}",
         temperature=0.7,
         max_tokens=1000,
     )
@@ -111,11 +113,12 @@ def test_prompt_critic(llm_provider: Any, input_text: str, task: str) -> Tuple[s
 
 def test_reflexion_critic(llm_provider: Any, input_text: str, task: str) -> Tuple[str, int]:
     """Test the ReflexionCritic and return the improved text and number of revisions."""
+    # Note: 'task' parameter is included for consistent interface with other test functions
     critic = create_reflexion_critic(
         llm_provider=llm_provider,
         name="test_reflexion_critic",
         description="A critic for testing with reflection",
-        system_prompt="You are an expert editor that learns from past feedback.",
+        system_prompt=f"You are an expert editor that learns from past feedback. Task: {task}",
         temperature=0.7,
         max_tokens=1000,
         memory_buffer_size=3,

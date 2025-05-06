@@ -14,10 +14,24 @@ This example is useful for understanding the strengths and weaknesses of differe
 
 ## Usage
 
+### Requirements
+
+To run this example, you need to install Sifaka with the required dependencies:
+
+```bash
+# Install Sifaka with OpenAI and Anthropic support
+pip install "sifaka[openai,anthropic]"
+
+# If you want to use the PydanticAI adapter example
+pip install "sifaka[pydantic-ai]"
+```
+
+### Running the Example
+
 To run the example:
 
 ```bash
-python examples/critic_comparison_example.py
+python examples/critics/critic_comparison_example.py
 ```
 
 Make sure you have the required API keys set as environment variables:
@@ -52,29 +66,29 @@ The example produces output similar to the following:
 ```
 Critic Comparison Results:
 ----------------------------------------------------------------------------------------------------
-Critic               Model                Time (s)   Revisions  Quality    Length    
+Critic               Model                Time (s)   Revisions  Quality    Length
 ----------------------------------------------------------------------------------------------------
-PromptCritic         OpenAI GPT-4         1.70       1          0.20       33        
-ReflexionCritic      OpenAI GPT-4         4.30       1          0.24       274       
-SelfRefineCritic     OpenAI GPT-4         17.60      1          0.75       2375      
-SelfRAGCritic        OpenAI GPT-4         2.37       1          0.18       30        
-ConstitutionalCritic OpenAI GPT-4         3.61       1          0.59       916       
-PromptCritic         Anthropic Claude-3-Opus 17.59      1          0.55       1171      
-ReflexionCritic      Anthropic Claude-3-Opus 26.85      1          0.51       879       
-SelfRefineCritic     Anthropic Claude-3-Opus 104.32     1          0.94       3477      
-SelfRAGCritic        Anthropic Claude-3-Opus 15.66      1          0.18       30        
-ConstitutionalCritic Anthropic Claude-3-Opus 22.78      1          0.74       1947      
+PromptCritic         OpenAI GPT-4         1.70       1          0.20       33
+ReflexionCritic      OpenAI GPT-4         4.30       1          0.24       274
+SelfRefineCritic     OpenAI GPT-4         17.60      1          0.75       2375
+SelfRAGCritic        OpenAI GPT-4         2.37       1          0.18       30
+ConstitutionalCritic OpenAI GPT-4         3.61       1          0.59       916
+PromptCritic         Anthropic Claude-3-Opus 17.59      1          0.55       1171
+ReflexionCritic      Anthropic Claude-3-Opus 26.85      1          0.51       879
+SelfRefineCritic     Anthropic Claude-3-Opus 104.32     1          0.94       3477
+SelfRAGCritic        Anthropic Claude-3-Opus 15.66      1          0.18       30
+ConstitutionalCritic Anthropic Claude-3-Opus 22.78      1          0.74       1947
 ----------------------------------------------------------------------------------------------------
 
 Average Metrics by Critic Type:
 ----------------------------------------------------------------------------------------------------
-Critic Type          Time (s)   Quality    Length    
+Critic Type          Time (s)   Quality    Length
 ----------------------------------------------------------------------------------------------------
-PromptCritic         9.65       0.38       602       
-ReflexionCritic      15.58      0.38       576       
-SelfRefineCritic     60.96      0.85       2926      
-SelfRAGCritic        9.02       0.18       30        
-ConstitutionalCritic 13.20      0.66       1432      
+PromptCritic         9.65       0.38       602
+ReflexionCritic      15.58      0.38       576
+SelfRefineCritic     60.96      0.85       2926
+SelfRAGCritic        9.02       0.18       30
+ConstitutionalCritic 13.20      0.66       1432
 ----------------------------------------------------------------------------------------------------
 ```
 

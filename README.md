@@ -26,6 +26,9 @@ pip install "sifaka[anthropic]"
 # Install with all classifiers
 pip install "sifaka[classifiers]"
 
+# Install with integrations (PydanticAI, GuardRails)
+pip install "sifaka[integrations]"
+
 # Install with benchmarking tools
 pip install "sifaka[benchmark]"
 
@@ -60,6 +63,7 @@ Sifaka's functionality can be extended through optional dependencies:
 
 ### Integrations
 - `guardrails-ai`: Integration with Guardrails AI for advanced validation
+- `pydantic-ai`: Integration with PydanticAI for structured outputs
 
 ### Benchmarking
 - `benchmark`: Tools for performance benchmarking and analysis
@@ -91,6 +95,7 @@ For detailed API reference documentation, see the [docs/api_reference](docs/api_
 
 ### Specific Implementations
 - [Guardrails Integration](docs/components/guardrails_integration.md) - Integration with Guardrails AI
+- [Critic Comparison](docs/examples/critic_comparison.md) - Compare different critics' performance
 
 ## Key Features
 
@@ -145,7 +150,7 @@ graph LR
 
 3. **Critics**
    - Help improve text that fails validation
-   - Two types:
+   - Multiple types:
      - `PromptCritic`: One-shot improvement
        ```
        Input: "Text too long"
@@ -157,6 +162,10 @@ graph LR
        Attempt 2: "Better but still casual"
        Attempt 3: "Now I understand - needs to be business formal"
        ```
+     - `SelfRefineCritic`: Self-critique and refinement
+     - `SelfRAGCritic`: Retrieval-augmented generation
+     - `ConstitutionalCritic`: Principle-based improvement
+   - Compare critics with the [critic comparison example](docs/examples/critic_comparison.md)
 
 4. **Monitoring**
    - Tracks performance metrics

@@ -27,6 +27,9 @@ extras_require = {
     "language": ["langdetect>=1.0.9"],
     "readability": ["textstat>=0.7.3"],
     "ner": ["spacy>=3.8.0"],
+    # Integrations
+    "pydantic-ai": ["pydantic-ai>=0.7.1"],
+    "guardrails": ["guardrails-ai>=0.6.6"],
     # Development
     "dev": [
         "pytest>=8.0.2",
@@ -52,6 +55,14 @@ extras_require["classifiers"] = [
     dep
     for name, deps in extras_require.items()
     if name in ["toxicity", "sentiment", "profanity", "language", "readability", "ner"]
+    for dep in deps
+]
+
+# Add integrations group that includes all integration dependencies
+extras_require["integrations"] = [
+    dep
+    for name, deps in extras_require.items()
+    if name in ["pydantic-ai", "guardrails"]
     for dep in deps
 ]
 
