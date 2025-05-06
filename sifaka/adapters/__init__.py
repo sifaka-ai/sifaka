@@ -19,6 +19,7 @@ Sifaka provides several types of adapters:
 
 1. **Rules Adapters**: Adapters that convert external components to Sifaka rules
 2. **Classifier Adapters**: Special adapters for text classification systems
+3. **PydanticAI Adapters**: Adapters for integrating with PydanticAI agents
 
 ## Usage Patterns
 
@@ -65,9 +66,23 @@ try:
         GuardrailsValidatorAdapter,
         create_guardrails_rule,
     )
+
     GUARDRAILS_AVAILABLE = True
 except ImportError:
     GUARDRAILS_AVAILABLE = False
+
+# Try to import PydanticAI adapters if available
+try:
+    from sifaka.adapters.pydantic_ai import (
+        SifakaPydanticAdapter,
+        SifakaPydanticConfig,
+        create_pydantic_adapter,
+        create_pydantic_adapter_with_critic,
+    )
+
+    PYDANTIC_AI_AVAILABLE = True
+except ImportError:
+    PYDANTIC_AI_AVAILABLE = False
 
 __all__ = [
     # Rules adapters
@@ -76,7 +91,6 @@ __all__ = [
     "ClassifierAdapter",
     "ClassifierRule",
     "create_classifier_rule",
-
     # Classifier types
     "ClassificationResult",
     "ClassifierConfig",
@@ -88,5 +102,16 @@ if GUARDRAILS_AVAILABLE:
         [
             "GuardrailsValidatorAdapter",
             "create_guardrails_rule",
+        ]
+    )
+
+# Add PydanticAI adapter to exports if available
+if PYDANTIC_AI_AVAILABLE:
+    __all__.extend(
+        [
+            "SifakaPydanticAdapter",
+            "SifakaPydanticConfig",
+            "create_pydantic_adapter",
+            "create_pydantic_adapter_with_critic",
         ]
     )
