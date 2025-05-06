@@ -18,6 +18,7 @@ examples/
 │   ├── configuration_standardized.py
 │   └── model_chain_config_standardized.py
 ├── critics/
+│   ├── critic_comparison_example.py
 │   ├── multi_classifier_critic_advanced.py
 │   └── reflexion_critic_demo.py
 ├── guardrails/
@@ -95,7 +96,29 @@ Run it with:
 python -m sifaka.examples.length_control.claude_length_expander
 ```
 
-#### 3. ReflexionCritic Example (`critics/reflexion_critic_demo.py`)
+#### 3. Critic Comparison Example (`critics/critic_comparison_example.py`)
+
+This example compares the performance of different critics in Sifaka:
+- PromptCritic
+- ReflexionCritic
+- SelfRefineCritic
+- SelfRAGCritic
+- ConstitutionalCritic
+
+It measures:
+- Time spent (execution time)
+- Number of revisions/iterations
+- Quality of output (using a simple heuristic)
+- Output length
+
+The example tests each critic with different model providers (OpenAI GPT-4, Anthropic Claude-3-Opus) and displays comparison results in a formatted table.
+
+Run it with:
+```bash
+python -m sifaka.examples.critics.critic_comparison_example
+```
+
+#### 4. ReflexionCritic Example (`critics/reflexion_critic_demo.py`)
 
 This example demonstrates how to use the ReflexionCritic to improve text by maintaining a memory of past improvements. It:
 - Creates a ReflexionCritic that uses OpenAI's GPT-3.5 model
