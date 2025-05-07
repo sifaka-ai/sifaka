@@ -1,8 +1,60 @@
 """
-OpenAI model provider implementation.
+OpenAI Model Provider
 
 This module provides the OpenAIProvider class which implements the ModelProviderCore
-interface for OpenAI models.
+interface for OpenAI models, enabling integration with OpenAI's API services.
+
+## Overview
+The OpenAI provider connects to OpenAI's API for text generation, offering access
+to models like GPT-4, GPT-3.5-Turbo, and others. It handles authentication, API
+communication, token counting, and response processing.
+
+## Components
+- **OpenAIProvider**: Main provider class for OpenAI models
+- **OpenAIClient**: API client implementation for OpenAI
+- **OpenAITokenCounter**: Token counter implementation for OpenAI models
+- **create_openai_provider**: Factory function for creating OpenAI providers
+
+## Usage Examples
+```python
+from sifaka.models.openai import create_openai_provider
+import os
+
+# Create a provider with default settings
+provider = create_openai_provider(api_key=os.environ.get("OPENAI_API_KEY"))
+
+# Create a provider with custom settings
+provider = create_openai_provider(
+    model_name="gpt-4",
+    temperature=0.8,
+    max_tokens=2000,
+    api_key=os.environ.get("OPENAI_API_KEY")
+)
+
+# Generate text
+response = provider.generate("Explain quantum computing in simple terms.")
+print(response)
+
+# Count tokens
+token_count = provider.count_tokens("How many tokens is this?")
+print(f"Token count: {token_count}")
+```
+
+## Error Handling
+The module implements several error handling strategies:
+- Validates API key and configuration parameters
+- Catches and logs OpenAI API errors
+- Provides informative error messages for common issues
+- Implements retry logic for transient errors
+- Gracefully handles rate limiting and quota errors
+
+## Configuration
+The provider supports standard ModelConfig options plus OpenAI-specific parameters:
+- **model_name**: Name of the OpenAI model to use (e.g., "gpt-4", "gpt-3.5-turbo")
+- **temperature**: Controls randomness (0-1)
+- **max_tokens**: Maximum tokens to generate
+- **api_key**: OpenAI API key
+- **params**: Additional OpenAI-specific parameters (frequency_penalty, presence_penalty, etc.)
 """
 
 from typing import Optional, Any, Dict, ClassVar, Union
@@ -69,7 +121,81 @@ class OpenAIProvider(ModelProviderCore):
     OpenAI model provider implementation.
 
     This provider supports OpenAI models with configurable parameters
-    and built-in token counting.
+    and built-in token counting. It handles communication with OpenAI's API,
+    token counting, and response processing.
+
+    ## Architecture
+    OpenAIProvider extends ModelProviderCore and follows Sifaka's component-based
+    architecture. It delegates API communication to OpenAIClient and token counting
+    to OpenAITokenCounter.
+
+    ## Lifecycle
+    1. **Initialization**: Provider is created with model name and configuration
+    2. **Client Creation**: API client is created on first use
+    3. **Token Counter Creation**: Token counter is created on first use
+    4. **Generation**: Text is generated using the model
+    5. **Token Counting**: Tokens are counted for input text
+
+    ## Error Handling
+    The provider implements comprehensive error handling:
+    - Validates input parameters during initialization
+    - Catches and logs OpenAI API errors during generation
+    - Handles token counting errors
+    - Provides informative error messages for debugging
+    - Implements retry logic for transient errors
+    - Gracefully handles rate limiting and quota errors
+
+    ## Examples
+    ```python
+    from sifaka.models.openai import OpenAIProvider, create_openai_provider
+    from sifaka.models.base import ModelConfig
+    import os
+
+    # Direct instantiation
+    provider = OpenAIProvider(
+        model_name="gpt-4",
+        config=ModelConfig(
+            api_key=os.environ.get("OPENAI_API_KEY"),
+            temperature=0.7,
+            max_tokens=1000
+        )
+    )
+
+    # Using factory function (recommended)
+    provider = create_openai_provider(
+        model_name="gpt-4",
+        api_key=os.environ.get("OPENAI_API_KEY"),
+        temperature=0.7,
+        max_tokens=1000
+    )
+
+    # Generate text
+    response = provider.generate("Explain quantum computing in simple terms.")
+    print(response)
+
+    # With parameter overrides
+    response = provider.generate(
+        "Write a creative story.",
+        temperature=0.9,
+        max_tokens=2000
+    )
+
+    # Count tokens
+    token_count = provider.count_tokens("How many tokens is this?")
+    print(f"Token count: {token_count}")
+
+    # Error handling
+    try:
+        response = provider.generate("Explain quantum computing")
+    except ValueError as e:
+        # Handle input validation errors
+        print(f"Input error: {e}")
+    except RuntimeError as e:
+        # Handle API and generation errors
+        print(f"Generation failed: {e}")
+        # Use fallback strategy
+        response = "I couldn't generate a response."
+    ```
     """
 
     # Class constants

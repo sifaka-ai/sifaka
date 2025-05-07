@@ -148,6 +148,37 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     This critic analyzes text for clarity, ambiguity, completeness, and effectiveness
     using a language model to generate feedback and validation scores.
 
+    ## Architecture
+
+    The PromptCritic follows a component-based architecture with clear separation of concerns:
+
+    1. **Core Components**
+       - **PromptCritic**: Main class that implements the critic interfaces
+       - **CritiqueService**: Service that handles the core critique functionality
+       - **PromptManager**: Manages prompt creation and formatting
+       - **ResponseParser**: Parses and validates model responses
+       - **MemoryManager**: Manages history of improvements and critiques
+
+    2. **Component Relationships**
+       - PromptCritic delegates to CritiqueService for core operations
+       - CritiqueService uses PromptManager to create prompts
+       - CritiqueService uses ResponseParser to parse model responses
+       - PromptCritic uses MemoryManager to track improvement history
+       - All components access the language model provider for generation
+
+    3. **State Management**
+       - Uses direct state pattern with _state attribute
+       - State contains references to all components
+       - State.cache dictionary stores additional runtime data
+       - Initialization flag prevents operations before setup is complete
+
+    4. **Data Flow**
+       - Input text flows to PromptManager for prompt creation
+       - Prompts flow to language model for generation
+       - Responses flow to ResponseParser for parsing
+       - Parsed data flows back to calling method
+       - Results flow to MemoryManager for history tracking
+
     ## Lifecycle Management
 
     The PromptCritic manages its lifecycle through three main phases:

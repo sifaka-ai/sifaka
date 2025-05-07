@@ -421,22 +421,23 @@ class ToxicityClassifier(BaseClassifier[str, str]):
             self.warm_up()
 
         # Handle empty or whitespace-only text
-        if not text.strip():
-            return ClassificationResult(
-                label="unknown",
-                confidence=0.0,
-                metadata={
-                    "reason": "empty_input",
-                    "all_scores": {
-                        "toxic": 0.0,
-                        "severe_toxic": 0.0,
-                        "obscene": 0.0,
-                        "threat": 0.0,
-                        "insult": 0.0,
-                        "identity_hate": 0.0,
-                    },
+        from sifaka.utils.text import handle_empty_text_for_classifier
+
+        empty_result = handle_empty_text_for_classifier(
+            text,
+            metadata={
+                "all_scores": {
+                    "toxic": 0.0,
+                    "severe_toxic": 0.0,
+                    "obscene": 0.0,
+                    "threat": 0.0,
+                    "insult": 0.0,
+                    "identity_hate": 0.0,
                 },
-            )
+            },
+        )
+        if empty_result:
+            return empty_result
 
         try:
             # Get toxicity scores from Detoxify
@@ -491,19 +492,19 @@ class ToxicityClassifier(BaseClassifier[str, str]):
             self.warm_up()
 
         # Process empty texts
+        from sifaka.utils.text import is_empty_text, handle_empty_text_for_classifier
+
         results = []
         non_empty_texts = []
         non_empty_indices = []
 
         # First handle empty texts and collect non-empty ones
         for i, text in enumerate(texts):
-            if not text.strip():
+            if is_empty_text(text):
                 results.append(
-                    ClassificationResult(
-                        label="unknown",
-                        confidence=0.0,
+                    handle_empty_text_for_classifier(
+                        text,
                         metadata={
-                            "reason": "empty_input",
                             "all_scores": {
                                 "toxic": 0.0,
                                 "severe_toxic": 0.0,

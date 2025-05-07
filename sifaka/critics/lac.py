@@ -28,7 +28,7 @@ Example:
     ```
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 from pydantic import Field, PrivateAttr, ConfigDict
 
@@ -775,36 +775,148 @@ class LACCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     Based on: Language Feedback Improves Language Model-based Decision Making
     https://arxiv.org/abs/2403.03692
 
-    Examples:
-        ```python
-        from sifaka.critics.lac import LACCritic, LACCriticConfig
-        from sifaka.models.providers import OpenAIProvider
+    ## Architecture
 
-        # Create a language model provider
-        provider = OpenAIProvider(api_key="your-api-key")
+    The LACCritic follows a component-based architecture with dual feedback mechanisms:
 
-        # Create a LAC critic configuration
-        config = LACCriticConfig(
-            name="lac_critic",
-            description="A critic that combines feedback and value scoring",
-            system_prompt="You are an expert at evaluating and improving text.",
-            temperature=0.7,
-            max_tokens=1000
-        )
+    1. **Core Components**
+       - **LACCritic**: Main class that implements the critic interfaces
+       - **FeedbackCritic**: Specialized critic that provides natural language feedback
+       - **ValueCritic**: Specialized critic that provides numeric value scoring
+       - **PromptManager**: Creates prompts for different types of feedback
+       - **ResponseParser**: Parses and validates model responses
 
-        # Create a LAC critic
-        critic = LACCritic(
-            config=config,
-            llm_provider=provider
-        )
+    2. **Component Relationships**
+       - LACCritic delegates to FeedbackCritic for natural language feedback
+       - LACCritic delegates to ValueCritic for numeric value scoring
+       - Both critics use the same language model provider
+       - Both critics use specialized prompt templates
+       - LACCritic combines feedback and value for comprehensive critique
 
-        # Use the critic
-        task = "Summarize the causes of World War I in 3 bullet points."
-        response = "World War I was caused by nationalism, militarism, and alliances."
-        result = critic.critique(response, {"task": task})
-        print(f"Feedback: {result['feedback']}")
-        print(f"Value: {result['value']}")
-        ```
+    3. **State Management**
+       - Uses direct state pattern with _state attribute
+       - State contains references to all components
+       - State.cache dictionary stores specialized critics
+       - Initialization flag prevents operations before setup is complete
+
+    4. **Feedback Mechanisms**
+       - **Language Feedback**: Detailed natural language feedback on quality
+       - **Value Scoring**: Numeric assessment of response quality (0-1)
+       - **Combined Feedback**: Integration of both feedback types for improvement
+
+    ## Lifecycle Management
+
+    The LACCritic manages its lifecycle through three main phases:
+
+    1. **Initialization**
+       - Validates configuration
+       - Sets up language model provider
+       - Creates specialized critics (FeedbackCritic and ValueCritic)
+       - Initializes state
+       - Creates prompt templates
+
+    2. **Operation**
+       - Delegates to FeedbackCritic for natural language feedback
+       - Delegates to ValueCritic for numeric value scoring
+       - Combines feedback for comprehensive critique
+       - Uses combined feedback for text improvement
+       - Provides validation based on value score
+
+    3. **Cleanup**
+       - Releases resources
+       - Closes specialized critics
+       - Resets state
+       - Logs final status
+
+    ## Error Handling
+
+    The LACCritic implements comprehensive error handling:
+
+    1. **Input Validation**
+       - Validates text input
+       - Checks task format
+       - Verifies configuration
+       - Ensures initialization before operations
+
+    2. **Critic Delegation**
+       - Handles specialized critic initialization failures
+       - Manages critic operation errors
+       - Provides fallbacks for critic failures
+       - Ensures consistent error propagation
+
+    3. **Model Interaction**
+       - Handles provider errors
+       - Manages response parsing
+       - Validates output formats
+       - Handles numeric value parsing errors
+
+    ## Examples
+
+    ```python
+    from sifaka.critics.lac import LACCritic, LACCriticConfig
+    from sifaka.models.providers import OpenAIProvider
+
+    # Create a language model provider
+    provider = OpenAIProvider(api_key="your-api-key")
+
+    # Create a LAC critic configuration
+    config = LACCriticConfig(
+        name="lac_critic",
+        description="A critic that combines feedback and value scoring",
+        system_prompt="You are an expert at evaluating and improving text.",
+        temperature=0.7,
+        max_tokens=1000
+    )
+
+    # Create a LAC critic
+    critic = LACCritic(
+        config=config,
+        llm_provider=provider
+    )
+
+    # Example 1: Get comprehensive critique
+    task = "Summarize the causes of World War I in 3 bullet points."
+    response = "World War I was caused by nationalism, militarism, and alliances."
+    result = critic.critique(response, {"task": task})
+    print(f"Feedback: {result['feedback']}")
+    print(f"Value score: {result['value']}")
+
+    # Example 2: Improve text using combined feedback
+    improved_text = critic.improve(response, {"task": task})
+    print(f"Improved text: {improved_text}")
+
+    # Example 3: Get just the feedback component
+    feedback_result = critic.run(task, response)
+    print(f"Feedback only: {feedback_result['feedback']}")
+    print(f"Value only: {feedback_result['value']}")
+
+    # Example 4: Validate text quality
+    is_valid = critic.validate(response, {"task": task})
+    print(f"Is valid: {is_valid}")
+
+    # Example 5: Using async methods for better performance
+    import asyncio
+
+    async def process_multiple_responses():
+        tasks = ["Summarize World War I", "Explain quantum computing"]
+        responses = [
+            "World War I happened in Europe.",
+            "Quantum computing uses qubits."
+        ]
+
+        # Process responses concurrently
+        results = []
+        for i, response in enumerate(responses):
+            result = await critic.acritique(response, {"task": tasks[i]})
+            results.append(result)
+
+        return results
+
+    critique_results = asyncio.run(process_multiple_responses())
+    for i, result in enumerate(critique_results):
+        print(f"Response {i+1} feedback: {result['feedback']}")
+        print(f"Response {i+1} value: {result['value']}")
+    ```
     """
 
     # Pydantic v2 configuration

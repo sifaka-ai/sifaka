@@ -71,6 +71,37 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     This critic analyzes responses for alignment with specified principles and
     generates critiques when violations are detected.
 
+    ## Architecture
+
+    The ConstitutionalCritic follows a component-based architecture with principles-based evaluation:
+
+    1. **Core Components**
+       - **ConstitutionalCritic**: Main class that implements the critic interfaces
+       - **PrinciplesManager**: Manages the list of principles (the "constitution")
+       - **CritiqueGenerator**: Evaluates responses against principles
+       - **ResponseImprover**: Improves responses based on critiques
+       - **PromptManager**: Creates specialized prompts for critique and improvement
+
+    2. **Component Relationships**
+       - ConstitutionalCritic delegates to CritiqueGenerator for evaluation
+       - ConstitutionalCritic delegates to ResponseImprover for improvement
+       - Both components use the same language model provider
+       - Both components use the same set of principles
+       - PrinciplesManager formats principles for inclusion in prompts
+
+    3. **State Management**
+       - Uses direct state pattern with _state attribute
+       - State contains references to all components
+       - State.cache dictionary stores principles and prompt templates
+       - Initialization flag prevents operations before setup is complete
+
+    4. **Evaluation Process**
+       - Principles are formatted as a bulleted list
+       - Response is evaluated against each principle
+       - Violations are identified and detailed feedback is generated
+       - Feedback is used to guide response improvement
+       - Improved response is checked for continued violations
+
     ## Lifecycle Management
 
     The ConstitutionalCritic manages its lifecycle through three main phases:

@@ -401,7 +401,8 @@ class TextValidator(Protocol[T]):
 
         def validate(self, text: str) -> bool:
             # Handle empty text
-            if not text or not text.strip():
+            from sifaka.utils.text import is_empty_text
+            if is_empty_text(text):
                 return False
 
             # Validate length
@@ -690,7 +691,8 @@ class TextCritic(Protocol[T, R]):
 
         def critique(self, text: str) -> CriticMetadata:
             # Handle empty text
-            if not text or not text.strip():
+            from sifaka.utils.text import is_empty_text
+            if is_empty_text(text):
                 return CriticMetadata(
                     score=0.0,
                     feedback="Empty text",
@@ -954,7 +956,12 @@ class BaseCritic(ABC, Generic[T, R]):
         Returns:
             True if the text is valid, False otherwise
         """
-        return isinstance(text, str) and bool(text.strip())
+        if not isinstance(text, str):
+            return False
+
+        from sifaka.utils.text import is_empty_text
+
+        return not is_empty_text(text)
 
     @abstractmethod
     def validate(self, text: T) -> bool:
@@ -1304,7 +1311,12 @@ class Critic(BaseCritic[str, str]):
             return False
 
         # Basic validation
-        return bool(text.strip())
+        from sifaka.utils.text import is_empty_text
+
+        if is_empty_text(text):
+            return False
+
+        return True
 
     def improve(self, text: str, violations: List[Dict[str, Any]]) -> str:
         """

@@ -420,18 +420,19 @@ class SentimentClassifier(BaseClassifier[str, str]):
             self.warm_up()
 
         # Handle empty or whitespace-only text
-        if not text.strip():
-            return ClassificationResult(
-                label="unknown",
-                confidence=0.0,
-                metadata={
-                    "compound_score": 0.0,
-                    "pos_score": 0.0,
-                    "neg_score": 0.0,
-                    "neu_score": 1.0,
-                    "reason": "empty_input",
-                },
-            )
+        from sifaka.utils.text import handle_empty_text_for_classifier
+
+        empty_result = handle_empty_text_for_classifier(
+            text,
+            metadata={
+                "compound_score": 0.0,
+                "pos_score": 0.0,
+                "neg_score": 0.0,
+                "neu_score": 1.0,
+            },
+        )
+        if empty_result:
+            return empty_result
 
         try:
             # Get analyzer from state

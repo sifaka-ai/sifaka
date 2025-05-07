@@ -386,12 +386,11 @@ class ProfanityClassifier(BaseClassifier):
 
         try:
             # Handle empty text
-            if not text:
-                return ClassificationResult(
-                    label="unknown",
-                    confidence=0.0,
-                    metadata={"reason": "empty_text"},
-                )
+            from sifaka.utils.text import handle_empty_text_for_classifier
+
+            empty_result = handle_empty_text_for_classifier(text)
+            if empty_result:
+                return empty_result
 
             # Get checker from state
             checker = state.cache["checker"]

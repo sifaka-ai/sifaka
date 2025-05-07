@@ -2,7 +2,64 @@
 Configuration utilities for Sifaka.
 
 This module provides utility functions for handling configuration objects
-consistently across the Sifaka framework.
+consistently across the Sifaka framework. It includes standardization functions
+for different types of configurations used throughout the system.
+
+## Configuration Standardization
+
+The module provides standardized configuration handling for different component types:
+
+1. **standardize_rule_config**: Standardize rule configuration
+2. **standardize_critic_config**: Standardize critic configuration
+3. **standardize_model_config**: Standardize model provider configuration
+4. **standardize_chain_config**: Standardize chain configuration
+5. **standardize_retry_config**: Standardize retry strategy configuration
+6. **standardize_validation_config**: Standardize validation configuration
+
+## Usage Pattern
+
+All standardization functions follow a consistent pattern:
+
+1. Accept configuration in multiple formats (dict, config object, or parameters)
+2. Merge parameters from different sources with consistent precedence
+3. Return a standardized configuration object
+
+## Usage Examples
+
+```python
+from sifaka.utils.config import (
+    standardize_rule_config, standardize_critic_config, standardize_model_config
+)
+from sifaka.rules.base import RuleConfig
+from sifaka.critics.models import CriticConfig, PromptCriticConfig
+
+# Create rule configuration
+rule_config = standardize_rule_config(
+    priority="HIGH",
+    params={"min_length": 10, "max_length": 100}
+)
+
+# Create critic configuration
+critic_config = standardize_critic_config(
+    min_confidence=0.8,
+    params={"system_prompt": "You are an expert editor."}
+)
+
+# Create specialized critic configuration
+prompt_config = standardize_critic_config(
+    config_class=PromptCriticConfig,
+    system_prompt="You are an expert editor.",
+    temperature=0.7,
+    max_tokens=1000
+)
+
+# Update existing configuration
+existing_config = RuleConfig(priority="MEDIUM")
+updated_config = standardize_rule_config(
+    config=existing_config,
+    params={"min_length": 20}
+)
+```
 """
 
 from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union, cast
@@ -300,6 +357,10 @@ def standardize_chain_config(
 
     Examples:
         ```python
+        from sifaka.utils.config import standardize_chain_config
+        from sifaka.chain.config import ChainConfig
+        from sifaka.models.config import OpenAIConfig
+
         # Create from parameters
         config = standardize_chain_config(
             max_attempts=5,
@@ -319,6 +380,48 @@ def standardize_chain_config(
             "params": {"system_prompt": "You are an expert editor."}
         }
         config = standardize_chain_config(config=dict_config)
+
+        # Create with model configuration
+        config = standardize_chain_config(
+            max_attempts=5,
+            params={
+                "system_prompt": "You are an expert editor.",
+                "model_config": {
+                    "temperature": 0.7,
+                    "max_tokens": 1000
+                }
+            }
+        )
+
+        # Create with rule configurations
+        config = standardize_chain_config(
+            max_attempts=5,
+            params={
+                "system_prompt": "You are an expert editor.",
+                "rules": [
+                    {"name": "toxicity_rule", "params": {"threshold": 0.8}},
+                    {"name": "length_rule", "params": {"min_length": 50, "max_length": 500}}
+                ]
+            }
+        )
+
+        # Create with critic configuration
+        config = standardize_chain_config(
+            max_attempts=5,
+            params={
+                "system_prompt": "You are an expert editor.",
+                "critic_config": {
+                    "name": "prompt_critic",
+                    "min_confidence": 0.7,
+                    "system_prompt": "You are an expert editor."
+                }
+            }
+        )
+
+        # Access configuration values
+        print(f"Max attempts: {config.max_attempts}")
+        print(f"System prompt: {config.params.get('system_prompt')}")
+        print(f"Rules: {config.params.get('rules', [])}")
         ```
     """
     # Start with empty params dictionary
@@ -463,6 +566,9 @@ def standardize_validation_config(
 
     Examples:
         ```python
+        from sifaka.utils.config import standardize_validation_config
+        from sifaka.chain.config import ValidationConfig
+
         # Create from parameters
         config = standardize_validation_config(
             prioritize_by_cost=True,
@@ -482,6 +588,33 @@ def standardize_validation_config(
             "params": {"fail_fast": True}
         }
         config = standardize_validation_config(config=dict_config)
+
+        # Create with rule-specific parameters
+        config = standardize_validation_config(
+            prioritize_by_cost=True,
+            params={
+                "fail_fast": True,
+                "rule_configs": {
+                    "toxicity_rule": {"threshold": 0.8},
+                    "length_rule": {"min_length": 50, "max_length": 500}
+                }
+            }
+        )
+
+        # Create with validation strategy parameters
+        config = standardize_validation_config(
+            prioritize_by_cost=True,
+            parallel_validation=True,
+            params={
+                "fail_fast": True,
+                "max_parallel_rules": 5
+            }
+        )
+
+        # Access configuration values
+        print(f"Prioritize by cost: {config.prioritize_by_cost}")
+        print(f"Fail fast: {config.params.get('fail_fast', False)}")
+        print(f"Rule configs: {config.params.get('rule_configs', {})}")
         ```
     """
     # Start with empty params dictionary

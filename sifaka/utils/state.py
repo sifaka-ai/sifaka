@@ -2,7 +2,110 @@
 State management utilities for Sifaka.
 
 This module provides utility functions and classes for standardized state management
-across the Sifaka framework.
+across the Sifaka framework. It includes classes for representing component state
+and utilities for managing state in a consistent way.
+
+## State Management
+
+The module provides standardized state management:
+
+1. **StateManager**: Utility class for managing component state
+2. **ComponentState**: Base class for component state
+3. **Specialized State Classes**: State classes for specific component types
+   - **ClassifierState**: State for classifiers
+   - **RuleState**: State for rules
+   - **CriticState**: State for critics
+   - **ModelState**: State for model providers
+   - **ChainState**: State for chains
+   - **AdapterState**: State for adapters
+
+## State Creation
+
+The module provides factory functions for creating state managers:
+
+1. **create_state_manager**: Create a state manager for a specific state class
+2. **create_classifier_state**: Create a state manager for a classifier
+3. **create_rule_state**: Create a state manager for a rule
+4. **create_critic_state**: Create a state manager for a critic
+5. **create_model_state**: Create a state manager for a model provider
+6. **create_chain_state**: Create a state manager for a chain
+7. **create_adapter_state**: Create a state manager for an adapter
+
+## Usage Examples
+
+```python
+from sifaka.utils.state import (
+    create_classifier_state, ClassifierState, StateManager
+)
+from pydantic import BaseModel, PrivateAttr
+
+# Create a component with state management
+class MyClassifier(BaseModel):
+    # Configuration
+    name: str
+    threshold: float = 0.5
+
+    # State manager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Initialize state
+        self._state = self._state_manager.get_state()
+
+    def warm_up(self) -> None:
+        # Initialize the component
+        if not self._state.initialized:
+            self._state.model = self._load_model()
+            self._state.cache = {}
+            self._state.initialized = True
+
+    def classify(self, text: str) -> str:
+        # Use state in component methods
+        if not self._state.initialized:
+            self.warm_up()
+
+        # Check cache
+        if text in self._state.cache:
+            return self._state.cache[text]
+
+        # Use model
+        result = self._state.model.predict(text)
+
+        # Update cache
+        self._state.cache[text] = result
+
+        return result
+```
+
+## Direct State Pattern
+
+In Pydantic v2, the recommended pattern is to use a direct state attribute:
+
+```python
+from sifaka.utils.state import ClassifierState
+from pydantic import BaseModel, ConfigDict
+
+class MyClassifier(BaseModel):
+    # Configuration
+    name: str
+    threshold: float = 0.5
+
+    # Pydantic configuration
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Initialize state directly
+        self._state = ClassifierState()
+
+    def warm_up(self) -> None:
+        # Initialize the component
+        if not self._state.initialized:
+            self._state.model = self._load_model()
+            self._state.cache = {}
+            self._state.initialized = True
+```
 """
 
 from typing import Any, Callable, Dict, Generic, Optional, Type, TypeVar, cast
@@ -364,12 +467,44 @@ def create_state_manager(state_class: Type[T], **kwargs: Any) -> StateManager[T]
     """
     Create a state manager for a specific state class.
 
+    This function creates a StateManager instance for a specific state class,
+    with an initializer that creates an instance of the state class with the
+    provided arguments.
+
     Args:
         state_class: The state class to use
         **kwargs: Additional arguments to pass to the state class constructor
 
     Returns:
         A state manager for the specified state class
+
+    Examples:
+        ```python
+        from sifaka.utils.state import create_state_manager, ComponentState
+
+        # Create a custom state class
+        class MyCustomState(ComponentState):
+            model: Optional[Any] = None
+            cache: Dict[str, Any] = {}
+
+        # Create a state manager for the custom state class
+        state_manager = create_state_manager(
+            state_class=MyCustomState,
+            initialized=False
+        )
+
+        # Use the state manager
+        state = state_manager.get_state()
+        state.model = load_model()
+        state.initialized = True
+
+        # Create with initial values
+        state_manager = create_state_manager(
+            state_class=MyCustomState,
+            model=preloaded_model,
+            initialized=True
+        )
+        ```
     """
     return StateManager(initializer=lambda: state_class(**kwargs))
 
@@ -378,11 +513,47 @@ def create_classifier_state(**kwargs: Any) -> StateManager[ClassifierState]:
     """
     Create a state manager for a classifier.
 
+    This function creates a StateManager instance for a ClassifierState,
+    with an initializer that creates a ClassifierState instance with the
+    provided arguments.
+
     Args:
         **kwargs: Additional arguments to pass to the ClassifierState constructor
 
     Returns:
         A state manager for a classifier
+
+    Examples:
+        ```python
+        from sifaka.utils.state import create_classifier_state
+        from pydantic import BaseModel, PrivateAttr
+
+        class MyClassifier(BaseModel):
+            # Configuration
+            name: str
+
+            # State manager
+            _state_manager = PrivateAttr(default_factory=create_classifier_state)
+
+            def warm_up(self) -> None:
+                # Initialize the classifier
+                state = self._state_manager.get_state()
+                if not state.initialized:
+                    state.model = self._load_model()
+                    state.cache = {}
+                    state.initialized = True
+
+            def classify(self, text: str) -> str:
+                # Ensure initialized
+                if not self._state_manager.is_initialized:
+                    self.warm_up()
+
+                # Get state
+                state = self._state_manager.get_state()
+
+                # Use model
+                return state.model.predict(text)
+        ```
     """
     return create_state_manager(ClassifierState, **kwargs)
 

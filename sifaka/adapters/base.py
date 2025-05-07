@@ -171,11 +171,11 @@ class BaseAdapter(BaseModel, BaseValidator[T], Generic[T, A]):
         Returns:
             RuleResult if the text is empty or invalid, None otherwise
         """
-        if not text or not text.strip():
-            return RuleResult(
-                passed=False, message="Empty text provided", metadata={"input_length": len(text)}
-            )
-        return None
+        from sifaka.utils.text import handle_empty_text
+
+        # For backward compatibility, adapters continue to return passed=True for empty text
+        # This ensures consistent behavior with the rest of the codebase
+        return handle_empty_text(text, passed=True, component_type="adapter")
 
     def validate(self, input_value: T, **kwargs) -> RuleResult:
         """
