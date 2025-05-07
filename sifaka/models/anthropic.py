@@ -1,9 +1,68 @@
 """
-Anthropic model provider implementation.
+Anthropic Model Provider
 
 This module provides the AnthropicProvider class which implements the ModelProviderCore
 interface for Anthropic Claude models, and additional Anthropic-specific functionality
 like text reflection and analysis.
+
+## Overview
+The Anthropic provider connects to Anthropic's API for text generation, offering access
+to Claude models like Claude 3 Opus, Claude 3 Sonnet, and others. It handles authentication,
+API communication, token counting, response processing, and specialized text analysis.
+
+## Components
+- **AnthropicProvider**: Main provider class for Anthropic models
+- **AnthropicClient**: API client implementation for Anthropic
+- **AnthropicTokenCounter**: Token counter implementation for Anthropic models
+- **AnthropicReflector**: Specialized component for text analysis and reflection
+- **create_anthropic_provider**: Factory function for creating Anthropic providers
+
+## Usage Examples
+```python
+from sifaka.models.anthropic import create_anthropic_provider
+import os
+
+# Create a provider with default settings
+provider = create_anthropic_provider(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+
+# Create a provider with custom settings
+provider = create_anthropic_provider(
+    model_name="claude-3-sonnet-20240229",
+    temperature=0.8,
+    max_tokens=2000,
+    api_key=os.environ.get("ANTHROPIC_API_KEY")
+)
+
+# Generate text
+response = provider.generate("Explain quantum computing in simple terms.")
+print(response)
+
+# Count tokens
+token_count = provider.count_tokens("How many tokens is this?")
+print(f"Token count: {token_count}")
+
+# Use the reflector for text analysis
+reflector = provider.create_reflector()
+result = reflector.reflect("This is a sample text to analyze.")
+print(f"Analysis: {result.analysis}")
+print(f"Safety score: {result.safety_score}")
+```
+
+## Error Handling
+The module implements several error handling strategies:
+- Validates API key and configuration parameters
+- Catches and logs Anthropic API errors
+- Provides informative error messages for common issues
+- Implements retry logic for transient errors
+- Gracefully handles rate limiting and quota errors
+
+## Configuration
+The provider supports standard ModelConfig options plus Anthropic-specific parameters:
+- **model_name**: Name of the Anthropic model to use (e.g., "claude-3-opus-20240229")
+- **temperature**: Controls randomness (0-1)
+- **max_tokens**: Maximum tokens to generate
+- **api_key**: Anthropic API key
+- **params**: Additional Anthropic-specific parameters
 """
 
 from typing import Optional, Dict, Any, ClassVar, Union
@@ -179,8 +238,91 @@ class AnthropicProvider(ModelProviderCore):
     """
     Anthropic model provider implementation.
 
-    This provider supports Claude models with configurable parameters
-    and built-in token counting.
+    This provider supports Claude models with configurable parameters,
+    built-in token counting, and specialized text analysis capabilities.
+    It handles communication with Anthropic's API, token counting, and
+    response processing.
+
+    ## Architecture
+    AnthropicProvider extends ModelProviderCore and follows Sifaka's component-based
+    architecture. It delegates API communication to AnthropicClient and token counting
+    to AnthropicTokenCounter. It also provides a specialized AnthropicReflector
+    component for text analysis.
+
+    ## Lifecycle
+    1. **Initialization**: Provider is created with model name and configuration
+    2. **Client Creation**: API client is created on first use
+    3. **Token Counter Creation**: Token counter is created on first use
+    4. **Generation**: Text is generated using the model
+    5. **Token Counting**: Tokens are counted for input text
+    6. **Reflection**: Optional text analysis using the reflector
+
+    ## Error Handling
+    The provider implements comprehensive error handling:
+    - Validates input parameters during initialization
+    - Catches and logs Anthropic API errors during generation
+    - Handles token counting errors
+    - Provides informative error messages for debugging
+    - Implements retry logic for transient errors
+    - Gracefully handles rate limiting and quota errors
+
+    ## Examples
+    ```python
+    from sifaka.models.anthropic import AnthropicProvider, create_anthropic_provider
+    from sifaka.models.base import ModelConfig
+    import os
+
+    # Direct instantiation
+    provider = AnthropicProvider(
+        model_name="claude-3-opus-20240229",
+        config=ModelConfig(
+            api_key=os.environ.get("ANTHROPIC_API_KEY"),
+            temperature=0.7,
+            max_tokens=1000
+        )
+    )
+
+    # Using factory function (recommended)
+    provider = create_anthropic_provider(
+        model_name="claude-3-opus-20240229",
+        api_key=os.environ.get("ANTHROPIC_API_KEY"),
+        temperature=0.7,
+        max_tokens=1000
+    )
+
+    # Generate text
+    response = provider.generate("Explain quantum computing in simple terms.")
+    print(response)
+
+    # With parameter overrides
+    response = provider.generate(
+        "Write a creative story.",
+        temperature=0.9,
+        max_tokens=2000
+    )
+
+    # Count tokens
+    token_count = provider.count_tokens("How many tokens is this?")
+    print(f"Token count: {token_count}")
+
+    # Use the reflector for text analysis
+    reflector = provider.create_reflector()
+    result = reflector.reflect("This is a sample text to analyze.")
+    print(f"Analysis: {result.analysis}")
+    print(f"Safety score: {result.safety_score}")
+
+    # Error handling
+    try:
+        response = provider.generate("Explain quantum computing")
+    except ValueError as e:
+        # Handle input validation errors
+        print(f"Input error: {e}")
+    except RuntimeError as e:
+        # Handle API and generation errors
+        print(f"Generation failed: {e}")
+        # Use fallback strategy
+        response = "I couldn't generate a response."
+    ```
     """
 
     # Class constants
