@@ -45,7 +45,7 @@ from sifaka.rules.base import (
     RuleResultHandler,
 )
 from sifaka.rules.content.base import CategoryAnalyzer
-from sifaka.adapters.rules.classifier import create_classifier_rule
+from sifaka.adapters.classifier import create_classifier_rule
 
 
 __all__ = [
@@ -276,7 +276,7 @@ def create_toxicity_validator(
     Returns:
         Configured toxicity validator instance
     """
-    from sifaka.adapters.rules.classifier import ClassifierAdapter
+    from sifaka.adapters.classifier import ClassifierAdapter
 
     # Extract RuleConfig parameters from kwargs
     rule_config_params = {}
@@ -346,7 +346,7 @@ def create_bias_validator(
     """
     # Import BiasDetector here to avoid circular imports
     from sifaka.classifiers.bias import BiasDetector
-    from sifaka.adapters.rules.classifier import ClassifierAdapter
+    from sifaka.adapters.classifier import ClassifierAdapter
 
     # Extract RuleConfig parameters from kwargs
     rule_config_params = {}

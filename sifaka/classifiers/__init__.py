@@ -57,7 +57,7 @@ Usage Example:
     )
 
     # Use with rules
-    from sifaka.adapters.rules.classifier import create_classifier_rule
+    from sifaka.adapters.classifier import create_classifier_rule
     sentiment_rule = create_classifier_rule(
         classifier=sentiment,
         name="sentiment_rule",

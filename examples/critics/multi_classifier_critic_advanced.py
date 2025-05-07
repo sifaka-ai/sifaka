@@ -40,7 +40,7 @@ from sifaka.classifiers.base import (
     BaseClassifier,
     ClassificationResult,
 )
-from sifaka.adapters.rules.classifier import create_classifier_rule
+from sifaka.adapters.classifier import create_classifier_rule
 from sifaka.rules.formatting.length import create_length_rule
 from sifaka.rules.base import Rule, RuleResult, RuleConfig, RulePriority
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig

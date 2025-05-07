@@ -30,7 +30,7 @@ The classifier adapter follows an adapter pattern to convert classifiers into va
 ## Usage Examples
 
 ```python
-from sifaka.adapters.rules import create_classifier_rule
+from sifaka.adapters.classifier import create_classifier_rule
 from sifaka.classifiers.safety import SentimentClassifier
 
 # Create a classifier
@@ -68,7 +68,7 @@ from typing import (
 from pydantic import BaseModel, Field, validate_arguments, validate_call
 
 from sifaka.rules.base import Rule, RuleConfig, RuleResult, BaseValidator
-from sifaka.adapters.rules.base import Adaptable, BaseAdapter, A
+from sifaka.adapters.base import Adaptable, BaseAdapter, A
 from sifaka.classifiers.base import ClassificationResult, ClassifierConfig
 
 # Type for classifier
@@ -195,7 +195,7 @@ class ClassifierRuleConfig(BaseModel):
 
     Examples:
         ```python
-        from sifaka.adapters.rules.classifier import ClassifierRuleConfig
+        from sifaka.adapters.classifier import ClassifierRuleConfig
 
         # Create a configuration
         config = ClassifierRuleConfig(
@@ -365,6 +365,9 @@ class ClassifierRule(Rule):
             description=description,
             config=rule_config,
         )
+
+        # Create the validator adapter
+        self._validator = self._create_default_validator()
 
     @property
     def classifier(self) -> Classifier:
@@ -633,7 +636,7 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         """Get the confidence threshold for this adapter."""
         return self.config.threshold
 
-    def validate(self, input_text: str, **kwargs) -> RuleResult:
+    def validate(self, input_value: str, **kwargs) -> RuleResult:
         """
         Validate input text using the adapted classifier.
 
@@ -644,7 +647,7 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         4. Returns a standardized validation result
 
         Args:
-            input_text: The text to validate
+            input_value: The text to validate
             **kwargs: Additional validation parameters
 
         Returns:
@@ -654,7 +657,7 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
             ValidationError: If validation fails due to an error
         """
         # Handle empty text
-        empty_result = self.handle_empty_text(input_text)
+        empty_result = self.handle_empty_text(input_value)
         if empty_result:
             return empty_result
 
@@ -664,9 +667,9 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
             config = self.config
 
             # Extract text to classify if needed
-            text_to_classify = input_text
+            text_to_classify = input_value
             if config.extraction_function:
-                text_to_classify = config.extraction_function(input_text)
+                text_to_classify = config.extraction_function(input_value)
 
             # Get classification result
             result = self.classifier.classify(text_to_classify)
@@ -767,7 +770,7 @@ def create_classifier_rule(
 
     Examples:
         ```python
-        from sifaka.adapters.rules import create_classifier_rule
+        from sifaka.adapters.classifier import create_classifier_rule
         from sifaka.classifiers.content import ToxicityClassifier
         from sifaka.rules.base import RuleConfig
 
@@ -858,7 +861,7 @@ def create_classifier_adapter(
 
     Examples:
         ```python
-        from sifaka.adapters.rules import create_classifier_adapter
+        from sifaka.adapters.classifier import create_classifier_adapter
         from sifaka.classifiers.content import SentimentClassifier
 
         # Create a classifier
@@ -910,21 +913,3 @@ def create_classifier_adapter(
 # Type aliases for better documentation
 ClassifierType = Type[Classifier]
 ClassifierInstance = Classifier
-
-
-# Export public classes and functions
-__all__ = [
-    # Protocols
-    "Classifier",
-    # Configuration
-    "ClassifierRuleConfig",
-    # Core components
-    "ClassifierRule",
-    "ClassifierAdapter",
-    # Factory functions
-    "create_classifier_rule",
-    "create_classifier_adapter",
-    # Type aliases
-    "ClassifierType",
-    "ClassifierInstance",
-]
