@@ -51,13 +51,13 @@ class MockAdapter(BaseAdapter[str, MockAdaptee]):
             return RuleResult(
                 passed=result,
                 message="Validation " + ("passed" if result else "failed"),
-                metadata={"adaptee_name": self.adaptee.name}
+                metadata={"adaptee_name": self.adaptee.name},
             )
         except Exception as e:
             return RuleResult(
                 passed=False,
                 message=f"Validation error: {str(e)}",
-                metadata={"error_type": type(e).__name__}
+                metadata={"error_type": type(e).__name__},
             )
 
 
@@ -114,7 +114,7 @@ class TestBaseAdapter:
         assert result.passed
         assert "empty text" in result.message.lower()
         assert result.metadata["reason"] == "empty_input"
-        assert result.metadata["adaptee_name"] == adaptee.name
+        assert "input_length" in result.metadata
 
     def test_handle_empty_text_with_whitespace(self):
         """Test handle_empty_text with whitespace."""

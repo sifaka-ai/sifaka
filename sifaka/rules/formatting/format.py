@@ -115,9 +115,7 @@ class FormatConfig(BaseModel):
     def validate_format_type(cls, v: FormatType) -> FormatType:
         """Validate that format type is valid."""
         if v not in ["markdown", "plain_text", "json"]:
-            raise ValueError(
-                f"required_format must be one of: markdown, plain_text, json, got {v}"
-            )
+            raise ValueError(f"required_format must be one of: markdown, plain_text, json, got {v}")
         return v
 
     @field_validator("max_length")
@@ -305,7 +303,9 @@ class DefaultPlainTextValidator(BaseValidator[str]):
         """Initialize with configuration."""
         self._config = config
         self._analyzer = _PlainTextAnalyzer(
-            min_length=config.min_length, max_length=config.max_length, allow_empty=config.allow_empty
+            min_length=config.min_length,
+            max_length=config.max_length,
+            allow_empty=config.allow_empty,
         )
 
     @property
@@ -692,12 +692,10 @@ class DefaultFormatValidator(BaseValidator[str]):
         if not isinstance(text, str):
             raise ValueError("Text must be a string")
 
-        if not text.strip():
-            return RuleResult(
-                passed=False,
-                message="Empty text",
-                metadata={"error": "empty_string"},
-            )
+        # Handle empty text
+        empty_result = self.handle_empty_text(text)
+        if empty_result:
+            return empty_result
 
         # Delegate to the appropriate validator based on format type
         validator = self._validators[self.config.required_format]
@@ -876,16 +874,20 @@ class _JsonAnalyzer(BaseModel):
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
-        if not text.strip() and not self.allow_empty:
+        from sifaka.utils.text import is_empty_text
+
+        if is_empty_text(text) and not self.allow_empty:
             return RuleResult(
                 passed=False,
                 message="Empty JSON string not allowed",
-                metadata={"error": "empty_string"},
+                metadata={"error": "empty_string", "reason": "empty_input"},
             )
 
         try:
             json.loads(text)
-            return RuleResult(passed=True, message="Valid JSON format", metadata={"strict": self.strict})
+            return RuleResult(
+                passed=True, message="Valid JSON format", metadata={"strict": self.strict}
+            )
         except json.JSONDecodeError as e:
             return RuleResult(
                 passed=False,
@@ -905,11 +907,13 @@ class _PlainTextAnalyzer(BaseModel):
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
-        if not text.strip() and not self.allow_empty:
+        from sifaka.utils.text import is_empty_text
+
+        if is_empty_text(text) and not self.allow_empty:
             return RuleResult(
                 passed=False,
                 message="Empty text not allowed",
-                metadata={"error": "empty_string"},
+                metadata={"error": "empty_string", "reason": "empty_input"},
             )
 
         length = len(text)
@@ -917,18 +921,30 @@ class _PlainTextAnalyzer(BaseModel):
             return RuleResult(
                 passed=False,
                 message=f"Text length {length} below minimum {self.min_length}",
-                metadata={"length": length, "min_length": self.min_length, "max_length": self.max_length},
+                metadata={
+                    "length": length,
+                    "min_length": self.min_length,
+                    "max_length": self.max_length,
+                },
             )
 
         if self.max_length is not None and length > self.max_length:
             return RuleResult(
                 passed=False,
                 message=f"Text length {length} exceeds maximum {self.max_length}",
-                metadata={"length": length, "min_length": self.min_length, "max_length": self.max_length},
+                metadata={
+                    "length": length,
+                    "min_length": self.min_length,
+                    "max_length": self.max_length,
+                },
             )
 
         return RuleResult(
             passed=True,
             message="Valid plain text format",
-            metadata={"length": length, "min_length": self.min_length, "max_length": self.max_length},
+            metadata={
+                "length": length,
+                "min_length": self.min_length,
+                "max_length": self.max_length,
+            },
         )

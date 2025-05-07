@@ -1235,10 +1235,12 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
             ValueError: If input validation fails
         """
         self.validate_input(text)
-        if isinstance(text, str) and not text.strip():
-            return ClassificationResult[R](
-                label="unknown", confidence=0.0, metadata={"reason": "empty_input"}
-            )
+        if isinstance(text, str):
+            from sifaka.utils.text import handle_empty_text_for_classifier
+
+            empty_result = handle_empty_text_for_classifier(text)
+            if empty_result:
+                return empty_result
         return self._classify_impl(text)
 
     def batch_classify(self, texts: List[T]) -> List[ClassificationResult[R]]:

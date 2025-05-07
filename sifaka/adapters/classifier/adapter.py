@@ -485,16 +485,19 @@ class ClassifierRule(Rule):
             ValidationError: If validation fails due to an error
         """
         # Handle empty input
-        if not input_text:
-            return RuleResult(
-                passed=True,
-                message="Empty text validation skipped",
-                metadata={
-                    "reason": "empty_input",
-                    "rule_id": self._rule_id,
-                    "severity": self._severity,
-                },
-            )
+        from sifaka.utils.text import handle_empty_text
+
+        empty_result = handle_empty_text(
+            input_text,
+            passed=True,
+            metadata={
+                "rule_id": self._rule_id,
+                "severity": self._severity,
+            },
+            component_type="adapter",
+        )
+        if empty_result:
+            return empty_result
 
         # Extract text to classify
         text_to_classify = input_text

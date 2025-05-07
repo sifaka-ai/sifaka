@@ -683,12 +683,12 @@ class BaseValidator(Generic[T]):
             ```
         """
         # Handle empty text for string validators
-        if isinstance(output, str) and not output.strip():
-            return RuleResult(
-                passed=True,  # Default to passing for empty text
-                message="Empty text validation skipped",
-                metadata={"reason": "empty_input"},
-            )
+        if isinstance(output, str):
+            from sifaka.utils.text import handle_empty_text
+
+            empty_result = handle_empty_text(output, component_type="rule")
+            if empty_result:
+                return empty_result
 
         # This is a placeholder implementation that should be overridden
         # by subclasses. We're using _ to indicate unused parameters.
@@ -721,13 +721,9 @@ class BaseValidator(Generic[T]):
                 # ...
             ```
         """
-        if not text.strip():
-            return RuleResult(
-                passed=True,
-                message="Empty text validation skipped",
-                metadata={"reason": "empty_input"},
-            )
-        return None
+        from sifaka.utils.text import handle_empty_text
+
+        return handle_empty_text(text, component_type="rule")
 
     def can_validate(self, output: T) -> bool:
         """
