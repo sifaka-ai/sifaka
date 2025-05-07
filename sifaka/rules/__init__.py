@@ -31,25 +31,11 @@ Available Rules:
    - BiasRule: Checks for bias
    - HarmfulContentRule: Detects harmful content
 
-5. Domain-Specific Rules:
-   - MedicalRule: Medical content validation
-   - LegalRule: Legal content validation
-   - LegalCitationRule: Validates legal citations
-   - LegalTermsRule: Validates legal terminology
-   - PythonRule: Python code validation
-   - ConsistencyRule: Content consistency validation
-
-6. Factual Rules:
-   - FactualConsistencyRule: Checks fact consistency
-   - ConfidenceRule: Validates confidence levels
-   - CitationRule: Validates citations
-   - FactualAccuracyRule: Checks factual accuracy
-
-7. Sentiment Rules:
+5. Sentiment Rules:
    - SentimentRule: Analyzes text sentiment
    - EmotionalContentRule: Validates emotional content
 
-8. Adapter Rules:
+6. Adapter Rules:
    - ClassifierRule: Converts classifiers to rules
 
 Usage Example:
@@ -133,24 +119,7 @@ Usage Example:
 from .base import FunctionRule, Rule, RuleResult, RuleConfig
 
 # Import directly from submodules to avoid deprecation warnings
-# Domain rules
-from .domain.consistency import ConsistencyRule, create_consistency_rule
-from .domain.legal import (
-    LegalRule,
-    LegalCitationRule,
-    LegalTermsRule,
-    create_legal_rule,
-    create_legal_citation_rule,
-    create_legal_terms_rule,
-)
-from .domain.medical import MedicalRule, create_medical_rule
-from .domain.python import PythonRule, create_python_rule
 
-# Factual rules
-from .factual.citation import CitationRule
-from .factual.confidence import ConfidenceRule
-from .factual.accuracy import AccuracyRule as FactualAccuracyRule
-from .factual.consistency import ConsistencyRule as FactualConsistencyRule
 
 # Formatting rules
 from .formatting.length import LengthRule, create_length_rule
@@ -191,25 +160,6 @@ __all__ = [
     "FormatRule",
     "create_plain_text_rule",
     "create_json_rule",
-    # Domain
-    "LegalRule",
-    "MedicalRule",
-    "PythonRule",
-    "ConsistencyRule",
-    # Legal-specific
-    "LegalCitationRule",
-    "LegalTermsRule",
-    "create_legal_citation_rule",
-    "create_legal_terms_rule",
-    "create_legal_rule",
-    "create_medical_rule",
-    "create_python_rule",
-    "create_consistency_rule",
-    # Factual
-    "FactualConsistencyRule",
-    "ConfidenceRule",
-    "CitationRule",
-    "FactualAccuracyRule",
     # Sentiment
     "create_sentiment_rule",
     # Language

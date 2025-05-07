@@ -188,9 +188,7 @@ class HarmfulContentValidator(BaseValidator[str]):
             raise ValidationError(f"Content validation failed: {str(e)}") from e
 
 
-class HarmfulContentRule(
-    Rule[str, RuleResult, HarmfulContentValidator, RuleResultHandler[RuleResult]]
-):
+class HarmfulContentRule(Rule):
     """Rule that checks for harmful content in text."""
 
     def __init__(
@@ -211,18 +209,17 @@ class HarmfulContentRule(
             validator: Optional custom validator implementation
             **kwargs: Additional keyword arguments for the rule
         """
+        # Create default validator if none provided
+        if validator is None:
+            validator = HarmfulContentValidator(config or RuleConfig())
+
         super().__init__(
             name=name,
             description=description,
             config=config,
             validator=validator,
-            result_handler=None,
             **kwargs,
         )
-
-    def _create_default_validator(self) -> HarmfulContentValidator:
-        """Create a default validator from config."""
-        return HarmfulContentValidator(self.config)
 
 
 def create_harmful_content_validator(
@@ -300,7 +297,7 @@ def create_toxicity_rule(
     description: str = "Validates text for toxic content",
     threshold: float = 0.5,
     **kwargs: Any,
-) -> Rule[str, RuleResult, BaseValidator[str], RuleResultHandler[RuleResult]]:
+) -> Rule:
     """
     Create a toxicity rule using the classifier adapter.
 
@@ -370,7 +367,7 @@ def create_bias_rule(
     description: str = "Validates text for biased content",
     threshold: float = 0.3,
     **kwargs: Any,
-) -> Rule[str, RuleResult, BaseValidator[str], RuleResultHandler[RuleResult]]:
+) -> Rule:
     """
     Create a bias rule using the classifier adapter.
 
@@ -423,24 +420,11 @@ def create_harmful_content_rule(
     Returns:
         Configured HarmfulContentRule instance
     """
-    # Extract rule-specific parameters
-    validator_kwargs = {
-        "categories": categories,
-        "threshold": threshold,
-        "fail_if_any": fail_if_any,
-    }
-
     # Extract RuleConfig parameters
     rule_config_params = {}
     for param in ["priority", "cache_size", "cost"]:
         if param in kwargs:
             rule_config_params[param] = kwargs.pop(param)
-
-    # Add remaining kwargs to validator_kwargs
-    validator_kwargs.update(kwargs)
-
-    # Create validator using validator factory
-    validator = create_harmful_content_validator(**validator_kwargs)
 
     # Create params dictionary for RuleConfig
     params = {
@@ -452,10 +436,18 @@ def create_harmful_content_rule(
     # Create RuleConfig
     rule_config = RuleConfig(params=params, **rule_config_params)
 
+    # Create validator
+    validator = create_harmful_content_validator(
+        categories=categories,
+        threshold=threshold,
+        fail_if_any=fail_if_any,
+    )
+
     # Create rule
     return HarmfulContentRule(
         name=name,
         description=description,
         config=rule_config,
         validator=validator,
+        **kwargs,
     )

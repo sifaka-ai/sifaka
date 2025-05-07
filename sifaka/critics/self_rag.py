@@ -18,8 +18,14 @@ Example:
 
     # Create a retriever
     documents = {
-        "health insurance": "To file a claim for health reimbursement, follow these steps: 1) Complete the claim form...",
-        "travel insurance": "For travel insurance claims, you need to provide: 1) Proof of travel 2) Incident report..."
+        "health_insurance": "To file a claim for health reimbursement, follow these steps: "
+                           "1. Complete the claim form with your personal and policy information. "
+                           "2. Attach all original receipts and medical documentation. "
+                           "3. Make copies of all documents for your records.",
+        "travel_insurance": "For travel insurance claims, you need to provide: "
+                           "1. Proof of travel (boarding passes, itinerary). "
+                           "2. Incident report or documentation of the event. "
+                           "3. Original receipts for expenses being claimed."
     }
     retriever = SimpleRetriever(documents=documents)
 
@@ -203,23 +209,19 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
 
     # Create a retriever with a document collection
     documents = {
-        "health_insurance": """
-        To file a claim for health reimbursement, follow these steps:
-        1. Complete the claim form with your personal and policy information
-        2. Attach all original receipts and medical documentation
-        3. Make copies of all documents for your records
-        4. Submit the claim through the online portal, mobile app, or by mail
-        5. Track your claim status using the provided claim number
-        6. Expect processing within 14-30 days depending on complexity
-        """,
-        "travel_insurance": """
-        For travel insurance claims, you need to provide:
-        1. Proof of travel (boarding passes, itinerary)
-        2. Incident report or documentation of the event
-        3. Original receipts for expenses being claimed
-        4. Completed claim form with policy details
-        5. Submit within the timeframe specified in your policy
-        """
+        "health_insurance": "To file a claim for health reimbursement, follow these steps: "
+                           "1. Complete the claim form with your personal and policy information. "
+                           "2. Attach all original receipts and medical documentation. "
+                           "3. Make copies of all documents for your records. "
+                           "4. Submit the claim through the online portal, mobile app, or by mail. "
+                           "5. Track your claim status using the provided claim number. "
+                           "6. Expect processing within 14-30 days depending on complexity.",
+        "travel_insurance": "For travel insurance claims, you need to provide: "
+                           "1. Proof of travel (boarding passes, itinerary). "
+                           "2. Incident report or documentation of the event. "
+                           "3. Original receipts for expenses being claimed. "
+                           "4. Completed claim form with policy details. "
+                           "5. Submit within the timeframe specified in your policy."
     }
     retriever = SimpleRetriever(documents=documents)
 
@@ -1013,8 +1015,14 @@ def create_self_rag_critic(
 
         # Create a retriever
         documents = {
-            "health insurance": "To file a claim for health reimbursement, follow these steps: 1) Complete the claim form...",
-            "travel insurance": "For travel insurance claims, you need to provide: 1) Proof of travel 2) Incident report..."
+            "health_insurance": "To file a claim for health reimbursement, follow these steps: "
+                               "1. Complete the claim form with your personal and policy information. "
+                               "2. Attach all original receipts and medical documentation. "
+                               "3. Make copies of all documents for your records.",
+            "travel_insurance": "For travel insurance claims, you need to provide: "
+                               "1. Proof of travel (boarding passes, itinerary). "
+                               "2. Incident report or documentation of the event. "
+                               "3. Original receipts for expenses being claimed."
         }
         retriever = SimpleRetriever(documents=documents)
 

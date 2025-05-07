@@ -1,5 +1,9 @@
 """
 Setup script for Sifaka.
+
+This script defines the package dependencies and installation options for Sifaka.
+Dependencies are organized into logical groups for better maintainability and
+to allow users to install only what they need.
 """
 
 from setuptools import find_packages, setup
@@ -15,22 +19,28 @@ core_requirements = [
     "tenacity>=8.2.3",
 ]
 
-# Optional dependencies
-extras_require = {
-    # Model providers
+# Group related dependencies
+model_providers = {
     "openai": ["openai>=1.76.0", "tiktoken>=0.9.0"],
     "anthropic": ["anthropic>=0.50.0"],
-    # Classifiers
+    "gemini": ["google-generativeai>=0.3.2"],
+}
+
+classifiers = {
     "toxicity": ["detoxify>=0.5.1", "torch>=2.2.1", "transformers>=4.38.2"],
     "sentiment": ["vaderSentiment>=3.3.2"],
     "profanity": ["better-profanity>=0.7.0"],
     "language": ["langdetect>=1.0.9"],
     "readability": ["textstat>=0.7.3"],
     "ner": ["spacy>=3.8.0"],
-    # Integrations
+}
+
+integrations = {
     "pydantic-ai": ["pydantic-ai>=0.7.1"],
     "guardrails": ["guardrails-ai>=0.6.6"],
-    # Development
+}
+
+development = {
     "dev": [
         "pytest>=8.0.2",
         "black>=24.2.0",
@@ -40,7 +50,6 @@ extras_require = {
         "pytest-cov>=4.1.0",
         "flake8>=5.0.0",
     ],
-    # Benchmarking
     "benchmark": [
         "memory-profiler>=0.60.0",
         "psutil>=5.9.0",
@@ -50,25 +59,28 @@ extras_require = {
     ],
 }
 
-# Add classifier group that includes all classifier dependencies
-extras_require["classifiers"] = [
-    dep
-    for name, deps in extras_require.items()
-    if name in ["toxicity", "sentiment", "profanity", "language", "readability", "ner"]
-    for dep in deps
-]
+# Combine all dependencies into extras_require
+extras_require = {}
 
-# Add integrations group that includes all integration dependencies
-extras_require["integrations"] = [
-    dep
-    for name, deps in extras_require.items()
-    if name in ["pydantic-ai", "guardrails"]
-    for dep in deps
-]
+# Add individual dependencies
+extras_require.update(model_providers)
+extras_require.update(classifiers)
+extras_require.update(integrations)
+extras_require.update(development)
 
-# Add an 'all' extra that includes everything except 'dev'
+# Create logical groups
+extras_require["all_models"] = [dep for deps in model_providers.values() for dep in deps]
+
+extras_require["all_classifiers"] = [dep for deps in classifiers.values() for dep in deps]
+
+extras_require["all_integrations"] = [dep for deps in integrations.values() for dep in deps]
+
+# Add an 'all' extra that includes everything except development tools
 extras_require["all"] = [
-    dep for name, deps in extras_require.items() if name != "dev" for dep in deps
+    dep
+    for group in [model_providers, classifiers, integrations]
+    for deps in group.values()
+    for dep in deps
 ]
 
 setup(

@@ -51,12 +51,11 @@ Usage Example:
     ```
 """
 
-from typing import Dict, Optional, Any
+from typing import Dict, List, Optional, Any
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict, PrivateAttr
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from sifaka.rules.base import Rule, RuleResult, BaseValidator, RuleConfig
-from sifaka.utils.state import RuleState, create_rule_state, StateManager
 
 
 __all__ = [
@@ -392,11 +391,6 @@ class LengthRule(Rule):
         super().__init__(
             name=name, description=description, config=config, validator=validator_adapter, **kwargs
         )
-
-    def _create_default_validator(self) -> LengthRuleValidator:
-        """Create a default validator adapter for this rule."""
-        # This is not used since we pass the validator in __init__
-        raise NotImplementedError("Validator is created in __init__")
 
 
 def create_length_validator(

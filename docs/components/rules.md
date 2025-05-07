@@ -21,7 +21,7 @@ graph TD
         R[Rule] --> V[Validator]
         V --> Logic[Validation Logic]
     end
-    
+
     subgraph Flow
         Input[Input Text] --> R
         R --> Result[RuleResult]
@@ -92,7 +92,7 @@ if result.passed:
     print(f"Validation passed: {result.message}")
 else:
     print(f"Validation failed: {result.message}")
-    
+
 # Access metadata
 print(f"Character count: {result.metadata['actual_chars']}")
 ```
@@ -145,19 +145,7 @@ required_rule = create_required_content_rule(
 )
 ```
 
-### Factual Rules
 
-Rules that validate factual accuracy:
-
-```python
-from sifaka.rules.factual.accuracy import create_accuracy_rule
-
-# Create an accuracy rule
-accuracy_rule = create_accuracy_rule(
-    facts=["The Earth orbits the Sun", "Water boils at 100°C at sea level"],
-    threshold=0.8
-)
-```
 
 ### Classifier-Based Rules
 
@@ -249,21 +237,21 @@ from sifaka.rules.base import BaseValidator, Rule, RuleResult, RuleConfig
 # Step 1: Create a validator class
 class CustomValidator(BaseValidator[str]):
     """Custom validator implementation."""
-    
+
     def __init__(self, threshold: float = 0.5):
         """Initialize the validator."""
         self.threshold = threshold
-        
+
     def validate(self, text: str) -> RuleResult:
         """Validate the text."""
         # Handle empty text
         if not text:
             return self.handle_empty_text()
-            
+
         # Implement validation logic
         score = self._calculate_score(text)
         passed = score >= self.threshold
-        
+
         # Create result
         return RuleResult(
             passed=passed,
@@ -273,7 +261,7 @@ class CustomValidator(BaseValidator[str]):
                 "threshold": self.threshold,
             }
         )
-        
+
     def _calculate_score(self, text: str) -> float:
         """Calculate a score for the text."""
         # Implement scoring logic
@@ -282,7 +270,7 @@ class CustomValidator(BaseValidator[str]):
 # Step 2: Create a rule class
 class CustomRule(Rule[str, RuleResult, CustomValidator, None]):
     """Custom rule implementation."""
-    
+
     def _create_default_validator(self) -> CustomValidator:
         """Create the default validator."""
         threshold = self.config.params.get("threshold", 0.5)
@@ -304,13 +292,13 @@ def create_custom_rule(
     # Extract parameters
     params = kwargs.pop("params", {})
     params["threshold"] = threshold
-    
+
     # Create or update config
     if config is None:
         config = RuleConfig(params=params, **kwargs)
     else:
         config = config.with_params(**params)
-    
+
     # Create rule
     return CustomRule(
         name=name,

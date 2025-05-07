@@ -329,19 +329,7 @@ rule = create_length_rule(
 )
 ```
 
-### Accuracy Rules
 
-Accuracy rules validate the factual accuracy of text.
-
-```python
-from sifaka.rules.accuracy import create_fact_checking_rule
-
-# Create a fact checking rule
-rule = create_fact_checking_rule(
-    name="fact_rule",
-    description="Ensures text is factually accurate"
-)
-```
 
 ## Rule Composition
 

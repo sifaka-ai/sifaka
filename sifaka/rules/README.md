@@ -19,9 +19,8 @@ This separation of concerns allows for:
 
 - `base.py` - Core classes and protocols for the rules system
 - `adapters/` - Adapters for using other components (like classifiers) as rules
-- `domain/` - Domain-specific rules (legal, medical, etc.)
-- `factual/` - Rules for validating factual content
 - `formatting/` - Rules for validating text formatting
+- `content/` - Rules for validating content
 
 ## Using Rules
 

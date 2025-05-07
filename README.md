@@ -93,6 +93,11 @@ For detailed API reference documentation, see the [docs/api_reference](docs/api_
 - [Chain API](docs/api_reference/chain/README.md) - API reference for chains
 - [Adapters API](docs/api_reference/adapters/README.md) - API reference for adapters
 
+### Implementation Guides
+
+- [Composition Over Inheritance](docs/composition_over_inheritance.md) - Using composition over inheritance for better maintainability
+- [Dependencies](docs/dependencies.md) - Managing optional dependencies in Sifaka
+
 ### Specific Implementations
 - [Guardrails Integration](docs/components/guardrails_integration.md) - Integration with Guardrails AI
 - [Critic Comparison](docs/examples/critic_comparison.md) - Compare different critics' performance
@@ -105,6 +110,8 @@ For detailed API reference documentation, see the [docs/api_reference](docs/api_
 - ✅ **Model Agnostic**: Works with Claude, OpenAI, and other LLM providers
 - ✅ **Streamlined Configuration**: Unified configuration system using ClassifierConfig and RuleConfig
 - ✅ **Standardized State Management**: Consistent state handling across all components
+- ✅ **Simplified Architecture**: Composition over inheritance for cleaner, more maintainable code
+- ✅ **Logical Dependency Groups**: Well-organized optional dependencies for specific features
 
 ## Core Concepts
 

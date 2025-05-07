@@ -423,9 +423,7 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
         return self._analyzer.analyze(text)
 
 
-class ProhibitedContentRule(
-    Rule[str, RuleResult, DefaultProhibitedContentValidator, RuleResultHandler[RuleResult]]
-):
+class ProhibitedContentRule(Rule):
     """
     Rule for validating prohibited content.
 
@@ -520,26 +518,23 @@ class ProhibitedContentRule(
             config: Rule configuration
             validator: Optional validator implementation
         """
+        # Create default validator if none provided
+        if validator is None:
+            # Extract prohibited content specific params
+            params = config.params if config else {}
+            validator_config = ProhibitedContentConfig(
+                terms=params.get("terms", []),
+                threshold=params.get("threshold", 0.5),
+                case_sensitive=params.get("case_sensitive", False),
+            )
+            validator = DefaultProhibitedContentValidator(validator_config)
+
         super().__init__(
             name=name,
             description=description,
             config=config,
             validator=validator,
         )
-
-    def _create_default_validator(self) -> DefaultProhibitedContentValidator:
-        """Create a default validator from config."""
-        # Extract prohibited content specific params
-        params = self.config.params
-        config = ProhibitedContentConfig(
-            terms=params.get("terms", []),
-            threshold=params.get("threshold", 0.5),
-            case_sensitive=params.get("case_sensitive", False),
-            cache_size=self.config.cache_size,
-            priority=self.config.priority,
-            cost=self.config.cost,
-        )
-        return DefaultProhibitedContentValidator(config)
 
     def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate the given text for prohibited content.
