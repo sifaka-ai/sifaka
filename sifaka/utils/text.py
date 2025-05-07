@@ -3,6 +3,46 @@ Text processing utilities for Sifaka.
 
 This module provides common text processing functions used throughout the Sifaka framework,
 including standardized handling for empty text validation.
+
+## Empty Text Handling
+
+The module provides standardized empty text handling:
+
+1. **is_empty_text**: Check if text is empty or contains only whitespace
+2. **handle_empty_text**: Standardized handling for empty text in rules and adapters
+3. **handle_empty_text_for_classifier**: Standardized handling for empty text in classifiers
+
+## Usage Examples
+
+```python
+from sifaka.utils.text import (
+    is_empty_text, handle_empty_text, handle_empty_text_for_classifier
+)
+
+# Check if text is empty
+if is_empty_text(input_text):
+    print("Input text is empty")
+
+# Handle empty text in a rule or adapter
+def validate(text: str) -> RuleResult:
+    # Handle empty text first
+    empty_result = handle_empty_text(text, passed=True)
+    if empty_result:
+        return empty_result
+
+    # Proceed with normal validation
+    # ...
+
+# Handle empty text in a classifier
+def classify(text: str) -> ClassificationResult[str]:
+    # Handle empty text first
+    empty_result = handle_empty_text_for_classifier(text)
+    if empty_result:
+        return empty_result
+
+    # Proceed with normal classification
+    # ...
+```
 """
 
 from typing import Dict, Optional, Any, Literal, Union, TypeVar, Generic, overload
@@ -22,6 +62,27 @@ def is_empty_text(text: str) -> bool:
 
     Returns:
         True if the text is empty or contains only whitespace, False otherwise
+
+    Examples:
+        ```python
+        from sifaka.utils.text import is_empty_text
+
+        # Check empty string
+        is_empty_text("")  # Returns True
+
+        # Check whitespace-only string
+        is_empty_text("   \t\n")  # Returns True
+
+        # Check non-empty string
+        is_empty_text("Hello, world!")  # Returns False
+
+        # Use in a conditional
+        text = get_user_input()
+        if is_empty_text(text):
+            print("Please enter some text")
+        else:
+            process_text(text)
+        ```
     """
     return not text or not text.strip()
 
