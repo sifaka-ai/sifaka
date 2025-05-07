@@ -128,6 +128,130 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     This critic implements the Reflexion approach, which enables learning from
     feedback without requiring weight updates. It maintains a memory buffer of
     past reflections to improve future text generation.
+
+    ## Architecture
+
+    The ReflexionCritic follows a component-based architecture with memory-augmented generation:
+
+    1. **Core Components**
+       - **ReflexionCritic**: Main class that implements the critic interfaces
+       - **CritiqueService**: Service that handles the core critique functionality
+       - **ReflexionCriticPromptManager**: Creates prompts with reflection context
+       - **ResponseParser**: Parses and validates model responses
+       - **MemoryManager**: Manages the memory buffer of past reflections
+
+    2. **Component Relationships**
+       - ReflexionCritic delegates to CritiqueService for core operations
+       - CritiqueService uses ReflexionCriticPromptManager to create prompts
+       - ReflexionCriticPromptManager incorporates reflections from MemoryManager
+       - CritiqueService uses ResponseParser to parse model responses
+       - ReflexionCritic uses MemoryManager to track reflections
+
+    3. **State Management**
+       - Uses direct state pattern with _state attribute
+       - State contains references to all components
+       - State.cache dictionary stores additional runtime data
+       - Initialization flag prevents operations before setup is complete
+
+    4. **Memory Management**
+       - Maintains a buffer of past reflections
+       - Reflections are generated after each improvement
+       - Reflections are incorporated into future prompts
+       - Buffer size is configurable via memory_buffer_size
+       - Oldest reflections are removed when buffer is full
+
+    ## Lifecycle Management
+
+    The ReflexionCritic manages its lifecycle through three main phases:
+
+    1. **Initialization**
+       - Validates configuration
+       - Sets up language model provider
+       - Initializes prompt factory
+       - Creates memory manager with configured buffer size
+       - Allocates resources
+
+    2. **Operation**
+       - Validates text input
+       - Retrieves relevant reflections from memory
+       - Generates critiques with reflection context
+       - Improves text quality using reflections
+       - Generates new reflections from improvements
+       - Stores reflections in memory buffer
+
+    3. **Cleanup**
+       - Releases resources
+       - Resets state
+       - Logs final status
+
+    ## Error Handling
+
+    The ReflexionCritic implements comprehensive error handling:
+
+    1. **Input Validation**
+       - Validates text input
+       - Checks feedback format
+       - Verifies configuration
+       - Ensures initialization before operations
+
+    2. **Model Interaction**
+       - Handles provider errors
+       - Manages response parsing
+       - Validates output formats
+       - Handles reflection generation failures
+
+    3. **Memory Management**
+       - Handles memory buffer overflow
+       - Manages reflection storage errors
+       - Handles reflection retrieval failures
+
+    ## Examples
+
+    ```python
+    from sifaka.critics.reflexion import ReflexionCritic, ReflexionCriticConfig
+    from sifaka.models.providers import OpenAIProvider
+
+    # Create a language model provider
+    provider = OpenAIProvider(api_key="your-api-key")
+
+    # Create a reflexion critic configuration
+    config = ReflexionCriticConfig(
+        name="my_reflexion_critic",
+        description="A critic that learns from past feedback",
+        system_prompt="You are an expert editor that improves text through reflection.",
+        temperature=0.7,
+        max_tokens=1000,
+        memory_buffer_size=5,
+        reflection_depth=2
+    )
+
+    # Create a reflexion critic
+    critic = ReflexionCritic(
+        name="my_reflexion_critic",
+        description="A critic that learns from past feedback",
+        llm_provider=provider,
+        config=config
+    )
+
+    # Validate text
+    text = "This is a sample technical document."
+    is_valid = critic.validate(text)
+    print(f"Text is valid: {is_valid}")
+
+    # Critique text
+    critique = critic.critique(text)
+    print(f"Critique: {critique}")
+
+    # Improve text with feedback
+    feedback = "The text needs more specific details and examples."
+    improved_text = critic.improve(text, feedback)
+    print(f"Improved text: {improved_text}")
+
+    # Improve another text - now with reflections from previous improvement
+    another_text = "This is another document that needs improvement."
+    improved_text2 = critic.improve(another_text, "Make it more professional.")
+    print(f"Improved text with reflections: {improved_text2}")
+    ```
     """
 
     # Class constants

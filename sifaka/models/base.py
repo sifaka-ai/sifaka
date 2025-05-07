@@ -688,6 +688,107 @@ class ModelProvider(ABC, Generic[C]):
         """
         Initialize a model provider with explicit dependencies.
 
+        This method initializes a model provider with the specified model name and
+        optional dependencies. If dependencies are not provided, default ones will
+        be created lazily when needed using the _create_default_* methods.
+
+        ## Lifecycle
+
+        1. **Initialization**: Store model name and dependencies
+           - Store model name for later use
+           - Store or create configuration
+           - Store optional dependencies (api_client, token_counter, tracer)
+           - Initialize logging
+
+        2. **Validation**: Validate inputs
+           - Ensure model_name is not empty
+           - Ensure dependencies implement required protocols
+
+        ## Error Handling
+
+        This method handles these error cases:
+        - Raises ValueError if model_name is empty
+        - Raises TypeError if dependencies don't implement required protocols
+        - Logs initialization for debugging
+
+        ## Examples
+
+        Basic initialization with just a model name:
+
+        ```python
+        from sifaka.models.openai import OpenAIProvider
+
+        # Create a provider with just a model name
+        # Default configuration and dependencies will be created when needed
+        provider = OpenAIProvider(model_name="gpt-4")
+        ```
+
+        Initialization with custom configuration:
+
+        ```python
+        from sifaka.models.base import ModelConfig
+        from sifaka.models.anthropic import AnthropicProvider
+
+        # Create a custom configuration
+        config = ModelConfig().with_temperature(0.9).with_max_tokens(2000)
+
+        # Create a provider with the custom configuration
+        provider = AnthropicProvider(model_name="claude-3-opus", config=config)
+        ```
+
+        Initialization with custom dependencies:
+
+        ```python
+        from sifaka.models.base import APIClient, TokenCounter
+        from sifaka.models.openai import OpenAIProvider
+        from sifaka.utils.tracing import Tracer
+
+        # Create custom dependencies
+        class CustomAPIClient(APIClient):
+            def send_prompt(self, prompt, config):
+                # Custom implementation
+                return "Response"
+
+        class CustomTokenCounter(TokenCounter):
+            def count_tokens(self, text):
+                # Custom implementation
+                return len(text.split())
+
+        # Create a tracer
+        tracer = Tracer()
+
+        # Create a provider with custom dependencies
+        provider = OpenAIProvider(
+            model_name="gpt-4",
+            api_client=CustomAPIClient(),
+            token_counter=CustomTokenCounter(),
+            tracer=tracer
+        )
+        ```
+
+        Error handling during initialization:
+
+        ```python
+        try:
+            # This will raise ValueError if model_name is empty
+            provider = OpenAIProvider(model_name="")
+        except ValueError as e:
+            print(f"Initialization error: {e}")
+            # Use a default model name instead
+            provider = OpenAIProvider(model_name="gpt-3.5-turbo")
+
+        try:
+            # This will raise TypeError if api_client doesn't implement APIClient
+            provider = OpenAIProvider(
+                model_name="gpt-4",
+                api_client="not an APIClient"  # Wrong type
+            )
+        except TypeError as e:
+            print(f"Initialization error: {e}")
+            # Create without custom dependencies
+            provider = OpenAIProvider(model_name="gpt-4")
+        ```
+
         Args:
             model_name: The name of the model to use
             config: Optional model configuration

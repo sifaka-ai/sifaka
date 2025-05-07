@@ -176,10 +176,56 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             llm_provider=provider
         )
 
-        # Use the critic
+        # Example 1: Basic improvement with task context
         task = "Write a concise explanation of quantum computing."
         initial_output = "Quantum computing uses quantum bits."
         improved_output = critic.improve(initial_output, {"task": task})
+        print(f"Improved output: {improved_output}")
+
+        # Example 2: Validating text quality
+        technical_doc = "Quantum computing leverages quantum mechanical phenomena to perform " \
+                        "computations. Unlike classical bits, quantum bits or qubits can exist " \
+                        "in multiple states simultaneously due to superposition."
+        is_valid = critic.validate(technical_doc, {"task": "Write a technical explanation of quantum computing"})
+        print(f"Is valid: {is_valid}")
+
+        # Example 3: Getting detailed critique
+        marketing_text = "Our product is the best in the market."
+        critique_result = critic.critique(marketing_text, {"task": "Write persuasive marketing copy"})
+        print(f"Critique score: {critique_result['score']}")
+        print(f"Feedback: {critique_result['feedback']}")
+        print(f"Issues: {critique_result['issues']}")
+        print(f"Suggestions: {critique_result['suggestions']}")
+
+        # Example 4: Improving with specific feedback
+        essay = "The impact of artificial intelligence on society is profound."
+        feedback = "This essay needs more specific examples and a clearer structure."
+        improved_essay = critic.improve_with_feedback(essay, feedback)
+        print(f"Improved essay: {improved_essay}")
+
+        # Example 5: Using async methods for better performance
+        import asyncio
+
+        async def process_multiple_texts():
+            texts = [
+                "Climate change is affecting our planet.",
+                "Machine learning algorithms require large datasets.",
+                "Renewable energy sources are becoming more affordable."
+            ]
+            tasks = ["Write about climate change", "Explain machine learning", "Discuss renewable energy"]
+
+            # Process texts concurrently
+            results = []
+            for i, text in enumerate(texts):
+                metadata = {"task": tasks[i]}
+                improved = await critic.aimprove(text, metadata)
+                results.append(improved)
+
+            return results
+
+        improved_texts = asyncio.run(process_multiple_texts())
+        for i, text in enumerate(improved_texts):
+            print(f"Improved text {i+1}: {text[:50]}...")
         ```
     """
 

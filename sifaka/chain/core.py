@@ -164,14 +164,40 @@ class ChainCore(BaseModel, Generic[OutputType]):
     ## Architecture
 
     ChainCore follows a component-based architecture where each responsibility
-    is delegated to a specialized component:
+    is delegated to a specialized component. This design pattern promotes:
 
-    - **Generator**: Handles text generation using model providers
-    - **ValidationManager**: Manages validation against rules
-    - **PromptManager**: Handles prompt creation and modification
-    - **RetryStrategy**: Implements retry logic for validation failures
-    - **ResultFormatter**: Formats results and feedback
-    - **CriticCore**: Optional component for improving outputs
+    1. **Separation of Concerns**: Each component has a single responsibility
+       - **Generator**: Handles text generation using model providers
+       - **ValidationManager**: Manages validation against rules
+       - **PromptManager**: Handles prompt creation and modification
+       - **RetryStrategy**: Implements retry logic for validation failures
+       - **ResultFormatter**: Formats results and feedback
+       - **CriticCore**: Optional component for improving outputs
+
+    2. **Dependency Injection**: Components are injected at initialization
+       - Components are created externally and passed to ChainCore
+       - This allows for easy testing and customization
+       - Components can be swapped out without changing ChainCore
+
+    3. **Composition Over Inheritance**: Uses composition for flexibility
+       - ChainCore composes multiple specialized components
+       - New functionality can be added by creating new components
+       - Existing components can be extended without modifying ChainCore
+
+    4. **Delegation Pattern**: Delegates operations to specialized components
+       - ChainCore acts as a facade for the underlying components
+       - Each operation is delegated to the appropriate component
+       - Components can be modified independently
+
+    5. **Flow Control**: Orchestrates the flow between components
+       - Manages the sequence of operations (generate, validate, improve)
+       - Handles the flow of data between components
+       - Ensures proper error handling and recovery
+
+    6. **State Management**: Uses a dedicated state object
+       - Stores all components in a central state object
+       - Provides property accessors for components
+       - Ensures proper initialization before use
 
     ## State Management
 

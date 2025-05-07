@@ -148,6 +148,37 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
 
     Based on Self-RAG: https://arxiv.org/abs/2310.11511
 
+    ## Architecture
+
+    The SelfRAGCritic follows a component-based architecture with retrieval augmentation:
+
+    1. **Core Components**
+       - **SelfRAGCritic**: Main class that implements the critic interfaces
+       - **Retriever**: Component that retrieves relevant information
+       - **PromptManager**: Creates prompts for different stages of the process
+       - **ResponseParser**: Parses and validates model responses
+       - **MemoryManager**: Manages history of retrievals and reflections
+
+    2. **Component Relationships**
+       - SelfRAGCritic coordinates the retrieval-augmented generation process
+       - Retriever provides relevant information based on queries
+       - PromptManager creates specialized prompts for each stage
+       - ResponseParser extracts structured data from model responses
+       - All components access the language model provider for generation
+
+    3. **State Management**
+       - Uses direct state pattern with _state attribute
+       - State contains references to all components
+       - State.cache dictionary stores additional runtime data
+       - Initialization flag prevents operations before setup is complete
+
+    4. **Process Flow**
+       - Decision: Model decides whether to retrieve information
+       - Retrieval: If needed, model generates a query and retrieves information
+       - Generation: Model generates a response using retrieved information
+       - Reflection: Model reflects on the quality and relevance of the response
+       - Improvement: Based on reflection, model may regenerate the response
+
     ## Lifecycle Management
 
     The SelfRAGCritic manages its lifecycle through three main phases:
@@ -157,12 +188,115 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
        - Sets up language model provider
        - Sets up retriever
        - Initializes state
+       - Creates prompt templates
 
     2. **Operation**
        - Decides whether to retrieve
        - Retrieves relevant information
        - Generates responses
        - Reflects on responses
+       - Improves responses based on reflections
+
+    3. **Cleanup**
+       - Releases resources
+       - Closes retriever connections
+       - Resets state
+       - Logs final status
+
+    ## Error Handling
+
+    The SelfRAGCritic implements comprehensive error handling:
+
+    1. **Input Validation**
+       - Validates text input
+       - Checks task format
+       - Verifies configuration
+       - Ensures initialization before operations
+
+    2. **Retrieval Errors**
+       - Handles retriever connection failures
+       - Manages empty or irrelevant results
+       - Handles query generation failures
+       - Provides fallbacks for retrieval failures
+
+    3. **Model Interaction**
+       - Handles provider errors
+       - Manages response parsing
+       - Validates output formats
+       - Handles reflection generation failures
+
+    ## Examples
+
+    ```python
+    from sifaka.critics.self_rag import SelfRAGCritic, SelfRAGCriticConfig
+    from sifaka.models.providers import OpenAIProvider
+    from sifaka.retrieval import SimpleRetriever
+
+    # Create a language model provider
+    provider = OpenAIProvider(api_key="your-api-key")
+
+    # Create a retriever with sample documents
+    documents = {
+        "health insurance": "To file a claim for health reimbursement, follow these steps: 1) Complete the claim form...",
+        "travel insurance": "For travel insurance claims, you need to provide: 1) Proof of travel 2) Incident report..."
+    }
+    retriever = SimpleRetriever(documents=documents)
+
+    # Create a Self-RAG critic configuration
+    config = SelfRAGCriticConfig(
+        name="self_rag_critic",
+        description="A critic for retrieval-augmented generation",
+        system_prompt="You are an expert at deciding when to retrieve information.",
+        temperature=0.7,
+        max_tokens=1000,
+        retrieval_threshold=0.5
+    )
+
+    # Create a Self-RAG critic
+    critic = SelfRAGCritic(
+        config=config,
+        llm_provider=provider,
+        retriever=retriever
+    )
+
+    # Example 1: Run the full Self-RAG process
+    task = "What are the steps to file a claim for health reimbursement?"
+    result = critic.run(task)
+    print(f"Response: {result['response']}")
+    print(f"Retrieved context: {result['retrieved_context']}")
+    print(f"Reflection: {result['reflection']}")
+
+    # Example 2: Improve existing text
+    text = "To file a health insurance claim, you need to fill out a form."
+    improved_text = critic.improve(text, {"task": "Explain health insurance claims process"})
+    print(f"Improved text: {improved_text}")
+
+    # Example 3: Critique text
+    critique_result = critic.critique(text, {"task": "Explain health insurance claims process"})
+    print(f"Critique score: {critique_result['score']}")
+    print(f"Feedback: {critique_result['feedback']}")
+
+    # Example 4: Using async methods for better performance
+    import asyncio
+
+    async def process_multiple_tasks():
+        tasks = [
+            "What are the steps to file a health insurance claim?",
+            "What documents do I need for a travel insurance claim?"
+        ]
+
+        # Process tasks concurrently
+        results = []
+        for task in tasks:
+            result = await critic.arun(task)
+            results.append(result)
+
+        return results
+
+    task_results = asyncio.run(process_multiple_tasks())
+    for i, result in enumerate(task_results):
+        print(f"Task {i+1} response: {result['response'][:50]}...")
+    ```
 
     3. **Cleanup**
        - Releases resources
