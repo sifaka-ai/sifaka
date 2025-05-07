@@ -47,7 +47,7 @@ Example:
 import logging
 from typing import Any, Dict, List, Optional, Union, cast
 
-from pydantic import PrivateAttr
+from pydantic import PrivateAttr, ConfigDict
 
 from .base import BaseCritic
 from .models import ConstitutionalCriticConfig
@@ -162,6 +162,9 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     # Class constants
     DEFAULT_NAME = "constitutional_critic"
     DEFAULT_DESCRIPTION = "Evaluates responses against principles"
+
+    # Pydantic v2 configuration
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     # State management using direct state
     _state = PrivateAttr(default_factory=lambda: None)

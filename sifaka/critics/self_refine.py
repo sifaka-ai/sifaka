@@ -30,7 +30,7 @@ Example:
 
 from typing import Any, Dict, List, Optional, Union, cast
 
-from pydantic import Field
+from pydantic import Field, ConfigDict, PrivateAttr
 
 from .base import BaseCritic, TextCritic, TextImprover, TextValidator
 from .models import PromptCriticConfig
@@ -186,6 +186,12 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     # Class constants
     DEFAULT_NAME = "self_refine_critic"
     DEFAULT_DESCRIPTION = "Improves text through iterative self-critique and revision"
+
+    # Pydantic v2 configuration
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    # State management using direct state
+    _state = PrivateAttr(default_factory=lambda: None)
 
     def __init__(
         self,

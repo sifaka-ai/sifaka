@@ -105,7 +105,7 @@ print(f"Improved text: {improved_text}")
 from dataclasses import dataclass
 from typing import Any, Final, Protocol, runtime_checkable, Optional, Dict, List, Tuple
 
-from pydantic import PrivateAttr
+from pydantic import PrivateAttr, ConfigDict
 
 from .base import (
     BaseCritic,
@@ -221,6 +221,9 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     This class follows the component-based architecture pattern by delegating to
     specialized components for prompt management, response parsing, and memory management.
     """
+
+    # Pydantic v2 configuration
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     # State management using direct state
     _state = PrivateAttr(default_factory=lambda: None)
