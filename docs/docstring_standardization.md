@@ -66,6 +66,7 @@ See the [contributing guidelines](contributing.md) for detailed standards.
 | `SelfRefineCritic` | ✅ Complete | High | Added comprehensive examples |
 | `SelfRAGCritic` | ✅ Complete | High | Added comprehensive docstrings with architecture, lifecycle, error handling, and examples |
 | `LACCritic` | ✅ Complete | High | Added comprehensive docstrings with architecture, lifecycle, error handling, and examples |
+| `ConstitutionalCritic` | ✅ Complete | High | Added detailed architecture section |
 
 ### Model Providers
 
@@ -73,16 +74,15 @@ See the [contributing guidelines](contributing.md) for detailed standards.
 |-----------|--------|----------|-------|
 | `OpenAIProvider` | ⚠️ Partial | High | Missing error handling section |
 | `AnthropicProvider` | ⚠️ Partial | High | Missing examples |
-| `HuggingFaceProvider` | ❌ Incomplete | Medium | Missing comprehensive docstrings |
-| `LlamaCppProvider` | ❌ Incomplete | Medium | Missing comprehensive docstrings |
-| `AzureOpenAIProvider` | ❌ Incomplete | Medium | Missing comprehensive docstrings |
+| `HuggingFaceProvider` | ❌ Incomplete | Medium | Missing comprehensive docstrings | (let's create a file for this and indicate it is coming soon)
+| `AzureOpenAIProvider` | ❌ Incomplete | Medium | Missing comprehensive docstrings | (let's create a file for this and indicate it is coming soon)
 
 ### Adapters
 
 | Component | Status | Priority | Notes |
 |-----------|--------|----------|-------|
-| `ClassifierAdapter` | ⚠️ Partial | High | Missing examples |
-| `GuardrailsAdapter` | ❌ Incomplete | Medium | Missing comprehensive docstrings |
+| `ClassifierAdapter` | ✅ Complete | High | Added comprehensive examples, architecture section, and detailed method docstrings |
+| `GuardrailsAdapter` | ✅ Complete | Medium | Added comprehensive docstrings with architecture, lifecycle, error handling, and examples |
 
 ### Utilities
 
@@ -107,7 +107,9 @@ Based on the current state of the codebase, these components should be prioritiz
 4. ~~`ReflexionCritic`~~ - ✅ Completed
 5. ~~`SelfRAGCritic`~~ - ✅ Completed
 6. ~~`LACCritic`~~ - ✅ Completed
-7. `state.py` - Critical utility for state management
+7. ~~`ClassifierAdapter`~~ - ✅ Completed
+8. ~~`GuardrailsAdapter`~~ - ✅ Completed
+9. `state.py` - Critical utility for state management
 
 ### Medium Priority (Next Phase)
 

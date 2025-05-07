@@ -553,6 +553,24 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
     allowing classifiers to be used as validation rules. It handles the
     conversion of classification results to validation results.
 
+    ## Architecture
+    The ClassifierAdapter follows the Adapter pattern to convert classifiers into validators:
+    - Wraps a classifier instance that implements the Classifier protocol
+    - Provides a validate() method that conforms to the BaseValidator interface
+    - Manages configuration for validation thresholds and valid labels
+    - Converts classification results to standardized RuleResults
+
+    ## Lifecycle
+    1. Initialization: Set up with classifier and configuration
+    2. Validation: Run classifier on input text
+    3. Result Conversion: Convert classification to validation result
+    4. Caching: Optionally cache results for performance
+
+    ## Error Handling
+    - Empty text is handled according to Sifaka conventions
+    - Classifier exceptions are caught and converted to failed validation results
+    - Configuration errors are detected during initialization
+
     Attributes:
         classifier: The classifier being adapted
         threshold: Confidence threshold for accepting classifications
@@ -560,23 +578,43 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         invalid_labels: Optional list of labels considered invalid
         extraction_function: Optional function to extract text for classification
 
-    Lifecycle:
-    1. Initialization: Set up with classifier and configuration
-    2. Validation: Run classifier on input text
-    3. Result Conversion: Convert classification to validation result
-
     Examples:
         ```python
-        # Create an adapter
+        from sifaka.adapters.classifier import ClassifierAdapter
+        from sifaka.classifiers.toxicity import create_toxicity_classifier
+
+        # Create a toxicity classifier
+        toxicity_classifier = create_toxicity_classifier()
+
+        # Create an adapter with basic configuration
         adapter = ClassifierAdapter(
-            classifier=SentimentClassifier(),
+            classifier=toxicity_classifier,
             threshold=0.8,
-            valid_labels=["positive", "neutral"]
+            valid_labels=["non_toxic"]
         )
 
         # Validate text
-        result = adapter.validate("This is great!")
+        result = adapter.validate("This is a friendly message")
         print(f"Validation {'passed' if result.passed else 'failed'}")
+        print(f"Label: {result.metadata['label']}")
+        print(f"Confidence: {result.metadata['confidence']}")
+
+        # Using an extraction function
+        def extract_content(text):
+            # Extract just the content part after "Content: "
+            if "Content: " in text:
+                return text.split("Content: ")[1]
+            return text
+
+        adapter_with_extraction = ClassifierAdapter(
+            classifier=toxicity_classifier,
+            threshold=0.7,
+            valid_labels=["non_toxic"],
+            extraction_function=extract_content
+        )
+
+        # The adapter will only classify the extracted part
+        result = adapter_with_extraction.validate("Message type: Email, Content: Hello team!")
         ```
     """
 
@@ -591,15 +629,50 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         """
         Initialize the classifier adapter.
 
+        This method sets up the adapter with a classifier and configuration options.
+        It validates the configuration and initializes the state manager.
+
         Args:
             classifier: The classifier to adapt
-            threshold: Confidence threshold for accepting classifications
-            valid_labels: List of labels considered valid
-            invalid_labels: Optional list of labels considered invalid
+            threshold: Confidence threshold for accepting classifications (0.0 to 1.0)
+            valid_labels: List of labels considered valid for validation to pass
+            invalid_labels: Optional list of labels considered invalid (mutually exclusive with valid_labels)
             extraction_function: Optional function to extract text for classification
 
         Raises:
             ConfigurationError: If configuration is invalid
+            ValueError: If both valid_labels and invalid_labels are provided
+            TypeError: If classifier does not implement the Classifier protocol
+
+        Example:
+            ```python
+            from sifaka.adapters.classifier import ClassifierAdapter
+            from sifaka.classifiers.toxicity import create_toxicity_classifier
+
+            # Create a toxicity classifier
+            classifier = create_toxicity_classifier()
+
+            # Create an adapter with basic configuration
+            adapter = ClassifierAdapter(
+                classifier=classifier,
+                threshold=0.8,
+                valid_labels=["non_toxic"]
+            )
+
+            # Create an adapter with an extraction function
+            def extract_message(text):
+                # Extract message content from a structured format
+                if ":" in text:
+                    return text.split(":", 1)[1].strip()
+                return text
+
+            adapter = ClassifierAdapter(
+                classifier=classifier,
+                threshold=0.7,
+                valid_labels=["non_toxic"],
+                extraction_function=extract_message
+            )
+            ```
         """
         # Initialize pydantic model
         super(BaseAdapter, self).__init__()
@@ -621,22 +694,69 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
 
     @property
     def config(self) -> ClassifierRuleConfig:
-        """Get the adapter configuration."""
+        """
+        Get the adapter configuration.
+
+        Returns:
+            The ClassifierRuleConfig containing threshold, valid_labels, and other settings
+
+        Example:
+            ```python
+            adapter = ClassifierAdapter(classifier=my_classifier, threshold=0.8, valid_labels=["positive"])
+            config = adapter.config
+            print(f"Threshold: {config.threshold}")
+            print(f"Valid labels: {config.valid_labels}")
+            ```
+        """
         return self._state_manager.get_state().config_cache["classifier_config"]
 
     @property
     def classifier(self) -> Classifier:
-        """Get the classifier being adapted."""
+        """
+        Get the classifier being adapted.
+
+        Returns:
+            The underlying classifier instance that this adapter wraps
+
+        Example:
+            ```python
+            adapter = ClassifierAdapter(classifier=my_classifier, threshold=0.8, valid_labels=["positive"])
+            classifier = adapter.classifier
+            print(f"Using classifier: {classifier.name}")
+            ```
+        """
         return self.adaptee
 
     @property
     def valid_labels(self) -> List[str]:
-        """Get the valid labels for this adapter."""
+        """
+        Get the valid labels for this adapter.
+
+        Returns:
+            List of labels that are considered valid for validation to pass
+
+        Example:
+            ```python
+            adapter = ClassifierAdapter(classifier=my_classifier, valid_labels=["positive", "neutral"])
+            print(f"Valid labels: {adapter.valid_labels}")
+            ```
+        """
         return self.config.valid_labels
 
     @property
     def threshold(self) -> float:
-        """Get the confidence threshold for this adapter."""
+        """
+        Get the confidence threshold for this adapter.
+
+        Returns:
+            The confidence threshold value (between 0.0 and 1.0)
+
+        Example:
+            ```python
+            adapter = ClassifierAdapter(classifier=my_classifier, threshold=0.8)
+            print(f"Confidence threshold: {adapter.threshold}")
+            ```
+        """
         return self.config.threshold
 
     def validate(self, input_value: str, **kwargs) -> RuleResult:
@@ -651,13 +771,41 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
 
         Args:
             input_value: The text to validate
-            **kwargs: Additional validation parameters
+            **kwargs: Additional validation parameters including:
+                - cache_result: Whether to cache the result (default: True)
 
         Returns:
-            RuleResult containing validation outcome and metadata
+            RuleResult containing validation outcome and metadata including:
+                - label: The classification label
+                - confidence: The classification confidence score
+                - threshold: The threshold used for validation
+                - valid_labels: The list of valid labels
+                - adaptee_name: The name of the classifier
 
         Raises:
             ValidationError: If validation fails due to an error
+
+        Example:
+            ```python
+            from sifaka.adapters.classifier import ClassifierAdapter
+            from sifaka.classifiers.toxicity import create_toxicity_classifier
+
+            # Create a classifier and adapter
+            classifier = create_toxicity_classifier()
+            adapter = ClassifierAdapter(
+                classifier=classifier,
+                threshold=0.8,
+                valid_labels=["non_toxic"]
+            )
+
+            # Validate text
+            result = adapter.validate("This is a friendly message")
+
+            # Access metadata
+            label = result.metadata["label"]
+            confidence = result.metadata["confidence"]
+            passed = result.passed
+            ```
         """
         # Handle empty text
         empty_result = self.handle_empty_text(input_value)
@@ -850,41 +998,76 @@ def create_classifier_adapter(
     configuration options. It follows the standard Sifaka configuration pattern
     by using a consistent approach to configuration.
 
+    ## Usage Patterns
+    - Direct parameter configuration: Pass parameters directly to the function
+    - Dictionary configuration: Pass a config dictionary with parameter values
+    - Mixed configuration: Combine direct parameters with a config dictionary
+
+    ## Configuration Priority
+    1. Values in kwargs (highest priority)
+    2. Values in config dictionary
+    3. Direct parameter values
+    4. Default values (lowest priority)
+
     Args:
         classifier: Classifier to use for validation
-        threshold: Confidence threshold for accepting a classification
-        valid_labels: List of valid labels
-        invalid_labels: List of invalid labels
+        threshold: Confidence threshold for accepting a classification (0.0 to 1.0)
+        valid_labels: List of valid labels for validation to pass
+        invalid_labels: List of invalid labels (mutually exclusive with valid_labels)
         extraction_function: Function to extract text to classify from input
-        config: Optional configuration dictionary
-        **kwargs: Additional configuration options
+        config: Optional configuration dictionary with any of the above parameters
+        **kwargs: Additional configuration options that override other settings
 
     Returns:
         An adapter that uses the classifier for validation
 
+    Raises:
+        ValueError: If the classifier doesn't implement the Classifier protocol
+        ValueError: If both valid_labels and invalid_labels are provided
+
     Examples:
         ```python
         from sifaka.adapters.classifier import create_classifier_adapter
-        from sifaka.classifiers.content import SentimentClassifier
+        from sifaka.classifiers.toxicity import create_toxicity_classifier
+        from sifaka.classifiers.sentiment import create_sentiment_classifier
 
-        # Create a classifier
-        classifier = SentimentClassifier()
+        # Create classifiers
+        toxicity_classifier = create_toxicity_classifier()
+        sentiment_classifier = create_sentiment_classifier()
 
-        # Create an adapter from the classifier with direct parameters
-        adapter = create_classifier_adapter(
-            classifier=classifier,
+        # Create an adapter with direct parameters
+        toxicity_adapter = create_classifier_adapter(
+            classifier=toxicity_classifier,
             threshold=0.8,
-            valid_labels=["positive", "neutral"]
+            valid_labels=["non_toxic"]
         )
 
         # Create an adapter with a configuration dictionary
-        adapter = create_classifier_adapter(
-            classifier=classifier,
+        sentiment_adapter = create_classifier_adapter(
+            classifier=sentiment_classifier,
             config={
-                "threshold": 0.8,
+                "threshold": 0.7,
                 "valid_labels": ["positive", "neutral"]
             }
         )
+
+        # Create an adapter with an extraction function
+        def extract_content(text):
+            if "Content:" in text:
+                return text.split("Content:")[1].strip()
+            return text
+
+        content_adapter = create_classifier_adapter(
+            classifier=toxicity_classifier,
+            threshold=0.8,
+            valid_labels=["non_toxic"],
+            extraction_function=extract_content
+        )
+
+        # Validate text with the adapters
+        result1 = toxicity_adapter.validate("Hello, this is a friendly message.")
+        result2 = sentiment_adapter.validate("I love this product!")
+        result3 = content_adapter.validate("Email - Content: Thanks for your help.")
         ```
     """
     # First check if the classifier is valid
