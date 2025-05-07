@@ -20,6 +20,14 @@ This module follows the standard Sifaka configuration pattern:
 - Validator factory functions create standalone validators
 - Rule factory functions use validator factory functions internally
 
+## Standardized Utilities
+
+This module uses standardized utilities from the Sifaka framework:
+- Error handling with try_operation from sifaka.utils.errors
+- Result creation with create_rule_result from sifaka.utils.results
+- Configuration validation with validate_params from sifaka.utils.config
+- Empty text handling with handle_empty_text from sifaka.utils.text
+
 ## Usage Example
 
 ```python
@@ -94,37 +102,59 @@ class SimpleSentimentClassifier:
         Returns:
             ClassificationResult with sentiment label
         """
-        from sifaka.classifiers.base import ClassificationResult
+        from sifaka.utils.errors import try_operation
+        from sifaka.utils.results import create_classification_result, create_unknown_result
+        from sifaka.utils.text import handle_empty_text_for_classifier
 
-        # Simple sentiment detection based on keywords
-        positive_words = ["good", "great", "excellent", "happy", "positive"]
-        negative_words = ["bad", "terrible", "awful", "sad", "negative"]
+        # Handle empty text
+        empty_result = handle_empty_text_for_classifier(text)
+        if empty_result:
+            return empty_result
 
-        text_lower = text.lower()
+        # Use try_operation to handle potential errors
+        def _classify():
+            # Simple sentiment detection based on keywords
+            positive_words = ["good", "great", "excellent", "happy", "positive"]
+            negative_words = ["bad", "terrible", "awful", "sad", "negative"]
 
-        # Count positive and negative words
-        positive_count = sum(1 for word in positive_words if word in text_lower)
-        negative_count = sum(1 for word in negative_words if word in text_lower)
+            text_lower = text.lower()
 
-        # Determine sentiment
-        if positive_count > negative_count:
-            return ClassificationResult(
-                label="positive",
-                confidence=0.8,
-                metadata={"positive_words": positive_count, "negative_words": negative_count},
-            )
-        elif negative_count > positive_count:
-            return ClassificationResult(
-                label="negative",
-                confidence=0.8,
-                metadata={"positive_words": positive_count, "negative_words": negative_count},
-            )
-        else:
-            return ClassificationResult(
-                label="neutral",
-                confidence=0.6,
-                metadata={"positive_words": positive_count, "negative_words": negative_count},
-            )
+            # Count positive and negative words
+            positive_count = sum(1 for word in positive_words if word in text_lower)
+            negative_count = sum(1 for word in negative_words if word in text_lower)
+
+            # Determine sentiment
+            if positive_count > negative_count:
+                return create_classification_result(
+                    label="positive",
+                    confidence=0.8,
+                    component_name="SimpleSentimentClassifier",
+                    metadata={"positive_words": positive_count, "negative_words": negative_count},
+                )
+            elif negative_count > positive_count:
+                return create_classification_result(
+                    label="negative",
+                    confidence=0.8,
+                    component_name="SimpleSentimentClassifier",
+                    metadata={"positive_words": positive_count, "negative_words": negative_count},
+                )
+            else:
+                return create_classification_result(
+                    label="neutral",
+                    confidence=0.6,
+                    component_name="SimpleSentimentClassifier",
+                    metadata={"positive_words": positive_count, "negative_words": negative_count},
+                )
+
+        # Execute the classification with error handling
+        return try_operation(
+            _classify,
+            component_name="SimpleSentimentClassifier",
+            default_value=create_unknown_result(
+                component_name="SimpleSentimentClassifier",
+                reason="classification_error",
+            ),
+        )
 
 
 class SentimentAnalyzer:
@@ -150,25 +180,42 @@ class SentimentAnalyzer:
         Returns:
             RuleResult: The result of the analysis
         """
-        # Use the classifier to detect sentiment
-        result = self._classifier.classify(text)
+        from sifaka.utils.errors import try_operation
+        from sifaka.utils.results import create_rule_result, create_error_result
 
-        # Determine if the text passes validation
-        is_valid = result.label in self._valid_labels and result.confidence >= self._threshold
+        # Use try_operation to handle potential errors
+        def _analyze():
+            # Use the classifier to detect sentiment
+            result = self._classifier.classify(text)
 
-        return RuleResult(
-            passed=is_valid,
-            message=(
-                f"Sentiment '{result.label}' with confidence {result.confidence:.2f} "
-                f"{'meets' if is_valid else 'does not meet'} criteria"
+            # Determine if the text passes validation
+            is_valid = result.label in self._valid_labels and result.confidence >= self._threshold
+
+            return create_rule_result(
+                passed=is_valid,
+                message=(
+                    f"Sentiment '{result.label}' with confidence {result.confidence:.2f} "
+                    f"{'meets' if is_valid else 'does not meet'} criteria"
+                ),
+                component_name="SentimentAnalyzer",
+                metadata={
+                    "sentiment": result.label,
+                    "confidence": result.confidence,
+                    "threshold": self._threshold,
+                    "valid_labels": self._valid_labels,
+                    "classifier_metadata": result.metadata,
+                },
+            )
+
+        # Execute the analysis with error handling
+        return try_operation(
+            _analyze,
+            component_name="SentimentAnalyzer",
+            default_value=create_error_result(
+                message="Error analyzing sentiment",
+                component_name="SentimentAnalyzer",
+                error_type="ProcessingError",
             ),
-            metadata={
-                "sentiment": result.label,
-                "confidence": result.confidence,
-                "threshold": self._threshold,
-                "valid_labels": self._valid_labels,
-                "classifier_metadata": result.metadata,
-            },
         )
 
     def can_analyze(self, text: str) -> bool:
@@ -204,13 +251,29 @@ class SentimentValidator(BaseValidator[str]):
         Returns:
             RuleResult: The result of the validation
         """
+        from sifaka.utils.errors import try_operation
+        from sifaka.utils.results import create_error_result
+
         # Handle empty text
         empty_result = self.handle_empty_text(text)
         if empty_result:
             return empty_result
 
-        # Delegate to analyzer
-        return self._analyzer.analyze(text)
+        # Use try_operation to handle potential errors
+        def _validate():
+            # Delegate to analyzer
+            return self._analyzer.analyze(text)
+
+        # Execute the validation with error handling
+        return try_operation(
+            _validate,
+            component_name="SentimentValidator",
+            default_value=create_error_result(
+                message="Error validating sentiment",
+                component_name="SentimentValidator",
+                error_type="ValidationError",
+            ),
+        )
 
 
 class SentimentRule(Rule[str, RuleResult, SentimentValidator, RuleResultHandler[RuleResult]]):
@@ -261,10 +324,31 @@ class SentimentRule(Rule[str, RuleResult, SentimentValidator, RuleResultHandler[
         Returns:
             RuleResult: The result of the validation
         """
-        # Delegate to validator
-        result = self._validator.validate(text, **kwargs)
-        # Add rule_id to metadata
-        return result.with_metadata(rule_id=self._name)
+        from sifaka.utils.errors import try_operation
+        from sifaka.utils.results import create_error_result, merge_metadata
+
+        # Use try_operation to handle potential errors
+        def _validate():
+            # Delegate to validator
+            result = self._validator.validate(text, **kwargs)
+
+            # Create new metadata with rule_id
+            new_metadata = merge_metadata(result.metadata, {"rule_id": self._name})
+
+            # Return result with updated metadata
+            return result.with_metadata(new_metadata)
+
+        # Execute the validation with error handling
+        return try_operation(
+            _validate,
+            component_name=self._name,
+            error_handler=lambda e: create_error_result(
+                message=f"Error validating sentiment: {str(e)}",
+                component_name=self._name,
+                error_type=type(e).__name__,
+                metadata={"rule_id": self._name},
+            ),
+        )
 
 
 def create_sentiment_validator(
@@ -282,21 +366,49 @@ def create_sentiment_validator(
     Returns:
         SentimentValidator: The created validator
     """
-    # Create config with default or provided values
-    config_params = {}
-    if threshold is not None:
-        config_params["threshold"] = threshold
-    if valid_labels is not None:
-        config_params["valid_labels"] = valid_labels
+    from sifaka.utils.config import validate_params
 
-    # Add any remaining config parameters
-    config_params.update(kwargs)
+    # Use try_operation to handle potential errors
+    def _create_validator():
+        # Create config with default or provided values
+        config_params = {}
+        if threshold is not None:
+            config_params["threshold"] = threshold
+        if valid_labels is not None:
+            config_params["valid_labels"] = valid_labels
 
-    # Create config
-    config = SentimentConfig(**config_params)
+        # Add any remaining config parameters
+        config_params.update(kwargs)
 
-    # Create validator
-    return SentimentValidator(config)
+        # Validate parameters
+        validated_params = validate_params(
+            config_params,
+            {
+                "threshold": (float, (0.0, 1.0), True),
+                "valid_labels": (list, None, True),
+                "cache_size": (int, (1, None), True),
+                "priority": (int, (0, None), True),
+                "cost": (float, (0.0, None), True),
+            },
+            allow_extra=True,
+        )
+
+        # Create config
+        config = SentimentConfig(**validated_params)
+
+        # Create validator
+        return SentimentValidator(config)
+
+    # Execute the creation with error handling
+    try:
+        return _create_validator()
+    except Exception as e:
+        from sifaka.utils.errors import ConfigurationError
+
+        raise ConfigurationError(
+            f"Error creating sentiment validator: {str(e)}",
+            metadata={"threshold": threshold, "valid_labels": valid_labels},
+        )
 
 
 def create_sentiment_rule(
@@ -318,36 +430,52 @@ def create_sentiment_rule(
     Returns:
         SentimentRule: The created rule
     """
-    # Extract RuleConfig parameters from kwargs
-    rule_config_params = {}
-    for param in ["priority", "cache_size", "cost"]:
-        if param in kwargs:
-            rule_config_params[param] = kwargs.pop(param)
+    from sifaka.utils.config import standardize_rule_config
 
-    # Create validator using the validator factory
-    validator = create_sentiment_validator(
-        threshold=threshold,
-        valid_labels=valid_labels,
-        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
-    )
+    try:
+        # Extract RuleConfig parameters from kwargs
+        rule_config_params = {}
+        for param in ["priority", "cache_size", "cost"]:
+            if param in kwargs:
+                rule_config_params[param] = kwargs.pop(param)
 
-    # Create params dictionary for RuleConfig
-    params = {}
-    if threshold is not None:
-        params["threshold"] = threshold
-    if valid_labels is not None:
-        params["valid_labels"] = valid_labels
+        # Create validator using the validator factory
+        validator = create_sentiment_validator(
+            threshold=threshold,
+            valid_labels=valid_labels,
+            **{
+                k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]
+            },
+        )
 
-    # Create RuleConfig
-    config = RuleConfig(params=params, **rule_config_params)
+        # Create params dictionary for RuleConfig
+        params = {}
+        if threshold is not None:
+            params["threshold"] = threshold
+        if valid_labels is not None:
+            params["valid_labels"] = valid_labels
 
-    # Create rule
-    return SentimentRule(
-        name=name,
-        description=description,
-        config=config,
-        validator=validator,
-    )
+        # Create standardized RuleConfig
+        config = standardize_rule_config(params=params, **rule_config_params)
+
+        # Create rule
+        return SentimentRule(
+            name=name,
+            description=description,
+            config=config,
+            validator=validator,
+        )
+    except Exception as e:
+        from sifaka.utils.errors import ConfigurationError
+
+        raise ConfigurationError(
+            f"Error creating sentiment rule: {str(e)}",
+            metadata={
+                "name": name,
+                "threshold": threshold,
+                "valid_labels": valid_labels,
+            },
+        )
 
 
 __all__ = [
