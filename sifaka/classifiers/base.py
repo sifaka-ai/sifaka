@@ -144,10 +144,10 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import StateManager, create_classifier_state
+from sifaka.utils.state import StateManager, create_classifier_state, ClassifierState
 
 logger = get_logger(__name__)
 
@@ -250,6 +250,73 @@ class TextProcessor(Protocol[T, R]):
     """
 
     def process(self, text: T) -> Dict[str, R]: ...
+
+
+@runtime_checkable
+class ClassifierImplementation(Protocol[T, R]):
+    """
+    Protocol for classifier implementations.
+
+    This protocol defines the core classification logic that can be composed with
+    the Classifier class. It follows the composition over inheritance pattern,
+    allowing for more flexible and maintainable code.
+
+    ## Lifecycle
+
+    1. **Implementation**: Create a class that implements the required methods
+       - Implement classify_impl() for the core classification logic
+       - Implement warm_up_impl() for resource initialization
+
+    2. **Composition**: Use with the Classifier class
+       - Classifier delegates to the implementation
+       - Implementation focuses on core logic
+
+    3. **Usage**: Implementation is used internally by Classifier
+       - Not typically used directly by client code
+       - Allows for separation of concerns
+
+    ## Error Handling
+
+    Implementations should handle these error cases:
+    - Classification failures
+    - Resource initialization errors
+    - Invalid inputs (after basic validation)
+
+    ## Examples
+
+    Creating a simple implementation:
+
+    ```python
+    from sifaka.classifiers.base import ClassifierImplementation, ClassificationResult
+
+    class SimpleImplementation(ClassifierImplementation[str, str]):
+        def __init__(self, config):
+            self.config = config
+            self._state = ClassifierState()
+            self._state.initialized = False
+
+        def classify_impl(self, text: str) -> ClassificationResult[str]:
+            # Simple implementation based on text length
+            if len(text) > 100:
+                return ClassificationResult(
+                    label="long",
+                    confidence=0.9,
+                    metadata={"length": len(text)}
+                )
+            return ClassificationResult(
+                label="short",
+                confidence=0.9,
+                metadata={"length": len(text)}
+            )
+
+        def warm_up_impl(self) -> None:
+            # No special initialization needed
+            self._state.initialized = True
+    ```
+    """
+
+    def classify_impl(self, text: T) -> "ClassificationResult[R]": ...
+    def warm_up_impl(self) -> None: ...
 
 
 @runtime_checkable
@@ -730,51 +797,46 @@ class ClassificationResult(BaseModel, Generic[R]):
         )
 
 
-C = TypeVar("C", bound="BaseClassifier")
+C = TypeVar("C", bound="Classifier")
 
 
-class BaseClassifier(ABC, BaseModel, Generic[T, R]):
+class Classifier(BaseModel, Generic[T, R]):
     """
-    Base class for all Sifaka classifiers.
+    Classifier that uses composition over inheritance.
 
-    A classifier provides predictions that can be used by rules and other components
-    in the Sifaka framework. This abstract base class defines the core interface
-    and functionality for all classifiers, implementing common patterns for
-    input validation, caching, and result handling.
+    This class delegates classification to an implementation object
+    rather than using inheritance. It follows the composition over inheritance
+    pattern to create a more flexible and maintainable design.
 
     ## Architecture
 
-    BaseClassifier follows a layered architecture:
+    Classifier follows a compositional architecture:
     1. **Public API**: classify() and batch_classify() methods
-    2. **Caching Layer**: _classify_impl() handles caching
-    3. **Core Logic**: _classify_impl_uncached() implements classification logic
-    4. **Validation**: validate_input() and validate_batch_input() ensure valid inputs
+    2. **Delegation**: Delegates to implementation for core logic
+    3. **Validation**: validate_input() and validate_batch_input() ensure valid inputs
+    4. **Configuration**: Manages configuration through ClassifierConfig
 
     ## Lifecycle
 
-    1. **Initialization**: Set up with name, description, and config
+    1. **Initialization**: Set up with name, description, implementation, and config
        - Create with required parameters
-       - Initialize internal state
-       - Set up caching if enabled
+       - Store implementation object
+       - Set up configuration
 
-    2. **Warm-up**: Optionally prepare resources
-       - Call warm_up() to load models or resources
-       - Prepare any expensive resources before classification
+    2. **Warm-up**: Prepare resources
+       - Call warm_up() to initialize resources
+       - Delegates to implementation.warm_up_impl()
        - This step is optional but recommended for performance
 
     3. **Classification**: Process inputs
        - Call classify() for single inputs
        - Call batch_classify() for multiple inputs
-       - Results are cached if caching is enabled
+       - Delegates core logic to implementation
 
     4. **Result Handling**: Process classification results
        - Check confidence against min_confidence threshold
        - Extract label and metadata
        - Make decisions based on classification
-
-    5. **Cleanup**: No explicit cleanup needed for most classifiers
-       - Some implementations may manage external resources
-       - Those implementations should provide cleanup methods
 
     ## Error Handling
 
@@ -787,18 +849,25 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
 
     ## Examples
 
-    Creating a simple classifier implementation:
+    Creating a classifier with an implementation:
 
     ```python
     from sifaka.classifiers.base import (
-        BaseClassifier,
+        Classifier,
+        ClassifierImplementation,
         ClassificationResult,
         ClassifierConfig
     )
 
-    class SentimentClassifier(BaseClassifier[str, str]):
-        def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
-            # Simple sentiment analysis (real impl would be more sophisticated)
+    # Create an implementation
+    class SentimentImplementation(ClassifierImplementation[str, str]):
+        def __init__(self, config):
+            self.config = config
+            self._state = ClassifierState()
+            self._state.initialized = False
+
+        def classify_impl(self, text: str) -> ClassificationResult[str]:
+            # Simple sentiment analysis
             positive_words = ["good", "great", "excellent", "happy"]
             negative_words = ["bad", "terrible", "sad", "awful"]
 
@@ -807,96 +876,48 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
             neg_count = sum(word in text_lower for word in negative_words)
 
             if pos_count > neg_count:
-                return ClassificationResult[str](
+                return ClassificationResult(
                     label="positive",
-                    confidence=0.7 + (0.3 * (pos_count / (pos_count + neg_count + 1))),
+                    confidence=0.8,
                     metadata={"positive_words": pos_count, "negative_words": neg_count}
                 )
             elif neg_count > pos_count:
-                return ClassificationResult[str](
+                return ClassificationResult(
                     label="negative",
-                    confidence=0.7 + (0.3 * (neg_count / (pos_count + neg_count + 1))),
+                    confidence=0.8,
                     metadata={"positive_words": pos_count, "negative_words": neg_count}
                 )
             else:
-                return ClassificationResult[str](
+                return ClassificationResult(
                     label="neutral",
                     confidence=0.6,
                     metadata={"positive_words": pos_count, "negative_words": neg_count}
                 )
 
-        def warm_up(self) -> None:
-            # For this simple classifier, no warm-up is needed
-            # In real implementations, this might load models or resources
-            pass
+        def warm_up_impl(self) -> None:
+            # No special initialization needed
+            self._state.initialized = True
 
-    # Create and use the classifier
-    classifier = SentimentClassifier(
+    # Create config
+    config = ClassifierConfig(
+        labels=["positive", "negative", "neutral"],
+        cache_size=100
+    )
+
+    # Create implementation
+    implementation = SentimentImplementation(config)
+
+    # Create classifier with implementation
+    classifier = Classifier(
         name="sentiment",
         description="Simple sentiment classifier",
-        config=ClassifierConfig[str](
-            labels=["positive", "negative", "neutral"],
-            cache_size=100
-        )
+        config=config,
+        implementation=implementation
     )
 
+    # Use the classifier
     result = classifier.classify("I had a great day today!")
     print(f"Sentiment: {result.label} (confidence: {result.confidence:.2f})")
-    ```
-
-    Using the factory method for creation:
-
-    ```python
-    from sifaka.classifiers.base import BaseClassifier, ClassificationResult
-
-    class KeywordClassifier(BaseClassifier[str, str]):
-        def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
-            # Implementation details...
-            pass
-
-    # Create using the factory method
-    classifier = KeywordClassifier.create(
-        name="keyword_classifier",
-        description="Classifies text based on keywords",
-        labels=["tech", "sports", "politics", "entertainment"],
-        cache_size=200,
-        min_confidence=0.6
-    )
-    ```
-
-    Handling empty inputs and errors:
-
-    ```python
-    from sifaka.classifiers.base import BaseClassifier, ClassificationResult
-    import logging
-
-    logger = logging.getLogger(__name__)
-
-    class RobustClassifier(BaseClassifier[str, str]):
-        def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
-            try:
-                # Core classification logic
-                # ...
-
-                # Return result
-                return ClassificationResult(
-                    label="some_label",
-                    confidence=0.8,
-                    metadata={"processed_successfully": True}
-                )
-            except Exception as e:
-                # Log the error
-                logger.error(f"Classification error: {e}")
-
-                # Return a fallback result
-                return ClassificationResult(
-                    label="unknown",
-                    confidence=0.0,
-                    metadata={
-                        "error": str(e),
-                        "error_type": type(e).__name__
-                    }
-                )
     ```
 
     Type parameters:
@@ -913,24 +934,32 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
     name: str = Field(description="Name of the classifier", min_length=1)
     description: str = Field(description="Description of the classifier", min_length=1)
     config: ClassifierConfig[T]
+    _implementation: ClassifierImplementation[T, R] = PrivateAttr()
 
-    def model_post_init(self, _: Any) -> None:
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        config: ClassifierConfig[T],
+        implementation: ClassifierImplementation[T, R],
+        **kwargs: Any,
+    ):
         """
-        Initialize after model creation.
-
-        This method is called after the model is created and can be used for
-        additional initialization steps.
-
-        Lifecycle:
-            - Called automatically after Pydantic model initialization
-            - Used to set up internal state that depends on initial attributes
-            - Does not directly acquire external resources (use warm_up for that)
+        Initialize the classifier.
 
         Args:
-            _: Ignored parameter
+            name: The name of the classifier
+            description: Description of the classifier
+            config: Configuration for the classifier
+            implementation: Implementation of the classification logic
+            **kwargs: Additional keyword arguments
         """
-        # We don't need to do anything special for caching
-        # The _classify_impl method will handle caching internally
+        super().__init__(name=name, description=description, config=config, **kwargs)
+        self._implementation = implementation
+
+        # Initialize cache if needed
+        if self.config.cache_size > 0:
+            self._result_cache: Dict[str, ClassificationResult[R]] = {}
 
     @property
     def min_confidence(self) -> float:
@@ -955,17 +984,6 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
             - Raises ValueError for invalid inputs
             - Return True only for valid inputs
 
-        Examples:
-            ```python
-            classifier = ToxicityClassifier()
-
-            try:
-                classifier.validate_input("Valid text")  # Returns True
-                classifier.validate_input(123)  # Raises ValueError
-            except ValueError as e:
-                print(f"Validation error: {e}")
-            ```
-
         Args:
             text: The input to validate
 
@@ -989,18 +1007,6 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
             - Raises ValueError for invalid inputs
             - Returns True only for valid inputs
 
-        Examples:
-            ```python
-            classifier = ToxicityClassifier()
-
-            try:
-                classifier.validate_batch_input(["Text1", "Text2"])  # Returns True
-                classifier.validate_batch_input("Not a list")  # Raises ValueError
-                classifier.validate_batch_input([1, 2, 3])  # Raises ValueError
-            except ValueError as e:
-                print(f"Validation error: {e}")
-            ```
-
         Args:
             texts: The batch input to validate
 
@@ -1014,216 +1020,13 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
             raise ValueError("Input must be a list of strings")
         return True
 
-    @abstractmethod
-    def _classify_impl_uncached(self, text: T) -> ClassificationResult[R]:
-        """
-        Implement classification logic.
-
-        This abstract method must be implemented by subclasses to provide
-        the core classification functionality. It contains the actual
-        classification algorithm and is called by _classify_impl when
-        no cached result is available.
-
-        ## Lifecycle
-
-        1. **Invocation**: Called by _classify_impl
-           - Receives validated input text
-           - Called only when no cached result is available
-           - Input has already been validated
-
-        2. **Processing**: Apply classification algorithm
-           - Implement the core classification logic
-           - Process the text according to the classifier's purpose
-           - Calculate confidence scores
-
-        3. **Result Creation**: Return standardized result
-           - Create a ClassificationResult with label and confidence
-           - Include relevant metadata
-           - Handle all errors internally
-
-        ## Error Handling
-
-        Implementations should follow these error handling patterns:
-        - Catch and handle all exceptions internally
-        - Return a valid ClassificationResult even on errors
-        - Set confidence=0 for failed classifications
-        - Include error details in metadata
-        - Log errors for debugging
-
-        ## Implementation Guidelines
-
-        1. **Robust Implementation**:
-           ```python
-           def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
-               try:
-                   # Core classification logic
-                   # ...
-                   return ClassificationResult(
-                       label="some_label",
-                       confidence=0.8,
-                       metadata={"processed_successfully": True}
-                   )
-               except Exception as e:
-                   logger.error(f"Classification error: {e}")
-                   return ClassificationResult(
-                       label="unknown",
-                       confidence=0.0,
-                       metadata={"error": str(e)}
-                   )
-           ```
-
-        2. **Performance Considerations**:
-           - Consider implementing timeouts for expensive operations
-           - Use efficient algorithms for text processing
-           - Consider batching operations when possible
-
-        Args:
-            text: The text to classify
-
-        Returns:
-            ClassificationResult with label and confidence
-
-        Raises:
-            NotImplementedError: Must be implemented by subclasses
-        """
-        raise NotImplementedError("Subclasses must implement _classify_impl_uncached")
-
-    def _classify_impl(self, text: T) -> ClassificationResult[R]:
-        """
-        Wrapper around _classify_impl_uncached that handles caching.
-
-        This method handles caching of classification results to improve
-        performance for repeated classifications.
-
-        Lifecycle:
-            - Called by classify() after input validation
-            - Checks cache for existing results if caching is enabled
-            - Calls _classify_impl_uncached for cache misses
-            - Stores results in cache if caching is enabled
-
-        Args:
-            text: The text to classify
-
-        Returns:
-            ClassificationResult with label and confidence
-        """
-        # If caching is enabled, use a function-local cache
-        if self.config.cache_size > 0:
-            # Create a cache key from the text
-            cache_key = str(text)
-
-            # Check if we have a cached result
-            if not hasattr(self, "_result_cache"):
-                # Initialize the cache as a dict mapping strings to ClassificationResults
-                self._result_cache: Dict[str, ClassificationResult[R]] = {}
-
-            if cache_key in self._result_cache:
-                return self._result_cache[cache_key]
-
-            # Get the result
-            result = self._classify_impl_uncached(text)
-
-            # Cache the result
-            if len(self._result_cache) >= self.config.cache_size:
-                # Simple LRU: just clear the cache when it gets full
-                # A more sophisticated implementation would use an OrderedDict
-                self._result_cache.clear()
-            self._result_cache[cache_key] = result
-
-            return result
-        else:
-            # No caching, just call the implementation directly
-            return self._classify_impl_uncached(text)
-
     def classify(self, text: T) -> ClassificationResult[R]:
         """
         Classify the input text.
 
         This is the main method for classifying single inputs. It handles input
-        validation, empty text checking, and delegates to the internal implementation
-        methods for the actual classification work.
-
-        ## Lifecycle
-
-        1. **Input Validation**: Check input validity
-           - Validate input type with validate_input()
-           - Check for empty text
-           - Return early with "unknown" label for empty text
-
-        2. **Classification**: Process the input
-           - Delegate to _classify_impl for actual classification
-           - _classify_impl handles caching and delegates to _classify_impl_uncached
-           - The implementation method performs the core classification logic
-
-        3. **Result Return**: Return the classification result
-           - Return ClassificationResult with label, confidence, and metadata
-           - Result can be used for decision making in the application
-
-        ## Error Handling
-
-        This method implements these error handling patterns:
-        - Input validation with validate_input()
-        - Special handling for empty text
-        - Propagation of implementation errors
-        - Structured error information in results
-
-        ## Examples
-
-        Basic usage:
-
-        ```python
-        from sifaka.classifiers.toxicity import create_toxicity_classifier
-
-        # Create a toxicity classifier
-        classifier = create_toxicity_classifier()
-
-        # Classify a text
-        result = classifier.classify("This product is awesome!")
-
-        print(f"Label: {result.label}")
-        print(f"Confidence: {result.confidence:.2f}")
-
-        # Check for high confidence classifications
-        if result.confidence > 0.8:
-            print(f"High confidence classification: {result.label}")
-        else:
-            print("Low confidence classification")
-        ```
-
-        Handling empty text:
-
-        ```python
-        # Empty text handling
-        result = classifier.classify("")
-        assert result.label == "unknown"
-        assert result.confidence == 0.0
-        assert result.metadata.get("reason") == "empty_input"
-        ```
-
-        Error handling:
-
-        ```python
-        try:
-            # This will raise ValueError for non-string input
-            result = classifier.classify(123)
-        except ValueError as e:
-            print(f"Invalid input: {e}")
-            # Handle the error appropriately
-        ```
-
-        Confidence thresholds:
-
-        ```python
-        # Using min_confidence from the classifier
-        result = classifier.classify("Some text to classify")
-
-        if result.confidence >= classifier.min_confidence:
-            print(f"Reliable classification: {result.label}")
-            # Take action based on the classification
-        else:
-            print(f"Low confidence classification: {result.label} ({result.confidence:.2f})")
-            # Handle low confidence case (e.g., manual review)
-        ```
+        validation, empty text checking, and delegates to the implementation
+        for the actual classification work.
 
         Args:
             text: The text to classify
@@ -1239,40 +1042,32 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
             return ClassificationResult[R](
                 label="unknown", confidence=0.0, metadata={"reason": "empty_input"}
             )
-        return self._classify_impl(text)
+
+        # If caching is enabled, check cache first
+        if self.config.cache_size > 0:
+            cache_key = str(text)
+            if cache_key in self._result_cache:
+                return self._result_cache[cache_key]
+
+            # Get result from implementation
+            result = self._implementation.classify_impl(text)
+
+            # Cache the result
+            if len(self._result_cache) >= self.config.cache_size:
+                # Simple LRU: just clear the cache when it gets full
+                self._result_cache.clear()
+            self._result_cache[cache_key] = result
+
+            return result
+        else:
+            # No caching, delegate directly to implementation
+            return self._implementation.classify_impl(text)
 
     def batch_classify(self, texts: List[T]) -> List[ClassificationResult[R]]:
         """
         Classify multiple texts in batch.
 
         This method allows efficient classification of multiple texts.
-        Some implementations may optimize batch processing.
-
-        Error Handling:
-            - Validates input with validate_batch_input()
-            - Processes each text individually with classify()
-            - Returns results even if some classifications fail
-
-        Examples:
-            ```python
-            from sifaka.classifiers.toxicity import create_toxicity_classifier
-
-            classifier = create_toxicity_classifier()
-
-            # Classify multiple texts
-            texts = [
-                "I love this product!",
-                "This is terrible, I hate it.",
-                "The weather is nice today."
-            ]
-
-            results = classifier.batch_classify(texts)
-
-            # Process the results
-            for text, result in zip(texts, results):
-                print(f"Text: {text[:20]}...")
-                print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
-            ```
 
         Args:
             texts: List of texts to classify
@@ -1288,43 +1083,27 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
 
     def warm_up(self) -> None:
         """
-        Optional warm-up method for classifiers that need initialization.
+        Prepare resources for classification.
 
-        This method should be overridden by subclasses that need to load
-        models or resources before classification.
-
-        Lifecycle:
-            - Not called automatically
-            - Should be called before classification if expensive resources are needed
-            - Implementations should be idempotent (safe to call multiple times)
-
-        Examples:
-            ```python
-            from sifaka.classifiers.toxicity import create_toxicity_classifier
-
-            # Create the classifier
-            classifier = create_toxicity_classifier()
-
-            # Warm up the classifier (loads the model)
-            classifier.warm_up()
-
-            # Now classify (model is already loaded)
-            result = classifier.classify("Hello world")
-            ```
+        This method delegates to the implementation's warm_up_impl method
+        to initialize any resources needed for classification.
         """
-        pass
+        self._implementation.warm_up_impl()
 
     @classmethod
     def create(
-        cls: Type[C], name: str, description: str, labels: List[str], **config_kwargs: Any
+        cls: Type[C],
+        name: str,
+        description: str,
+        labels: List[str],
+        implementation: ClassifierImplementation[T, R],
+        **config_kwargs: Any,
     ) -> C:
         """
         Factory method to create a classifier instance.
 
         This method provides a consistent way to create classifier instances
-        with proper configuration. It simplifies the instantiation process
-        by handling the creation of the ClassifierConfig object and setting
-        up the classifier with the appropriate parameters.
+        with proper configuration and implementation.
 
         ## Lifecycle
 
@@ -1341,7 +1120,7 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
 
         3. **Instance Creation**: Create classifier instance
            - Instantiate the classifier class
-           - Pass name, description, and config
+           - Pass name, description, config, and implementation
            - Return the configured instance
 
         ## Error Handling
@@ -1356,58 +1135,38 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
         Basic usage:
 
         ```python
-        from sifaka.classifiers.base import BaseClassifier
+        from sifaka.classifiers.base import (
+            Classifier,
+            ClassifierImplementation,
+            ClassificationResult
+        )
 
-        class MyClassifier(BaseClassifier[str, str]):
-            def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
+        # Create an implementation
+        class MyImplementation(ClassifierImplementation[str, str]):
+            def __init__(self, config):
+                self.config = config
+
+            def classify_impl(self, text: str) -> ClassificationResult[str]:
                 # Implementation details...
+                return ClassificationResult(
+                    label="example",
+                    confidence=0.9,
+                    metadata={"length": len(text)}
+                )
+
+            def warm_up_impl(self) -> None:
+                # No special initialization needed
                 pass
 
         # Create an instance using the factory method
-        classifier = MyClassifier.create(
+        classifier = Classifier.create(
             name="my_classifier",
             description="My custom classifier implementation",
             labels=["label1", "label2", "label3"],
+            implementation=MyImplementation(config),
             cache_size=100,
             min_confidence=0.6,
             params={"custom_param": "value"}
-        )
-        ```
-
-        Creating with specialized parameters:
-
-        ```python
-        # Create a classifier with specific configuration
-        sentiment_classifier = SentimentClassifier.create(
-            name="sentiment",
-            description="Analyzes text sentiment",
-            labels=["positive", "negative", "neutral"],
-            cache_size=200,
-            min_confidence=0.7,
-            params={
-                "model_name": "sentiment-large",
-                "use_gpu": True,
-                "batch_size": 16
-            }
-        )
-        ```
-
-        Creating multiple classifiers with different configurations:
-
-        ```python
-        # Create classifiers with different confidence thresholds
-        high_precision = ToxicityClassifier.create(
-            name="toxicity_precise",
-            description="High-precision toxicity detection",
-            labels=["toxic", "non-toxic"],
-            min_confidence=0.9  # High threshold for precision
-        )
-
-        high_recall = ToxicityClassifier.create(
-            name="toxicity_sensitive",
-            description="High-recall toxicity detection",
-            labels=["toxic", "non-toxic"],
-            min_confidence=0.3  # Low threshold for recall
         )
         ```
 
@@ -1415,6 +1174,7 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
             name: Name of the classifier
             description: Description of what this classifier does
             labels: List of valid labels for classification
+            implementation: Implementation of the classification logic
             **config_kwargs: Additional configuration parameters
 
         Returns:
@@ -1427,22 +1187,19 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
         config = ClassifierConfig[T](labels=labels, params=params, **config_kwargs)
 
         # Create instance
-        return cls(name=name, description=description, config=config)
+        return cls(name=name, description=description, config=config, implementation=implementation)
 
 
 # Create type aliases for common classifier types
-TextClassifier = BaseClassifier[str, str]
-
-# Create a more intuitive alias to avoid confusion
-Classifier = BaseClassifier
+TextClassifier = Classifier[str, str]
 
 # Export these types
 __all__ = [
-    "BaseClassifier",
-    "Classifier",  # Alias for BaseClassifier
+    "Classifier",
     "ClassifierConfig",
     "ClassificationResult",
     "ClassifierProtocol",
+    "ClassifierImplementation",
     "TextProcessor",
     "TextClassifier",
 ]

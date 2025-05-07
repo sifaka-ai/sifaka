@@ -7,11 +7,10 @@ toxic, severe_toxic, obscene, threat, insult, identity_hate, or non_toxic.
 
 ## Architecture
 
-ToxicityClassifier follows the standard Sifaka classifier architecture:
-1. **Public API**: classify() and batch_classify() methods (inherited)
-2. **Caching Layer**: _classify_impl() handles caching (inherited)
-3. **Core Logic**: _classify_impl_uncached() implements toxicity detection
-4. **State Management**: Uses PrivateAttr for internal state
+ToxicityClassifier follows the composition over inheritance pattern:
+1. **Classifier**: Provides the public API and handles caching
+2. **Implementation**: Contains the core classification logic
+3. **Factory Function**: Creates a classifier with the toxicity implementation
 
 ## Lifecycle
 
@@ -76,51 +75,42 @@ from typing import (
     List,
     Optional,
     ClassVar,
-    TypeVar,
-    Type,
     Tuple,
-    Union,
 )
 from typing_extensions import TypeGuard
-from pydantic import ConfigDict, PrivateAttr
 
 from sifaka.classifiers.base import (
-    BaseClassifier,
+    Classifier,
     ClassificationResult,
     ClassifierConfig,
 )
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import ClassifierState, create_classifier_state
-from sifaka.classifiers.config import standardize_classifier_config
+from sifaka.utils.state import ClassifierState
 from sifaka.classifiers.toxicity_model import ToxicityModel
 
 logger = get_logger(__name__)
 
-# Type variable for the classifier
-T = TypeVar("T", bound="ToxicityClassifier")
 
-
-class ToxicityClassifier(BaseClassifier[str, str]):
+class ToxicityClassifierImplementation:
     """
-    A lightweight toxicity classifier using the Detoxify model.
+    Implementation of toxicity classification logic using the Detoxify model.
 
-    This classifier uses the Detoxify model to detect toxic content in text.
+    This implementation uses the Detoxify model to detect toxic content in text.
     It provides a fast, local alternative to API-based toxicity detection and
     can identify various forms of toxic content including severe toxicity,
     obscenity, threats, insults, and identity-based hate.
 
     ## Architecture
 
-    ToxicityClassifier follows the standard Sifaka classifier architecture:
-    1. **Public API**: classify() and batch_classify() methods (inherited)
-    2. **Caching Layer**: _classify_impl() handles caching (inherited)
-    3. **Core Logic**: _classify_impl_uncached() implements toxicity detection
-    4. **State Management**: Uses StateManager for internal state
+    ToxicityClassifierImplementation follows the composition pattern:
+    1. **Core Logic**: classify_impl() implements toxicity detection
+    2. **State Management**: Uses ClassifierState for internal state
+    3. **Resource Management**: Loads and manages Detoxify model
 
     ## Lifecycle
 
     1. **Initialization**: Set up configuration and parameters
-       - Initialize with name, description, and config
+       - Initialize with config
        - Extract thresholds from config.params
        - Set up default values
 
@@ -130,7 +120,6 @@ class ToxicityClassifier(BaseClassifier[str, str]):
        - Handle initialization errors gracefully
 
     3. **Classification**: Process input text
-       - Validate input text
        - Apply Detoxify toxicity detection
        - Convert scores to standardized format
        - Handle empty text and edge cases
@@ -139,30 +128,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
        - Map toxicity scores to labels
        - Convert scores to confidence values
        - Include detailed scores in metadata
-
-    ## Examples
-
-    ```python
-    from sifaka.classifiers.toxicity import create_toxicity_classifier
-
-    # Create a toxicity classifier with default settings
-    classifier = create_toxicity_classifier()
-
-    # Classify text
-    result = classifier.classify("This is a friendly message.")
-    print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
-
-    # Access detailed scores
-    for category, score in result.metadata["all_scores"].items():
-        print(f"{category}: {score:.4f}")
-    ```
-
-    Requires the 'toxicity' extra to be installed:
-    pip install sifaka[toxicity]
     """
-
-    # Pydantic configuration
-    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     # Class-level constants
     DEFAULT_LABELS: ClassVar[List[str]] = [
@@ -181,71 +147,20 @@ class ToxicityClassifier(BaseClassifier[str, str]):
     DEFAULT_THREAT_THRESHOLD: ClassVar[float] = 0.7
     DEFAULT_GENERAL_THRESHOLD: ClassVar[float] = 0.5
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_classifier_state)
-
-    # Properties for backward compatibility with tests
-    @property
-    def _initialized(self) -> bool:
-        """Get initialization status from state manager."""
-        return self._state_manager.get_state().initialized
-
-    @property
-    def _model(self) -> Any:
-        """Get model from state manager."""
-        return self._state_manager.get_state().model
-
-    @property
-    def _model_name(self) -> str:
-        """Get model name from config params."""
-        return self.config.params.get("model_name", "original")
-
     def __init__(
         self,
-        name: str = "toxicity_classifier",
-        description: str = "Detects toxic content using Detoxify",
-        config: Optional[ClassifierConfig[str]] = None,
-        **kwargs: Any,
+        config: ClassifierConfig,
     ) -> None:
         """
-        Initialize the toxicity classifier.
+        Initialize the toxicity classifier implementation.
 
         Args:
-            name: The name of the classifier
-            description: Description of the classifier
-            config: Optional classifier configuration
-            **kwargs: Additional configuration parameters
+            config: Configuration for the classifier
         """
-        # Set up default configuration if none provided
-        if config is None:
-            # Extract thresholds from kwargs
-            params = kwargs.pop("params", {})
-            params.update(
-                {
-                    "general_threshold": kwargs.pop(
-                        "general_threshold", self.DEFAULT_GENERAL_THRESHOLD
-                    ),
-                    "severe_toxic_threshold": kwargs.pop(
-                        "severe_toxic_threshold", self.DEFAULT_SEVERE_TOXIC_THRESHOLD
-                    ),
-                    "threat_threshold": kwargs.pop(
-                        "threat_threshold", self.DEFAULT_THREAT_THRESHOLD
-                    ),
-                    "model_name": kwargs.pop("model_name", "original"),
-                }
-            )
-
-            # Create config
-            config = ClassifierConfig[str](
-                labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, params=params, **kwargs
-            )
-
-        # Initialize base class
-        super().__init__(name=name, description=description, config=config)
-
-        # Initialize state manager
-        state = self._state_manager.get_state()
-        state.initialized = False
+        self.config = config
+        self._state = ClassifierState()
+        self._state.initialized = False
+        self._state.cache = {}
 
     def _validate_model(self, model: Any) -> TypeGuard[ToxicityModel]:
         """
@@ -290,7 +205,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
         except Exception as e:
             raise RuntimeError(f"Failed to load Detoxify: {e}")
 
-    def warm_up(self) -> None:
+    def warm_up_impl(self) -> None:
         """
         Initialize the model if needed.
 
@@ -301,17 +216,14 @@ class ToxicityClassifier(BaseClassifier[str, str]):
         Raises:
             RuntimeError: If model initialization fails
         """
-        # Get state
-        state = self._state_manager.get_state()
-
         # Check if already initialized
-        if not state.initialized:
+        if not self._state.initialized:
             try:
                 # Load model
-                state.model = self._load_detoxify()
+                self._state.model = self._load_detoxify()
 
                 # Store thresholds in state cache
-                state.cache["thresholds"] = {
+                self._state.cache["thresholds"] = {
                     "general_threshold": self.config.params.get(
                         "general_threshold", self.DEFAULT_GENERAL_THRESHOLD
                     ),
@@ -324,13 +236,13 @@ class ToxicityClassifier(BaseClassifier[str, str]):
                 }
 
                 # Store model name in state cache
-                state.cache["model_name"] = self.config.params.get("model_name", "original")
+                self._state.cache["model_name"] = self.config.params.get("model_name", "original")
 
                 # Mark as initialized
-                state.initialized = True
+                self._state.initialized = True
             except Exception as e:
                 logger.error("Failed to initialize toxicity model: %s", e)
-                state.error = f"Failed to initialize toxicity model: {e}"
+                self._state.error = f"Failed to initialize toxicity model: {e}"
                 raise RuntimeError(f"Failed to initialize toxicity model: {e}") from e
 
     def _get_thresholds(self) -> Dict[str, float]:
@@ -340,12 +252,9 @@ class ToxicityClassifier(BaseClassifier[str, str]):
         Returns:
             Dictionary of threshold values for different toxicity categories
         """
-        # Get state
-        state = self._state_manager.get_state()
-
         # Get thresholds from state cache or use defaults
-        if "thresholds" in state.cache:
-            return state.cache["thresholds"]
+        if "thresholds" in self._state.cache:
+            return self._state.cache["thresholds"]
 
         # If not in cache, use defaults from config
         return {
@@ -400,12 +309,11 @@ class ToxicityClassifier(BaseClassifier[str, str]):
         # Default case: content is non-toxic but with lower confidence
         return "non_toxic", confidence
 
-    def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
+    def classify_impl(self, text: str) -> ClassificationResult[str]:
         """
-        Implement toxicity classification logic without caching.
+        Implement toxicity classification logic.
 
         This method contains the core toxicity detection logic using the Detoxify model.
-        It is called by the caching layer when a cache miss occurs.
 
         Args:
             text: The text to classify
@@ -413,12 +321,9 @@ class ToxicityClassifier(BaseClassifier[str, str]):
         Returns:
             ClassificationResult with toxicity scores
         """
-        # Get state
-        state = self._state_manager.get_state()
-
         # Ensure resources are initialized
-        if not state.initialized:
-            self.warm_up()
+        if not self._state.initialized:
+            self.warm_up_impl()
 
         # Handle empty or whitespace-only text
         if not text.strip():
@@ -440,7 +345,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
 
         try:
             # Get toxicity scores from Detoxify
-            scores = state.model.predict(text)
+            scores = self._state.model.predict(text)
             scores = {k: float(v) for k, v in scores.items()}
 
             # Determine toxicity label and confidence
@@ -455,7 +360,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
         except Exception as e:
             # Log the error and return a fallback result
             logger.error("Failed to classify text: %s", e)
-            state.error = f"Failed to classify text: {e}"
+            self._state.error = f"Failed to classify text: {e}"
             return ClassificationResult[str](
                 label="unknown",
                 confidence=0.0,
@@ -466,12 +371,12 @@ class ToxicityClassifier(BaseClassifier[str, str]):
                 },
             )
 
-    def batch_classify(self, texts: List[str]) -> List[ClassificationResult[str]]:
+    def batch_classify_impl(self, texts: List[str]) -> List[ClassificationResult[str]]:
         """
-        Classify multiple texts efficiently.
+        Implement batch toxicity classification logic.
 
         This method provides an optimized implementation for classifying multiple
-        texts at once, which can be more efficient than calling classify() multiple
+        texts at once, which can be more efficient than calling classify_impl() multiple
         times, especially with the Detoxify model.
 
         Args:
@@ -480,15 +385,9 @@ class ToxicityClassifier(BaseClassifier[str, str]):
         Returns:
             List of ClassificationResults with toxicity scores
         """
-        # Get state
-        state = self._state_manager.get_state()
-
-        # Validate input
-        self.validate_batch_input(texts)
-
         # Ensure resources are initialized
-        if not state.initialized:
-            self.warm_up()
+        if not self._state.initialized:
+            self.warm_up_impl()
 
         # Process empty texts
         results = []
@@ -525,7 +424,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
 
         try:
             # Get batch predictions for non-empty texts
-            batch_scores = state.model.predict(non_empty_texts)
+            batch_scores = self._state.model.predict(non_empty_texts)
             non_empty_results = []
 
             # Process each non-empty text
@@ -555,7 +454,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
         except Exception as e:
             # Log the error and return fallback results
             logger.error("Failed to batch classify texts: %s", e)
-            state.error = f"Failed to batch classify texts: {e}"
+            self._state.error = f"Failed to batch classify texts: {e}"
 
             # Create error results for non-empty texts
             error_results = [
@@ -583,102 +482,6 @@ class ToxicityClassifier(BaseClassifier[str, str]):
 
             return final_results
 
-    @classmethod
-    def create(
-        cls: Type[T],
-        name: str = "toxicity_classifier",
-        description: str = "Detects toxic content using Detoxify",
-        labels: Optional[List[str]] = None,
-        cache_size: int = 0,
-        min_confidence: float = 0.0,
-        cost: Optional[float] = None,
-        params: Optional[Dict[str, Any]] = None,
-        **kwargs: Any,
-    ) -> T:
-        """
-        Create a new instance with the given parameters.
-
-        This factory method creates a new instance of the classifier with the
-        specified parameters, handling the creation of the ClassifierConfig
-        object and setting up the classifier with the appropriate parameters.
-
-        Args:
-            name: Name of the classifier
-            description: Description of the classifier
-            labels: List of valid labels
-            cache_size: Size of the classification cache (0 to disable)
-            min_confidence: Minimum confidence for classification
-            cost: Computational cost of this classifier
-            params: Additional configuration parameters
-            **kwargs: Additional keyword arguments
-
-        Returns:
-            A new instance of the classifier
-        """
-        # Create params dictionary if not provided
-        if params is None:
-            params = {}
-
-        # Add kwargs to params
-        params.update(kwargs)
-
-        # Create config
-        config = ClassifierConfig(
-            labels=labels or cls.DEFAULT_LABELS,
-            cache_size=cache_size,
-            min_confidence=min_confidence,
-            cost=cost or cls.DEFAULT_COST,
-            params=params,
-        )
-
-        # Create and return instance
-        return cls(name=name, description=description, config=config)
-
-    @classmethod
-    def create_with_custom_model(
-        cls: Type[T],
-        model: ToxicityModel,
-        name: str = "custom_toxicity_classifier",
-        description: str = "Custom toxicity model",
-        **kwargs: Any,
-    ) -> T:
-        """
-        Factory method to create a classifier with a custom model.
-
-        This method creates a new instance of the classifier with a custom
-        toxicity model implementation, which can be useful for testing
-        or specialized toxicity detection needs.
-
-        Args:
-            model: Custom toxicity model implementation
-            name: Name of the classifier
-            description: Description of the classifier
-            **kwargs: Additional configuration parameters
-
-        Returns:
-            Configured ToxicityClassifier instance
-
-        Raises:
-            ValueError: If the model doesn't implement the ToxicityModel protocol
-        """
-        # Validate model first
-        if not isinstance(model, ToxicityModel):
-            raise ValueError(f"Model must implement ToxicityModel protocol, got {type(model)}")
-
-        # Create instance with extracted parameters and kwargs
-        instance = cls(
-            name=name,
-            description=description,
-            **kwargs,
-        )
-
-        # Set the model and mark as initialized
-        state = instance._state_manager.get_state()
-        state.model = model
-        state.initialized = True
-
-        return instance
-
 
 def create_toxicity_classifier(
     model_name: str = "original",
@@ -691,7 +494,7 @@ def create_toxicity_classifier(
     min_confidence: float = 0.0,
     cost: int = 2,
     **kwargs: Any,
-) -> ToxicityClassifier:
+) -> Classifier[str, str]:
     """
     Factory function to create a toxicity classifier.
 
@@ -712,7 +515,7 @@ def create_toxicity_classifier(
         **kwargs: Additional configuration parameters
 
     Returns:
-        Configured ToxicityClassifier instance
+        Configured Classifier instance with ToxicityClassifierImplementation
 
     Examples:
         ```python
@@ -730,6 +533,17 @@ def create_toxicity_classifier(
         )
         ```
     """
+    # Define default labels
+    DEFAULT_LABELS = [
+        "toxic",
+        "severe_toxic",
+        "obscene",
+        "threat",
+        "insult",
+        "identity_hate",
+        "non_toxic",
+    ]
+
     # Prepare params
     params: Dict[str, Any] = kwargs.pop("params", {})
     params.update(
@@ -741,13 +555,95 @@ def create_toxicity_classifier(
         }
     )
 
-    # Create and return classifier using the class factory method
-    return ToxicityClassifier.create(
-        name=name,
-        description=description,
+    # Create config
+    config = ClassifierConfig(
+        labels=kwargs.pop("labels", DEFAULT_LABELS),
         cache_size=cache_size,
         min_confidence=min_confidence,
         cost=cost,
         params=params,
-        **kwargs,
+    )
+
+    # Create implementation
+    implementation = ToxicityClassifierImplementation(config)
+
+    # Create and return classifier
+    return Classifier(
+        name=name,
+        description=description,
+        config=config,
+        implementation=implementation,
+    )
+
+
+def create_toxicity_classifier_with_custom_model(
+    model: ToxicityModel,
+    name: str = "custom_toxicity_classifier",
+    description: str = "Custom toxicity model",
+    cache_size: int = 0,
+    min_confidence: float = 0.0,
+    cost: int = 2,
+    **kwargs: Any,
+) -> Classifier[str, str]:
+    """
+    Factory function to create a toxicity classifier with a custom model.
+
+    This function creates a classifier with a custom toxicity model implementation,
+    which can be useful for testing or specialized toxicity detection needs.
+
+    Args:
+        model: Custom toxicity model implementation
+        name: Name of the classifier
+        description: Description of the classifier
+        cache_size: Size of the classification cache (0 to disable)
+        min_confidence: Minimum confidence for classification
+        cost: Computational cost of this classifier
+        **kwargs: Additional configuration parameters
+
+    Returns:
+        Configured Classifier instance with ToxicityClassifierImplementation
+
+    Raises:
+        ValueError: If the model doesn't implement the ToxicityModel protocol
+    """
+    # Validate model first
+    if not isinstance(model, ToxicityModel):
+        raise ValueError(f"Model must implement ToxicityModel protocol, got {type(model)}")
+
+    # Define default labels
+    DEFAULT_LABELS = [
+        "toxic",
+        "severe_toxic",
+        "obscene",
+        "threat",
+        "insult",
+        "identity_hate",
+        "non_toxic",
+    ]
+
+    # Prepare params
+    params: Dict[str, Any] = kwargs.pop("params", {})
+
+    # Create config
+    config = ClassifierConfig(
+        labels=kwargs.pop("labels", DEFAULT_LABELS),
+        cache_size=cache_size,
+        min_confidence=min_confidence,
+        cost=cost,
+        params=params,
+    )
+
+    # Create implementation
+    implementation = ToxicityClassifierImplementation(config)
+
+    # Set the model directly in the implementation's state
+    implementation._state.model = model
+    implementation._state.initialized = True
+
+    # Create and return classifier
+    return Classifier(
+        name=name,
+        description=description,
+        config=config,
+        implementation=implementation,
     )
