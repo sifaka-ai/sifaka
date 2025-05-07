@@ -73,7 +73,7 @@ class FeedbackCriticConfig(PromptCriticConfig):
         ```
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     feedback_prompt_template: str = Field(
         default=DEFAULT_FEEDBACK_PROMPT_TEMPLATE,
@@ -104,7 +104,7 @@ class ValueCriticConfig(PromptCriticConfig):
         ```
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     value_prompt_template: str = Field(
         default=DEFAULT_VALUE_PROMPT_TEMPLATE,
@@ -136,7 +136,7 @@ class LACCriticConfig(CriticConfig):
         ```
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     system_prompt: str = Field(
         default=DEFAULT_SYSTEM_PROMPT,
@@ -194,6 +194,9 @@ class FeedbackCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         print(f"Feedback: {feedback}")
         ```
     """
+
+    # Pydantic v2 configuration
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     # State management using direct state
     _state = PrivateAttr(default_factory=lambda: None)
@@ -487,6 +490,9 @@ class ValueCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         print(f"Value: {value}")
         ```
     """
+
+    # Pydantic v2 configuration
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     # State management using direct state
     _state = PrivateAttr(default_factory=lambda: None)
@@ -800,6 +806,9 @@ class LACCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         print(f"Value: {result['value']}")
         ```
     """
+
+    # Pydantic v2 configuration
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     # State management using direct state
     _state = PrivateAttr(default_factory=lambda: None)

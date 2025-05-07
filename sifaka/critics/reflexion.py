@@ -26,7 +26,7 @@ Example:
 import logging
 from typing import Any, Dict, List, Optional, Union, cast
 
-from pydantic import PrivateAttr
+from pydantic import PrivateAttr, ConfigDict
 
 from .base import BaseCritic
 from .models import ReflexionCriticConfig
@@ -133,6 +133,9 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     # Class constants
     DEFAULT_NAME = "reflexion_critic"
     DEFAULT_DESCRIPTION = "Improves text using reflections on past feedback"
+
+    # Pydantic v2 configuration
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     # State management using direct state
     _state = PrivateAttr(default_factory=lambda: None)

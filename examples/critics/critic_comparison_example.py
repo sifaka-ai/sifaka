@@ -7,6 +7,7 @@ This example compares the performance of different critics in Sifaka:
 - SelfRefineCritic
 - SelfRAGCritic
 - ConstitutionalCritic
+- LACCritic
 
 The example measures:
 1. Time spent (execution time)
@@ -35,6 +36,7 @@ from sifaka.critics.factories import create_prompt_critic, create_reflexion_crit
 from sifaka.critics.self_refine import create_self_refine_critic
 from sifaka.critics.self_rag import create_self_rag_critic
 from sifaka.critics.constitutional import create_constitutional_critic
+from sifaka.critics.lac import create_lac_critic
 from sifaka.retrieval import SimpleRetriever
 
 # Configure logging
@@ -213,6 +215,25 @@ def test_constitutional_critic(
     return improved_text, revisions
 
 
+def test_lac_critic(llm_provider: Any, input_text: str, task: str) -> Tuple[str, int]:
+    """Test the LACCritic and return the improved text and number of revisions."""
+    critic = create_lac_critic(
+        llm_provider=llm_provider,
+        name="test_lac_critic",
+        description="A critic for testing with LAC approach",
+        system_prompt="You are an expert at evaluating and improving text.",
+        temperature=0.7,
+        max_tokens=1000,
+    )
+
+    # LACCritic doesn't track revisions internally
+    revisions = 1
+    metadata = {"task": task}
+    improved_text = critic.improve(input_text, metadata)
+
+    return improved_text, revisions
+
+
 def run_critic_comparison():
     """Run the comparison of different critics."""
     logger.info("Starting critic comparison")
@@ -283,6 +304,7 @@ def run_critic_comparison():
         ("SelfRefineCritic", test_self_refine_critic, {}),
         ("SelfRAGCritic", test_self_rag_critic, {"documents": documents}),
         ("ConstitutionalCritic", test_constitutional_critic, {"principles": principles}),
+        ("LACCritic", test_lac_critic, {}),
     ]:
         logger.info(f"Testing {critic_name} with OpenAI")
         try:
@@ -311,6 +333,7 @@ def run_critic_comparison():
         ("SelfRefineCritic", test_self_refine_critic, {}),
         ("SelfRAGCritic", test_self_rag_critic, {"documents": documents}),
         ("ConstitutionalCritic", test_constitutional_critic, {"principles": principles}),
+        ("LACCritic", test_lac_critic, {}),
     ]:
         logger.info(f"Testing {critic_name} with Anthropic")
         try:
