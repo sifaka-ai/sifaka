@@ -17,7 +17,7 @@ load_dotenv()
 from sifaka.models.openai import OpenAIProvider
 from sifaka.models.base import ModelConfig
 from sifaka.classifiers.language import LanguageClassifier, ClassifierConfig, ClassificationResult
-from sifaka.adapters.rules.classifier import create_classifier_rule
+from sifaka.adapters.classifier import create_classifier_rule
 from sifaka.critics.prompt import PromptCritic, PromptCriticConfig
 from sifaka.chain import ChainCore, ChainResult
 

@@ -13,7 +13,7 @@ import os
 from typing import List
 
 # Import Sifaka components
-from sifaka.adapters.rules import ClassifierAdapter
+from sifaka.adapters.classifier import ClassifierAdapter
 from sifaka.rules.formatting.length import create_length_rule
 from sifaka.rules.base import Rule, RuleResult, RuleValidator, RuleProtocol, RuleConfig
 from sifaka.utils.logging import get_logger

@@ -42,7 +42,7 @@ from sifaka.critics.reflexion import create_reflexion_critic
 try:
     from guardrails.validator_base import Validator, register_validator
     from guardrails.classes import ValidationResult, PassResult, FailResult
-    from sifaka.adapters.rules.guardrails_adapter import create_guardrails_rule
+    from sifaka.adapters.guardrails import create_guardrails_rule
 
     GUARDRAILS_AVAILABLE = True
 except ImportError:

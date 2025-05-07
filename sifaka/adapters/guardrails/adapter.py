@@ -7,7 +7,7 @@ rule system, allowing for sophisticated content validation.
 
 Usage Example:
     from guardrails.hub import RegexMatch
-    from sifaka.adapters.rules import create_guardrails_rule
+    from sifaka.adapters.guardrails import create_guardrails_rule
 
     # Create a Guardrails validator
     regex_validator = RegexMatch(regex=r"\\d{3}-\\d{3}-\\d{4}")
@@ -49,7 +49,7 @@ except ImportError:
 
 
 from sifaka.rules.base import BaseValidator, RuleResult, Rule, RuleConfig
-from sifaka.adapters.rules.base import Adaptable, BaseAdapter
+from sifaka.adapters.base import Adaptable, BaseAdapter
 from sifaka.utils.state import AdapterState, StateManager, create_adapter_state, create_rule_state
 
 
@@ -102,7 +102,7 @@ class GuardrailsValidatorAdapter(BaseValidator[str]):
     Examples:
         ```python
         from guardrails.hub import RegexMatch
-        from sifaka.adapters.rules import GuardrailsValidatorAdapter
+        from sifaka.adapters.guardrails import GuardrailsValidatorAdapter
 
         regex_validator = RegexMatch(regex=r"\\d{3}-\\d{3}-\\d{4}")
         adapter = GuardrailsValidatorAdapter(regex_validator)
@@ -221,7 +221,7 @@ class GuardrailsRule(Rule):
     Examples:
         ```python
         from guardrails.hub import RegexMatch
-        from sifaka.adapters.rules import GuardrailsRule
+        from sifaka.adapters.guardrails import GuardrailsRule
 
         regex_validator = RegexMatch(regex=r"\\d{3}-\\d{3}-\\d{4}")
         rule = GuardrailsRule(
@@ -328,7 +328,7 @@ def create_guardrails_rule(
     Examples:
         ```python
         from guardrails.hub import RegexMatch
-        from sifaka.adapters.rules import create_guardrails_rule
+        from sifaka.adapters.guardrails import create_guardrails_rule
 
         regex_validator = RegexMatch(regex=r"\\d{3}-\\d{3}-\\d{4}")
         rule = create_guardrails_rule(
@@ -349,15 +349,3 @@ def create_guardrails_rule(
         description=description,
         **kwargs,
     )
-
-
-# Export public classes and functions
-__all__ = [
-    # Protocols
-    "GuardrailsValidatable",
-    # Core components
-    "GuardrailsValidatorAdapter",
-    "GuardrailsRule",
-    # Factory functions
-    "create_guardrails_rule",
-]

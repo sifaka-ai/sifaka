@@ -163,7 +163,7 @@ from .content.sentiment import create_sentiment_rule
 from .content.language import create_language_rule
 
 # Import from the adapters module
-from sifaka.adapters.rules import (
+from sifaka.adapters.classifier import (
     ClassifierAdapter,
     ClassifierRule,
     create_classifier_rule,
