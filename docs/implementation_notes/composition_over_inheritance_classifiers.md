@@ -25,10 +25,10 @@ We'll refactor the classifier system to use composition over inheritance:
 | NERClassifier | ✅ Completed | ✅ Completed | Already using composition pattern |
 | ToxicityClassifier | ✅ Completed | ✅ Completed | Implemented with batch_classify_impl support |
 | BiasDetector | ✅ Completed | ✅ Completed | Implemented with batch_classify_impl and fit_impl support |
-| SpamClassifier | ❌ Pending | ❌ Pending | |
-| ProfanityClassifier | ❌ Pending | ❌ Pending | |
-| SentimentClassifier | ❌ Pending | ❌ Pending | |
-| ReadabilityClassifier | ❌ Pending | ❌ Pending | |
+| SpamClassifier | ✅ Completed | ✅ Completed | Implemented with batch_classify_impl and fit_impl support |
+| ProfanityClassifier | ✅ Completed | ✅ Completed | Implemented with custom checker support |
+| SentimentClassifier | ✅ Completed | ✅ Completed | Implemented with batch_classify_impl support |
+| ReadabilityClassifier | ✅ Completed | ✅ Completed | Implemented with comprehensive metrics support |
 | LanguageClassifier | ❌ Pending | ❌ Pending | |
 | TopicClassifier | ❌ Pending | ❌ Pending | |
 | GenreClassifier | ❌ Pending | ❌ Pending | |

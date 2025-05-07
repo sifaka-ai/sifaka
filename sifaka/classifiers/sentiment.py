@@ -7,18 +7,17 @@ positive, neutral, negative, or unknown sentiment categories with confidence sco
 
 ## Architecture
 
-SentimentClassifier follows the standard Sifaka classifier architecture:
-1. **Public API**: classify() and batch_classify() methods (inherited)
-2. **Caching Layer**: _classify_impl() handles caching (inherited)
-3. **Core Logic**: _classify_impl_uncached() implements sentiment analysis
-4. **State Management**: Uses StateManager for internal state
+This module follows the composition over inheritance pattern:
+1. **Public API**: Classifier class with classify() and batch_classify() methods
+2. **Implementation**: SentimentClassifierImplementation contains the core logic
+3. **Factory Function**: create_sentiment_classifier() creates a configured classifier
 
 ## Lifecycle
 
 1. **Initialization**: Set up configuration and parameters
-   - Initialize with name, description, and config
-   - Extract thresholds from config.params
-   - Set up default values
+   - Create a ClassifierConfig with appropriate parameters
+   - Create a SentimentClassifierImplementation with the config
+   - Create a Classifier with the implementation
 
 2. **Warm-up**: Load VADER resources
    - Load VADER analyzer when needed
@@ -78,27 +77,21 @@ from typing import (
     Optional,
     Protocol,
     ClassVar,
-    Type,
-    TypeVar,
     Tuple,
     runtime_checkable,
 )
 
 from typing_extensions import TypeGuard
-from pydantic import ConfigDict, PrivateAttr
 
 from sifaka.classifiers.base import (
-    BaseClassifier,
+    Classifier,
     ClassificationResult,
     ClassifierConfig,
 )
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import StateManager, ClassifierState, create_classifier_state
+from sifaka.utils.state import ClassifierState
 
 logger = get_logger(__name__)
-
-# Type variable for the classifier
-T = TypeVar("T", bound="SentimentClassifier")
 
 
 @runtime_checkable
@@ -157,26 +150,26 @@ class SentimentAnalyzer(Protocol):
     def polarity_scores(self, text: str) -> Dict[str, float]: ...
 
 
-class SentimentClassifier(BaseClassifier[str, str]):
+class SentimentClassifierImplementation:
     """
-    A lightweight sentiment classifier using VADER.
+    Implementation of sentiment classification logic using VADER.
 
-    VADER (Valence Aware Dictionary and sEntiment Reasoner) is a lexicon and rule-based
-    sentiment analysis tool that is specifically attuned to sentiments expressed in social media.
-    It analyzes text and returns sentiment scores along with a classification label.
+    This implementation uses the VADER (Valence Aware Dictionary and sEntiment Reasoner)
+    lexicon-based sentiment analysis tool to detect sentiment in text. It provides a
+    fast, local alternative to API-based sentiment analysis and can identify positive,
+    negative, and neutral sentiment.
 
     ## Architecture
 
-    SentimentClassifier follows the standard Sifaka classifier architecture:
-    1. **Public API**: classify() and batch_classify() methods (inherited)
-    2. **Caching Layer**: _classify_impl() handles caching (inherited)
-    3. **Core Logic**: _classify_impl_uncached() implements sentiment analysis
-    4. **State Management**: Uses StateManager for internal state
+    SentimentClassifierImplementation follows the composition pattern:
+    1. **Core Logic**: classify_impl() implements sentiment analysis
+    2. **State Management**: Uses ClassifierState for internal state
+    3. **Resource Management**: Loads and manages VADER analyzer
 
     ## Lifecycle
 
     1. **Initialization**: Set up configuration and parameters
-       - Initialize with name, description, and config
+       - Initialize with config
        - Extract thresholds from config.params
        - Set up default values
 
@@ -191,32 +184,26 @@ class SentimentClassifier(BaseClassifier[str, str]):
        - Convert scores to standardized format
        - Handle empty text and edge cases
 
-    4. **Result Creation**: Return standardized results
-       - Map compound scores to sentiment labels
-       - Convert scores to confidence values
-       - Include detailed scores in metadata
-
     ## Examples
 
     ```python
-    from sifaka.classifiers.sentiment import create_sentiment_classifier
+    from sifaka.classifiers.sentiment import SentimentClassifierImplementation
+    from sifaka.classifiers.base import ClassifierConfig, ClassificationResult
 
-    # Create a sentiment classifier with default settings
-    classifier = create_sentiment_classifier()
+    # Create config
+    config = ClassifierConfig(
+        labels=["positive", "neutral", "negative", "unknown"],
+        cache_size=100,
+        params={"positive_threshold": 0.05, "negative_threshold": -0.05}
+    )
+
+    # Create implementation
+    implementation = SentimentClassifierImplementation(config)
 
     # Classify text
-    result = classifier.classify("I love this product! It's amazing.")
+    result = implementation.classify_impl("I love this product! It's amazing.")
     print(f"Sentiment: {result.label}, Confidence: {result.confidence:.2f}")
-
-    # Access detailed scores
-    print(f"Compound score: {result.metadata['compound_score']:.2f}")
-    print(f"Positive score: {result.metadata['pos_score']:.2f}")
-    print(f"Negative score: {result.metadata['neg_score']:.2f}")
-    print(f"Neutral score: {result.metadata['neu_score']:.2f}")
     ```
-
-    Requires the 'sentiment' extra to be installed:
-    pip install sifaka[sentiment]
     """
 
     # Class-level constants
@@ -227,68 +214,30 @@ class SentimentClassifier(BaseClassifier[str, str]):
     DEFAULT_POSITIVE_THRESHOLD: ClassVar[float] = 0.05
     DEFAULT_NEGATIVE_THRESHOLD: ClassVar[float] = -0.05
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_classifier_state)
-
-    # Pydantic configuration
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    def __init__(
-        self,
-        name: str = "sentiment_classifier",
-        description: str = "Analyzes text sentiment using VADER",
-        analyzer: Optional[SentimentAnalyzer] = None,
-        config: Optional[ClassifierConfig[str]] = None,
-        **kwargs: Any,
-    ) -> None:
+    def __init__(self, config: ClassifierConfig):
         """
-        Initialize the sentiment classifier.
+        Initialize the sentiment classifier implementation.
 
         Args:
-            name: The name of the classifier
-            description: Description of the classifier
-            analyzer: Custom sentiment analyzer implementation
-            config: Optional classifier configuration
-            **kwargs: Additional configuration parameters
+            config: Configuration for the classifier
         """
-        # Create config if not provided
-        if config is None:
-            # Extract thresholds from kwargs
-            params = kwargs.pop("params", {})
-            params.update(
-                {
-                    "positive_threshold": kwargs.pop(
-                        "positive_threshold", self.DEFAULT_POSITIVE_THRESHOLD
-                    ),
-                    "negative_threshold": kwargs.pop(
-                        "negative_threshold", self.DEFAULT_NEGATIVE_THRESHOLD
-                    ),
-                }
-            )
-
-            # Create config with remaining kwargs
-            config = ClassifierConfig[str](
-                labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, params=params, **kwargs
-            )
-
-        # Initialize base class
-        super().__init__(name=name, description=description, config=config)
-
-        # Initialize state
-        state = self._state_manager.get_state()
-        state.initialized = False
+        self.config = config
+        self._state = ClassifierState()
+        self._state.initialized = False
 
         # Store thresholds in state
-        state.cache["positive_threshold"] = self.config.params.get(
+        self._state.cache = {}
+        self._state.cache["positive_threshold"] = self.config.params.get(
             "positive_threshold", self.DEFAULT_POSITIVE_THRESHOLD
         )
-        state.cache["negative_threshold"] = self.config.params.get(
+        self._state.cache["negative_threshold"] = self.config.params.get(
             "negative_threshold", self.DEFAULT_NEGATIVE_THRESHOLD
         )
 
         # Store analyzer in state if provided
+        analyzer = self.config.params.get("analyzer")
         if analyzer is not None and self._validate_analyzer(analyzer):
-            state.cache["analyzer"] = analyzer
+            self._state.cache["analyzer"] = analyzer
 
     def _validate_analyzer(self, analyzer: Any) -> TypeGuard[SentimentAnalyzer]:
         """
@@ -321,19 +270,16 @@ class SentimentClassifier(BaseClassifier[str, str]):
             RuntimeError: If VADER initialization fails
         """
         try:
-            # Get state
-            state = self._state_manager.get_state()
-
             # Check if analyzer is already in state
-            if "analyzer" in state.cache:
-                return state.cache["analyzer"]
+            if "analyzer" in self._state.cache:
+                return self._state.cache["analyzer"]
 
             vader_module = importlib.import_module("vaderSentiment.vaderSentiment")
             analyzer = vader_module.SentimentIntensityAnalyzer()
 
             # Validate and store in state
             if self._validate_analyzer(analyzer):
-                state.cache["analyzer"] = analyzer
+                self._state.cache["analyzer"] = analyzer
                 return analyzer
 
         except ImportError:
@@ -344,7 +290,7 @@ class SentimentClassifier(BaseClassifier[str, str]):
         except Exception as e:
             raise RuntimeError(f"Failed to load VADER: {e}")
 
-    def warm_up(self) -> None:
+    def warm_up_impl(self) -> None:
         """
         Initialize the sentiment analyzer if needed.
 
@@ -352,19 +298,16 @@ class SentimentClassifier(BaseClassifier[str, str]):
         It is called automatically when needed but can also be called
         explicitly to pre-initialize resources.
         """
-        # Get state
-        state = self._state_manager.get_state()
-
-        if not state.initialized:
+        if not self._state.initialized:
             try:
                 # Load analyzer
                 analyzer = self._load_vader()
 
                 # Store in state
-                state.cache["analyzer"] = analyzer
+                self._state.cache["analyzer"] = analyzer
 
                 # Mark as initialized
-                state.initialized = True
+                self._state.initialized = True
             except Exception as e:
                 logger.error("Failed to initialize sentiment analyzer: %s", e)
                 raise RuntimeError(f"Failed to initialize sentiment analyzer: {e}") from e
@@ -379,12 +322,13 @@ class SentimentClassifier(BaseClassifier[str, str]):
         Returns:
             Tuple of (sentiment_label, confidence)
         """
-        # Get state
-        state = self._state_manager.get_state()
-
         # Get thresholds from state
-        positive_threshold = state.cache.get("positive_threshold", self.DEFAULT_POSITIVE_THRESHOLD)
-        negative_threshold = state.cache.get("negative_threshold", self.DEFAULT_NEGATIVE_THRESHOLD)
+        positive_threshold = self._state.cache.get(
+            "positive_threshold", self.DEFAULT_POSITIVE_THRESHOLD
+        )
+        negative_threshold = self._state.cache.get(
+            "negative_threshold", self.DEFAULT_NEGATIVE_THRESHOLD
+        )
 
         # Determine sentiment label
         if compound_score >= positive_threshold:
@@ -399,12 +343,11 @@ class SentimentClassifier(BaseClassifier[str, str]):
 
         return label, confidence
 
-    def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
+    def classify_impl(self, text: str) -> ClassificationResult[str]:
         """
-        Implement sentiment classification logic without caching.
+        Implement sentiment classification logic.
 
         This method contains the core sentiment analysis logic using VADER.
-        It is called by the caching layer when a cache miss occurs.
 
         Args:
             text: The text to classify
@@ -412,12 +355,9 @@ class SentimentClassifier(BaseClassifier[str, str]):
         Returns:
             ClassificationResult with sentiment scores
         """
-        # Get state
-        state = self._state_manager.get_state()
-
         # Ensure resources are initialized
-        if not state.initialized:
-            self.warm_up()
+        if not self._state.initialized:
+            self.warm_up_impl()
 
         # Handle empty or whitespace-only text
         if not text.strip():
@@ -435,7 +375,7 @@ class SentimentClassifier(BaseClassifier[str, str]):
 
         try:
             # Get analyzer from state
-            analyzer = state.cache.get("analyzer")
+            analyzer = self._state.cache.get("analyzer")
             if not analyzer:
                 raise RuntimeError("Sentiment analyzer not initialized")
 
@@ -477,104 +417,29 @@ class SentimentClassifier(BaseClassifier[str, str]):
                 },
             )
 
-    @classmethod
-    def create(
-        cls: Type[T],
-        name: str = "sentiment_classifier",
-        description: str = "Analyzes text sentiment using VADER",
-        labels: Optional[List[str]] = None,
-        cache_size: int = 0,
-        min_confidence: float = 0.0,
-        cost: Optional[float] = None,
-        params: Optional[Dict[str, Any]] = None,
-        **kwargs: Any,
-    ) -> T:
+    def batch_classify_impl(self, texts: List[str]) -> List[ClassificationResult[str]]:
         """
-        Create a new instance with the given parameters.
+        Implement batch sentiment classification logic.
 
-        This factory method creates a new instance of the classifier with the
-        specified parameters, handling the creation of the ClassifierConfig
-        object and setting up the classifier with the appropriate parameters.
+        This method classifies multiple texts at once, which can be more efficient
+        than classifying them one by one.
 
         Args:
-            name: Name of the classifier
-            description: Description of the classifier
-            labels: List of valid labels
-            cache_size: Size of the classification cache (0 to disable)
-            min_confidence: Minimum confidence for classification
-            cost: Computational cost of this classifier
-            params: Additional configuration parameters
-            **kwargs: Additional keyword arguments
+            texts: List of texts to classify
 
         Returns:
-            A new instance of the classifier
+            List of ClassificationResult objects with sentiment scores
         """
-        # Create params dictionary if not provided
-        if params is None:
-            params = {}
+        # Ensure resources are initialized
+        if not self._state.initialized:
+            self.warm_up_impl()
 
-        # Add kwargs to params
-        params.update(kwargs)
+        # Process each text individually
+        results = []
+        for text in texts:
+            results.append(self.classify_impl(text))
 
-        # Create config
-        config = ClassifierConfig(
-            labels=labels or cls.DEFAULT_LABELS,
-            cache_size=cache_size,
-            min_confidence=min_confidence,
-            cost=cost or cls.DEFAULT_COST,
-            params=params,
-        )
-
-        # Create and return instance
-        return cls(name=name, description=description, config=config)
-
-    @classmethod
-    def create_with_custom_analyzer(
-        cls: Type[T],
-        analyzer: SentimentAnalyzer,
-        name: str = "custom_sentiment_classifier",
-        description: str = "Custom sentiment analyzer",
-        **kwargs: Any,
-    ) -> T:
-        """
-        Factory method to create a classifier with a custom analyzer.
-
-        This method creates a new instance of the classifier with a custom
-        sentiment analyzer implementation, which can be useful for testing
-        or specialized sentiment analysis needs.
-
-        Args:
-            analyzer: Custom sentiment analyzer implementation
-            name: Name of the classifier
-            description: Description of the classifier
-            **kwargs: Additional configuration parameters
-
-        Returns:
-            Configured SentimentClassifier instance
-
-        Raises:
-            ValueError: If the analyzer doesn't implement the SentimentAnalyzer protocol
-        """
-        # Validate analyzer first
-        if not isinstance(analyzer, SentimentAnalyzer):
-            raise ValueError(
-                f"Analyzer must implement SentimentAnalyzer protocol, got {type(analyzer)}"
-            )
-
-        # Create instance with validated analyzer and kwargs
-        instance = cls(
-            name=name,
-            description=description,
-            analyzer=analyzer,
-            **kwargs,
-        )
-
-        # Initialize state
-        state = instance._state.get_state()
-        state.cache["analyzer"] = analyzer
-        state.initialized = True
-
-        return instance
+        return results
 
 
 def create_sentiment_classifier(
@@ -586,7 +451,7 @@ def create_sentiment_classifier(
     min_confidence: float = 0.0,
     cost: int = 1,
     **kwargs: Any,
-) -> SentimentClassifier:
+) -> Classifier[str, str]:
     """
     Factory function to create a sentiment classifier.
 
@@ -605,7 +470,7 @@ def create_sentiment_classifier(
         **kwargs: Additional configuration parameters
 
     Returns:
-        Configured SentimentClassifier instance
+        Configured Classifier instance with SentimentClassifierImplementation
 
     Examples:
         ```python
@@ -631,13 +496,96 @@ def create_sentiment_classifier(
         }
     )
 
-    # Create and return classifier using the class factory method
-    return SentimentClassifier.create(
-        name=name,
-        description=description,
+    # Create config
+    config = ClassifierConfig(
+        labels=SentimentClassifierImplementation.DEFAULT_LABELS,
         cache_size=cache_size,
         min_confidence=min_confidence,
         cost=cost,
         params=params,
-        **kwargs,
+    )
+
+    # Create implementation
+    implementation = SentimentClassifierImplementation(config)
+
+    # Create and return classifier
+    return Classifier(
+        name=name,
+        description=description,
+        config=config,
+        implementation=implementation,
+    )
+
+
+def create_sentiment_classifier_with_custom_analyzer(
+    analyzer: SentimentAnalyzer,
+    name: str = "custom_sentiment_classifier",
+    description: str = "Custom sentiment analyzer",
+    positive_threshold: float = 0.05,
+    negative_threshold: float = -0.05,
+    cache_size: int = 0,
+    min_confidence: float = 0.0,
+    cost: int = 1,
+    **kwargs: Any,
+) -> Classifier[str, str]:
+    """
+    Factory function to create a sentiment classifier with a custom analyzer.
+
+    This function creates a classifier with a custom sentiment analyzer implementation,
+    which can be useful for testing or specialized sentiment analysis needs.
+
+    Args:
+        analyzer: Custom sentiment analyzer implementation
+        name: Name of the classifier
+        description: Description of the classifier
+        positive_threshold: Positive sentiment threshold (default: 0.05)
+        negative_threshold: Negative sentiment threshold (default: -0.05)
+        cache_size: Size of the classification cache (0 to disable)
+        min_confidence: Minimum confidence for classification
+        cost: Computational cost of this classifier
+        **kwargs: Additional configuration parameters
+
+    Returns:
+        Configured Classifier instance with SentimentClassifierImplementation
+
+    Raises:
+        ValueError: If the analyzer doesn't implement the SentimentAnalyzer protocol
+    """
+    # Validate analyzer first
+    if not isinstance(analyzer, SentimentAnalyzer):
+        raise ValueError(
+            f"Analyzer must implement SentimentAnalyzer protocol, got {type(analyzer)}"
+        )
+
+    # Prepare params
+    params = kwargs.pop("params", {})
+    params.update(
+        {
+            "positive_threshold": positive_threshold,
+            "negative_threshold": negative_threshold,
+            "analyzer": analyzer,
+        }
+    )
+
+    # Create config
+    config = ClassifierConfig(
+        labels=SentimentClassifierImplementation.DEFAULT_LABELS,
+        cache_size=cache_size,
+        min_confidence=min_confidence,
+        cost=cost,
+        params=params,
+    )
+
+    # Create implementation
+    implementation = SentimentClassifierImplementation(config)
+
+    # Initialize the implementation
+    implementation._state.initialized = True
+
+    # Create and return classifier
+    return Classifier(
+        name=name,
+        description=description,
+        config=config,
+        implementation=implementation,
     )
