@@ -225,8 +225,8 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     # Pydantic v2 configuration
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    # State management using direct state
-    _state = PrivateAttr(default_factory=lambda: None)
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
 
     def __init__(
         self,
@@ -279,10 +279,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         super().__init__(config)
 
         # Initialize state
-        from ..utils.state import CriticState
-
-        self._state = CriticState()
-        self._state.initialized = False
+        state = self._state_manager.get_state()
 
         # Create components
         from .managers.prompt_factories import PromptCriticPromptManager
@@ -293,23 +290,23 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         from .managers.memory import MemoryManager
 
         # Store components in state
-        self._state.model = llm_provider
-        self._state.prompt_manager = prompt_factory or PromptCriticPromptManager(config)
-        self._state.response_parser = ResponseParser()
-        self._state.memory_manager = MemoryManager(
+        state.model = llm_provider
+        state.prompt_manager = prompt_factory or PromptCriticPromptManager(config)
+        state.response_parser = ResponseParser()
+        state.memory_manager = MemoryManager(
             buffer_size=10
         )  # Same as ImprovementHistory max_history
 
         # Create service and store in state cache
-        self._state.cache["critique_service"] = CritiqueService(
+        state.cache["critique_service"] = CritiqueService(
             llm_provider=llm_provider,
-            prompt_manager=self._state.prompt_manager,
-            response_parser=self._state.response_parser,
-            memory_manager=self._state.memory_manager,
+            prompt_manager=state.prompt_manager,
+            response_parser=state.response_parser,
+            memory_manager=state.memory_manager,
         )
 
         # Mark as initialized
-        self._state.initialized = True
+        state.initialized = True
 
     def improve(self, text: str, feedback: str = None) -> str:
         """Improve text based on feedback.
@@ -326,7 +323,8 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             TypeError: If model returns non-string output
         """
         # Ensure initialized
-        if not self._state.initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("PromptCritic not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -336,7 +334,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             feedback = "Please improve this text for clarity and effectiveness."
 
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not initialized")
 
@@ -354,7 +352,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
                 "timestamp": __import__("time").time(),
             }
         )
-        self._state.memory_manager.add_to_memory(memory_item)
+        state.memory_manager.add_to_memory(memory_item)
 
         return improved_text
 
@@ -376,7 +374,8 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             TypeError: If model returns non-string output
         """
         # Ensure initialized
-        if not self._state.initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("PromptCritic not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -385,7 +384,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             raise ValueError("feedback must be a non-empty string")
 
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not initialized")
 
@@ -403,7 +402,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
                 "timestamp": __import__("time").time(),
             }
         )
-        self._state.memory_manager.add_to_memory(memory_item)
+        state.memory_manager.add_to_memory(memory_item)
 
         return improved_text
 
@@ -431,7 +430,8 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         # Get memory items and parse them
         import json
 
-        memory_items = self._state.memory_manager.get_memory()
+        state = self._state_manager.get_state()
+        memory_items = state.memory_manager.get_memory()
         parsed_items = []
 
         for item in memory_items:
@@ -452,13 +452,14 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         Raises:
             RuntimeError: If the critic is not initialized
         """
-        if not self._state.initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("PromptCritic not properly initialized")
 
         # Get memory items and parse them
         import json
 
-        memory_items = self._state.memory_manager.get_memory()
+        memory_items = state.memory_manager.get_memory()
         parsed_items = []
 
         for item in memory_items:
@@ -545,14 +546,15 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             TypeError: If model returns invalid output
         """
         # Ensure initialized
-        if not self._state.initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("PromptCritic not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not initialized")
 
@@ -572,14 +574,15 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text is empty
         """
         # Ensure initialized
-        if not self._state.initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("PromptCritic not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not initialized")
 
@@ -601,14 +604,15 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             TypeError: If model returns invalid output
         """
         # Ensure initialized
-        if not self._state.initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("PromptCritic not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not initialized")
 
@@ -635,14 +639,15 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             TypeError: If model returns invalid output
         """
         # Ensure initialized
-        if not self._state.initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("PromptCritic not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not initialized")
 
@@ -670,7 +675,8 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             TypeError: If model returns non-string output
         """
         # Ensure initialized
-        if not self._state.initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("PromptCritic not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -680,7 +686,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             feedback = "Please improve this text for clarity and effectiveness."
 
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not initialized")
 
@@ -704,7 +710,8 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
                 "timestamp": __import__("time").time(),
             }
         )
-        self._state.memory_manager.add_to_memory(memory_item)
+        state = self._state_manager.get_state()
+        state.memory_manager.add_to_memory(memory_item)
 
         return improved_text
 
@@ -774,7 +781,8 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         Returns:
             A list of dictionaries containing improvement iterations
         """
-        if not self._state.initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("PromptCritic not properly initialized")
 
         # Get memory items and parse them

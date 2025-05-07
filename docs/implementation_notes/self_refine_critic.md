@@ -10,27 +10,34 @@ The Self-Refine Critic implements the Self-Refine approach from the paper [Self-
 
 ### State Management
 
-The Self-Refine Critic follows the standard state management pattern used in other Sifaka critics:
+The Self-Refine Critic follows the standardized StateManager pattern used in other Sifaka critics:
 
-- Uses a `CriticState` object to store all mutable state
+- Uses a `StateManager` with `CriticState` to store all mutable state
 - Stores configuration values in the state's cache dictionary
-- Accesses state through direct state access
+- Accesses state through the state manager
 
 ```python
-# Initialize state
-self._state = CriticState()
+# State management using StateManager
+_state_manager = PrivateAttr(default_factory=create_critic_state)
 
-# Store components in state
-self._state.model = llm_provider
-self._state.cache = {
-    "max_iterations": config.max_iterations,
-    "critique_prompt_template": config.critique_prompt_template,
-    "revision_prompt_template": config.revision_prompt_template,
-    "system_prompt": config.system_prompt,
-    "temperature": config.temperature,
-    "max_tokens": config.max_tokens,
-}
-self._state.initialized = True
+def __init__(self, config: SelfRefineCriticConfig, llm_provider: Any) -> None:
+    # Initialize base class
+    super().__init__(config)
+
+    # Get state from state manager
+    state = self._state_manager.get_state()
+
+    # Store components in state
+    state.model = llm_provider
+    state.cache = {
+        "max_iterations": config.max_iterations,
+        "critique_prompt_template": config.critique_prompt_template,
+        "revision_prompt_template": config.revision_prompt_template,
+        "system_prompt": config.system_prompt,
+        "temperature": config.temperature,
+        "max_tokens": config.max_tokens,
+    }
+    state.initialized = True
 ```
 
 ### Configuration
@@ -75,22 +82,25 @@ The core algorithm for the Self-Refine Critic is implemented in the `improve` me
 6. Repeat steps 1-5 for a specified number of iterations or until no further improvements are needed
 
 ```python
+# Get state from state manager
+state = self._state_manager.get_state()
+
 # Perform iterative refinement
 for _ in range(max_iterations):
     # Step 1: Critique the current output
-    critique = self._state.model.generate(critique_prompt)
-    
+    critique = state.model.generate(critique_prompt)
+
     # Check if critique indicates no issues
     if any(phrase in critique.lower() for phrase in no_issues_phrases):
         return current_output
-    
+
     # Step 2: Revise using the critique
-    revised_output = self._state.model.generate(revision_prompt)
-    
+    revised_output = state.model.generate(revision_prompt)
+
     # Check if there's no improvement
     if revised_output == current_output:
         return current_output
-    
+
     # Update current output
     current_output = revised_output
 

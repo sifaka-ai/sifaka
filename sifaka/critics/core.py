@@ -133,7 +133,7 @@ from .managers.prompt import DefaultPromptManager, PromptManager
 from .managers.response import ResponseParser
 from .services.critique import CritiqueService
 from ..utils.logging import get_logger
-from ..utils.state import create_critic_state, CriticState
+from ..utils.state import create_critic_state
 
 logger = get_logger(__name__)
 
@@ -145,20 +145,20 @@ class CriticCore(BaseCritic):
     providing a unified interface for text processing while delegating
     specific operations to specialized components.
 
-    This implementation uses the standardized state management approach with
-    a single _state attribute that manages all mutable state.
+    This implementation uses the standardized StateManager pattern for
+    state management.
 
     ## State Management
 
-    The CriticCore uses a standardized state management approach:
+    The CriticCore uses the standardized StateManager pattern:
 
     1. **State Initialization**
-       - Creates a state object using create_critic_state()
+       - Creates a state manager using create_critic_state()
        - Stores all mutable state in the state object
        - Accesses state through the state manager
 
     2. **State Access**
-       - Uses state directly to access the state object
+       - Uses state manager to access the state object
        - Updates state through the state object
        - Maintains clear separation between configuration and state
 
@@ -172,8 +172,8 @@ class CriticCore(BaseCritic):
        - cache: A cache for storing temporary data
     """
 
-    # State management using direct state
-    _state = PrivateAttr(default_factory=lambda: None)
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
 
     def __init__(
         self,
@@ -202,27 +202,24 @@ class CriticCore(BaseCritic):
         super().__init__(config)
 
         # Initialize state
-        from ..utils.state import CriticState
-
-        self._state = CriticState()
-        self._state.initialized = False
+        state = self._state_manager.get_state()
 
         # Store components in state
-        self._state.model = llm_provider
-        self._state.memory_manager = memory_manager
-        self._state.prompt_manager = prompt_manager or self._create_prompt_manager()
-        self._state.response_parser = response_parser or ResponseParser()
+        state.model = llm_provider
+        state.memory_manager = memory_manager
+        state.prompt_manager = prompt_manager or self._create_prompt_manager()
+        state.response_parser = response_parser or ResponseParser()
 
         # Create services and store in state cache
-        self._state.cache["critique_service"] = CritiqueService(
+        state.cache["critique_service"] = CritiqueService(
             llm_provider=llm_provider,
-            prompt_manager=self._state.prompt_manager,
-            response_parser=self._state.response_parser,
+            prompt_manager=state.prompt_manager,
+            response_parser=state.response_parser,
             memory_manager=memory_manager,
         )
 
         # Mark as initialized
-        self._state.initialized = True
+        state.initialized = True
 
     def validate(self, text: str) -> bool:
         """Validate text against quality standards.
@@ -241,11 +238,12 @@ class CriticCore(BaseCritic):
             RuntimeError: If validation fails
         """
         # Ensure initialized
-        if not self._state.initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("CriticCore not properly initialized")
 
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not properly initialized")
 
@@ -269,11 +267,12 @@ class CriticCore(BaseCritic):
             RuntimeError: If improvement fails
         """
         # Ensure initialized
-        if not self._state.initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("CriticCore not properly initialized")
 
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not properly initialized")
 
@@ -296,11 +295,12 @@ class CriticCore(BaseCritic):
             RuntimeError: If critique fails
         """
         # Ensure initialized
-        if not self._state.initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("CriticCore not properly initialized")
 
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not properly initialized")
 
@@ -324,11 +324,12 @@ class CriticCore(BaseCritic):
             RuntimeError: If improvement fails
         """
         # Ensure initialized
-        if not self._state.initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("CriticCore not properly initialized")
 
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not properly initialized")
 

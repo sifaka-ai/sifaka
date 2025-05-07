@@ -32,7 +32,7 @@ from typing import Any, Dict, List, Optional, Union, cast
 
 from pydantic import Field, ConfigDict, PrivateAttr
 
-from .base import BaseCritic, TextCritic, TextImprover, TextValidator
+from .base import BaseCritic, TextCritic, TextImprover, TextValidator, create_critic_state
 from .models import PromptCriticConfig
 
 
@@ -152,35 +152,105 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     - Iteration limits
     - No improvement detection
 
-    Examples:
-        ```python
-        from sifaka.critics.self_refine import SelfRefineCritic, SelfRefineCriticConfig
-        from sifaka.models.providers import OpenAIProvider
+    ## Examples
 
-        # Create a language model provider
-        provider = OpenAIProvider(api_key="your-api-key")
+    Basic usage with factory function:
 
-        # Create a self-refine critic configuration
-        config = SelfRefineCriticConfig(
-            name="my_critic",
-            description="A critic for iterative self-improvement",
-            max_iterations=3,
-            system_prompt="You are an expert at critiquing and revising content.",
-            temperature=0.7,
-            max_tokens=1000
+    ```python
+    from sifaka.critics import create_self_refine_critic
+    from sifaka.models.openai import create_openai_provider
+
+    # Create a language model provider
+    provider = create_openai_provider(
+        model_name="gpt-4",
+        api_key="your-api-key",
+        temperature=0.7,
+        max_tokens=1000
+    )
+
+    # Create a self-refine critic
+    critic = create_self_refine_critic(
+        llm_provider=provider,
+        name="example_critic",
+        description="A critic for improving explanations",
+        max_iterations=3,
+        system_prompt="You are an expert at explaining complex concepts clearly and concisely."
+    )
+
+    # Define a task and initial output
+    task = "Explain quantum computing to a high school student."
+    initial_output = "Quantum computing uses qubits instead of regular bits. Qubits can be in multiple states at once due to superposition."
+
+    # Improve the output using the critic
+    improved_output = critic.improve(initial_output, {"task": task})
+    print(f"Improved output: {improved_output}")
+
+    # Get critique of the improved output
+    critique = critic.critique(improved_output, {"task": task})
+    print(f"Score: {critique['score']}")
+    print(f"Feedback: {critique['feedback']}")
+    print(f"Issues: {critique['issues']}")
+    print(f"Suggestions: {critique['suggestions']}")
+    ```
+
+    Advanced usage with custom configuration:
+
+    ```python
+    from sifaka.critics.self_refine import SelfRefineCritic, SelfRefineCriticConfig
+    from sifaka.models.anthropic import create_anthropic_provider
+
+    # Create a language model provider
+    provider = create_anthropic_provider(
+        model_name="claude-3-opus-20240229",
+        api_key="your-api-key"
+    )
+
+    # Create a custom configuration with specialized prompts
+    config = SelfRefineCriticConfig(
+        name="technical_editor",
+        description="A critic for improving technical documentation",
+        max_iterations=5,
+        system_prompt="You are an expert technical editor who specializes in clear, concise explanations.",
+        temperature=0.5,
+        max_tokens=2000,
+        critique_prompt_template=(
+            "You are reviewing technical documentation. Critique the following response:\n\n"
+            "Task:\n{task}\n\n"
+            "Response:\n{response}\n\n"
+            "Provide specific issues and suggestions for improvement:"
+        ),
+        revision_prompt_template=(
+            "Revise the technical documentation based on the critique:\n\n"
+            "Task:\n{task}\n\n"
+            "Original Response:\n{response}\n\n"
+            "Critique:\n{critique}\n\n"
+            "Provide an improved version that addresses all issues:"
         )
+    )
 
-        # Create a self-refine critic
-        critic = SelfRefineCritic(
-            config=config,
-            llm_provider=provider
-        )
+    # Create a self-refine critic with custom configuration
+    critic = SelfRefineCritic(
+        config=config,
+        llm_provider=provider
+    )
 
-        # Use the critic
-        task = "Write a concise explanation of quantum computing."
-        initial_output = "Quantum computing uses quantum bits."
-        improved_output = critic.improve(initial_output, {"task": task})
-        ```
+    # Use the critic with specific feedback
+    text = "The API uses REST principles and returns JSON responses. Endpoints require authentication."
+    feedback = "The documentation lacks specific examples, authentication details, and error handling information."
+    improved_text = critic.improve_with_feedback(text, feedback)
+    print(f"Improved text: {improved_text}")
+
+    # Use the critic asynchronously
+    import asyncio
+
+    async def improve_documentation():
+        task = "Document the authentication process for the API."
+        initial_text = "Users need to authenticate with the API using a token."
+        improved_text = await critic.aimprove(initial_text, {"task": task})
+        return improved_text
+
+    improved_documentation = asyncio.run(improve_documentation())
+    ```
     """
 
     # Class constants
@@ -190,8 +260,8 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     # Pydantic v2 configuration
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    # State management using direct state
-    _state = PrivateAttr(default_factory=lambda: None)
+    # State management using state manager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
 
     def __init__(
         self,
@@ -212,14 +282,12 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         # Initialize base class
         super().__init__(config)
 
-        # Initialize state
-        from ..utils.state import CriticState
-
-        self._state = CriticState()
+        # Get state from state manager
+        state = self._state_manager.get_state()
 
         # Store components in state
-        self._state.model = llm_provider
-        self._state.cache = {
+        state.model = llm_provider
+        state.cache = {
             "max_iterations": config.max_iterations,
             "critique_prompt_template": config.critique_prompt_template,
             "revision_prompt_template": config.revision_prompt_template,
@@ -227,7 +295,7 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             "temperature": config.temperature,
             "max_tokens": config.max_tokens,
         }
-        self._state.initialized = True
+        state.initialized = True
 
     @property
     def config(self) -> SelfRefineCriticConfig:
@@ -271,8 +339,11 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
+        # Get state from state manager
+        state = self._state_manager.get_state()
+
         # Ensure initialized
-        if not self._state.initialized:
+        if not state.initialized:
             raise RuntimeError("SelfRefineCritic not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -282,17 +353,17 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         task = self._get_task_from_metadata(metadata)
 
         # Create critique prompt
-        prompt = self._state.cache.get("critique_prompt_template", "").format(
+        prompt = state.cache.get("critique_prompt_template", "").format(
             task=task,
             response=text,
         )
 
         # Generate critique
-        critique_text = self._state.model.generate(
+        critique_text = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         # Check if critique indicates no issues
@@ -321,8 +392,11 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
+        # Get state from state manager
+        state = self._state_manager.get_state()
+
         # Ensure initialized
-        if not self._state.initialized:
+        if not state.initialized:
             raise RuntimeError("SelfRefineCritic not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -332,17 +406,17 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         task = self._get_task_from_metadata(metadata)
 
         # Create critique prompt
-        prompt = self._state.cache.get("critique_prompt_template", "").format(
+        prompt = state.cache.get("critique_prompt_template", "").format(
             task=task,
             response=text,
         )
 
         # Generate critique
-        critique_text = self._state.model.generate(
+        critique_text = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         # Parse critique
@@ -387,8 +461,11 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
+        # Get state from state manager
+        state = self._state_manager.get_state()
+
         # Ensure initialized
-        if not self._state.initialized:
+        if not state.initialized:
             raise RuntimeError("SelfRefineCritic not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -398,7 +475,7 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         task = self._get_task_from_metadata(metadata)
 
         # Get max iterations from state
-        max_iterations = self._state.cache.get("max_iterations", 3)
+        max_iterations = state.cache.get("max_iterations", 3)
 
         # Start with the initial text
         current_output = text
@@ -406,16 +483,16 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         # Perform iterative refinement
         for _ in range(max_iterations):
             # Step 1: Critique the current output
-            critique_prompt = self._state.cache.get("critique_prompt_template", "").format(
+            critique_prompt = state.cache.get("critique_prompt_template", "").format(
                 task=task,
                 response=current_output,
             )
 
-            critique = self._state.model.generate(
+            critique = state.model.generate(
                 critique_prompt,
-                system_prompt=self._state.cache.get("system_prompt", ""),
-                temperature=self._state.cache.get("temperature", 0.7),
-                max_tokens=self._state.cache.get("max_tokens", 1000),
+                system_prompt=state.cache.get("system_prompt", ""),
+                temperature=state.cache.get("temperature", 0.7),
+                max_tokens=state.cache.get("max_tokens", 1000),
             ).strip()
 
             # Heuristic stopping condition
@@ -431,17 +508,17 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
                 return current_output
 
             # Step 2: Revise using the critique
-            revision_prompt = self._state.cache.get("revision_prompt_template", "").format(
+            revision_prompt = state.cache.get("revision_prompt_template", "").format(
                 task=task,
                 response=current_output,
                 critique=critique,
             )
 
-            revised_output = self._state.model.generate(
+            revised_output = state.model.generate(
                 revision_prompt,
-                system_prompt=self._state.cache.get("system_prompt", ""),
-                temperature=self._state.cache.get("temperature", 0.7),
-                max_tokens=self._state.cache.get("max_tokens", 1000),
+                system_prompt=state.cache.get("system_prompt", ""),
+                temperature=state.cache.get("temperature", 0.7),
+                max_tokens=state.cache.get("max_tokens", 1000),
             ).strip()
 
             # Check if there's no improvement
@@ -468,8 +545,11 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text or feedback is empty
             RuntimeError: If critic is not properly initialized
         """
+        # Get state from state manager
+        state = self._state_manager.get_state()
+
         # Ensure initialized
-        if not self._state.initialized:
+        if not state.initialized:
             raise RuntimeError("SelfRefineCritic not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -478,18 +558,18 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             raise ValueError("feedback must be a non-empty string")
 
         # Create revision prompt with the provided feedback
-        revision_prompt = self._state.cache.get("revision_prompt_template", "").format(
+        revision_prompt = state.cache.get("revision_prompt_template", "").format(
             task="Improve the following text",
             response=text,
             critique=feedback,
         )
 
         # Generate improved response
-        improved_text = self._state.model.generate(
+        improved_text = state.model.generate(
             revision_prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         return improved_text
@@ -509,8 +589,11 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
+        # Get state from state manager
+        state = self._state_manager.get_state()
+
         # Ensure initialized
-        if not self._state.initialized:
+        if not state.initialized:
             raise RuntimeError("SelfRefineCritic not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -520,17 +603,17 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         task = self._get_task_from_metadata(metadata)
 
         # Create critique prompt
-        prompt = self._state.cache.get("critique_prompt_template", "").format(
+        prompt = state.cache.get("critique_prompt_template", "").format(
             task=task,
             response=text,
         )
 
         # Generate critique
-        critique_text = await self._state.model.agenerate(
+        critique_text = await state.model.agenerate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         )
         critique_text = critique_text.strip()
 
@@ -562,8 +645,11 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
+        # Get state from state manager
+        state = self._state_manager.get_state()
+
         # Ensure initialized
-        if not self._state.initialized:
+        if not state.initialized:
             raise RuntimeError("SelfRefineCritic not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -573,17 +659,17 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         task = self._get_task_from_metadata(metadata)
 
         # Create critique prompt
-        prompt = self._state.cache.get("critique_prompt_template", "").format(
+        prompt = state.cache.get("critique_prompt_template", "").format(
             task=task,
             response=text,
         )
 
         # Generate critique
-        critique_text = await self._state.model.agenerate(
+        critique_text = await state.model.agenerate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         )
         critique_text = critique_text.strip()
 
@@ -629,8 +715,11 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
+        # Get state from state manager
+        state = self._state_manager.get_state()
+
         # Ensure initialized
-        if not self._state.initialized:
+        if not state.initialized:
             raise RuntimeError("SelfRefineCritic not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -640,7 +729,7 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         task = self._get_task_from_metadata(metadata)
 
         # Get max iterations from state
-        max_iterations = self._state.cache.get("max_iterations", 3)
+        max_iterations = state.cache.get("max_iterations", 3)
 
         # Start with the initial text
         current_output = text
@@ -648,16 +737,16 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         # Perform iterative refinement
         for _ in range(max_iterations):
             # Step 1: Critique the current output
-            critique_prompt = self._state.cache.get("critique_prompt_template", "").format(
+            critique_prompt = state.cache.get("critique_prompt_template", "").format(
                 task=task,
                 response=current_output,
             )
 
-            critique = await self._state.model.agenerate(
+            critique = await state.model.agenerate(
                 critique_prompt,
-                system_prompt=self._state.cache.get("system_prompt", ""),
-                temperature=self._state.cache.get("temperature", 0.7),
-                max_tokens=self._state.cache.get("max_tokens", 1000),
+                system_prompt=state.cache.get("system_prompt", ""),
+                temperature=state.cache.get("temperature", 0.7),
+                max_tokens=state.cache.get("max_tokens", 1000),
             )
             critique = critique.strip()
 
@@ -674,17 +763,17 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
                 return current_output
 
             # Step 2: Revise using the critique
-            revision_prompt = self._state.cache.get("revision_prompt_template", "").format(
+            revision_prompt = state.cache.get("revision_prompt_template", "").format(
                 task=task,
                 response=current_output,
                 critique=critique,
             )
 
-            revised_output = await self._state.model.agenerate(
+            revised_output = await state.model.agenerate(
                 revision_prompt,
-                system_prompt=self._state.cache.get("system_prompt", ""),
-                temperature=self._state.cache.get("temperature", 0.7),
-                max_tokens=self._state.cache.get("max_tokens", 1000),
+                system_prompt=state.cache.get("system_prompt", ""),
+                temperature=state.cache.get("temperature", 0.7),
+                max_tokens=state.cache.get("max_tokens", 1000),
             )
             revised_output = revised_output.strip()
 
@@ -738,7 +827,7 @@ def create_self_refine_critic(
         critique_prompt_template: Optional custom template for critique prompts
         revision_prompt_template: Optional custom template for revision prompts
         config: Optional critic configuration (overrides other parameters)
-        **kwargs: Additional keyword arguments for the critic
+        **kwargs: Additional keyword arguments for the critic configuration
 
     Returns:
         A configured self-refine critic
@@ -761,6 +850,7 @@ def create_self_refine_critic(
             "temperature": temperature,
             "max_tokens": max_tokens,
             "max_iterations": max_iterations,
+            **kwargs,  # Include additional kwargs in the config
         }
 
         if critique_prompt_template:
@@ -774,7 +864,17 @@ def create_self_refine_critic(
         # Ensure max_iterations is included in the config
         if "max_iterations" not in config and max_iterations:
             config["max_iterations"] = max_iterations
+
+        # Include additional kwargs
+        if kwargs:
+            config.update(kwargs)
+
         config = SelfRefineCriticConfig(**config)
+    elif isinstance(config, SelfRefineCriticConfig) and kwargs:
+        # If config is provided but there are also kwargs, create a new config with both
+        config_dict = config.model_dump()
+        config_dict.update(kwargs)
+        config = SelfRefineCriticConfig(**config_dict)
     elif not isinstance(config, SelfRefineCriticConfig):
         raise TypeError("config must be a SelfRefineCriticConfig or dict")
 

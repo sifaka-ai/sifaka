@@ -2,6 +2,7 @@
 Consistency validation rules for Sifaka.
 
 This module provides validators and rules for checking consistency in text.
+It detects issues like tense inconsistencies, contradictions, and excessive word repetition.
 
 Configuration Pattern:
     This module follows the standard Sifaka configuration pattern:
@@ -9,34 +10,176 @@ Configuration Pattern:
     - The ConsistencyConfig class extends RuleConfig and provides type-safe access to parameters
     - Factory functions (create_consistency_rule, create_consistency_validator) handle configuration
 
-Usage Example:
-    from sifaka.rules.domain.consistency import create_consistency_rule
+Architecture:
+    The consistency validation system uses a composition pattern:
+    - ConsistencyRule is the main entry point that delegates to a validator
+    - DefaultConsistencyValidator implements the validation logic
+    - Three specialized analyzers handle different aspects of consistency:
+      - _PatternAnalyzer: Detects patterns like tense, person, voice
+      - _ContradictionAnalyzer: Identifies contradictory statements
+      - _RepetitionAnalyzer: Finds excessive word repetition
+    - Factory functions provide a convenient way to create rules and validators
 
-    # Create a consistency rule using the factory function
-    rule = create_consistency_rule(
-        consistency_patterns={
-            "present": r"\\b(?:is|are|am)\\b",
-            "past": r"\\b(?:was|were)\\b"
-        },
-        repetition_threshold=0.2
-    )
+Lifecycle:
+    1. Creation: Rules and validators are created using factory functions
+    2. Configuration: Parameters are validated and stored in config objects
+    3. Validation: Text is analyzed for consistency issues
+    4. Result: A RuleResult object is returned with validation status and metadata
 
-    # Validate text
-    result = rule.validate("This text is consistent and was written carefully.")
+Error Handling:
+    - Invalid configuration parameters raise ValueError during initialization
+    - Non-string inputs to validate() raise ValueError
+    - Empty strings are handled as invalid input
+    - Exceptions during validation are caught and returned as failed validation results
 
-    # Alternative: Create with explicit RuleConfig
-    from sifaka.rules.base import BaseValidator, RuleConfig, Any
-    rule = ConsistencyRule(
-        config=RuleConfig(
+Usage Examples:
+    Basic Usage:
+        ```python
+        from sifaka.rules.domain.consistency import create_consistency_rule
+
+        # Create a consistency rule with default settings
+        rule = create_consistency_rule()
+
+        # Validate text
+        text = "This text is consistent and follows a single tense."
+        result = rule.validate(text)
+
+        # Check result
+        if result.passed:
+            print("Validation passed!")
+            print(f"Pattern counts: {result.metadata['pattern_counts']}")
+        else:
+            print(f"Validation failed: {result.message}")
+            if 'contradictions' in result.metadata:
+                print(f"Contradictions found: {result.metadata['contradictions']}")
+            if 'repetitions' in result.metadata:
+                print(f"Repetitive words: {result.metadata['repetitions']}")
+        ```
+
+    Custom Patterns:
+        ```python
+        from sifaka.rules.domain.consistency import create_consistency_rule
+
+        # Create a rule with custom consistency patterns
+        rule = create_consistency_rule(
+            consistency_patterns={
+                "present": r"\\b(?:is|are|am)\\b",
+                "past": r"\\b(?:was|were)\\b",
+                "future": r"\\b(?:will|shall)\\b",
+                "question": r"\\?$",
+                "exclamation": r"\\!$"
+            },
+            name="tense_and_sentence_type"
+        )
+
+        # Validate text with mixed tenses
+        text = "The project is complex. It was difficult to implement. It will be worth it!"
+        result = rule.validate(text)
+
+        # Analyze pattern counts
+        if not result.passed:
+            pattern_counts = result.metadata["pattern_counts"]
+            print("Tense usage:")
+            for tense, count in pattern_counts.items():
+                if tense in ["present", "past", "future"] and count > 0:
+                    print(f"- {tense.capitalize()}: {count} occurrences")
+        ```
+
+    Contradiction Detection:
+        ```python
+        from sifaka.rules.domain.consistency import create_consistency_rule
+
+        # Create a rule with custom contradiction indicators
+        rule = create_consistency_rule(
+            contradiction_indicators=[
+                (r"\\b(?:always)\\b", r"\\b(?:never|sometimes)\\b"),
+                (r"\\b(?:increase|rise)\\b", r"\\b(?:decrease|fall)\\b"),
+                (r"\\b(?:agree)\\b", r"\\b(?:disagree)\\b")
+            ],
+            name="contradiction_detector"
+        )
+
+        # Check for contradictions
+        text = "The metrics always increase in Q1 but sometimes decrease in Q2."
+        result = rule.validate(text)
+
+        # Analyze contradictions
+        if not result.passed and 'contradictions' in result.metadata:
+            contradictions = result.metadata["contradictions"]
+            print(f"Found {len(contradictions)} contradictions:")
+            for i, contradiction in enumerate(contradictions):
+                print(f"{i+1}. Positive: {contradiction['positive']}")
+                print(f"   Negative: {contradiction['negative']}")
+        ```
+
+    Repetition Detection:
+        ```python
+        from sifaka.rules.domain.consistency import create_consistency_rule
+
+        # Create a rule focused on repetition detection
+        rule = create_consistency_rule(
+            repetition_threshold=0.1,  # Lower threshold to catch more repetitions
+            name="repetition_detector"
+        )
+
+        # Check for repetitive words
+        text = "The system system system provides provides multiple ways to access access the data."
+        result = rule.validate(text)
+
+        # Analyze repetitions
+        if not result.passed and 'repetitions' in result.metadata:
+            repetitions = result.metadata["repetitions"]
+            if repetitions:
+                print("Repetitive words:")
+                for word, count in repetitions.items():
+                    print(f"- '{word}' appears {count} times")
+        ```
+
+    Advanced Configuration:
+        ```python
+        from sifaka.rules.domain.consistency import create_consistency_rule
+        from sifaka.rules.base import RuleConfig, RulePriority
+
+        # Create a rule with advanced configuration
+        rule = create_consistency_rule(
+            name="advanced_consistency",
+            description="Comprehensive consistency validation",
+            consistency_patterns={
+                "first_person": r"\\b(?:I|we|my|our)\\b",
+                "second_person": r"\\b(?:you|your)\\b",
+                "third_person": r"\\b(?:he|she|it|they|their)\\b"
+            },
+            repetition_threshold=0.15,
+            priority=RulePriority.HIGH,
+            cost=2.0,
+            cache_size=200
+        )
+
+        # Or use RuleConfig directly
+        from sifaka.rules.domain.consistency import ConsistencyRule
+
+        config = RuleConfig(
+            priority=RulePriority.HIGH,
+            cost=2.0,
             params={
+                "repetition_threshold": 0.15,
                 "consistency_patterns": {
-                    "present": r"\\b(?:is|are|am)\\b",
-                    "past": r"\\b(?:was|were)\\b"
-                },
-                "repetition_threshold": 0.2
+                    "active": r"\\b(?:subject)\\s+(?:verb)\\b",
+                    "passive": r"\\b(?:is|are|was|were)\\s+(?:\\w+ed|\\w+en)\\b"
+                }
             }
         )
-    )
+
+        custom_rule = ConsistencyRule(
+            name="voice_consistency",
+            description="Checks for consistent voice (active/passive)",
+            config=config
+        )
+
+        # Validate with configured rules
+        result = rule.validate("I believe we should proceed, but they think you should wait.")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+        ```
 """
 
 # Standard library
@@ -230,9 +373,7 @@ class _RepetitionAnalyzer(BaseModel):
         if total_words == 0:
             return {}
 
-        counts: Counter[str] = Counter(
-            w for w in words if len(w) > 3  # focus on meaningful words
-        )
+        counts: Counter[str] = Counter(w for w in words if len(w) > 3)  # focus on meaningful words
 
         return {
             word: count
@@ -254,9 +395,7 @@ class DefaultConsistencyValidator(BaseDomainValidator):
         self._contradiction_analyzer = _ContradictionAnalyzer(
             indicators=config.contradiction_indicators
         )
-        self._repetition_analyzer = _RepetitionAnalyzer(
-            threshold=config.repetition_threshold
-        )
+        self._repetition_analyzer = _RepetitionAnalyzer(threshold=config.repetition_threshold)
 
     @property
     def config(self) -> ConsistencyConfig:

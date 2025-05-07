@@ -10,26 +10,33 @@ The LAC Critic implements the LLM-Based Actor-Critic approach from the paper [La
 
 ### State Management
 
-The LAC Critic follows the standard state management pattern used in other Sifaka critics:
+The LAC Critic follows the standardized StateManager pattern used in other Sifaka critics:
 
-- Uses a `CriticState` object to store all mutable state
+- Uses a `StateManager` with `CriticState` to store all mutable state
 - Stores configuration values in the state's cache dictionary
-- Accesses state through direct state access
+- Accesses state through the state manager
 
 ```python
-# Initialize state
-self._state = CriticState()
+# State management using StateManager
+_state_manager = PrivateAttr(default_factory=create_critic_state)
 
-# Store components in state
-self._state.cache = {
-    "feedback_critic": FeedbackCritic(config=feedback_config, llm_provider=llm_provider),
-    "value_critic": ValueCritic(config=value_config, llm_provider=llm_provider),
-    "system_prompt": config.system_prompt,
-    "temperature": config.temperature,
-    "max_tokens": config.max_tokens,
-}
-self._state.model = llm_provider
-self._state.initialized = True
+def __init__(self, config: LACCriticConfig, llm_provider: Any) -> None:
+    # Initialize base class
+    super().__init__(config)
+
+    # Initialize state
+    state = self._state_manager.get_state()
+
+    # Store components in state
+    state.cache = {
+        "feedback_critic": FeedbackCritic(config=feedback_config, llm_provider=llm_provider),
+        "value_critic": ValueCritic(config=value_config, llm_provider=llm_provider),
+        "system_prompt": config.system_prompt,
+        "temperature": config.temperature,
+        "max_tokens": config.max_tokens,
+    }
+    state.model = llm_provider
+    state.initialized = True
 ```
 
 ### Configuration
@@ -102,9 +109,11 @@ def run(self, task: str, response: str) -> Dict[str, Any]:
     """
     self._check_input(response)
 
+    state = self._state_manager.get_state()
+
     # Get feedback and value critics
-    feedback_critic = self._state.cache.get("feedback_critic")
-    value_critic = self._state.cache.get("value_critic")
+    feedback_critic = state.cache.get("feedback_critic")
+    value_critic = state.cache.get("value_critic")
 
     # Generate feedback and value
     feedback = feedback_critic.run(task, response)
@@ -141,12 +150,14 @@ def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         f"Improved response:"
     )
 
+    state = self._state_manager.get_state()
+
     # Generate improved response
-    improved_text = self._state.model.generate(
+    improved_text = state.model.generate(
         prompt,
-        system_prompt=self._state.cache.get("system_prompt", ""),
-        temperature=self._state.cache.get("temperature", 0.7),
-        max_tokens=self._state.cache.get("max_tokens", 1000),
+        system_prompt=state.cache.get("system_prompt", ""),
+        temperature=state.cache.get("temperature", 0.7),
+        max_tokens=state.cache.get("max_tokens", 1000),
     ).strip()
 
     return improved_text

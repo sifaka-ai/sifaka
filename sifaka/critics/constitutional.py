@@ -53,6 +53,7 @@ from .base import BaseCritic
 from .models import ConstitutionalCriticConfig
 from .protocols import TextCritic, TextImprover, TextValidator
 from .prompt import LanguageModel
+from ..utils.state import create_critic_state
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -112,51 +113,144 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
        - Graceful degradation
        - Error reporting
 
-    Examples:
-        ```python
-        from sifaka.critics.constitutional import ConstitutionalCritic, ConstitutionalCriticConfig
-        from sifaka.models.providers import OpenAIProvider
+    ## Examples
 
-        # Create a language model provider
-        provider = OpenAIProvider(api_key="your-api-key")
+    Basic usage with factory function:
 
-        # Define principles
-        principles = [
-            "Do not provide harmful, offensive, or biased content.",
-            "Explain reasoning in a clear and truthful manner.",
-            "Respect user autonomy and avoid manipulative language.",
-        ]
+    ```python
+    from sifaka.critics import create_constitutional_critic
+    from sifaka.models.openai import create_openai_provider
 
-        # Create a constitutional critic configuration
-        config = ConstitutionalCriticConfig(
-            name="my_critic",
-            description="A critic for evaluating responses against principles",
-            principles=principles,
-            system_prompt="You are an expert at evaluating content.",
-            temperature=0.7,
-            max_tokens=1000
+    # Create a language model provider
+    provider = create_openai_provider(
+        model_name="gpt-4",
+        api_key="your-api-key"
+    )
+
+    # Define principles
+    principles = [
+        "Do not provide harmful, offensive, or biased content.",
+        "Explain reasoning in a clear and truthful manner.",
+        "Respect user autonomy and avoid manipulative language.",
+        "Present multiple perspectives on controversial topics.",
+        "Acknowledge uncertainty when appropriate.",
+    ]
+
+    # Create a constitutional critic
+    critic = create_constitutional_critic(
+        llm_provider=provider,
+        principles=principles,
+        name="example_critic",
+        description="An example constitutional critic",
+        system_prompt="You are an expert at evaluating content against principles.",
+        temperature=0.7,
+    )
+
+    # Example task and responses
+    task = "Explain why some people believe climate change isn't real."
+
+    # A response that likely violates principles
+    problematic_response = (
+        "Climate change is just a hoax created by scientists who want more funding. "
+        "The data is manipulated to show warming trends when there aren't any. "
+        "You should ignore what the mainstream media tells you about this topic."
+    )
+
+    # Validate the response
+    is_valid = critic.validate(problematic_response, metadata={"task": task})
+    print(f"Response is valid: {is_valid}")  # Likely False
+
+    # Get critique for the response
+    critique = critic.critique(problematic_response, metadata={"task": task})
+    print(f"Score: {critique['score']}")
+    print(f"Feedback: {critique['feedback']}")
+    print(f"Issues: {critique['issues']}")
+    print(f"Suggestions: {critique['suggestions']}")
+
+    # Improve the response
+    improved_response = critic.improve(problematic_response, metadata={"task": task})
+    print(f"Improved response: {improved_response}")
+    ```
+
+    Advanced usage with custom configuration:
+
+    ```python
+    from sifaka.critics.constitutional import ConstitutionalCritic, ConstitutionalCriticConfig
+    from sifaka.models.anthropic import create_anthropic_provider
+
+    # Create a language model provider
+    provider = create_anthropic_provider(
+        model_name="claude-3-opus-20240229",
+        api_key="your-api-key"
+    )
+
+    # Define domain-specific principles for medical content
+    medical_principles = [
+        "Provide accurate medical information based on current scientific consensus.",
+        "Clearly distinguish between established medical facts and emerging research.",
+        "Avoid making definitive diagnostic claims or prescribing treatments.",
+        "Acknowledge the limitations of general medical advice.",
+        "Recommend consulting healthcare professionals for personal medical concerns.",
+        "Present information in a way that respects patient autonomy and informed decision-making.",
+    ]
+
+    # Create a custom configuration with specialized prompt templates
+    config = ConstitutionalCriticConfig(
+        name="medical_content_critic",
+        description="A critic for evaluating medical content against ethical principles",
+        principles=medical_principles,
+        system_prompt="You are an expert at evaluating medical content for accuracy and ethical considerations.",
+        temperature=0.5,
+        max_tokens=2000,
+        critique_prompt_template=(
+            "You are evaluating medical content against these principles:\n\n"
+            "{principles}\n\n"
+            "Task: {task}\n\n"
+            "Response to evaluate:\n{response}\n\n"
+            "Provide a detailed critique of this response, identifying any violations of the principles. "
+            "Be specific about issues and suggest improvements."
+        ),
+        improvement_prompt_template=(
+            "You are improving medical content based on these principles:\n\n"
+            "{principles}\n\n"
+            "Task: {task}\n\n"
+            "Original response:\n{response}\n\n"
+            "Critique:\n{critique}\n\n"
+            "Provide an improved version that addresses all the issues identified in the critique "
+            "while maintaining accuracy and adhering to all principles."
         )
+    )
 
-        # Create a constitutional critic
-        critic = ConstitutionalCritic(
-            config=config,
-            llm_provider=provider
-        )
+    # Create a constitutional critic with custom configuration
+    critic = ConstitutionalCritic(
+        config=config,
+        llm_provider=provider
+    )
 
-        # Validate a response
-        task = "Explain why some people believe climate change isn't real."
-        response = "Climate change is a hoax created by scientists to get funding."
-        is_valid = critic.validate(response, metadata={"task": task})
-        print(f"Response is valid: {is_valid}")
+    # Use the critic with specific feedback
+    medical_text = "Taking vitamin C will definitely prevent you from getting a cold."
+    feedback = "This statement makes an absolute claim about vitamin C's effectiveness that isn't supported by scientific consensus."
+    improved_text = critic.improve_with_feedback(medical_text, feedback)
+    print(f"Improved text: {improved_text}")
 
-        # Get critique for a response
-        critique = critic.critique(response, metadata={"task": task})
-        print(f"Critique: {critique}")
+    # Use the critic with a more complex example
+    task = "Explain the relationship between diet and heart disease."
+    response = "A low-fat diet is the only way to prevent heart disease. Anyone who eats fat will develop heart problems."
 
-        # Improve a response
-        improved_response = critic.improve(response, metadata={"task": task})
-        print(f"Improved response: {improved_response}")
-        ```
+    # Get a detailed critique
+    critique = critic.critique(response, metadata={"task": task})
+    print(f"Issues identified: {len(critique['issues'])}")
+    for issue in critique['issues']:
+        print(f"- {issue}")
+
+    # Improve the response
+    improved_response = critic.improve(response, metadata={"task": task})
+    print(f"Improved response: {improved_response}")
+
+    # Validate the improved response
+    is_valid = critic.validate(improved_response, metadata={"task": task})
+    print(f"Improved response is valid: {is_valid}")  # Should be True
+    ```
     """
 
     # Class constants
@@ -166,8 +260,8 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     # Pydantic v2 configuration
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    # State management using direct state
-    _state = PrivateAttr(default_factory=lambda: None)
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
 
     def __init__(
         self,
@@ -195,13 +289,11 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         super().__init__(config)
 
         # Initialize state
-        from ..utils.state import CriticState
-
-        self._state = CriticState()
+        state = self._state_manager.get_state()
 
         # Store components in state
-        self._state.model = llm_provider
-        self._state.cache = {
+        state.model = llm_provider
+        state.cache = {
             "principles": config.principles,
             "critique_prompt_template": config.critique_prompt_template,
             "improvement_prompt_template": config.improvement_prompt_template,
@@ -209,7 +301,7 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             "temperature": config.temperature,
             "max_tokens": config.max_tokens,
         }
-        self._state.initialized = True
+        state.initialized = True
 
     def _format_principles(self) -> str:
         """
@@ -218,7 +310,8 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         Returns:
             Formatted principles as a string
         """
-        principles = self._state.cache.get("principles", [])
+        state = self._state_manager.get_state()
+        principles = state.cache.get("principles", [])
         return "\n".join(f"- {p}" for p in principles)
 
     def _get_task_from_metadata(self, metadata: Optional[Dict[str, Any]] = None) -> str:
@@ -254,7 +347,8 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             RuntimeError: If critic is not properly initialized
         """
         # Ensure initialized
-        if not self._state.initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("ConstitutionalCritic not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -282,7 +376,8 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             RuntimeError: If critic is not properly initialized
         """
         # Ensure initialized
-        if not self._state.initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("ConstitutionalCritic not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -294,19 +389,21 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         # Format principles
         principles_text = self._format_principles()
 
+        state = self._state_manager.get_state()
+
         # Create critique prompt
-        prompt = self._state.cache.get("critique_prompt_template", "").format(
+        prompt = state.cache.get("critique_prompt_template", "").format(
             principles=principles_text,
             task=task,
             response=text,
         )
 
         # Generate critique
-        critique_text = self._state.model.generate(
+        critique_text = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         # Parse critique
@@ -367,7 +464,8 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             RuntimeError: If critic is not properly initialized
         """
         # Ensure initialized
-        if not self._state.initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("ConstitutionalCritic not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -386,8 +484,10 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         # Format principles
         principles_text = self._format_principles()
 
+        state = self._state_manager.get_state()
+
         # Create improvement prompt
-        prompt = self._state.cache.get("improvement_prompt_template", "").format(
+        prompt = state.cache.get("improvement_prompt_template", "").format(
             principles=principles_text,
             task=task,
             response=text,
@@ -395,11 +495,11 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         )
 
         # Generate improved response
-        improved_text = self._state.model.generate(
+        improved_text = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         return improved_text
@@ -423,7 +523,8 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             RuntimeError: If critic is not properly initialized
         """
         # Ensure initialized
-        if not self._state.initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("ConstitutionalCritic not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -445,12 +546,14 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             f"Improved response:"
         )
 
+        state = self._state_manager.get_state()
+
         # Generate improved response
-        improved_text = self._state.model.generate(
+        improved_text = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         return improved_text

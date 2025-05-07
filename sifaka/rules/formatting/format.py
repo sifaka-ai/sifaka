@@ -12,39 +12,167 @@ Configuration Pattern:
     - Validator factory functions (create_format_validator, create_markdown_validator, etc.)
       create standalone validators
 
-Usage Example:
-    from sifaka.rules.formatting.format import create_markdown_rule, create_json_rule, create_plain_text_rule
+Architecture:
+    The format validation system uses a delegation pattern:
+    - FormatRule is the main entry point that delegates to specialized validators
+    - Each format type (markdown, JSON, plain text) has its own validator and analyzer
+    - Analyzers handle the specific validation logic for each format type
+    - Factory functions provide a convenient way to create rules and validators
 
-    # Create a markdown rule
-    markdown_rule = create_markdown_rule(
-        required_elements=["#", "*", "`"],
-        min_elements=2
-    )
+Lifecycle:
+    1. Creation: Rules and validators are created using factory functions
+    2. Configuration: Parameters are validated and stored in config objects
+    3. Validation: Text is validated against the specified format requirements
+    4. Result: A RuleResult object is returned with validation status and metadata
 
-    # Create a JSON rule
-    json_rule = create_json_rule(
-        strict=True,
-        allow_empty=False
-    )
+Error Handling:
+    - Invalid configuration parameters raise ValueError during initialization
+    - Non-string inputs to validate() raise ValueError
+    - JSON parsing errors are caught and returned as failed validation results
+    - Empty strings are handled according to configuration (allow_empty parameter)
 
-    # Create a plain text rule
-    plain_text_rule = create_plain_text_rule(
-        min_length=10,
-        max_length=1000
-    )
+Usage Examples:
+    Basic Usage:
+        ```python
+        from sifaka.rules.formatting.format import create_format_rule
 
-    # Create a format rule with specific format type
-    format_rule = create_format_rule(
-        required_format="markdown",
-        markdown_elements={"headers", "lists", "code_blocks"}
-    )
+        # Create a format rule for markdown
+        rule = create_format_rule(
+            required_format="markdown",
+            markdown_elements={"#", "*", "`"}
+        )
 
-    # Create standalone validators
-    from sifaka.rules.formatting.format import create_markdown_validator
-    validator = create_markdown_validator(
-        required_elements=["#", "*", "`"],
-        min_elements=2
-    )
+        # Validate text
+        text = "# Heading\n\nThis is a *formatted* text with `code`."
+        result = rule.validate(text)
+
+        # Check result
+        if result.passed:
+            print("Validation passed!")
+            print(f"Found elements: {result.metadata['found_elements']}")
+        else:
+            print(f"Validation failed: {result.message}")
+        ```
+
+    Format-Specific Rules:
+        ```python
+        from sifaka.rules.formatting.format import (
+            create_markdown_rule,
+            create_json_rule,
+            create_plain_text_rule
+        )
+
+        # Create a markdown rule
+        markdown_rule = create_markdown_rule(
+            required_elements=["#", "*", "`"],
+            min_elements=2,
+            name="markdown_validator"
+        )
+
+        # Create a JSON rule
+        json_rule = create_json_rule(
+            strict=True,
+            allow_empty=False,
+            name="json_validator"
+        )
+
+        # Create a plain text rule
+        plain_text_rule = create_plain_text_rule(
+            min_length=10,
+            max_length=1000,
+            allow_empty=False,
+            name="text_length_validator"
+        )
+
+        # Validate different formats
+        md_text = "# Heading\n\nThis is *formatted*."
+        json_text = '{"name": "John", "age": 30}'
+        plain_text = "This is a simple text."
+
+        md_result = markdown_rule.validate(md_text)
+        json_result = json_rule.validate(json_text)
+        text_result = plain_text_rule.validate(plain_text)
+
+        # Access validation metadata
+        print(f"Markdown elements found: {md_result.metadata['found_elements']}")
+        print(f"JSON validation: {json_result.message}")
+        print(f"Text length: {text_result.metadata['length']}")
+        ```
+
+    Using Standalone Validators:
+        ```python
+        from sifaka.rules.formatting.format import (
+            create_markdown_validator,
+            create_json_validator,
+            create_plain_text_validator
+        )
+
+        # Create validators
+        md_validator = create_markdown_validator(
+            required_elements=["#", "*", "`"],
+            min_elements=2
+        )
+
+        json_validator = create_json_validator(
+            strict=True,
+            allow_empty=False
+        )
+
+        text_validator = create_plain_text_validator(
+            min_length=10,
+            max_length=1000
+        )
+
+        # Validate text directly with validators
+        md_result = md_validator.validate("# Heading with *emphasis*")
+        json_result = json_validator.validate('{"valid": true}')
+        text_result = text_validator.validate("Plain text content")
+
+        # Process results
+        for name, result in [
+            ("Markdown", md_result),
+            ("JSON", json_result),
+            ("Plain Text", text_result)
+        ]:
+            print(f"{name}: {'✓' if result.passed else '✗'} - {result.message}")
+        ```
+
+    Advanced Configuration:
+        ```python
+        from sifaka.rules.formatting.format import create_format_rule
+        from sifaka.rules.base import RuleConfig
+
+        # Create a rule with advanced configuration
+        rule = create_format_rule(
+            required_format="markdown",
+            markdown_elements={"#", "*", "`", ">", "-"},
+            name="advanced_format_rule",
+            description="Validates complex markdown formatting",
+            priority=2,
+            cost=1.5,
+            cache_size=200
+        )
+
+        # Or use RuleConfig directly
+        config = RuleConfig(
+            priority=2,
+            cost=1.5,
+            params={
+                "required_format": "json",
+                "strict": True,
+                "allow_empty": False
+            }
+        )
+
+        json_rule = create_format_rule(
+            name="json_format_rule",
+            config=config
+        )
+
+        # Validate with configured rules
+        result = rule.validate("# Heading\n\n> Blockquote with *emphasis*")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+        ```
 """
 
 import json
@@ -115,9 +243,7 @@ class FormatConfig(BaseModel):
     def validate_format_type(cls, v: FormatType) -> FormatType:
         """Validate that format type is valid."""
         if v not in ["markdown", "plain_text", "json"]:
-            raise ValueError(
-                f"required_format must be one of: markdown, plain_text, json, got {v}"
-            )
+            raise ValueError(f"required_format must be one of: markdown, plain_text, json, got {v}")
         return v
 
     @field_validator("max_length")
@@ -305,7 +431,9 @@ class DefaultPlainTextValidator(BaseValidator[str]):
         """Initialize with configuration."""
         self._config = config
         self._analyzer = _PlainTextAnalyzer(
-            min_length=config.min_length, max_length=config.max_length, allow_empty=config.allow_empty
+            min_length=config.min_length,
+            max_length=config.max_length,
+            allow_empty=config.allow_empty,
         )
 
     @property
@@ -885,7 +1013,9 @@ class _JsonAnalyzer(BaseModel):
 
         try:
             json.loads(text)
-            return RuleResult(passed=True, message="Valid JSON format", metadata={"strict": self.strict})
+            return RuleResult(
+                passed=True, message="Valid JSON format", metadata={"strict": self.strict}
+            )
         except json.JSONDecodeError as e:
             return RuleResult(
                 passed=False,
@@ -917,18 +1047,30 @@ class _PlainTextAnalyzer(BaseModel):
             return RuleResult(
                 passed=False,
                 message=f"Text length {length} below minimum {self.min_length}",
-                metadata={"length": length, "min_length": self.min_length, "max_length": self.max_length},
+                metadata={
+                    "length": length,
+                    "min_length": self.min_length,
+                    "max_length": self.max_length,
+                },
             )
 
         if self.max_length is not None and length > self.max_length:
             return RuleResult(
                 passed=False,
                 message=f"Text length {length} exceeds maximum {self.max_length}",
-                metadata={"length": length, "min_length": self.min_length, "max_length": self.max_length},
+                metadata={
+                    "length": length,
+                    "min_length": self.min_length,
+                    "max_length": self.max_length,
+                },
             )
 
         return RuleResult(
             passed=True,
             message="Valid plain text format",
-            metadata={"length": length, "min_length": self.min_length, "max_length": self.max_length},
+            metadata={
+                "length": length,
+                "min_length": self.min_length,
+                "max_length": self.max_length,
+            },
         )

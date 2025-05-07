@@ -1,8 +1,17 @@
 # Rules API Reference
 
-Rules are the validation components in Sifaka that perform binary pass/fail checks on text. They are used to enforce constraints on generated content and provide feedback when those constraints are not met.
+This document provides detailed API reference for all Rules in Sifaka.
 
-## Core Classes and Protocols
+## Overview
+
+Rules are the validation components in Sifaka that perform binary pass/fail checks on text. They are used to enforce constraints on generated content and provide feedback when those constraints are not met. Rules serve as the primary validation mechanism in the Sifaka framework.
+
+Rules implement these main interfaces:
+- **RuleProtocol**: The core interface for all rule-like objects
+- **RuleValidator**: The interface for validation logic that can be used by rules
+- **Rule**: The base class for all validation rules
+
+## Core Interfaces
 
 ### Rule
 
@@ -13,10 +22,10 @@ from sifaka.rules.base import Rule, RuleConfig, RuleResult
 
 class MyRule(Rule):
     """Custom rule implementation."""
-    
+
     def __init__(self, name: str, description: str, config: RuleConfig):
         super().__init__(name=name, description=description, config=config)
-    
+
     def validate(self, text: str) -> RuleResult:
         """Validate the text."""
         if len(text) > 100:
@@ -43,7 +52,7 @@ from sifaka.rules.base import RuleValidator, RuleResult
 
 class MyValidator(RuleValidator[str]):
     """Custom validator implementation."""
-    
+
     def validate(self, text: str) -> RuleResult:
         """Validate the text."""
         if len(text) > 100:
@@ -133,25 +142,156 @@ print(f"Length: {result.metadata['length']}")
 
 ## Factory Functions
 
+Sifaka provides factory functions for creating rules. Always use these factory functions instead of instantiating rule classes directly.
+
 ### create_rule
 
-`create_rule` is a factory function for creating rules.
+```python
+def create_rule(
+    name: str,
+    description: str,
+    validator: RuleValidator[T],
+    config: Optional[RuleConfig] = None,
+    **kwargs
+) -> Rule[T]:
+    """
+    Create a rule with a custom validator.
+
+    Args:
+        name: Name of the rule
+        description: Description of the rule
+        validator: Validator to use for validation
+        config: Configuration for the rule
+        **kwargs: Additional keyword arguments for the rule configuration
+
+    Returns:
+        A rule instance
+
+    Raises:
+        ValueError: If parameters are invalid
+    """
+```
+
+### create_function_rule
 
 ```python
-from sifaka.rules.base import create_rule, RuleConfig, RuleValidator
+def create_function_rule(
+    func: Callable[[str], bool],
+    name: str,
+    description: str,
+    failure_message: str = "Validation failed",
+    success_message: str = "Validation passed",
+    config: Optional[RuleConfig] = None,
+    **kwargs
+) -> Rule[str]:
+    """
+    Create a rule from a validation function.
 
-# Create a validator
-class MyValidator(RuleValidator[str]):
-    def validate(self, text: str) -> RuleResult:
-        return RuleResult(passed=True, rule_name="test", message="OK")
+    Args:
+        func: Function that takes a string and returns a boolean
+        name: Name of the rule
+        description: Description of the rule
+        failure_message: Message to include when validation fails
+        success_message: Message to include when validation passes
+        config: Configuration for the rule
+        **kwargs: Additional keyword arguments for the rule configuration
 
-# Create a rule using the factory function
-rule = create_rule(
-    name="my_rule",
-    description="A custom rule",
-    validator=MyValidator(),
-    config=RuleConfig(priority="HIGH")
-)
+    Returns:
+        A rule instance
+
+    Raises:
+        ValueError: If parameters are invalid
+    """
+```
+
+### create_regex_rule
+
+```python
+def create_regex_rule(
+    pattern: str,
+    name: str = "regex_rule",
+    description: str = "Validates text against a regex pattern",
+    match_mode: str = "contains",
+    failure_message: Optional[str] = None,
+    success_message: Optional[str] = None,
+    config: Optional[RuleConfig] = None,
+    **kwargs
+) -> Rule[str]:
+    """
+    Create a rule that validates text against a regex pattern.
+
+    Args:
+        pattern: Regex pattern to match
+        name: Name of the rule
+        description: Description of the rule
+        match_mode: Mode for matching ('contains', 'matches', 'not_contains', 'not_matches')
+        failure_message: Message to include when validation fails
+        success_message: Message to include when validation passes
+        config: Configuration for the rule
+        **kwargs: Additional keyword arguments for the rule configuration
+
+    Returns:
+        A rule instance
+
+    Raises:
+        ValueError: If parameters are invalid
+    """
+```
+
+### create_and_rule
+
+```python
+def create_and_rule(
+    rules: List[Rule[T]],
+    name: str = "and_rule",
+    description: str = "Validates that all rules pass",
+    config: Optional[RuleConfig] = None,
+    **kwargs
+) -> Rule[T]:
+    """
+    Create a rule that passes only if all component rules pass.
+
+    Args:
+        rules: List of rules to combine
+        name: Name of the rule
+        description: Description of the rule
+        config: Configuration for the rule
+        **kwargs: Additional keyword arguments for the rule configuration
+
+    Returns:
+        A rule instance
+
+    Raises:
+        ValueError: If parameters are invalid
+    """
+```
+
+### create_or_rule
+
+```python
+def create_or_rule(
+    rules: List[Rule[T]],
+    name: str = "or_rule",
+    description: str = "Validates that at least one rule passes",
+    config: Optional[RuleConfig] = None,
+    **kwargs
+) -> Rule[T]:
+    """
+    Create a rule that passes if any component rule passes.
+
+    Args:
+        rules: List of rules to combine
+        name: Name of the rule
+        description: Description of the rule
+        config: Configuration for the rule
+        **kwargs: Additional keyword arguments for the rule configuration
+
+    Returns:
+        A rule instance
+
+    Raises:
+        ValueError: If parameters are invalid
+    """
 ```
 
 ## Rule Types
@@ -305,3 +445,175 @@ rule = create_function_rule(
 result = rule.validate("This is a test")
 print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
+
+## Implementation Details
+
+Rules in Sifaka follow a standardized implementation pattern:
+
+1. **State Management**: Rules use the `_state_manager` pattern for managing state
+2. **Configuration**: Rules use `RuleConfig` for configuration
+3. **Factory Functions**: Rules provide factory functions for easy instantiation
+4. **Delegation**: Rules delegate validation logic to validators
+
+### State Management
+
+Rules use the `_state_manager` pattern for managing state:
+
+```python
+from pydantic import PrivateAttr
+from sifaka.rules.base import Rule, RuleConfig, RuleValidator, create_rule_state
+
+class MyRule(Rule):
+    """Custom rule implementation."""
+
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
+
+    def __init__(self, name: str, description: str, config: RuleConfig):
+        super().__init__(name=name, description=description, config=config)
+        # Initialize any rule-specific attributes
+
+    def warm_up(self):
+        """Initialize expensive resources."""
+        state = self._state_manager.get_state()
+        if not state.initialized:
+            # Initialize state
+            state.initialized = True
+
+    def validate(self, text: str) -> RuleResult:
+        """Validate the text."""
+        state = self._state_manager.get_state()
+
+        # Check cache
+        if text in state.cache:
+            return state.cache[text]
+
+        # Perform validation
+        result = self._validate_internal(text)
+
+        # Cache result
+        state.cache[text] = result
+
+        return result
+```
+
+### Validator Delegation
+
+Rules typically delegate validation logic to validators:
+
+```python
+from sifaka.rules.base import Rule, RuleConfig, RuleValidator, RuleResult
+
+class MyValidator(RuleValidator[str]):
+    """Custom validator implementation."""
+
+    def validate(self, text: str) -> RuleResult:
+        """Validate the text."""
+        if len(text) > 100:
+            return RuleResult(
+                passed=False,
+                rule_name="length_validator",
+                message="Text is too long",
+                metadata={"length": len(text)}
+            )
+        return RuleResult(
+            passed=True,
+            rule_name="length_validator",
+            message="Text length is acceptable",
+            metadata={"length": len(text)}
+        )
+
+class MyRule(Rule):
+    """Custom rule implementation."""
+
+    def __init__(self, name: str, description: str, config: RuleConfig, validator: RuleValidator[str]):
+        super().__init__(name=name, description=description, config=config)
+        self.validator = validator
+
+    def validate(self, text: str) -> RuleResult:
+        """Validate the text."""
+        # Delegate to validator
+        result = self.validator.validate(text)
+
+        # Update rule-specific information
+        result.rule_name = self.name
+        result.metadata["rule_id"] = id(self)
+
+        return result
+```
+
+## Best Practices
+
+1. **Use factory functions** for creating rules and validators
+2. **Don't instantiate rule or validator classes directly** unless you have a specific reason
+3. **Pass configuration as direct parameters** to factory functions, not as dictionaries
+4. **Implement both validator and rule factory functions** for all rule types
+5. **Document the relationship** between rules and validators in module docstrings
+6. **Handle empty text consistently** using the BaseValidator.handle_empty_text method
+7. **Use type-safe config classes** that extend RuleConfig
+8. **Extract rule-specific parameters** in factory functions
+9. **Delegate validation logic** from rules to validators
+10. **Add rule_id to metadata** in rule.validate method
+
+## Error Handling
+
+Rules implement several error handling patterns:
+
+### Handling Empty Text
+
+```python
+def validate(self, text: str) -> RuleResult:
+    """Validate the text."""
+    if not text:
+        return RuleResult(
+            passed=True,
+            rule_name=self.name,
+            message="Empty text is valid",
+            metadata={"empty": True}
+        )
+
+    # Normal validation logic
+    return self._validate_internal(text)
+```
+
+### Handling Validation Errors
+
+```python
+def validate(self, text: str) -> RuleResult:
+    """Validate the text."""
+    try:
+        # Try to validate
+        return self._validate_internal(text)
+    except Exception as e:
+        # Return failure result
+        return RuleResult(
+            passed=False,
+            rule_name=self.name,
+            message=f"Validation error: {str(e)}",
+            metadata={"error": str(e), "error_type": type(e).__name__}
+        )
+```
+
+### Handling Timeouts
+
+```python
+def validate(self, text: str) -> RuleResult:
+    """Validate the text."""
+    try:
+        # Try to validate with timeout
+        return self._validate_with_timeout(text, timeout=10.0)
+    except TimeoutError:
+        # Return failure result
+        return RuleResult(
+            passed=False,
+            rule_name=self.name,
+            message="Validation timed out",
+            metadata={"timeout": True}
+        )
+```
+
+## See Also
+
+- [Rules Component Documentation](../../components/rules.md)
+- [Implementation Notes for Rules](../../implementation_notes/rules.md)
+- [Classifiers API Reference](../classifiers/README.md)
+- [Critics API Reference](../critics/README.md)

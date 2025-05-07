@@ -92,7 +92,12 @@ class GuardrailsValidatorAdapter(BaseValidator[str]):
     Adapter that allows Guardrails validators to be used within Sifaka.
 
     This adapter converts a Guardrails validator into a format compatible
-    with Sifaka's validation system.
+    with Sifaka's validation system. It handles the translation between
+    Guardrails' validation results and Sifaka's RuleResult format, enabling
+    seamless integration between the two systems.
+
+    Attributes:
+        guardrails_validator: The Guardrails validator being adapted
 
     Lifecycle:
     1. Initialization: Set up with a Guardrails validator
@@ -100,14 +105,62 @@ class GuardrailsValidatorAdapter(BaseValidator[str]):
     3. Result: Return standardized RuleResult
 
     Examples:
+        Basic usage with a regex validator:
         ```python
         from guardrails.hub import RegexMatch
         from sifaka.adapters.guardrails import GuardrailsValidatorAdapter
 
+        # Create a Guardrails validator for phone numbers
         regex_validator = RegexMatch(regex=r"\\d{3}-\\d{3}-\\d{4}")
+
+        # Create the adapter
         adapter = GuardrailsValidatorAdapter(regex_validator)
 
+        # Validate text
         result = adapter.validate("123-456-7890")
+        print(f"Validation {'passed' if result.passed else 'failed'}")
+        ```
+
+        Using with a profanity validator:
+        ```python
+        from guardrails.hub import ProfanityFree
+        from sifaka.adapters.guardrails import GuardrailsValidatorAdapter
+
+        # Create a Guardrails profanity validator
+        profanity_validator = ProfanityFree()
+
+        # Create the adapter
+        adapter = GuardrailsValidatorAdapter(profanity_validator)
+
+        # Validate text
+        result = adapter.validate("Hello, how are you today?")
+        if result.passed:
+            print("Text is clean")
+        else:
+            print(f"Text contains profanity: {result.message}")
+        ```
+
+        Handling validation errors:
+        ```python
+        from guardrails.hub import ValidLength
+        from sifaka.adapters.guardrails import GuardrailsValidatorAdapter
+
+        # Create a Guardrails length validator
+        length_validator = ValidLength(min_length=10, max_length=100)
+
+        # Create the adapter
+        adapter = GuardrailsValidatorAdapter(length_validator)
+
+        # Validate text
+        text = "Too short"
+        result = adapter.validate(text)
+
+        if not result.passed:
+            print(f"Validation error: {result.message}")
+            print(f"Text length: {len(text)}")
+            if "errors" in result.metadata:
+                for error in result.metadata["errors"]:
+                    print(f"- {error}")
         ```
     """
 

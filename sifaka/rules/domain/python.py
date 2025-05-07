@@ -2,32 +2,262 @@
 Python domain-specific validation rules for Sifaka.
 
 This module provides rules for validating Python code, including:
-- Code style validation
-- Security validation
-- Performance validation
+- Code style validation: Checks for proper function definitions, class structures, etc.
+- Security validation: Identifies potentially unsafe functions and patterns
+- Performance validation: Detects code that might cause performance issues
+- Syntax validation: Ensures code is syntactically correct
 
 Configuration Pattern:
     This module follows the standard Sifaka configuration pattern:
     - All rule-specific configuration is stored in RuleConfig.params
-    - Factory functions handle configuration
-    - Validator factory functions create standalone validators
+    - The PythonConfig class extends RuleConfig and provides type-safe access to parameters
+    - Factory functions (create_python_rule, create_python_validator) handle configuration
+    - Specialized analyzers handle different aspects of Python code validation
 
-Usage Example:
-    from sifaka.rules.domain.python import create_python_rule
+Architecture:
+    The Python validation system uses a composition pattern:
+    - PythonRule is the main entry point that delegates to a validator
+    - DefaultPythonValidator implements the validation logic
+    - Four specialized analyzers handle different aspects of Python code:
+      - _PythonStyleAnalyzer: Checks code style patterns
+      - _PythonSecurityAnalyzer: Identifies security vulnerabilities
+      - _PythonPerformanceAnalyzer: Detects performance issues
+      - _PythonSyntaxAnalyzer: Validates syntax correctness
+    - Factory functions provide a convenient way to create rules and validators
 
-    # Create a Python rule
-    rule = create_python_rule(
-        code_style_patterns=[
-            r"def \w+\(.*\):",
-            r"class \w+:",
-            r"import \w+",
-        ],
-        security_patterns=[
-            r"eval\(",
-            r"exec\(",
-            r"pickle\.loads\(",
-        ]
-    )
+Lifecycle:
+    1. Creation: Rules and validators are created using factory functions
+    2. Configuration: Parameters are validated and stored in config objects
+    3. Validation: Python code is analyzed for style, security, and performance issues
+    4. Result: A RuleResult object is returned with validation status and metadata
+
+Error Handling:
+    - Invalid configuration parameters raise ValueError during initialization
+    - Non-string inputs to validate() raise ValueError
+    - Syntax errors in Python code are caught and returned as failed validation results
+    - Empty strings are handled as invalid input
+
+Usage Examples:
+    Basic Usage:
+        ```python
+        from sifaka.rules.domain.python import create_python_rule
+
+        # Create a Python rule with default settings
+        rule = create_python_rule()
+
+        # Validate Python code
+        code = '''
+        def hello_world():
+            print("Hello, world!")
+
+        if __name__ == "__main__":
+            hello_world()
+        '''
+
+        result = rule.validate(code)
+
+        # Check result
+        if result.passed:
+            print("Validation passed!")
+            print(f"Style patterns found: {result.metadata['style_patterns']}")
+        else:
+            print(f"Validation failed: {result.message}")
+            if 'security_issues' in result.metadata:
+                print(f"Security issues: {result.metadata['security_issues']}")
+            if 'performance_issues' in result.metadata:
+                print(f"Performance issues: {result.metadata['performance_issues']}")
+        ```
+
+    Custom Style Patterns:
+        ```python
+        from sifaka.rules.domain.python import create_python_rule
+
+        # Create a rule with custom code style patterns
+        rule = create_python_rule(
+            code_style_patterns=[
+                r"def \w+\(.*\):",           # Function definition
+                r"class \w+:",               # Class definition
+                r"if __name__ == \"__main__\":",  # Main block
+                r"import \w+",               # Import statement
+                r"from \w+ import",          # From import
+                r"# [A-Z]",                  # Comments starting with capital letter
+                r"\"\"\".*?\"\"\"",          # Docstrings
+            ],
+            name="code_style_checker"
+        )
+
+        # Validate Python code
+        code = '''
+        def calculate_sum(a, b):
+            """Calculate the sum of two numbers."""
+            return a + b
+
+        # Main entry point
+        if __name__ == "__main__":
+            result = calculate_sum(5, 10)
+            print(f"Result: {result}")
+        '''
+
+        result = rule.validate(code)
+
+        # Analyze style patterns
+        if result.passed:
+            style_patterns = result.metadata["style_patterns"]
+            print("Code style patterns found:")
+            for pattern, count in style_patterns.items():
+                if count > 0:
+                    print(f"- {pattern}: {count} occurrences")
+        ```
+
+    Security Validation:
+        ```python
+        from sifaka.rules.domain.python import create_python_rule
+
+        # Create a rule focused on security validation
+        rule = create_python_rule(
+            security_patterns=[
+                r"eval\(",                  # Eval function
+                r"exec\(",                  # Exec function
+                r"pickle\.loads\(",         # Pickle loads
+                r"subprocess\.run\(",       # Subprocess run
+                r"os\.system\(",            # OS system
+                r"__import__\(",            # Dynamic import
+                r"open\(.+?, ['\"]w['\"]",  # File writing
+            ],
+            name="security_validator"
+        )
+
+        # Check for security issues
+        code = '''
+        def process_data(data_string):
+            # WARNING: This is unsafe!
+            result = eval(data_string)
+            return result
+
+        def execute_command(cmd):
+            import os
+            os.system(cmd)  # Dangerous!
+        '''
+
+        result = rule.validate(code)
+
+        # Analyze security issues
+        if not result.passed and 'security_issues' in result.metadata:
+            security_issues = result.metadata["security_issues"]
+            print(f"Found {len(security_issues)} security issues:")
+            for issue_type, instances in security_issues.items():
+                print(f"- {issue_type}: {len(instances)} occurrences")
+                for instance in instances:
+                    print(f"  - {instance}")
+        ```
+
+    Performance Validation:
+        ```python
+        from sifaka.rules.domain.python import create_python_rule
+
+        # Create a rule focused on performance validation
+        rule = create_python_rule(
+            performance_patterns=[
+                r"for \w+ in range\(\d+\):",     # Range loop
+                r"while True:",                  # Infinite loop
+                r"\[\w+ for \w+ in \w+\]",       # List comprehension
+                r"\.append\(",                   # List append in loop
+                r"time\.sleep\(",                # Time sleep
+                r"\+ \w+ \+",                    # String concatenation
+            ],
+            name="performance_validator"
+        )
+
+        # Check for performance issues
+        code = '''
+        def slow_function():
+            result = []
+            for i in range(1000000):  # Large range
+                result.append(i)      # Append in loop
+
+            message = "Result: " + str(result) + " is ready"  # String concatenation
+            return message
+        '''
+
+        result = rule.validate(code)
+
+        # Analyze performance issues
+        if not result.passed and 'performance_issues' in result.metadata:
+            performance_issues = result.metadata["performance_issues"]
+            print("Performance issues found:")
+            for pattern, count in performance_issues.items():
+                if count > 0:
+                    print(f"- {pattern}: {count} occurrences")
+        ```
+
+    Advanced Configuration:
+        ```python
+        from sifaka.rules.domain.python import create_python_rule
+        from sifaka.rules.base import RuleConfig, RulePriority
+
+        # Create a comprehensive Python validator
+        rule = create_python_rule(
+            name="comprehensive_python_validator",
+            description="Validates Python code style, security, and performance",
+            code_style_patterns=[
+                r"def \w+\(.*\):",
+                r"class \w+\(.*\):",
+                r"if __name__ == \"__main__\":",
+            ],
+            security_patterns=[
+                r"eval\(",
+                r"exec\(",
+                r"os\.system\(",
+            ],
+            performance_patterns=[
+                r"for \w+ in range\(\d+\):",
+                r"while True:",
+                r"\.append\(",
+            ],
+            priority=RulePriority.HIGH,
+            cost=2.0,
+            cache_size=200
+        )
+
+        # Or use RuleConfig directly
+        from sifaka.rules.domain.python import PythonRule
+
+        config = RuleConfig(
+            priority=RulePriority.HIGH,
+            cost=2.0,
+            params={
+                "code_style_patterns": [
+                    r"def \w+\(.*\):",
+                    r"class \w+\(.*\):",
+                ],
+                "security_patterns": [
+                    r"eval\(",
+                    r"exec\(",
+                ],
+                "performance_patterns": [
+                    r"for \w+ in range\(\d+\):",
+                    r"while True:",
+                ]
+            }
+        )
+
+        custom_rule = PythonRule(
+            name="custom_python_rule",
+            description="Custom Python code validator",
+            config=config
+        )
+
+        # Validate with configured rules
+        result = rule.validate('''
+        def calculate(expression):
+            return eval(expression)  # Security issue!
+
+        for i in range(1000000):     # Performance issue!
+            print(i)
+        ''')
+
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+        ```
 """
 
 import re

@@ -54,13 +54,15 @@ class SifakaPydanticAdapter:
     This adapter bridges between PydanticAI's output validation system and Sifaka's
     rule-based validation and critic-based refinement capabilities. It enables
     PydanticAI agents to benefit from Sifaka's semantic validation beyond just
-    structural validation.
+    structural validation. When validation fails, the adapter can trigger PydanticAI's
+    retry mechanism with detailed feedback about the validation issues.
 
     Attributes:
         rules: List of Sifaka rules to validate against
         critic: Optional Sifaka critic for refinement
         output_model: The Pydantic model type for the output
         config: Configuration for the adapter
+        validator: Sifaka validator used to apply rules
 
     Lifecycle:
     1. Initialization: Set up with rules, critic, and configuration
@@ -69,6 +71,7 @@ class SifakaPydanticAdapter:
     4. Result: Return validated or refined output
 
     Examples:
+        Basic usage with length validation:
         ```python
         from pydantic import BaseModel
         from pydantic_ai import Agent, RunContext
@@ -90,6 +93,84 @@ class SifakaPydanticAdapter:
         # Use as a PydanticAI output validator
         @agent.output_validator
         def validate_with_sifaka(ctx: RunContext, output: Response) -> Response:
+            return adapter(ctx, output)
+        ```
+
+        Using with multiple validation rules:
+        ```python
+        from pydantic import BaseModel, Field
+        from pydantic_ai import Agent, RunContext
+        from sifaka.adapters.pydantic_ai import SifakaPydanticAdapter
+        from sifaka.rules.formatting.length import create_length_rule
+        from sifaka.rules.formatting.structure import create_structure_rule
+        from sifaka.rules.content.profanity import create_profanity_rule
+
+        # Define a more complex Pydantic model
+        class ProductReview(BaseModel):
+            product_id: str
+            rating: int = Field(..., ge=1, le=5)
+            review_text: str
+            pros: list[str]
+            cons: list[str]
+
+        # Create multiple validation rules
+        rules = [
+            create_length_rule(field="review_text", min_chars=50, max_chars=500),
+            create_structure_rule(required_sections=["pros", "cons"]),
+            create_profanity_rule(fields=["review_text", "pros", "cons"])
+        ]
+
+        # Create the adapter with custom configuration
+        from sifaka.adapters.pydantic_ai import SifakaPydanticConfig
+        config = SifakaPydanticConfig(max_refine=3, prioritize_by_cost=True)
+
+        adapter = SifakaPydanticAdapter(
+            rules=rules,
+            output_model=ProductReview,
+            config=config
+        )
+
+        # Register with PydanticAI agent
+        @agent.output_validator
+        def validate_product_review(ctx: RunContext, output: ProductReview) -> ProductReview:
+            return adapter(ctx, output)
+        ```
+
+        Using with a critic for refinement:
+        ```python
+        from pydantic import BaseModel
+        from pydantic_ai import Agent, RunContext
+        from sifaka.adapters.pydantic_ai import SifakaPydanticAdapter
+        from sifaka.rules.formatting.length import create_length_rule
+        from sifaka.critics.prompt import create_prompt_critic
+        from sifaka.models.openai import create_openai_provider
+
+        # Define a Pydantic model
+        class Summary(BaseModel):
+            title: str
+            content: str
+
+        # Create a model provider for the critic
+        provider = create_openai_provider(model_name="gpt-4")
+
+        # Create a critic
+        critic = create_prompt_critic(
+            llm_provider=provider,
+            system_prompt="You are an expert editor that improves summaries."
+        )
+
+        # Create rules and adapter with critic
+        rules = [create_length_rule(field="content", min_chars=100, max_chars=500)]
+        adapter = SifakaPydanticAdapter(
+            rules=rules,
+            output_model=Summary,
+            critic=critic,
+            max_refine=3
+        )
+
+        # Use as a PydanticAI output validator
+        @agent.output_validator
+        def validate_with_sifaka(ctx: RunContext, output: Summary) -> Summary:
             return adapter(ctx, output)
         ```
     """

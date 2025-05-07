@@ -34,6 +34,7 @@ from pydantic import Field, PrivateAttr, ConfigDict
 
 from .base import BaseCritic, TextCritic, TextImprover, TextValidator
 from .models import CriticConfig, PromptCriticConfig
+from ..utils.state import create_critic_state
 
 # Default prompt templates
 DEFAULT_FEEDBACK_PROMPT_TEMPLATE = (
@@ -198,8 +199,8 @@ class FeedbackCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     # Pydantic v2 configuration
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    # State management using direct state
-    _state = PrivateAttr(default_factory=lambda: None)
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
 
     def __init__(
         self,
@@ -221,19 +222,17 @@ class FeedbackCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         super().__init__(config)
 
         # Initialize state
-        from ..utils.state import CriticState
-
-        self._state = CriticState()
+        state = self._state_manager.get_state()
 
         # Store components in state
-        self._state.model = llm_provider
-        self._state.cache = {
+        state.model = llm_provider
+        state.cache = {
             "feedback_prompt_template": config.feedback_prompt_template,
             "system_prompt": config.system_prompt,
             "temperature": config.temperature,
             "max_tokens": config.max_tokens,
         }
-        self._state.initialized = True
+        state.initialized = True
 
     def _check_input(self, text: str) -> None:
         """
@@ -279,18 +278,20 @@ class FeedbackCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         """
         self._check_input(response)
 
+        state = self._state_manager.get_state()
+
         # Create feedback prompt
-        prompt = self._state.cache.get("feedback_prompt_template", "").format(
+        prompt = state.cache.get("feedback_prompt_template", "").format(
             task=task,
             response=response,
         )
 
         # Generate feedback
-        feedback = self._state.model.generate(
+        feedback = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         return feedback
@@ -312,18 +313,20 @@ class FeedbackCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         """
         self._check_input(response)
 
+        state = self._state_manager.get_state()
+
         # Create feedback prompt
-        prompt = self._state.cache.get("feedback_prompt_template", "").format(
+        prompt = state.cache.get("feedback_prompt_template", "").format(
             task=task,
             response=response,
         )
 
         # Generate feedback
-        feedback = await self._state.model.agenerate(
+        feedback = await state.model.agenerate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         )
         feedback = feedback.strip()
 
@@ -378,12 +381,14 @@ class FeedbackCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             f"Improved response:"
         )
 
+        state = self._state_manager.get_state()
+
         # Generate improved response
-        improved_text = self._state.model.generate(
+        improved_text = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         return improved_text
@@ -442,12 +447,14 @@ class FeedbackCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         # Create improvement prompt
         prompt = f"Original text:\n{text}\n\n" f"Feedback:\n{feedback}\n\n" f"Improved text:"
 
+        state = self._state_manager.get_state()
+
         # Generate improved response
-        improved_text = self._state.model.generate(
+        improved_text = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         return improved_text
@@ -494,8 +501,8 @@ class ValueCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     # Pydantic v2 configuration
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    # State management using direct state
-    _state = PrivateAttr(default_factory=lambda: None)
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
 
     def __init__(
         self,
@@ -517,19 +524,17 @@ class ValueCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         super().__init__(config)
 
         # Initialize state
-        from ..utils.state import CriticState
-
-        self._state = CriticState()
+        state = self._state_manager.get_state()
 
         # Store components in state
-        self._state.model = llm_provider
-        self._state.cache = {
+        state.model = llm_provider
+        state.cache = {
             "value_prompt_template": config.value_prompt_template,
             "system_prompt": config.system_prompt,
             "temperature": config.temperature,
             "max_tokens": config.max_tokens,
         }
-        self._state.initialized = True
+        state.initialized = True
 
     def _check_input(self, text: str) -> None:
         """
@@ -575,18 +580,20 @@ class ValueCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         """
         self._check_input(response)
 
+        state = self._state_manager.get_state()
+
         # Create value prompt
-        prompt = self._state.cache.get("value_prompt_template", "").format(
+        prompt = state.cache.get("value_prompt_template", "").format(
             task=task,
             response=response,
         )
 
         # Generate value
-        value_str = self._state.model.generate(
+        value_str = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.3),
-            max_tokens=self._state.cache.get("max_tokens", 100),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.3),
+            max_tokens=state.cache.get("max_tokens", 100),
         ).strip()
 
         # Parse value
@@ -616,18 +623,20 @@ class ValueCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         """
         self._check_input(response)
 
+        state = self._state_manager.get_state()
+
         # Create value prompt
-        prompt = self._state.cache.get("value_prompt_template", "").format(
+        prompt = state.cache.get("value_prompt_template", "").format(
             task=task,
             response=response,
         )
 
         # Generate value
-        value_str = await self._state.model.agenerate(
+        value_str = await state.model.agenerate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.3),
-            max_tokens=self._state.cache.get("max_tokens", 100),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.3),
+            max_tokens=state.cache.get("max_tokens", 100),
         )
         value_str = value_str.strip()
 
@@ -690,12 +699,14 @@ class ValueCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             f"Improved response:"
         )
 
+        state = self._state_manager.get_state()
+
         # Generate improved response
-        improved_text = self._state.model.generate(
+        improved_text = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         return improved_text
@@ -754,12 +765,14 @@ class ValueCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         # Create improvement prompt
         prompt = f"Original text:\n{text}\n\n" f"Feedback:\n{feedback}\n\n" f"Improved text:"
 
+        state = self._state_manager.get_state()
+
         # Generate improved response
-        improved_text = self._state.model.generate(
+        improved_text = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         return improved_text
@@ -770,48 +783,216 @@ class LACCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     A critic that implements the LLM-Based Actor-Critic (LAC) approach.
 
     This critic combines language feedback and value scoring to improve
-    language model-based decision making.
+    language model-based decision making. It uses two specialized components:
+    a FeedbackCritic that provides qualitative natural language feedback, and
+    a ValueCritic that estimates quantitative scores for text quality.
 
     Based on: Language Feedback Improves Language Model-based Decision Making
     https://arxiv.org/abs/2403.03692
 
-    Examples:
-        ```python
-        from sifaka.critics.lac import LACCritic, LACCriticConfig
-        from sifaka.models.providers import OpenAIProvider
+    ## Lifecycle Management
 
-        # Create a language model provider
-        provider = OpenAIProvider(api_key="your-api-key")
+    The LACCritic manages its lifecycle through three main phases:
 
-        # Create a LAC critic configuration
-        config = LACCriticConfig(
-            name="lac_critic",
-            description="A critic that combines feedback and value scoring",
-            system_prompt="You are an expert at evaluating and improving text.",
-            temperature=0.7,
-            max_tokens=1000
+    1. **Initialization**
+       - Validates configuration
+       - Sets up language model provider
+       - Creates FeedbackCritic and ValueCritic components
+       - Initializes state
+       - Allocates resources
+
+    2. **Operation**
+       - Validates text quality
+       - Generates qualitative feedback
+       - Estimates quantitative value scores
+       - Improves text based on feedback
+       - Combines feedback and value information
+
+    3. **Cleanup**
+       - Releases resources
+       - Clears state
+       - Logs final status
+
+    ## Architecture
+
+    The LACCritic uses a composite architecture with three main components:
+
+    1. **FeedbackCritic**: Provides natural language feedback for text
+       - Analyzes text for issues and improvement opportunities
+       - Generates detailed, actionable feedback
+       - Focuses on qualitative assessment
+
+    2. **ValueCritic**: Estimates numeric values for text
+       - Evaluates text quality on a numeric scale (0.0-1.0)
+       - Provides quantitative assessment
+       - Focuses on objective metrics
+
+    3. **LACCritic**: Combines both feedback and value critics
+       - Coordinates between the two specialized critics
+       - Integrates qualitative and quantitative assessments
+       - Provides comprehensive evaluation and improvement
+
+    ## Error Handling
+
+    The LACCritic handles errors through:
+
+    1. **Input Validation**
+       - Empty text checks
+       - Missing task information
+       - Type validation
+       - Format verification
+
+    2. **Component Errors**
+       - FeedbackCritic failures
+       - ValueCritic failures
+       - Model generation errors
+       - Prompt formatting issues
+
+    3. **Recovery Strategies**
+       - Fallback to partial results
+       - Default values for missing components
+       - Graceful degradation
+       - Comprehensive error reporting
+
+    ## Examples
+
+    Basic usage with factory function:
+
+    ```python
+    from sifaka.critics import create_lac_critic
+    from sifaka.models.openai import create_openai_provider
+
+    # Create a language model provider
+    provider = create_openai_provider(
+        model_name="gpt-3.5-turbo",
+        api_key="your-api-key",
+        temperature=0.7,
+        max_tokens=1000
+    )
+
+    # Create a LAC critic
+    critic = create_lac_critic(
+        llm_provider=provider,
+        name="demo_lac_critic",
+        description="A demo LAC critic",
+        system_prompt="You are an expert at evaluating and improving text."
+    )
+
+    # Define a task and response
+    task = "Summarize the causes of World War I in 3 bullet points."
+    response = "World War I was caused by nationalism, militarism, and alliances."
+
+    # Get critique with both feedback and value
+    result = critic.critique(response, {"task": task})
+    print(f"Feedback: {result['feedback']}")
+    print(f"Value score: {result['value']}")
+
+    # Improve the response
+    improved_response = critic.improve(response, {"task": task})
+    print(f"Improved response: {improved_response}")
+    ```
+
+    Advanced usage with custom configuration:
+
+    ```python
+    from sifaka.critics.lac import LACCritic, LACCriticConfig
+    from sifaka.models.anthropic import create_anthropic_provider
+
+    # Create a language model provider
+    provider = create_anthropic_provider(
+        model_name="claude-3-haiku-20240307",
+        api_key="your-api-key"
+    )
+
+    # Create a custom configuration with specialized prompt templates
+    config = LACCriticConfig(
+        name="custom_lac_critic",
+        description="A critic for evaluating and improving technical documentation",
+        system_prompt="You are an expert technical writer and evaluator.",
+        temperature=0.5,
+        max_tokens=2000,
+        feedback_prompt_template=(
+            "You are evaluating technical documentation.\n\n"
+            "Task: {task}\n\n"
+            "Response: {response}\n\n"
+            "Provide detailed feedback on clarity, accuracy, completeness, and structure:"
+        ),
+        value_prompt_template=(
+            "You are scoring technical documentation quality.\n\n"
+            "Task: {task}\n\n"
+            "Response: {response}\n\n"
+            "Rate the quality from 0.0 (poor) to 1.0 (excellent) based on clarity, "
+            "accuracy, completeness, and structure. Return only the numeric score:"
+        )
+    )
+
+    # Create a LAC critic with custom configuration
+    critic = LACCritic(
+        config=config,
+        llm_provider=provider
+    )
+
+    # Use individual components separately
+    task = "Explain how to install Python on Windows."
+    response = "Download Python from python.org and run the installer."
+
+    # Get feedback only
+    state = critic._state_manager.get_state()
+    feedback_critic = state.cache["feedback_critic"]
+    feedback = feedback_critic.run(task, response)
+    print(f"Feedback: {feedback}")
+
+    # Get value score only
+    value_critic = state.cache["value_critic"]
+    value = value_critic.run(task, response)
+    print(f"Value score: {value}")
+
+    # Use the combined critic
+    result = critic.run(task, response)
+    print(f"Combined result: {result}")
+
+    # Improve the response
+    improved_response = critic.improve(response, {"task": task})
+    print(f"Improved response: {improved_response}")
+    ```
+
+    Using with asynchronous methods:
+
+    ```python
+    import asyncio
+    from sifaka.critics import create_lac_critic
+    from sifaka.models.openai import create_openai_provider
+
+    async def evaluate_text():
+        provider = create_openai_provider(
+            model_name="gpt-4",
+            api_key="your-api-key"
         )
 
-        # Create a LAC critic
-        critic = LACCritic(
-            config=config,
-            llm_provider=provider
-        )
+        critic = create_lac_critic(llm_provider=provider)
 
-        # Use the critic
-        task = "Summarize the causes of World War I in 3 bullet points."
-        response = "World War I was caused by nationalism, militarism, and alliances."
-        result = critic.critique(response, {"task": task})
-        print(f"Feedback: {result['feedback']}")
-        print(f"Value: {result['value']}")
-        ```
+        task = "Write a concise definition of machine learning."
+        response = "Machine learning is when computers learn from data."
+
+        # Get critique asynchronously
+        critique = await critic.acritique(response, {"task": task})
+        print(f"Feedback: {critique['feedback']}")
+        print(f"Value: {critique['value']}")
+
+        # Improve the response asynchronously
+        improved = await critic.aimprove(response, {"task": task})
+        return improved
+
+    # Run the async function
+    improved_response = asyncio.run(evaluate_text())
+    ```
     """
 
     # Pydantic v2 configuration
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    # State management using direct state
-    _state = PrivateAttr(default_factory=lambda: None)
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
 
     def __init__(
         self,
@@ -833,9 +1014,7 @@ class LACCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         super().__init__(config)
 
         # Initialize state
-        from ..utils.state import CriticState
-
-        self._state = CriticState()
+        state = self._state_manager.get_state()
 
         # Create feedback critic configuration
         feedback_config = FeedbackCriticConfig(
@@ -858,15 +1037,15 @@ class LACCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         )
 
         # Create feedback and value critics
-        self._state.cache = {
+        state.cache = {
             "feedback_critic": FeedbackCritic(config=feedback_config, llm_provider=llm_provider),
             "value_critic": ValueCritic(config=value_config, llm_provider=llm_provider),
             "system_prompt": config.system_prompt,
             "temperature": config.temperature,
             "max_tokens": config.max_tokens,
         }
-        self._state.model = llm_provider
-        self._state.initialized = True
+        state.model = llm_provider
+        state.initialized = True
 
     def _check_input(self, text: str) -> None:
         """
@@ -912,9 +1091,11 @@ class LACCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         """
         self._check_input(response)
 
+        state = self._state_manager.get_state()
+
         # Get feedback and value critics
-        feedback_critic = self._state.cache.get("feedback_critic")
-        value_critic = self._state.cache.get("value_critic")
+        feedback_critic = state.cache.get("feedback_critic")
+        value_critic = state.cache.get("value_critic")
 
         # Generate feedback and value
         feedback = feedback_critic.run(task, response)
@@ -943,9 +1124,11 @@ class LACCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         """
         self._check_input(response)
 
+        state = self._state_manager.get_state()
+
         # Get feedback and value critics
-        feedback_critic = self._state.cache.get("feedback_critic")
-        value_critic = self._state.cache.get("value_critic")
+        feedback_critic = state.cache.get("feedback_critic")
+        value_critic = state.cache.get("value_critic")
 
         # Generate feedback and value
         feedback = await feedback_critic.arun(task, response)
@@ -1009,12 +1192,14 @@ class LACCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             f"Improved response:"
         )
 
+        state = self._state_manager.get_state()
+
         # Generate improved response
-        improved_text = self._state.model.generate(
+        improved_text = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         return improved_text
@@ -1076,12 +1261,14 @@ class LACCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         # Create improvement prompt
         prompt = f"Original text:\n{text}\n\n" f"Feedback:\n{feedback}\n\n" f"Improved text:"
 
+        state = self._state_manager.get_state()
+
         # Generate improved response
-        improved_text = self._state.model.generate(
+        improved_text = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         return improved_text

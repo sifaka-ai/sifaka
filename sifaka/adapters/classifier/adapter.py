@@ -563,10 +563,17 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
     3. Result Conversion: Convert classification to validation result
 
     Examples:
+        Basic usage with a sentiment classifier:
         ```python
+        from sifaka.adapters.classifier import ClassifierAdapter
+        from sifaka.classifiers.sentiment import create_sentiment_classifier
+
+        # Create a classifier
+        classifier = create_sentiment_classifier()
+
         # Create an adapter
         adapter = ClassifierAdapter(
-            classifier=SentimentClassifier(),
+            classifier=classifier,
             threshold=0.8,
             valid_labels=["positive", "neutral"]
         )
@@ -574,6 +581,66 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         # Validate text
         result = adapter.validate("This is great!")
         print(f"Validation {'passed' if result.passed else 'failed'}")
+        print(f"Label: {result.metadata['label']}, Confidence: {result.metadata['confidence']}")
+        ```
+
+        Using with a toxicity classifier:
+        ```python
+        from sifaka.adapters.classifier import ClassifierAdapter
+        from sifaka.classifiers.toxicity import create_toxicity_classifier
+
+        # Create a toxicity classifier
+        classifier = create_toxicity_classifier()
+
+        # Create an adapter that only accepts non-toxic content
+        adapter = ClassifierAdapter(
+            classifier=classifier,
+            threshold=0.7,  # Higher threshold for more confidence
+            valid_labels=["non_toxic"]
+        )
+
+        # Validate text
+        result = adapter.validate("Hello, how are you today?")
+        if result.passed:
+            print("Text is safe to use")
+        else:
+            print(f"Text failed validation: {result.message}")
+        ```
+
+        Using with text extraction:
+        ```python
+        from sifaka.adapters.classifier import ClassifierAdapter
+        from sifaka.classifiers.spam import create_spam_classifier
+
+        # Create a spam classifier
+        classifier = create_spam_classifier()
+
+        # Function to extract just the body from an email
+        def extract_email_body(email_text):
+            # Simple extraction - in real code, use proper email parsing
+            if "Subject:" in email_text and "Body:" in email_text:
+                return email_text.split("Body:")[1].strip()
+            return email_text
+
+        # Create an adapter with extraction function
+        adapter = ClassifierAdapter(
+            classifier=classifier,
+            threshold=0.6,
+            valid_labels=["ham"],  # Only accept non-spam
+            extraction_function=extract_email_body
+        )
+
+        # Validate an email
+        email = (
+            "From: sender@example.com\n"
+            "To: recipient@example.com\n"
+            "Subject: Meeting tomorrow\n"
+            "Body: Hi team, just a reminder about our meeting tomorrow at 10am."
+        )
+
+        result = adapter.validate(email)
+        print(f"Email classification: {result.metadata['label']}")
+        print(f"Validation result: {'Passed' if result.passed else 'Failed'}")
         ```
     """
 

@@ -12,27 +12,34 @@ Based on the paper [Constitutional AI: Harmlessness from AI Feedback](https://ar
 
 ### State Management
 
-The Constitutional Critic follows the standard state management pattern used in Sifaka critics:
+The Constitutional Critic follows the standardized StateManager pattern used in Sifaka critics:
 
-- Uses a `CriticState` object to store all mutable state
+- Uses a `StateManager` with `CriticState` to store all mutable state
 - Stores configuration values in the state's cache dictionary
-- Accesses state through direct state access
+- Accesses state through the state manager
 
 ```python
-# Initialize state
-self._state = CriticState()
+# State management using StateManager
+_state_manager = PrivateAttr(default_factory=create_critic_state)
 
-# Store components in state
-self._state.model = llm_provider
-self._state.cache = {
-    "principles": config.principles,
-    "system_prompt": config.system_prompt,
-    "temperature": config.temperature,
-    "max_tokens": config.max_tokens,
-    "critique_prompt_template": config.critique_prompt_template,
-    "improvement_prompt_template": config.improvement_prompt_template,
-}
-self._state.initialized = True
+def __init__(self, config: ConstitutionalCriticConfig, llm_provider: Any) -> None:
+    # Initialize base class
+    super().__init__(config)
+
+    # Initialize state
+    state = self._state_manager.get_state()
+
+    # Store components in state
+    state.model = llm_provider
+    state.cache = {
+        "principles": config.principles,
+        "critique_prompt_template": config.critique_prompt_template,
+        "improvement_prompt_template": config.improvement_prompt_template,
+        "system_prompt": config.system_prompt,
+        "temperature": config.temperature,
+        "max_tokens": config.max_tokens,
+    }
+    state.initialized = True
 ```
 
 ### Configuration
@@ -95,10 +102,11 @@ The Constitutional Critic manages principles through a dedicated method:
 ```python
 def _format_principles(self) -> str:
     """Format principles for inclusion in prompts."""
-    principles = self._state.cache.get("principles", [])
+    state = self._state_manager.get_state()
+    principles = state.cache.get("principles", [])
     if not principles:
         return "No principles defined."
-    
+
     return "\n".join(f"{i+1}. {principle}" for i, principle in enumerate(principles))
 ```
 
@@ -118,7 +126,8 @@ def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict
     Analyze a response against the principles and provide detailed feedback.
     """
     # Ensure initialized
-    if not self._state.initialized:
+    state = self._state_manager.get_state()
+    if not state.initialized:
         raise RuntimeError("ConstitutionalCritic not properly initialized")
 
     if not isinstance(text, str) or not text.strip():
@@ -131,18 +140,18 @@ def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict
     principles_text = self._format_principles()
 
     # Create critique prompt
-    prompt = self._state.cache.get("critique_prompt_template", "").format(
+    prompt = state.cache.get("critique_prompt_template", "").format(
         principles=principles_text,
         task=task,
         response=text,
     )
 
     # Generate critique
-    critique_text = self._state.model.generate(
+    critique_text = state.model.generate(
         prompt,
-        system_prompt=self._state.cache.get("system_prompt", ""),
-        temperature=self._state.cache.get("temperature", 0.7),
-        max_tokens=self._state.cache.get("max_tokens", 1000),
+        system_prompt=state.cache.get("system_prompt", ""),
+        temperature=state.cache.get("temperature", 0.7),
+        max_tokens=state.cache.get("max_tokens", 1000),
     ).strip()
 
     # Parse critique

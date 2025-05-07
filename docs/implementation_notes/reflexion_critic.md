@@ -10,34 +10,47 @@ The Reflexion Critic implements the Reflexion approach, which enables language m
 
 ### State Management
 
-The Reflexion Critic follows the standard state management pattern used in Sifaka critics:
+The Reflexion Critic follows the standardized StateManager pattern used in Sifaka critics:
 
-- Uses a `CriticState` object to store all mutable state
+- Uses a `StateManager` with `CriticState` to store all mutable state
 - Stores configuration values in the state's cache dictionary
-- Accesses state through direct state access
+- Accesses state through the state manager
 
 ```python
-# Initialize state
-self._state = CriticState()
+# State management using StateManager
+_state_manager = PrivateAttr(default_factory=create_critic_state)
 
-# Store components in state
-self._state.model = llm_provider
-self._state.prompt_manager = prompt_factory or ReflexionCriticPromptManager(config)
-self._state.response_parser = ResponseParser()
-self._state.memory_manager = MemoryManager(buffer_size=config.memory_buffer_size)
-self._state.cache = {
-    "system_prompt": config.system_prompt,
-    "temperature": config.temperature,
-    "max_tokens": config.max_tokens,
-    "reflection_depth": config.reflection_depth,
-    "critique_service": CritiqueService(
-        llm_provider=llm_provider,
-        prompt_manager=self._state.prompt_manager,
-        response_parser=self._state.response_parser,
-        memory_manager=self._state.memory_manager,
-    ),
-}
-self._state.initialized = True
+def __init__(self, config: ReflexionCriticConfig, llm_provider: Any, prompt_factory: Any = None) -> None:
+    # Initialize base class
+    super().__init__(config)
+
+    # Initialize state
+    state = self._state_manager.get_state()
+
+    # Import required components
+    from .managers.prompt_factories import ReflexionCriticPromptManager
+    from .managers.response import ResponseParser
+    from .managers.memory import MemoryManager
+    from .services.critique import CritiqueService
+
+    # Store components in state
+    state.model = llm_provider
+    state.prompt_manager = prompt_factory or ReflexionCriticPromptManager(config)
+    state.response_parser = ResponseParser()
+    state.memory_manager = MemoryManager(buffer_size=config.memory_buffer_size)
+    state.cache = {
+        "system_prompt": config.system_prompt,
+        "temperature": config.temperature,
+        "max_tokens": config.max_tokens,
+        "reflection_depth": config.reflection_depth,
+        "critique_service": CritiqueService(
+            llm_provider=llm_provider,
+            prompt_manager=state.prompt_manager,
+            response_parser=state.response_parser,
+            memory_manager=state.memory_manager,
+        ),
+    }
+    state.initialized = True
 ```
 
 ### Configuration
@@ -100,12 +113,12 @@ class ReflexionCriticPromptManager(PromptManager):
         """Create a prompt for improving text with feedback and reflections."""
         # Get reflections from memory
         reflections = self.memory_manager.get_memory(self.config.reflection_depth)
-        
+
         # Format reflections if available
         reflections_text = ""
         if reflections:
             reflections_text = "PREVIOUS REFLECTIONS:\n" + "\n".join(reflections) + "\n\n"
-        
+
         # Create improvement prompt
         return f"""Please improve the following text based on the feedback and previous reflections:
 
@@ -133,7 +146,8 @@ def improve(self, text: str, feedback: str = None) -> str:
     """Improve text based on feedback and reflections."""
     self._check_input(text)
     feedback_str = self._format_feedback(feedback)
-    return self._state.cache["critique_service"].improve(text, feedback_str)
+    state = self._state_manager.get_state()
+    return state.cache["critique_service"].improve(text, feedback_str)
 ```
 
 ### Factory Function

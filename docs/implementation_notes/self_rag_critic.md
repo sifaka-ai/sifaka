@@ -10,29 +10,38 @@ The Self-RAG Critic implements the Self-Reflective Retrieval-Augmented Generatio
 
 ### State Management
 
-The Self-RAG Critic follows the standard state management pattern used in other Sifaka critics:
+The Self-RAG Critic follows the standardized StateManager pattern used in other Sifaka critics:
 
-- Uses a `CriticState` object to store all mutable state
+- Uses a `StateManager` with `CriticState` to store all mutable state
 - Stores configuration values and components in the state's cache dictionary
-- Accesses state through direct state access
+- Accesses state through the state manager
 
 ```python
-# Initialize state
-self._state = CriticState()
+# State management using StateManager
+_state_manager = PrivateAttr(default_factory=create_critic_state)
 
-# Store components in state
-self._state.model = llm_provider
-self._state.cache = {
-    "retriever": retriever,
-    "system_prompt": config.system_prompt,
-    "temperature": config.temperature,
-    "max_tokens": config.max_tokens,
-    "retrieval_threshold": config.retrieval_threshold,
-    "retrieval_prompt_template": config.retrieval_prompt_template,
-    "generation_prompt_template": config.generation_prompt_template,
-    "reflection_prompt_template": config.reflection_prompt_template,
-}
-self._state.initialized = True
+def __init__(self, config: SelfRAGCriticConfig, llm_provider: Any, retriever: Any) -> None:
+    # Initialize base class
+    super().__init__(config)
+
+    # Get state from state manager
+    state = self._state_manager.get_state()
+
+    # Store components in state
+    state.model = llm_provider
+    state.initialized = True
+
+    # Store configuration and retriever in state cache
+    state.cache = {
+        "retriever": retriever,
+        "system_prompt": config.system_prompt,
+        "temperature": config.temperature,
+        "max_tokens": config.max_tokens,
+        "retrieval_threshold": config.retrieval_threshold,
+        "retrieval_prompt_template": config.retrieval_prompt_template,
+        "generation_prompt_template": config.generation_prompt_template,
+        "reflection_prompt_template": config.reflection_prompt_template,
+    }
 ```
 
 ### Configuration
@@ -75,6 +84,9 @@ The core algorithm for the Self-RAG Critic is implemented in the `run` method:
 6. Return the results
 
 ```python
+# Get state from state manager
+state = self._state_manager.get_state()
+
 # Step 1: Generate retrieval query
 retrieval_query = self._generate_retrieval_query(task)
 
@@ -140,7 +152,7 @@ class SimpleRetriever:
         # Find documents that match the query
         matches = []
         for key, content in self.documents.items():
-            if any(term.lower() in key.lower() or term.lower() in content.lower() 
+            if any(term.lower() in key.lower() or term.lower() in content.lower()
                   for term in query.lower().split()):
                 matches.append(content)
 
