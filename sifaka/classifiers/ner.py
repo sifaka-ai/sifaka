@@ -25,6 +25,7 @@ from typing import (
 )
 
 from typing_extensions import TypeGuard
+from pydantic import PrivateAttr
 
 from sifaka.classifiers.base import (
     Classifier,
@@ -33,7 +34,7 @@ from sifaka.classifiers.base import (
     ClassifierImplementation,
 )
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import ClassifierState
+from sifaka.utils.state import ClassifierState, create_classifier_state
 
 logger = get_logger(__name__)
 
@@ -84,6 +85,9 @@ class NERClassifierImplementation:
     ]
     DEFAULT_COST: int = 2  # Moderate cost for NLP model
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
+
     def __init__(
         self,
         config: ClassifierConfig,
@@ -97,13 +101,14 @@ class NERClassifierImplementation:
             engine: Custom NER engine implementation (optional)
         """
         self.config = config
-        self._state = ClassifierState()
-        self._state.initialized = False
-        self._state.cache = {}
+        # State is managed by StateManager, no need to initialize here
+
+        # Get state
+        state = self._state_manager.get_state()
 
         # Store engine in state if provided
         if engine is not None and self._validate_engine(engine):
-            self._state.cache["engine"] = engine
+            state.cache["engine"] = engine
 
     def _validate_engine(self, engine: Any) -> TypeGuard[NEREngine]:
         """Validate that an engine implements the required protocol."""
@@ -114,9 +119,12 @@ class NERClassifierImplementation:
     def _load_spacy(self) -> NEREngine:
         """Load the spaCy NER engine."""
         try:
+            # Get state
+            state = self._state_manager.get_state()
+
             # Check if engine is already in state
-            if "engine" in self._state.cache:
-                return self._state.cache["engine"]
+            if "engine" in state.cache:
+                return state.cache["engine"]
 
             spacy = importlib.import_module("spacy")
 
@@ -145,7 +153,7 @@ class NERClassifierImplementation:
 
             # Validate and store in state
             if self._validate_engine(engine):
-                self._state.cache["engine"] = engine
+                state.cache["engine"] = engine
                 return engine
 
         except ImportError:
@@ -165,14 +173,17 @@ class NERClassifierImplementation:
 
     def warm_up_impl(self) -> None:
         """Initialize the NER engine if needed."""
-        if not self._state.initialized:
+        # Get state
+        state = self._state_manager.get_state()
+
+        if not state.initialized:
             # Load engine if not already in state
-            if "engine" not in self._state.cache:
+            if "engine" not in state.cache:
                 engine = self._load_spacy()
-                self._state.cache["engine"] = engine
+                state.cache["engine"] = engine
 
             # Mark as initialized
-            self._state.initialized = True
+            state.initialized = True
 
     def _extract_entities(self, text: str) -> EntityResult:
         """
@@ -184,12 +195,15 @@ class NERClassifierImplementation:
         Returns:
             EntityResult with entity details
         """
+        # Get state
+        state = self._state_manager.get_state()
+
         # Ensure resources are initialized
-        if not self._state.initialized:
+        if not state.initialized:
             self.warm_up_impl()
 
         # Get engine from state
-        engine = self._state.cache.get("engine")
+        engine = state.cache.get("engine")
         if not engine:
             raise RuntimeError("NER engine not initialized")
 

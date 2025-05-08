@@ -47,7 +47,8 @@ from sifaka.classifiers.base import (
     Classifier,
 )
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import ClassifierState
+from sifaka.utils.state import ClassifierState, StateManager, create_classifier_state
+from pydantic import PrivateAttr
 
 logger = get_logger(__name__)
 
@@ -142,6 +143,9 @@ class BiasDetectorImplementation:
         "geographical": ["urban", "rural", "city", "country", "coastal", "inland", "regional"],
     }
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
+
     def __init__(self, config: ClassifierConfig):
         """
         Initialize the bias detector implementation.
@@ -150,9 +154,7 @@ class BiasDetectorImplementation:
             config: Configuration for the bias detector
         """
         self.config = config
-        self._state = ClassifierState()
-        self._state.initialized = False
-        self._state.cache = {}
+        # State is managed by StateManager, no need to initialize here
 
     def _load_dependencies(self) -> Dict[str, Any]:
         """
@@ -191,13 +193,16 @@ class BiasDetectorImplementation:
         This method loads the scikit-learn dependencies and initializes
         the vectorizer and SVM model for bias detection.
         """
+        # Get state
+        state = self._state_manager.get_state()
+
         # Check if already initialized
-        if self._state.initialized:
+        if state.initialized:
             return
 
         # Load dependencies
         sklearn = self._load_dependencies()
-        self._state.dependencies_loaded = True
+        state.dependencies_loaded = True
 
         # Get configuration from params
         model_path = self.config.params.get("model_path")
@@ -208,7 +213,7 @@ class BiasDetectorImplementation:
             self._load_model(model_path)
         else:
             # Create TF-IDF vectorizer with custom analyzer to catch bias keywords
-            self._state.vectorizer = sklearn["feature_extraction_text"].TfidfVectorizer(
+            state.vectorizer = sklearn["feature_extraction_text"].TfidfVectorizer(
                 max_features=max_features,
                 stop_words="english",
                 ngram_range=(1, 2),
@@ -222,21 +227,21 @@ class BiasDetectorImplementation:
             )
 
             # Calibrate the SVM to get probability estimates
-            self._state.model = sklearn["calibration"].CalibratedClassifierCV(
+            state.model = sklearn["calibration"].CalibratedClassifierCV(
                 estimator=svm,
                 cv=3,
             )
 
             # Create pipeline
-            self._state.pipeline = sklearn["pipeline"].Pipeline(
+            state.pipeline = sklearn["pipeline"].Pipeline(
                 [
-                    ("vectorizer", self._state.vectorizer),
-                    ("classifier", self._state.model),
+                    ("vectorizer", state.vectorizer),
+                    ("classifier", state.model),
                 ]
             )
 
         # Mark as initialized
-        self._state.initialized = True
+        state.initialized = True
 
     def _extract_bias_features(self, text: str) -> Dict[str, float]:
         """
@@ -266,18 +271,21 @@ class BiasDetectorImplementation:
         Raises:
             RuntimeError: If model is not initialized
         """
+        # Get state
+        state = self._state_manager.get_state()
+
         # Check if initialized
-        if not self._state.initialized:
+        if not state.initialized:
             raise RuntimeError("Model not initialized")
 
         with open(path, "wb") as f:
             pickle.dump(
                 {
-                    "vectorizer": self._state.vectorizer,
-                    "model": self._state.model,
-                    "pipeline": self._state.pipeline,
+                    "vectorizer": state.vectorizer,
+                    "model": state.model,
+                    "pipeline": state.pipeline,
                     "config_params": self.config.params,
-                    "feature_names": self._state.feature_names,
+                    "feature_names": state.feature_names,
                 },
                 f,
             )
@@ -289,18 +297,21 @@ class BiasDetectorImplementation:
         Args:
             path: Path to the saved model
         """
+        # Get state
+        state = self._state_manager.get_state()
+
         with open(path, "rb") as f:
             data = pickle.load(f)
-            self._state.vectorizer = data["vectorizer"]
-            self._state.model = data["model"]
-            self._state.pipeline = data["pipeline"]
+            state.vectorizer = data["vectorizer"]
+            state.model = data["model"]
+            state.pipeline = data["pipeline"]
 
             # Load feature names if available
             if "feature_names" in data:
-                self._state.feature_names = data["feature_names"]
+                state.feature_names = data["feature_names"]
 
         # Mark as initialized
-        self._state.initialized = True
+        state.initialized = True
 
     def _extract_explanations(self) -> None:
         """
@@ -309,22 +320,25 @@ class BiasDetectorImplementation:
         This method extracts the most important features for each bias type
         to provide explanations for classification results.
         """
+        # Get state
+        state = self._state_manager.get_state()
+
         try:
-            if not hasattr(self._state.model, "base_estimator"):
+            if not hasattr(state.model, "base_estimator"):
                 return
 
             # Get feature names
-            feature_names = self._state.vectorizer.get_feature_names_out()
+            feature_names = state.vectorizer.get_feature_names_out()
 
             # Store feature names in state
-            self._state.feature_names = {
+            state.feature_names = {
                 "names": feature_names,
                 "count": len(feature_names),
             }
 
             # Extract coefficients from the SVM
-            if hasattr(self._state.model.base_estimator, "coef_"):
-                coefficients = self._state.model.base_estimator.coef_
+            if hasattr(state.model.base_estimator, "coef_"):
+                coefficients = state.model.base_estimator.coef_
 
                 # For each class, extract the top features
                 explanations = {}
@@ -351,10 +365,10 @@ class BiasDetectorImplementation:
                     }
 
                 # Store explanations in state cache
-                self._state.cache["explanations"] = explanations
+                state.cache["explanations"] = explanations
         except Exception as e:
             logger.warning(f"Could not extract explanations: {e}")
-            self._state.error = f"Failed to extract explanations: {e}"
+            state.error = f"Failed to extract explanations: {e}"
 
     def classify_impl(self, text: str) -> ClassificationResult[str]:
         """
@@ -371,12 +385,15 @@ class BiasDetectorImplementation:
         Raises:
             RuntimeError: If model is not initialized
         """
+        # Get state
+        state = self._state_manager.get_state()
+
         # Check if initialized
-        if not self._state.initialized:
+        if not state.initialized:
             self.warm_up_impl()
 
         # Check if still not initialized
-        if not self._state.initialized:
+        if not state.initialized:
             raise RuntimeError("Model not initialized")
 
         # Handle empty or whitespace-only text
@@ -391,15 +408,15 @@ class BiasDetectorImplementation:
 
         try:
             # Get prediction and probability
-            label = self._state.pipeline.predict([text])[0]
-            probs = self._state.pipeline.predict_proba([text])[0]
+            label = state.pipeline.predict([text])[0]
+            probs = state.pipeline.predict_proba([text])[0]
             confidence = max(probs)
 
             # Extract bias features
             bias_features = self._extract_bias_features(text)
 
             # Get explanations from cache
-            explanations = self._state.cache.get("explanations", {}).get(label, {})
+            explanations = state.cache.get("explanations", {}).get(label, {})
 
             # Create result
             return ClassificationResult(
@@ -413,7 +430,7 @@ class BiasDetectorImplementation:
         except Exception as e:
             # Log the error and return a fallback result
             logger.error("Failed to classify text: %s", e)
-            self._state.error = f"Failed to classify text: {e}"
+            state.error = f"Failed to classify text: {e}"
             return ClassificationResult(
                 label="unknown",
                 confidence=0.0,
@@ -437,12 +454,15 @@ class BiasDetectorImplementation:
         Raises:
             RuntimeError: If model is not initialized
         """
+        # Get state
+        state = self._state_manager.get_state()
+
         # Check if initialized
-        if not self._state.initialized:
+        if not state.initialized:
             self.warm_up_impl()
 
         # Check if still not initialized
-        if not self._state.pipeline:
+        if not state.pipeline:
             raise RuntimeError(
                 "Model not initialized. You must either provide a model_path or call fit() before classification."
             )
@@ -472,7 +492,7 @@ class BiasDetectorImplementation:
 
         try:
             # Get model predictions for valid texts
-            probas = self._state.pipeline.predict_proba(valid_texts)
+            probas = state.pipeline.predict_proba(valid_texts)
 
             # Prepare results list with placeholders
             results = [None] * len(texts)
@@ -494,7 +514,7 @@ class BiasDetectorImplementation:
                 min_confidence = self.config.min_confidence
 
                 # Get explanations from cache
-                explanations = self._state.cache.get("explanations", {}).get(label, {})
+                explanations = state.cache.get("explanations", {}).get(label, {})
 
                 metadata = {
                     "probabilities": all_probs,
@@ -523,6 +543,7 @@ class BiasDetectorImplementation:
         except Exception as e:
             # Log the error and return fallback results
             logger.error("Failed to batch classify texts: %s", e)
+            state.error = f"Failed to batch classify texts: {e}"
             return [
                 ClassificationResult(
                     label="unknown",
@@ -550,38 +571,41 @@ class BiasDetectorImplementation:
         if not texts or not labels:
             raise ValueError("Empty training data")
 
+        # Get state
+        state = self._state_manager.get_state()
+
         # Load scikit-learn dependencies
         sklearn = self._load_dependencies()
-        self._state.dependencies_loaded = True
+        state.dependencies_loaded = True
 
         # Get configuration from params
         max_features = self.config.params.get("max_features", 3000)
         random_state = self.config.params.get("random_state", 42)
 
         # Create vectorizer
-        self._state.vectorizer = sklearn["feature_extraction_text"].TfidfVectorizer(
+        state.vectorizer = sklearn["feature_extraction_text"].TfidfVectorizer(
             max_features=max_features,
             stop_words="english",
         )
 
         # Create and train SVM classifier
-        self._state.model = sklearn["svm"].SVC(
+        state.model = sklearn["svm"].SVC(
             kernel="linear",
             probability=True,
             random_state=random_state,
         )
 
         # Create pipeline
-        self._state.pipeline = sklearn["pipeline"].Pipeline(
+        state.pipeline = sklearn["pipeline"].Pipeline(
             [
-                ("vectorizer", self._state.vectorizer),
-                ("classifier", self._state.model),
+                ("vectorizer", state.vectorizer),
+                ("classifier", state.model),
             ]
         )
 
         # Fit pipeline
-        self._state.pipeline.fit(texts, labels)
-        self._state.initialized = True
+        state.pipeline.fit(texts, labels)
+        state.initialized = True
 
         # Extract feature explanations
         self._extract_explanations()
@@ -611,9 +635,12 @@ class BiasDetectorImplementation:
         # Get the classification result
         result = self.classify_impl(text)
 
+        # Get state
+        state = self._state_manager.get_state()
+
         # Extract the features that contributed to this bias type
         explanation = {}
-        explanations = self._state.cache.get("explanations", {})
+        explanations = state.cache.get("explanations", {})
         if explanations and bias_type in explanations:
             explanation = explanations[bias_type]
 

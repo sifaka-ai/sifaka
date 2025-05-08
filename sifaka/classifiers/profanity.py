@@ -87,7 +87,8 @@ from sifaka.classifiers.base import (
     ClassifierImplementation,
 )
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import ClassifierState
+from sifaka.utils.state import ClassifierState, StateManager, create_classifier_state
+from pydantic import PrivateAttr
 
 logger = get_logger(__name__)
 
@@ -197,6 +198,9 @@ class ProfanityClassifierImplementation:
     DEFAULT_LABELS: ClassVar[List[str]] = ["clean", "profane", "unknown"]
     DEFAULT_COST: ClassVar[int] = 1  # Low cost for dictionary-based check
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
+
     def __init__(
         self,
         config: ClassifierConfig,
@@ -210,14 +214,15 @@ class ProfanityClassifierImplementation:
             checker: Optional custom profanity checker implementation
         """
         self.config = config
-        self._state = ClassifierState()
-        self._state.initialized = False
-        self._state.cache = {}
+        # State is managed by StateManager, no need to initialize here
+
+        # Get state
+        state = self._state_manager.get_state()
 
         # Store checker in state if provided
         if checker is not None:
             if self._validate_checker(checker):
-                self._state.cache["checker"] = checker
+                state.cache["checker"] = checker
 
     def _validate_checker(self, checker: Any) -> TypeGuard[ProfanityChecker]:
         """Validate that a checker implements the required protocol."""
@@ -230,9 +235,12 @@ class ProfanityClassifierImplementation:
     def _load_profanity(self) -> ProfanityChecker:
         """Load the profanity checker."""
         try:
+            # Get state
+            state = self._state_manager.get_state()
+
             # Check if checker is already in state
-            if "checker" in self._state.cache:
-                return self._state.cache["checker"]
+            if "checker" in state.cache:
+                return state.cache["checker"]
 
             profanity_module = importlib.import_module("better_profanity")
             checker = profanity_module.Profanity()
@@ -254,7 +262,7 @@ class ProfanityClassifierImplementation:
 
             # Validate and store in state
             if self._validate_checker(checker):
-                self._state.cache["checker"] = checker
+                state.cache["checker"] = checker
                 return checker
 
         except ImportError:
@@ -282,17 +290,23 @@ class ProfanityClassifierImplementation:
         """Add custom words to the profanity list."""
         self.warm_up_impl()
 
-        if "checker" in self._state.cache:
-            checker = self._state.cache["checker"]
+        # Get state
+        state = self._state_manager.get_state()
+
+        if "checker" in state.cache:
+            checker = state.cache["checker"]
             checker.add_censor_words(words)
 
     def warm_up_impl(self) -> None:
         """Initialize the profanity checker if needed."""
-        if not self._state.initialized:
+        # Get state
+        state = self._state_manager.get_state()
+
+        if not state.initialized:
             # Load profanity checker
             checker = self._load_profanity()
-            self._state.cache["checker"] = checker
-            self._state.initialized = True
+            state.cache["checker"] = checker
+            state.initialized = True
 
     def _censor_text(self, text: str) -> CensorResult:
         """
@@ -304,10 +318,13 @@ class ProfanityClassifierImplementation:
         Returns:
             CensorResult with censoring details
         """
-        if not self._state.initialized or "checker" not in self._state.cache:
+        # Get state
+        state = self._state_manager.get_state()
+
+        if not state.initialized or "checker" not in state.cache:
             raise RuntimeError("Profanity checker not initialized. Call warm_up_impl() first.")
 
-        checker = self._state.cache["checker"]
+        checker = state.cache["checker"]
 
         # Count total words
         total_words = len(text.split())
@@ -337,7 +354,10 @@ class ProfanityClassifierImplementation:
         Returns:
             ClassificationResult with label and confidence
         """
-        if not self._state.initialized:
+        # Get state
+        state = self._state_manager.get_state()
+
+        if not state.initialized:
             self.warm_up_impl()
 
         try:
@@ -350,7 +370,7 @@ class ProfanityClassifierImplementation:
                 )
 
             # Get checker from state
-            checker = self._state.cache["checker"]
+            checker = state.cache["checker"]
 
             # Check for profanity and censor text
             contains_profanity = checker.contains_profanity(text)
@@ -378,6 +398,7 @@ class ProfanityClassifierImplementation:
 
         except Exception as e:
             logger.error("Failed to check profanity: %s", e)
+            state.error = f"Failed to check profanity: {e}"
             return ClassificationResult(
                 label="unknown",
                 confidence=0.0,

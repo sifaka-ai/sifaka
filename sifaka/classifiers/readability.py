@@ -151,6 +151,9 @@ class ReadabilityClassifierImplementation:
         "graduate": (16.0, float("inf")),
     }
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
+
     def __init__(self, config: ClassifierConfig):
         """
         Initialize the readability classifier implementation.
@@ -159,9 +162,7 @@ class ReadabilityClassifierImplementation:
             config: Configuration for the classifier
         """
         self.config = config
-        self._state = ClassifierState()
-        self._state.initialized = False
-        self._state.cache = {}
+        # State is managed by StateManager, no need to initialize here
 
     def _validate_analyzer(self, analyzer: Any) -> TypeGuard[ReadabilityAnalyzer]:
         """Validate that an analyzer implements the required protocol."""
@@ -187,16 +188,19 @@ class ReadabilityClassifierImplementation:
 
     def warm_up_impl(self) -> None:
         """Initialize the analyzer if needed."""
+        # Get state
+        state = self._state_manager.get_state()
+
         # Check if already initialized
-        if not self._state.initialized:
+        if not state.initialized:
             # Get analyzer from state cache or load textstat
-            analyzer = self._state.cache.get("analyzer") or self._load_textstat()
+            analyzer = state.cache.get("analyzer") or self._load_textstat()
 
             # Store analyzer in state
-            self._state.model = analyzer
+            state.model = analyzer
 
             # Mark as initialized
-            self._state.initialized = True
+            state.initialized = True
 
     def _get_grade_level(self, grade: float) -> str:
         """Convert grade level to readability label."""
@@ -229,8 +233,11 @@ class ReadabilityClassifierImplementation:
 
     def _calculate_metrics(self, text: str) -> ReadabilityMetrics:
         """Calculate comprehensive readability metrics."""
+        # Get state
+        state = self._state_manager.get_state()
+
         # Get analyzer from state
-        analyzer = self._state.model
+        analyzer = state.model
 
         words = text.split()
         unique_words = set(word.lower() for word in words)
@@ -353,8 +360,11 @@ class ReadabilityClassifierImplementation:
             return ClassificationResult(label=level, confidence=confidence, metadata=metadata)
 
         except Exception as e:
+            # Get state
+            state = self._state_manager.get_state()
+
             logger.error("Failed to classify text readability: %s", e)
-            self._state.error = f"Failed to classify text readability: {e}"
+            state.error = f"Failed to classify text readability: {e}"
             return ClassificationResult(
                 label="unknown",
                 confidence=0.0,
@@ -448,7 +458,8 @@ def create_readability_classifier(
 
     # Store analyzer in implementation's state if provided
     if analyzer is not None:
-        implementation._state.cache["analyzer"] = analyzer
+        state = implementation._state_manager.get_state()
+        state.cache["analyzer"] = analyzer
 
     # Create and return classifier with implementation
     return Classifier(
