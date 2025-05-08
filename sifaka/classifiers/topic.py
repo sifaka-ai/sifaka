@@ -51,7 +51,7 @@ from sifaka.classifiers.base import (
 )
 from sifaka.classifiers.config import standardize_classifier_config
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import ClassifierState
+from sifaka.utils.state import ClassifierState, create_classifier_state
 
 logger = get_logger(__name__)
 
@@ -68,6 +68,9 @@ class TopicClassifierImplementation:
     ## Architecture
 
     TopicClassifierImplementation follows the composition pattern:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
     1. **Core Logic**: classify_impl() implements topic modeling
     2. **State Management**: Uses ClassifierState for internal state
     3. **Resource Management**: Loads and manages scikit-learn models
@@ -113,9 +116,9 @@ class TopicClassifierImplementation:
             config: Configuration for the classifier
         """
         self.config = config
-        self._state = ClassifierState()
-        self._state.initialized = False
-        self._state.cache = {}
+        # State is managed by StateManager, no need to initialize here
+        # Initialization is handled by StateManager
+        state.cache = {}
 
     @property
     def num_topics(self) -> int:
@@ -172,8 +175,9 @@ class TopicClassifierImplementation:
         Raises:
             RuntimeError: If model initialization fails
         """
-        # Check if already initialized
-        if not self._state.initialized:
+        # Get state
+        state = self._state_manager.get_state()
+        if not state.initialized:
             # Load dependencies
             sklearn = self._load_dependencies()
             self._state.dependencies_loaded = True
@@ -183,19 +187,19 @@ class TopicClassifierImplementation:
             random_state = self.config.params.get("random_state", 42)
 
             # Create vectorizer
-            self._state.vectorizer = sklearn["feature_extraction_text"].TfidfVectorizer(
+            state.vectorizer = sklearn["feature_extraction_text"].TfidfVectorizer(
                 max_features=max_features,
                 stop_words="english",
             )
 
             # Create LDA model
-            self._state.model = sklearn["decomposition"].LatentDirichletAllocation(
+            state.model = sklearn["decomposition"].LatentDirichletAllocation(
                 n_components=self.num_topics,
                 random_state=random_state,
             )
 
             # Mark as initialized
-            self._state.initialized = True
+            state.initialized = True
 
     def fit_impl(self, texts: List[str]) -> Dict[str, Any]:
         """
@@ -208,28 +212,28 @@ class TopicClassifierImplementation:
             Dictionary with updated configuration and state information
         """
         # Ensure initialized
-        if not self._state.initialized:
+        if not state.initialized:
             self.warm_up_impl()
 
         # Transform texts to TF-IDF features
-        X = self._state.vectorizer.fit_transform(texts)
+        X = state.vectorizer.fit_transform(texts)
 
         # Fit LDA model
-        self._state.model.fit(X)
+        state.model.fit(X)
 
         # Get feature names for later interpretation
-        feature_names = self._state.vectorizer.get_feature_names_out()
+        feature_names = state.vectorizer.get_feature_names_out()
         self._state.feature_names = feature_names
 
         # Extract the words that define each topic
         topic_words = []
-        for _, topic in enumerate(self._state.model.components_):
+        for _, topic in enumerate(state.model.components_):
             top_features_ind = topic.argsort()[: -self.top_words_per_topic - 1 : -1]
             top_features = [feature_names[i] for i in top_features_ind]
             topic_words.append(top_features)
 
         # Store topic words in state cache
-        self._state.cache["topic_words"] = topic_words
+        state.cache["topic_words"] = topic_words
 
         # Create updated labels with meaningful topic names
         labels = [f"topic_{i}_{'+'.join(words[:3])}" for i, words in enumerate(topic_words)]
@@ -263,23 +267,23 @@ class TopicClassifierImplementation:
             ValueError: If text is empty or invalid
             RuntimeError: If classification fails
         """
-        if not self._state.model or not self._state.vectorizer:
+        if not state.model or not state.vectorizer:
             raise RuntimeError(
                 "Model not initialized. You must call fit() with a corpus before classification."
             )
 
         # Transform the input text
-        X = self._state.vectorizer.transform([text])
+        X = state.vectorizer.transform([text])
 
         # Get topic distribution
-        topic_distribution = self._state.model.transform(X)[0]
+        topic_distribution = state.model.transform(X)[0]
 
         # Get dominant topic
         dominant_topic_idx = topic_distribution.argmax()
         confidence = float(topic_distribution[dominant_topic_idx])
 
         # Get topic words from state cache
-        topic_words = self._state.cache.get("topic_words", [])
+        topic_words = state.cache.get("topic_words", [])
 
         # Create detailed metadata
         all_topics = {}
@@ -323,19 +327,19 @@ class TopicClassifierImplementation:
             ValueError: If texts list is empty or contains invalid entries
             RuntimeError: If batch classification fails
         """
-        if not self._state.model or not self._state.vectorizer:
+        if not state.model or not state.vectorizer:
             raise RuntimeError(
                 "Model not initialized. You must call fit() with a corpus before classification."
             )
 
         # Transform all texts at once
-        X = self._state.vectorizer.transform(texts)
+        X = state.vectorizer.transform(texts)
 
         # Get topic distributions for all texts
-        topic_distributions = self._state.model.transform(X)
+        topic_distributions = state.model.transform(X)
 
         # Get topic words from state cache
-        topic_words = self._state.cache.get("topic_words", [])
+        topic_words = state.cache.get("topic_words", [])
 
         results = []
         labels = list(self.config.labels)  # Convert FieldInfo to list

@@ -100,6 +100,9 @@ from sifaka.critics.models import CriticConfig, CriticMetadata
 
 class MyCritic(BaseCritic[str, str]):
     def __init__(self, config: CriticConfig):
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         super().__init__(config)
 
     def validate(self, text: str) -> bool:
@@ -168,6 +171,9 @@ C = TypeVar("C", bound="BaseCritic")  # Critic type
 
 
 class CriticResult(str, Enum):
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
     """Enumeration of possible critic results.
 
     This enum defines the possible outcomes of critic operations:
@@ -179,6 +185,9 @@ class CriticResult(str, Enum):
         ```python
         result = CriticResult.SUCCESS
         if result == CriticResult.NEEDS_IMPROVEMENT:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
             print("Text needs improvement")
         ```
     """
@@ -297,6 +306,9 @@ class CriticMetadata(Generic[R]):
 
 @dataclass(frozen=True)
 class CriticOutput(Generic[T, R]):
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
     """Immutable output from a critic.
 
     This class defines the structure for critic outputs, including
@@ -333,6 +345,9 @@ class CriticOutput(Generic[T, R]):
        - State preservation
 
     Examples:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         ```python
         output = CriticOutput(
             result=CriticResult.SUCCESS,
@@ -378,6 +393,9 @@ class TextValidator(Protocol[T]):
     ## Error Handling
 
     Implementations should handle these error cases:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
     - Empty or invalid text inputs
     - Validation failures
     - Resource availability issues
@@ -422,6 +440,9 @@ class TextValidator(Protocol[T]):
     # Use the validator
     is_valid = validator.validate("This is a test text")
     print(f"Text is valid: {is_valid}")
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
     ```
 
     Using with error handling:
@@ -455,6 +476,9 @@ class TextValidator(Protocol[T]):
 
                 return True
             except Exception as e:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
                 logger.error(f"Validation error: {e}")
                 return False
     ```
@@ -503,6 +527,9 @@ class TextImprover(Protocol[T, R]):
        - Ensure method signatures match the protocol
 
     2. **Verification**: Verify protocol compliance
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
        - Use isinstance() to check if an object implements the protocol
        - No explicit registration or inheritance is needed
 
@@ -551,6 +578,9 @@ class TextImprover(Protocol[T, R]):
                 message = violation.get("message", "")
 
                 if rule_id == "length" and "too_short" in message:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
                     improved += " Additional content to increase length."
                 elif rule_id == "style" and "capitalization" in message:
                     improved = improved.capitalize()
@@ -597,6 +627,9 @@ class TextImprover(Protocol[T, R]):
                     return "Default text content"
 
                 if not violations:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
                     return text  # No improvements needed
 
                 # Apply improvements
@@ -652,6 +685,9 @@ class TextCritic(Protocol[T, R]):
     ## Lifecycle
 
     1. **Implementation**: Create a class that implements the required methods
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
        - Implement config property to expose configuration
        - Implement critique() method to analyze text quality
        - Ensure method signatures match the protocol
@@ -713,6 +749,9 @@ class TextCritic(Protocol[T, R]):
 
             # Generate feedback
             if score > 0.8:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
                 feedback = "Excellent text quality"
                 issues = []
                 suggestions = []
@@ -785,6 +824,9 @@ class TextCritic(Protocol[T, R]):
                     processing_time_ms=(time.time() - start_time) * 1000
                 )
             except Exception as e:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
                 logger.error(f"Critique error: {e}")
                 return CriticMetadata(
                     score=0.0,
@@ -814,6 +856,9 @@ class TextCritic(Protocol[T, R]):
         Critique text and provide feedback.
 
         Args:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
             text: The text to critique
 
         Returns:
@@ -1162,6 +1207,9 @@ def create_critic(
     cost: float = 1.0,
     config: Optional[CriticConfig] = None,
     **kwargs: Any,
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
 ) -> C:
     """
     Create a critic instance.
@@ -1407,6 +1455,9 @@ class Critic(BaseCritic[str, str]):
             issues = ["Text could be more detailed"]
             suggestions = ["Consider adding more content"]
         else:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
             feedback = "Text needs improvement"
             issues = ["Text is too short", "Lacks detail"]
             suggestions = ["Add more content", "Include specific examples"]
@@ -1476,6 +1527,9 @@ class CompositionCritic(BaseModel, TextValidator, TextImprover, TextCritic):
     ## Architecture
 
     CompositionCritic follows a compositional architecture:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
     1. **Public API**: validate(), improve(), and critique() methods
     2. **Delegation**: Delegates to implementation for core logic
     3. **State Management**: Uses StateManager for consistent state handling
@@ -1539,8 +1593,8 @@ class CompositionCritic(BaseModel, TextValidator, TextImprover, TextCritic):
     class MyImplementation(CriticImplementation):
         def __init__(self, config):
             self.config = config
-            self._state = CriticState()
-            self._state.initialized = False
+            # State is managed by StateManager, no need to initialize here
+            # Initialization is handled by StateManager
 
         def validate_impl(self, text: str) -> bool:
             # Implementation
@@ -1561,7 +1615,7 @@ class CompositionCritic(BaseModel, TextValidator, TextImprover, TextCritic):
 
         def warm_up_impl(self) -> None:
             # Implementation
-            self._state.initialized = True
+            state.initialized = True
 
     # Create a critic with the implementation
     config = CriticConfig(

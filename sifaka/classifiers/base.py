@@ -71,6 +71,9 @@ from sifaka.classifiers.base import BaseClassifier, ClassificationResult, Classi
 # Creating a simple classifier
 class SimpleClassifier(BaseClassifier[str, str]):
     def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
         # Simple implementation that checks text length
         if len(text) > 100:
             return ClassificationResult(
@@ -157,6 +160,9 @@ R = TypeVar("R")  # Type of classification result
 
 @runtime_checkable
 class TextProcessor(Protocol[T, R]):
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
     """
     Protocol for text processing components.
 
@@ -190,6 +196,9 @@ class TextProcessor(Protocol[T, R]):
 
     Implementing a simple text processor:
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
+
     ```python
     from sifaka.classifiers.base import TextProcessor
     from typing import Dict, runtime_checkable
@@ -214,6 +223,9 @@ class TextProcessor(Protocol[T, R]):
     # Use the processor
     result = processor.process("Hello 123")
     print(f"Text length: {result['length']}")
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
     print(f"First character: {result['first_char']}")
     print(f"Contains digits: {result['has_digits']}")
     ```
@@ -238,6 +250,9 @@ class TextProcessor(Protocol[T, R]):
                     "status": "success",
                     "length": str(len(text)),
                     "words": str(len(text.split()))
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
                 }
             except Exception as e:
                 self.error_count += 1
@@ -272,6 +287,9 @@ class ClassifierImplementation(Protocol[T, R]):
        - Implementation focuses on core logic
 
     3. **Usage**: Implementation is used internally by Classifier
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
        - Not typically used directly by client code
        - Allows for separation of concerns
 
@@ -292,12 +310,15 @@ class ClassifierImplementation(Protocol[T, R]):
     class SimpleImplementation(ClassifierImplementation[str, str]):
         def __init__(self, config):
             self.config = config
-            self._state = ClassifierState()
-            self._state.initialized = False
+            # State is managed by StateManager, no need to initialize here
+            # Initialization is handled by StateManager
 
         def classify_impl(self, text: str) -> ClassificationResult[str]:
             # Simple implementation based on text length
             if len(text) > 100:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
                 return ClassificationResult(
                     label="long",
                     confidence=0.9,
@@ -311,7 +332,7 @@ class ClassifierImplementation(Protocol[T, R]):
 
         def warm_up_impl(self) -> None:
             # No special initialization needed
-            self._state.initialized = True
+            state.initialized = True
     ```
     """
 
@@ -347,6 +368,9 @@ class ClassifierProtocol(Protocol[T, R]):
     ## Error Handling
 
     Implementations should handle these error cases:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
     - Invalid input types (non-string inputs)
     - Empty text inputs
     - Classification failures
@@ -403,6 +427,9 @@ class ClassifierProtocol(Protocol[T, R]):
                     label="short",
                     confidence=0.8,
                     metadata={"length": len(text)}
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
                 )
 
         def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
@@ -448,6 +475,9 @@ class ClassifierConfig(Generic[T]):
        - Add classifier-specific options in params dictionary
 
     2. **Validation**: Values are validated in __post_init__
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
        - Labels must be a list of strings
        - Cache size must be non-negative
        - Cost must be non-negative
@@ -597,6 +627,9 @@ class ClassifierConfig(Generic[T]):
         updated with the provided key-value pairs.
 
         Examples:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
             ```python
             config = ClassifierConfig(
                 labels=["yes", "no"],
@@ -639,6 +672,9 @@ class ClassificationResult(BaseModel, Generic[R]):
     ## Lifecycle
 
     1. **Creation**: Instantiate with classification results
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
        - Provide label and confidence (required)
        - Add optional metadata dictionary
        - Values are validated during creation
@@ -710,6 +746,9 @@ class ClassificationResult(BaseModel, Generic[R]):
             return "automatic"
         elif result.confidence > 0.6:
             print(f"Suggested action: {result.label}")
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
             return "suggested"
         else:
             print(f"Manual review needed: {result.label} ({result.confidence:.2f})")
@@ -757,6 +796,9 @@ class ClassificationResult(BaseModel, Generic[R]):
         label: The predicted label/class
         confidence: Confidence score for the prediction (0-1)
         metadata: Additional metadata about the classification
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)  # Immutable model
@@ -801,6 +843,9 @@ C = TypeVar("C", bound="Classifier")
 
 
 class Classifier(BaseModel, Generic[T, R]):
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
     """
     Classifier that uses composition over inheritance.
 
@@ -811,6 +856,9 @@ class Classifier(BaseModel, Generic[T, R]):
     ## Architecture
 
     Classifier follows a compositional architecture:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
     1. **Public API**: classify() and batch_classify() methods
     2. **Delegation**: Delegates to implementation for core logic
     3. **Validation**: validate_input() and validate_batch_input() ensure valid inputs
@@ -863,8 +911,8 @@ class Classifier(BaseModel, Generic[T, R]):
     class SentimentImplementation(ClassifierImplementation[str, str]):
         def __init__(self, config):
             self.config = config
-            self._state = ClassifierState()
-            self._state.initialized = False
+            # State is managed by StateManager, no need to initialize here
+            # Initialization is handled by StateManager
 
         def classify_impl(self, text: str) -> ClassificationResult[str]:
             # Simple sentiment analysis
@@ -896,7 +944,7 @@ class Classifier(BaseModel, Generic[T, R]):
 
         def warm_up_impl(self) -> None:
             # No special initialization needed
-            self._state.initialized = True
+            state.initialized = True
 
     # Create config
     config = ClassifierConfig(

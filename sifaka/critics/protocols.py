@@ -76,9 +76,14 @@ Protocols define error handling requirements:
 
 ```python
 from sifaka.critics.protocols import TextValidator, TextImprover, TextCritic
+from sifaka.utils.state import create_critic_state
+
 
 class MyCritic(TextValidator, TextImprover, TextCritic):
     def validate(self, text: str) -> bool:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         # Implementation
         pass
 
@@ -104,6 +109,9 @@ from typing import Any, Dict, List, Optional, Protocol, TypedDict, runtime_check
 
 @runtime_checkable
 class SyncTextValidator(Protocol):
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
     """Protocol for synchronous text validation.
 
     This protocol defines the interface for synchronous text validation operations.
@@ -120,6 +128,9 @@ class SyncTextValidator(Protocol):
     - Result processing errors
 
     Examples:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         ```python
         class MyValidator(SyncTextValidator):
             def validate(self, text: str) -> bool:
@@ -133,6 +144,9 @@ class SyncTextValidator(Protocol):
         Validate text against quality standards.
 
         Args:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
             text: The text to validate
 
         Returns:
@@ -163,9 +177,15 @@ class AsyncTextValidator(Protocol):
     - Result processing errors
 
     Examples:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         ```python
         class MyAsyncValidator(AsyncTextValidator):
             async def validate(self, text: str) -> bool:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
                 # Implementation
                 return True
         ```
@@ -182,8 +202,14 @@ class AsyncTextValidator(Protocol):
             bool: True if the text passes validation, False otherwise
 
         Raises:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
             ValueError: If text is empty or invalid
             RuntimeError: If validation fails
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         """
         ...
 
@@ -206,6 +232,9 @@ class TextValidator(SyncTextValidator, Protocol):
     - Result processing errors
 
     Examples:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         ```python
         class MyValidator(TextValidator):
             def validate(self, text: str) -> bool:
@@ -237,6 +266,9 @@ class SyncTextImprover(Protocol):
     - Formatting errors
 
     Examples:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         ```python
         class MyImprover(SyncTextImprover):
             def improve(self, text: str, feedback: str) -> str:
@@ -246,6 +278,9 @@ class SyncTextImprover(Protocol):
     """
 
     def improve(self, text: str, feedback: str) -> str:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         """
         Improve text based on feedback.
 
@@ -265,6 +300,9 @@ class SyncTextImprover(Protocol):
 
 @runtime_checkable
 class AsyncTextImprover(Protocol):
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
     """Protocol for asynchronous text improvement.
 
     This protocol defines the interface for asynchronous text improvement operations.
@@ -283,8 +321,14 @@ class AsyncTextImprover(Protocol):
     - Formatting errors
 
     Examples:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         ```python
         class MyAsyncImprover(AsyncTextImprover):
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
             async def improve(self, text: str, feedback: str) -> str:
                 # Implementation
                 return "Improved text"
@@ -311,6 +355,9 @@ class AsyncTextImprover(Protocol):
 
 @runtime_checkable
 class TextImprover(SyncTextImprover, Protocol):
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
     """Protocol for text improvement (sync version).
 
     This protocol combines the synchronous text improvement interface with
@@ -329,6 +376,9 @@ class TextImprover(SyncTextImprover, Protocol):
     - Formatting errors
 
     Examples:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         ```python
         class MyImprover(TextImprover):
             def improve(self, text: str, feedback: str) -> str:
@@ -353,6 +403,9 @@ class CritiqueResult(TypedDict):
         suggestions: List of improvement suggestions
 
     Examples:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         ```python
         result: CritiqueResult = {
             "score": 0.8,
@@ -371,6 +424,9 @@ class CritiqueResult(TypedDict):
 
 @runtime_checkable
 class SyncTextCritic(Protocol):
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
     """Protocol for synchronous text critiquing.
 
     This protocol defines the interface for synchronous text critiquing operations.
@@ -396,6 +452,9 @@ class SyncTextCritic(Protocol):
                 return {
                     "score": 0.8,
                     "feedback": "Good overall structure",
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
                     "issues": ["Missing examples"],
                     "suggestions": ["Add more examples"]
                 }
@@ -411,6 +470,9 @@ class SyncTextCritic(Protocol):
 
         Returns:
             CritiqueResult: A dictionary containing critique information
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
 
         Raises:
             ValueError: If text is empty or invalid
@@ -439,8 +501,14 @@ class AsyncTextCritic(Protocol):
     - Formatting errors
 
     Examples:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         ```python
         class MyAsyncCritic(AsyncTextCritic):
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
             async def critique(self, text: str) -> CritiqueResult:
                 # Implementation
                 return {
@@ -457,6 +525,9 @@ class AsyncTextCritic(Protocol):
         Asynchronously critique text and provide feedback.
 
         Args:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
             text: The text to critique
 
         Returns:
@@ -489,6 +560,9 @@ class TextCritic(SyncTextCritic, Protocol):
     - Formatting errors
 
     Examples:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         ```python
         class MyCritic(TextCritic):
             def critique(self, text: str) -> CritiqueResult:
@@ -496,6 +570,9 @@ class TextCritic(SyncTextCritic, Protocol):
                 return {
                     "score": 0.8,
                     "feedback": "Good overall structure",
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
                     "issues": ["Missing examples"],
                     "suggestions": ["Add more examples"]
                 }
@@ -525,6 +602,12 @@ class SyncLLMProvider(Protocol):
     - Formatting errors
 
     Examples:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         ```python
         class MyProvider(SyncLLMProvider):
             def generate(self, prompt: str, **kwargs: Any) -> str:
@@ -534,6 +617,9 @@ class SyncLLMProvider(Protocol):
     """
 
     def generate(self, prompt: str, **kwargs: Any) -> str:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         """
         Generate text from a prompt.
 
@@ -571,8 +657,14 @@ class AsyncLLMProvider(Protocol):
     - Formatting errors
 
     Examples:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         ```python
         class MyAsyncProvider(AsyncLLMProvider):
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
             async def generate(self, prompt: str, **kwargs: Any) -> str:
                 # Implementation
                 return "Generated text"
@@ -593,6 +685,9 @@ class AsyncLLMProvider(Protocol):
         Raises:
             ValueError: If prompt is empty or invalid
             RuntimeError: If generation fails
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         """
         ...
 
@@ -617,8 +712,14 @@ class LLMProvider(SyncLLMProvider, Protocol):
     - Formatting errors
 
     Examples:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         ```python
         class MyProvider(LLMProvider):
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
             def generate(self, prompt: str, **kwargs: Any) -> str:
                 # Implementation
                 return "Generated text"
@@ -648,6 +749,9 @@ class SyncPromptFactory(Protocol):
     - Formatting errors
 
     Examples:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
         ```python
         class MyFactory(SyncPromptFactory):
             def create_prompt(self, text: str, **kwargs: Any) -> str:
@@ -777,8 +881,8 @@ class CriticImplementation(Protocol):
         class PromptCriticImplementation(CriticImplementation):
             def __init__(self, config):
                 self.config = config
-                self._state = CriticState()
-                self._state.initialized = False
+                # State is managed by StateManager, no need to initialize here
+                # Initialization is handled by StateManager
 
             def validate_impl(self, text: str) -> bool:
                 # Implementation
@@ -799,7 +903,7 @@ class CriticImplementation(Protocol):
 
             def warm_up_impl(self) -> None:
                 # Implementation
-                self._state.initialized = True
+                state.initialized = True
         ```
     """
 

@@ -44,7 +44,7 @@ class LanguageValidator(BaseValidator[str]):
     )
 
     # State management
-    _state: StateManager[RuleState] = PrivateAttr(default_factory=create_rule_state)
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
 
     def __init__(
         self, allowed_languages: Optional[List[str]] = None, threshold: float = 0.7, **kwargs
@@ -57,8 +57,8 @@ class LanguageValidator(BaseValidator[str]):
 
     def warm_up(self) -> None:
         """Initialize the validator if needed."""
-        if not self._state.is_initialized:
-            state = self._state.initialize()
+        if not self._state_manager.is_initialized:
+            state = self._state_manager.get_state()
             try:
                 state.langdetect = importlib.import_module("langdetect")
                 # Set seed for consistent results
@@ -82,7 +82,7 @@ class LanguageValidator(BaseValidator[str]):
         self.warm_up()
 
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Handle empty text
         empty_result = self.handle_empty_text(text)
@@ -165,12 +165,12 @@ class LanguageRule(Rule[str, RuleResult, LanguageValidator, Any]):
     """
 
     # State management
-    _state: StateManager[RuleState] = PrivateAttr(default_factory=create_rule_state)
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
 
     def warm_up(self) -> None:
         """Initialize the rule if needed."""
-        if not self._state.is_initialized:
-            state = self._state.initialize()
+        if not self._state_manager.is_initialized:
+            state = self._state_manager.get_state()
             state.validator = self._create_default_validator()
             state.initialized = True
 
@@ -180,7 +180,7 @@ class LanguageRule(Rule[str, RuleResult, LanguageValidator, Any]):
         self.warm_up()
 
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Check cache
         cache_key = text

@@ -56,7 +56,8 @@ from sifaka.classifiers.base import (
     ClassifierImplementation,
 )
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import ClassifierState
+from sifaka.utils.state import ClassifierState, create_classifier_state
+from pydantic import PrivateAttr
 
 logger = get_logger(__name__)
 
@@ -67,12 +68,22 @@ class LanguageDetector(Protocol):
 
     @abstractmethod
     def detect_langs(self, text: str) -> Sequence[Any]: ...
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
+
     @abstractmethod
     def detect(self, text: str) -> str: ...
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
 
 @dataclass(frozen=True)
 class LanguageInfo:
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
     """Information about a supported language."""
 
     code: str
@@ -179,6 +190,9 @@ class LanguageClassifierImplementation:
     }
     DEFAULT_COST: ClassVar[int] = 1  # Low cost for statistical analysis
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
+
     def __init__(self, config: ClassifierConfig) -> None:
         """
         Initialize the language classifier implementation.
@@ -187,9 +201,7 @@ class LanguageClassifierImplementation:
             config: Configuration for the classifier
         """
         self.config = config
-        self._state = ClassifierState()
-        self._state.initialized = False
-        self._state.cache = {}
+        # State is managed by StateManager, no need to initialize here
 
     def _validate_detector(self, detector: Any) -> TypeGuard[LanguageDetector]:
         """
@@ -221,10 +233,13 @@ class LanguageClassifierImplementation:
             ImportError: If the langdetect package is not installed
             RuntimeError: If langdetect initialization fails
         """
+        # Get state
+        state = self._state_manager.get_state()
+
         try:
             # Check if detector is already in state
-            if "detector" in self._state.cache:
-                return self._state.cache["detector"]
+            if "detector" in state.cache:
+                return state.cache["detector"]
 
             langdetect = importlib.import_module("langdetect")
             # Set seed for consistent results
@@ -248,7 +263,7 @@ class LanguageClassifierImplementation:
 
             # Validate and store in state
             if self._validate_detector(detector):
-                self._state.cache["detector"] = detector
+                state.cache["detector"] = detector
                 return detector
 
         except ImportError:
@@ -282,19 +297,22 @@ class LanguageClassifierImplementation:
         Raises:
             RuntimeError: If detector initialization fails
         """
-        if not self._state.initialized:
+        # Get state
+        state = self._state_manager.get_state()
+
+        if not state.initialized:
             try:
                 # Load detector
                 detector = self._load_langdetect()
 
                 # Store in state
-                self._state.cache["detector"] = detector
+                state.cache["detector"] = detector
 
                 # Mark as initialized
-                self._state.initialized = True
+                state.initialized = True
             except Exception as e:
                 logger.error("Failed to initialize language detector: %s", e)
-                self._state.error = f"Failed to initialize language detector: {e}"
+                state.error = f"Failed to initialize language detector: {e}"
                 raise RuntimeError(f"Failed to initialize language detector: {e}") from e
 
     def classify_impl(self, text: str) -> ClassificationResult:
@@ -309,8 +327,9 @@ class LanguageClassifierImplementation:
         Returns:
             ClassificationResult with detected language
         """
-        # Ensure resources are initialized
-        if not self._state.initialized:
+        # Get state
+        state = self._state_manager.get_state()
+        if not state.initialized:
             self.warm_up_impl()
 
         # Handle empty or whitespace-only text
@@ -330,7 +349,7 @@ class LanguageClassifierImplementation:
 
         try:
             # Get detector from state
-            detector = self._state.cache.get("detector")
+            detector = state.cache.get("detector")
             if not detector:
                 raise RuntimeError("Language detector not initialized")
 
@@ -404,8 +423,9 @@ class LanguageClassifierImplementation:
         Returns:
             List of ClassificationResults
         """
-        # Ensure resources are initialized
-        if not self._state.initialized:
+        # Get state
+        state = self._state_manager.get_state()
+        if not state.initialized:
             self.warm_up_impl()
 
         # Process each text individually
@@ -498,8 +518,9 @@ def create_language_classifier_with_custom_detector(
     implementation = LanguageClassifierImplementation(config)
 
     # Set the detector directly in the implementation's state
-    implementation._state.cache["detector"] = detector
-    implementation._state.initialized = True
+    state = implementation._state_manager.get_state()
+    state.cache["detector"] = detector
+    state.initialized = True
 
     # Create and return classifier
     return Classifier(
