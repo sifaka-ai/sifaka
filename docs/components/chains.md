@@ -4,29 +4,31 @@ Chains orchestrate the interaction between models, rules, and critics. They mana
 
 ## Architecture
 
-Chains follow a component-based architecture:
+Chains follow a composition-based architecture:
 
-1. **ChainCore**: Central implementation that delegates to specialized components
-2. **ValidationManager**: Manages rule validation
-3. **PromptManager**: Manages prompt creation and formatting
-4. **RetryStrategy**: Implements retry logic for failed validations
-5. **ResultFormatter**: Formats chain results
+1. **Chain**: Main class that delegates to specialized implementations
+2. **ChainImplementation**: Protocol for chain implementations
+3. **ValidationManager**: Manages rule validation
+4. **PromptManager**: Manages prompt creation and formatting
+5. **RetryStrategy**: Implements retry logic for failed validations
+6. **ResultFormatter**: Formats chain results
 
 ```mermaid
 graph TD
     subgraph Chain
-        CC[ChainCore] --> VM[ValidationManager]
-        CC --> PM[PromptManager]
-        CC --> RS[RetryStrategy]
-        CC --> RF[ResultFormatter]
+        C[Chain] --> CI[ChainImplementation]
+        CI --> VM[ValidationManager]
+        CI --> PM[PromptManager]
+        CI --> RS[RetryStrategy]
+        CI --> RF[ResultFormatter]
         VM --> Rules[Rules]
         PM --> Model[Model Provider]
         RS --> Critic[Critic]
     end
-    
+
     subgraph Flow
-        Input[Input Text] --> CC
-        CC --> Output[Output Text]
+        Input[Input Text] --> C
+        C --> Output[Output Text]
     end
 ```
 
@@ -162,39 +164,7 @@ result = chain.run("Write a short story")
 print(f"Output: {result.output}")
 ```
 
-### Chain Orchestrator
 
-A flexible chain that allows for custom configuration:
-
-```python
-from sifaka.chain import ChainOrchestrator
-from sifaka.models import create_openai_provider
-from sifaka.rules import create_length_rule, create_toxicity_rule
-from sifaka.critics import create_prompt_critic
-
-# Create components
-model = create_openai_provider("gpt-4")
-rules = [
-    create_length_rule(min_chars=10, max_chars=1000),
-    create_toxicity_rule(threshold=0.7)
-]
-critic = create_prompt_critic(
-    llm_provider=model,
-    system_prompt="You are an expert editor."
-)
-
-# Create a chain orchestrator
-chain = ChainOrchestrator(
-    model=model,
-    rules=rules,
-    critic=critic,
-    max_attempts=3
-)
-
-# Run the chain
-result = chain.run("Write a short story")
-print(f"Output: {result.output}")
-```
 
 ## Using Chains
 
@@ -304,19 +274,19 @@ from sifaka.critics.base import BaseCritic, CriticConfig, CriticMetadata
 # Create a custom critic
 class KeywordCritic(BaseCritic):
     """A critic that suggests adding missing keywords."""
-    
+
     def validate(self, text: str) -> bool:
         """Validate that text contains required keywords."""
         keywords = self.config.params.get("keywords", [])
         found = [keyword for keyword in keywords if keyword.lower() in text.lower()]
         return len(found) == len(keywords)
-    
+
     def critique(self, text: str) -> CriticMetadata:
         """Critique text and provide feedback."""
         keywords = self.config.params.get("keywords", [])
         found = [keyword for keyword in keywords if keyword.lower() in text.lower()]
         missing = [keyword for keyword in keywords if keyword.lower() not in text.lower()]
-        
+
         if not missing:
             return CriticMetadata(
                 score=1.0,
@@ -324,28 +294,28 @@ class KeywordCritic(BaseCritic):
                 issues=[],
                 suggestions=[]
             )
-        
+
         return CriticMetadata(
             score=len(found) / len(keywords) if keywords else 1.0,
             feedback=f"Missing {len(missing)} required keywords: {', '.join(missing)}",
             issues=[f"Missing keyword: {keyword}" for keyword in missing],
             suggestions=[f"Add the keyword '{keyword}'" for keyword in missing]
         )
-    
+
     def improve(self, text: str, feedback: Any = None) -> str:
         """Improve text by suggesting missing keywords."""
         keywords = self.config.params.get("keywords", [])
         found = [keyword for keyword in keywords if keyword.lower() in text.lower()]
         missing = [keyword for keyword in keywords if keyword.lower() not in text.lower()]
-        
+
         if not missing:
             return text
-        
+
         # Simple improvement: add missing keywords
         improved = text
         for keyword in missing:
             improved += f" {keyword}"
-        
+
         return improved
 
 # Create the critic
@@ -371,130 +341,132 @@ result = chain.run("Write a short story")
 
 To create a custom chain:
 
-1. Create a class that extends `ChainCore`
-2. Implement the required methods
+1. Create a class that implements the `ChainImplementation` protocol
+2. Create a factory function that returns a `Chain` with your implementation
 3. Use standardized state management with `_state_manager`
-4. Create a factory function for easy instantiation
 
 Example:
 
 ```python
 from typing import Dict, Any, List, Optional
-from pydantic import PrivateAttr
-from sifaka.chain.core import ChainCore
-from sifaka.chain.models import ChainConfig, ChainResult
+from pydantic import BaseModel, ConfigDict, PrivateAttr
+from sifaka.chain.implementation import Chain, ChainImplementation
+from sifaka.chain.config import ChainConfig
+from sifaka.chain.result import ChainResult
 from sifaka.models.base import ModelProvider
 from sifaka.rules.base import Rule, RuleResult
-from sifaka.critics.base import BaseCritic
-from sifaka.utils.state import create_chain_state
+from sifaka.critics.base import CriticCore
+from sifaka.utils.state import create_chain_state, ChainState, StateManager
 
-class SimpleCustomChain(ChainCore):
-    """A simple custom chain implementation."""
-    
+class CustomChainImplementation(BaseModel):
+    """A custom chain implementation."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     # State management using StateManager
     _state_manager = PrivateAttr(default_factory=create_chain_state)
-    
+
     def __init__(
         self,
         model: ModelProvider,
-        rules: Optional[List[Rule]] = None,
-        critic: Optional[BaseCritic] = None,
-        config: Optional[ChainConfig] = None,
+        rules: List[Rule],
+        critic: Optional[CriticCore] = None,
+        max_attempts: int = 3,
+        **kwargs: Any,
     ):
-        """Initialize the chain."""
-        # Initialize with default config if not provided
-        if config is None:
-            config = ChainConfig(
-                name="simple_custom_chain",
-                description="A simple custom chain",
-                max_attempts=3
-            )
-        
-        # Initialize base class
-        super().__init__(config)
-        
+        """Initialize the implementation."""
+        # Initialize the base class
+        super().__init__(**kwargs)
+
         # Initialize state
         state = self._state_manager.get_state()
         state.model = model
-        state.rules = rules or []
+        state.rules = rules
         state.critic = critic
+        state.max_attempts = max_attempts
         state.initialized = True
-    
-    def run(self, prompt: str, **kwargs: Any) -> ChainResult:
-        """Run the chain on the given prompt."""
+
+    def run_impl(self, prompt: str) -> ChainResult:
+        """Run the chain implementation with the given prompt."""
         # Get state
         state = self._state_manager.get_state()
-        
+
         # Initialize result tracking
         attempt_count = 0
-        max_attempts = kwargs.get("max_attempts", self.config.max_attempts)
-        
+
         # Generate initial text
         output = state.model.generate(prompt)
-        
+
         # Track attempts
-        while attempt_count < max_attempts:
+        while attempt_count < state.max_attempts:
             attempt_count += 1
-            
+
             # Validate output
             rule_results = [rule.validate(output) for rule in state.rules]
             all_passed = all(result.passed for result in rule_results)
-            
+
             # If all rules passed, return success
             if all_passed:
                 return ChainResult(
-                    input=prompt,
                     output=output,
                     rule_results=rule_results,
-                    attempt_count=attempt_count,
-                    success=True,
-                    metadata={"final_attempt": attempt_count}
+                    metadata={"attempt_count": attempt_count}
                 )
-            
+
             # If critic is available, use it to improve output
-            if state.critic and attempt_count < max_attempts:
+            if state.critic and attempt_count < state.max_attempts:
                 # Get feedback from critic
                 critique = state.critic.critique(output)
-                
+
                 # Improve output
-                output = state.critic.improve(output, critique.feedback)
+                output = state.critic.improve(output, critique)
             else:
                 # No critic or max attempts reached
                 break
-        
+
         # Return final result (success or failure)
         return ChainResult(
-            input=prompt,
             output=output,
             rule_results=rule_results,
-            attempt_count=attempt_count,
-            success=all_passed,
-            metadata={"final_attempt": attempt_count}
+            metadata={"attempt_count": attempt_count}
         )
 
+    def warm_up_impl(self) -> None:
+        """Warm up the chain implementation."""
+        # No special initialization needed
+        pass
+
 # Factory function
-def create_simple_custom_chain(
+def create_custom_chain(
     model: ModelProvider,
-    rules: Optional[List[Rule]] = None,
-    critic: Optional[BaseCritic] = None,
+    rules: List[Rule],
+    critic: Optional[CriticCore] = None,
     max_attempts: int = 3,
+    name: str = "custom_chain",
+    description: str = "A custom chain implementation",
     **kwargs: Any,
-) -> SimpleCustomChain:
-    """Create a simple custom chain."""
-    # Create configuration
+) -> Chain:
+    """Create a custom chain."""
+    # Create config
     config = ChainConfig(
-        name=kwargs.pop("name", "simple_custom_chain"),
-        description=kwargs.pop("description", "A simple custom chain"),
         max_attempts=max_attempts,
-        params=kwargs
+        params=kwargs,
     )
-    
-    # Create and return chain
-    return SimpleCustomChain(
+
+    # Create implementation
+    implementation = CustomChainImplementation(
         model=model,
         rules=rules,
         critic=critic,
-        config=config
+        max_attempts=max_attempts,
+    )
+
+    # Create and return chain
+    return Chain(
+        name=name,
+        description=description,
+        config=config,
+        implementation=implementation,
     )
 
 # Usage example

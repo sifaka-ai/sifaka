@@ -37,7 +37,7 @@ from sifaka.critics.self_refine import create_self_refine_critic
 from sifaka.critics.self_rag import create_self_rag_critic
 from sifaka.critics.constitutional import create_constitutional_critic
 from sifaka.critics.lac import create_lac_critic
-from sifaka.retrieval import SimpleRetriever
+from sifaka.retrieval import create_simple_retriever
 
 # Configure logging
 logging.basicConfig(
@@ -173,7 +173,7 @@ def test_self_rag_critic(
 ) -> Tuple[str, int]:
     """Test the SelfRAGCritic and return the improved text and number of revisions."""
     # Create a simple retriever with the provided documents
-    retriever = SimpleRetriever(documents=documents)
+    retriever = create_simple_retriever(documents=documents)
 
     critic = create_self_rag_critic(
         llm_provider=llm_provider,

@@ -17,7 +17,7 @@ Based on the Self-RAG paper: [Self-RAG: Learning to Retrieve, Generate, and Crit
 ```python
 from sifaka.critics.self_rag import create_self_rag_critic
 from sifaka.models.providers import OpenAIProvider
-from sifaka.retrieval import SimpleRetriever
+from sifaka.retrieval import create_simple_retriever
 
 # Create a language model provider
 provider = OpenAIProvider(api_key="your-api-key")
@@ -27,7 +27,7 @@ documents = {
     "health insurance": "To file a claim for health reimbursement, follow these steps: 1) Complete the claim form...",
     "travel insurance": "For travel insurance claims, you need to provide: 1) Proof of travel 2) Incident report..."
 }
-retriever = SimpleRetriever(documents=documents)
+retriever = create_simple_retriever(documents=documents)
 
 # Create a self-rag critic
 critic = create_self_rag_critic(
@@ -84,21 +84,51 @@ The Self-RAG critic follows a four-step process:
 
 ### Custom Retriever
 
-You can create a custom retriever by implementing the `Retriever` interface:
+You can create a custom retriever by implementing the `RetrieverImplementation` protocol and using the `Retriever` class:
 
 ```python
-from sifaka.retrieval import Retriever
+from sifaka.retrieval import Retriever, RetrieverImplementation, RetrieverConfig
 
-class MyCustomRetriever(Retriever):
-    def __init__(self, api_key, index_name):
-        self.api_key = api_key
-        self.index_name = index_name
+class MyCustomRetrieverImplementation:
+    """Implementation of custom retrieval logic."""
+
+    def __init__(self, config: RetrieverConfig):
+        self.api_key = config.params.get("api_key")
+        self.index_name = config.params.get("index_name")
         # Initialize your retrieval system
-        
-    def retrieve(self, query: str) -> str:
+
+    def retrieve_impl(self, query: str) -> str:
         # Implement your retrieval logic
         # Return relevant information as a string
         return "Retrieved information..."
+
+    def warm_up_impl(self) -> None:
+        # Initialize any resources needed
+        pass
+
+# Create a factory function for your custom retriever
+def create_my_custom_retriever(api_key: str, index_name: str, **kwargs):
+    # Prepare params
+    params = kwargs.pop("params", {})
+    params.update({
+        "api_key": api_key,
+        "index_name": index_name,
+    })
+
+    # Create config
+    config = RetrieverConfig(params=params)
+
+    # Create implementation
+    implementation = MyCustomRetrieverImplementation(config)
+
+    # Create and return retriever
+    return Retriever(
+        name=kwargs.pop("name", "custom_retriever"),
+        description=kwargs.pop("description", "Custom retriever implementation"),
+        config=config,
+        implementation=implementation,
+        **kwargs,
+    )
 ```
 
 ### Custom Prompt Templates
@@ -141,11 +171,11 @@ The Self-RAG critic can be integrated into a chain for more complex workflows:
 from sifaka.chain import create_simple_chain
 from sifaka.models.providers import OpenAIProvider
 from sifaka.critics.self_rag import create_self_rag_critic
-from sifaka.retrieval import SimpleRetriever
+from sifaka.retrieval import create_simple_retriever
 
 # Create components
 provider = OpenAIProvider(api_key="your-api-key")
-retriever = SimpleRetriever(documents=documents)
+retriever = create_simple_retriever(documents=documents)
 critic = create_self_rag_critic(llm_provider=provider, retriever=retriever)
 
 # Create a chain with the critic

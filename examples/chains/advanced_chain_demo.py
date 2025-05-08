@@ -13,18 +13,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from sifaka.chain import (
-    ChainCore,
     PromptManager,
-    ValidationManager,
-    ResultFormatter,
-    SimpleRetryStrategy,
-    BackoffRetryStrategy,
     create_simple_chain,
     create_backoff_chain,
 )
-from sifaka.critics import create_prompt_critic, PromptCriticConfig
-from sifaka.models.openai import OpenAIProvider, create_openai_provider
-from sifaka.models.base import ModelConfig
+from sifaka.critics import create_prompt_critic
+from sifaka.models.openai import create_openai_provider
 from sifaka.rules.formatting.length import create_length_rule
 from sifaka.rules.content.prohibited import create_prohibited_content_rule
 
@@ -171,25 +165,17 @@ def run_custom_chain():
         min_confidence=0.7,
     )
 
-    # Create custom components
-    validation_manager = ValidationManager(rules)
-    prompt_manager = PromptManager()
-    retry_strategy = BackoffRetryStrategy(
+    # Create a chain with backoff strategy
+    chain = create_backoff_chain(
+        model=model,
+        rules=rules,
+        critic=critic,
         max_attempts=5,
         initial_backoff=1.0,
         backoff_factor=2.0,
         max_backoff=60.0,
-    )
-    result_formatter = ResultFormatter()
-
-    # Create a chain with custom components
-    chain = ChainCore(
-        model=model,
-        validation_manager=validation_manager,
-        prompt_manager=prompt_manager,
-        retry_strategy=retry_strategy,
-        result_formatter=result_formatter,
-        critic=critic,
+        name="custom_backoff_chain",
+        description="A custom chain with backoff strategy",
     )
 
     # Run the chain
@@ -244,20 +230,16 @@ def run_custom_prompt_manager():
         min_confidence=0.7,
     )
 
-    # Create custom components
-    validation_manager = ValidationManager(rules)
-    prompt_manager = CustomPromptManager()
-    retry_strategy = SimpleRetryStrategy(max_attempts=3)
-    result_formatter = ResultFormatter()
-
-    # Create a chain with custom components
-    chain = ChainCore(
+    # For this example, we'll use the simple chain factory function
+    # In a real implementation, you would create a custom implementation
+    # that uses your custom prompt manager
+    chain = create_simple_chain(
         model=model,
-        validation_manager=validation_manager,
-        prompt_manager=prompt_manager,
-        retry_strategy=retry_strategy,
-        result_formatter=result_formatter,
+        rules=rules,
         critic=critic,
+        max_attempts=3,
+        name="custom_prompt_chain",
+        description="A chain with a custom prompt manager",
     )
 
     # Run the chain
@@ -273,6 +255,29 @@ def run_custom_prompt_manager():
             logger.info(f"Critique feedback: {result.critique_details.get('feedback', 'N/A')}")
     except ValueError as e:
         logger.error(f"Validation failed: {e}")
+
+    # Note: In a real implementation, you would create a custom chain implementation
+    # that uses your custom prompt manager. For example:
+    #
+    # from sifaka.chain.implementation import Chain
+    # from sifaka.chain.implementations.simple import SimpleChainImplementation
+    #
+    # # Create custom implementation with your prompt manager
+    # implementation = SimpleChainImplementation(
+    #     model=model,
+    #     rules=rules,
+    #     critic=critic,
+    #     max_attempts=3,
+    #     prompt_manager=CustomPromptManager()  # Use your custom prompt manager
+    # )
+    #
+    # # Create chain with custom implementation
+    # chain = Chain(
+    #     name="custom_prompt_chain",
+    #     description="A chain with a custom prompt manager",
+    #     config=ChainConfig(max_attempts=3),
+    #     implementation=implementation
+    # )
 
 
 if __name__ == "__main__":

@@ -36,14 +36,14 @@ demonstration purposes.
 ## Examples
 
 ```python
-from sifaka.retrieval import SimpleRetriever
+from sifaka.retrieval import create_simple_retriever
 
 # Create a simple retriever with a document collection
 documents = {
     "quantum computing": "Quantum computing uses quantum bits or qubits...",
     "machine learning": "Machine learning is a subset of AI that enables systems to learn..."
 }
-retriever = SimpleRetriever(documents=documents)
+retriever = create_simple_retriever(documents=documents)
 
 # Retrieve information based on a query
 result = retriever.retrieve("How does quantum computing work?")
@@ -52,16 +52,17 @@ print(result)
 """
 
 import re
-from typing import Dict, List, Optional, Set, Union
+import warnings
+from typing import Dict, List, Optional, Set, Any
 
-from .base import Retriever
+from .base import Retriever, RetrieverConfig
 
 
-class SimpleRetriever(Retriever):
+class SimpleRetrieverImplementation:
     """
-    A simple retriever implementation for in-memory document collections.
+    Implementation of simple retrieval logic for in-memory document collections.
 
-    This retriever works with a dictionary of documents and uses simple
+    This implementation works with a dictionary of documents and uses simple
     keyword matching to find relevant documents for a query.
 
     ## Lifecycle Management
@@ -93,48 +94,19 @@ class SimpleRetriever(Retriever):
        - Similarity calculation errors
     """
 
-    def __init__(
-        self,
-        documents: Optional[Dict[str, str]] = None,
-        corpus: Optional[str] = None,
-        max_results: int = 3,
-    ):
+    def __init__(self, config: RetrieverConfig):
         """
-        Initialize the simple retriever.
+        Initialize the simple retriever implementation.
 
         Args:
-            documents: Dictionary mapping document keys to content
-            corpus: Path to a text file containing documents (one per line)
-            max_results: Maximum number of results to return
-
-        Raises:
-            ValueError: If both documents and corpus are None
-            FileNotFoundError: If corpus file doesn't exist
+            config: Configuration for the retriever
         """
-        self.max_results = max_results
-        self.documents = {}
+        self.documents = config.params.get("documents", {})
+        self.max_results = config.params.get("max_results", 3)
 
-        if documents is not None:
-            self.documents = documents
-        elif corpus is not None:
-            try:
-                with open(corpus, "r", encoding="utf-8") as f:
-                    lines = f.readlines()
-                    for i, line in enumerate(lines):
-                        self.documents[f"doc_{i}"] = line.strip()
-            except FileNotFoundError:
-                raise FileNotFoundError(f"Corpus file not found: {corpus}")
-        else:
-            # Initialize with empty dict, but warn
-            import warnings
-            warnings.warn("Initializing SimpleRetriever with empty document collection")
-
-    def retrieve(self, query: str) -> str:
+    def retrieve_impl(self, query: str) -> str:
         """
-        Retrieve information based on a query.
-
-        This method finds the most relevant documents for the query
-        using simple keyword matching and returns them as a formatted string.
+        Implement simple retrieval logic.
 
         Args:
             query: The query to retrieve information for
@@ -165,6 +137,33 @@ class SimpleRetriever(Retriever):
         # Format results
         return self._format_results(relevant_docs)
 
+    def warm_up_impl(self) -> None:
+        """
+        Prepare resources for retrieval.
+
+        This implementation doesn't require any special warm-up.
+        """
+        pass
+
+    async def aretrieve_impl(self, query: str) -> str:
+        """
+        Asynchronously implement simple retrieval logic.
+
+        This implementation simply calls the synchronous version since
+        the operations are lightweight and don't require async I/O.
+
+        Args:
+            query: The query to retrieve information for
+
+        Returns:
+            Retrieved information as a string
+
+        Raises:
+            ValueError: If query is empty
+            RuntimeError: If retrieval fails
+        """
+        return self.retrieve_impl(query)
+
     def _extract_keywords(self, query: str) -> Set[str]:
         """
         Extract keywords from a query.
@@ -176,24 +175,89 @@ class SimpleRetriever(Retriever):
             Set of keywords
         """
         # Remove punctuation and convert to lowercase
-        query = re.sub(r'[^\w\s]', '', query.lower())
-        
+        query = re.sub(r"[^\w\s]", "", query.lower())
+
         # Split into words
         words = query.split()
-        
+
         # Remove common stop words
         stop_words = {
-            "a", "an", "the", "and", "or", "but", "is", "are", "was", "were",
-            "be", "been", "being", "in", "on", "at", "to", "for", "with",
-            "about", "against", "between", "into", "through", "during",
-            "before", "after", "above", "below", "from", "up", "down", "of",
-            "off", "over", "under", "again", "further", "then", "once", "here",
-            "there", "when", "where", "why", "how", "all", "any", "both",
-            "each", "few", "more", "most", "other", "some", "such", "no",
-            "nor", "not", "only", "own", "same", "so", "than", "too", "very",
-            "s", "t", "can", "will", "just", "don", "should", "now"
+            "a",
+            "an",
+            "the",
+            "and",
+            "or",
+            "but",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "with",
+            "about",
+            "against",
+            "between",
+            "into",
+            "through",
+            "during",
+            "before",
+            "after",
+            "above",
+            "below",
+            "from",
+            "up",
+            "down",
+            "of",
+            "off",
+            "over",
+            "under",
+            "again",
+            "further",
+            "then",
+            "once",
+            "here",
+            "there",
+            "when",
+            "where",
+            "why",
+            "how",
+            "all",
+            "any",
+            "both",
+            "each",
+            "few",
+            "more",
+            "most",
+            "other",
+            "some",
+            "such",
+            "no",
+            "nor",
+            "not",
+            "only",
+            "own",
+            "same",
+            "so",
+            "than",
+            "too",
+            "very",
+            "s",
+            "t",
+            "can",
+            "will",
+            "just",
+            "don",
+            "should",
+            "now",
         }
-        
+
         return {word for word in words if word not in stop_words}
 
     def _find_relevant_documents(self, keywords: Set[str]) -> List[str]:
@@ -216,13 +280,13 @@ class SimpleRetriever(Retriever):
                     score += 1
             if score > 0:
                 scores[doc_id] = score
-        
+
         # Sort by relevance score
         sorted_docs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        
+
         # Get top results
-        top_docs = [self.documents[doc_id] for doc_id, _ in sorted_docs[:self.max_results]]
-        
+        top_docs = [self.documents[doc_id] for doc_id, _ in sorted_docs[: self.max_results]]
+
         return top_docs
 
     def _format_results(self, documents: List[str]) -> str:
@@ -237,9 +301,79 @@ class SimpleRetriever(Retriever):
         """
         if not documents:
             return ""
-        
+
         result = "Retrieved information:\n\n"
         for i, doc in enumerate(documents, 1):
             result += f"Document {i}:\n{doc}\n\n"
-        
+
         return result.strip()
+
+
+def create_simple_retriever(
+    documents: Optional[Dict[str, str]] = None,
+    corpus: Optional[str] = None,
+    max_results: int = 3,
+    name: str = "simple_retriever",
+    description: str = "A simple retriever for in-memory document collections",
+    **kwargs: Any,
+) -> Retriever:
+    """
+    Factory function to create a simple retriever.
+
+    This function creates a Retriever with a SimpleRetrieverImplementation
+    that works with in-memory document collections.
+
+    Args:
+        documents: Dictionary mapping document keys to content
+        corpus: Path to a text file containing documents (one per line)
+        max_results: Maximum number of results to return
+        name: Name of the retriever
+        description: Description of the retriever
+        **kwargs: Additional keyword arguments
+
+    Returns:
+        A Retriever instance with SimpleRetrieverImplementation
+
+    Raises:
+        FileNotFoundError: If corpus file doesn't exist
+    """
+    # Prepare params
+    params = kwargs.pop("params", {})
+    params.update(
+        {
+            "max_results": max_results,
+        }
+    )
+
+    # Load documents
+    if documents is not None:
+        params["documents"] = documents
+    elif corpus is not None:
+        try:
+            loaded_documents = {}
+            with open(corpus, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+                for i, line in enumerate(lines):
+                    loaded_documents[f"doc_{i}"] = line.strip()
+            params["documents"] = loaded_documents
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Corpus file not found: {corpus}")
+    else:
+        # Initialize with empty dict, but warn
+        warnings.warn("Initializing SimpleRetriever with empty document collection")
+        params["documents"] = {}
+
+    # Create config
+    config = RetrieverConfig(params=params)
+
+    # Create implementation
+    implementation = SimpleRetrieverImplementation(config)
+
+    # Create and return retriever
+    return Retriever(
+        name=name,
+        description=description,
+        config=config,
+        implementation=implementation,
+        **kwargs,
+    )

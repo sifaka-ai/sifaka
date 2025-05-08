@@ -140,11 +140,3 @@ When implementing critics, keep in mind:
 4. **Error Handling**:
    - Wrap critic calls in try-except blocks to handle potential errors.
    - Provide fallback mechanisms for when critics fail.
-
-## Related Examples
-
-- [Prompt Critic Example](prompt_critic_example.md)
-- [Reflexion Critic Example](reflexion_critic_example.md)
-- [Self-Refine Critic Example](self_refine_critic_example.md)
-- [Self-RAG Critic Example](self_rag_critic_example.md)
-- [Constitutional Critic Example](constitutional_critic_example.md)

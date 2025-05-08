@@ -11,7 +11,7 @@ Example:
     ```python
     from sifaka.critics.self_rag import create_self_rag_critic
     from sifaka.models.providers import OpenAIProvider
-    from sifaka.retrieval import SimpleRetriever
+    from sifaka.retrieval import create_simple_retriever
 
     # Create a language model provider
     provider = OpenAIProvider(api_key="your-api-key")
@@ -27,7 +27,7 @@ Example:
                            "2. Incident report or documentation of the event. "
                            "3. Original receipts for expenses being claimed."
     }
-    retriever = SimpleRetriever(documents=documents)
+    retriever = create_simple_retriever(documents=documents)
 
     # Create a self-rag critic
     critic = create_self_rag_critic(
@@ -199,7 +199,7 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     ```python
     from sifaka.critics import create_self_rag_critic
     from sifaka.models.openai import create_openai_provider
-    from sifaka.retrieval import SimpleRetriever
+    from sifaka.retrieval import create_simple_retriever
 
     # Create a language model provider
     provider = create_openai_provider(
@@ -223,7 +223,7 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
                            "4. Completed claim form with policy details. "
                            "5. Submit within the timeframe specified in your policy."
     }
-    retriever = SimpleRetriever(documents=documents)
+    retriever = create_simple_retriever(documents=documents)
 
     # Create a self-rag critic
     critic = create_self_rag_critic(
@@ -252,8 +252,8 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     ```python
     from sifaka.critics.self_rag import SelfRAGCritic, SelfRAGCriticConfig
     from sifaka.models.anthropic import create_anthropic_provider
-    from sifaka.retrieval.vector import VectorRetriever
-    from sifaka.retrieval.embeddings import OpenAIEmbeddings
+    from sifaka.retrieval.vector import create_vector_retriever
+    from sifaka.retrieval.embeddings import create_openai_embeddings
 
     # Create a language model provider
     provider = create_anthropic_provider(
@@ -262,15 +262,15 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     )
 
     # Create an embeddings model
-    embeddings = OpenAIEmbeddings(api_key="your-openai-api-key")
+    embeddings = create_openai_embeddings(api_key="your-openai-api-key")
 
-    # Create a vector retriever (more advanced than SimpleRetriever)
+    # Create a vector retriever (more advanced than simple retriever)
     documents = [
         {"id": "doc1", "text": "Python is a high-level programming language known for its readability and versatility."},
         {"id": "doc2", "text": "JavaScript is primarily used for web development and runs in browsers."},
         {"id": "doc3", "text": "Rust offers memory safety without garbage collection and is used for systems programming."}
     ]
-    retriever = VectorRetriever(documents=documents, embeddings=embeddings)
+    retriever = create_vector_retriever(documents=documents, embeddings=embeddings)
 
     # Create a custom configuration with specialized prompts
     config = SelfRAGCriticConfig(
@@ -895,14 +895,10 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             context = ""
         else:
             # Step 2: Retrieve information
-            # Note: We're using sync retrieval here as there's no async interface defined
-            # In a real implementation, you might want to add async support to the Retriever interface
-            import asyncio
-
             retriever = state.cache.get("retriever")
             if not retriever:
                 raise RuntimeError("Retriever not initialized")
-            context = await asyncio.to_thread(retriever.retrieve, retrieval_query)
+            context = await retriever.aretrieve(retrieval_query)
 
         # Step 3: Generate response with (or without) retrieved context
         generation_template = state.cache.get("generation_prompt_template")
@@ -1008,7 +1004,7 @@ def create_self_rag_critic(
         ```python
         from sifaka.critics.self_rag import create_self_rag_critic
         from sifaka.models.providers import OpenAIProvider
-        from sifaka.retrieval import SimpleRetriever
+        from sifaka.retrieval import create_simple_retriever
 
         # Create a language model provider
         provider = OpenAIProvider(api_key="your-api-key")
@@ -1024,7 +1020,7 @@ def create_self_rag_critic(
                                "2. Incident report or documentation of the event. "
                                "3. Original receipts for expenses being claimed."
         }
-        retriever = SimpleRetriever(documents=documents)
+        retriever = create_simple_retriever(documents=documents)
 
         # Create a Self-RAG critic with default settings
         critic = create_self_rag_critic(

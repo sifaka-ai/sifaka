@@ -8,7 +8,7 @@ through self-reflective retrieval-augmented generation.
 import os
 from sifaka.critics.self_rag import create_self_rag_critic
 from sifaka.models import OpenAIProvider, AnthropicProvider
-from sifaka.retrieval import SimpleRetriever
+from sifaka.retrieval import create_simple_retriever
 from sifaka.utils.config import standardize_model_config
 
 
@@ -65,7 +65,7 @@ def main():
         """,
     }
 
-    retriever = SimpleRetriever(documents=documents)
+    retriever = create_simple_retriever(documents=documents)
     print("Created simple retriever with insurance documents")
 
     # Create a self-rag critic
