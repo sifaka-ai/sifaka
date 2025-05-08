@@ -85,6 +85,14 @@ from typing import (
 
 from sifaka.utils.logging import get_logger
 from sifaka.utils.tracing import Tracer
+from sifaka.utils.errors import (
+    ValidationError,
+    ConfigurationError,
+    ModelError,
+    format_error_metadata,
+    handle_errors,
+    with_error_handling,
+)
 
 logger = get_logger(__name__)
 
@@ -157,9 +165,9 @@ class ModelConfig:
             ValueError: If max_tokens is not positive
         """
         if not 0 <= self.temperature <= 1:
-            raise ValueError("temperature must be between 0 and 1")
+            raise ConfigurationError("temperature must be between 0 and 1")
         if self.max_tokens < 1:
-            raise ValueError("max_tokens must be positive")
+            raise ConfigurationError("max_tokens must be positive")
 
     def with_temperature(self, temperature: float) -> "ModelConfig":
         """
@@ -979,6 +987,7 @@ class ModelProvider(ABC, Generic[C]):
             trace_id = datetime.now().strftime(f"{self.model_name}_%Y%m%d%H%M%S")
             self._tracer.add_event(trace_id, event_type, data)
 
+    @handle_errors(reraise=True, log_errors=True)
     def count_tokens(self, text: str) -> int:
         """
         Count tokens in the given text.
@@ -990,8 +999,8 @@ class ModelProvider(ABC, Generic[C]):
             The number of tokens in the text
 
         Raises:
-            TypeError: If text is not a string
-            RuntimeError: If token counting fails
+            ValidationError: If text is not a string
+            ModelError: If token counting fails
 
         Examples:
             ```python
@@ -1002,8 +1011,8 @@ class ModelProvider(ABC, Generic[C]):
 
             # Error handling
             try:
-                count = provider.count_tokens(["This", "is", "a", "list"])  # TypeError
-            except TypeError as e:
+                count = provider.count_tokens(["This", "is", "a", "list"])  # ValidationError
+            except ValidationError as e:
                 print(f"Invalid input: {e}")
                 # Handle with default or fallback
                 count = 0
@@ -1018,20 +1027,22 @@ class ModelProvider(ABC, Generic[C]):
             ```
         """
         if not isinstance(text, str):
-            raise TypeError("text must be a string")
+            raise ValidationError("text must be a string")
 
         counter = self._ensure_token_counter()
-        token_count = counter.count_tokens(text)
 
-        self._trace_event(
-            "token_count",
-            {
-                "text_length": len(text),
-                "token_count": token_count,
-            },
-        )
+        with with_error_handling("Counting tokens", logger=logger):
+            token_count = counter.count_tokens(text)
 
-        return token_count
+            self._trace_event(
+                "token_count",
+                {
+                    "text_length": len(text),
+                    "token_count": token_count,
+                },
+            )
+
+            return token_count
 
     def generate(self, prompt: str, **kwargs) -> str:
         """
@@ -1096,9 +1107,9 @@ class ModelProvider(ABC, Generic[C]):
             ```
         """
         if not isinstance(prompt, str):
-            raise TypeError("prompt must be a string")
+            raise ValidationError("prompt must be a string")
         if not prompt.strip():
-            raise ValueError("prompt cannot be empty")
+            raise ValidationError("prompt cannot be empty")
 
         # Update config with any override kwargs
         config = ModelConfig(
@@ -1118,45 +1129,48 @@ class ModelProvider(ABC, Generic[C]):
         start_time = datetime.now()
         client = self._ensure_api_client()
 
-        try:
-            response = client.send_prompt(prompt, config)
+        with with_error_handling(f"Generating text with {self.model_name}", logger=logger):
+            try:
+                response = client.send_prompt(prompt, config)
 
-            end_time = datetime.now()
-            duration_ms = (end_time - start_time).total_seconds() * 1000
+                end_time = datetime.now()
+                duration_ms = (end_time - start_time).total_seconds() * 1000
 
-            self._trace_event(
-                "generate",
-                {
-                    "prompt_tokens": prompt_tokens,
-                    "response_tokens": self.count_tokens(response),
-                    "duration_ms": duration_ms,
-                    "temperature": config.temperature,
-                    "max_tokens": config.max_tokens,
-                    "success": True,
-                },
-            )
+                self._trace_event(
+                    "generate",
+                    {
+                        "prompt_tokens": prompt_tokens,
+                        "response_tokens": self.count_tokens(response),
+                        "duration_ms": duration_ms,
+                        "temperature": config.temperature,
+                        "max_tokens": config.max_tokens,
+                        "success": True,
+                    },
+                )
 
-            logger.debug(
-                f"Generated response in {duration_ms:.2f}ms " f"(prompt: {prompt_tokens} tokens)"
-            )
+                logger.debug(
+                    f"Generated response in {duration_ms:.2f}ms "
+                    f"(prompt: {prompt_tokens} tokens)"
+                )
 
-            return response
+                return response
 
-        except Exception as e:
-            error_msg = str(e)
-            logger.error(f"Error generating text with {self.model_name}: {error_msg}")
+            except Exception as e:
+                error_msg = str(e)
 
-            self._trace_event(
-                "error",
-                {
-                    "error": error_msg,
-                    "prompt_tokens": prompt_tokens,
-                    "temperature": config.temperature,
-                    "max_tokens": config.max_tokens,
-                },
-            )
+                self._trace_event(
+                    "error",
+                    {
+                        "error": error_msg,
+                        "prompt_tokens": prompt_tokens,
+                        "temperature": config.temperature,
+                        "max_tokens": config.max_tokens,
+                    },
+                )
 
-            raise RuntimeError(f"Error generating text with {self.model_name}: {error_msg}") from e
+                raise ModelError(
+                    f"Error generating text with {self.model_name}: {error_msg}", cause=e
+                )
 
 
 def create_model_provider(

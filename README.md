@@ -97,6 +97,7 @@ For detailed API reference documentation, see the [docs/api_reference](docs/api_
 
 - [Composition Over Inheritance](docs/composition_over_inheritance.md) - Using composition over inheritance for better maintainability
 - [Dependencies](docs/dependencies.md) - Managing optional dependencies in Sifaka
+- [Empty Text Handling](docs/implementation_notes/empty_text_handling.md) - Standardized approach to handling empty text inputs
 
 ### Specific Implementations
 - [Guardrails Integration](docs/components/guardrails_integration.md) - Integration with Guardrails AI
@@ -110,6 +111,7 @@ For detailed API reference documentation, see the [docs/api_reference](docs/api_
 - ✅ **Model Agnostic**: Works with Claude, OpenAI, and other LLM providers
 - ✅ **Streamlined Configuration**: Unified configuration system using ClassifierConfig and RuleConfig
 - ✅ **Standardized State Management**: Consistent state handling across all components
+- ✅ **Standardized Empty Text Handling**: Consistent approach to handling empty text inputs
 - ✅ **Simplified Architecture**: Composition over inheritance for cleaner, more maintainable code
 - ✅ **Logical Dependency Groups**: Well-organized optional dependencies for specific features
 

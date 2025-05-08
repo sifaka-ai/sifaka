@@ -86,6 +86,14 @@ from sifaka.classifiers.base import (
 )
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import ClassifierState, StateManager, create_classifier_state
+from sifaka.utils.errors import (
+    ValidationError,
+    ConfigurationError,
+    ClassifierError,
+    format_error_metadata,
+    handle_errors,
+    with_error_handling,
+)
 from sifaka.classifiers.toxicity_model import ToxicityModel
 from pydantic import PrivateAttr
 
@@ -175,12 +183,13 @@ class ToxicityClassifierImplementation:
             True if the model is valid
 
         Raises:
-            ValueError: If the model doesn't implement the ToxicityModel protocol
+            ValidationError: If the model doesn't implement the ToxicityModel protocol
         """
         if not isinstance(model, ToxicityModel):
-            raise ValueError(f"Model must implement ToxicityModel protocol, got {type(model)}")
+            raise ValidationError(f"Model must implement ToxicityModel protocol, got {type(model)}")
         return True
 
+    @handle_errors(reraise=True, log_errors=True)
     def _load_detoxify(self) -> ToxicityModel:
         """
         Load the Detoxify package and model.
@@ -190,7 +199,7 @@ class ToxicityClassifierImplementation:
 
         Raises:
             ImportError: If the Detoxify package is not installed
-            RuntimeError: If Detoxify initialization fails
+            ClassifierError: If Detoxify initialization fails
         """
         try:
             detoxify_module = importlib.import_module("detoxify")
@@ -205,7 +214,7 @@ class ToxicityClassifierImplementation:
                 "Install it with: pip install sifaka[toxicity]"
             )
         except Exception as e:
-            raise RuntimeError(f"Failed to load Detoxify: {e}")
+            raise ClassifierError(f"Failed to load Detoxify: {e}", cause=e)
 
     def warm_up_impl(self) -> None:
         """
@@ -216,39 +225,40 @@ class ToxicityClassifierImplementation:
         explicitly to pre-initialize resources.
 
         Raises:
-            RuntimeError: If model initialization fails
+            ClassifierError: If model initialization fails
         """
         # Get state
         state = self._state_manager.get_state()
 
         # Check if already initialized
         if not state.initialized:
-            try:
-                # Load model
-                state.model = self._load_detoxify()
+            with with_error_handling("Initializing toxicity classifier", logger=logger):
+                try:
+                    # Load model
+                    state.model = self._load_detoxify()
 
-                # Store thresholds in state cache
-                state.cache["thresholds"] = {
-                    "general_threshold": self.config.params.get(
-                        "general_threshold", self.DEFAULT_GENERAL_THRESHOLD
-                    ),
-                    "severe_toxic_threshold": self.config.params.get(
-                        "severe_toxic_threshold", self.DEFAULT_SEVERE_TOXIC_THRESHOLD
-                    ),
-                    "threat_threshold": self.config.params.get(
-                        "threat_threshold", self.DEFAULT_THREAT_THRESHOLD
-                    ),
-                }
+                    # Store thresholds in state cache
+                    state.cache["thresholds"] = {
+                        "general_threshold": self.config.params.get(
+                            "general_threshold", self.DEFAULT_GENERAL_THRESHOLD
+                        ),
+                        "severe_toxic_threshold": self.config.params.get(
+                            "severe_toxic_threshold", self.DEFAULT_SEVERE_TOXIC_THRESHOLD
+                        ),
+                        "threat_threshold": self.config.params.get(
+                            "threat_threshold", self.DEFAULT_THREAT_THRESHOLD
+                        ),
+                    }
 
-                # Store model name in state cache
-                state.cache["model_name"] = self.config.params.get("model_name", "original")
+                    # Store model name in state cache
+                    state.cache["model_name"] = self.config.params.get("model_name", "original")
 
-                # Mark as initialized
-                state.initialized = True
-            except Exception as e:
-                logger.error("Failed to initialize toxicity model: %s", e)
-                state.error = f"Failed to initialize toxicity model: {e}"
-                raise RuntimeError(f"Failed to initialize toxicity model: {e}") from e
+                    # Mark as initialized
+                    state.initialized = True
+                except Exception as e:
+                    logger.error("Failed to initialize toxicity model: %s", e)
+                    state.error = f"Failed to initialize toxicity model: {e}"
+                    raise ClassifierError(f"Failed to initialize toxicity model: {e}", cause=e)
 
     def _get_thresholds(self) -> Dict[str, float]:
         """
@@ -317,6 +327,7 @@ class ToxicityClassifierImplementation:
         # Default case: content is non-toxic but with lower confidence
         return "non_toxic", confidence
 
+    @handle_errors(reraise=False, log_errors=True)
     def classify_impl(self, text: str) -> ClassificationResult[str]:
         """
         Implement toxicity classification logic.
@@ -375,13 +386,10 @@ class ToxicityClassifierImplementation:
             return ClassificationResult[str](
                 label="unknown",
                 confidence=0.0,
-                metadata={
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "reason": "classification_error",
-                },
+                metadata=format_error_metadata(e),
             )
 
+    @handle_errors(reraise=False, log_errors=True)
     def batch_classify_impl(self, texts: List[str]) -> List[ClassificationResult[str]]:
         """
         Implement batch toxicity classification logic.
@@ -436,65 +444,62 @@ class ToxicityClassifierImplementation:
         if not non_empty_texts:
             return results
 
-        try:
-            # Get batch predictions for non-empty texts
-            batch_scores = state.model.predict(non_empty_texts)
-            non_empty_results = []
+        with with_error_handling("Batch classifying texts", logger=logger):
+            try:
+                # Get batch predictions for non-empty texts
+                batch_scores = state.model.predict(non_empty_texts)
+                non_empty_results = []
 
-            # Process each non-empty text
-            for i in range(len(non_empty_texts)):
-                scores = {k: float(v[i]) for k, v in batch_scores.items()}
-                label, confidence = self._get_toxicity_label(scores)
+                # Process each non-empty text
+                for i in range(len(non_empty_texts)):
+                    scores = {k: float(v[i]) for k, v in batch_scores.items()}
+                    label, confidence = self._get_toxicity_label(scores)
 
-                non_empty_results.append(
-                    ClassificationResult[str](
-                        label=label,
-                        confidence=confidence,
-                        metadata={"all_scores": scores},
+                    non_empty_results.append(
+                        ClassificationResult[str](
+                            label=label,
+                            confidence=confidence,
+                            metadata={"all_scores": scores},
+                        )
                     )
-                )
 
-            # Merge results in the original order
-            final_results = [None] * len(texts)
-            for i, result in zip(non_empty_indices, non_empty_results):
-                final_results[i] = result
-
-            # Fill in the empty text results
-            for i, result in enumerate(results):
-                if final_results[i] is None:
+                # Merge results in the original order
+                final_results = [None] * len(texts)
+                for i, result in zip(non_empty_indices, non_empty_results):
                     final_results[i] = result
 
-            return final_results
-        except Exception as e:
-            # Log the error and return fallback results
-            logger.error("Failed to batch classify texts: %s", e)
-            state.error = f"Failed to batch classify texts: {e}"
+                # Fill in the empty text results
+                for i, result in enumerate(results):
+                    if final_results[i] is None:
+                        final_results[i] = result
 
-            # Create error results for non-empty texts
-            error_results = [
-                ClassificationResult[str](
-                    label="unknown",
-                    confidence=0.0,
-                    metadata={
-                        "error": str(e),
-                        "error_type": type(e).__name__,
-                        "reason": "batch_classification_error",
-                    },
-                )
-                for _ in non_empty_texts
-            ]
+                return final_results
+            except Exception as e:
+                # Log the error and return fallback results
+                logger.error("Failed to batch classify texts: %s", e)
+                state.error = f"Failed to batch classify texts: {e}"
 
-            # Merge error results in the original order
-            final_results = [None] * len(texts)
-            for i, result in zip(non_empty_indices, error_results):
-                final_results[i] = result
+                # Create error results for non-empty texts with standardized error metadata
+                error_results = [
+                    ClassificationResult[str](
+                        label="unknown",
+                        confidence=0.0,
+                        metadata=format_error_metadata(e),
+                    )
+                    for _ in non_empty_texts
+                ]
 
-            # Fill in the empty text results
-            for i, result in enumerate(results):
-                if final_results[i] is None:
+                # Merge error results in the original order
+                final_results = [None] * len(texts)
+                for i, result in zip(non_empty_indices, error_results):
                     final_results[i] = result
 
-            return final_results
+                # Fill in the empty text results
+                for i, result in enumerate(results):
+                    if final_results[i] is None:
+                        final_results[i] = result
+
+                return final_results
 
 
 def create_toxicity_classifier(
@@ -622,7 +627,7 @@ def create_toxicity_classifier_with_custom_model(
     """
     # Validate model first
     if not isinstance(model, ToxicityModel):
-        raise ValueError(f"Model must implement ToxicityModel protocol, got {type(model)}")
+        raise ValidationError(f"Model must implement ToxicityModel protocol, got {type(model)}")
 
     # Define default labels
     DEFAULT_LABELS = [

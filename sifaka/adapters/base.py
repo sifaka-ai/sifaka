@@ -173,7 +173,9 @@ class BaseAdapter(BaseModel, BaseValidator[T], Generic[T, A]):
         """
         if not text or not text.strip():
             return RuleResult(
-                passed=False, message="Empty text provided", metadata={"input_length": len(text)}
+                passed=True,
+                message="Empty text validation skipped",
+                metadata={"reason": "empty_input", "input_length": len(text)},
             )
         return None
 

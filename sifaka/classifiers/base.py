@@ -151,6 +151,14 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import StateManager, create_classifier_state, ClassifierState
+from sifaka.utils.errors import (
+    ValidationError,
+    ConfigurationError,
+    ClassifierError,
+    format_error_metadata,
+    handle_errors,
+    with_error_handling,
+)
 
 logger = get_logger(__name__)
 
@@ -584,13 +592,13 @@ class ClassifierConfig(Generic[T]):
 
     def __post_init__(self) -> None:
         if not isinstance(self.labels, list) or not all(isinstance(l, str) for l in self.labels):
-            raise ValueError("labels must be a list of strings")
+            raise ConfigurationError("labels must be a list of strings")
         if self.cache_size < 0:
-            raise ValueError("cache_size must be non-negative")
+            raise ConfigurationError("cache_size must be non-negative")
         if self.cost < 0:
-            raise ValueError("cost must be non-negative")
+            raise ConfigurationError("cost must be non-negative")
         if not 0.0 <= self.min_confidence <= 1.0:
-            raise ValueError("min_confidence must be between 0 and 1")
+            raise ConfigurationError("min_confidence must be between 0 and 1")
 
     def with_options(self, **kwargs: Any) -> "ClassifierConfig[T]":
         """
@@ -621,34 +629,34 @@ class ClassifierConfig(Generic[T]):
 
     def with_params(self, **kwargs: Any) -> "ClassifierConfig[T]":
         """
-        Create a new config with updated parameters.
+            Create a new config with updated parameters.
 
-        This method returns a new configuration with the params dictionary
-        updated with the provided key-value pairs.
+            This method returns a new configuration with the params dictionary
+            updated with the provided key-value pairs.
 
-        Examples:
+            Examples:
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_classifier_state)
-            ```python
-            config = ClassifierConfig(
-                labels=["yes", "no"],
-                params={"threshold": 0.5}
-            )
+        # State management using StateManager
+        _state_manager = PrivateAttr(default_factory=create_classifier_state)
+                ```python
+                config = ClassifierConfig(
+                    labels=["yes", "no"],
+                    params={"threshold": 0.5}
+                )
 
-            # Update the threshold parameter
-            updated = config.with_params(threshold=0.7, use_cache=True)
+                # Update the threshold parameter
+                updated = config.with_params(threshold=0.7, use_cache=True)
 
-            assert updated.params["threshold"] == 0.7
-            assert updated.params["use_cache"] == True
-            assert config.params["threshold"] == 0.5  # Original unchanged
-            ```
+                assert updated.params["threshold"] == 0.7
+                assert updated.params["use_cache"] == True
+                assert config.params["threshold"] == 0.5  # Original unchanged
+                ```
 
-        Args:
-            **kwargs: Key-value pairs to add or update in the params dictionary
+            Args:
+                **kwargs: Key-value pairs to add or update in the params dictionary
 
-        Returns:
-            A new ClassifierConfig with updated params
+            Returns:
+                A new ClassifierConfig with updated params
         """
         new_params = {**self.params, **kwargs}
         return ClassifierConfig(
@@ -1029,7 +1037,7 @@ class Classifier(BaseModel, Generic[T, R]):
         Ensures that the input is a valid string for classification.
 
         Error Handling:
-            - Raises ValueError for invalid inputs
+            - Raises ValidationError for invalid inputs
             - Return True only for valid inputs
 
         Args:
@@ -1039,10 +1047,10 @@ class Classifier(BaseModel, Generic[T, R]):
             True if the input is valid
 
         Raises:
-            ValueError: If input is invalid
+            ValidationError: If input is invalid
         """
         if not isinstance(text, str):
-            raise ValueError("Input must be a string")
+            raise ValidationError("Input must be a string")
         return True
 
     def validate_batch_input(self, texts: Any) -> bool:
@@ -1052,7 +1060,7 @@ class Classifier(BaseModel, Generic[T, R]):
         Ensures that the batch input is a list of valid strings for classification.
 
         Error Handling:
-            - Raises ValueError for invalid inputs
+            - Raises ValidationError for invalid inputs
             - Returns True only for valid inputs
 
         Args:
@@ -1062,12 +1070,13 @@ class Classifier(BaseModel, Generic[T, R]):
             True if the input is valid
 
         Raises:
-            ValueError: If input is invalid
+            ValidationError: If input is invalid
         """
         if not isinstance(texts, list) or not all(isinstance(t, str) for t in texts):
-            raise ValueError("Input must be a list of strings")
+            raise ValidationError("Input must be a list of strings")
         return True
 
+    @handle_errors(reraise=True, log_errors=True)
     def classify(self, text: T) -> ClassificationResult[R]:
         """
         Classify the input text.
@@ -1083,7 +1092,8 @@ class Classifier(BaseModel, Generic[T, R]):
             ClassificationResult with prediction details
 
         Raises:
-            ValueError: If input validation fails
+            ValidationError: If input validation fails
+            ClassifierError: If classification fails
         """
         self.validate_input(text)
         if isinstance(text, str) and not text.strip():
@@ -1091,26 +1101,36 @@ class Classifier(BaseModel, Generic[T, R]):
                 label="unknown", confidence=0.0, metadata={"reason": "empty_input"}
             )
 
-        # If caching is enabled, check cache first
-        if self.config.cache_size > 0:
-            cache_key = str(text)
-            if cache_key in self._result_cache:
-                return self._result_cache[cache_key]
+        try:
+            # If caching is enabled, check cache first
+            if self.config.cache_size > 0:
+                cache_key = str(text)
+                if cache_key in self._result_cache:
+                    return self._result_cache[cache_key]
 
-            # Get result from implementation
-            result = self._implementation.classify_impl(text)
+                # Get result from implementation
+                result = self._implementation.classify_impl(text)
 
-            # Cache the result
-            if len(self._result_cache) >= self.config.cache_size:
-                # Simple LRU: just clear the cache when it gets full
-                self._result_cache.clear()
-            self._result_cache[cache_key] = result
+                # Cache the result
+                if len(self._result_cache) >= self.config.cache_size:
+                    # Simple LRU: just clear the cache when it gets full
+                    self._result_cache.clear()
+                self._result_cache[cache_key] = result
 
-            return result
-        else:
-            # No caching, delegate directly to implementation
-            return self._implementation.classify_impl(text)
+                return result
+            else:
+                # No caching, delegate directly to implementation
+                return self._implementation.classify_impl(text)
+        except Exception as e:
+            # Log the error
+            logger.error(f"Classification error in {self.name}: {e}")
 
+            # Return a fallback result with standardized error metadata
+            return ClassificationResult[R](
+                label="unknown", confidence=0.0, metadata=format_error_metadata(e)
+            )
+
+    @handle_errors(reraise=True, log_errors=True)
     def batch_classify(self, texts: List[T]) -> List[ClassificationResult[R]]:
         """
         Classify multiple texts in batch.
@@ -1124,19 +1144,48 @@ class Classifier(BaseModel, Generic[T, R]):
             List of ClassificationResults
 
         Raises:
-            ValueError: If input validation fails
+            ValidationError: If input validation fails
+            ClassifierError: If classification fails
         """
         self.validate_batch_input(texts)
-        return [self.classify(text) for text in texts]
 
+        try:
+            results = []
+            for text in texts:
+                try:
+                    results.append(self.classify(text))
+                except Exception as e:
+                    # Log the error but continue processing other texts
+                    logger.error(f"Error classifying text in batch: {e}")
+                    results.append(
+                        ClassificationResult[R](
+                            label="unknown", confidence=0.0, metadata=format_error_metadata(e)
+                        )
+                    )
+            return results
+        except Exception as e:
+            # If the entire batch fails, log and return fallback results for all texts
+            logger.error(f"Batch classification error in {self.name}: {e}")
+            return [
+                ClassificationResult[R](
+                    label="unknown", confidence=0.0, metadata=format_error_metadata(e)
+                )
+                for _ in texts
+            ]
+
+    @handle_errors(reraise=True, log_errors=True)
     def warm_up(self) -> None:
         """
         Prepare resources for classification.
 
         This method delegates to the implementation's warm_up_impl method
         to initialize any resources needed for classification.
+
+        Raises:
+            ClassifierError: If initialization fails
         """
-        self._implementation.warm_up_impl()
+        with with_error_handling(f"Initializing classifier {self.name}", logger=logger):
+            self._implementation.warm_up_impl()
 
     @classmethod
     def create(

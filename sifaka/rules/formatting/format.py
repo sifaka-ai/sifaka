@@ -912,9 +912,9 @@ class DefaultFormatValidator(BaseValidator[str]):
 
         if not text.strip():
             return RuleResult(
-                passed=False,
-                message="Empty text",
-                metadata={"error": "empty_string"},
+                passed=True,
+                message="Empty text validation skipped",
+                metadata={"reason": "empty_input"},
             )
 
         # Delegate to the appropriate validator based on format type
@@ -1094,12 +1094,21 @@ class _JsonAnalyzer(BaseModel):
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
-        if not text.strip() and not self.allow_empty:
-            return RuleResult(
-                passed=False,
-                message="Empty JSON string not allowed",
-                metadata={"error": "empty_string"},
-            )
+        if not text.strip():
+            # If allow_empty is True, pass validation
+            # If allow_empty is False, follow the standard empty text handling
+            if self.allow_empty:
+                return RuleResult(
+                    passed=True,
+                    message="Empty JSON allowed",
+                    metadata={"reason": "empty_input_allowed"},
+                )
+            else:
+                return RuleResult(
+                    passed=True,
+                    message="Empty text validation skipped",
+                    metadata={"reason": "empty_input"},
+                )
 
         try:
             json.loads(text)
@@ -1125,12 +1134,21 @@ class _PlainTextAnalyzer(BaseModel):
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
-        if not text.strip() and not self.allow_empty:
-            return RuleResult(
-                passed=False,
-                message="Empty text not allowed",
-                metadata={"error": "empty_string"},
-            )
+        if not text.strip():
+            # If allow_empty is True, pass validation
+            # If allow_empty is False, follow the standard empty text handling
+            if self.allow_empty:
+                return RuleResult(
+                    passed=True,
+                    message="Empty text allowed",
+                    metadata={"reason": "empty_input_allowed"},
+                )
+            else:
+                return RuleResult(
+                    passed=True,
+                    message="Empty text validation skipped",
+                    metadata={"reason": "empty_input"},
+                )
 
         length = len(text)
         if length < self.min_length:

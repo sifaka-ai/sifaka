@@ -158,6 +158,17 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 from .models import CriticConfig, CriticMetadata
 from .protocols import CriticImplementation
 from ..utils.state import StateManager, create_critic_state, CriticState
+from ..utils.errors import (
+    ValidationError,
+    ConfigurationError,
+    CriticError,
+    format_error_metadata,
+    handle_errors,
+    with_error_handling
+)
+from ..utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 # Default configuration values
 DEFAULT_MIN_CONFIDENCE = 0.7
@@ -262,11 +273,11 @@ class CriticMetadata(Generic[R]):
     def __post_init__(self) -> None:
         """Validate metadata values."""
         if not 0 <= self.score <= 1:
-            raise ValueError("score must be between 0 and 1")
+            raise ValidationError("score must be between 0 and 1")
         if self.attempt_number < 1:
-            raise ValueError("attempt_number must be positive")
+            raise ValidationError("attempt_number must be positive")
         if self.processing_time_ms < 0:
-            raise ValueError("processing_time_ms must be non-negative")
+            raise ValidationError("processing_time_ms must be non-negative")
 
     def with_extra(self, **kwargs: Any) -> "CriticMetadata[R]":
         """Create a new metadata with additional extra data.
@@ -988,10 +999,10 @@ class BaseCritic(ABC, Generic[T, R]):
         appropriate exceptions if not.
 
         Raises:
-            ValueError: If configuration is invalid
+            ConfigurationError: If configuration is invalid
         """
         if not isinstance(self._config, CriticConfig):
-            raise ValueError("config must be a CriticConfig instance")
+            raise ConfigurationError("config must be a CriticConfig instance")
 
     def is_valid_text(self, text: Any) -> TypeGuard[T]:
         """
@@ -1089,7 +1100,7 @@ class BaseCritic(ABC, Generic[T, R]):
             ValueError: If text or violations are invalid
         """
         if not self.is_valid_text(text):
-            raise ValueError("text must be a non-empty string")
+            raise ValidationError("text must be a non-empty string")
 
         # Validate text
         is_valid = self.validate(text)
@@ -1373,7 +1384,7 @@ class Critic(BaseCritic[str, str]):
             ValueError: If text or violations are invalid
         """
         if not self.is_valid_text(text):
-            raise ValueError("text must be a non-empty string")
+            raise ValidationError("text must be a non-empty string")
 
         # Basic improvement
         improved = text.strip()
@@ -1403,9 +1414,9 @@ class Critic(BaseCritic[str, str]):
             ValueError: If text or feedback is invalid
         """
         if not self.is_valid_text(text):
-            raise ValueError("text must be a non-empty string")
+            raise ValidationError("text must be a non-empty string")
         if not feedback or not isinstance(feedback, str):
-            raise ValueError("feedback must be a non-empty string")
+            raise ValidationError("feedback must be a non-empty string")
 
         # Basic improvement based on feedback
         improved = text.strip()
@@ -1430,7 +1441,7 @@ class Critic(BaseCritic[str, str]):
             ValueError: If text is invalid
         """
         if not self.is_valid_text(text):
-            raise ValueError("text must be a non-empty string")
+            raise ValidationError("text must be a non-empty string")
 
         # Basic critique
         text_length = len(text)
@@ -1678,8 +1689,8 @@ class CompositionCritic(BaseModel, TextValidator, TextImprover, TextCritic):
             bool: True if the text passes validation, False otherwise
 
         Raises:
-            ValueError: If text is empty or invalid
-            RuntimeError: If validation fails
+            ValidationError: If text is empty or invalid
+            CriticError: If validation fails
         """
         return self._implementation.validate_impl(text)
 
@@ -1697,8 +1708,8 @@ class CompositionCritic(BaseModel, TextValidator, TextImprover, TextCritic):
             str: The improved text
 
         Raises:
-            ValueError: If text is empty or invalid
-            RuntimeError: If improvement fails
+            ValidationError: If text is empty or invalid
+            CriticError: If improvement fails
         """
         return self._implementation.improve_impl(text, feedback)
 
@@ -1715,8 +1726,8 @@ class CompositionCritic(BaseModel, TextValidator, TextImprover, TextCritic):
             CriticMetadata: The critique metadata
 
         Raises:
-            ValueError: If text is empty or invalid
-            RuntimeError: If critique fails
+            ValidationError: If text is empty or invalid
+            CriticError: If critique fails
         """
         result = self._implementation.critique_impl(text)
         return CriticMetadata(
