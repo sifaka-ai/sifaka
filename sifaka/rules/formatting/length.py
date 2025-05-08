@@ -53,9 +53,10 @@ Usage Example:
 
 from typing import Dict, List, Optional, Any
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict, PrivateAttr
 
-from sifaka.rules.base import Rule, RuleResult, BaseValidator, RuleConfig
+from sifaka.rules.base import Rule, RuleResult, BaseValidator, RuleConfig, ValidationError
+from sifaka.utils.state import StateManager, create_rule_state, RuleState
 
 
 __all__ = [
@@ -339,6 +340,23 @@ class LengthRule(Rule):
     This rule validates that text meets specified length requirements
     in terms of character count and word count.
 
+    ## State Management
+
+    This implementation uses the standardized StateManager pattern:
+
+    1. **State Declaration**
+       - Uses `_state_manager = PrivateAttr(default_factory=create_rule_state)`
+       - Accesses state through `state = self._state_manager.get_state()`
+
+    2. **State Initialization**
+       - Initializes state in `warm_up()` with validator
+       - Sets `state.initialized = True` after initialization
+
+    3. **State Access**
+       - Gets state at the beginning of methods with `state = self._state_manager.get_state()`
+       - Checks initialization status with `if not state.initialized`
+       - Uses `state.cache` for temporary data
+
     Lifecycle:
         1. Initialization: Set up with length constraints
         2. Validation: Check text against constraints
@@ -367,6 +385,9 @@ class LengthRule(Rule):
         ```
     """
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
+
     def __init__(
         self,
         validator: LengthValidator,
@@ -391,6 +412,57 @@ class LengthRule(Rule):
         super().__init__(
             name=name, description=description, config=config, validator=validator_adapter, **kwargs
         )
+
+        # Initialize state with validator
+        state = self._state_manager.get_state()
+        state.validator = validator_adapter
+        state.initialized = True
+
+    def warm_up(self) -> None:
+        """Initialize the rule if needed."""
+        state = self._state_manager.get_state()
+        if not state.initialized:
+            # This should not happen as validator is required in __init__
+            # but we include it for consistency with other rules
+            state.initialized = True
+
+    def validate(self, text: str, **kwargs) -> RuleResult:
+        """Validate text against length constraints.
+
+        Args:
+            text: The text to validate
+            **kwargs: Additional validation context
+
+        Returns:
+            Validation result
+
+        Raises:
+            ValidationError: If validation fails
+            TypeError: If output type is invalid
+        """
+        # Ensure the rule is initialized
+        self.warm_up()
+
+        # Get state
+        state = self._state_manager.get_state()
+
+        # Validate input type
+        if not isinstance(text, str):
+            raise TypeError("Output must be a string")
+
+        # Check cache if enabled
+        cache_key = text
+        if self.config.cache_size > 0 and cache_key in state.cache:
+            return state.cache[cache_key]
+
+        # Delegate to validator
+        result = state.validator.validate(text, **kwargs)
+
+        # Cache result if caching is enabled
+        if self.config.cache_size > 0:
+            state.cache[cache_key] = result
+
+        return result
 
 
 def create_length_validator(

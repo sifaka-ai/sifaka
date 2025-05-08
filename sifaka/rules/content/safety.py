@@ -1,453 +1,325 @@
 """
-Safety-related content validation rules for Sifaka.
+Safety validation rules for Sifaka.
 
-This module provides rules for validating text against various safety concerns,
-including toxicity, bias, and harmful content.
-
-Configuration Pattern:
-    This module follows the standard Sifaka configuration pattern:
-    - All rule-specific configuration is stored in RuleConfig.params
-    - Factory functions handle configuration
-    - Validator factory functions create standalone validators
-
-Usage Example:
-    from sifaka.rules.content.safety import create_toxicity_rule, create_bias_rule, create_harmful_content_rule
-
-    # Create a toxicity rule
-    toxicity_rule = create_toxicity_rule(threshold=0.4)
-
-    # Create a bias rule
-    bias_rule = create_bias_rule(threshold=0.3)
-
-    # Create a harmful content rule
-    harmful_rule = create_harmful_content_rule(
-        categories={
-            "violence": ["violent", "threatening"],
-            "misinformation": ["false", "misleading"]
-        }
-    )
-
-    # Validate text
-    result = toxicity_rule.validate("This is a test.")
+This module provides rules for validating the safety of text content,
+ensuring that it does not contain harmful or unsafe content.
 """
 
-from typing import Dict, List, Optional, Any
+import importlib
+from typing import List, Optional, Any, Dict, Union
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import Field, PrivateAttr
 
-from sifaka.classifiers.toxicity import ToxicityClassifier
 from sifaka.rules.base import (
-    BaseValidator,
     Rule,
     RuleConfig,
     RuleResult,
-    ValidationError,
-    RuleResultHandler,
+    BaseValidator,
+    create_rule,
 )
-from sifaka.rules.content.base import CategoryAnalyzer
-from sifaka.adapters.classifier import create_classifier_rule
+from sifaka.utils.state import StateManager, RuleState, create_rule_state
 
 
-__all__ = [
-    # Config classes
-    "HarmfulContentConfig",
-    # Validator classes
-    "HarmfulContentValidator",
-    # Rule classes
-    "HarmfulContentRule",
-    # Factory functions
-    "create_toxicity_validator",
-    "create_toxicity_rule",
-    "create_bias_validator",
-    "create_bias_rule",
-    "create_harmful_content_validator",
-    "create_harmful_content_rule",
-]
+class SafetyValidator(BaseValidator[str]):
+    """
+    Validator for text safety.
 
+    This validator checks if text contains unsafe or harmful content
+    using a safety classifier.
 
-# Default harmful content categories
-DEFAULT_HARMFUL_CATEGORIES: Dict[str, List[str]] = {
-    "violence": [
-        "violent",
-        "threatening",
-        "harm",
-        "danger",
-        "attack",
-        "kill",
-        "murder",
-    ],
-    "hate_speech": [
-        "hate",
-        "racist",
-        "sexist",
-        "discriminatory",
-        "prejudiced",
-        "bigoted",
-    ],
-    "misinformation": [
-        "false",
-        "misleading",
-        "deceptive",
-        "fake",
-        "hoax",
-        "conspiracy",
-    ],
-    "harassment": [
-        "harass",
-        "bully",
-        "intimidate",
-        "threaten",
-        "stalk",
-        "abuse",
-    ],
-}
+    Attributes:
+        categories: List of safety categories to check
+        threshold: Confidence threshold for safety detection
+    """
 
-
-class HarmfulContentConfig(BaseModel):
-    """Configuration for harmful content validation."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    categories: Dict[str, List[str]] = Field(
-        default_factory=lambda: DEFAULT_HARMFUL_CATEGORIES,
-        description="Dictionary of harmful content categories and their indicators",
+    categories: List[str] = Field(
+        default=["toxicity", "profanity", "sexual", "hate"],
+        description="List of safety categories to check",
     )
     threshold: float = Field(
-        default=0.0,
+        default=0.7,
         ge=0.0,
         le=1.0,
-        description="Minimum score threshold for validation",
-    )
-    fail_if_any: bool = Field(
-        default=True,
-        description="Whether to fail if any category exceeds the threshold",
+        description="Confidence threshold for safety detection",
     )
 
-    @field_validator("categories")
-    @classmethod
-    def validate_categories(cls, v: Dict[str, List[str]]) -> Dict[str, List[str]]:
-        """Validate that categories are not empty and have indicators."""
-        if not v:
-            raise ValueError("Categories cannot be empty")
-        for category, indicators in v.items():
-            if not indicators:
-                raise ValueError(f"Category {category} must have at least one indicator")
-        return v
+    # State management
+    _state: StateManager[RuleState] = PrivateAttr(default_factory=create_rule_state)
 
-
-class HarmfulContentAnalyzer(CategoryAnalyzer):
-    """Analyzer for harmful content detection."""
-
-    def __init__(self, config: HarmfulContentConfig) -> None:
-        """Initialize the analyzer."""
-        super().__init__(
-            categories=config.categories,
-            threshold=config.threshold,
-            fail_if_any=config.fail_if_any,
-            higher_is_better=False,
-        )
-
-
-class HarmfulContentValidator(BaseValidator[str]):
-    """Validator that checks for harmful content."""
-
-    def __init__(self, config: RuleConfig) -> None:
+    def __init__(self, categories: Optional[List[str]] = None, threshold: float = 0.7, **kwargs):
         """Initialize the validator."""
-        self._config = config
-        self._harmful_config = HarmfulContentConfig(**config.params)
-        self._analyzer = HarmfulContentAnalyzer(config=self._harmful_config)
+        super().__init__(**kwargs)
+        if categories is not None:
+            self.categories = categories
+        self.threshold = threshold
 
-    @property
-    def config(self) -> RuleConfig:
-        """Get the validator configuration."""
-        return self._config
+    def warm_up(self) -> None:
+        """Initialize the validator if needed."""
+        if not self._state.is_initialized:
+            state = self._state.initialize()
+            try:
+                # Try to import detoxify
+                state.detoxify = importlib.import_module("detoxify")
+                state.model = state.detoxify.Detoxify("original")
+            except ImportError:
+                state.detoxify = None
+                state.model = None
+            state.initialized = True
 
-    def validate(self, text: str, **_: Any) -> RuleResult:
-        """Validate that the text does not contain harmful content.
+    def validate(self, text: str, **kwargs: Any) -> RuleResult:
+        """
+        Validate that text does not contain unsafe content.
 
         Args:
             text: The text to validate
-            **_: Additional validation context (unused)
+            **kwargs: Additional validation context
 
         Returns:
-            RuleResult: The result of the validation
+            Validation result
         """
+        # Ensure resources are initialized
+        self.warm_up()
+
+        # Get state
+        state = self._state.get_state()
+
         # Handle empty text
         empty_result = self.handle_empty_text(text)
         if empty_result:
             return empty_result
 
+        # Check if detoxify is available
+        if state.detoxify is None or state.model is None:
+            return RuleResult(
+                passed=False,
+                message="detoxify package is required for safety validation. Install with: pip install detoxify",
+                metadata={"reason": "missing_dependency"},
+            )
+
         try:
-            if not isinstance(text, str):
-                raise TypeError("Input must be a string")
+            # Predict toxicity scores
+            results = state.model.predict(text)
 
-            result = self._analyzer.analyze(text)
-            return result
+            # Check if any category exceeds the threshold
+            violations = []
+            for category in self.categories:
+                if category in results and results[category] >= self.threshold:
+                    violations.append(
+                        {
+                            "category": category,
+                            "score": float(results[category]),
+                        }
+                    )
 
+            # Create metadata with all scores
+            metadata = {
+                "scores": {k: float(v) for k, v in results.items()},
+                "threshold": self.threshold,
+                "categories": self.categories,
+            }
+
+            if violations:
+                # Failed validation
+                message = (
+                    f"Text contains unsafe content: {', '.join(v['category'] for v in violations)}"
+                )
+                metadata["violations"] = violations
+                return RuleResult(
+                    passed=False,
+                    message=message,
+                    metadata=metadata,
+                )
+            else:
+                # Passed validation
+                return RuleResult(
+                    passed=True,
+                    message="Text does not contain unsafe content",
+                    metadata=metadata,
+                )
         except Exception as e:
-            raise ValidationError(f"Content validation failed: {str(e)}") from e
+            return RuleResult(
+                passed=False,
+                message=f"Safety validation failed: {str(e)}",
+                metadata={"error": str(e)},
+            )
 
 
-class HarmfulContentRule(Rule):
-    """Rule that checks for harmful content in text."""
+class SafetyRule(Rule[str, RuleResult, SafetyValidator, Any]):
+    """
+    Rule that validates text safety.
 
-    def __init__(
-        self,
-        name: str = "harmful_content_rule",
-        description: str = "Validates text for harmful content",
-        config: Optional[RuleConfig] = None,
-        validator: Optional[HarmfulContentValidator] = None,
-        **kwargs,
-    ) -> None:
+    This rule ensures that text does not contain unsafe or harmful content.
+    It uses a safety classifier to detect potentially harmful content.
+
+    Attributes:
+        _name: The name of the rule
+        _description: Description of the rule
+        _config: Rule configuration
+        _validator: The validator used by this rule
+    """
+
+    # State management
+    _state: StateManager[RuleState] = PrivateAttr(default_factory=create_rule_state)
+
+    def warm_up(self) -> None:
+        """Initialize the rule if needed."""
+        if not self._state.is_initialized:
+            state = self._state.initialize()
+            state.validator = self._create_default_validator()
+            state.initialized = True
+
+    def validate(self, text: str, **kwargs: Any) -> RuleResult:
+        """Validate the text."""
+        # Ensure resources are initialized
+        self.warm_up()
+
+        # Get state
+        state = self._state.get_state()
+
+        # Check cache
+        cache_key = text
+        if cache_key in state.cache:
+            return state.cache[cache_key]
+
+        # Delegate to validator
+        result = state.validator.validate(text, **kwargs)
+
+        # Cache result
+        state.cache[cache_key] = result
+
+        return result
+
+    def _create_default_validator(self) -> SafetyValidator:
         """
-        Initialize the harmful content rule.
+        Create a default validator.
 
-        Args:
-            name: The name of the rule
-            description: Description of the rule
-            config: Rule configuration
-            validator: Optional custom validator implementation
-            **kwargs: Additional keyword arguments for the rule
+        Returns:
+            A SafetyValidator with default settings
         """
-        # Create default validator if none provided
-        if validator is None:
-            validator = HarmfulContentValidator(config or RuleConfig())
-
-        super().__init__(
-            name=name,
-            description=description,
-            config=config,
-            validator=validator,
-            **kwargs,
+        params = self._config.params
+        return SafetyValidator(
+            categories=params.get("categories", ["toxicity", "profanity", "sexual", "hate"]),
+            threshold=params.get("threshold", 0.7),
         )
 
 
-def create_harmful_content_validator(
-    categories: Optional[Dict[str, List[str]]] = None,
-    threshold: float = 0.0,
-    fail_if_any: bool = True,
+def create_safety_validator(
+    categories: Optional[List[str]] = None,
+    threshold: float = 0.7,
     **kwargs: Any,
-) -> HarmfulContentValidator:
-    """Create a harmful content validator.
+) -> SafetyValidator:
+    """
+    Create a safety validator.
+
+    This factory function creates a validator that ensures text does not contain
+    unsafe or harmful content. It uses a safety classifier to detect potentially
+    harmful content.
 
     Args:
-        categories: Dictionary of harmful content categories and their indicators
-        threshold: Minimum score threshold for validation
-        fail_if_any: Whether to fail if any category exceeds the threshold
-        **kwargs: Additional keyword arguments for the config
+        categories: List of safety categories to check
+        threshold: Confidence threshold for safety detection
+        **kwargs: Additional parameters for the validator
 
     Returns:
-        HarmfulContentValidator: The created validator
+        A validator that validates text safety
+
+    Examples:
+        ```python
+        from sifaka.rules.content.safety import create_safety_validator
+
+        # Create a validator that checks for toxicity and profanity
+        validator = create_safety_validator(
+            categories=["toxicity", "profanity"],
+            threshold=0.8
+        )
+
+        # Validate text
+        result = validator.validate("This is safe text.")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+        ```
+
+    Requires the 'detoxify' package to be installed:
+    pip install detoxify
     """
-    # Create params dictionary
-    params = {
-        "categories": categories or DEFAULT_HARMFUL_CATEGORIES,
-        "threshold": threshold,
-        "fail_if_any": fail_if_any,
-    }
+    if categories is None:
+        categories = ["toxicity", "profanity", "sexual", "hate"]
 
-    # Add any remaining params
-    params.update(kwargs)
-
-    # Create RuleConfig
-    config = RuleConfig(params=params)
-
-    # Create validator
-    return HarmfulContentValidator(config)
-
-
-def create_toxicity_validator(
-    threshold: float = 0.5,
-    **kwargs: Any,
-) -> BaseValidator[str]:
-    """
-    Create a toxicity validator using the classifier adapter.
-
-    This factory function creates a configured toxicity validator instance using the
-    ToxicityClassifier through the classifier adapter.
-
-    Args:
-        threshold: Threshold for toxicity detection (0.0 to 1.0)
-        **kwargs: Additional keyword arguments for the validator
-
-    Returns:
-        Configured toxicity validator instance
-    """
-    from sifaka.adapters.classifier import ClassifierAdapter
-
-    # Extract RuleConfig parameters from kwargs
-    rule_config_params = {}
-    for param in ["priority", "cache_size", "cost", "params"]:
-        if param in kwargs:
-            rule_config_params[param] = kwargs.pop(param)
-
-    # Create classifier
-    classifier = ToxicityClassifier()
-
-    # Create adapter with classifier
-    adapter = ClassifierAdapter(
-        classifier=classifier, threshold=threshold, valid_labels=["non-toxic"], **kwargs
-    )
-
-    return adapter
-
-
-def create_toxicity_rule(
-    name: str = "toxicity_rule",
-    description: str = "Validates text for toxic content",
-    threshold: float = 0.5,
-    **kwargs: Any,
-) -> Rule:
-    """
-    Create a toxicity rule using the classifier adapter.
-
-    This factory function creates a configured toxicity rule instance using the
-    ToxicityClassifier through the classifier adapter.
-
-    Args:
-        name: The name of the rule
-        description: Description of the rule
-        threshold: Threshold for toxicity detection (0.0 to 1.0)
-        **kwargs: Additional keyword arguments for the rule
-
-    Returns:
-        Configured toxicity rule instance
-    """
-    # Create rule using create_classifier_rule
-    return create_classifier_rule(
-        classifier=ToxicityClassifier(),
-        name=name,
-        description=description,
-        threshold=threshold,
-        valid_labels=["non-toxic"],
-        **kwargs,
-    )
-
-
-def create_bias_validator(
-    threshold: float = 0.3,
-    **kwargs: Any,
-) -> BaseValidator[str]:
-    """
-    Create a bias validator using the classifier adapter.
-
-    This factory function creates a configured bias validator instance using the
-    BiasDetector through the classifier adapter.
-
-    Args:
-        threshold: Threshold for bias detection (0.0 to 1.0)
-        **kwargs: Additional keyword arguments for the validator
-
-    Returns:
-        Configured bias validator instance
-    """
-    # Import BiasDetector here to avoid circular imports
-    from sifaka.classifiers.bias import BiasDetector
-    from sifaka.adapters.classifier import ClassifierAdapter
-
-    # Extract RuleConfig parameters from kwargs
-    rule_config_params = {}
-    for param in ["priority", "cache_size", "cost", "params"]:
-        if param in kwargs:
-            rule_config_params[param] = kwargs.pop(param)
-
-    # Create classifier
-    classifier = BiasDetector()
-
-    # Create adapter with classifier
-    adapter = ClassifierAdapter(
-        classifier=classifier, threshold=threshold, valid_labels=["unbiased"], **kwargs
-    )
-
-    return adapter
-
-
-def create_bias_rule(
-    name: str = "bias_rule",
-    description: str = "Validates text for biased content",
-    threshold: float = 0.3,
-    **kwargs: Any,
-) -> Rule:
-    """
-    Create a bias rule using the classifier adapter.
-
-    This factory function creates a configured bias rule instance using the
-    BiasDetector through the classifier adapter.
-
-    Args:
-        name: The name of the rule
-        description: Description of the rule
-        threshold: Threshold for bias detection (0.0 to 1.0)
-        **kwargs: Additional keyword arguments for the rule
-
-    Returns:
-        Configured bias rule instance
-    """
-    # Import BiasDetector here to avoid circular imports
-    from sifaka.classifiers.bias import BiasDetector
-
-    return create_classifier_rule(
-        classifier=BiasDetector(),
-        name=name,
-        description=description,
-        threshold=threshold,
-        valid_labels=["unbiased"],
-        **kwargs,
-    )
-
-
-def create_harmful_content_rule(
-    name: str = "harmful_content_rule",
-    description: str = "Validates text for harmful content",
-    categories: Optional[Dict[str, List[str]]] = None,
-    threshold: float = 0.0,
-    fail_if_any: bool = True,
-    **kwargs: Any,
-) -> HarmfulContentRule:
-    """
-    Create a harmful content rule with configuration.
-
-    This factory function creates a configured HarmfulContentRule instance.
-
-    Args:
-        name: The name of the rule
-        description: Description of the rule
-        categories: Dictionary of harmful content categories and their indicators
-        threshold: Minimum score threshold for validation
-        fail_if_any: Whether to fail if any category exceeds the threshold
-        **kwargs: Additional keyword arguments for the rule
-
-    Returns:
-        Configured HarmfulContentRule instance
-    """
-    # Extract RuleConfig parameters
-    rule_config_params = {}
-    for param in ["priority", "cache_size", "cost"]:
-        if param in kwargs:
-            rule_config_params[param] = kwargs.pop(param)
-
-    # Create params dictionary for RuleConfig
-    params = {
-        "categories": categories or DEFAULT_HARMFUL_CATEGORIES,
-        "threshold": threshold,
-        "fail_if_any": fail_if_any,
-    }
-
-    # Create RuleConfig
-    rule_config = RuleConfig(params=params, **rule_config_params)
-
-    # Create validator
-    validator = create_harmful_content_validator(
+    validator = SafetyValidator(
         categories=categories,
         threshold=threshold,
-        fail_if_any=fail_if_any,
+        **kwargs,
+    )
+
+    # Initialize the validator
+    validator.warm_up()
+
+    return validator
+
+
+def create_safety_rule(
+    categories: Optional[List[str]] = None,
+    threshold: float = 0.7,
+    name: str = "safety_rule",
+    description: str = "Validates that text does not contain unsafe content",
+    config: Optional[RuleConfig] = None,
+    **kwargs: Any,
+) -> Rule:
+    """
+    Create a rule that validates text safety.
+
+    This factory function creates a rule that ensures text does not contain
+    unsafe or harmful content. It uses a safety classifier to detect potentially
+    harmful content.
+
+    Args:
+        categories: List of safety categories to check
+        threshold: Confidence threshold for safety detection
+        name: The name of the rule
+        description: Description of the rule
+        config: Rule configuration
+        **kwargs: Additional parameters for the rule
+
+    Returns:
+        A rule that validates text safety
+
+    Examples:
+        ```python
+        from sifaka.rules.content.safety import create_safety_rule
+
+        # Create a rule that checks for toxicity and profanity
+        rule = create_safety_rule(
+            categories=["toxicity", "profanity"],
+            threshold=0.8,
+            name="content_safety_rule"
+        )
+
+        # Validate text
+        result = rule.validate("This is safe text.")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+        ```
+
+    Requires the 'detoxify' package to be installed:
+    pip install detoxify
+    """
+    if categories is None:
+        categories = ["toxicity", "profanity", "sexual", "hate"]
+
+    # Create rule configuration
+    rule_config = config or RuleConfig()
+    rule_config = rule_config.with_params(
+        categories=categories,
+        threshold=threshold,
+        **{k: v for k, v in kwargs.items() if k not in ["name", "description"]},
     )
 
     # Create rule
-    return HarmfulContentRule(
+    rule = SafetyRule(
         name=name,
         description=description,
         config=rule_config,
-        validator=validator,
-        **kwargs,
     )
+
+    # Initialize the rule
+    rule.warm_up()
+
+    return rule

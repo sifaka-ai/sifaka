@@ -17,6 +17,7 @@ from sifaka.rules.base import (
     BaseValidator,
     create_rule,
 )
+from sifaka.utils.state import StateManager, RuleState, create_rule_state
 
 
 class LanguageValidator(BaseValidator[str]):
@@ -42,7 +43,8 @@ class LanguageValidator(BaseValidator[str]):
         description="Confidence threshold for language detection",
     )
 
-    _langdetect = PrivateAttr(default=None)
+    # State management
+    _state: StateManager[RuleState] = PrivateAttr(default_factory=create_rule_state)
 
     def __init__(
         self, allowed_languages: Optional[List[str]] = None, threshold: float = 0.7, **kwargs
@@ -52,12 +54,18 @@ class LanguageValidator(BaseValidator[str]):
         if allowed_languages is not None:
             self.allowed_languages = allowed_languages
         self.threshold = threshold
-        try:
-            self._langdetect = importlib.import_module("langdetect")
-            # Set seed for consistent results
-            self._langdetect.DetectorFactory.seed = 0
-        except ImportError:
-            self._langdetect = None
+
+    def warm_up(self) -> None:
+        """Initialize the validator if needed."""
+        if not self._state.is_initialized:
+            state = self._state.initialize()
+            try:
+                state.langdetect = importlib.import_module("langdetect")
+                # Set seed for consistent results
+                state.langdetect.DetectorFactory.seed = 0
+            except ImportError:
+                state.langdetect = None
+            state.initialized = True
 
     def validate(self, text: str, **kwargs: Any) -> RuleResult:
         """
@@ -70,13 +78,19 @@ class LanguageValidator(BaseValidator[str]):
         Returns:
             Validation result
         """
+        # Ensure resources are initialized
+        self.warm_up()
+
+        # Get state
+        state = self._state.get_state()
+
         # Handle empty text
         empty_result = self.handle_empty_text(text)
         if empty_result:
             return empty_result
 
         # Check if langdetect is available
-        if self._langdetect is None:
+        if state.langdetect is None:
             return RuleResult(
                 passed=False,
                 message="langdetect package is required for language validation. Install with: pip install langdetect",
@@ -85,7 +99,7 @@ class LanguageValidator(BaseValidator[str]):
 
         try:
             # Detect language
-            lang_probs = self._langdetect.detect_langs(text)
+            lang_probs = state.langdetect.detect_langs(text)
 
             # Find the most likely language
             best_lang = None
@@ -149,6 +163,37 @@ class LanguageRule(Rule[str, RuleResult, LanguageValidator, Any]):
         _config: Rule configuration
         _validator: The validator used by this rule
     """
+
+    # State management
+    _state: StateManager[RuleState] = PrivateAttr(default_factory=create_rule_state)
+
+    def warm_up(self) -> None:
+        """Initialize the rule if needed."""
+        if not self._state.is_initialized:
+            state = self._state.initialize()
+            state.validator = self._create_default_validator()
+            state.initialized = True
+
+    def validate(self, text: str, **kwargs: Any) -> RuleResult:
+        """Validate the text."""
+        # Ensure resources are initialized
+        self.warm_up()
+
+        # Get state
+        state = self._state.get_state()
+
+        # Check cache
+        cache_key = text
+        if cache_key in state.cache:
+            return state.cache[cache_key]
+
+        # Delegate to validator
+        result = state.validator.validate(text, **kwargs)
+
+        # Cache result
+        state.cache[cache_key] = result
+
+        return result
 
     def _create_default_validator(self) -> LanguageValidator:
         """

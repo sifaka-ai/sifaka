@@ -1,342 +1,407 @@
 """
-Tone consistency validation rules for Sifaka.
+Tone validation rules for Sifaka.
 
-This module provides validators and rules for checking tone consistency in text.
-
-Configuration Pattern:
-    This module follows the standard Sifaka configuration pattern:
-    - All rule-specific configuration is stored in RuleConfig.params
-    - Factory functions (create_tone_consistency_rule, create_tone_consistency_validator) handle configuration
-    - Validator factory functions create standalone validators
-
-Usage Example:
-    from sifaka.rules.content.tone import create_tone_consistency_rule
-
-    # Create a tone consistency rule using the factory function
-    rule = create_tone_consistency_rule(
-        expected_tone="formal",
-        threshold=0.8,
-        tone_indicators={
-            "formal": {
-                "positive": ["therefore", "consequently", "furthermore"],
-                "negative": ["yo", "hey", "cool"]
-            }
-        }
-    )
-
-    # Validate text
-    result = rule.validate("Therefore, we can conclude that the hypothesis is valid.")
-
-    # Create standalone validator
-    from sifaka.rules.content.tone import create_tone_consistency_validator
-    validator = create_tone_consistency_validator(
-        expected_tone="formal",
-        threshold=0.8
-    )
+This module provides rules for validating the tone of text, ensuring
+that text has the expected tone (formal, informal, etc.).
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Any, Dict, Union, Literal
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import Field, PrivateAttr
 
 from sifaka.rules.base import (
-    BaseValidator,
-    ConfigurationError,
     Rule,
     RuleConfig,
     RuleResult,
-    RuleResultHandler,
-    ValidationError,
+    BaseValidator,
+    create_rule,
 )
-from sifaka.rules.content.base import ContentValidator
-
-
-# Default tone indicators for different tone styles
-DEFAULT_TONE_INDICATORS: Dict[str, Dict[str, List[str]]] = {
-    "formal": {
-        "positive": [
-            "therefore",
-            "consequently",
-            "furthermore",
-            "moreover",
-            "thus",
-            "hence",
-        ],
-        "negative": [
-            "yo",
-            "hey",
-            "cool",
-            "awesome",
-            "btw",
-            "gonna",
-            "wanna",
-        ],
-    },
-    "informal": {
-        "positive": [
-            "hey",
-            "hi",
-            "cool",
-            "great",
-            "awesome",
-            "nice",
-            "yeah",
-        ],
-        "negative": [
-            "therefore",
-            "consequently",
-            "furthermore",
-            "moreover",
-            "thus",
-            "hence",
-        ],
-    },
-    "neutral": {
-        "positive": [
-            "the",
-            "is",
-            "are",
-            "this",
-            "that",
-            "these",
-            "those",
-        ],
-        "negative": [
-            "!",
-            "!!",
-            "???",
-            "omg",
-            "wow",
-            "awesome",
-            "terrible",
-        ],
-    },
-}
-
-DEFAULT_THRESHOLD: float = 0.7
-
-
-class ToneConfig(BaseModel):
-    """Configuration for tone consistency validation."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    expected_tone: str = Field(..., description="The expected tone style")
-    threshold: float = Field(
-        default=DEFAULT_THRESHOLD,
-        ge=0.0,
-        le=1.0,
-        description="Minimum ratio of positive indicators to pass validation",
-    )
-    tone_indicators: Dict[str, Dict[str, List[str]]] = Field(
-        default_factory=lambda: DEFAULT_TONE_INDICATORS,
-        description="Dictionary of tone indicators for different styles",
-    )
-
-    @field_validator("expected_tone")
-    @classmethod
-    def validate_expected_tone(cls, v: str, values: Dict[str, Any]) -> str:
-        """Validate that the expected tone exists in tone indicators."""
-        tone_indicators = values.get("tone_indicators", {})
-        if v not in tone_indicators:
-            raise ConfigurationError(f"Expected tone '{v}' not found in tone indicators")
-        return v
-
-
-class ToneAnalyzer(BaseModel):
-    """Analyze text for tone consistency."""
-
-    model_config = ConfigDict(frozen=True)
-
-    config: ToneConfig
-
-    def analyze(self, text: str) -> Tuple[float, List[str], List[str]]:
-        """
-        Analyze text for tone consistency.
-
-        Args:
-            text: The text to analyze
-
-        Returns:
-            Tuple containing:
-            - Ratio of positive to total indicators
-            - List of found positive indicators
-            - List of found negative indicators
-        """
-        if not isinstance(text, str):
-            raise ValueError("Input must be a string")
-
-        text_lower = text.lower()
-        indicators = self.config.tone_indicators[self.config.expected_tone]
-
-        positive_indicators = [
-            word for word in indicators["positive"] if word.lower() in text_lower
-        ]
-        negative_indicators = [
-            word for word in indicators["negative"] if word.lower() in text_lower
-        ]
-
-        total_indicators = len(positive_indicators) + len(negative_indicators)
-        ratio = len(positive_indicators) / total_indicators if total_indicators > 0 else 1.0
-
-        return ratio, positive_indicators, negative_indicators
+from sifaka.utils.state import StateManager, RuleState, create_rule_state
 
 
 class ToneValidator(BaseValidator[str]):
-    """Validator that checks tone consistency."""
+    """
+    Validator for text tone.
 
-    def __init__(self, config: RuleConfig) -> None:
-        """Initialize the validator."""
-        self._config = config
-        self._tone_config = ToneConfig(**config.params)
-        self._analyzer = ToneAnalyzer(config=self._tone_config)
+    This validator checks if text has the expected tone (formal, informal, etc.).
+    It uses a simple heuristic approach by default.
 
-    @property
-    def config(self) -> RuleConfig:
-        """Get the validator configuration."""
-        return self._config
+    Attributes:
+        expected_tone: Expected tone of the text
+        threshold: Threshold for tone confidence
+        model_name: Name of the model to use for tone analysis
+    """
 
-    def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate that the text matches the expected tone."""
-        try:
-            if not isinstance(text, str):
-                raise TypeError("Input must be a string")
+    expected_tone: Literal["formal", "informal", "technical", "conversational"] = Field(
+        default="formal",
+        description="Expected tone of the text",
+    )
+    threshold: float = Field(
+        default=0.6,
+        ge=0.0,
+        le=1.0,
+        description="Threshold for tone confidence",
+    )
+    model_name: str = Field(
+        default="heuristic",
+        description="Name of the model to use for tone analysis",
+    )
 
-            ratio, positive_indicators, negative_indicators = self._analyzer.analyze(text)
-            passed = ratio >= self._tone_config.threshold
-
-            return RuleResult(
-                passed=passed,
-                message=(
-                    f"Tone consistency ratio ({ratio:.2f}) meets threshold ({self._tone_config.threshold})"
-                    if passed
-                    else f"Tone consistency ratio ({ratio:.2f}) below threshold ({self._tone_config.threshold})"
-                ),
-                metadata={
-                    "ratio": ratio,
-                    "positive_indicators": positive_indicators,
-                    "negative_indicators": negative_indicators,
-                    "expected_tone": self._tone_config.expected_tone,
-                    "threshold": self._tone_config.threshold,
-                },
-            )
-
-        except Exception as e:
-            raise ValidationError(f"Tone validation failed: {str(e)}") from e
-
-
-class ToneConsistencyRule(Rule[str, RuleResult, ToneValidator, RuleResultHandler[RuleResult]]):
-    """Rule that checks for tone consistency in text."""
+    # State management
+    _state: StateManager[RuleState] = PrivateAttr(default_factory=create_rule_state)
 
     def __init__(
         self,
-        name: str = "tone_consistency_rule",
-        description: str = "Checks for tone consistency",
-        config: Optional[RuleConfig] = None,
-        validator: Optional[ToneValidator] = None,
+        expected_tone: Literal["formal", "informal", "technical", "conversational"] = "formal",
+        threshold: float = 0.6,
+        model_name: str = "heuristic",
         **kwargs,
-    ) -> None:
+    ):
+        """Initialize the validator."""
+        super().__init__(**kwargs)
+        self.expected_tone = expected_tone
+        self.threshold = threshold
+        self.model_name = model_name
+
+    def warm_up(self) -> None:
+        """Initialize the validator if needed."""
+        if not self._state.is_initialized:
+            state = self._state.initialize()
+
+            # Initialize tone indicators
+            state.tone_indicators = {
+                "formal": [
+                    "furthermore",
+                    "nevertheless",
+                    "however",
+                    "therefore",
+                    "thus",
+                    "consequently",
+                    "hence",
+                    "accordingly",
+                    "subsequently",
+                    "moreover",
+                    "in addition",
+                    "in conclusion",
+                    "in summary",
+                    "in regard to",
+                ],
+                "informal": [
+                    "yeah",
+                    "nope",
+                    "cool",
+                    "awesome",
+                    "gonna",
+                    "wanna",
+                    "gotta",
+                    "kinda",
+                    "sorta",
+                    "y'all",
+                    "ain't",
+                    "dunno",
+                    "gimme",
+                    "lemme",
+                    "btw",
+                    "lol",
+                    "omg",
+                    "tbh",
+                    "fyi",
+                    "asap",
+                ],
+                "technical": [
+                    "algorithm",
+                    "implementation",
+                    "functionality",
+                    "interface",
+                    "parameter",
+                    "variable",
+                    "function",
+                    "method",
+                    "class",
+                    "object",
+                    "instance",
+                    "module",
+                    "component",
+                    "system",
+                    "architecture",
+                    "framework",
+                    "infrastructure",
+                    "protocol",
+                    "specification",
+                ],
+                "conversational": [
+                    "hey",
+                    "hi",
+                    "hello",
+                    "so",
+                    "well",
+                    "anyway",
+                    "like",
+                    "you know",
+                    "I mean",
+                    "right",
+                    "actually",
+                    "basically",
+                    "literally",
+                    "honestly",
+                    "seriously",
+                    "absolutely",
+                    "totally",
+                    "really",
+                    "just",
+                    "pretty",
+                ],
+            }
+
+            state.initialized = True
+
+    def validate(self, text: str, **kwargs: Any) -> RuleResult:
         """
-        Initialize the tone consistency rule.
+        Validate that text has the expected tone.
 
         Args:
-            name: The name of the rule
-            description: Description of the rule
-            config: Rule configuration
-            validator: Optional custom validator implementation
-            **kwargs: Additional keyword arguments for the rule
+            text: The text to validate
+            **kwargs: Additional validation context
+
+        Returns:
+            Validation result
         """
-        super().__init__(
-            name=name,
-            description=description,
-            config=config,
-            validator=validator,
-            result_handler=None,
-            **kwargs,
-        )
+        # Ensure resources are initialized
+        self.warm_up()
+
+        # Get state
+        state = self._state.get_state()
+
+        # Handle empty text
+        empty_result = self.handle_empty_text(text)
+        if empty_result:
+            return empty_result
+
+        try:
+            # Analyze tone using heuristic approach
+            text_lower = text.lower()
+
+            # Count indicators for each tone
+            tone_scores = {}
+            for tone, indicators in state.tone_indicators.items():
+                count = sum(1 for indicator in indicators if indicator.lower() in text_lower)
+                # Normalize score to 0-1 range
+                tone_scores[tone] = min(count / 5.0, 1.0)
+
+            # Determine detected tone
+            detected_tone = max(tone_scores, key=tone_scores.get)
+            confidence = tone_scores[detected_tone]
+
+            # Check if detected tone matches expected tone and confidence is above threshold
+            if detected_tone == self.expected_tone and confidence >= self.threshold:
+                return RuleResult(
+                    passed=True,
+                    message=f"Text has the expected {self.expected_tone} tone",
+                    metadata={
+                        "scores": tone_scores,
+                        "detected_tone": detected_tone,
+                        "confidence": confidence,
+                        "threshold": self.threshold,
+                    },
+                )
+            else:
+                if detected_tone != self.expected_tone:
+                    message = f"Text has {detected_tone} tone, expected {self.expected_tone}"
+                else:
+                    message = (
+                        f"Tone confidence ({confidence:.2f}) is below threshold ({self.threshold})"
+                    )
+
+                return RuleResult(
+                    passed=False,
+                    message=message,
+                    metadata={
+                        "scores": tone_scores,
+                        "detected_tone": detected_tone,
+                        "confidence": confidence,
+                        "threshold": self.threshold,
+                    },
+                )
+        except Exception as e:
+            return RuleResult(
+                passed=False,
+                message=f"Tone analysis failed: {str(e)}",
+                metadata={"error": str(e)},
+            )
+
+
+class ToneRule(Rule[str, RuleResult, ToneValidator, Any]):
+    """
+    Rule that validates text tone.
+
+    This rule ensures that text has the expected tone (formal, informal, etc.).
+    It uses a simple heuristic approach by default.
+
+    Attributes:
+        _name: The name of the rule
+        _description: Description of the rule
+        _config: Rule configuration
+        _validator: The validator used by this rule
+    """
+
+    # State management
+    _state: StateManager[RuleState] = PrivateAttr(default_factory=create_rule_state)
+
+    def warm_up(self) -> None:
+        """Initialize the rule if needed."""
+        if not self._state.is_initialized:
+            state = self._state.initialize()
+            state.validator = self._create_default_validator()
+            state.initialized = True
+
+    def validate(self, text: str, **kwargs: Any) -> RuleResult:
+        """Validate the text."""
+        # Ensure resources are initialized
+        self.warm_up()
+
+        # Get state
+        state = self._state.get_state()
+
+        # Check cache
+        cache_key = text
+        if cache_key in state.cache:
+            return state.cache[cache_key]
+
+        # Delegate to validator
+        result = state.validator.validate(text, **kwargs)
+
+        # Cache result
+        state.cache[cache_key] = result
+
+        return result
 
     def _create_default_validator(self) -> ToneValidator:
-        """Create a default validator from config."""
-        return ToneValidator(self.config)
+        """
+        Create a default validator.
+
+        Returns:
+            A ToneValidator with default settings
+        """
+        params = self._config.params
+        return ToneValidator(
+            expected_tone=params.get("expected_tone", "formal"),
+            threshold=params.get("threshold", 0.6),
+            model_name=params.get("model_name", "heuristic"),
+        )
 
 
-def create_tone_consistency_validator(
-    expected_tone: str,
-    threshold: float = DEFAULT_THRESHOLD,
-    tone_indicators: Optional[Dict[str, Dict[str, List[str]]]] = None,
-    **kwargs,
+def create_tone_validator(
+    expected_tone: Literal["formal", "informal", "technical", "conversational"] = "formal",
+    threshold: float = 0.6,
+    model_name: str = "heuristic",
+    **kwargs: Any,
 ) -> ToneValidator:
     """
-    Create a tone consistency validator with the specified configuration.
+    Create a tone validator.
 
-    This factory function creates a configured tone consistency validator instance.
-    It's useful when you need a validator without creating a full rule.
-
-    Args:
-        expected_tone: The expected tone style
-        threshold: Minimum ratio of positive indicators to pass validation
-        tone_indicators: Dictionary of tone indicators for different styles
-        **kwargs: Additional keyword arguments for the config
-
-    Returns:
-        Configured tone consistency validator
-    """
-    config_dict = {
-        "expected_tone": expected_tone,
-        "threshold": threshold,
-        "tone_indicators": tone_indicators or DEFAULT_TONE_INDICATORS,
-        **kwargs,
-    }
-
-    rule_config = RuleConfig(params=config_dict)
-    return ToneValidator(rule_config)
-
-
-def create_tone_consistency_rule(
-    name: str = "tone_consistency_rule",
-    description: str = "Validates text tone consistency",
-    expected_tone: str = "formal",
-    threshold: float = DEFAULT_THRESHOLD,
-    tone_indicators: Optional[Dict[str, Dict[str, List[str]]]] = None,
-    **kwargs,
-) -> ToneConsistencyRule:
-    """
-    Create a tone consistency rule with configuration.
-
-    This factory function creates a configured ToneConsistencyRule instance.
-    It uses create_tone_consistency_validator internally to create the validator.
+    This factory function creates a validator that ensures text has the expected
+    tone (formal, informal, etc.). It uses a simple heuristic approach by default.
 
     Args:
-        name: The name of the rule
-        description: Description of the rule
-        expected_tone: The expected tone style
-        threshold: Minimum ratio of positive indicators to pass validation
-        tone_indicators: Dictionary of tone indicators for different styles
-        **kwargs: Additional keyword arguments for the rule
+        expected_tone: Expected tone of the text
+        threshold: Threshold for tone confidence
+        model_name: Name of the model to use for tone analysis
+        **kwargs: Additional parameters for the validator
 
     Returns:
-        Configured ToneConsistencyRule instance
+        A validator that validates text tone
+
+    Examples:
+        ```python
+        from sifaka.rules.content.tone import create_tone_validator
+
+        # Create a validator that checks for formal tone
+        validator = create_tone_validator(
+            expected_tone="formal",
+            threshold=0.5
+        )
+
+        # Validate text
+        result = validator.validate("Furthermore, it is imperative to consider...")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+        ```
     """
-    # Create validator using the validator factory
-    validator = create_tone_consistency_validator(
+    validator = ToneValidator(
         expected_tone=expected_tone,
         threshold=threshold,
-        tone_indicators=tone_indicators,
-        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+        model_name=model_name,
+        **kwargs,
     )
 
-    # Extract rule-specific kwargs
-    rule_kwargs = {
-        k: v for k, v in kwargs.items() if k not in ["priority", "cache_size", "cost", "params"]
-    }
+    # Initialize the validator
+    validator.warm_up()
 
-    # Create and return rule
-    return ToneConsistencyRule(
+    return validator
+
+
+def create_tone_rule(
+    expected_tone: Literal["formal", "informal", "technical", "conversational"] = "formal",
+    threshold: float = 0.6,
+    model_name: str = "heuristic",
+    name: str = "tone_rule",
+    description: str = "Validates that text has the expected tone",
+    config: Optional[RuleConfig] = None,
+    **kwargs: Any,
+) -> Rule:
+    """
+    Create a rule that validates text tone.
+
+    This factory function creates a rule that ensures text has the expected
+    tone (formal, informal, etc.). It uses a simple heuristic approach by default.
+
+    Args:
+        expected_tone: Expected tone of the text
+        threshold: Threshold for tone confidence
+        model_name: Name of the model to use for tone analysis
+        name: The name of the rule
+        description: Description of the rule
+        config: Rule configuration
+        **kwargs: Additional parameters for the rule
+
+    Returns:
+        A rule that validates text tone
+
+    Examples:
+        ```python
+        from sifaka.rules.content.tone import create_tone_rule
+
+        # Create a rule that checks for formal tone
+        rule = create_tone_rule(
+            expected_tone="formal",
+            threshold=0.5,
+            name="formal_tone_rule"
+        )
+
+        # Validate text
+        result = rule.validate("Furthermore, it is imperative to consider...")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+        ```
+    """
+    # Create rule configuration
+    rule_config = config or RuleConfig()
+    rule_config = rule_config.with_params(
+        expected_tone=expected_tone,
+        threshold=threshold,
+        model_name=model_name,
+        **{k: v for k, v in kwargs.items() if k not in ["name", "description"]},
+    )
+
+    # Create rule
+    rule = ToneRule(
         name=name,
         description=description,
-        validator=validator,
-        **rule_kwargs,
+        config=rule_config,
     )
+
+    # Initialize the rule
+    rule.warm_up()
+
+    return rule
 
 
 # Export public classes and functions
@@ -347,9 +412,9 @@ __all__ = [
     # Validator classes
     "ToneValidator",
     # Rule classes
-    "ToneConsistencyRule",
+    "ToneRule",
     # Validator factory functions
-    "create_tone_consistency_validator",
+    "create_tone_validator",
     # Rule factory functions
-    "create_tone_consistency_rule",
+    "create_tone_rule",
 ]

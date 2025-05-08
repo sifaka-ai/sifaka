@@ -178,9 +178,10 @@ Usage Examples:
 import json
 from typing import Any, Dict, List, Literal, Optional, Protocol, Set, Tuple, runtime_checkable
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict, PrivateAttr
 
-from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
+from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult, ValidationError
+from sifaka.utils.state import StateManager, create_rule_state, RuleState
 
 FormatType = Literal["markdown", "plain_text", "json"]
 
@@ -450,7 +451,33 @@ class DefaultPlainTextValidator(BaseValidator[str]):
 
 
 class FormatRule(Rule[str, RuleResult, BaseValidator[str], Any]):
-    """Rule that checks text format."""
+    """
+    Rule that checks text format.
+
+    This rule validates that text conforms to a specific format (markdown, JSON, or plain text).
+    It uses a validator to perform the actual validation and follows the standardized
+    state management pattern.
+
+    ## State Management
+
+    This implementation uses the standardized StateManager pattern:
+
+    1. **State Declaration**
+       - Uses `_state_manager = PrivateAttr(default_factory=create_rule_state)`
+       - Accesses state through `state = self._state_manager.get_state()`
+
+    2. **State Initialization**
+       - Initializes state in `warm_up()` with validator
+       - Sets `state.initialized = True` after initialization
+
+    3. **State Access**
+       - Gets state at the beginning of methods with `state = self._state_manager.get_state()`
+       - Checks initialization status with `if not state.initialized`
+       - Uses `state.cache` for temporary data
+    """
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
 
     def __init__(
         self,
@@ -480,6 +507,19 @@ class FormatRule(Rule[str, RuleResult, BaseValidator[str], Any]):
         # Initialize base class
         super().__init__(name=name, description=description, config=config, validator=validator)
 
+        # Initialize state if validator is provided
+        if validator:
+            state = self._state_manager.get_state()
+            state.validator = validator
+            state.initialized = True
+
+    def warm_up(self) -> None:
+        """Initialize the rule if needed."""
+        state = self._state_manager.get_state()
+        if not state.initialized:
+            state.validator = self._create_default_validator()
+            state.initialized = True
+
     @property
     def format_type(self) -> FormatType:
         """Get the format type."""
@@ -496,6 +536,56 @@ class FormatRule(Rule[str, RuleResult, BaseValidator[str], Any]):
         else:  # plain_text
             format_config = PlainTextConfig(**self._rule_params)
             return DefaultPlainTextValidator(format_config)
+
+    def validate(self, output: str, **kwargs: Any) -> RuleResult:
+        """
+        Validate text format.
+
+        This method ensures the rule is initialized before validation
+        and uses the standardized state management pattern.
+
+        Args:
+            output: The text to validate
+            **kwargs: Additional validation context
+
+        Returns:
+            Validation result
+
+        Raises:
+            ValidationError: If validation fails
+            TypeError: If output type is invalid
+        """
+        # Ensure the rule is initialized
+        self.warm_up()
+
+        # Get state
+        state = self._state_manager.get_state()
+
+        # Validate input type
+        if not isinstance(output, str):
+            raise TypeError("Output must be a string")
+
+        # Check cache if enabled
+        cache_key = output
+        if self.config.cache_size > 0 and cache_key in state.cache:
+            return state.cache[cache_key]
+
+        try:
+            # Use the validator
+            result = state.validator.validate(output, **kwargs)
+
+            # Add rule metadata
+            result = result.with_metadata(rule_name=self.name, format_type=self._format_type)
+
+            # Cache result if caching is enabled
+            if self.config.cache_size > 0:
+                state.cache[cache_key] = result
+
+            return result
+
+        except Exception as e:
+            # Convert to ValidationError
+            raise ValidationError(f"Format validation failed: {str(e)}") from e
 
 
 def create_markdown_validator(

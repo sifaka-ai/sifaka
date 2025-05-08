@@ -1,365 +1,333 @@
 """
-Sentiment analysis content validation rules for Sifaka.
+Sentiment validation rules for Sifaka.
 
-This module provides rules for analyzing and validating text sentiment,
-including positive/negative sentiment detection and emotional content analysis.
-
-## Rule and Validator Relationship
-
-This module follows the standard Sifaka delegation pattern:
-- Rules delegate validation work to validators
-- Validators implement the actual validation logic
-- Factory functions provide a consistent way to create both
-- Empty text is handled consistently using BaseValidator.handle_empty_text
-
-## Configuration Pattern
-
-This module follows the standard Sifaka configuration pattern:
-- All rule-specific configuration is stored in RuleConfig.params
-- Factory functions handle configuration extraction
-- Validator factory functions create standalone validators
-- Rule factory functions use validator factory functions internally
-
-## Usage Example
-
-```python
-from sifaka.rules.content.sentiment import create_sentiment_rule
-
-# Create a sentiment rule using the factory function
-sentiment_rule = create_sentiment_rule(
-    threshold=0.7,
-    valid_labels=["positive", "neutral"]
-)
-
-# Validate text
-result = sentiment_rule.validate("This is a great test!")
-```
+This module provides rules for validating the sentiment of text,
+ensuring that text has the expected sentiment (positive, negative, or neutral).
 """
 
-from typing import Any, List, Optional
+import importlib
+from typing import List, Optional, Any, Dict, Union, Literal
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, PrivateAttr
 
-# No need to import SentimentClassifier since we're using our own implementation
 from sifaka.rules.base import (
-    BaseValidator,
     Rule,
     RuleConfig,
     RuleResult,
-    RuleResultHandler,
+    BaseValidator,
+    create_rule,
 )
+from sifaka.utils.state import StateManager, RuleState, create_rule_state
 
 
-class SentimentConfig(BaseModel):
-    """Configuration for sentiment validation."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    threshold: float = Field(
-        default=0.6,
-        ge=0.0,
-        le=1.0,
-        description="Threshold for sentiment detection",
-    )
-    valid_labels: List[str] = Field(
-        default=["positive", "neutral"],
-        description="List of valid sentiment labels",
-    )
-    cache_size: int = Field(
-        default=100,
-        ge=1,
-        description="Size of the validation cache",
-    )
-    priority: int = Field(
-        default=1,
-        ge=0,
-        description="Priority of the rule",
-    )
-    cost: float = Field(
-        default=1.0,
-        ge=0.0,
-        description="Cost of running the rule",
-    )
-
-
-class SimpleSentimentClassifier:
-    """Simple sentiment classifier for testing."""
-
-    def classify(self, text: str):
-        """Classify text sentiment.
-
-        Args:
-            text: The text to classify
-
-        Returns:
-            ClassificationResult with sentiment label
-        """
-        from sifaka.classifiers.base import ClassificationResult
-
-        # Simple sentiment detection based on keywords
-        positive_words = ["good", "great", "excellent", "happy", "positive"]
-        negative_words = ["bad", "terrible", "awful", "sad", "negative"]
-
-        text_lower = text.lower()
-
-        # Count positive and negative words
-        positive_count = sum(1 for word in positive_words if word in text_lower)
-        negative_count = sum(1 for word in negative_words if word in text_lower)
-
-        # Determine sentiment
-        if positive_count > negative_count:
-            return ClassificationResult(
-                label="positive",
-                confidence=0.8,
-                metadata={"positive_words": positive_count, "negative_words": negative_count},
-            )
-        elif negative_count > positive_count:
-            return ClassificationResult(
-                label="negative",
-                confidence=0.8,
-                metadata={"positive_words": positive_count, "negative_words": negative_count},
-            )
-        else:
-            return ClassificationResult(
-                label="neutral",
-                confidence=0.6,
-                metadata={"positive_words": positive_count, "negative_words": negative_count},
-            )
-
-
-class SentimentAnalyzer:
-    """Analyzer for sentiment detection."""
-
-    def __init__(self, config: SentimentConfig) -> None:
-        """Initialize with configuration.
-
-        Args:
-            config: The configuration for the analyzer
-        """
-        self._config = config
-        self._threshold = config.threshold
-        self._valid_labels = config.valid_labels
-        self._classifier = SimpleSentimentClassifier()
-
-    def analyze(self, text: str) -> RuleResult:
-        """Analyze text for sentiment.
-
-        Args:
-            text: The text to analyze
-
-        Returns:
-            RuleResult: The result of the analysis
-        """
-        # Use the classifier to detect sentiment
-        result = self._classifier.classify(text)
-
-        # Determine if the text passes validation
-        is_valid = result.label in self._valid_labels and result.confidence >= self._threshold
-
-        return RuleResult(
-            passed=is_valid,
-            message=(
-                f"Sentiment '{result.label}' with confidence {result.confidence:.2f} "
-                f"{'meets' if is_valid else 'does not meet'} criteria"
-            ),
-            metadata={
-                "sentiment": result.label,
-                "confidence": result.confidence,
-                "threshold": self._threshold,
-                "valid_labels": self._valid_labels,
-                "classifier_metadata": result.metadata,
-            },
-        )
-
-    def can_analyze(self, text: str) -> bool:
-        """Check if this analyzer can analyze the given text."""
-        return isinstance(text, str)
+SentimentType = Literal["positive", "negative", "neutral"]
 
 
 class SentimentValidator(BaseValidator[str]):
-    """Validator for sentiment detection."""
+    """
+    Validator for text sentiment.
 
-    def __init__(self, config: SentimentConfig) -> None:
-        """Initialize with configuration.
+    This validator checks if text has the expected sentiment
+    using a sentiment analysis model.
 
-        Args:
-            config: The configuration for the validator
-        """
-        super().__init__()
-        self._config = config
-        self._analyzer = SentimentAnalyzer(config)
+    Attributes:
+        expected_sentiment: The expected sentiment of the text
+        threshold: Confidence threshold for sentiment detection
+    """
 
-    @property
-    def config(self) -> SentimentConfig:
-        """Get the validator configuration."""
-        return self._config
+    expected_sentiment: SentimentType = Field(
+        default="positive",
+        description="The expected sentiment of the text",
+    )
+    threshold: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Confidence threshold for sentiment detection",
+    )
 
-    def validate(self, text: str, **_: Any) -> RuleResult:
-        """Validate the given text for sentiment.
-
-        Args:
-            text: The text to validate
-            **_: Additional validation context (unused)
-
-        Returns:
-            RuleResult: The result of the validation
-        """
-        # Handle empty text
-        empty_result = self.handle_empty_text(text)
-        if empty_result:
-            return empty_result
-
-        # Delegate to analyzer
-        return self._analyzer.analyze(text)
-
-
-class SentimentRule(Rule[str, RuleResult, SentimentValidator, RuleResultHandler[RuleResult]]):
-    """Rule for validating sentiment."""
+    # State management
+    _state: StateManager[RuleState] = PrivateAttr(default_factory=create_rule_state)
 
     def __init__(
-        self,
-        name: str = "sentiment_rule",
-        description: str = "Validates text sentiment",
-        config: Optional[RuleConfig] = None,
-        validator: Optional[SentimentValidator] = None,
-    ) -> None:
-        """Initialize with configuration.
+        self, expected_sentiment: SentimentType = "positive", threshold: float = 0.7, **kwargs
+    ):
+        """Initialize the validator."""
+        super().__init__(**kwargs)
+        self.expected_sentiment = expected_sentiment
+        self.threshold = threshold
 
-        Args:
-            name: The name of the rule
-            description: Description of the rule
-            config: Rule configuration
-            validator: Optional validator implementation
+    def warm_up(self) -> None:
+        """Initialize the validator if needed."""
+        if not self._state.is_initialized:
+            state = self._state.initialize()
+            try:
+                # Try to import transformers
+                state.transformers = importlib.import_module("transformers")
+                # Load sentiment analysis pipeline
+                state.pipeline = state.transformers.pipeline(
+                    "sentiment-analysis",
+                    model="distilbert-base-uncased-finetuned-sst-2-english",
+                )
+            except ImportError:
+                state.transformers = None
+                state.pipeline = None
+            state.initialized = True
+
+    def validate(self, text: str, **kwargs: Any) -> RuleResult:
         """
-        super().__init__(
-            name=name,
-            description=description,
-            config=config,
-            validator=validator,
-        )
-
-    def _create_default_validator(self) -> SentimentValidator:
-        """Create a default validator from config."""
-        # Extract sentiment specific params
-        params = self.config.params
-        config = SentimentConfig(
-            threshold=params.get("threshold", 0.6),
-            valid_labels=params.get("valid_labels", ["positive", "neutral"]),
-            cache_size=self.config.cache_size,
-            priority=self.config.priority,
-            cost=self.config.cost,
-        )
-        return SentimentValidator(config)
-
-    def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate the given text for sentiment.
+        Validate that text has the expected sentiment.
 
         Args:
             text: The text to validate
             **kwargs: Additional validation context
 
         Returns:
-            RuleResult: The result of the validation
+            Validation result
         """
+        # Ensure resources are initialized
+        self.warm_up()
+
+        # Get state
+        state = self._state.get_state()
+
+        # Handle empty text
+        empty_result = self.handle_empty_text(text)
+        if empty_result:
+            return empty_result
+
+        # Check if transformers is available
+        if state.transformers is None or state.pipeline is None:
+            return RuleResult(
+                passed=False,
+                message="transformers package is required for sentiment validation. Install with: pip install transformers",
+                metadata={"reason": "missing_dependency"},
+            )
+
+        try:
+            # Predict sentiment
+            result = state.pipeline(text)[0]
+            label = result["label"].lower()
+            score = result["score"]
+
+            # Map LABEL_0/LABEL_1 to negative/positive if needed
+            if label == "label_0":
+                label = "negative"
+            elif label == "label_1":
+                label = "positive"
+
+            # Check if sentiment matches expected sentiment
+            matches_expected = label == self.expected_sentiment
+            confidence_sufficient = score >= self.threshold
+
+            # Create metadata
+            metadata = {
+                "sentiment": label,
+                "confidence": score,
+                "expected_sentiment": self.expected_sentiment,
+                "threshold": self.threshold,
+            }
+
+            if matches_expected and confidence_sufficient:
+                # Passed validation
+                return RuleResult(
+                    passed=True,
+                    message=f"Text has the expected sentiment: {label}",
+                    metadata=metadata,
+                )
+            else:
+                # Failed validation
+                if not matches_expected:
+                    message = f"Text has {label} sentiment, but expected {self.expected_sentiment}"
+                else:
+                    message = (
+                        f"Sentiment confidence ({score:.2f}) is below threshold ({self.threshold})"
+                    )
+
+                return RuleResult(
+                    passed=False,
+                    message=message,
+                    metadata=metadata,
+                )
+        except Exception as e:
+            return RuleResult(
+                passed=False,
+                message=f"Sentiment validation failed: {str(e)}",
+                metadata={"error": str(e)},
+            )
+
+
+class SentimentRule(Rule[str, RuleResult, SentimentValidator, Any]):
+    """
+    Rule that validates text sentiment.
+
+    This rule ensures that text has the expected sentiment.
+    It uses a sentiment analysis model to detect the sentiment of the text
+    and validates that it matches the expected sentiment.
+
+    Attributes:
+        _name: The name of the rule
+        _description: Description of the rule
+        _config: Rule configuration
+        _validator: The validator used by this rule
+    """
+
+    # State management
+    _state: StateManager[RuleState] = PrivateAttr(default_factory=create_rule_state)
+
+    def warm_up(self) -> None:
+        """Initialize the rule if needed."""
+        if not self._state.is_initialized:
+            state = self._state.initialize()
+            state.validator = self._create_default_validator()
+            state.initialized = True
+
+    def validate(self, text: str, **kwargs: Any) -> RuleResult:
+        """Validate the text."""
+        # Ensure resources are initialized
+        self.warm_up()
+
+        # Get state
+        state = self._state.get_state()
+
+        # Check cache
+        cache_key = text
+        if cache_key in state.cache:
+            return state.cache[cache_key]
+
         # Delegate to validator
-        result = self._validator.validate(text, **kwargs)
-        # Add rule_id to metadata
-        return result.with_metadata(rule_id=self._name)
+        result = state.validator.validate(text, **kwargs)
+
+        # Cache result
+        state.cache[cache_key] = result
+
+        return result
+
+    def _create_default_validator(self) -> SentimentValidator:
+        """
+        Create a default validator.
+
+        Returns:
+            A SentimentValidator with default settings
+        """
+        params = self._config.params
+        return SentimentValidator(
+            expected_sentiment=params.get("expected_sentiment", "positive"),
+            threshold=params.get("threshold", 0.7),
+        )
 
 
 def create_sentiment_validator(
-    threshold: Optional[float] = None,
-    valid_labels: Optional[List[str]] = None,
+    expected_sentiment: SentimentType = "positive",
+    threshold: float = 0.7,
     **kwargs: Any,
 ) -> SentimentValidator:
-    """Create a sentiment validator.
+    """
+    Create a sentiment validator.
+
+    This factory function creates a validator that ensures text has the expected
+    sentiment. It uses a sentiment analysis model to detect the sentiment of the
+    text and validates that it matches the expected sentiment.
 
     Args:
-        threshold: Threshold for sentiment detection
-        valid_labels: List of valid sentiment labels
-        **kwargs: Additional keyword arguments for the config
+        expected_sentiment: The expected sentiment of the text
+        threshold: Confidence threshold for sentiment detection
+        **kwargs: Additional parameters for the validator
 
     Returns:
-        SentimentValidator: The created validator
+        A validator that validates text sentiment
+
+    Examples:
+        ```python
+        from sifaka.rules.content.sentiment import create_sentiment_validator
+
+        # Create a validator that expects positive sentiment
+        validator = create_sentiment_validator(
+            expected_sentiment="positive",
+            threshold=0.8
+        )
+
+        # Validate text
+        result = validator.validate("I love this product!")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+        ```
+
+    Requires the 'transformers' package to be installed:
+    pip install transformers
     """
-    # Create config with default or provided values
-    config_params = {}
-    if threshold is not None:
-        config_params["threshold"] = threshold
-    if valid_labels is not None:
-        config_params["valid_labels"] = valid_labels
+    validator = SentimentValidator(
+        expected_sentiment=expected_sentiment,
+        threshold=threshold,
+        **kwargs,
+    )
 
-    # Add any remaining config parameters
-    config_params.update(kwargs)
+    # Initialize the validator
+    validator.warm_up()
 
-    # Create config
-    config = SentimentConfig(**config_params)
-
-    # Create validator
-    return SentimentValidator(config)
+    return validator
 
 
 def create_sentiment_rule(
+    expected_sentiment: SentimentType = "positive",
+    threshold: float = 0.7,
     name: str = "sentiment_rule",
-    description: str = "Validates text sentiment",
-    threshold: Optional[float] = None,
-    valid_labels: Optional[List[str]] = None,
+    description: str = "Validates that text has the expected sentiment",
+    config: Optional[RuleConfig] = None,
     **kwargs: Any,
-) -> SentimentRule:
-    """Create a sentiment rule.
+) -> Rule:
+    """
+    Create a rule that validates text sentiment.
+
+    This factory function creates a rule that ensures text has the expected
+    sentiment. It uses a sentiment analysis model to detect the sentiment of the
+    text and validates that it matches the expected sentiment.
 
     Args:
+        expected_sentiment: The expected sentiment of the text
+        threshold: Confidence threshold for sentiment detection
         name: The name of the rule
         description: Description of the rule
-        threshold: Threshold for sentiment detection
-        valid_labels: List of valid sentiment labels
-        **kwargs: Additional keyword arguments for the rule
+        config: Rule configuration
+        **kwargs: Additional parameters for the rule
 
     Returns:
-        SentimentRule: The created rule
+        A rule that validates text sentiment
+
+    Examples:
+        ```python
+        from sifaka.rules.content.sentiment import create_sentiment_rule
+
+        # Create a rule that expects positive sentiment
+        rule = create_sentiment_rule(
+            expected_sentiment="positive",
+            threshold=0.8,
+            name="positive_sentiment_rule"
+        )
+
+        # Validate text
+        result = rule.validate("I love this product!")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+        ```
+
+    Requires the 'transformers' package to be installed:
+    pip install transformers
     """
-    # Extract RuleConfig parameters from kwargs
-    rule_config_params = {}
-    for param in ["priority", "cache_size", "cost"]:
-        if param in kwargs:
-            rule_config_params[param] = kwargs.pop(param)
-
-    # Create validator using the validator factory
-    validator = create_sentiment_validator(
+    # Create rule configuration
+    rule_config = config or RuleConfig()
+    rule_config = rule_config.with_params(
+        expected_sentiment=expected_sentiment,
         threshold=threshold,
-        valid_labels=valid_labels,
-        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+        **{k: v for k, v in kwargs.items() if k not in ["name", "description"]},
     )
-
-    # Create params dictionary for RuleConfig
-    params = {}
-    if threshold is not None:
-        params["threshold"] = threshold
-    if valid_labels is not None:
-        params["valid_labels"] = valid_labels
-
-    # Create RuleConfig
-    config = RuleConfig(params=params, **rule_config_params)
 
     # Create rule
-    return SentimentRule(
+    rule = SentimentRule(
         name=name,
         description=description,
-        config=config,
-        validator=validator,
+        config=rule_config,
     )
 
+    # Initialize the rule
+    rule.warm_up()
 
-__all__ = [
-    # Config classes
-    "SentimentConfig",
-    # Analyzer classes
-    "SentimentAnalyzer",
-    # Validator classes
-    "SentimentValidator",
-    # Rule classes
-    "SentimentRule",
-    # Factory functions
-    "create_sentiment_validator",
-    "create_sentiment_rule",
-]
+    return rule

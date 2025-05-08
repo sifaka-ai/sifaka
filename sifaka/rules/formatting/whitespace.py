@@ -8,10 +8,11 @@ such as leading/trailing whitespace, spacing between words, and newline formatti
 import re
 from typing import Dict, List, Optional, Tuple, Any
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict, PrivateAttr
 
 # Import the original RuleResult for type hints
-from sifaka.rules.base import RuleResult as BaseRuleResult
+from sifaka.rules.base import RuleResult as BaseRuleResult, Rule, RuleConfig, ValidationError
+from sifaka.utils.state import StateManager, create_rule_state, RuleState
 
 
 class RuleResult:
@@ -208,10 +209,34 @@ class DefaultWhitespaceValidator(WhitespaceValidator):
         return []
 
 
-class WhitespaceRule:
-    """Rule for validating text whitespace constraints."""
+class WhitespaceRule(Rule):
+    """
+    Rule for validating text whitespace constraints.
 
-    def __init__(self, validator: WhitespaceValidator, config: Optional[Dict] = None, **kwargs):
+    ## State Management
+
+    This implementation uses the standardized StateManager pattern:
+
+    1. **State Declaration**
+       - Uses `_state_manager = PrivateAttr(default_factory=create_rule_state)`
+       - Accesses state through `state = self._state_manager.get_state()`
+
+    2. **State Initialization**
+       - Initializes state in `warm_up()` with validator
+       - Sets `state.initialized = True` after initialization
+
+    3. **State Access**
+       - Gets state at the beginning of methods with `state = self._state_manager.get_state()`
+       - Checks initialization status with `if not state.initialized`
+       - Uses `state.cache` for temporary data
+    """
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
+
+    def __init__(
+        self, validator: WhitespaceValidator, config: Optional[RuleConfig] = None, **kwargs
+    ):
         """Initialize the whitespace rule.
 
         Args:
@@ -219,30 +244,62 @@ class WhitespaceRule:
             config: Additional configuration for the rule
             **kwargs: Additional keyword arguments for the rule
         """
-        self.validator = validator
-        self.config = config
-        self.id = kwargs.get("id", "rule")
-        self.name = kwargs.get("name", "Whitespace Rule")
-        self.description = kwargs.get("description", "Validates whitespace constraints")
+        name = kwargs.get("name", "whitespace_rule")
+        description = kwargs.get("description", "Validates whitespace constraints")
 
-    def validate(self, text: str) -> RuleResult:
+        # Initialize base class
+        super().__init__(name=name, description=description, config=config, **kwargs)
+
+        # Store validator in state
+        state = self._state_manager.get_state()
+        state.validator = validator
+        state.initialized = True
+
+        # Store rule ID for backward compatibility
+        self.id = kwargs.get("id", name)
+
+    def warm_up(self) -> None:
+        """Initialize the rule if needed."""
+        # State is already initialized in __init__
+        pass
+
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """Evaluate text against whitespace constraints.
 
         Args:
             text: The text to evaluate
+            **kwargs: Additional validation context
 
         Returns:
             RuleResult containing validation results
         """
-        # Use the validator to validate the text
-        is_valid, errors = self.validator.validate(text)
+        # Get state
+        state = self._state_manager.get_state()
 
-        # Create and return the result
-        return RuleResult(
+        # Validate input type
+        if not isinstance(text, str):
+            raise TypeError("Output must be a string")
+
+        # Check cache if enabled
+        cache_key = text
+        if self.config and self.config.cache_size > 0 and cache_key in state.cache:
+            return state.cache[cache_key]
+
+        # Use the validator to validate the text
+        is_valid, errors = state.validator.validate(text)
+
+        # Create the result
+        result = RuleResult(
             passed=is_valid,
             rule_id=self.id,
             errors=errors,
         )
+
+        # Cache result if caching is enabled
+        if self.config and self.config.cache_size > 0:
+            state.cache[cache_key] = result
+
+        return result
 
 
 def create_whitespace_rule(
@@ -254,6 +311,9 @@ def create_whitespace_rule(
     max_newlines: Optional[int] = None,
     normalize_whitespace: bool = False,
     rule_id: Optional[str] = None,
+    priority: Optional[str] = None,
+    cache_size: Optional[int] = None,
+    cost: Optional[float] = None,
     **kwargs,
 ) -> WhitespaceRule:
     """Create a whitespace validation rule with the specified constraints.
@@ -267,13 +327,16 @@ def create_whitespace_rule(
         max_newlines: Maximum number of consecutive newlines allowed
         normalize_whitespace: Whether to normalize whitespace during validation
         rule_id: Identifier for the rule
+        priority: Priority level for validation
+        cache_size: Size of the validation cache
+        cost: Computational cost of validation
         **kwargs: Additional keyword arguments for the rule
 
     Returns:
         Configured WhitespaceRule
     """
     # Create the whitespace configuration
-    config = WhitespaceConfig(
+    whitespace_config = WhitespaceConfig(
         allow_leading_whitespace=allow_leading_whitespace,
         allow_trailing_whitespace=allow_trailing_whitespace,
         allow_multiple_spaces=allow_multiple_spaces,
@@ -284,11 +347,31 @@ def create_whitespace_rule(
     )
 
     # Create the validator
-    validator = DefaultWhitespaceValidator(config)
+    validator = DefaultWhitespaceValidator(whitespace_config)
+
+    # Create rule config
+    params = {
+        "allow_leading_whitespace": allow_leading_whitespace,
+        "allow_trailing_whitespace": allow_trailing_whitespace,
+        "allow_multiple_spaces": allow_multiple_spaces,
+        "allow_tabs": allow_tabs,
+        "allow_newlines": allow_newlines,
+        "normalize_whitespace": normalize_whitespace,
+    }
+    if max_newlines is not None:
+        params["max_newlines"] = max_newlines
+
+    rule_config = RuleConfig(
+        priority=priority,
+        cache_size=cache_size,
+        cost=cost,
+        params=params,
+    )
 
     # Create and return the rule
     return WhitespaceRule(
         validator=validator,
+        config=rule_config,
         id=rule_id or "whitespace",
         **kwargs,
     )

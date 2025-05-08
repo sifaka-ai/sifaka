@@ -39,9 +39,9 @@ result = rule.validate("This is a test.")
 
 import re
 from enum import Enum, auto
-from typing import List, Optional
+from typing import List, Optional, Any
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 
 from sifaka.rules.base import (
     Rule,
@@ -50,6 +50,7 @@ from sifaka.rules.base import (
     BaseValidator,
     RuleResultHandler,
 )
+from sifaka.utils.state import StateManager, create_rule_state, RuleState
 
 
 __all__ = [
@@ -548,6 +549,23 @@ class StyleRule(Rule[str, RuleResult, StyleValidator, RuleResultHandler[RuleResu
     the actual validation logic to a StyleValidator instance, following the
     standard Sifaka delegation pattern.
 
+    ## State Management
+
+    This implementation uses the standardized StateManager pattern:
+
+    1. **State Declaration**
+       - Uses `_state_manager = PrivateAttr(default_factory=create_rule_state)`
+       - Accesses state through `state = self._state_manager.get_state()`
+
+    2. **State Initialization**
+       - Initializes state in `warm_up()` with validator
+       - Sets `state.initialized = True` after initialization
+
+    3. **State Access**
+       - Gets state at the beginning of methods with `state = self._state_manager.get_state()`
+       - Checks initialization status with `if not state.initialized`
+       - Uses `state.cache` for temporary data
+
     ## Architecture
 
     StyleRule follows a component-based architecture:
@@ -621,6 +639,9 @@ class StyleRule(Rule[str, RuleResult, StyleValidator, RuleResultHandler[RuleResu
     ```
     """
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
+
     def __init__(
         self,
         name: str = "style_rule",
@@ -641,6 +662,19 @@ class StyleRule(Rule[str, RuleResult, StyleValidator, RuleResultHandler[RuleResu
         super().__init__(
             name=name, description=description, config=config, validator=validator, **kwargs
         )
+
+        # Initialize state if validator is provided
+        if validator:
+            state = self._state_manager.get_state()
+            state.validator = validator
+            state.initialized = True
+
+    def warm_up(self) -> None:
+        """Initialize the rule if needed."""
+        state = self._state_manager.get_state()
+        if not state.initialized:
+            state.validator = self._create_default_validator()
+            state.initialized = True
 
     def _create_default_validator(self) -> StyleValidator:
         """Create a default validator from config."""
@@ -665,10 +699,32 @@ class StyleRule(Rule[str, RuleResult, StyleValidator, RuleResultHandler[RuleResu
         Returns:
             RuleResult containing validation results
         """
+        # Ensure the rule is initialized
+        self.warm_up()
+
+        # Get state
+        state = self._state_manager.get_state()
+
+        # Validate input type
+        if not isinstance(text, str):
+            raise TypeError("Output must be a string")
+
+        # Check cache if enabled
+        cache_key = text
+        if self.config.cache_size > 0 and cache_key in state.cache:
+            return state.cache[cache_key]
+
         # Delegate to validator
-        result = self._validator.validate(text, **kwargs)
+        result = state.validator.validate(text, **kwargs)
+
         # Add rule_id to metadata
-        return result.with_metadata(rule_id=self._name)
+        result = result.with_metadata(rule_id=self._name)
+
+        # Cache result if caching is enabled
+        if self.config.cache_size > 0:
+            state.cache[cache_key] = result
+
+        return result
 
 
 def create_style_validator(
@@ -1044,6 +1100,23 @@ class FormattingRule(Rule[str, RuleResult, FormattingValidator, RuleResultHandle
     the actual validation logic to a FormattingValidator instance, following the
     standard Sifaka delegation pattern.
 
+    ## State Management
+
+    This implementation uses the standardized StateManager pattern:
+
+    1. **State Declaration**
+       - Uses `_state_manager = PrivateAttr(default_factory=create_rule_state)`
+       - Accesses state through `state = self._state_manager.get_state()`
+
+    2. **State Initialization**
+       - Initializes state in `warm_up()` with validator
+       - Sets `state.initialized = True` after initialization
+
+    3. **State Access**
+       - Gets state at the beginning of methods with `state = self._state_manager.get_state()`
+       - Checks initialization status with `if not state.initialized`
+       - Uses `state.cache` for temporary data
+
     ## Architecture
 
     FormattingRule follows a component-based architecture:
@@ -1127,6 +1200,9 @@ class FormattingRule(Rule[str, RuleResult, FormattingValidator, RuleResultHandle
     ```
     """
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
+
     def __init__(
         self,
         name: str = "formatting_rule",
@@ -1147,6 +1223,19 @@ class FormattingRule(Rule[str, RuleResult, FormattingValidator, RuleResultHandle
         super().__init__(
             name=name, description=description, config=config, validator=validator, **kwargs
         )
+
+        # Initialize state if validator is provided
+        if validator:
+            state = self._state_manager.get_state()
+            state.validator = validator
+            state.initialized = True
+
+    def warm_up(self) -> None:
+        """Initialize the rule if needed."""
+        state = self._state_manager.get_state()
+        if not state.initialized:
+            state.validator = self._create_default_validator()
+            state.initialized = True
 
     def _create_default_validator(self) -> FormattingValidator:
         """Create a default validator from config."""
@@ -1170,10 +1259,32 @@ class FormattingRule(Rule[str, RuleResult, FormattingValidator, RuleResultHandle
         Returns:
             RuleResult containing validation results
         """
+        # Ensure the rule is initialized
+        self.warm_up()
+
+        # Get state
+        state = self._state_manager.get_state()
+
+        # Validate input type
+        if not isinstance(text, str):
+            raise TypeError("Output must be a string")
+
+        # Check cache if enabled
+        cache_key = text
+        if self.config.cache_size > 0 and cache_key in state.cache:
+            return state.cache[cache_key]
+
         # Delegate to validator
-        result = self._validator.validate(text, **kwargs)
+        result = state.validator.validate(text, **kwargs)
+
         # Add rule_id to metadata
-        return result.with_metadata(rule_id=self._name)
+        result = result.with_metadata(rule_id=self._name)
+
+        # Cache result if caching is enabled
+        if self.config.cache_size > 0:
+            state.cache[cache_key] = result
+
+        return result
 
 
 def create_formatting_validator(
