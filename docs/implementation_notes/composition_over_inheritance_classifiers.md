@@ -29,9 +29,9 @@ We'll refactor the classifier system to use composition over inheritance:
 | ProfanityClassifier | ✅ Completed | ✅ Completed | Implemented with custom checker support |
 | SentimentClassifier | ✅ Completed | ✅ Completed | Implemented with batch_classify_impl support |
 | ReadabilityClassifier | ✅ Completed | ✅ Completed | Implemented with comprehensive metrics support |
-| LanguageClassifier | ❌ Pending | ❌ Pending | |
-| TopicClassifier | ❌ Pending | ❌ Pending | |
-| GenreClassifier | ❌ Pending | ❌ Pending | |
+| LanguageClassifier | ✅ Completed | ✅ Completed | Implemented with batch_classify_impl support |
+| TopicClassifier | ✅ Completed | ✅ Completed | Implemented with batch_classify_impl and fit_impl support |
+| GenreClassifier | ✅ Completed | ✅ Completed | Implemented with batch_classify_impl and fit_impl support |
 
 ## Implementation Steps
 
@@ -300,24 +300,64 @@ class TopicClassifierImplementation:
 
 ```python
 class GenreClassifierImplementation:
-    """Implementation of genre classification logic."""
+    """
+    Implementation of genre classification logic using scikit-learn's RandomForest.
+
+    This implementation uses RandomForest from scikit-learn to categorize text into
+    different genres such as news, fiction, academic, technical, etc. using textual
+    features.
+    """
 
     # Class constants
     DEFAULT_COST: ClassVar[float] = 2.0
 
     def __init__(self, config: ClassifierConfig):
+        """Initialize the genre classifier implementation."""
         self.config = config
         self._state = ClassifierState()
         self._state.initialized = False
+        self._state.cache = {}
 
-    def classify_impl(self, text: str) -> ClassificationResult[str]:
+    def classify_impl(self, text: str) -> ClassificationResult:
         """Implement genre classification logic."""
-        # Implementation from current _classify_impl_uncached
+        if not self._state.pipeline:
+            raise RuntimeError(
+                "Model not initialized. You must either provide a model_path or call fit() before classification."
+            )
+
+        # Predict probability
+        proba = self._state.pipeline.predict_proba([text])[0]
+
+        # Get dominant class
+        dominant_class_idx = proba.argmax()
+        confidence = float(proba[dominant_class_idx])
+
+        # Create metadata with probabilities and feature importances
+        metadata = {
+            "probabilities": {self.config.labels[i]: float(prob) for i, prob in enumerate(proba)},
+            "threshold": self.config.params.get("min_confidence", 0.6),
+            "is_confident": confidence >= self.config.params.get("min_confidence", 0.6),
+        }
+
+        return ClassificationResult(
+            label=self.config.labels[dominant_class_idx],
+            confidence=confidence,
+            metadata=metadata,
+        )
+
+    def batch_classify_impl(self, texts: List[str]) -> List[ClassificationResult]:
+        """Implement batch classification logic for multiple texts."""
+        # Efficient batch processing implementation
         # ...
 
     def warm_up_impl(self) -> None:
         """Prepare resources for classification."""
-        # Implementation from current warm_up
+        # Initialize scikit-learn models and vectorizers
+        # ...
+
+    def fit_impl(self, texts: List[str], labels: List[str]) -> None:
+        """Fit the genre classifier on a corpus of texts."""
+        # Train the model on provided texts and labels
         # ...
 ```
 

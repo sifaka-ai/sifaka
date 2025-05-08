@@ -4,16 +4,14 @@ Factory functions for creating chains.
 This module provides factory functions for creating different types of chains.
 """
 
-from typing import Generic, List, Optional, TypeVar
+from typing import List, Optional, TypeVar
 
 from ..critics import CriticCore
 from ..models.base import ModelProvider
 from ..rules import Rule
-from .orchestrator import ChainOrchestrator
-from .formatters.result import ResultFormatter
-from .managers.prompt import PromptManager
-from .managers.validation import ValidationManager
-from .strategies.retry import BackoffRetryStrategy, SimpleRetryStrategy
+from .config import ChainConfig
+from .implementation import Chain
+from .implementations import SimpleChainImplementation, BackoffChainImplementation
 from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -26,7 +24,9 @@ def create_simple_chain(
     rules: List[Rule],
     critic: Optional[CriticCore] = None,
     max_attempts: int = 3,
-) -> ChainOrchestrator[OutputType]:
+    name: str = "simple_chain",
+    description: str = "A simple chain with a fixed number of retries",
+) -> Chain[OutputType]:
     """
     Create a simple chain with the given parameters.
 
@@ -35,15 +35,34 @@ def create_simple_chain(
         rules: The rules to validate against
         critic: Optional critic to use
         max_attempts: Maximum number of attempts
+        name: The name of the chain
+        description: The description of the chain
 
     Returns:
-        A configured chain orchestrator
+        A configured chain
     """
-    return ChainOrchestrator[OutputType](
+    # Create config
+    config = ChainConfig(
+        max_attempts=max_attempts,
+        params={
+            "use_critic": critic is not None,
+        },
+    )
+
+    # Create implementation
+    implementation = SimpleChainImplementation[OutputType](
         model=model,
         rules=rules,
         critic=critic,
         max_attempts=max_attempts,
+    )
+
+    # Create and return chain
+    return Chain[OutputType](
+        name=name,
+        description=description,
+        config=config,
+        implementation=implementation,
     )
 
 
@@ -55,7 +74,9 @@ def create_backoff_chain(
     initial_backoff: float = 1.0,
     backoff_factor: float = 2.0,
     max_backoff: float = 60.0,
-) -> ChainOrchestrator[OutputType]:
+    name: str = "backoff_chain",
+    description: str = "A chain with exponential backoff retry strategy",
+) -> Chain[OutputType]:
     """
     Create a chain with exponential backoff retry strategy.
 
@@ -67,30 +88,38 @@ def create_backoff_chain(
         initial_backoff: Initial backoff time in seconds
         backoff_factor: Factor to multiply backoff by each attempt
         max_backoff: Maximum backoff time in seconds
+        name: The name of the chain
+        description: The description of the chain
 
     Returns:
-        A configured chain orchestrator
+        A configured chain
     """
-    # Create components
-    validation_manager = ValidationManager[OutputType](rules)
-    prompt_manager = PromptManager()
-    retry_strategy = BackoffRetryStrategy[OutputType](
+    # Create config
+    config = ChainConfig(
+        max_attempts=max_attempts,
+        params={
+            "use_critic": critic is not None,
+            "initial_backoff": initial_backoff,
+            "backoff_factor": backoff_factor,
+            "max_backoff": max_backoff,
+        },
+    )
+
+    # Create implementation
+    implementation = BackoffChainImplementation[OutputType](
+        model=model,
+        rules=rules,
+        critic=critic,
         max_attempts=max_attempts,
         initial_backoff=initial_backoff,
         backoff_factor=backoff_factor,
         max_backoff=max_backoff,
     )
-    result_formatter = ResultFormatter[OutputType]()
 
-    # Create orchestrator with custom backoff retry strategy
-    orchestrator = ChainOrchestrator[OutputType](
-        model=model,
-        rules=rules,
-        critic=critic,
-        max_attempts=max_attempts,
+    # Create and return chain
+    return Chain[OutputType](
+        name=name,
+        description=description,
+        config=config,
+        implementation=implementation,
     )
-
-    # Replace default retry strategy with backoff strategy
-    orchestrator._core._retry_strategy = retry_strategy
-
-    return orchestrator

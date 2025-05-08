@@ -84,7 +84,7 @@ from .profanity import ProfanityClassifier, create_profanity_classifier
 from .readability import ReadabilityClassifier, create_readability_classifier
 from .sentiment import SentimentClassifier, create_sentiment_classifier
 from .spam import SpamClassifier, create_spam_classifier
-from .topic import TopicClassifier, create_topic_classifier
+from .topic import create_topic_classifier, create_pretrained_topic_classifier
 from .toxicity import ToxicityClassifier, create_toxicity_classifier
 
 __all__ = [
@@ -105,7 +105,6 @@ __all__ = [
     # Text Properties Classes
     "ReadabilityClassifier",
     "LanguageClassifier",
-    "TopicClassifier",
     "GenreClassifier",
     # Factory Functions
     "create_sentiment_classifier",
@@ -119,4 +118,5 @@ __all__ = [
     "create_genre_classifier",
     "create_readability_classifier",
     "create_topic_classifier",
+    "create_pretrained_topic_classifier",
 ]
