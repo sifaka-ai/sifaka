@@ -61,10 +61,10 @@ def __init__(self, config: ClassifierConfig) -> None:
 ```
 
 ### 2.2 Critic Implementations
-- [ ] Update `PromptCriticImplementation` to use `_state_manager`
-- [ ] Update other critic implementations (reflexion, constitutional, etc.)
-- [ ] Standardize initialization timing
-- [ ] Ensure consistent state access
+- [x] Update `PromptCriticImplementation` to use `_state_manager` (completed)
+- [x] Update other critic implementations (reflexion, self-refine, constitutional, etc.) (completed)
+- [x] Standardize initialization timing (completed)
+- [x] Ensure consistent state access (completed)
 
 ### 2.3 Rule Implementations
 - [ ] Update rule validators to use `_state_manager` where appropriate

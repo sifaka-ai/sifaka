@@ -68,8 +68,10 @@ feedback = critic.critique(text)
 import logging
 from typing import Any, Dict, List, Optional, Union, cast
 
+from pydantic import PrivateAttr
+
 from ..models import ReflexionCriticConfig
-from ..utils.state import CriticState
+from ...utils.state import CriticState, create_critic_state
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -128,6 +130,9 @@ class ReflexionCriticImplementation:
     - Graceful degradation
     """
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
+
     def __init__(
         self,
         config: ReflexionCriticConfig,
@@ -147,8 +152,10 @@ class ReflexionCriticImplementation:
             RuntimeError: If provider setup fails
         """
         self.config = config
-        self._state = CriticState()
-        
+
+        # Initialize state
+        state = self._state_manager.get_state()
+
         # Create components
         from ..managers.prompt_factories import ReflexionCriticPromptManager
         from ..managers.response import ResponseParser
@@ -156,31 +163,31 @@ class ReflexionCriticImplementation:
         from ..services.critique import CritiqueService
 
         # Store components in state
-        self._state.model = llm_provider
-        self._state.prompt_manager = prompt_factory or ReflexionCriticPromptManager(config)
-        self._state.response_parser = ResponseParser()
-        self._state.memory_manager = MemoryManager(buffer_size=config.memory_buffer_size)
-        
+        state.model = llm_provider
+        state.prompt_manager = prompt_factory or ReflexionCriticPromptManager(config)
+        state.response_parser = ResponseParser()
+        state.memory_manager = MemoryManager(buffer_size=config.memory_buffer_size)
+
         # Initialize critique service
         critique_service = CritiqueService(
             model=llm_provider,
-            prompt_manager=self._state.prompt_manager,
-            response_parser=self._state.response_parser,
-            memory_manager=self._state.memory_manager,
+            prompt_manager=state.prompt_manager,
+            response_parser=state.response_parser,
+            memory_manager=state.memory_manager,
             config=config,
         )
-        
+
         # Store in cache
-        self._state.cache = {
+        state.cache = {
             "critique_service": critique_service,
             "system_prompt": config.system_prompt,
             "temperature": config.temperature,
             "max_tokens": config.max_tokens,
             "reflection_depth": config.reflection_depth,
         }
-        
+
         # Mark as initialized
-        self._state.initialized = True
+        state.initialized = True
 
     def _check_input(self, text: str) -> None:
         """
@@ -193,7 +200,10 @@ class ReflexionCriticImplementation:
             ValueError: If text is empty or invalid
             RuntimeError: If state is not initialized
         """
-        if not self._state.initialized:
+        # Get state
+        state = self._state_manager.get_state()
+
+        if not state.initialized:
             raise RuntimeError("ReflexionCriticImplementation not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -231,12 +241,15 @@ class ReflexionCriticImplementation:
             RuntimeError: If validation fails
         """
         self._check_input(text)
-        
+
+        # Get state
+        state = self._state_manager.get_state()
+
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not initialized")
-        
+
         # Delegate to critique service
         return critique_service.validate(text)
 
@@ -257,12 +270,15 @@ class ReflexionCriticImplementation:
         """
         self._check_input(text)
         feedback_str = self._format_feedback(feedback)
-        
+
+        # Get state
+        state = self._state_manager.get_state()
+
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not initialized")
-        
+
         # Delegate to critique service
         return critique_service.improve(text, feedback_str)
 
@@ -281,15 +297,18 @@ class ReflexionCriticImplementation:
             RuntimeError: If critique fails
         """
         self._check_input(text)
-        
+
+        # Get state
+        state = self._state_manager.get_state()
+
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not initialized")
-        
+
         # Delegate to critique service
         critique = critique_service.critique(text)
-        
+
         # Convert to dictionary format
         return {
             "score": critique.score,
@@ -304,33 +323,36 @@ class ReflexionCriticImplementation:
 
         This method initializes any resources needed by the critic implementation.
         """
-        if not self._state.initialized:
+        # Get state
+        state = self._state_manager.get_state()
+
+        if not state.initialized:
             # Create components if not already initialized
             from ..managers.prompt_factories import ReflexionCriticPromptManager
             from ..managers.response import ResponseParser
             from ..managers.memory import MemoryManager
             from ..services.critique import CritiqueService
-            
+
             # Initialize components if not already done
-            if not hasattr(self._state, "prompt_manager") or self._state.prompt_manager is None:
-                self._state.prompt_manager = ReflexionCriticPromptManager(self.config)
-            
-            if not hasattr(self._state, "response_parser") or self._state.response_parser is None:
-                self._state.response_parser = ResponseParser()
-            
-            if not hasattr(self._state, "memory_manager") or self._state.memory_manager is None:
-                self._state.memory_manager = MemoryManager(buffer_size=self.config.memory_buffer_size)
-            
+            if not hasattr(state, "prompt_manager") or state.prompt_manager is None:
+                state.prompt_manager = ReflexionCriticPromptManager(self.config)
+
+            if not hasattr(state, "response_parser") or state.response_parser is None:
+                state.response_parser = ResponseParser()
+
+            if not hasattr(state, "memory_manager") or state.memory_manager is None:
+                state.memory_manager = MemoryManager(buffer_size=self.config.memory_buffer_size)
+
             # Initialize critique service if not already done
-            if "critique_service" not in self._state.cache:
+            if "critique_service" not in state.cache:
                 critique_service = CritiqueService(
-                    model=self._state.model,
-                    prompt_manager=self._state.prompt_manager,
-                    response_parser=self._state.response_parser,
-                    memory_manager=self._state.memory_manager,
+                    model=state.model,
+                    prompt_manager=state.prompt_manager,
+                    response_parser=state.response_parser,
+                    memory_manager=state.memory_manager,
                     config=self.config,
                 )
-                self._state.cache["critique_service"] = critique_service
-            
+                state.cache["critique_service"] = critique_service
+
             # Mark as initialized
-            self._state.initialized = True
+            state.initialized = True

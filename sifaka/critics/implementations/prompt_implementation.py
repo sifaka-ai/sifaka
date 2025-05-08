@@ -67,7 +67,7 @@ improved_text = critic.improve(text, "Add more detail")
 import json
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, PrivateAttr
 
 from ..models import PromptCriticConfig, CriticConfig, CriticMetadata
 from ..protocols import CriticImplementation
@@ -129,6 +129,9 @@ class PromptCriticImplementation:
     # Pydantic v2 configuration
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
+
     def __init__(
         self,
         config: Union[CriticConfig, PromptCriticConfig],
@@ -148,8 +151,10 @@ class PromptCriticImplementation:
             RuntimeError: If provider setup fails
         """
         self.config = config
-        self._state = CriticState()
-        
+
+        # Initialize state
+        state = self._state_manager.get_state()
+
         # Create components
         from ..managers.prompt_factories import PromptCriticPromptManager
         from ..managers.response import ResponseParser
@@ -157,21 +162,21 @@ class PromptCriticImplementation:
         from ..managers.memory import MemoryManager
 
         # Store components in state
-        self._state.model = llm_provider
-        self._state.prompt_manager = prompt_factory or PromptCriticPromptManager(config)
-        self._state.response_parser = ResponseParser()
-        self._state.memory_manager = MemoryManager(buffer_size=10)
+        state.model = llm_provider
+        state.prompt_manager = prompt_factory or PromptCriticPromptManager(config)
+        state.response_parser = ResponseParser()
+        state.memory_manager = MemoryManager(buffer_size=10)
 
         # Create service and store in state cache
-        self._state.cache["critique_service"] = CritiqueService(
+        state.cache["critique_service"] = CritiqueService(
             llm_provider=llm_provider,
-            prompt_manager=self._state.prompt_manager,
-            response_parser=self._state.response_parser,
-            memory_manager=self._state.memory_manager,
+            prompt_manager=state.prompt_manager,
+            response_parser=state.response_parser,
+            memory_manager=state.memory_manager,
         )
 
         # Mark as initialized
-        self._state.initialized = True
+        state.initialized = True
 
     def validate_impl(self, text: str) -> bool:
         """
@@ -187,14 +192,17 @@ class PromptCriticImplementation:
             ValueError: If text is empty or invalid
             RuntimeError: If validation fails
         """
-        if not self._state.initialized:
+        # Get state
+        state = self._state_manager.get_state()
+
+        if not state.initialized:
             raise RuntimeError("PromptCriticImplementation not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
             return False
 
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not initialized")
 
@@ -216,7 +224,10 @@ class PromptCriticImplementation:
             ValueError: If text is empty or invalid
             RuntimeError: If improvement fails
         """
-        if not self._state.initialized:
+        # Get state
+        state = self._state_manager.get_state()
+
+        if not state.initialized:
             raise RuntimeError("PromptCriticImplementation not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -226,7 +237,7 @@ class PromptCriticImplementation:
             feedback = "Please improve this text for clarity and effectiveness."
 
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not initialized")
 
@@ -242,7 +253,7 @@ class PromptCriticImplementation:
                 "timestamp": __import__("time").time(),
             }
         )
-        self._state.memory_manager.add_to_memory(memory_item)
+        state.memory_manager.add_to_memory(memory_item)
 
         return improved_text
 
@@ -260,14 +271,17 @@ class PromptCriticImplementation:
             ValueError: If text is empty or invalid
             RuntimeError: If critique fails
         """
-        if not self._state.initialized:
+        # Get state
+        state = self._state_manager.get_state()
+
+        if not state.initialized:
             raise RuntimeError("PromptCriticImplementation not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not initialized")
 
@@ -288,5 +302,36 @@ class PromptCriticImplementation:
 
         This method initializes any resources needed by the critic implementation.
         """
-        # Already initialized in __init__
-        pass
+        # Get state to ensure it's initialized
+        state = self._state_manager.get_state()
+
+        # Already initialized in __init__, but we can check and re-initialize if needed
+        if not state.initialized:
+            # Create components
+            from ..managers.prompt_factories import PromptCriticPromptManager
+            from ..managers.response import ResponseParser
+            from ..services.critique import CritiqueService
+            from ..managers.memory import MemoryManager
+
+            # Initialize components if not already done
+            if not hasattr(state, "prompt_manager") or state.prompt_manager is None:
+                state.prompt_manager = PromptCriticPromptManager(self.config)
+
+            if not hasattr(state, "response_parser") or state.response_parser is None:
+                state.response_parser = ResponseParser()
+
+            if not hasattr(state, "memory_manager") or state.memory_manager is None:
+                state.memory_manager = MemoryManager(buffer_size=10)
+
+            # Initialize critique service if not already done
+            if "critique_service" not in state.cache:
+                critique_service = CritiqueService(
+                    llm_provider=state.model,
+                    prompt_manager=state.prompt_manager,
+                    response_parser=state.response_parser,
+                    memory_manager=state.memory_manager,
+                )
+                state.cache["critique_service"] = critique_service
+
+            # Mark as initialized
+            state.initialized = True

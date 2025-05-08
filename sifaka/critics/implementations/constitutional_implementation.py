@@ -78,9 +78,11 @@ improved_text = critic.improve(text, metadata=metadata)
 import logging
 from typing import Any, Dict, List, Optional, Union, cast
 
+from pydantic import PrivateAttr
+
 from ..models import ConstitutionalCriticConfig, CriticConfig
 from ..protocols import CriticImplementation
-from ...utils.state import CriticState
+from ...utils.state import CriticState, create_critic_state
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -156,6 +158,9 @@ class ConstitutionalCriticImplementation:
     - State initialization issues
     """
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
+
     def __init__(
         self,
         config: Union[CriticConfig, ConstitutionalCriticConfig],
@@ -181,11 +186,13 @@ class ConstitutionalCriticImplementation:
             raise ValueError("principles must be a non-empty list of strings")
 
         self.config = config
-        self._state = CriticState()
+
+        # Initialize state
+        state = self._state_manager.get_state()
 
         # Store components in state
-        self._state.model = llm_provider
-        self._state.cache = {
+        state.model = llm_provider
+        state.cache = {
             "principles": config.principles,
             "critique_prompt_template": config.params.get(
                 "critique_prompt_template", DEFAULT_CRITIQUE_PROMPT_TEMPLATE
@@ -199,7 +206,7 @@ class ConstitutionalCriticImplementation:
         }
 
         # Mark as initialized
-        self._state.initialized = True
+        state.initialized = True
 
     def _format_principles(self) -> str:
         """
@@ -208,7 +215,10 @@ class ConstitutionalCriticImplementation:
         Returns:
             Formatted principles as a string
         """
-        principles = self._state.cache.get("principles", [])
+        # Get state
+        state = self._state_manager.get_state()
+
+        principles = state.cache.get("principles", [])
         return "\n".join(f"- {p}" for p in principles)
 
     def _get_task_from_metadata(self, metadata: Optional[Dict[str, Any]] = None) -> str:
@@ -239,7 +249,10 @@ class ConstitutionalCriticImplementation:
             ValueError: If text is empty or invalid
             RuntimeError: If implementation is not initialized
         """
-        if not self._state.initialized:
+        # Get state
+        state = self._state_manager.get_state()
+
+        if not state.initialized:
             raise RuntimeError("ConstitutionalCriticImplementation not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -285,6 +298,9 @@ class ConstitutionalCriticImplementation:
         """
         self._check_input(text)
 
+        # Get state
+        state = self._state_manager.get_state()
+
         # Get task from metadata
         task = self._get_task_from_metadata(metadata)
 
@@ -292,18 +308,18 @@ class ConstitutionalCriticImplementation:
         principles_text = self._format_principles()
 
         # Create critique prompt
-        prompt = self._state.cache.get("critique_prompt_template", "").format(
+        prompt = state.cache.get("critique_prompt_template", "").format(
             principles=principles_text,
             task=task,
             response=text,
         )
 
         # Generate critique
-        critique_text = self._state.model.generate(
+        critique_text = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         # Parse critique
@@ -365,6 +381,9 @@ class ConstitutionalCriticImplementation:
         """
         self._check_input(text)
 
+        # Get state
+        state = self._state_manager.get_state()
+
         # Handle metadata if provided in feedback
         metadata = None
         if isinstance(feedback, dict) and "metadata" in feedback:
@@ -392,7 +411,7 @@ class ConstitutionalCriticImplementation:
         principles_text = self._format_principles()
 
         # Create improvement prompt
-        prompt = self._state.cache.get("improvement_prompt_template", "").format(
+        prompt = state.cache.get("improvement_prompt_template", "").format(
             principles=principles_text,
             task=task,
             response=text,
@@ -400,11 +419,11 @@ class ConstitutionalCriticImplementation:
         )
 
         # Generate improved response
-        improved_text = self._state.model.generate(
+        improved_text = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         return improved_text
@@ -415,5 +434,28 @@ class ConstitutionalCriticImplementation:
 
         This method initializes any resources needed by the critic implementation.
         """
-        # Already initialized in __init__
-        pass
+        # Get state to ensure it's initialized
+        state = self._state_manager.get_state()
+
+        # Check if already initialized
+        if not state.initialized:
+            # Validate config type
+            if not isinstance(self.config, ConstitutionalCriticConfig):
+                raise TypeError("config must be a ConstitutionalCriticConfig")
+
+            # Initialize state
+            state.cache = {
+                "principles": self.config.principles,
+                "critique_prompt_template": self.config.params.get(
+                    "critique_prompt_template", DEFAULT_CRITIQUE_PROMPT_TEMPLATE
+                ),
+                "improvement_prompt_template": self.config.params.get(
+                    "improvement_prompt_template", DEFAULT_IMPROVEMENT_PROMPT_TEMPLATE
+                ),
+                "system_prompt": self.config.system_prompt,
+                "temperature": self.config.temperature,
+                "max_tokens": self.config.max_tokens,
+            }
+
+            # Mark as initialized
+            state.initialized = True

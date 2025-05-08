@@ -66,8 +66,10 @@ import json
 import logging
 from typing import Any, Dict, List, Optional, Union, cast
 
+from pydantic import PrivateAttr
+
 from ..models import SelfRefineCriticConfig
-from ..utils.state import CriticState
+from ...utils.state import CriticState, create_critic_state
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -124,6 +126,9 @@ class SelfRefineCriticImplementation:
     ```
     """
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
+
     def __init__(
         self,
         config: SelfRefineCriticConfig,
@@ -143,8 +148,10 @@ class SelfRefineCriticImplementation:
             RuntimeError: If provider setup fails
         """
         self.config = config
-        self._state = CriticState()
-        
+
+        # Initialize state
+        state = self._state_manager.get_state()
+
         # Create components
         from ..managers.prompt_factories import PromptCriticPromptManager
         from ..managers.response import ResponseParser
@@ -152,34 +159,32 @@ class SelfRefineCriticImplementation:
         from ..services.critique import CritiqueService
 
         # Store components in state
-        self._state.model = llm_provider
-        self._state.prompt_manager = prompt_factory or PromptCriticPromptManager(config)
-        self._state.response_parser = ResponseParser()
-        self._state.memory_manager = MemoryManager(buffer_size=10)
-        
+        state.model = llm_provider
+        state.prompt_manager = prompt_factory or PromptCriticPromptManager(config)
+        state.response_parser = ResponseParser()
+        state.memory_manager = MemoryManager(buffer_size=10)
+
         # Create critique service
         critique_service = CritiqueService(
             model=llm_provider,
-            prompt_manager=self._state.prompt_manager,
-            response_parser=self._state.response_parser,
+            prompt_manager=state.prompt_manager,
+            response_parser=state.response_parser,
         )
-        
+
         # Store critique service in state cache
-        if not hasattr(self._state, "cache"):
-            self._state.cache = {}
-        self._state.cache["critique_service"] = critique_service
-        
+        state.cache["critique_service"] = critique_service
+
         # Store configuration values in state cache
-        self._state.cache["system_prompt"] = config.system_prompt
-        self._state.cache["temperature"] = config.temperature
-        self._state.cache["max_tokens"] = config.max_tokens
-        self._state.cache["max_iterations"] = config.max_iterations
-        self._state.cache["critique_prompt_template"] = config.critique_prompt_template
-        self._state.cache["revision_prompt_template"] = config.revision_prompt_template
-        
+        state.cache["system_prompt"] = config.system_prompt
+        state.cache["temperature"] = config.temperature
+        state.cache["max_tokens"] = config.max_tokens
+        state.cache["max_iterations"] = config.max_iterations
+        state.cache["critique_prompt_template"] = config.critique_prompt_template
+        state.cache["revision_prompt_template"] = config.revision_prompt_template
+
         # Mark as initialized
-        self._state.initialized = True
-        
+        state.initialized = True
+
         logger.info(f"Initialized SelfRefineCriticImplementation with config: {config.name}")
 
     def _check_input(self, text: str) -> None:
@@ -192,7 +197,10 @@ class SelfRefineCriticImplementation:
         Raises:
             ValueError: If text is empty or invalid
         """
-        if not self._state.initialized:
+        # Get state
+        state = self._state_manager.get_state()
+
+        if not state.initialized:
             raise RuntimeError("SelfRefineCriticImplementation not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -210,10 +218,10 @@ class SelfRefineCriticImplementation:
         """
         if feedback is None:
             return "Please improve this text for clarity and effectiveness."
-        
+
         if isinstance(feedback, dict):
             return json.dumps(feedback)
-        
+
         return str(feedback)
 
     def validate_impl(self, text: str) -> bool:
@@ -231,12 +239,15 @@ class SelfRefineCriticImplementation:
             RuntimeError: If validation fails
         """
         self._check_input(text)
-        
+
+        # Get state
+        state = self._state_manager.get_state()
+
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not initialized")
-        
+
         # Delegate to critique service
         return critique_service.validate(text)
 
@@ -256,33 +267,36 @@ class SelfRefineCriticImplementation:
             RuntimeError: If improvement fails
         """
         self._check_input(text)
-        
+
+        # Get state
+        state = self._state_manager.get_state()
+
         # Extract task from feedback if it's a dictionary
         task = None
         if isinstance(feedback, dict) and "task" in feedback:
             task = feedback["task"]
         else:
             task = self._format_feedback(feedback)
-        
+
         # Initialize current output
         current_output = text
-        
+
         # Get max iterations from config
-        max_iterations = self._state.cache.get("max_iterations", 3)
-        
+        max_iterations = state.cache.get("max_iterations", 3)
+
         # Perform iterative refinement
         for _ in range(max_iterations):
             # Step 1: Critique the current output
-            critique_prompt = self._state.cache.get("critique_prompt_template", "").format(
+            critique_prompt = state.cache.get("critique_prompt_template", "").format(
                 task=task,
                 response=current_output,
             )
 
-            critique = self._state.model.generate(
+            critique = state.model.generate(
                 critique_prompt,
-                system_prompt=self._state.cache.get("system_prompt", ""),
-                temperature=self._state.cache.get("temperature", 0.7),
-                max_tokens=self._state.cache.get("max_tokens", 1000),
+                system_prompt=state.cache.get("system_prompt", ""),
+                temperature=state.cache.get("temperature", 0.7),
+                max_tokens=state.cache.get("max_tokens", 1000),
             ).strip()
 
             # Heuristic stopping condition
@@ -298,17 +312,17 @@ class SelfRefineCriticImplementation:
                 return current_output
 
             # Step 2: Revise using the critique
-            revision_prompt = self._state.cache.get("revision_prompt_template", "").format(
+            revision_prompt = state.cache.get("revision_prompt_template", "").format(
                 task=task,
                 response=current_output,
                 critique=critique,
             )
 
-            revised_output = self._state.model.generate(
+            revised_output = state.model.generate(
                 revision_prompt,
-                system_prompt=self._state.cache.get("system_prompt", ""),
-                temperature=self._state.cache.get("temperature", 0.7),
-                max_tokens=self._state.cache.get("max_tokens", 1000),
+                system_prompt=state.cache.get("system_prompt", ""),
+                temperature=state.cache.get("temperature", 0.7),
+                max_tokens=state.cache.get("max_tokens", 1000),
             ).strip()
 
             # Check if there's no improvement
@@ -335,15 +349,18 @@ class SelfRefineCriticImplementation:
             RuntimeError: If critique fails
         """
         self._check_input(text)
-        
+
+        # Get state
+        state = self._state_manager.get_state()
+
         # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
+        critique_service = state.cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not initialized")
-        
+
         # Delegate to critique service
         critique = critique_service.critique(text)
-        
+
         # Convert to dictionary format
         return {
             "score": critique.score,
@@ -358,5 +375,44 @@ class SelfRefineCriticImplementation:
 
         This method initializes any resources needed by the critic implementation.
         """
-        # Already initialized in __init__
-        pass
+        # Get state to ensure it's initialized
+        state = self._state_manager.get_state()
+
+        # Check if already initialized
+        if not state.initialized:
+            # Create components
+            from ..managers.prompt_factories import PromptCriticPromptManager
+            from ..managers.response import ResponseParser
+            from ..managers.memory import MemoryManager
+            from ..services.critique import CritiqueService
+
+            # Initialize components if not already done
+            if not hasattr(state, "prompt_manager") or state.prompt_manager is None:
+                state.prompt_manager = PromptCriticPromptManager(self.config)
+
+            if not hasattr(state, "response_parser") or state.response_parser is None:
+                state.response_parser = ResponseParser()
+
+            if not hasattr(state, "memory_manager") or state.memory_manager is None:
+                state.memory_manager = MemoryManager(buffer_size=10)
+
+            # Initialize critique service if not already done
+            if "critique_service" not in state.cache:
+                critique_service = CritiqueService(
+                    model=state.model,
+                    prompt_manager=state.prompt_manager,
+                    response_parser=state.response_parser,
+                )
+                state.cache["critique_service"] = critique_service
+
+            # Store configuration values in state cache if not already done
+            if "system_prompt" not in state.cache:
+                state.cache["system_prompt"] = self.config.system_prompt
+                state.cache["temperature"] = self.config.temperature
+                state.cache["max_tokens"] = self.config.max_tokens
+                state.cache["max_iterations"] = self.config.max_iterations
+                state.cache["critique_prompt_template"] = self.config.critique_prompt_template
+                state.cache["revision_prompt_template"] = self.config.revision_prompt_template
+
+            # Mark as initialized
+            state.initialized = True
