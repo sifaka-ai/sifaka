@@ -125,18 +125,117 @@ def warm_up(self) -> None:
 ## 4. Implementation: Standardize State Access Patterns
 
 ### 4.1 Define Standard Access Pattern
-- [ ] Document the standard state access pattern using `_state_manager.get_state()`
-- [ ] Create helper methods for common state access patterns if needed
+- [x] Document the standard state access pattern using `_state_manager.get_state()`
+- [x] Create helper methods for common state access patterns if needed
+
+The standard state access pattern for Sifaka components is:
+
+1. **Get state at the beginning of methods**:
+   ```python
+   def some_method(self, input_data):
+       # Get state at the beginning of the method
+       state = self._state_manager.get_state()
+
+       # Use state throughout the method
+       if not state.initialized:
+           self.warm_up()
+
+       # Access cached data
+       if input_data in state.cache:
+           return state.cache[input_data]
+   ```
+
+2. **Check initialization status**:
+   ```python
+   def validate(self, text):
+       state = self._state_manager.get_state()
+       if not state.initialized:
+           raise RuntimeError("Component not initialized")
+   ```
+
+3. **Use state.cache for temporary data**:
+   ```python
+   def process(self, input_data):
+       state = self._state_manager.get_state()
+
+       # Check cache first
+       if input_data in state.cache:
+           return state.cache[input_data]
+
+       # Process and cache result
+       result = self._compute_result(input_data)
+       state.cache[input_data] = result
+       return result
+   ```
 
 ### 4.2 Update Direct State Access
-- [ ] Replace all direct `self._state` accesses with `self._state_manager.get_state()`
-- [ ] Update all state modifications to use the state manager
-- [ ] Standardize error handling for state access
+- [x] Replace all direct `self._state` accesses with `self._state_manager.get_state()`
+- [x] Update all state modifications to use the state manager
+- [x] Standardize error handling for state access
+
+Example refactoring for `SelfRAGCriticImplementation`:
+```python
+# Before
+if not self._state.initialized:
+    raise RuntimeError("SelfRAGCriticImplementation not properly initialized")
+
+retrieval_template = self._state.cache.get("retrieval_prompt_template")
+retrieval_query = self._state.model.generate(...)
+
+# After
+state = self._state_manager.get_state()
+if not state.initialized:
+    raise RuntimeError("SelfRAGCriticImplementation not properly initialized")
+
+retrieval_template = state.cache.get("retrieval_prompt_template")
+retrieval_query = state.model.generate(...)
+```
 
 ### 4.3 Standardize Caching
-- [ ] Define standard caching approach using `state.cache`
-- [ ] Update all components to use the standard caching approach
-- [ ] Ensure cache management is consistent (initialization, access, cleanup)
+- [x] Define standard caching approach using `state.cache`
+- [x] Update all components to use the standard caching approach
+- [x] Ensure cache management is consistent (initialization, access, cleanup)
+
+The standard caching approach for Sifaka components is:
+
+1. **Initialize cache in `__init__()`**:
+   ```python
+   def __init__(self, config):
+       # Get state
+       state = self._state_manager.get_state()
+
+       # Initialize cache
+       state.cache = {}
+
+       # Store configuration in cache
+       state.cache["config"] = config
+   ```
+
+2. **Access cache with get() for safety**:
+   ```python
+   def process(self, input_data):
+       state = self._state_manager.get_state()
+
+       # Safely access cache with default values
+       model = state.cache.get("model")
+       threshold = state.cache.get("threshold", 0.5)
+   ```
+
+3. **Use cache for temporary data and expensive computations**:
+   ```python
+   def compute_embeddings(self, text):
+       state = self._state_manager.get_state()
+
+       # Check cache first
+       cache_key = f"embeddings_{hash(text)}"
+       if cache_key in state.cache:
+           return state.cache[cache_key]
+
+       # Compute and cache
+       embeddings = self._compute_embeddings(text)
+       state.cache[cache_key] = embeddings
+       return embeddings
+   ```
 
 ## 5. Documentation Updates
 
@@ -146,9 +245,44 @@ def warm_up(self) -> None:
 - [x] Document the rationale for the chosen patterns
 
 ### 5.2 Update Component Documentation
-- [ ] Update docstrings for all refactored components
+- [x] Update docstrings for all refactored components
 - [x] Add examples of proper state management in component documentation
 - [x] Ensure consistency between code and documentation
+
+Example of updated docstring for SelfRAGCriticImplementation:
+```python
+class SelfRAGCriticImplementation:
+    """
+    Implementation of a Self-RAG critic using language models with retrieval.
+
+    This class implements the CriticImplementation protocol for a Self-RAG critic
+    that uses language models and retrieval to evaluate, validate, and improve text.
+
+    ## Lifecycle Management
+
+    The SelfRAGCriticImplementation manages its lifecycle through three main phases:
+
+    1. **Initialization**
+       - Validates configuration
+       - Sets up language model provider
+       - Sets up retriever
+       - Initializes state using StateManager
+
+    2. **Operation**
+       - Decides whether to retrieve
+       - Retrieves relevant information
+       - Generates responses
+       - Reflects on responses
+
+    3. **Cleanup**
+       - Releases resources
+       - Resets state
+       - Logs final status
+    """
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
+```
 
 ### 5.3 Create Migration Guide
 - [x] Document the process for migrating legacy components to the standardized approach

@@ -87,8 +87,9 @@ import logging
 from typing import Any, Dict, List, Optional, Union, cast
 
 from ..models import SelfRAGCriticConfig
-from ..utils.state import CriticState
+from ..utils.state import create_critic_state
 from ...retrieval import Retriever
+from pydantic import PrivateAttr
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -109,7 +110,7 @@ class SelfRAGCriticImplementation:
        - Validates configuration
        - Sets up language model provider
        - Sets up retriever
-       - Initializes state
+       - Initializes state using StateManager
 
     2. **Operation**
        - Decides whether to retrieve
@@ -121,6 +122,23 @@ class SelfRAGCriticImplementation:
        - Releases resources
        - Resets state
        - Logs final status
+
+    ## State Management
+
+    This implementation uses the standardized StateManager pattern:
+
+    1. **State Declaration**
+       - Uses `_state_manager = PrivateAttr(default_factory=create_critic_state)`
+       - Accesses state through `state = self._state_manager.get_state()`
+
+    2. **State Initialization**
+       - Initializes state in `__init__` with basic components
+       - Sets `state.initialized = True` after basic initialization
+
+    3. **State Access**
+       - Gets state at the beginning of methods with `state = self._state_manager.get_state()`
+       - Checks initialization status with `if not state.initialized`
+       - Uses `state.cache` for temporary data and expensive computations
 
     ## Error Handling
 
@@ -139,6 +157,9 @@ class SelfRAGCriticImplementation:
        - Token limit exceeded
        - Invalid responses
     """
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
 
     def __init__(
         self,
@@ -160,10 +181,6 @@ class SelfRAGCriticImplementation:
             ValueError: If config is invalid
             TypeError: If llm_provider or retriever is invalid
         """
-        # Initialize state
-        self._state = CriticState()
-        self._state.initialized = False
-
         # Validate inputs
         if not config:
             raise ValueError("Config must be provided")
@@ -172,13 +189,15 @@ class SelfRAGCriticImplementation:
         if not retriever:
             raise ValueError("Retriever must be provided")
 
+        # Get state from state manager
+        state = self._state_manager.get_state()
+
         # Store components in state
-        self._state.model = llm_provider
-        self._state.config = config
-        self._state.initialized = True
+        state.model = llm_provider
+        state.initialized = True
 
         # Store configuration and retriever in state cache
-        self._state.cache = {
+        state.cache = {
             "retriever": retriever,
             "system_prompt": config.system_prompt,
             "temperature": config.temperature,
@@ -191,7 +210,10 @@ class SelfRAGCriticImplementation:
 
         # Store prompt factory if provided
         if prompt_factory:
-            self._state.cache["prompt_factory"] = prompt_factory
+            state.cache["prompt_factory"] = prompt_factory
+
+        # Store config for reference
+        self.config = config
 
     def _check_input(self, text: str) -> None:
         """
@@ -204,7 +226,8 @@ class SelfRAGCriticImplementation:
             ValueError: If text is empty or invalid
             RuntimeError: If critic is not properly initialized
         """
-        if not self._state.initialized:
+        state = self._state_manager.get_state()
+        if not state.initialized:
             raise RuntimeError("SelfRAGCriticImplementation not properly initialized")
 
         if not isinstance(text, str) or not text.strip():
@@ -354,14 +377,17 @@ class SelfRAGCriticImplementation:
             ValueError: If task is empty
             RuntimeError: If critic is not properly initialized
         """
-        if not self._state.initialized:
+        # Get state from state manager
+        state = self._state_manager.get_state()
+
+        if not state.initialized:
             raise RuntimeError("SelfRAGCriticImplementation not properly initialized")
 
         if not isinstance(task, str) or not task.strip():
             raise ValueError("task must be a non-empty string")
 
         # Step 1: Ask the model if it needs retrieval
-        retrieval_template = self._state.cache.get("retrieval_prompt_template")
+        retrieval_template = state.cache.get("retrieval_prompt_template")
         if not retrieval_template:
             retrieval_template = (
                 "Do you need external knowledge to answer this question? If so, what would you search for?\n\n"
@@ -371,11 +397,11 @@ class SelfRAGCriticImplementation:
             )
         retrieval_prompt = retrieval_template.format(task=task)
 
-        retrieval_query = self._state.model.generate(
+        retrieval_query = state.model.generate(
             retrieval_prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         # Check if retrieval is needed
@@ -392,13 +418,13 @@ class SelfRAGCriticImplementation:
             context = ""
         else:
             # Step 2: Retrieve information
-            retriever = self._state.cache.get("retriever")
+            retriever = state.cache.get("retriever")
             if not retriever:
                 raise RuntimeError("Retriever not initialized")
             context = retriever.retrieve(retrieval_query)
 
         # Step 3: Generate response with (or without) retrieved context
-        generation_template = self._state.cache.get("generation_prompt_template")
+        generation_template = state.cache.get("generation_prompt_template")
         if not generation_template:
             generation_template = (
                 "Please answer the following task using the provided context (if available).\n\n"
@@ -410,15 +436,15 @@ class SelfRAGCriticImplementation:
 
         if response is None or not response.strip():
             # Generate new response
-            response = self._state.model.generate(
+            response = state.model.generate(
                 generation_prompt,
-                system_prompt=self._state.cache.get("system_prompt", ""),
-                temperature=self._state.cache.get("temperature", 0.7),
-                max_tokens=self._state.cache.get("max_tokens", 1000),
+                system_prompt=state.cache.get("system_prompt", ""),
+                temperature=state.cache.get("temperature", 0.7),
+                max_tokens=state.cache.get("max_tokens", 1000),
             ).strip()
 
         # Step 4: Ask model to reflect on whether the answer is good and the retrieval helped
-        reflection_template = self._state.cache.get("reflection_prompt_template")
+        reflection_template = state.cache.get("reflection_prompt_template")
         if not reflection_template:
             reflection_template = (
                 "Reflect on whether your answer used relevant information and addressed the task accurately.\n\n"
@@ -431,11 +457,11 @@ class SelfRAGCriticImplementation:
             task=task, context=context, response=response
         )
 
-        reflection = self._state.model.generate(
+        reflection = state.model.generate(
             reflection_prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         return {

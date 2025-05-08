@@ -58,7 +58,8 @@ from ..lac import (
     DEFAULT_FEEDBACK_PROMPT_TEMPLATE,
     DEFAULT_VALUE_PROMPT_TEMPLATE,
 )
-from ..utils.state import CriticState
+from pydantic import PrivateAttr
+from ...utils.state import create_critic_state
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -71,6 +72,9 @@ class FeedbackCriticImplementation(CriticImplementation):
     This implementation analyzes text and provides detailed feedback on what could be
     improved or what was done well.
     """
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
 
     def __init__(
         self,
@@ -89,15 +93,21 @@ class FeedbackCriticImplementation(CriticImplementation):
             TypeError: If llm_provider is not a valid provider
         """
         self.config = config
-        self._state = CriticState()
-        self._state.model = llm_provider
-        self._state.cache = {
+
+        # Initialize state
+        state = self._state_manager.get_state()
+
+        # Store components in state
+        state.model = llm_provider
+        state.cache = {
             "feedback_prompt_template": config.feedback_prompt_template,
             "system_prompt": config.system_prompt,
             "temperature": config.temperature,
             "max_tokens": config.max_tokens,
         }
-        self._state.initialized = True
+
+        # Mark as initialized
+        state.initialized = True
 
     def validate_impl(self, text: str, **kwargs: Any) -> bool:
         """
@@ -164,12 +174,15 @@ class FeedbackCriticImplementation(CriticImplementation):
         # Create improvement prompt
         prompt = f"Original text:\n{text}\n\n" f"Feedback:\n{feedback}\n\n" f"Improved text:"
 
+        # Get state
+        state = self._state_manager.get_state()
+
         # Generate improved response
-        improved_text = self._state.model.generate(
+        improved_text = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         return improved_text
@@ -206,7 +219,12 @@ class FeedbackCriticImplementation(CriticImplementation):
 
     def warm_up_impl(self) -> None:
         """Warm up the critic by initializing resources."""
-        self._state.initialized = True
+        # Get state to ensure it's initialized
+        state = self._state_manager.get_state()
+
+        # Mark as initialized if not already
+        if not state.initialized:
+            state.initialized = True
 
     def run(self, task: str, response: str) -> str:
         """
@@ -222,18 +240,21 @@ class FeedbackCriticImplementation(CriticImplementation):
         if not response or not response.strip():
             return "Empty text provided"
 
+        # Get state
+        state = self._state_manager.get_state()
+
         # Create feedback prompt
-        prompt = self._state.cache.get("feedback_prompt_template", "").format(
+        prompt = state.cache.get("feedback_prompt_template", "").format(
             task=task,
             response=response,
         )
 
         # Generate feedback
-        feedback = self._state.model.generate(
+        feedback = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         return feedback
@@ -250,16 +271,36 @@ class FeedbackCriticImplementation(CriticImplementation):
         """
         # Count positive and negative words
         positive_words = [
-            "good", "great", "excellent", "well", "clear", "concise",
-            "comprehensive", "accurate", "detailed", "thorough"
+            "good",
+            "great",
+            "excellent",
+            "well",
+            "clear",
+            "concise",
+            "comprehensive",
+            "accurate",
+            "detailed",
+            "thorough",
         ]
         negative_words = [
-            "bad", "poor", "unclear", "confusing", "incomplete", "inaccurate",
-            "missing", "wrong", "error", "vague"
+            "bad",
+            "poor",
+            "unclear",
+            "confusing",
+            "incomplete",
+            "inaccurate",
+            "missing",
+            "wrong",
+            "error",
+            "vague",
         ]
 
-        positive_count = sum(1 for word in positive_words if re.search(r"\b" + word + r"\b", feedback, re.IGNORECASE))
-        negative_count = sum(1 for word in negative_words if re.search(r"\b" + word + r"\b", feedback, re.IGNORECASE))
+        positive_count = sum(
+            1 for word in positive_words if re.search(r"\b" + word + r"\b", feedback, re.IGNORECASE)
+        )
+        negative_count = sum(
+            1 for word in negative_words if re.search(r"\b" + word + r"\b", feedback, re.IGNORECASE)
+        )
 
         total_count = positive_count + negative_count
         if total_count == 0:
@@ -276,6 +317,9 @@ class ValueCriticImplementation(CriticImplementation):
     This implementation analyzes text and provides a numeric score (e.g., probability of success)
     for the response.
     """
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
 
     def __init__(
         self,
@@ -294,15 +338,21 @@ class ValueCriticImplementation(CriticImplementation):
             TypeError: If llm_provider is not a valid provider
         """
         self.config = config
-        self._state = CriticState()
-        self._state.model = llm_provider
-        self._state.cache = {
+
+        # Initialize state
+        state = self._state_manager.get_state()
+
+        # Store components in state
+        state.model = llm_provider
+        state.cache = {
             "value_prompt_template": config.value_prompt_template,
             "system_prompt": config.system_prompt,
             "temperature": config.temperature,
             "max_tokens": config.max_tokens,
         }
-        self._state.initialized = True
+
+        # Mark as initialized
+        state.initialized = True
 
     def validate_impl(self, text: str, **kwargs: Any) -> bool:
         """
@@ -356,17 +406,22 @@ class ValueCriticImplementation(CriticImplementation):
             elif value < 0.7:
                 feedback = "The response is average quality. It could be improved with more detail and better organization."
             else:
-                feedback = "The response is good quality. Minor improvements could make it excellent."
+                feedback = (
+                    "The response is good quality. Minor improvements could make it excellent."
+                )
 
         # Create improvement prompt
         prompt = f"Original text:\n{text}\n\n" f"Feedback:\n{feedback}\n\n" f"Improved text:"
 
+        # Get state
+        state = self._state_manager.get_state()
+
         # Generate improved response
-        improved_text = self._state.model.generate(
+        improved_text = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         return improved_text
@@ -400,7 +455,12 @@ class ValueCriticImplementation(CriticImplementation):
 
     def warm_up_impl(self) -> None:
         """Warm up the critic by initializing resources."""
-        self._state.initialized = True
+        # Get state to ensure it's initialized
+        state = self._state_manager.get_state()
+
+        # Mark as initialized if not already
+        if not state.initialized:
+            state.initialized = True
 
     def run(self, task: str, response: str) -> float:
         """
@@ -416,18 +476,21 @@ class ValueCriticImplementation(CriticImplementation):
         if not response or not response.strip():
             return 0.0
 
+        # Get state
+        state = self._state_manager.get_state()
+
         # Create value prompt
-        prompt = self._state.cache.get("value_prompt_template", "").format(
+        prompt = state.cache.get("value_prompt_template", "").format(
             task=task,
             response=response,
         )
 
         # Generate value
-        value_str = self._state.model.generate(
+        value_str = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.3),
-            max_tokens=self._state.cache.get("max_tokens", 100),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.3),
+            max_tokens=state.cache.get("max_tokens", 100),
         ).strip()
 
         # Parse value
@@ -456,6 +519,9 @@ class LACCriticImplementation(CriticImplementation):
     language feedback and value scoring to improve language model-based decision making.
     """
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
+
     def __init__(
         self,
         config: LACCriticConfig,
@@ -473,8 +539,12 @@ class LACCriticImplementation(CriticImplementation):
             TypeError: If llm_provider is not a valid provider
         """
         self.config = config
-        self._state = CriticState()
-        self._state.model = llm_provider
+
+        # Initialize state
+        state = self._state_manager.get_state()
+
+        # Store model in state
+        state.model = llm_provider
 
         # Create feedback critic configuration
         feedback_config = FeedbackCriticConfig(
@@ -497,14 +567,20 @@ class LACCriticImplementation(CriticImplementation):
         )
 
         # Create feedback and value critics
-        self._state.cache = {
-            "feedback_critic": FeedbackCriticImplementation(config=feedback_config, llm_provider=llm_provider),
-            "value_critic": ValueCriticImplementation(config=value_config, llm_provider=llm_provider),
+        state.cache = {
+            "feedback_critic": FeedbackCriticImplementation(
+                config=feedback_config, llm_provider=llm_provider
+            ),
+            "value_critic": ValueCriticImplementation(
+                config=value_config, llm_provider=llm_provider
+            ),
             "system_prompt": config.system_prompt,
             "temperature": config.temperature,
             "max_tokens": config.max_tokens,
         }
-        self._state.initialized = True
+
+        # Mark as initialized
+        state.initialized = True
 
     def validate_impl(self, text: str, **kwargs: Any) -> bool:
         """
@@ -558,12 +634,15 @@ class LACCriticImplementation(CriticImplementation):
         # Create improvement prompt
         prompt = f"Original text:\n{text}\n\n" f"Feedback:\n{feedback}\n\n" f"Improved text:"
 
+        # Get state
+        state = self._state_manager.get_state()
+
         # Generate improved response
-        improved_text = self._state.model.generate(
+        improved_text = state.model.generate(
             prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
+            system_prompt=state.cache.get("system_prompt", ""),
+            temperature=state.cache.get("temperature", 0.7),
+            max_tokens=state.cache.get("max_tokens", 1000),
         ).strip()
 
         return improved_text
@@ -598,7 +677,12 @@ class LACCriticImplementation(CriticImplementation):
 
     def warm_up_impl(self) -> None:
         """Warm up the critic by initializing resources."""
-        self._state.initialized = True
+        # Get state to ensure it's initialized
+        state = self._state_manager.get_state()
+
+        # Mark as initialized if not already
+        if not state.initialized:
+            state.initialized = True
 
     def run(self, task: str, response: str) -> Dict[str, Any]:
         """
@@ -614,9 +698,12 @@ class LACCriticImplementation(CriticImplementation):
         if not response or not response.strip():
             return {"feedback": "Empty text provided", "value": 0.0}
 
+        # Get state
+        state = self._state_manager.get_state()
+
         # Get feedback and value critics
-        feedback_critic = self._state.cache.get("feedback_critic")
-        value_critic = self._state.cache.get("value_critic")
+        feedback_critic = state.cache.get("feedback_critic")
+        value_critic = state.cache.get("value_critic")
 
         # Generate feedback and value
         feedback = feedback_critic.run(task, response)

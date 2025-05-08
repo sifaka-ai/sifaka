@@ -46,46 +46,86 @@ This document lists all implementation classes that use direct `_state` instead 
 
 ## Critic Implementations
 
-1. **PromptCriticImplementation**
+1. **PromptCriticImplementation** ✅
    - Location: `/sifaka/critics/implementations/prompt_implementation.py`
-   - Current pattern:
+   - Updated to use standardized state management pattern:
      ```python
+     # State management using StateManager
+     _state_manager = PrivateAttr(default_factory=create_critic_state)
+
      def __init__(self, config, llm_provider, prompt_factory=None):
          self.config = config
-         self._state = CriticState()
+
+         # Initialize state
+         state = self._state_manager.get_state()
+
          # Store components in state
-         self._state.model = llm_provider
+         state.model = llm_provider
          # ...
      ```
-   - Needs to be updated to use `_state_manager = PrivateAttr(default_factory=create_critic_state)`
 
-2. **ReflexionCriticImplementation**
+2. **ReflexionCriticImplementation** ✅
    - Location: `/sifaka/critics/implementations/reflexion_implementation.py`
-   - Current pattern: Uses direct `_state` initialization in `__init__`
+   - Updated to use standardized state management pattern
 
-3. **SelfRefineCriticImplementation**
+3. **SelfRefineCriticImplementation** ✅
    - Location: `/sifaka/critics/implementations/self_refine_implementation.py`
-   - Current pattern: Uses direct `_state` initialization in `__init__`
+   - Updated to use standardized state management pattern
 
-4. **SelfRAGCriticImplementation**
+4. **SelfRAGCriticImplementation** ✅
    - Location: `/sifaka/critics/implementations/self_rag_implementation.py`
-   - Current pattern: Uses direct `_state` initialization in `__init__`
+   - Updated to use standardized state management pattern:
+     ```python
+     # State management using StateManager
+     _state_manager = PrivateAttr(default_factory=create_critic_state)
 
-5. **ConstitutionalCriticImplementation**
+     def __init__(self, config, llm_provider, retriever, prompt_factory=None):
+         # Validate inputs
+         # ...
+
+         # Get state from state manager
+         state = self._state_manager.get_state()
+
+         # Store components in state
+         state.model = llm_provider
+         state.initialized = True
+
+         # Store configuration and retriever in state cache
+         state.cache = {
+             "retriever": retriever,
+             # ...
+         }
+     ```
+
+5. **ConstitutionalCriticImplementation** ✅
    - Location: `/sifaka/critics/implementations/constitutional_implementation.py`
-   - Current pattern: Uses direct `_state` initialization in `__init__`
+   - Updated to use standardized state management pattern
 
-6. **FeedbackCriticImplementation**
+6. **FeedbackCriticImplementation** ✅
    - Location: `/sifaka/critics/implementations/lac_implementation.py`
-   - Current pattern: Uses direct `_state` initialization in `__init__`
+   - Updated to use standardized state management pattern:
+     ```python
+     # State management using StateManager
+     _state_manager = PrivateAttr(default_factory=create_critic_state)
 
-7. **ValueCriticImplementation**
-   - Location: `/sifaka/critics/implementations/lac_implementation.py`
-   - Current pattern: Uses direct `_state` initialization in `__init__`
+     def __init__(self, config, llm_provider):
+         self.config = config
 
-8. **LACCriticImplementation**
+         # Initialize state
+         state = self._state_manager.get_state()
+
+         # Store components in state
+         state.model = llm_provider
+         # ...
+     ```
+
+7. **ValueCriticImplementation** ✅
    - Location: `/sifaka/critics/implementations/lac_implementation.py`
-   - Current pattern: Uses direct `_state` initialization in `__init__`
+   - Updated to use standardized state management pattern
+
+8. **LACCriticImplementation** ✅
+   - Location: `/sifaka/critics/implementations/lac_implementation.py`
+   - Updated to use standardized state management pattern
 
 ## Rule Implementations
 
