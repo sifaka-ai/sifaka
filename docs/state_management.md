@@ -49,16 +49,49 @@ def __init__(self, name: str, description: str, config: Optional[Config] = None)
     # Initialize configuration
     super().__init__(name=name, description=description, config=config or Config())
 
-    # State is managed by StateManager, no need to initialize here
+    # Initialize state
+    state = self._state_manager.get_state()
+    state.initialized = False
+
+    # Store configuration in state
+    state.config = config or Config()
+
+    # Perform lightweight initialization
+    state.initialized_in_init = True
+
+    # Mark basic initialization as complete
+    state.initialized = True
 
 def warm_up(self) -> None:
     """Initialize resources if not already initialized."""
     state = self._state_manager.get_state()
-    if not state.initialized:
-        # Initialize resources
+
+    # Skip if already fully initialized with heavy resources
+    if state.model is not None:
+        return
+
+    try:
+        # Initialize expensive resources
         state.model = self._load_model()
-        state.initialized = True
+        state.embeddings = self._load_embeddings()
+    except Exception as e:
+        # Handle initialization errors
+        error_msg = f"Failed to warm up: {str(e)}"
+        raise RuntimeError(error_msg) from e
 ```
+
+The standard initialization pattern has two phases:
+
+1. **Basic initialization in `__init__()`**:
+   - Initialize the state manager with `_state_manager = PrivateAttr(default_factory=create_X_state)`
+   - Set `state.initialized = False` at the beginning of initialization
+   - Store configuration and lightweight components in state
+   - Set `state.initialized = True` at the end of basic initialization
+
+2. **Resource-intensive initialization in `warm_up()`**:
+   - Check if already initialized with heavy resources
+   - Initialize expensive resources (models, large data structures)
+   - Handle initialization errors with try/except blocks
 
 ### 4. State Access
 

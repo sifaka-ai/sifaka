@@ -67,25 +67,45 @@ def __init__(self, config: ClassifierConfig) -> None:
 - [x] Ensure consistent state access (completed)
 
 ### 2.3 Rule Implementations
-- [ ] Update rule validators to use `_state_manager` where appropriate
-- [ ] Standardize rule initialization
-- [ ] Ensure consistent state access
+- [x] Update rule validators to use `_state_manager` where appropriate
+- [x] Standardize rule initialization
+- [x] Ensure consistent state access
 
 ### 2.4 Chain Implementations
-- [ ] Verify all chain implementations use `_state_manager` consistently
-- [ ] Standardize initialization timing
-- [ ] Ensure consistent state access
+- [x] Verify all chain implementations use `_state_manager` consistently
+- [x] Standardize initialization timing
+- [x] Ensure consistent state access
 
 ## 3. Implementation: Standardize Initialization Timing
 
 ### 3.1 Define Standard Initialization Pattern
-- [ ] Decide on the standard initialization pattern (either in `__init__` or `warm_up()`)
-- [ ] Document the chosen pattern with clear examples
+- [x] Decide on the standard initialization pattern (either in `__init__` or `warm_up()`)
+- [x] Document the chosen pattern with clear examples
+
+The standard initialization pattern for Sifaka components is:
+
+1. **Basic initialization in `__init__()`**:
+   - Initialize the state manager with `_state_manager = PrivateAttr(default_factory=create_X_state)`
+   - Set `state.initialized = False` at the beginning of initialization
+   - Store configuration and lightweight components in state
+   - Set `state.initialized = True` at the end of basic initialization
+
+2. **Resource-intensive initialization in `warm_up()`**:
+   - Check if already initialized with `if not state.initialized:`
+   - Initialize expensive resources (models, large data structures)
+   - Handle initialization errors with try/except blocks
+   - Set `state.initialized = True` after successful initialization
+
+This pattern ensures:
+- Components are usable immediately after `__init__()` for basic operations
+- Resource-intensive operations are deferred until `warm_up()` is called
+- Consistent state management across all components
+- Proper error handling for initialization failures
 
 ### 3.2 Update Components
-- [ ] Update all components to follow the standard initialization pattern
-- [ ] Ensure initialization checks for `state.initialized` before performing initialization
-- [ ] Add appropriate error handling for initialization failures
+- [x] Update all components to follow the standard initialization pattern
+- [x] Ensure initialization checks for `state.initialized` before performing initialization
+- [x] Add appropriate error handling for initialization failures
 
 Example standardized initialization:
 ```python
@@ -121,19 +141,19 @@ def warm_up(self) -> None:
 ## 5. Documentation Updates
 
 ### 5.1 Update State Management Documentation
-- [ ] Update `state_management.md` to address current inconsistencies
-- [ ] Add clear examples of the standardized patterns
-- [ ] Document the rationale for the chosen patterns
+- [x] Update `state_management.md` to address current inconsistencies
+- [x] Add clear examples of the standardized patterns
+- [x] Document the rationale for the chosen patterns
 
 ### 5.2 Update Component Documentation
 - [ ] Update docstrings for all refactored components
-- [ ] Add examples of proper state management in component documentation
-- [ ] Ensure consistency between code and documentation
+- [x] Add examples of proper state management in component documentation
+- [x] Ensure consistency between code and documentation
 
 ### 5.3 Create Migration Guide
-- [ ] Document the process for migrating legacy components to the standardized approach
-- [ ] Provide before/after examples for each component type
-- [ ] Include troubleshooting guidance for common issues
+- [x] Document the process for migrating legacy components to the standardized approach
+- [x] Provide before/after examples for each component type
+- [x] Include troubleshooting guidance for common issues
 
 ## 6. Testing and Validation
 
