@@ -102,8 +102,7 @@ print(f"Improved text: {improved_text}")
 ```
 """
 
-from dataclasses import dataclass
-from typing import Any, Final, Protocol, runtime_checkable, Optional, Dict, List, Tuple
+from typing import Any, Final, Protocol, runtime_checkable, Optional, Dict, List, Tuple, Union
 
 from pydantic import PrivateAttr, ConfigDict
 
@@ -1012,9 +1011,18 @@ def create_prompt_critic(
     temperature: float = 0.7,
     max_tokens: int = 1000,
     min_confidence: float = 0.7,
-) -> PromptCritic:
+    max_attempts: int = 3,
+    cache_size: int = 100,
+    priority: int = 1,
+    cost: float = 1.0,
+    config: Optional[PromptCriticConfig] = None,
+    **kwargs: Any,
+) -> "CompositionCritic":
     """
     Create a prompt critic with the given parameters.
+
+    This factory function creates a prompt critic using the composition over inheritance pattern.
+    It creates a PromptCriticImplementation and composes it with a CompositionCritic.
 
     Args:
         llm_provider: Language model provider to use for critiquing
@@ -1024,16 +1032,46 @@ def create_prompt_critic(
         temperature: Temperature for model generation
         max_tokens: Maximum tokens for model generation
         min_confidence: Minimum confidence threshold
+        max_attempts: Maximum number of improvement attempts
+        cache_size: Size of the cache
+        priority: Priority of the critic
+        cost: Cost of using the critic
+        config: Optional critic configuration
+        **kwargs: Additional keyword arguments
 
     Returns:
-        PromptCritic: Configured prompt critic
+        CompositionCritic: Configured prompt critic using composition
     """
-    config = PromptCriticConfig(
+    # Import here to avoid circular imports
+    from .base import CompositionCritic, create_composition_critic
+    from .implementations import PromptCriticImplementation
+
+    # Create configuration if not provided
+    if config is None:
+        config = PromptCriticConfig(
+            name=name,
+            description=description,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            min_confidence=min_confidence,
+            max_attempts=max_attempts,
+            cache_size=cache_size,
+            priority=priority,
+            cost=cost,
+            params=kwargs,
+        )
+
+    # Create implementation
+    implementation = PromptCriticImplementation(
+        config=config,
+        llm_provider=llm_provider,
+    )
+
+    # Create and return critic
+    return create_composition_critic(
         name=name,
         description=description,
-        system_prompt=system_prompt,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        min_confidence=min_confidence,
+        implementation=implementation,
+        config=config,
     )
-    return PromptCritic(config=config, llm_provider=llm_provider)

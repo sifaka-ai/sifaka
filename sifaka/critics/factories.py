@@ -123,14 +123,23 @@ critic = create_prompt_critic(
 
 from typing import Any, Dict, Optional, Union
 
-from .models import CriticConfig, PromptCriticConfig, ReflexionCriticConfig
+from .models import (
+    CriticConfig,
+    PromptCriticConfig,
+    ReflexionCriticConfig,
+    SelfRefineCriticConfig,
+    SelfRAGCriticConfig,
+)
 from .core import CriticCore
-from .reflexion import ReflexionCritic
-from .managers.memory import MemoryManager
+from .base import CompositionCritic, create_composition_critic
 from .managers.prompt_factories import PromptCriticPromptManager, ReflexionCriticPromptManager
 from .managers.response import ResponseParser
+from .implementations.reflexion_implementation import ReflexionCriticImplementation
+from .implementations.self_refine_implementation import SelfRefineCriticImplementation
+from .implementations.self_rag_implementation import SelfRAGCriticImplementation
 from ..utils.logging import get_logger
 from ..utils.config import standardize_critic_config
+from ..retrieval import Retriever
 
 logger = get_logger(__name__)
 
@@ -225,12 +234,13 @@ def create_reflexion_critic(
     reflection_depth: int = 1,
     config: Optional[Union[Dict[str, Any], CriticConfig]] = None,
     **kwargs: Any,
-) -> CriticCore:
+) -> CompositionCritic:
     """
     Create a reflexion critic with the given parameters.
 
     This factory function creates a configured reflexion critic instance
     that uses a language model and memory to evaluate and improve text.
+    It follows the composition over inheritance pattern.
 
     Args:
         llm_provider: Language model provider to use
@@ -250,7 +260,7 @@ def create_reflexion_critic(
         **kwargs: Additional keyword arguments for the critic
 
     Returns:
-        A configured reflexion critic
+        A configured reflexion critic using composition over inheritance
     """
     # Create configuration
     if config is None:
@@ -275,18 +285,274 @@ def create_reflexion_critic(
     # Create prompt manager
     prompt_manager = ReflexionCriticPromptManager(config=config)
 
-    # Create response parser
-    response_parser = ResponseParser()
+    # Create implementation
+    implementation = ReflexionCriticImplementation(
+        config=config,
+        llm_provider=llm_provider,
+        prompt_factory=prompt_manager,
+    )
 
-    # Create memory manager
-    memory_manager = MemoryManager(buffer_size=memory_buffer_size)
+    # Create and return critic using composition
+    return create_composition_critic(
+        name=name,
+        description=description,
+        implementation=implementation,
+        config=config,
+    )
 
-    # Create core kwargs
-    core_kwargs = {
-        "config": config,
-        "llm_provider": llm_provider,
-        "prompt_factory": prompt_manager,
-    }
 
-    # Create and return critic
-    return ReflexionCritic(**core_kwargs)
+def create_self_refine_critic(
+    llm_provider: Any,
+    name: str = "self_refine_critic",
+    description: str = "Improves text through iterative self-critique and revision",
+    min_confidence: float = 0.7,
+    max_attempts: int = 3,
+    cache_size: int = 100,
+    priority: int = 1,
+    cost: float = 1.0,
+    system_prompt: str = "You are an expert at critiquing and revising content.",
+    temperature: float = 0.7,
+    max_tokens: int = 1000,
+    max_iterations: int = 3,
+    critique_prompt_template: Optional[str] = None,
+    revision_prompt_template: Optional[str] = None,
+    config: Optional[Union[Dict[str, Any], SelfRefineCriticConfig]] = None,
+    **kwargs: Any,
+) -> CompositionCritic:
+    """
+    Create a self-refine critic with the given parameters.
+
+    This factory function creates a configured self-refine critic instance
+    that uses a language model to iteratively critique and revise text outputs.
+    It follows the composition over inheritance pattern.
+
+    Args:
+        llm_provider: Language model provider to use
+        name: Name of the critic
+        description: Description of the critic
+        min_confidence: Minimum confidence threshold
+        max_attempts: Maximum number of improvement attempts
+        cache_size: Size of the cache
+        priority: Priority of the critic
+        cost: Cost of using the critic
+        system_prompt: System prompt for the model
+        temperature: Temperature for model generation
+        max_tokens: Maximum tokens for model generation
+        max_iterations: Maximum number of refinement iterations
+        critique_prompt_template: Optional custom template for critique prompts
+        revision_prompt_template: Optional custom template for revision prompts
+        config: Optional critic configuration (overrides other parameters)
+        **kwargs: Additional keyword arguments for the critic
+
+    Returns:
+        A configured self-refine critic using composition over inheritance
+    """
+    # Create configuration
+    if config is None:
+        config_dict = {
+            "name": name,
+            "description": description,
+            "min_confidence": min_confidence,
+            "max_attempts": max_attempts,
+            "cache_size": cache_size,
+            "priority": priority,
+            "cost": cost,
+            "system_prompt": system_prompt,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "max_iterations": max_iterations,
+            **kwargs,  # Include additional kwargs in the config
+        }
+
+        if critique_prompt_template:
+            config_dict["critique_prompt_template"] = critique_prompt_template
+
+        if revision_prompt_template:
+            config_dict["revision_prompt_template"] = revision_prompt_template
+
+        config = SelfRefineCriticConfig(**config_dict)
+    elif isinstance(config, dict):
+        config = SelfRefineCriticConfig(**{**config, **kwargs})
+
+    # Create prompt manager
+    prompt_manager = PromptCriticPromptManager(config=config)
+
+    # Create implementation
+    implementation = SelfRefineCriticImplementation(
+        config=config,
+        llm_provider=llm_provider,
+        prompt_factory=prompt_manager,
+    )
+
+    # Create and return critic using composition
+    return create_composition_critic(
+        name=name,
+        description=description,
+        implementation=implementation,
+        config=config,
+    )
+
+
+def create_self_rag_critic(
+    llm_provider: Any,
+    retriever: Retriever,
+    name: str = "self_rag_critic",
+    description: str = "Improves text through self-reflective retrieval-augmented generation",
+    min_confidence: float = 0.7,
+    max_attempts: int = 3,
+    cache_size: int = 100,
+    priority: int = 1,
+    cost: float = 1.0,
+    system_prompt: str = "You are an expert at deciding when to retrieve information and reflecting on its relevance.",
+    temperature: float = 0.7,
+    max_tokens: int = 1000,
+    retrieval_threshold: float = 0.5,
+    retrieval_prompt_template: Optional[str] = None,
+    generation_prompt_template: Optional[str] = None,
+    reflection_prompt_template: Optional[str] = None,
+    config: Optional[Union[Dict[str, Any], SelfRAGCriticConfig]] = None,
+    **kwargs: Any,
+) -> CompositionCritic:
+    """
+    Create a Self-RAG critic with the given parameters.
+
+    This factory function creates a configured Self-RAG critic instance
+    that uses a language model and retrieval to evaluate and improve text.
+    It follows the composition over inheritance pattern.
+
+    Args:
+        llm_provider: Language model provider to use
+        retriever: Retriever to use for information retrieval
+        name: Name of the critic
+        description: Description of the critic
+        min_confidence: Minimum confidence threshold
+        max_attempts: Maximum number of improvement attempts
+        cache_size: Size of the cache
+        priority: Priority of the critic
+        cost: Cost of using the critic
+        system_prompt: System prompt for the model
+        temperature: Temperature for model generation
+        max_tokens: Maximum tokens for model generation
+        retrieval_threshold: Threshold for retrieval confidence
+        retrieval_prompt_template: Optional custom template for retrieval prompts
+        generation_prompt_template: Optional custom template for generation prompts
+        reflection_prompt_template: Optional custom template for reflection prompts
+        config: Optional critic configuration (overrides other parameters)
+        **kwargs: Additional keyword arguments for the critic
+
+    Returns:
+        A configured Self-RAG critic using composition over inheritance
+
+    Examples:
+        ```python
+        from sifaka.critics.factories import create_self_rag_critic
+        from sifaka.models.providers import OpenAIProvider
+        from sifaka.retrieval import create_simple_retriever
+
+        # Create a language model provider
+        provider = OpenAIProvider(api_key="your-api-key")
+
+        # Create a retriever
+        documents = {
+            "health_insurance": "To file a claim for health reimbursement, follow these steps: "
+                               "1. Complete the claim form with your personal and policy information. "
+                               "2. Attach all original receipts and medical documentation. "
+                               "3. Make copies of all documents for your records.",
+            "travel_insurance": "For travel insurance claims, you need to provide: "
+                               "1. Proof of travel (boarding passes, itinerary). "
+                               "2. Incident report or documentation of the event. "
+                               "3. Original receipts for expenses being claimed."
+        }
+        retriever = create_simple_retriever(documents=documents)
+
+        # Create a Self-RAG critic
+        critic = create_self_rag_critic(
+            llm_provider=provider,
+            retriever=retriever,
+            name="insurance_rag_critic",
+            description="A critic for insurance-related queries",
+            system_prompt="You are an expert at retrieving and using insurance information."
+        )
+
+        # Use the critic
+        text = "What are the steps to file a health insurance claim?"
+        is_valid = critic.validate(text)
+        improved = critic.improve(text)
+        feedback = critic.critique(text)
+        ```
+    """
+    # Try to use standardize_critic_config if available
+    try:
+        # Create configuration using the standardization utility
+        critic_config = standardize_critic_config(
+            config_class=SelfRAGCriticConfig,
+            config=config,
+            name=name,
+            description=description,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            min_confidence=min_confidence,
+            max_attempts=max_attempts,
+            cache_size=cache_size,
+            priority=priority,
+            cost=cost,
+            retrieval_threshold=retrieval_threshold,
+            retrieval_prompt_template=retrieval_prompt_template,
+            generation_prompt_template=generation_prompt_template,
+            reflection_prompt_template=reflection_prompt_template,
+            **kwargs,
+        )
+    except Exception:
+        # If standardize_critic_config fails, create config manually
+        if config is None:
+            # Create new config
+            config_dict = {
+                "name": name,
+                "description": description,
+                "min_confidence": min_confidence,
+                "max_attempts": max_attempts,
+                "cache_size": cache_size,
+                "priority": priority,
+                "cost": cost,
+                "system_prompt": system_prompt,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "retrieval_threshold": retrieval_threshold,
+                **kwargs,  # Include additional kwargs in the config
+            }
+
+            # Add optional parameters if provided
+            if retrieval_prompt_template:
+                config_dict["retrieval_prompt_template"] = retrieval_prompt_template
+            if generation_prompt_template:
+                config_dict["generation_prompt_template"] = generation_prompt_template
+            if reflection_prompt_template:
+                config_dict["reflection_prompt_template"] = reflection_prompt_template
+
+            critic_config = SelfRAGCriticConfig(**config_dict)
+        elif isinstance(config, dict):
+            # Convert dict to config
+            critic_config = SelfRAGCriticConfig(**{**config, **kwargs})
+        else:
+            # Use provided config
+            critic_config = config
+
+    # Create prompt manager
+    prompt_manager = PromptCriticPromptManager(config=critic_config)
+
+    # Create implementation
+    implementation = SelfRAGCriticImplementation(
+        config=critic_config,
+        llm_provider=llm_provider,
+        retriever=retriever,
+        prompt_factory=prompt_manager,
+    )
+
+    # Create and return critic using composition
+    return create_composition_critic(
+        name=name,
+        description=description,
+        implementation=implementation,
+        config=critic_config,
+    )

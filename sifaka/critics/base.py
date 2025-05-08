@@ -143,14 +143,18 @@ from typing import (
     Protocol,
     Type,
     TypeVar,
+    Union,
     overload,
     runtime_checkable,
 )
 
 from typing_extensions import TypeGuard
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 # Import the Pydantic models
 from .models import CriticConfig, CriticMetadata
+from .protocols import CriticImplementation
+from ..utils.state import StateManager, create_critic_state, CriticState
 
 # Default configuration values
 DEFAULT_MIN_CONFIDENCE = 0.7
@@ -1461,15 +1465,339 @@ def create_basic_critic(
     )
 
 
+class CompositionCritic(BaseModel, TextValidator, TextImprover, TextCritic):
+    """
+    Critic that uses composition over inheritance.
+
+    This class delegates critic operations to an implementation object
+    rather than using inheritance. It follows the composition over inheritance
+    pattern to create a more flexible and maintainable design.
+
+    ## Architecture
+
+    CompositionCritic follows a compositional architecture:
+    1. **Public API**: validate(), improve(), and critique() methods
+    2. **Delegation**: Delegates to implementation for core logic
+    3. **State Management**: Uses StateManager for consistent state handling
+    4. **Configuration**: Manages configuration through CriticConfig
+
+    ## Lifecycle Management
+
+    1. **Initialization**
+       - Validate configuration
+       - Set up implementation
+       - Initialize state manager
+       - Configure resources
+
+    2. **Operation**
+       - Delegate validation to implementation
+       - Delegate improvement to implementation
+       - Delegate critique to implementation
+       - Manage state through state manager
+
+    3. **Cleanup**
+       - Release resources
+       - Clear state
+       - Handle errors
+
+    ## Examples
+
+    Basic usage with factory function:
+
+    ```python
+    from sifaka.critics import create_prompt_critic
+    from sifaka.models.openai import create_openai_provider
+
+    # Create a language model provider
+    provider = create_openai_provider(
+        model_name="gpt-4",
+        api_key="your-api-key"
+    )
+
+    # Create a prompt critic
+    critic = create_prompt_critic(
+        llm_provider=provider,
+        name="example_critic",
+        description="A critic for improving explanations",
+        system_prompt="You are an expert at explaining complex concepts clearly and concisely."
+    )
+
+    # Use the critic
+    text = "Quantum computing uses qubits."
+    is_valid = critic.validate(text)
+    improved = critic.improve(text, "Add more detail")
+    feedback = critic.critique(text)
+    ```
+
+    Custom implementation:
+
+    ```python
+    from sifaka.critics.base import CompositionCritic, CriticConfig
+    from sifaka.critics.protocols import CriticImplementation
+
+    # Create a custom implementation
+    class MyImplementation(CriticImplementation):
+        def __init__(self, config):
+            self.config = config
+            self._state = CriticState()
+            self._state.initialized = False
+
+        def validate_impl(self, text: str) -> bool:
+            # Implementation
+            return True
+
+        def improve_impl(self, text: str, feedback=None) -> str:
+            # Implementation
+            return "Improved text"
+
+        def critique_impl(self, text: str) -> Dict[str, Any]:
+            # Implementation
+            return {
+                "score": 0.8,
+                "feedback": "Good text",
+                "issues": [],
+                "suggestions": []
+            }
+
+        def warm_up_impl(self) -> None:
+            # Implementation
+            self._state.initialized = True
+
+    # Create a critic with the implementation
+    config = CriticConfig(
+        name="my_critic",
+        description="A custom critic implementation"
+    )
+    implementation = MyImplementation(config)
+    critic = CompositionCritic(
+        name="my_critic",
+        description="A custom critic implementation",
+        config=config,
+        implementation=implementation
+    )
+    ```
+    """
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        from_attributes=True,
+        validate_assignment=True,
+    )
+
+    name: str = Field(description="Name of the critic", min_length=1)
+    description: str = Field(description="Description of the critic", min_length=1)
+    config: CriticConfig = Field(description="Configuration for the critic")
+    _implementation: CriticImplementation = PrivateAttr()
+    _state_manager: StateManager[CriticState] = PrivateAttr(default_factory=create_critic_state)
+
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        config: CriticConfig,
+        implementation: CriticImplementation,
+        **kwargs: Any,
+    ):
+        """
+        Initialize the critic.
+
+        Args:
+            name: The name of the critic
+            description: The description of the critic
+            config: The configuration for the critic
+            implementation: The implementation to use
+            **kwargs: Additional keyword arguments
+        """
+        super().__init__(name=name, description=description, config=config, **kwargs)
+        self._implementation = implementation
+
+    def validate(self, text: str) -> bool:
+        """
+        Validate text against quality standards.
+
+        This method delegates to the implementation's validate_impl method.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            bool: True if the text passes validation, False otherwise
+
+        Raises:
+            ValueError: If text is empty or invalid
+            RuntimeError: If validation fails
+        """
+        return self._implementation.validate_impl(text)
+
+    def improve(self, text: str, feedback: Any = None) -> str:
+        """
+        Improve text based on feedback.
+
+        This method delegates to the implementation's improve_impl method.
+
+        Args:
+            text: The text to improve
+            feedback: Feedback to guide the improvement
+
+        Returns:
+            str: The improved text
+
+        Raises:
+            ValueError: If text is empty or invalid
+            RuntimeError: If improvement fails
+        """
+        return self._implementation.improve_impl(text, feedback)
+
+    def critique(self, text: str) -> CriticMetadata:
+        """
+        Critique text and provide feedback.
+
+        This method delegates to the implementation's critique_impl method.
+
+        Args:
+            text: The text to critique
+
+        Returns:
+            CriticMetadata: The critique metadata
+
+        Raises:
+            ValueError: If text is empty or invalid
+            RuntimeError: If critique fails
+        """
+        result = self._implementation.critique_impl(text)
+        return CriticMetadata(
+            score=result["score"],
+            feedback=result["feedback"],
+            issues=result["issues"],
+            suggestions=result["suggestions"],
+        )
+
+    def warm_up(self) -> None:
+        """
+        Warm up the critic.
+
+        This method delegates to the implementation's warm_up_impl method.
+        """
+        self._implementation.warm_up_impl()
+
+    @classmethod
+    def create(
+        cls,
+        name: str,
+        description: str,
+        implementation: CriticImplementation,
+        min_confidence: float = DEFAULT_MIN_CONFIDENCE,
+        max_attempts: int = DEFAULT_MAX_ATTEMPTS,
+        cache_size: int = DEFAULT_CACHE_SIZE,
+        priority: int = 1,
+        cost: float = 1.0,
+        config: Optional[CriticConfig] = None,
+        **kwargs: Any,
+    ) -> "CompositionCritic":
+        """
+        Factory method to create a critic instance.
+
+        This method provides a consistent way to create critic instances
+        with proper configuration and implementation.
+
+        Args:
+            name: Name of the critic
+            description: Description of the critic
+            implementation: Implementation to use
+            min_confidence: Minimum confidence threshold
+            max_attempts: Maximum number of improvement attempts
+            cache_size: Size of the cache
+            priority: Priority of the critic
+            cost: Cost of using the critic
+            config: Optional critic configuration
+            **kwargs: Additional keyword arguments
+
+        Returns:
+            A critic instance
+        """
+        if config is None:
+            config = CriticConfig(
+                name=name,
+                description=description,
+                min_confidence=min_confidence,
+                max_attempts=max_attempts,
+                cache_size=cache_size,
+                priority=priority,
+                cost=cost,
+                params=kwargs,
+            )
+
+        return cls(
+            name=name,
+            description=description,
+            config=config,
+            implementation=implementation,
+        )
+
+
+def create_composition_critic(
+    name: str,
+    description: str,
+    implementation: CriticImplementation,
+    min_confidence: float = DEFAULT_MIN_CONFIDENCE,
+    max_attempts: int = DEFAULT_MAX_ATTEMPTS,
+    cache_size: int = DEFAULT_CACHE_SIZE,
+    priority: int = 1,
+    cost: float = 1.0,
+    config: Optional[CriticConfig] = None,
+    **kwargs: Any,
+) -> CompositionCritic:
+    """
+    Create a critic that uses composition over inheritance.
+
+    This factory function creates a critic instance using the composition
+    over inheritance pattern.
+
+    Args:
+        name: Name of the critic
+        description: Description of the critic
+        implementation: Implementation to use
+        min_confidence: Minimum confidence threshold
+        max_attempts: Maximum number of improvement attempts
+        cache_size: Size of the cache
+        priority: Priority of the critic
+        cost: Cost of using the critic
+        config: Optional critic configuration
+        **kwargs: Additional keyword arguments
+
+    Returns:
+        A critic instance
+    """
+    return CompositionCritic.create(
+        name=name,
+        description=description,
+        implementation=implementation,
+        min_confidence=min_confidence,
+        max_attempts=max_attempts,
+        cache_size=cache_size,
+        priority=priority,
+        cost=cost,
+        config=config,
+        **kwargs,
+    )
+
+
 __all__ = [
+    # Legacy classes
     "Critic",
     "BaseCritic",
+    # Composition over inheritance
+    "CompositionCritic",
+    "create_composition_critic",
+    # Data models
     "CriticMetadata",
     "CriticOutput",
     "CriticResult",
+    # Protocols
     "TextValidator",
     "TextImprover",
     "TextCritic",
+    # Factory functions
     "create_critic",
     "create_basic_critic",
 ]

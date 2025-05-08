@@ -99,7 +99,7 @@ feedback = critic.critique(text)
 ```
 """
 
-from typing import Any, List, Protocol, TypedDict, runtime_checkable
+from typing import Any, Dict, List, Optional, Protocol, TypedDict, runtime_checkable
 
 
 @runtime_checkable
@@ -751,6 +751,116 @@ class PromptFactory(SyncPromptFactory, Protocol):
     ...
 
 
+@runtime_checkable
+class CriticImplementation(Protocol):
+    """
+    Protocol for critic implementations.
+
+    This protocol defines the core critic logic that can be composed with
+    the Critic class. It follows the composition over inheritance pattern,
+    allowing for more flexible and maintainable code.
+
+    ## Lifecycle Steps
+    1. Implementation initialization
+    2. Core logic implementation
+    3. State management
+    4. Resource handling
+
+    ## Error Handling
+    - Input validation errors
+    - Processing errors
+    - State management errors
+    - Resource errors
+
+    Examples:
+        ```python
+        class PromptCriticImplementation(CriticImplementation):
+            def __init__(self, config):
+                self.config = config
+                self._state = CriticState()
+                self._state.initialized = False
+
+            def validate_impl(self, text: str) -> bool:
+                # Implementation
+                return True
+
+            def improve_impl(self, text: str, feedback: Optional[str] = None) -> str:
+                # Implementation
+                return "Improved text"
+
+            def critique_impl(self, text: str) -> Dict[str, Any]:
+                # Implementation
+                return {
+                    "score": 0.8,
+                    "feedback": "Good text",
+                    "issues": [],
+                    "suggestions": []
+                }
+
+            def warm_up_impl(self) -> None:
+                # Implementation
+                self._state.initialized = True
+        ```
+    """
+
+    def validate_impl(self, text: str) -> bool:
+        """
+        Validate text against quality standards.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            bool: True if the text passes validation, False otherwise
+
+        Raises:
+            ValueError: If text is empty or invalid
+            RuntimeError: If validation fails
+        """
+        ...
+
+    def improve_impl(self, text: str, feedback: Optional[Any] = None) -> str:
+        """
+        Improve text based on feedback.
+
+        Args:
+            text: The text to improve
+            feedback: Feedback to guide the improvement
+
+        Returns:
+            str: The improved text
+
+        Raises:
+            ValueError: If text is empty or invalid
+            RuntimeError: If improvement fails
+        """
+        ...
+
+    def critique_impl(self, text: str) -> Dict[str, Any]:
+        """
+        Critique text and provide feedback.
+
+        Args:
+            text: The text to critique
+
+        Returns:
+            Dict[str, Any]: A dictionary containing critique information
+
+        Raises:
+            ValueError: If text is empty or invalid
+            RuntimeError: If critique fails
+        """
+        ...
+
+    def warm_up_impl(self) -> None:
+        """
+        Warm up the critic implementation.
+
+        This method initializes any resources needed by the critic implementation.
+        """
+        ...
+
+
 # Export public protocols
 __all__ = [
     # Synchronous protocols
@@ -771,6 +881,8 @@ __all__ = [
     "AsyncTextCritic",
     "AsyncLLMProvider",
     "AsyncPromptFactory",
+    # Composition over inheritance
+    "CriticImplementation",
     # Type definitions
     "CritiqueResult",
 ]

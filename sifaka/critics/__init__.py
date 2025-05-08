@@ -2,13 +2,15 @@
 Critics functionality for Sifaka.
 
 This package provides components for critiquing, validating, and improving text:
-- CriticCore: Core implementation with component-based architecture
+- CompositionCritic: Main critic class using composition over inheritance
+- CriticImplementation: Protocol for critic implementations
 - Factory functions for creating critics (create_prompt_critic, create_reflexion_critic, create_constitutional_critic, create_self_refine_critic, create_self_rag_critic)
 - Specialized managers and services for different aspects of critics
 """
 
-from .base import CriticResult
+from .base import CriticResult, CompositionCritic, create_composition_critic
 from .core import CriticCore
+from .protocols import CriticImplementation
 from .constitutional import (
     ConstitutionalCritic,
     ConstitutionalCriticConfig,
@@ -174,6 +176,10 @@ __all__ = [
     # Core components
     "CriticCore",
     "CriticResult",
+    # Composition over inheritance
+    "CompositionCritic",
+    "create_composition_critic",
+    "CriticImplementation",
     # Models
     "CriticConfig",
     "CriticMetadata",
