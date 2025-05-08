@@ -27,6 +27,26 @@ composition over inheritance pattern.
    - Implements the Self-RAG approach for retrieval-augmented generation
    - Configurable with retrieval settings and specialized prompts
 
+5. **ConstitutionalCriticImplementation**
+   - Uses language models to evaluate text against a set of principles
+   - Implements the Constitutional AI approach for principle-based evaluation
+   - Configurable with custom principles and specialized prompts
+
+6. **FeedbackCriticImplementation**
+   - Uses language models to provide natural language feedback for text
+   - Analyzes text for issues and improvement opportunities
+   - Focuses on qualitative assessment
+
+7. **ValueCriticImplementation**
+   - Uses language models to estimate numeric values for text
+   - Evaluates text quality on a numeric scale (0.0-1.0)
+   - Focuses on objective metrics
+
+8. **LACCriticImplementation**
+   - Combines language feedback and value scoring
+   - Implements the LLM-Based Actor-Critic (LAC) approach
+   - Provides both qualitative and quantitative assessment
+
 ## Usage
 
 ```python
@@ -62,10 +82,20 @@ from .prompt_implementation import PromptCriticImplementation
 from .reflexion_implementation import ReflexionCriticImplementation
 from .self_refine_implementation import SelfRefineCriticImplementation
 from .self_rag_implementation import SelfRAGCriticImplementation
+from .constitutional_implementation import ConstitutionalCriticImplementation
+from .lac_implementation import (
+    FeedbackCriticImplementation,
+    ValueCriticImplementation,
+    LACCriticImplementation,
+)
 
 __all__ = [
     "PromptCriticImplementation",
     "ReflexionCriticImplementation",
     "SelfRefineCriticImplementation",
     "SelfRAGCriticImplementation",
+    "ConstitutionalCriticImplementation",
+    "FeedbackCriticImplementation",
+    "ValueCriticImplementation",
+    "LACCriticImplementation",
 ]

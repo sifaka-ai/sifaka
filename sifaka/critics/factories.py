@@ -121,7 +121,7 @@ critic = create_prompt_critic(
 ```
 """
 
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from .models import (
     CriticConfig,
@@ -129,14 +129,30 @@ from .models import (
     ReflexionCriticConfig,
     SelfRefineCriticConfig,
     SelfRAGCriticConfig,
+    ConstitutionalCriticConfig,
+)
+from .lac import (
+    FeedbackCriticConfig,
+    ValueCriticConfig,
+    LACCriticConfig,
+    DEFAULT_SYSTEM_PROMPT,
+    DEFAULT_FEEDBACK_PROMPT_TEMPLATE,
+    DEFAULT_VALUE_PROMPT_TEMPLATE,
 )
 from .core import CriticCore
 from .base import CompositionCritic, create_composition_critic
 from .managers.prompt_factories import PromptCriticPromptManager, ReflexionCriticPromptManager
 from .managers.response import ResponseParser
+from .implementations.prompt_implementation import PromptCriticImplementation
 from .implementations.reflexion_implementation import ReflexionCriticImplementation
 from .implementations.self_refine_implementation import SelfRefineCriticImplementation
 from .implementations.self_rag_implementation import SelfRAGCriticImplementation
+from .implementations.constitutional_implementation import ConstitutionalCriticImplementation
+from .implementations.lac_implementation import (
+    FeedbackCriticImplementation,
+    ValueCriticImplementation,
+    LACCriticImplementation,
+)
 from ..utils.logging import get_logger
 from ..utils.config import standardize_critic_config
 from ..retrieval import Retriever
@@ -555,4 +571,409 @@ def create_self_rag_critic(
         description=description,
         implementation=implementation,
         config=critic_config,
+    )
+
+
+def create_feedback_critic(
+    llm_provider: Any,
+    name: str = "feedback_critic",
+    description: str = "Provides natural language feedback for text",
+    min_confidence: float = 0.7,
+    max_attempts: int = 3,
+    cache_size: int = 100,
+    priority: int = 1,
+    cost: float = 1.0,
+    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+    temperature: float = 0.7,
+    max_tokens: int = 1000,
+    feedback_prompt_template: str = DEFAULT_FEEDBACK_PROMPT_TEMPLATE,
+    config: Optional[Union[Dict[str, Any], FeedbackCriticConfig]] = None,
+    **kwargs: Any,
+) -> CompositionCritic:
+    """
+    Create a feedback critic with the given parameters.
+
+    This factory function creates a configured feedback critic instance
+    that provides natural language feedback for text.
+
+    Args:
+        llm_provider: Language model provider to use
+        name: Name of the critic
+        description: Description of the critic
+        min_confidence: Minimum confidence threshold
+        max_attempts: Maximum number of improvement attempts
+        cache_size: Size of the cache
+        priority: Priority of the critic
+        cost: Cost of using the critic
+        system_prompt: System prompt for the model
+        temperature: Temperature for model generation
+        max_tokens: Maximum tokens for model generation
+        feedback_prompt_template: Template for feedback prompts
+        config: Optional critic configuration (overrides other parameters)
+        **kwargs: Additional keyword arguments for the critic
+
+    Returns:
+        A configured feedback critic using composition over inheritance
+
+    Examples:
+        ```python
+        from sifaka.critics.factories import create_feedback_critic
+        from sifaka.models.providers import OpenAIProvider
+
+        # Create a language model provider
+        provider = OpenAIProvider(api_key="your-api-key")
+
+        # Create a feedback critic
+        critic = create_feedback_critic(
+            llm_provider=provider,
+            name="my_feedback_critic",
+            description="A custom feedback critic",
+            system_prompt="You are an expert at providing constructive feedback.",
+            temperature=0.7,
+            max_tokens=1000
+        )
+
+        # Use the critic
+        task = "Summarize the causes of World War I in 3 bullet points."
+        response = "World War I was caused by nationalism, militarism, and alliances."
+        feedback = critic.critique(response, {"task": task})
+        print(f"Feedback: {feedback['feedback']}")
+        ```
+    """
+    # Create configuration
+    if config is None:
+        config_dict = {
+            "name": name,
+            "description": description,
+            "min_confidence": min_confidence,
+            "max_attempts": max_attempts,
+            "cache_size": cache_size,
+            "priority": priority,
+            "cost": cost,
+            "system_prompt": system_prompt,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "feedback_prompt_template": feedback_prompt_template,
+            **kwargs,
+        }
+        config = FeedbackCriticConfig(**config_dict)
+    elif isinstance(config, dict):
+        config = FeedbackCriticConfig(**{**config, **kwargs})
+
+    # Create implementation
+    implementation = FeedbackCriticImplementation(
+        config=config,
+        llm_provider=llm_provider,
+    )
+
+    # Create and return critic using composition
+    return create_composition_critic(
+        name=name,
+        description=description,
+        implementation=implementation,
+        config=config,
+    )
+
+
+def create_value_critic(
+    llm_provider: Any,
+    name: str = "value_critic",
+    description: str = "Estimates numeric values for text",
+    min_confidence: float = 0.7,
+    max_attempts: int = 3,
+    cache_size: int = 100,
+    priority: int = 1,
+    cost: float = 1.0,
+    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+    temperature: float = 0.3,
+    max_tokens: int = 100,
+    value_prompt_template: str = DEFAULT_VALUE_PROMPT_TEMPLATE,
+    config: Optional[Union[Dict[str, Any], ValueCriticConfig]] = None,
+    **kwargs: Any,
+) -> CompositionCritic:
+    """
+    Create a value critic with the given parameters.
+
+    This factory function creates a configured value critic instance
+    that estimates numeric values for text.
+
+    Args:
+        llm_provider: Language model provider to use
+        name: Name of the critic
+        description: Description of the critic
+        min_confidence: Minimum confidence threshold
+        max_attempts: Maximum number of improvement attempts
+        cache_size: Size of the cache
+        priority: Priority of the critic
+        cost: Cost of using the critic
+        system_prompt: System prompt for the model
+        temperature: Temperature for model generation
+        max_tokens: Maximum tokens for model generation
+        value_prompt_template: Template for value prompts
+        config: Optional critic configuration (overrides other parameters)
+        **kwargs: Additional keyword arguments for the critic
+
+    Returns:
+        A configured value critic using composition over inheritance
+
+    Examples:
+        ```python
+        from sifaka.critics.factories import create_value_critic
+        from sifaka.models.providers import OpenAIProvider
+
+        # Create a language model provider
+        provider = OpenAIProvider(api_key="your-api-key")
+
+        # Create a value critic
+        critic = create_value_critic(
+            llm_provider=provider,
+            name="my_value_critic",
+            description="A custom value critic",
+            system_prompt="You are an expert at estimating the quality of responses.",
+            temperature=0.3,
+            max_tokens=100
+        )
+
+        # Use the critic
+        task = "Summarize the causes of World War I in 3 bullet points."
+        response = "World War I was caused by nationalism, militarism, and alliances."
+        value = critic.critique(response, {"task": task})
+        print(f"Value: {value['value']}")
+        ```
+    """
+    # Create configuration
+    if config is None:
+        config_dict = {
+            "name": name,
+            "description": description,
+            "min_confidence": min_confidence,
+            "max_attempts": max_attempts,
+            "cache_size": cache_size,
+            "priority": priority,
+            "cost": cost,
+            "system_prompt": system_prompt,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "value_prompt_template": value_prompt_template,
+            **kwargs,
+        }
+        config = ValueCriticConfig(**config_dict)
+    elif isinstance(config, dict):
+        config = ValueCriticConfig(**{**config, **kwargs})
+
+    # Create implementation
+    implementation = ValueCriticImplementation(
+        config=config,
+        llm_provider=llm_provider,
+    )
+
+    # Create and return critic using composition
+    return create_composition_critic(
+        name=name,
+        description=description,
+        implementation=implementation,
+        config=config,
+    )
+
+
+def create_lac_critic(
+    llm_provider: Any,
+    name: str = "lac_critic",
+    description: str = "Combines language feedback and value scoring",
+    min_confidence: float = 0.7,
+    max_attempts: int = 3,
+    cache_size: int = 100,
+    priority: int = 1,
+    cost: float = 1.0,
+    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+    temperature: float = 0.7,
+    max_tokens: int = 1000,
+    feedback_prompt_template: str = DEFAULT_FEEDBACK_PROMPT_TEMPLATE,
+    value_prompt_template: str = DEFAULT_VALUE_PROMPT_TEMPLATE,
+    config: Optional[Union[Dict[str, Any], LACCriticConfig]] = None,
+    **kwargs: Any,
+) -> CompositionCritic:
+    """
+    Create a LAC critic with the given parameters.
+
+    This factory function creates a configured LAC critic instance
+    that combines language feedback and value scoring.
+
+    Args:
+        llm_provider: Language model provider to use
+        name: Name of the critic
+        description: Description of the critic
+        min_confidence: Minimum confidence threshold
+        max_attempts: Maximum number of improvement attempts
+        cache_size: Size of the cache
+        priority: Priority of the critic
+        cost: Cost of using the critic
+        system_prompt: System prompt for the model
+        temperature: Temperature for model generation
+        max_tokens: Maximum tokens for model generation
+        feedback_prompt_template: Template for feedback prompts
+        value_prompt_template: Template for value prompts
+        config: Optional critic configuration (overrides other parameters)
+        **kwargs: Additional keyword arguments for the critic
+
+    Returns:
+        A configured LAC critic using composition over inheritance
+
+    Examples:
+        ```python
+        from sifaka.critics.factories import create_lac_critic
+        from sifaka.models.providers import OpenAIProvider
+
+        # Create a language model provider
+        provider = OpenAIProvider(api_key="your-api-key")
+
+        # Create a LAC critic
+        critic = create_lac_critic(
+            llm_provider=provider,
+            name="my_lac_critic",
+            description="A custom LAC critic",
+            system_prompt="You are an expert at evaluating and improving text.",
+            temperature=0.7,
+            max_tokens=1000
+        )
+
+        # Use the critic
+        task = "Summarize the causes of World War I in 3 bullet points."
+        response = "World War I was caused by nationalism, militarism, and alliances."
+        result = critic.critique(response, {"task": task})
+        print(f"Feedback: {result['feedback']}")
+        print(f"Value: {result['value']}")
+        ```
+    """
+    # Create configuration
+    if config is None:
+        config_dict = {
+            "name": name,
+            "description": description,
+            "min_confidence": min_confidence,
+            "max_attempts": max_attempts,
+            "cache_size": cache_size,
+            "priority": priority,
+            "cost": cost,
+            "system_prompt": system_prompt,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "feedback_prompt_template": feedback_prompt_template,
+            "value_prompt_template": value_prompt_template,
+            **kwargs,
+        }
+        config = LACCriticConfig(**config_dict)
+    elif isinstance(config, dict):
+        config = LACCriticConfig(**{**config, **kwargs})
+
+    # Create implementation
+    implementation = LACCriticImplementation(
+        config=config,
+        llm_provider=llm_provider,
+    )
+
+    # Create and return critic using composition
+    return create_composition_critic(
+        name=name,
+        description=description,
+        implementation=implementation,
+        config=config,
+    )
+
+
+def create_constitutional_critic(
+    llm_provider: Any,
+    principles: List[str],
+    name: str = "constitutional_critic",
+    description: str = "Evaluates responses against principles",
+    min_confidence: float = 0.7,
+    max_attempts: int = 3,
+    cache_size: int = 100,
+    priority: int = 1,
+    cost: float = 1.0,
+    system_prompt: str = "You are an expert at evaluating content against principles.",
+    temperature: float = 0.7,
+    max_tokens: int = 1000,
+    critique_prompt_template: Optional[str] = None,
+    improvement_prompt_template: Optional[str] = None,
+    config: Optional[Union[Dict[str, Any], ConstitutionalCriticConfig]] = None,
+    **kwargs: Any,
+) -> CompositionCritic:
+    """
+    Create a constitutional critic with the given parameters.
+
+    This factory function creates a configured constitutional critic instance
+    that evaluates responses against a set of principles. It follows the
+    composition over inheritance pattern.
+
+    Args:
+        llm_provider: Language model provider to use
+        principles: List of principles to evaluate responses against
+        name: Name of the critic
+        description: Description of the critic
+        min_confidence: Minimum confidence threshold
+        max_attempts: Maximum number of improvement attempts
+        cache_size: Size of the cache
+        priority: Priority of the critic
+        cost: Cost of using the critic
+        system_prompt: System prompt for the model
+        temperature: Temperature for model generation
+        max_tokens: Maximum tokens for model generation
+        critique_prompt_template: Optional custom template for critique prompts
+        improvement_prompt_template: Optional custom template for improvement prompts
+        config: Optional critic configuration (overrides other parameters)
+        **kwargs: Additional keyword arguments for the critic
+
+    Returns:
+        A configured constitutional critic using composition over inheritance
+
+    Raises:
+        ValueError: If principles is empty or invalid
+        TypeError: If llm_provider is not a valid language model
+    """
+    # Create configuration
+    if config is None:
+        config_dict = {
+            "name": name,
+            "description": description,
+            "min_confidence": min_confidence,
+            "max_attempts": max_attempts,
+            "cache_size": cache_size,
+            "priority": priority,
+            "cost": cost,
+            "principles": principles,
+            "system_prompt": system_prompt,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "params": {},
+            **kwargs,
+        }
+
+        if critique_prompt_template:
+            config_dict["params"]["critique_prompt_template"] = critique_prompt_template
+
+        if improvement_prompt_template:
+            config_dict["params"]["improvement_prompt_template"] = improvement_prompt_template
+
+        config = ConstitutionalCriticConfig(**config_dict)
+    elif isinstance(config, dict):
+        # Ensure principles are included in the config
+        if "principles" not in config and principles:
+            config["principles"] = principles
+        config = ConstitutionalCriticConfig(**config)
+    elif not isinstance(config, ConstitutionalCriticConfig):
+        raise TypeError("config must be a ConstitutionalCriticConfig or dict")
+
+    # Create implementation
+    implementation = ConstitutionalCriticImplementation(
+        config=config,
+        llm_provider=llm_provider,
+    )
+
+    # Create and return critic
+    return create_composition_critic(
+        name=name,
+        description=description,
+        implementation=implementation,
+        config=config,
     )
