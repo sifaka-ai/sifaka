@@ -1,99 +1,29 @@
 """
-Base module for critics that provide feedback and validation on prompts.
+Base Module for Critics
 
-This module provides the foundational components for the Sifaka critic framework,
-including base classes, protocols, and type definitions for text validation,
-improvement, and critiquing. Critics work alongside rules to provide a complete
-validation and improvement system.
+A comprehensive module providing the foundational components for the Sifaka critic framework,
+including base classes, protocols, and type definitions for text validation, improvement, and critiquing.
 
-## Integration with Rules
+## Overview
+This module serves as the core foundation for the critic system, defining interfaces and base implementations
+that enable text validation, improvement, and critiquing functionality. Critics work alongside rules to provide
+a complete validation and improvement system.
 
-Critics complement rules in the following ways:
-- Rules provide binary validation (pass/fail)
-- Critics provide nuanced feedback and improvement suggestions
-- Rules focus on specific constraints (length, style, content)
-- Critics analyze overall text quality and coherence
-- Rules can trigger critic improvements when violations occur
-
-## Component Overview
-
+## Components
 1. **Protocols**
-   - `TextValidator`: Interface for text validation
-   - `TextImprover`: Interface for text improvement
-   - `TextCritic`: Interface for text critiquing
+   - TextValidator: Interface for text validation
+   - TextImprover: Interface for text improvement
+   - TextCritic: Interface for text critiquing
 
 2. **Base Classes**
-   - `BaseCritic`: Abstract base class for critics
-   - `Critic`: Concrete implementation of BaseCritic
+   - BaseCritic: Abstract base class for critics
+   - Critic: Concrete implementation of BaseCritic
 
 3. **Data Models**
-   - `CriticMetadata`: Metadata for critic results
-   - `CriticOutput`: Output from critic operations
+   - CriticMetadata: Metadata for critic results
+   - CriticOutput: Output from critic operations
 
-## Component Lifecycle
-
-### Protocol Lifecycle
-
-1. **Implementation**
-   - Create class implementing protocol
-   - Define required methods
-   - Add configuration property
-   - Implement error handling
-
-2. **Verification**
-   - Check protocol compliance
-   - Validate method signatures
-   - Test error handling
-   - Verify type hints
-
-3. **Usage**
-   - Create instance
-   - Configure settings
-   - Process text
-   - Handle results
-
-### Base Class Lifecycle
-
-1. **Initialization**
-   - Validate configuration
-   - Set up resources
-   - Initialize state
-   - Configure logging
-
-2. **Operation**
-   - Process text input
-   - Validate content
-   - Generate feedback
-   - Improve text
-
-3. **Cleanup**
-   - Release resources
-   - Clear state
-   - Log results
-   - Handle errors
-
-## Error Handling
-
-1. **Input Validation**
-   - Empty text checks
-   - Type validation
-   - Format verification
-   - Content validation
-
-2. **Processing Errors**
-   - Validation failures
-   - Improvement errors
-   - Critique failures
-   - Resource errors
-
-3. **Recovery Strategies**
-   - Default values
-   - Fallback methods
-   - State preservation
-   - Error logging
-
-## Examples
-
+## Usage Examples
 ```python
 from sifaka.critics.base import BaseCritic
 from sifaka.critics.models import CriticConfig, CriticMetadata
@@ -103,15 +33,12 @@ class MyCritic(BaseCritic[str, str]):
         super().__init__(config)
 
     def validate(self, text: str) -> bool:
-        # Implementation
         return True
 
     def improve(self, text: str, violations: List[Dict[str, Any]]) -> str:
-        # Implementation
         return "Improved text"
 
     def critique(self, text: str) -> CriticMetadata[str]:
-        # Implementation
         return CriticMetadata(
             score=0.8,
             feedback="Good text",
@@ -129,6 +56,35 @@ is_valid = critic.validate(text)
 improved = critic.improve(text, [])
 feedback = critic.critique(text)
 ```
+
+## Error Handling
+The module implements comprehensive error handling for:
+1. Input Validation
+   - Empty text checks
+   - Type validation
+   - Format verification
+   - Content validation
+
+2. Processing Errors
+   - Validation failures
+   - Improvement errors
+   - Critique failures
+   - Resource errors
+
+3. Recovery Strategies
+   - Default values
+   - Fallback methods
+   - State preservation
+   - Error logging
+
+## Configuration
+The module supports configuration through CriticConfig objects, which can specify:
+- Name and description
+- Minimum confidence threshold
+- Maximum improvement attempts
+- Cache size
+- Priority and cost
+- Custom parameters
 """
 
 from abc import ABC, abstractmethod
@@ -167,19 +123,30 @@ C = TypeVar("C", bound="BaseCritic")  # Critic type
 
 
 class CriticResultEnum(str, Enum):
-    """Enumeration of possible critic results.
+    """
+    Enumeration of possible critic results.
 
-    This enum defines the possible outcomes of critic operations:
+    This enum defines the possible outcomes of critic operations, providing
+    a standardized way to represent the success or failure of critic operations.
+
+    ## Overview
+    The enum provides three possible states:
     - SUCCESS: Operation completed successfully
     - NEEDS_IMPROVEMENT: Text needs improvement
     - FAILURE: Operation failed
 
-    Examples:
-        ```python
-        result = CriticResultEnum.SUCCESS
-        if result == CriticResultEnum.NEEDS_IMPROVEMENT:
-            print("Text needs improvement")
-        ```
+    ## Usage Examples
+    ```python
+    result = CriticResultEnum.SUCCESS
+    if result == CriticResultEnum.NEEDS_IMPROVEMENT:
+        print("Text needs improvement")
+    elif result == CriticResultEnum.FAILURE:
+        print("Operation failed")
+    ```
+
+    ## Error Handling
+    The enum values are immutable and type-safe, ensuring consistent
+    representation of operation results throughout the system.
     """
 
     SUCCESS = auto()
@@ -189,56 +156,52 @@ class CriticResultEnum(str, Enum):
 
 @dataclass(frozen=True)
 class CriticMetadata(Generic[R]):
-    """Immutable metadata for critic results.
+    """
+    Immutable metadata for critic results.
 
-    This class defines the metadata structure for critic results,
-    including score, feedback, issues, and suggestions.
+    This class defines the metadata structure for critic results, providing
+    a standardized way to store and access information about critic operations.
 
-    ## Lifecycle Management
+    ## Overview
+    The metadata includes:
+    - Score: Quality score of the text
+    - Feedback: Detailed feedback about the text
+    - Issues: List of identified issues
+    - Suggestions: List of improvement suggestions
+    - Processing time and attempt information
+    - Additional custom metadata
 
-    1. **Creation**
-       - Set metadata values
-       - Validate parameters
-       - Create immutable instance
+    ## Usage Examples
+    ```python
+    metadata = CriticMetadata(
+        score=0.8,
+        feedback="Good text",
+        issues=["Needs more detail"],
+        suggestions=["Add examples"]
+    )
 
-    2. **Usage**
-       - Access metadata values
-       - Create modified instances
-       - Validate data
-
-    3. **Validation**
-       - Check score range
-       - Verify required fields
-       - Ensure immutability
+    # Create modified metadata
+    new_metadata = metadata.with_extra(
+        processing_time_ms=100.0,
+        attempt_number=2
+    )
+    ```
 
     ## Error Handling
+    The class implements validation for:
+    - Score range (0.0 to 1.0)
+    - Required fields
+    - Processing time (non-negative)
+    - Attempt number (positive integer)
 
-    1. **Validation Errors**
-       - Invalid score range
-       - Negative processing time
-       - Invalid attempt number
-       - Missing required fields
-
-    2. **Recovery**
-       - Default values
-       - Parameter adjustment
-       - Error messages
-
-    Examples:
-        ```python
-        metadata = CriticMetadata(
-            score=0.8,
-            feedback="Good text",
-            issues=["Needs more detail"],
-            suggestions=["Add examples"]
-        )
-
-        # Create modified metadata
-        new_metadata = metadata.with_extra(
-            processing_time_ms=100.0,
-            attempt_number=2
-        )
-        ```
+    Attributes:
+        score (float): Quality score between 0.0 and 1.0
+        feedback (str): Detailed feedback about the text
+        issues (List[str]): List of identified issues
+        suggestions (List[str]): List of improvement suggestions
+        attempt_number (int): Number of improvement attempts
+        processing_time_ms (float): Processing time in milliseconds
+        extra (Dict[str, Any]): Additional custom metadata
     """
 
     score: float
@@ -355,40 +318,19 @@ class TextValidator(Protocol[T]):
     Protocol for text validation.
 
     This protocol defines the interface for components that validate text
-    against quality standards. It's used as a common interface for validation
-    operations in the Sifaka critic framework.
+    against quality standards, providing a standardized way to implement
+    text validation functionality.
 
-    ## Lifecycle
+    ## Overview
+    The protocol requires:
+    - A config property to expose configuration
+    - A validate() method to check text quality
+    - Type-safe implementation with proper error handling
 
-    1. **Implementation**: Create a class that implements the required methods
-       - Implement config property to expose configuration
-       - Implement validate() method to check text quality
-       - Ensure method signatures match the protocol
-
-    2. **Verification**: Verify protocol compliance
-       - Use isinstance() to check if an object implements the protocol
-       - No explicit registration or inheritance is needed
-
-    3. **Usage**: Use the validator for text validation
-       - Access configuration through the config property
-       - Pass text to the validate() method
-       - Receive boolean result indicating validity
-
-    ## Error Handling
-
-    Implementations should handle these error cases:
-    - Empty or invalid text inputs
-    - Validation failures
-    - Resource availability issues
-
-    ## Examples
-
-    Implementing a simple text validator:
-
+    ## Usage Examples
     ```python
     from sifaka.critics.base import TextValidator
     from sifaka.critics.models import CriticConfig
-    from typing import runtime_checkable
 
     class LengthValidator:
         def __init__(self, min_length: int = 10, max_length: int = 1000):
@@ -403,16 +345,11 @@ class TextValidator(Protocol[T]):
             return self._config
 
         def validate(self, text: str) -> bool:
-            # Handle empty text
-            from sifaka.utils.text import is_empty_text
-            if is_empty_text(text):
+            if not text:
                 return False
-
-            # Validate length
             text_length = len(text)
             min_length = self.config.params.get("min_length", 10)
             max_length = self.config.params.get("max_length", 1000)
-
             return min_length <= text_length <= max_length
 
     # Check if it adheres to the protocol
@@ -424,40 +361,12 @@ class TextValidator(Protocol[T]):
     print(f"Text is valid: {is_valid}")
     ```
 
-    Using with error handling:
-
-    ```python
-    from sifaka.critics.base import TextValidator
-    from sifaka.critics.models import CriticConfig
-    import logging
-
-    logger = logging.getLogger(__name__)
-
-    class RobustValidator:
-        def __init__(self):
-            self._config = CriticConfig(
-                name="robust_validator",
-                description="Validator with robust error handling"
-            )
-
-        @property
-        def config(self) -> CriticConfig:
-            return self._config
-
-        def validate(self, text: str) -> bool:
-            try:
-                if not text or not isinstance(text, str):
-                    logger.warning("Invalid input: empty or non-string text")
-                    return False
-
-                # Perform validation
-                # ...
-
-                return True
-            except Exception as e:
-                logger.error(f"Validation error: {e}")
-                return False
-    ```
+    ## Error Handling
+    Implementations should handle:
+    - Empty or invalid text inputs
+    - Validation failures
+    - Resource availability issues
+    - Configuration errors
 
     Type Parameters:
         T: The input type (usually str)
@@ -492,41 +401,21 @@ class TextImprover(Protocol[T, R]):
     Protocol for text improvement.
 
     This protocol defines the interface for components that improve text
-    based on rule violations. It's used as a common interface for text
-    improvement operations in the Sifaka critic framework.
+    based on rule violations, providing a standardized way to implement
+    text improvement functionality.
 
-    ## Lifecycle
+    ## Overview
+    The protocol requires:
+    - A config property to expose configuration
+    - An improve() method to enhance text quality
+    - Type-safe implementation with proper error handling
+    - Support for handling rule violations
 
-    1. **Implementation**: Create a class that implements the required methods
-       - Implement config property to expose configuration
-       - Implement improve() method to enhance text quality
-       - Ensure method signatures match the protocol
-
-    2. **Verification**: Verify protocol compliance
-       - Use isinstance() to check if an object implements the protocol
-       - No explicit registration or inheritance is needed
-
-    3. **Usage**: Use the improver for text enhancement
-       - Access configuration through the config property
-       - Pass text and violations to the improve() method
-       - Receive improved text as result
-
-    ## Error Handling
-
-    Implementations should handle these error cases:
-    - Empty or invalid text inputs
-    - Invalid violation formats
-    - Improvement failures
-    - Resource availability issues
-
-    ## Examples
-
-    Implementing a simple text improver:
-
+    ## Usage Examples
     ```python
     from sifaka.critics.base import TextImprover
     from sifaka.critics.models import CriticConfig
-    from typing import Dict, List, Any, runtime_checkable
+    from typing import Dict, List, Any
 
     class SimpleImprover:
         def __init__(self):
@@ -540,11 +429,9 @@ class TextImprover(Protocol[T, R]):
             return self._config
 
         def improve(self, text: str, violations: List[Dict[str, Any]]) -> str:
-            # Handle empty text
-            if not text or not text.strip():
+            if not text:
                 return "Default text content"
 
-            # Apply improvements based on violations
             improved = text
             for violation in violations:
                 rule_id = violation.get("rule_id", "unknown")
@@ -554,7 +441,6 @@ class TextImprover(Protocol[T, R]):
                     improved += " Additional content to increase length."
                 elif rule_id == "style" and "capitalization" in message:
                     improved = improved.capitalize()
-                # Add more improvement logic for other violation types
 
             return improved
 
@@ -570,46 +456,13 @@ class TextImprover(Protocol[T, R]):
     print(f"Improved text: {improved}")
     ```
 
-    Using with error handling:
-
-    ```python
-    from sifaka.critics.base import TextImprover
-    from sifaka.critics.models import CriticConfig
-    import logging
-
-    logger = logging.getLogger(__name__)
-
-    class RobustImprover:
-        def __init__(self):
-            self._config = CriticConfig(
-                name="robust_improver",
-                description="Improver with robust error handling"
-            )
-
-        @property
-        def config(self) -> CriticConfig:
-            return self._config
-
-        def improve(self, text: str, violations: List[Dict[str, Any]]) -> str:
-            try:
-                if not text or not isinstance(text, str):
-                    logger.warning("Invalid input: empty or non-string text")
-                    return "Default text content"
-
-                if not violations:
-                    return text  # No improvements needed
-
-                # Apply improvements
-                improved = text
-                for violation in violations:
-                    # Improvement logic
-                    # ...
-
-                return improved
-            except Exception as e:
-                logger.error(f"Improvement error: {e}")
-                return text  # Return original text on error
-    ```
+    ## Error Handling
+    Implementations should handle:
+    - Empty or invalid text inputs
+    - Invalid violation formats
+    - Improvement failures
+    - Resource availability issues
+    - Configuration errors
 
     Type Parameters:
         T: The input type (usually str)
@@ -646,40 +499,20 @@ class TextCritic(Protocol[T, R]):
     Protocol for text critiquing.
 
     This protocol defines the interface for components that critique text
-    and provide detailed feedback. It's used as a common interface for
-    critique operations in the Sifaka critic framework.
+    and provide detailed feedback, providing a standardized way to implement
+    text analysis functionality.
 
-    ## Lifecycle
+    ## Overview
+    The protocol requires:
+    - A config property to expose configuration
+    - A critique() method to analyze text quality
+    - Type-safe implementation with proper error handling
+    - Support for generating detailed feedback
 
-    1. **Implementation**: Create a class that implements the required methods
-       - Implement config property to expose configuration
-       - Implement critique() method to analyze text quality
-       - Ensure method signatures match the protocol
-
-    2. **Verification**: Verify protocol compliance
-       - Use isinstance() to check if an object implements the protocol
-       - No explicit registration or inheritance is needed
-
-    3. **Usage**: Use the critic for text analysis
-       - Access configuration through the config property
-       - Pass text to the critique() method
-       - Receive detailed CriticMetadata as result
-
-    ## Error Handling
-
-    Implementations should handle these error cases:
-    - Empty or invalid text inputs
-    - Critique failures
-    - Resource availability issues
-
-    ## Examples
-
-    Implementing a simple text critic:
-
+    ## Usage Examples
     ```python
     from sifaka.critics.base import TextCritic, CriticMetadata
     from sifaka.critics.models import CriticConfig
-    from typing import runtime_checkable
 
     class SimpleCritic:
         def __init__(self):
@@ -693,9 +526,7 @@ class TextCritic(Protocol[T, R]):
             return self._config
 
         def critique(self, text: str) -> CriticMetadata:
-            # Handle empty text
-            from sifaka.utils.text import is_empty_text
-            if is_empty_text(text):
+            if not text:
                 return CriticMetadata(
                     score=0.0,
                     feedback="Empty text",
@@ -743,57 +574,13 @@ class TextCritic(Protocol[T, R]):
     print(f"Feedback: {metadata.feedback}")
     ```
 
-    Using with error handling:
-
-    ```python
-    from sifaka.critics.base import TextCritic, CriticMetadata
-    from sifaka.critics.models import CriticConfig
-    import logging
-    import time
-
-    logger = logging.getLogger(__name__)
-
-    class RobustCritic:
-        def __init__(self):
-            self._config = CriticConfig(
-                name="robust_critic",
-                description="Critic with robust error handling"
-            )
-
-        @property
-        def config(self) -> CriticConfig:
-            return self._config
-
-        def critique(self, text: str) -> CriticMetadata:
-            start_time = time.time()
-            try:
-                if not text or not isinstance(text, str):
-                    logger.warning("Invalid input: empty or non-string text")
-                    return CriticMetadata(
-                        score=0.0,
-                        feedback="Invalid input",
-                        issues=["Text must be a non-empty string"],
-                        processing_time_ms=(time.time() - start_time) * 1000
-                    )
-
-                # Perform critique
-                # ...
-
-                # Return results
-                return CriticMetadata(
-                    score=0.8,
-                    feedback="Good quality text",
-                    processing_time_ms=(time.time() - start_time) * 1000
-                )
-            except Exception as e:
-                logger.error(f"Critique error: {e}")
-                return CriticMetadata(
-                    score=0.0,
-                    feedback=f"Error during critique: {str(e)}",
-                    issues=["Critique process failed"],
-                    processing_time_ms=(time.time() - start_time) * 1000
-                )
-    ```
+    ## Error Handling
+    Implementations should handle:
+    - Empty or invalid text inputs
+    - Critique failures
+    - Resource availability issues
+    - Configuration errors
+    - Processing time tracking
 
     Type Parameters:
         T: The input type (usually str)
@@ -827,81 +614,43 @@ class BaseCritic(ABC, Generic[T, R]):
     """
     Abstract base class for critics.
 
-    This class provides a base implementation for critics that validate,
-    improve, and critique text. It implements common functionality and
-    defines abstract methods that must be implemented by subclasses.
+    This class provides a foundation for implementing critics that can validate,
+    improve, and critique text. It implements common functionality and enforces
+    a consistent interface for all critic implementations.
 
-    This class implements the Critic interface from sifaka.interfaces.critics.
+    ## Overview
+    The class provides:
+    - Configuration management
+    - State management
+    - Resource initialization and cleanup
+    - Common validation and error handling
+    - Abstract methods for critic-specific functionality
 
-    ## Lifecycle Management
-
-    1. **Initialization**
-       - Validate configuration
-       - Set up resources
-       - Initialize state
-       - Configure logging
-
-    2. **Operation**
-       - Process text input
-       - Validate content
-       - Generate feedback
-       - Improve text
-
-    3. **Cleanup**
-       - Release resources
-       - Clear state
-       - Log results
-       - Handle errors
-
-    ## Error Handling
-
-    1. **Input Validation**
-       - Empty text checks
-       - Type validation
-       - Format verification
-       - Content validation
-
-    2. **Processing Errors**
-       - Validation failures
-       - Improvement errors
-       - Critique failures
-       - Resource errors
-
-    3. **Recovery Strategies**
-       - Default values
-       - Fallback methods
-       - State preservation
-       - Error logging
-
-    ## Examples
-
-    Implementing a custom critic:
-
+    ## Usage Examples
     ```python
     from sifaka.critics.base import BaseCritic
-    from sifaka.critics.models import CriticConfig
-    from sifaka.critics.base import CriticMetadata
+    from sifaka.critics.models import CriticConfig, CriticMetadata
 
     class MyCritic(BaseCritic[str, str]):
         def __init__(self, config: CriticConfig):
             super().__init__(config)
 
         def validate(self, text: str) -> bool:
-            # Implementation
-            return True
+            return len(text) > 0
 
-        def improve(self, text: str, violations: List[Dict[str, Any]]) -> str:
-            # Implementation
-            return "Improved text"
+        def improve(self, text: str, feedback: Optional[str] = None) -> str:
+            return text.upper()
 
         def critique(self, text: str) -> CriticMetadata[str]:
-            # Implementation
             return CriticMetadata(
                 score=0.8,
                 feedback="Good text",
                 issues=[],
                 suggestions=[]
             )
+
+        def improve_with_feedback(self, text: str, feedback: str) -> str:
+            return self.improve(text, feedback)
 
     # Create and use the critic
     critic = MyCritic(CriticConfig(
@@ -910,23 +659,33 @@ class BaseCritic(ABC, Generic[T, R]):
     ))
     text = "This is a test."
     is_valid = critic.validate(text)
-    improved = critic.improve(text, [])
+    improved = critic.improve(text)
     feedback = critic.critique(text)
     ```
+
+    ## Error Handling
+    The class implements:
+    - Configuration validation
+    - Resource management
+    - State validation
+    - Type checking
+    - Error recovery strategies
+
+    Type Parameters:
+        T: The input type (usually str)
+        R: The result type
     """
 
     def __init__(self, config: CriticConfig) -> None:
         """
-        Initialize a BaseCritic instance.
+        Initialize the critic.
 
         Args:
-            config: Configuration for the critic
-
-        Raises:
-            ValueError: If configuration is invalid
+            config: The critic configuration
         """
         self._config = config
         self._validate_config()
+        self.initialize()
 
     @property
     def config(self) -> CriticConfig:
@@ -941,112 +700,83 @@ class BaseCritic(ABC, Generic[T, R]):
     @property
     def name(self) -> str:
         """
-        Get the critic name.
+        Get critic name.
 
         Returns:
-            The name of the critic
+            The critic name
         """
         return self._config.name
 
     @property
     def description(self) -> str:
         """
-        Get the critic description.
+        Get critic description.
 
         Returns:
-            The description of the critic
+            The critic description
         """
         return self._config.description
 
     def update_config(self, config: CriticConfig) -> None:
         """
-        Update the critic configuration.
+        Update critic configuration.
 
         Args:
-            config: The new configuration object
-
-        Raises:
-            ValueError: If the configuration is invalid
+            config: The new configuration
         """
-        if not isinstance(config, CriticConfig):
-            raise ValueError(f"Config must be a CriticConfig instance, got {type(config)}")
         self._config = config
         self._validate_config()
 
     def initialize(self) -> None:
         """
-        Initialize the critic.
-
-        This method initializes any resources needed by the critic.
-
-        Raises:
-            RuntimeError: If initialization fails
+        Initialize critic resources.
         """
-        # Default implementation does nothing
         pass
 
     def cleanup(self) -> None:
         """
-        Clean up the critic.
-
-        This method releases any resources held by the critic.
-
-        Raises:
-            RuntimeError: If cleanup fails
+        Clean up critic resources.
         """
-        # Default implementation does nothing
         pass
 
     def _validate_config(self) -> None:
         """
         Validate critic configuration.
-
-        This method checks if the configuration is valid and raises
-        appropriate exceptions if not.
-
-        Raises:
-            ValueError: If configuration is invalid
         """
-        if not isinstance(self._config, CriticConfig):
-            raise ValueError("config must be a CriticConfig instance")
+        if not self._config.name:
+            raise ValueError("Critic name is required")
+        if not self._config.description:
+            raise ValueError("Critic description is required")
 
     def is_valid_text(self, text: Any) -> TypeGuard[T]:
         """
-        Check if text is valid for this critic.
+        Check if text is valid.
 
         Args:
             text: The text to check
 
         Returns:
-            True if the text is valid, False otherwise
+            True if text is valid, False otherwise
         """
-        if not isinstance(text, str):
-            return False
-
-        from sifaka.utils.text import is_empty_text
-
-        return not is_empty_text(text)
+        return isinstance(text, str) and bool(text)
 
     @abstractmethod
     def validate(self, text: T) -> bool:
         """
-        Validate text against quality standards.
+        Validate text.
 
         Args:
             text: The text to validate
 
         Returns:
-            True if the text meets quality standards, False otherwise
-
-        Raises:
-            ValueError: If text is invalid
+            True if text is valid, False otherwise
         """
-        ...
+        pass
 
     @abstractmethod
     def improve(self, text: T, feedback: Optional[str] = None) -> T:
         """
-        Improve text based on feedback.
+        Improve text.
 
         Args:
             text: The text to improve
@@ -1054,83 +784,89 @@ class BaseCritic(ABC, Generic[T, R]):
 
         Returns:
             The improved text
-
-        Raises:
-            ValueError: If text or feedback is invalid
         """
-        ...
+        pass
 
     @abstractmethod
     def critique(self, text: T) -> CriticMetadata[R]:
         """
-        Critique text and provide feedback.
+        Critique text.
 
         Args:
             text: The text to critique
 
         Returns:
             CriticMetadata containing the critique details
-
-        Raises:
-            ValueError: If text is invalid
         """
-        ...
+        pass
 
     @abstractmethod
     def improve_with_feedback(self, text: T, feedback: str) -> T:
         """
-        Improve text based on feedback.
+        Improve text with feedback.
 
         Args:
             text: The text to improve
-            feedback: Feedback to guide the improvement
+            feedback: Feedback to guide improvement
 
         Returns:
             The improved text
-
-        Raises:
-            ValueError: If text or feedback is invalid
         """
-        ...
+        pass
 
     def process(self, text: T, feedback: Optional[str] = None) -> CriticOutput[T, R]:
         """
-        Process text with optional feedback.
-
-        This method combines validation, improvement, and critique
-        operations into a single workflow.
+        Process text through the critic pipeline.
 
         Args:
             text: The text to process
             feedback: Optional feedback to guide improvement
 
         Returns:
-            CriticOutput containing the results
-
-        Raises:
-            ValueError: If text or feedback is invalid
+            CriticOutput containing the processing results
         """
         if not self.is_valid_text(text):
-            raise ValueError("text must be a non-empty string")
+            return CriticOutput(
+                result=CriticResultEnum.FAILURE,
+                improved_text=text,
+                metadata=CriticMetadata(
+                    score=0.0, feedback="Invalid text", issues=["Text must be a non-empty string"]
+                ),
+            )
 
-        # Validate text
-        is_valid = self.validate(text)
+        try:
+            # Validate text
+            is_valid = self.validate(text)
+            if not is_valid:
+                return CriticOutput(
+                    result=CriticResultEnum.NEEDS_IMPROVEMENT,
+                    improved_text=text,
+                    metadata=CriticMetadata(
+                        score=0.0,
+                        feedback="Text needs improvement",
+                        issues=["Text failed validation"],
+                    ),
+                )
 
-        # Improve text
-        improved_text = self.improve(text, feedback)
+            # Improve text if feedback provided
+            improved_text = text
+            if feedback:
+                improved_text = self.improve_with_feedback(text, feedback)
 
-        # Critique text
-        metadata = self.critique(improved_text)
+            # Get critique
+            metadata = self.critique(improved_text)
 
-        # Determine result
-        if is_valid and metadata.score >= self.config.min_confidence:
-            result = CriticResultEnum.SUCCESS
-        elif is_valid:
-            result = CriticResultEnum.NEEDS_IMPROVEMENT
-        else:
-            result = CriticResultEnum.FAILURE
-
-        return CriticOutput(result=result, improved_text=improved_text, metadata=metadata)
+            return CriticOutput(
+                result=CriticResultEnum.SUCCESS, improved_text=improved_text, metadata=metadata
+            )
+        except Exception as e:
+            return CriticOutput(
+                result=CriticResultEnum.FAILURE,
+                improved_text=text,
+                metadata=CriticMetadata(
+                    score=0.0, feedback=f"Error: {str(e)}", issues=["Processing failed"]
+                ),
+            )
 
 
 @overload
@@ -1233,8 +969,56 @@ def create_critic(
     """
     Create a critic instance.
 
-    This function creates a critic instance using either a provided
-    configuration or parameters to create one.
+    This function provides a factory method for creating critic instances
+    with standardized configuration and error handling.
+
+    ## Overview
+    The function:
+    - Creates a critic instance with the specified configuration
+    - Handles both direct config and parameter-based configuration
+    - Provides default values for common parameters
+    - Validates configuration before creating the critic
+
+    ## Usage Examples
+    ```python
+    from sifaka.critics.base import create_critic, Critic
+
+    # Create a critic with default settings
+    critic = create_critic(Critic)
+
+    # Create a critic with custom settings
+    critic = create_critic(
+        Critic,
+        name="custom_critic",
+        description="A custom critic implementation",
+        min_confidence=0.8,
+        max_attempts=5,
+        cache_size=200,
+        priority=2,
+        cost=1.5
+    )
+
+    # Create a critic with a config object
+    from sifaka.critics.models import CriticConfig
+    config = CriticConfig(
+        name="config_critic",
+        description="Critic created with config object",
+        min_confidence=0.9,
+        max_attempts=3,
+        cache_size=100,
+        priority=1,
+        cost=1.0
+    )
+    critic = create_critic(Critic, config=config)
+    ```
+
+    ## Error Handling
+    The function handles:
+    - Invalid critic class
+    - Invalid configuration
+    - Missing required parameters
+    - Type validation
+    - Configuration validation
 
     Args:
         critic_class: The critic class to instantiate
@@ -1242,39 +1026,20 @@ def create_critic(
         description: Description of the critic
         min_confidence: Minimum confidence threshold
         max_attempts: Maximum number of improvement attempts
-        cache_size: Size of the cache
+        cache_size: Size of the cache for memoization
         priority: Priority of the critic
-        cost: Cost of using the critic
+        cost: Cost of running the critic
         config: Optional critic configuration
-        **kwargs: Additional keyword arguments
+        **kwargs: Additional configuration parameters
 
     Returns:
-        A critic instance
+        An instance of the specified critic class
 
-    Examples:
-        ```python
-        from sifaka.critics.base import create_critic
-        from sifaka.critics.models import CriticConfig
-
-        # Create with configuration
-        critic = create_critic(
-            MyCritic,
-            config=CriticConfig(
-                name="my_critic",
-                description="A custom critic"
-            )
-        )
-
-        # Create with parameters
-        critic = create_critic(
-            MyCritic,
-            name="my_critic",
-            description="A custom critic",
-            min_confidence=0.8,
-            max_attempts=3
-        )
-        ```
+    Raises:
+        ValueError: If configuration is invalid
+        TypeError: If critic_class is invalid
     """
+    # Create config if not provided
     if config is None:
         config = CriticConfig(
             name=name,
@@ -1287,97 +1052,80 @@ def create_critic(
             params=kwargs,
         )
 
+    # Validate critic class
+    if not issubclass(critic_class, BaseCritic):
+        raise TypeError(f"critic_class must be a subclass of BaseCritic, got {critic_class}")
+
+    # Create and return critic instance
     return critic_class(config)
 
 
 class Critic(BaseCritic[str, str]):
     """
-    Concrete implementation of BaseCritic for string text.
+    Concrete implementation of BaseCritic for string-based text processing.
 
-    This class provides a concrete implementation of BaseCritic
-    specifically for string text input and output.
+    This class provides a complete implementation of the critic interface
+    for processing string-based text, with built-in validation, improvement,
+    and critique functionality.
 
-    ## Lifecycle Management
+    ## Overview
+    The class provides:
+    - String-based text validation
+    - Text improvement with feedback
+    - Text critique with detailed analysis
+    - Error handling and recovery
+    - Configuration management
 
-    1. **Initialization**
-       - Validate configuration
-       - Set up resources
-       - Initialize state
-       - Configure logging
-
-    2. **Operation**
-       - Process text input
-       - Validate content
-       - Generate feedback
-       - Improve text
-
-    3. **Cleanup**
-       - Release resources
-       - Clear state
-       - Log results
-       - Handle errors
-
-    ## Error Handling
-
-    1. **Input Validation**
-       - Empty text checks
-       - Type validation
-       - Format verification
-       - Content validation
-
-    2. **Processing Errors**
-       - Validation failures
-       - Improvement errors
-       - Critique failures
-       - Resource errors
-
-    3. **Recovery Strategies**
-       - Default values
-       - Fallback methods
-       - State preservation
-       - Error logging
-
-    ## Examples
-
-    Using the Critic class:
-
+    ## Usage Examples
     ```python
-    from sifaka.critics.base import Critic, CriticConfig
+    from sifaka.critics.base import Critic
+    from sifaka.critics.models import CriticConfig
 
     # Create a critic
     critic = Critic(CriticConfig(
         name="text_critic",
-        description="Analyzes and improves text"
+        description="Analyzes and improves text quality"
     ))
 
-    # Use the critic
-    text = "This is a test."
-    is_valid = critic.validate(text)
-    improved = critic.improve(text, [])
-    feedback = critic.critique(text)
+    # Process text
+    text = "This is a test text."
+    result = critic.process(text)
+
+    # Check results
+    if result.result == CriticResultEnum.SUCCESS:
+        print(f"Improved text: {result.improved_text}")
+        print(f"Score: {result.metadata.score:.2f}")
+        print(f"Feedback: {result.metadata.feedback}")
     ```
+
+    ## Error Handling
+    The class implements:
+    - Input validation
+    - Error recovery
+    - State management
+    - Resource cleanup
+    - Detailed error reporting
     """
 
     def validate(self, text: str) -> bool:
         """
-        Validate text against quality standards.
+        Validate text.
 
         Args:
             text: The text to validate
 
         Returns:
-            True if the text meets quality standards, False otherwise
-
-        Raises:
-            ValueError: If text is invalid
+            True if text is valid, False otherwise
         """
         if not self.is_valid_text(text):
             return False
 
-        # Basic validation
-        from sifaka.utils.text import is_empty_text
-
-        if is_empty_text(text):
+        # Basic validation rules
+        if len(text) < 10:
+            return False
+        if not any(c.isupper() for c in text):
+            return False
+        if not any(c.islower() for c in text):
             return False
 
         return True
@@ -1392,96 +1140,104 @@ class Critic(BaseCritic[str, str]):
 
         Returns:
             The improved text
-
-        Raises:
-            ValueError: If text or violations are invalid
         """
         if not self.is_valid_text(text):
-            raise ValueError("text must be a non-empty string")
+            return text
 
-        # Basic improvement
-        improved = text.strip()
+        improved = text
+
+        # Apply improvements based on violations
         for violation in violations:
             rule_id = violation.get("rule_id", "unknown")
             message = violation.get("message", "")
 
-            if rule_id == "capitalization" and "missing" in message:
+            if rule_id == "length" and "too_short" in message:
+                improved += " Additional content to increase length."
+            elif rule_id == "style" and "capitalization" in message:
                 improved = improved.capitalize()
-            elif rule_id == "whitespace" and "extra" in message:
-                improved = " ".join(improved.split())
+            elif rule_id == "grammar" and "missing_punctuation" in message:
+                if not improved.endswith((".", "!", "?")):
+                    improved += "."
 
         return improved
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
         """
-        Improve text based on feedback.
+        Improve text with feedback.
 
         Args:
             text: The text to improve
-            feedback: Feedback to guide the improvement
+            feedback: Feedback to guide improvement
 
         Returns:
             The improved text
-
-        Raises:
-            ValueError: If text or feedback is invalid
         """
         if not self.is_valid_text(text):
-            raise ValueError("text must be a non-empty string")
-        if not feedback or not isinstance(feedback, str):
-            raise ValueError("feedback must be a non-empty string")
+            return text
 
-        # Basic improvement based on feedback
-        improved = text.strip()
-        if "capitalize" in feedback.lower():
+        improved = text
+
+        # Apply improvements based on feedback
+        if "too short" in feedback.lower():
+            improved += " Additional content to increase length."
+        if "capitalization" in feedback.lower():
             improved = improved.capitalize()
-        if "trim" in feedback.lower():
-            improved = improved.strip()
+        if "punctuation" in feedback.lower():
+            if not improved.endswith((".", "!", "?")):
+                improved += "."
 
         return improved
 
     def critique(self, text: str) -> CriticMetadata[str]:
         """
-        Critique text and provide feedback.
+        Critique text.
 
         Args:
             text: The text to critique
 
         Returns:
             CriticMetadata containing the critique details
-
-        Raises:
-            ValueError: If text is invalid
         """
         if not self.is_valid_text(text):
-            raise ValueError("text must be a non-empty string")
+            return CriticMetadata(
+                score=0.0, feedback="Invalid text", issues=["Text must be a non-empty string"]
+            )
 
-        # Basic critique
-        text_length = len(text)
+        # Analyze text quality
+        word_count = len(text.split())
         has_punctuation = any(p in text for p in ".!?")
-        is_capitalized = text[0].isupper() if text else False
+        has_capitalization = any(c.isupper() for c in text)
+        has_lowercase = any(c.islower() for c in text)
 
-        # Calculate score
-        score = min(1.0, text_length / 100)  # Higher score for longer text
+        # Calculate score based on metrics
+        score = 0.0
+        if word_count >= 10:
+            score += 0.3
         if has_punctuation:
-            score += 0.1
-        if is_capitalized:
-            score += 0.1
-        score = min(1.0, score)  # Cap at 1.0
+            score += 0.2
+        if has_capitalization:
+            score += 0.2
+        if has_lowercase:
+            score += 0.3
 
         # Generate feedback
-        if score > 0.8:
-            feedback = "Excellent text quality"
-            issues = []
-            suggestions = []
-        elif score > 0.5:
-            feedback = "Good text quality with minor issues"
-            issues = ["Text could be more detailed"]
-            suggestions = ["Consider adding more content"]
-        else:
-            feedback = "Text needs improvement"
-            issues = ["Text is too short", "Lacks detail"]
-            suggestions = ["Add more content", "Include specific examples"]
+        issues = []
+        suggestions = []
+
+        if word_count < 10:
+            issues.append("Text is too short")
+            suggestions.append("Add more content")
+        if not has_punctuation:
+            issues.append("Missing punctuation")
+            suggestions.append("Add appropriate punctuation")
+        if not has_capitalization:
+            issues.append("Missing capitalization")
+            suggestions.append("Capitalize appropriate words")
+        if not has_lowercase:
+            issues.append("All uppercase text")
+            suggestions.append("Use lowercase where appropriate")
+
+        feedback = "Good text quality" if score >= 0.8 else "Text needs improvement"
 
         return CriticMetadata(
             score=score, feedback=feedback, issues=issues, suggestions=suggestions
@@ -1496,36 +1252,59 @@ def create_basic_critic(
     **kwargs: Any,
 ) -> Critic:
     """
-    Create a basic critic instance.
+    Create a basic text critic.
 
-    This function creates a basic critic instance with default settings.
+    This function creates a basic critic instance with sensible defaults
+    for common text processing tasks.
+
+    ## Overview
+    The function:
+    - Creates a Critic instance with basic text processing capabilities
+    - Provides default values for common parameters
+    - Handles basic text validation and improvement
+    - Includes simple critique functionality
+
+    ## Usage Examples
+    ```python
+    from sifaka.critics.base import create_basic_critic
+
+    # Create a basic critic with default settings
+    critic = create_basic_critic()
+
+    # Create a basic critic with custom settings
+    critic = create_basic_critic(
+        name="custom_basic_critic",
+        description="A custom basic critic",
+        min_confidence=0.8,
+        max_attempts=5
+    )
+
+    # Use the critic
+    text = "This is a test text."
+    result = critic.process(text)
+    print(f"Score: {result.metadata.score:.2f}")
+    print(f"Feedback: {result.metadata.feedback}")
+    ```
+
+    ## Error Handling
+    The function handles:
+    - Invalid configuration
+    - Missing required parameters
+    - Type validation
+    - Configuration validation
 
     Args:
         name: Name of the critic
         description: Description of the critic
         min_confidence: Minimum confidence threshold
         max_attempts: Maximum number of improvement attempts
-        **kwargs: Additional keyword arguments
+        **kwargs: Additional configuration parameters
 
     Returns:
-        A basic critic instance
+        A basic Critic instance
 
-    Examples:
-        ```python
-        from sifaka.critics.base import create_basic_critic
-
-        # Create a basic critic
-        critic = create_basic_critic(
-            name="my_critic",
-            description="A basic critic"
-        )
-
-        # Use the critic
-        text = "This is a test."
-        is_valid = critic.validate(text)
-        improved = critic.improve(text, [])
-        feedback = critic.critique(text)
-        ```
+    Raises:
+        ValueError: If configuration is invalid
     """
     return create_critic(
         Critic,

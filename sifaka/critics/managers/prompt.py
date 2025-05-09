@@ -292,166 +292,347 @@ class PromptManager(ABC):
         self._config = config
 
     def create_validation_prompt(self, text: str) -> str:
-        """
-        Create a prompt for validating text.
+        """Create a prompt for text validation.
 
-        This method creates a prompt that asks the model to validate
-        whether the given text meets quality standards.
+        This method creates a prompt for validating text quality and standards.
+        It delegates to the implementation-specific _create_validation_prompt_impl.
 
-        Lifecycle:
-        1. Input validation
-        2. Template selection
-        3. Variable substitution
-        4. Format validation
-        5. Error handling
+        ## Overview
+        The method provides:
+        - Text validation prompt creation
+        - Input validation
+        - Error handling
+        - Template variable substitution
+
+        ## Usage Examples
+        ```python
+        # Create a validation prompt
+        text = "This is a sample text to validate."
+        prompt = prompt_manager.create_validation_prompt(text)
+        print(prompt)
+
+        # Create with error handling
+        try:
+            prompt = prompt_manager.create_validation_prompt("")
+        except ValueError as e:
+            print(f"Validation error: {e}")
+        ```
+
+        ## Error Handling
+        The method implements:
+        - Empty text validation
+        - Invalid text format checking
+        - Template error handling
+        - Implementation error recovery
 
         Args:
             text: The text to validate
 
         Returns:
-            A prompt for validating the text
+            str: The validation prompt
 
         Raises:
-            ValueError: If text is empty
+            ValueError: If text is empty or invalid
             RuntimeError: If prompt creation fails
         """
-        return self._create_validation_prompt_impl(text)
+        if not text or not isinstance(text, str):
+            raise ValueError("Text must be a non-empty string")
+
+        try:
+            return self._create_validation_prompt_impl(text)
+        except Exception as e:
+            logger.error(f"Failed to create validation prompt: {e}")
+            raise RuntimeError(f"Failed to create validation prompt: {e}")
 
     def create_critique_prompt(self, text: str) -> str:
-        """
-        Create a prompt for critiquing text.
+        """Create a prompt for text critique.
 
-        This method creates a prompt that asks the model to critique
-        the given text and provide detailed feedback.
+        This method creates a prompt for critiquing text quality and providing
+        detailed feedback. It delegates to the implementation-specific
+        _create_critique_prompt_impl.
 
-        Lifecycle:
-        1. Input validation
-        2. Template selection
-        3. Variable substitution
-        4. Format validation
-        5. Error handling
+        ## Overview
+        The method provides:
+        - Text critique prompt creation
+        - Input validation
+        - Error handling
+        - Template variable substitution
+
+        ## Usage Examples
+        ```python
+        # Create a critique prompt
+        text = "This is a sample text to critique."
+        prompt = prompt_manager.create_critique_prompt(text)
+        print(prompt)
+
+        # Create with error handling
+        try:
+            prompt = prompt_manager.create_critique_prompt("")
+        except ValueError as e:
+            print(f"Critique error: {e}")
+        ```
+
+        ## Error Handling
+        The method implements:
+        - Empty text validation
+        - Invalid text format checking
+        - Template error handling
+        - Implementation error recovery
 
         Args:
             text: The text to critique
 
         Returns:
-            A prompt for critiquing the text
+            str: The critique prompt
 
         Raises:
-            ValueError: If text is empty
+            ValueError: If text is empty or invalid
             RuntimeError: If prompt creation fails
         """
-        return self._create_critique_prompt_impl(text)
+        if not text or not isinstance(text, str):
+            raise ValueError("Text must be a non-empty string")
+
+        try:
+            return self._create_critique_prompt_impl(text)
+        except Exception as e:
+            logger.error(f"Failed to create critique prompt: {e}")
+            raise RuntimeError(f"Failed to create critique prompt: {e}")
 
     def create_improvement_prompt(
         self, text: str, feedback: str, reflections: Optional[List[str]] = None
     ) -> str:
-        """
-        Create a prompt for improving text.
+        """Create a prompt for text improvement.
 
-        This method creates a prompt that asks the model to improve
-        the given text based on feedback and optional reflections.
+        This method creates a prompt for improving text based on feedback and
+        optional reflections. It delegates to the implementation-specific
+        _create_improvement_prompt_impl.
 
-        Lifecycle:
-        1. Input validation
-        2. Feedback processing
-        3. Template selection
-        4. Variable substitution
-        5. Format validation
-        6. Error handling
+        ## Overview
+        The method provides:
+        - Text improvement prompt creation
+        - Input validation
+        - Error handling
+        - Template variable substitution
+        - Reflection integration
+
+        ## Usage Examples
+        ```python
+        # Create an improvement prompt
+        text = "This is a sample text to improve."
+        feedback = "The text needs more detail."
+        prompt = prompt_manager.create_improvement_prompt(text, feedback)
+        print(prompt)
+
+        # Create with reflections
+        reflections = [
+            "Previous attempts focused too much on structure",
+            "Need to maintain the original meaning"
+        ]
+        prompt = prompt_manager.create_improvement_prompt(
+            text, feedback, reflections
+        )
+        print(prompt)
+
+        # Create with error handling
+        try:
+            prompt = prompt_manager.create_improvement_prompt("", "")
+        except ValueError as e:
+            print(f"Improvement error: {e}")
+        ```
+
+        ## Error Handling
+        The method implements:
+        - Empty text validation
+        - Invalid text format checking
+        - Feedback validation
+        - Reflection format checking
+        - Template error handling
+        - Implementation error recovery
 
         Args:
             text: The text to improve
-            feedback: Feedback to guide the improvement
-            reflections: Optional reflections to include in the prompt
+            feedback: The feedback to use for improvement
+            reflections: Optional list of reflections
 
         Returns:
-            A prompt for improving the text
+            str: The improvement prompt
 
         Raises:
-            ValueError: If text or feedback is empty
+            ValueError: If text or feedback are empty or invalid
             RuntimeError: If prompt creation fails
         """
-        return self._create_improvement_prompt_impl(text, feedback, reflections)
+        if not text or not isinstance(text, str):
+            raise ValueError("Text must be a non-empty string")
+        if not feedback or not isinstance(feedback, str):
+            raise ValueError("Feedback must be a non-empty string")
+        if reflections is not None and not isinstance(reflections, list):
+            raise ValueError("Reflections must be a list")
+
+        try:
+            return self._create_improvement_prompt_impl(text, feedback, reflections)
+        except Exception as e:
+            logger.error(f"Failed to create improvement prompt: {e}")
+            raise RuntimeError(f"Failed to create improvement prompt: {e}")
 
     def create_reflection_prompt(
         self, original_text: str, feedback: str, improved_text: str
     ) -> str:
-        """
-        Create a prompt for reflecting on an improvement.
+        """Create a prompt for reflection on text improvement.
 
-        This method creates a prompt that asks the model to reflect
-        on how the text was improved and what was learned.
+        This method creates a prompt for reflecting on the improvement process
+        and results. It delegates to the implementation-specific
+        _create_reflection_prompt_impl.
 
-        Lifecycle:
-        1. Input validation
-        2. Template selection
-        3. Variable substitution
-        4. Format validation
-        5. Error handling
+        ## Overview
+        The method provides:
+        - Reflection prompt creation
+        - Input validation
+        - Error handling
+        - Template variable substitution
+        - Improvement analysis
+
+        ## Usage Examples
+        ```python
+        # Create a reflection prompt
+        original_text = "This is the original text."
+        feedback = "The text needed improvement."
+        improved_text = "This is the improved version."
+        prompt = prompt_manager.create_reflection_prompt(
+            original_text, feedback, improved_text
+        )
+        print(prompt)
+
+        # Create with error handling
+        try:
+            prompt = prompt_manager.create_reflection_prompt("", "", "")
+        except ValueError as e:
+            print(f"Reflection error: {e}")
+        ```
+
+        ## Error Handling
+        The method implements:
+        - Empty text validation
+        - Invalid text format checking
+        - Feedback validation
+        - Template error handling
+        - Implementation error recovery
 
         Args:
             original_text: The original text
-            feedback: The feedback received
+            feedback: The feedback used for improvement
             improved_text: The improved text
 
         Returns:
-            A prompt for reflecting on the improvement
+            str: The reflection prompt
 
         Raises:
-            ValueError: If any input is empty
+            ValueError: If any input is empty or invalid
             RuntimeError: If prompt creation fails
         """
-        return self._create_reflection_prompt_impl(original_text, feedback, improved_text)
+        if not original_text or not isinstance(original_text, str):
+            raise ValueError("Original text must be a non-empty string")
+        if not feedback or not isinstance(feedback, str):
+            raise ValueError("Feedback must be a non-empty string")
+        if not improved_text or not isinstance(improved_text, str):
+            raise ValueError("Improved text must be a non-empty string")
+
+        try:
+            return self._create_reflection_prompt_impl(original_text, feedback, improved_text)
+        except Exception as e:
+            logger.error(f"Failed to create reflection prompt: {e}")
+            raise RuntimeError(f"Failed to create reflection prompt: {e}")
 
     @abstractmethod
     def _create_validation_prompt_impl(self, text: str) -> str:
-        """
-        Implementation of create_validation_prompt.
+        """Create a validation prompt implementation.
 
-        This method should be implemented by subclasses to provide
-        the specific prompt template and formatting for validation.
+        This method is responsible for the actual creation of validation prompts.
+        It should be implemented by concrete prompt manager classes.
 
-        Lifecycle:
-        1. Template selection
-        2. Variable substitution
-        3. Format validation
-        4. Error handling
+        ## Overview
+        The method provides:
+        - Template-based prompt creation
+        - Variable substitution
+        - Format validation
+        - Error handling
+
+        ## Usage Examples
+        ```python
+        class CustomPromptManager(PromptManager):
+            def _create_validation_prompt_impl(self, text: str) -> str:
+                return (
+                    "Please validate the following text:\n\n"
+                    f"{text}\n\n"
+                    "Consider the following aspects:\n"
+                    "1. Grammar and spelling\n"
+                    "2. Clarity and coherence\n"
+                    "3. Style and tone\n"
+                    "4. Overall quality\n\n"
+                    "Provide a detailed analysis."
+                )
+        ```
+
+        ## Error Handling
+        The method implements:
+        - Template validation
+        - Variable substitution error handling
+        - Format validation
+        - Resource management
 
         Args:
             text: The text to validate
 
         Returns:
-            A prompt for validating the text
+            str: The validation prompt
 
         Raises:
-            ValueError: If text is empty
             RuntimeError: If prompt creation fails
         """
         pass
 
     @abstractmethod
     def _create_critique_prompt_impl(self, text: str) -> str:
-        """
-        Implementation of create_critique_prompt.
+        """Create a critique prompt implementation.
 
-        This method should be implemented by subclasses to provide
-        the specific prompt template and formatting for critique.
+        This method is responsible for the actual creation of critique prompts.
+        It should be implemented by concrete prompt manager classes.
 
-        Lifecycle:
-        1. Template selection
-        2. Variable substitution
-        3. Format validation
-        4. Error handling
+        ## Overview
+        The method provides:
+        - Template-based prompt creation
+        - Variable substitution
+        - Format validation
+        - Error handling
+
+        ## Usage Examples
+        ```python
+        class CustomPromptManager(PromptManager):
+            def _create_critique_prompt_impl(self, text: str) -> str:
+                return (
+                    "Please critique the following text:\n\n"
+                    f"{text}\n\n"
+                    "Focus on:\n"
+                    "1. Strengths and weaknesses\n"
+                    "2. Areas for improvement\n"
+                    "3. Specific suggestions\n"
+                    "4. Overall assessment"
+                )
+        ```
+
+        ## Error Handling
+        The method implements:
+        - Template validation
+        - Variable substitution error handling
+        - Format validation
+        - Resource management
 
         Args:
             text: The text to critique
 
         Returns:
-            A prompt for critiquing the text
+            str: The critique prompt
 
         Raises:
-            ValueError: If text is empty
             RuntimeError: If prompt creation fails
         """
         pass
@@ -460,28 +641,54 @@ class PromptManager(ABC):
     def _create_improvement_prompt_impl(
         self, text: str, feedback: str, reflections: Optional[List[str]] = None
     ) -> str:
-        """
-        Implementation of create_improvement_prompt.
+        """Create an improvement prompt implementation.
 
-        This method should be implemented by subclasses to provide
-        the specific prompt template and formatting for improvement.
+        This method is responsible for the actual creation of improvement prompts.
+        It should be implemented by concrete prompt manager classes.
 
-        Lifecycle:
-        1. Template selection
-        2. Variable substitution
-        3. Format validation
-        4. Error handling
+        ## Overview
+        The method provides:
+        - Template-based prompt creation
+        - Variable substitution
+        - Format validation
+        - Error handling
+        - Reflection integration
+
+        ## Usage Examples
+        ```python
+        class CustomPromptManager(PromptManager):
+            def _create_improvement_prompt_impl(
+                self, text: str, feedback: str, reflections: Optional[List[str]] = None
+            ) -> str:
+                prompt = (
+                    "Please improve the following text:\n\n"
+                    f"{text}\n\n"
+                    f"Feedback: {feedback}\n\n"
+                )
+                if reflections:
+                    prompt += "Previous reflections:\n"
+                    for i, reflection in enumerate(reflections, 1):
+                        prompt += f"{i}. {reflection}\n"
+                return prompt
+        ```
+
+        ## Error Handling
+        The method implements:
+        - Template validation
+        - Variable substitution error handling
+        - Format validation
+        - Resource management
+        - Reflection format validation
 
         Args:
             text: The text to improve
-            feedback: Feedback to guide the improvement
-            reflections: Optional reflections to include in the prompt
+            feedback: The feedback to use for improvement
+            reflections: Optional list of reflections
 
         Returns:
-            A prompt for improving the text
+            str: The improvement prompt
 
         Raises:
-            ValueError: If text or feedback is empty
             RuntimeError: If prompt creation fails
         """
         pass
@@ -490,28 +697,55 @@ class PromptManager(ABC):
     def _create_reflection_prompt_impl(
         self, original_text: str, feedback: str, improved_text: str
     ) -> str:
-        """
-        Implementation of create_reflection_prompt.
+        """Create a reflection prompt implementation.
 
-        This method should be implemented by subclasses to provide
-        the specific prompt template and formatting for reflection.
+        This method is responsible for the actual creation of reflection prompts.
+        It should be implemented by concrete prompt manager classes.
 
-        Lifecycle:
-        1. Template selection
-        2. Variable substitution
-        3. Format validation
-        4. Error handling
+        ## Overview
+        The method provides:
+        - Template-based prompt creation
+        - Variable substitution
+        - Format validation
+        - Error handling
+        - Improvement analysis
+
+        ## Usage Examples
+        ```python
+        class CustomPromptManager(PromptManager):
+            def _create_reflection_prompt_impl(
+                self, original_text: str, feedback: str, improved_text: str
+            ) -> str:
+                return (
+                    "Please reflect on the improvement process:\n\n"
+                    f"Original text: {original_text}\n\n"
+                    f"Feedback: {feedback}\n\n"
+                    f"Improved text: {improved_text}\n\n"
+                    "Consider:\n"
+                    "1. How well the feedback was addressed\n"
+                    "2. What worked and what didn't\n"
+                    "3. What could be improved further\n"
+                    "4. Lessons learned"
+                )
+        ```
+
+        ## Error Handling
+        The method implements:
+        - Template validation
+        - Variable substitution error handling
+        - Format validation
+        - Resource management
+        - Improvement analysis validation
 
         Args:
             original_text: The original text
-            feedback: The feedback received
+            feedback: The feedback used for improvement
             improved_text: The improved text
 
         Returns:
-            A prompt for reflecting on the improvement
+            str: The reflection prompt
 
         Raises:
-            ValueError: If any input is empty
             RuntimeError: If prompt creation fails
         """
         pass

@@ -1,25 +1,68 @@
 """
-Core interfaces for Sifaka.
+Core Interfaces Module
 
-This module defines the fundamental interfaces that all components in the Sifaka
-framework should implement. These interfaces establish a common contract for
-component behavior, enabling better modularity and extensibility.
+A module that defines the fundamental interfaces for the Sifaka framework.
 
-## Interface Hierarchy
+## Overview
+This module provides the core interfaces that establish the contract for all components
+in the Sifaka framework. These interfaces ensure consistent behavior, enable better
+modularity, and support extensibility across the framework.
 
-1. **Component**: Base interface for all components
-   - **Configurable**: Interface for components with configuration
-   - **Stateful**: Interface for components with state management
-   - **Identifiable**: Interface for components with identity
-   - **Loggable**: Interface for components with logging capabilities
-   - **Traceable**: Interface for components with tracing capabilities
+## Components
+1. Base Interfaces:
+   - Component: Base interface for all components
+   - Configurable: Interface for components with configuration
+   - Stateful: Interface for components with state management
+   - Identifiable: Interface for components with identity
+   - Loggable: Interface for components with logging capabilities
+   - Traceable: Interface for components with tracing capabilities
 
-## Usage
+## Usage Examples
+```python
+from sifaka.core import Component, Configurable, Stateful
 
-These interfaces are defined using Python's Protocol class from typing,
-which enables structural subtyping. This means that classes don't need to
-explicitly inherit from these interfaces; they just need to implement the
-required methods and properties.
+class MyComponent(Component, Configurable, Stateful):
+    def initialize(self) -> None:
+        # Initialize resources
+        pass
+
+    def cleanup(self) -> None:
+        # Clean up resources
+        pass
+
+    @property
+    def config(self):
+        return self._config
+
+    def update_config(self, config):
+        # Update configuration
+        pass
+
+    def get_state(self):
+        return self._state
+
+    def set_state(self, state):
+        # Update state
+        pass
+
+    def reset_state(self):
+        # Reset state
+        pass
+```
+
+## Error Handling
+The interfaces define error handling patterns:
+- RuntimeError for initialization and cleanup failures
+- ValueError for invalid configuration or state
+- Type checking for configuration and state objects
+- Resource cleanup in cleanup methods
+
+## Configuration
+The interfaces support various configuration options:
+- Component initialization parameters
+- Configuration object structure
+- State management patterns
+- Logging and tracing capabilities
 """
 
 from abc import abstractmethod

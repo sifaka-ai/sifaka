@@ -5,28 +5,71 @@ This module provides configuration classes and utilities for critics in the Sifa
 It centralizes configuration management and provides default configurations for different
 critic types.
 
-## Configuration Overview
+## Overview
+The module provides:
+- Base configuration classes for critics
+- Specialized configuration classes for different critic types
+- Default system prompts for each critic type
+- Default configurations with sensible defaults
+- Configuration validation and type checking
 
-The module provides several key configuration classes:
+## Components
+1. **Configuration Classes**
+   - CriticConfig: Base configuration for all critics
+   - PromptCriticConfig: Configuration for prompt-based critics
+   - ReflexionCriticConfig: Configuration for reflexion critics
+   - ConstitutionalCriticConfig: Configuration for constitutional critics
+   - SelfRefineCriticConfig: Configuration for self-refine critics
+   - SelfRAGCriticConfig: Configuration for self-RAG critics
+   - FeedbackCriticConfig: Configuration for feedback critics
+   - ValueCriticConfig: Configuration for value critics
+   - LACCriticConfig: Configuration for LAC critics
 
-1. **CriticConfig**: Base configuration for all critics
-2. **PromptCriticConfig**: Configuration for prompt-based critics
-3. **ReflexionCriticConfig**: Configuration for reflexion critics
-4. **ConstitutionalCriticConfig**: Configuration for constitutional critics
-5. **SelfRefineCriticConfig**: Configuration for self-refine critics
-6. **SelfRAGCriticConfig**: Configuration for self-RAG critics
-7. **LACCriticConfig**: Configuration for LAC critics
+2. **Default Configurations**
+   - DEFAULT_PROMPT_CONFIG: Default configuration for prompt-based critics
+   - DEFAULT_REFLEXION_CONFIG: Default configuration for reflexion critics
+   - DEFAULT_CONSTITUTIONAL_CONFIG: Default configuration for constitutional critics
+   - DEFAULT_SELF_REFINE_CONFIG: Default configuration for self-refine critics
+   - DEFAULT_SELF_RAG_CONFIG: Default configuration for self-RAG critics
+   - DEFAULT_FEEDBACK_CONFIG: Default configuration for feedback critics
+   - DEFAULT_VALUE_CONFIG: Default configuration for value critics
+   - DEFAULT_LAC_CONFIG: Default configuration for LAC critics
 
-## Default Configurations
+## Usage Examples
+```python
+from sifaka.critics.config import (
+    DEFAULT_PROMPT_CONFIG,
+    DEFAULT_REFLEXION_CONFIG,
+    PromptCriticConfig
+)
 
-The module also provides default configurations for different critic types:
+# Use default configurations
+critic = PromptCriticConfig(**DEFAULT_PROMPT_CONFIG.dict())
 
-1. **DEFAULT_PROMPT_CONFIG**: Default configuration for prompt-based critics
-2. **DEFAULT_REFLEXION_CONFIG**: Default configuration for reflexion critics
-3. **DEFAULT_CONSTITUTIONAL_CONFIG**: Default configuration for constitutional critics
-4. **DEFAULT_SELF_REFINE_CONFIG**: Default configuration for self-refine critics
-5. **DEFAULT_SELF_RAG_CONFIG**: Default configuration for self-RAG critics
-6. **DEFAULT_LAC_CONFIG**: Default configuration for LAC critics
+# Create custom configuration
+custom_config = PromptCriticConfig(
+    name="custom_critic",
+    description="A custom prompt-based critic",
+    system_prompt="You are a specialized critic",
+    temperature=0.5,
+    max_tokens=2000
+)
+
+# Combine with default configuration
+combined_config = PromptCriticConfig(
+    **DEFAULT_PROMPT_CONFIG.dict(),
+    name="combined_critic",
+    temperature=0.5
+)
+```
+
+## Error Handling
+The module implements:
+- Configuration validation
+- Type checking for all fields
+- Default value handling
+- Required field validation
+- Range validation for numeric fields
 """
 
 from typing import Any, Dict, List, Optional, Union
@@ -48,7 +91,9 @@ from .models import (
 )
 
 # Default system prompts
-DEFAULT_SYSTEM_PROMPT = """You are a helpful assistant that provides high-quality feedback and improvements for text."""
+DEFAULT_SYSTEM_PROMPT = (
+    """You are a helpful assistant that provides high-quality feedback and improvements for text."""
+)
 
 DEFAULT_REFLEXION_SYSTEM_PROMPT = """You are a helpful assistant that provides high-quality feedback and improvements for text, using reflections on past feedback to guide your improvements."""
 

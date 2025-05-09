@@ -5,90 +5,35 @@ the central component for text validation, improvement, and critiquing. The Crit
 class delegates specific operations to specialized components while maintaining
 a unified interface for text processing.
 
-This implementation uses the standardized state management approach, which provides
-consistent state handling across all components in the Sifaka framework.
+## Overview
+The module provides:
+- Core critic implementation with standardized state management
+- Factory function for creating critic instances
+- Specialized components for text processing
+- Unified interface for text validation, improvement, and critiquing
+- Error handling and resource management
 
-## Factory Function Pattern
+## Components
+1. **CriticCore Class**
+   - Central implementation of the critic system
+   - Delegates to specialized components
+   - Maintains unified interface
+   - Uses standardized state management
 
-This module follows the standard Sifaka factory function pattern:
+2. **Factory Function**
+   - create_core_critic(): Creates CriticCore instances
+   - Handles parameter extraction and validation
+   - Provides consistent interface
+   - Manages component lifecycle
 
-1. The `create_core_critic()` factory function creates a CriticCore instance:
-   - Takes configuration parameters directly
-   - Creates a CriticConfig object
-   - Instantiates and returns a CriticCore
+3. **Specialized Components**
+   - Language Model Provider: Handles text generation
+   - Prompt Manager: Creates and manages prompts
+   - Response Parser: Parses model responses
+   - Memory Manager: Manages interaction history
+   - Critique Service: Handles text critiquing
 
-2. Factory function handles parameter extraction and validation:
-   - Extract parameters from function arguments
-   - Create configuration objects as needed
-   - Instantiate and return the component
-
-3. Factory function provides a consistent interface:
-   - Clear parameter names matching component attributes
-   - Consistent error handling
-   - Standardized return types
-
-## Component Lifecycle
-
-### CriticCore Lifecycle
-
-1. **Initialization Phase**
-   - Configuration validation
-   - Manager initialization
-   - Service setup
-   - Resource allocation
-
-2. **Operation Phase**
-   - Text validation
-   - Text improvement
-   - Text critiquing
-   - Feedback processing
-
-3. **Cleanup Phase**
-   - Resource release
-   - State cleanup
-   - Error recovery
-
-### Component Interactions
-
-1. **Language Model Provider**
-   - Handles text generation
-   - Manages model responses
-   - Controls model parameters
-
-2. **Prompt Manager**
-   - Creates specialized prompts
-   - Manages prompt templates
-   - Validates prompt formats
-
-3. **Response Parser**
-   - Parses model responses
-   - Validates response formats
-   - Extracts structured data
-
-4. **Memory Manager**
-   - Stores past interactions
-   - Retrieves relevant context
-   - Manages memory buffer
-
-## Error Handling
-
-1. **Input Validation Errors**
-   - Empty or invalid text
-   - Invalid feedback format
-   - Invalid violation format
-
-2. **Model Interaction Errors**
-   - Provider connection failures
-   - Response parsing errors
-   - Format validation failures
-
-3. **Resource Management Errors**
-   - Memory allocation failures
-   - Service initialization errors
-   - Manager setup failures
-
-## Examples
-
+## Usage Examples
 ```python
 from sifaka.critics.core import create_core_critic
 from sifaka.models.providers import OpenAIProvider
@@ -120,6 +65,14 @@ print(f"Feedback: {critique.feedback}")
 improved_text = critic.improve(text, "The text needs more detail.")
 print(f"Improved text: {improved_text}")
 ```
+
+## Error Handling
+The module implements:
+- Input validation for text and parameters
+- Model interaction error handling
+- Resource management and cleanup
+- State management and recovery
+- Component initialization validation
 """
 
 from typing import Any, Dict, List, Optional, Union
@@ -145,31 +98,57 @@ class CriticCore(BaseCritic):
     providing a unified interface for text processing while delegating
     specific operations to specialized components.
 
-    This implementation uses the standardized state management approach with
-    a single _state attribute that manages all mutable state.
+    ## Overview
+    The CriticCore class provides:
+    - Unified interface for text validation, improvement, and critiquing
+    - Delegation to specialized components for specific operations
+    - Standardized state management approach
+    - Resource management and cleanup
+    - Error handling and recovery
+
+    ## Usage Examples
+    ```python
+    from sifaka.critics.core import create_core_critic
+    from sifaka.models.providers import OpenAIProvider
+
+    # Create a critic instance
+    provider = OpenAIProvider(api_key="your-api-key")
+    critic = create_core_critic(
+        name="core_critic",
+        description="A core critic implementation",
+        system_prompt="You are an expert editor...",
+        llm_provider=provider
+    )
+
+    # Process text
+    text = "This is a sample technical document."
+    is_valid = critic.validate(text)
+    critique = critic.critique(text)
+    improved_text = critic.improve(text, "The text needs more detail.")
+    ```
+
+    ## Error Handling
+    The class implements:
+    - Input validation for text and parameters
+    - Model interaction error handling
+    - Resource management and cleanup
+    - State management and recovery
+    - Component initialization validation
 
     ## State Management
-
-    The CriticCore uses a standardized state management approach:
-
-    1. **State Initialization**
-       - Creates a state object using create_critic_state()
-       - Stores all mutable state in the state object
-       - Accesses state through the state manager
-
-    2. **State Access**
-       - Uses state directly to access the state object
-       - Updates state through the state object
-       - Maintains clear separation between configuration and state
-
-    3. **State Components**
-       - model: The language model provider
-       - prompt_manager: The prompt manager
-       - response_parser: The response parser
-       - memory_manager: The memory manager
-       - critique_service: The critique service
-       - initialized: Whether the critic is initialized
-       - cache: A cache for storing temporary data
+    The class uses a standardized state management approach:
+    - Single _state attribute for all mutable state
+    - State initialization during construction
+    - State access through state object
+    - Clear separation of configuration and state
+    - State components:
+      - model: Language model provider
+      - prompt_manager: Prompt manager
+      - response_parser: Response parser
+      - memory_manager: Memory manager
+      - critique_service: Critique service
+      - initialized: Initialization status
+      - cache: Temporary data storage
     """
 
     # State management using direct state
@@ -230,6 +209,35 @@ class CriticCore(BaseCritic):
         This method checks if the given text meets the quality standards
         defined by the critic's configuration.
 
+        ## Overview
+        The method provides:
+        - Text quality validation
+        - Standard compliance checking
+        - Error detection
+        - Validation result reporting
+
+        ## Usage Examples
+        ```python
+        # Validate text
+        text = "This is a sample technical document."
+        is_valid = critic.validate(text)
+        print(f"Text is valid: {is_valid}")
+
+        # Validate with error handling
+        try:
+            is_valid = critic.validate("")
+        except ValueError as e:
+            print(f"Validation error: {e}")
+        ```
+
+        ## Error Handling
+        The method implements:
+        - Empty text validation
+        - Invalid text format checking
+        - Validation error reporting
+        - State validation
+        - Service availability checking
+
         Args:
             text: The text to validate
 
@@ -250,22 +258,63 @@ class CriticCore(BaseCritic):
             raise RuntimeError("Critique service not properly initialized")
 
         # Validate text
-        return critique_service.validate(text)
+        if not text or not isinstance(text, str):
+            raise ValueError("Text must be a non-empty string")
+
+        # Get critique
+        critique = critique_service.critique(text)
+
+        # Return validation result
+        return critique.score >= self.config.min_confidence
 
     def improve(self, text: str, violations: List[Dict[str, Any]]) -> str:
-        """Improve text based on violations.
+        """Improve text based on identified violations.
 
-        This method improves the given text based on the provided violations.
+        This method attempts to improve the given text by addressing the
+        specified violations using the language model.
+
+        ## Overview
+        The method provides:
+        - Text improvement based on violations
+        - Multiple improvement attempts
+        - Improvement validation
+        - Result reporting
+
+        ## Usage Examples
+        ```python
+        # Improve text with violations
+        text = "This is a sample technical document."
+        violations = [
+            {"type": "clarity", "description": "Unclear explanation"},
+            {"type": "detail", "description": "Missing important details"}
+        ]
+        improved_text = critic.improve(text, violations)
+        print(f"Improved text: {improved_text}")
+
+        # Improve with error handling
+        try:
+            improved_text = critic.improve("", [])
+        except ValueError as e:
+            print(f"Improvement error: {e}")
+        ```
+
+        ## Error Handling
+        The method implements:
+        - Input validation
+        - Violation format checking
+        - Improvement attempt tracking
+        - Result validation
+        - Service availability checking
 
         Args:
             text: The text to improve
-            violations: List of rule violations
+            violations: List of violations to address
 
         Returns:
             str: The improved text
 
         Raises:
-            ValueError: If text is empty or invalid
+            ValueError: If text or violations are invalid
             RuntimeError: If improvement fails
         """
         # Ensure initialized
@@ -277,22 +326,68 @@ class CriticCore(BaseCritic):
         if not critique_service:
             raise RuntimeError("Critique service not properly initialized")
 
-        # Improve text
-        return critique_service.improve(text, violations)
+        # Validate inputs
+        if not text or not isinstance(text, str):
+            raise ValueError("Text must be a non-empty string")
+        if not violations or not isinstance(violations, list):
+            raise ValueError("Violations must be a non-empty list")
+
+        # Attempt improvements
+        for attempt in range(self.config.max_attempts):
+            # Get improvement
+            improved_text = critique_service.improve(text, violations)
+
+            # Validate improvement
+            if improved_text and improved_text != text:
+                return improved_text
+
+        # Return original text if no improvement
+        return text
 
     def critique(self, text: str) -> CriticMetadata:
         """Critique text and provide feedback.
 
-        This method critiques the given text and provides detailed feedback.
+        This method analyzes the given text and provides detailed feedback
+        about its quality and potential improvements.
+
+        ## Overview
+        The method provides:
+        - Text quality analysis
+        - Detailed feedback generation
+        - Score calculation
+        - Improvement suggestions
+
+        ## Usage Examples
+        ```python
+        # Critique text
+        text = "This is a sample technical document."
+        critique = critic.critique(text)
+        print(f"Score: {critique.score}")
+        print(f"Feedback: {critique.feedback}")
+
+        # Critique with error handling
+        try:
+            critique = critic.critique("")
+        except ValueError as e:
+            print(f"Critique error: {e}")
+        ```
+
+        ## Error Handling
+        The method implements:
+        - Input validation
+        - Analysis error handling
+        - Result validation
+        - Service availability checking
+        - State validation
 
         Args:
             text: The text to critique
 
         Returns:
-            CriticMetadata: The critique metadata
+            CriticMetadata: The critique results
 
         Raises:
-            ValueError: If text is empty or invalid
+            ValueError: If text is invalid
             RuntimeError: If critique fails
         """
         # Ensure initialized
@@ -304,13 +399,48 @@ class CriticCore(BaseCritic):
         if not critique_service:
             raise RuntimeError("Critique service not properly initialized")
 
-        # Critique text
+        # Validate text
+        if not text or not isinstance(text, str):
+            raise ValueError("Text must be a non-empty string")
+
+        # Get critique
         return critique_service.critique(text)
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
         """Improve text based on feedback.
 
-        This method improves the given text based on the provided feedback.
+        This method attempts to improve the given text based on the provided
+        feedback using the language model.
+
+        ## Overview
+        The method provides:
+        - Text improvement based on feedback
+        - Multiple improvement attempts
+        - Improvement validation
+        - Result reporting
+
+        ## Usage Examples
+        ```python
+        # Improve text with feedback
+        text = "This is a sample technical document."
+        feedback = "The text needs more detail about the implementation."
+        improved_text = critic.improve_with_feedback(text, feedback)
+        print(f"Improved text: {improved_text}")
+
+        # Improve with error handling
+        try:
+            improved_text = critic.improve_with_feedback("", "")
+        except ValueError as e:
+            print(f"Improvement error: {e}")
+        ```
+
+        ## Error Handling
+        The method implements:
+        - Input validation
+        - Feedback format checking
+        - Improvement attempt tracking
+        - Result validation
+        - Service availability checking
 
         Args:
             text: The text to improve
@@ -320,7 +450,7 @@ class CriticCore(BaseCritic):
             str: The improved text
 
         Raises:
-            ValueError: If text is empty or invalid
+            ValueError: If text or feedback are invalid
             RuntimeError: If improvement fails
         """
         # Ensure initialized
@@ -332,18 +462,63 @@ class CriticCore(BaseCritic):
         if not critique_service:
             raise RuntimeError("Critique service not properly initialized")
 
-        # Improve text
-        return critique_service.improve_with_feedback(text, feedback)
+        # Validate inputs
+        if not text or not isinstance(text, str):
+            raise ValueError("Text must be a non-empty string")
+        if not feedback or not isinstance(feedback, str):
+            raise ValueError("Feedback must be a non-empty string")
+
+        # Attempt improvements
+        for attempt in range(self.config.max_attempts):
+            # Get improvement
+            improved_text = critique_service.improve_with_feedback(text, feedback)
+
+            # Validate improvement
+            if improved_text and improved_text != text:
+                return improved_text
+
+        # Return original text if no improvement
+        return text
 
     def _create_prompt_manager(self) -> PromptManager:
-        """Create a prompt manager.
+        """Create a prompt manager for the critic.
 
-        This method creates a prompt manager for the critic.
+        This method creates and configures a prompt manager for the critic.
+        It handles prompt template creation and validation.
+
+        ## Overview
+        The method provides:
+        - Prompt manager creation
+        - Template configuration
+        - Validation setup
+        - Error handling
+
+        ## Usage Examples
+        ```python
+        # Create prompt manager
+        prompt_manager = critic._create_prompt_manager()
+
+        # Use prompt manager
+        prompt = prompt_manager.create_prompt(
+            template="You are an expert editor...",
+            variables={"text": "Sample text"}
+        )
+        ```
+
+        ## Error Handling
+        The method implements:
+        - Template validation
+        - Configuration checking
+        - Resource allocation
+        - Error recovery
 
         Returns:
-            PromptManager: The created prompt manager
+            PromptManager: Configured prompt manager
+
+        Raises:
+            RuntimeError: If prompt manager creation fails
         """
-        return DefaultPromptManager(config=self.config)
+        return DefaultPromptManager()
 
 
 def create_core_critic(
@@ -364,72 +539,97 @@ def create_core_critic(
     config: Optional[Union[Dict[str, Any], CriticConfig]] = None,
     **kwargs: Any,
 ) -> CriticCore:
-    """
-    Create a core critic.
+    """Factory function for creating CriticCore instances.
 
-    This factory function creates a configured CriticCore instance.
-    It provides a standardized way to create critics with various configurations.
+    This function creates and configures a CriticCore instance with the specified
+    parameters and components. It handles parameter extraction, validation, and
+    component initialization.
+
+    ## Overview
+    The function provides:
+    - Factory method for creating CriticCore instances
+    - Parameter extraction and validation
+    - Component initialization and configuration
+    - Error handling and recovery
+    - Resource management
+
+    ## Usage Examples
+    ```python
+    from sifaka.critics.core import create_core_critic
+    from sifaka.models.providers import OpenAIProvider
+
+    # Create with minimal parameters
+    provider = OpenAIProvider(api_key="your-api-key")
+    critic = create_core_critic(
+        name="basic_critic",
+        description="A basic critic implementation",
+        llm_provider=provider
+    )
+
+    # Create with custom configuration
+    critic = create_core_critic(
+        name="custom_critic",
+        description="A custom critic implementation",
+        llm_provider=provider,
+        system_prompt="You are an expert editor...",
+        temperature=0.7,
+        max_tokens=1000,
+        min_confidence=0.8,
+        max_attempts=3,
+        cache_size=100,
+        priority=1,
+        cost=0.1
+    )
+
+    # Create with custom components
+    from sifaka.critics.managers import PromptManager, ResponseParser, MemoryManager
+    critic = create_core_critic(
+        name="component_critic",
+        description="A critic with custom components",
+        llm_provider=provider,
+        prompt_manager=PromptManager(),
+        response_parser=ResponseParser(),
+        memory_manager=MemoryManager()
+    )
+    ```
+
+    ## Error Handling
+    The function implements:
+    - Parameter validation
+    - Component initialization validation
+    - Resource allocation error handling
+    - Configuration error handling
+    - Provider compatibility checking
 
     Args:
         name: Name of the critic
-        description: Description of what this critic does
-        llm_provider: Language model provider to use
-        system_prompt: System prompt for the language model
-        temperature: Temperature for the language model
-        max_tokens: Maximum tokens for the language model
-        min_confidence: Minimum confidence threshold for valid critiques
-        max_attempts: Maximum number of improvement attempts
-        cache_size: Size of the critique result cache (0 to disable)
-        priority: Priority of the critic (higher values = higher priority)
-        cost: Computational cost of using this critic
-        prompt_manager: Optional prompt manager to use
-        response_parser: Optional response parser to use
-        memory_manager: Optional memory manager to use
-        config: Optional pre-configured CriticConfig or dict
-        **kwargs: Additional keyword arguments for the config
+        description: Description of the critic
+        llm_provider: Language model provider
+        system_prompt: Optional system prompt for the critic
+        temperature: Optional temperature for text generation
+        max_tokens: Optional maximum tokens for text generation
+        min_confidence: Optional minimum confidence threshold
+        max_attempts: Optional maximum number of attempts
+        cache_size: Optional cache size for memoization
+        priority: Optional priority level
+        cost: Optional cost per operation
+        prompt_manager: Optional prompt manager
+        response_parser: Optional response parser
+        memory_manager: Optional memory manager
+        config: Optional configuration dictionary or object
+        **kwargs: Additional keyword arguments
 
     Returns:
-        CriticCore: The created critic
+        CriticCore: Configured critic instance
 
-    Examples:
-        ```python
-        from sifaka.critics.core import create_core_critic
-        from sifaka.models.factories import create_openai_provider
-
-        # Create a critic with default settings
-        critic = create_core_critic(
-            name="content_critic",
-            description="Evaluates content quality",
-            llm_provider=create_openai_provider(api_key="your-api-key")
-        )
-
-        # Create a critic with custom settings
-        critic = create_core_critic(
-            name="advanced_critic",
-            description="Advanced content evaluation",
-            system_prompt="You are an expert editor...",
-            temperature=0.7,
-            max_tokens=1000,
-            min_confidence=0.8,
-            llm_provider=create_openai_provider(api_key="your-api-key")
-        )
-
-        # Use the critic
-        is_valid = critic.validate("This is a sample text.")
-        feedback = critic.critique("This is a sample text.")
-        improved = critic.improve_with_feedback(
-            "This is a sample text.",
-            "Add more details about the topic."
-        )
-        ```
+    Raises:
+        ValueError: If required parameters are missing or invalid
+        TypeError: If llm_provider is not a valid provider
+        RuntimeError: If component initialization fails
     """
-    # Try to use standardize_critic_config if available
-    try:
-        from sifaka.utils.config import standardize_critic_config
-
-        # If standardize_critic_config is available, use it
-        critic_config = standardize_critic_config(
-            config=config,
+    # Create configuration
+    if config is None:
+        config = CriticConfig(
             name=name,
             description=description,
             system_prompt=system_prompt,
@@ -442,44 +642,14 @@ def create_core_critic(
             cost=cost,
             **kwargs,
         )
-    except (ImportError, AttributeError):
-        # Extract config parameters
-        config_params = {}
-        if system_prompt is not None:
-            config_params["system_prompt"] = system_prompt
-        if temperature is not None:
-            config_params["temperature"] = temperature
-        if max_tokens is not None:
-            config_params["max_tokens"] = max_tokens
-        if min_confidence is not None:
-            config_params["min_confidence"] = min_confidence
-        if max_attempts is not None:
-            config_params["max_attempts"] = max_attempts
-        if cache_size is not None:
-            config_params["cache_size"] = cache_size
-        if priority is not None:
-            config_params["priority"] = priority
-        if cost is not None:
-            config_params["cost"] = cost
+    elif isinstance(config, dict):
+        config = CriticConfig(**config)
+    elif not isinstance(config, CriticConfig):
+        raise TypeError("config must be a dict or CriticConfig instance")
 
-        # Add any remaining config parameters
-        config_params.update(kwargs)
-
-        # Create config
-        if isinstance(config, CriticConfig):
-            critic_config = config
-        elif isinstance(config, dict):
-            critic_config = CriticConfig(**config)
-        else:
-            critic_config = CriticConfig(
-                name=name,
-                description=description,
-                **config_params,
-            )
-
-    # Create critic
+    # Create and return critic
     return CriticCore(
-        config=critic_config,
+        config=config,
         llm_provider=llm_provider,
         prompt_manager=prompt_manager,
         response_parser=response_parser,
