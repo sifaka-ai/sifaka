@@ -1,8 +1,71 @@
 """
-Validation manager module for Sifaka.
+Validation Manager Module
 
-This module provides the ValidationManager class which is responsible for
-validating outputs against rules.
+Manages validation rules and execution for Sifaka's chain system.
+
+## Overview
+This module provides the ValidationManager class which handles validation of outputs
+against rules. It manages rule registration, validation execution, and error message
+generation, providing a centralized way to handle validation in the chain system.
+
+## Components
+1. **ValidationManager**: Main validation management class
+   - Rule management
+   - Validation execution
+   - Error message generation
+
+2. **Validator**: Core validation engine
+   - Rule execution
+   - Result aggregation
+   - Error handling
+
+## Usage Examples
+```python
+from sifaka.chain.managers.validation import ValidationManager
+from sifaka.rules import create_length_rule, create_toxicity_rule
+
+# Create rules
+rules = [
+    create_length_rule(min_length=10, max_length=1000),
+    create_toxicity_rule(threshold=0.7)
+]
+
+# Create validation manager
+manager = ValidationManager(
+    rules=rules,
+    prioritize_by_cost=True,
+    fail_fast=True
+)
+
+# Validate output
+result = manager.validate("Some output text")
+
+# Check validation result
+if result.all_passed:
+    print("Validation passed!")
+else:
+    error_messages = manager.get_error_messages(result)
+    print("Validation failed:")
+    for msg in error_messages:
+        print(f"- {msg}")
+
+# Add new rule
+new_rule = create_length_rule(min_length=20)
+manager.add_rule(new_rule)
+
+# Remove rule
+manager.remove_rule("length_rule")
+```
+
+## Error Handling
+- ValueError: Raised for invalid rules or rule operations
+- ValidationError: Raised when validation fails
+- TypeError: Raised for type validation failures
+
+## Configuration
+- rules: List of validation rules to apply
+- prioritize_by_cost: Whether to sort rules by cost (lowest first)
+- fail_fast: Whether to stop after first failure
 """
 
 from typing import Any, Generic, List, Optional, TypeVar
@@ -22,10 +85,60 @@ class ValidationManager(
     ValidationManagerProtocol[OutputType, ValidationResult[OutputType]], Generic[OutputType]
 ):
     """
-    Manages validation for chains.
+    Manages validation rules and execution for chains.
 
-    This class is responsible for validating outputs against rules and
-    managing rule-related functionality. It implements the ValidationManagerProtocol interface.
+    ## Overview
+    This class provides centralized management of validation rules and their
+    execution. It handles rule registration, validation execution, and error
+    message generation, implementing the ValidationManagerProtocol interface.
+
+    ## Architecture
+    ValidationManager follows a manager pattern:
+    1. **Rule Management**: Handles rule registration and removal
+    2. **Validation Execution**: Coordinates rule execution
+    3. **Result Handling**: Manages validation results and errors
+
+    ## Lifecycle
+    1. **Initialization**: Set up with rules and configuration
+       - Register validation rules
+       - Configure validation behavior
+       - Create validator instance
+
+    2. **Operation**: Handle validation requests
+       - Execute validation
+       - Generate error messages
+       - Manage rules dynamically
+
+    ## Error Handling
+    - ValueError: Raised for invalid rules or rule operations
+    - ValidationError: Raised when validation fails
+    - TypeError: Raised for type validation failures
+
+    ## Examples
+    ```python
+    from sifaka.chain.managers.validation import ValidationManager
+    from sifaka.rules import create_length_rule
+
+    # Create manager
+    manager = ValidationManager(
+        rules=[create_length_rule(min_length=10)],
+        prioritize_by_cost=True,
+        fail_fast=True
+    )
+
+    # Validate output
+    result = manager.validate("Some text")
+    if not result.all_passed:
+        errors = manager.get_error_messages(result)
+        print("Validation failed:", errors)
+
+    # Add new rule
+    new_rule = create_length_rule(max_length=1000)
+    manager.add_rule(new_rule)
+    ```
+
+    Type parameters:
+        OutputType: The type of output being validated
     """
 
     def __init__(
@@ -33,6 +146,21 @@ class ValidationManager(
     ):
         """
         Initialize a ValidationManager instance.
+
+        ## Overview
+        This method sets up the validation manager with the provided rules
+        and configuration options. It creates a validator instance with the
+        specified behavior.
+
+        ## Lifecycle
+        1. **Rule Setup**: Register initial rules
+           - Store rule list
+           - Configure rule ordering
+
+        2. **Configuration**: Set validation behavior
+           - Configure prioritization
+           - Configure fail-fast behavior
+           - Create validator instance
 
         Args:
             rules: The rules to validate against

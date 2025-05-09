@@ -1,8 +1,85 @@
 """
-Utility functions for chains in Sifaka.
+Chain Utilities Module
 
+A collection of utility functions for Sifaka's chain system.
+
+## Overview
 This module provides utility functions for chains in the Sifaka framework,
-including error handling, result creation, and chain helpers.
+including error handling, result creation, and chain helpers. These utilities
+help standardize common operations and error handling patterns across the
+chain system.
+
+## Components
+1. **create_chain_result**: Creates standardized chain results
+2. **create_error_result**: Creates standardized error results
+3. **try_chain_operation**: Executes chain operations with error handling
+
+## Usage Examples
+```python
+from sifaka.chain.utils import create_chain_result, create_error_result, try_chain_operation
+
+# Create a chain result
+result = create_chain_result(
+    output="Generated text output",
+    rule_results=[
+        {"rule_name": "length_rule", "passed": True, "details": {"length": 100}}
+    ],
+    critique_details={
+        "feedback": "Good text, but could be more concise",
+        "suggestions": ["Remove redundant phrases", "Use active voice"]
+    },
+    attempts=2,
+    metadata={"model": "gpt-3.5-turbo", "temperature": 0.7}
+)
+
+# Create an error result
+error_result = create_error_result(
+    error=ValueError("Invalid input"),
+    chain_name="my_chain",
+    log_level="error"
+)
+
+# Execute a chain operation with error handling
+def run_chain(prompt: str) -> ChainResult[str]:
+    # Chain logic
+    output = model.generate(prompt)
+    return create_chain_result(
+        output=output,
+        rule_results=[],
+        attempts=1,
+    )
+
+result = try_chain_operation(
+    lambda: run_chain(prompt),
+    chain_name="my_chain",
+    log_level="error",
+    default_result=None
+)
+```
+
+## Error Handling
+- ChainError: Raised when chain execution fails
+- ValueError: Raised when input validation fails
+- TypeError: Raised when type validation fails
+
+## Configuration
+- create_chain_result:
+  - output: The generated output
+  - rule_results: Results of rule validations
+  - critique_details: Details about the critique
+  - attempts: Number of attempts made
+  - metadata: Additional metadata
+
+- create_error_result:
+  - error: The exception that occurred
+  - chain_name: Name of the chain
+  - log_level: Log level to use
+
+- try_chain_operation:
+  - operation_func: The operation function
+  - chain_name: Name of the chain
+  - log_level: Log level to use
+  - default_result: Default result if operation fails
 """
 
 from typing import Any, Dict, List, Optional, TypeVar, Callable, cast, Union, Generic
@@ -27,15 +104,48 @@ def create_chain_result(
     """
     Create a chain result with standardized structure.
 
+    Detailed description of what the function does, including:
+    - Creates a standardized ChainResult object
+    - Ensures consistent structure across all chain results
+    - Handles optional parameters with defaults
+
     Args:
-        output: The generated output
-        rule_results: Results of rule validations
-        critique_details: Details about the critique if available
-        attempts: Number of attempts made
-        metadata: Additional metadata
+        output (T): The generated output
+        rule_results (Optional[List[Any]]): Results of rule validations
+        critique_details (Optional[Dict[str, Any]]): Details about the critique if available
+        attempts (int): Number of attempts made
+        metadata (Optional[Dict[str, Any]]): Additional metadata
 
     Returns:
-        Standardized chain result
+        ChainResult[T]: Standardized chain result
+
+    Raises:
+        ValueError: When input validation fails
+        TypeError: When type validation fails
+
+    Example:
+        ```python
+        # Create a basic chain result
+        result = create_chain_result(
+            output="Generated text output",
+            rule_results=[
+                {"rule_name": "length_rule", "passed": True, "details": {"length": 100}}
+            ],
+            attempts=1
+        )
+
+        # Create a result with critique details
+        result_with_critique = create_chain_result(
+            output="Generated text output",
+            rule_results=[],
+            critique_details={
+                "feedback": "Good text, but could be more concise",
+                "suggestions": ["Remove redundant phrases", "Use active voice"]
+            },
+            attempts=2,
+            metadata={"model": "gpt-3.5-turbo", "temperature": 0.7}
+        )
+        ```
     """
     return ChainResult(
         output=output,
@@ -54,23 +164,34 @@ def create_error_result(
     """
     Create a result for a chain error.
 
-    This function creates a standardized result for a chain error,
-    including error type, message, and metadata.
+    Detailed description of what the function does, including:
+    - Creates a standardized result for a chain error
+    - Includes error type, message, and metadata
+    - Ensures consistent error handling across the chain system
 
     Args:
-        error: The exception that occurred
-        chain_name: Name of the chain where the error occurred
-        log_level: Log level to use (default: "error")
+        error (Exception): The exception that occurred
+        chain_name (str): Name of the chain
+        log_level (str): Log level to use
 
     Returns:
-        Error result with error information
+        ErrorResult: Standardized error result
+
+    Raises:
+        ValueError: When input validation fails
+        TypeError: When type validation fails
+
+    Example:
+        ```python
+        # Create an error result
+        error_result = create_error_result(
+            error=ValueError("Invalid input"),
+            chain_name="my_chain",
+            log_level="error"
+        )
+        ```
     """
-    # Handle the error
-    return handle_chain_error(
-        error=error,
-        chain_name=chain_name,
-        log_level=log_level,
-    )
+    return handle_chain_error(error, chain_name, log_level)
 
 
 def try_chain_operation(
@@ -80,24 +201,30 @@ def try_chain_operation(
     default_result: Optional[T] = None,
 ) -> T:
     """
-    Execute a chain operation with standardized error handling.
+    Execute a chain operation with error handling.
 
-    This function executes a chain operation and handles any errors
-    that occur, providing standardized error handling and logging.
+    Detailed description of what the function does, including:
+    - Executes a chain operation with standardized error handling
+    - Returns default result if operation fails
+    - Logs errors with specified log level
 
     Args:
-        operation_func: The operation function to execute
-        chain_name: Name of the chain executing the operation
-        log_level: Log level to use for errors
-        default_result: Default result to return if operation fails
+        operation_func (Callable[[], T]): The operation function to execute
+        chain_name (str): Name of the chain
+        log_level (str): Log level to use
+        default_result (Optional[T]): Default result if operation fails
 
     Returns:
-        Result of the operation or default result if it fails
+        T: Result of the operation or default result if operation fails
 
-    Examples:
+    Raises:
+        ChainError: When chain execution fails
+        ValueError: When input validation fails
+        TypeError: When type validation fails
+
+    Example:
         ```python
-        from sifaka.chain.utils import try_chain_operation, create_chain_result
-
+        # Execute a chain operation with error handling
         def run_chain(prompt: str) -> ChainResult[str]:
             # Chain logic
             output = model.generate(prompt)
@@ -107,20 +234,15 @@ def try_chain_operation(
                 attempts=1,
             )
 
-        # Use try_chain_operation to handle errors
         result = try_chain_operation(
             lambda: run_chain(prompt),
             chain_name="my_chain",
+            log_level="error",
+            default_result=None
         )
         ```
     """
-    # Use try_operation with default result
-    return try_operation(
-        operation=operation_func,
-        component_name=f"Chain:{chain_name}",
-        default_value=default_result,
-        log_level=log_level,
-    )
+    return try_operation(operation_func, chain_name, log_level, default_result)
 
 
 __all__ = [

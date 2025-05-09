@@ -1,34 +1,20 @@
 """
-Adapter for using classifiers as rules.
+Classifier Adapter
 
+Adapter for using classifiers as rules in the Sifaka framework.
+
+## Overview
 This module provides adapters for using classifiers as validation rules. It enables
 the integration of classification models into Sifaka's validation system, allowing
 for sophisticated content analysis and validation.
 
-## Architecture Overview
-
-The classifier adapter follows an adapter pattern to convert classifiers into validation rules:
-
+## Components
 1. **Classifier Protocol**: Defines the expected interface for classifiers
 2. **ClassifierAdapter**: Adapts classifiers to work as validators
 3. **ClassifierRule**: Rule that uses a classifier for validation
 4. **Factory Functions**: Simple creation patterns for classifier-based rules
 
-## Component Lifecycle
-
-### ClassifierAdapter
-1. **Initialization**: Set up with classifier and configuration
-2. **Validation**: Run classifier on input text
-3. **Result Conversion**: Convert classification to standardized rule result
-
-### ClassifierRule
-1. **Initialization**: Set up with classifier and configuration
-2. **Text Extraction**: Extract relevant text from input if needed
-3. **Classification**: Apply classifier to extracted text
-4. **Result Evaluation**: Determine if classification meets criteria
-
 ## Usage Examples
-
 ```python
 from sifaka.adapters.classifier import create_classifier_rule
 from sifaka.classifiers.safety import SentimentClassifier
@@ -48,6 +34,17 @@ rule = create_classifier_rule(
 result = rule.validate("This is a great example!")
 print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
+
+## Error Handling
+- ConfigurationError: Raised when classifier configuration is invalid
+- ValidationError: Raised when validation fails
+- TypeError: Raised when input types are incompatible
+
+## Configuration
+- threshold: Confidence threshold for accepting classifications
+- valid_labels: List of labels considered valid
+- invalid_labels: Optional list of labels considered invalid
+- extraction_function: Optional function to extract text for classification
 """
 
 from typing import (
@@ -80,49 +77,59 @@ class Classifier(Protocol):
     """
     Protocol for classifiers.
 
+    ## Overview
     Classes implementing this protocol can classify text
     and provide standardized classification results.
 
-    Lifecycle:
+    ## Architecture
+    The protocol defines a minimal interface that classifiers must implement
+    to be compatible with Sifaka's adapter system.
+
+    ## Lifecycle
     1. Initialization: Set up with model and configuration
     2. Classification: Process input text and apply classification logic
     3. Result: Return standardized classification results
 
-    Examples:
-        ```python
-        from sifaka.classifiers.base import ClassificationResult
+    ## Error Handling
+    - ValueError: Raised when input text is invalid
+    - RuntimeError: Raised when classification fails
+    - TypeError: Raised when input types are incompatible
 
-        class SentimentClassifier:
-            @property
-            def name(self) -> str:
-                return "sentiment_classifier"
+    ## Examples
+    ```python
+    from sifaka.classifiers.base import ClassificationResult
 
-            @property
-            def description(self) -> str:
-                return "Classifies text sentiment"
+    class SentimentClassifier:
+        @property
+        def name(self) -> str:
+            return "sentiment_classifier"
 
-            @property
-            def config(self) -> Any:
-                return self._config
+        @property
+        def description(self) -> str:
+            return "Classifies text sentiment"
 
-            def classify(self, text: str) -> ClassificationResult:
-                # Apply classification logic
-                if "good" in text.lower():
-                    return ClassificationResult(
-                        label="positive",
-                        confidence=0.9,
-                        metadata={"input_length": len(text)}
-                    )
-                else:
-                    return ClassificationResult(
-                        label="neutral",
-                        confidence=0.7,
-                        metadata={"input_length": len(text)}
-                    )
+        @property
+        def config(self) -> Any:
+            return self._config
 
-            def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
-                return [self.classify(text) for text in texts]
-        ```
+        def classify(self, text: str) -> ClassificationResult:
+            # Apply classification logic
+            if "good" in text.lower():
+                return ClassificationResult(
+                    label="positive",
+                    confidence=0.9,
+                    metadata={"input_length": len(text)}
+                )
+            else:
+                return ClassificationResult(
+                    label="neutral",
+                    confidence=0.7,
+                    metadata={"input_length": len(text)}
+                )
+
+        def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
+            return [self.classify(text) for text in texts]
+    ```
     """
 
     def classify(self, text: str) -> ClassificationResult:
@@ -130,10 +137,14 @@ class Classifier(Protocol):
         Classify text and return a classification result.
 
         Args:
-            text: The text to classify
+            text (str): The text to classify
 
         Returns:
-            Classification result with label, confidence, and metadata
+            ClassificationResult: Classification result with label, confidence, and metadata
+
+        Raises:
+            ValueError: If input text is invalid
+            RuntimeError: If classification fails
         """
         ...
 
@@ -142,10 +153,14 @@ class Classifier(Protocol):
         Classify multiple texts and return classification results.
 
         Args:
-            texts: List of texts to classify
+            texts (List[str]): List of texts to classify
 
         Returns:
-            List of classification results
+            List[ClassificationResult]: List of classification results
+
+        Raises:
+            ValueError: If any input text is invalid
+            RuntimeError: If classification fails
         """
         ...
 
@@ -155,7 +170,7 @@ class Classifier(Protocol):
         Get the classifier name.
 
         Returns:
-            The name of the classifier
+            str: The name of the classifier
         """
         ...
 
@@ -165,7 +180,7 @@ class Classifier(Protocol):
         Get the classifier description.
 
         Returns:
-            The description of the classifier
+            str: The description of the classifier
         """
         ...
 
@@ -175,7 +190,7 @@ class Classifier(Protocol):
         Get the classifier configuration.
 
         Returns:
-            The configuration of the classifier
+            Any: The configuration of the classifier
         """
         ...
 
@@ -184,26 +199,37 @@ class ClassifierRuleConfig(BaseModel):
     """
     Configuration for classifier rules.
 
+    ## Overview
     This class provides configuration options for rules that use classifiers
     for validation.
 
+    ## Architecture
+    The configuration follows a standard pattern with:
+    1. Threshold for confidence scores
+    2. Lists of valid and invalid labels
+    3. Optional text extraction function
+
+    ## Error Handling
+    - ValueError: Raised when threshold is invalid
+    - TypeError: Raised when label lists are invalid
+
+    ## Examples
+    ```python
+    from sifaka.adapters.classifier import ClassifierRuleConfig
+
+    # Create a configuration
+    config = ClassifierRuleConfig(
+        threshold=0.8,
+        valid_labels=["positive", "neutral"],
+        extraction_function=lambda text: text.split(":")[-1] if ":" in text else text
+    )
+    ```
+
     Attributes:
-        threshold: Confidence threshold for accepting a classification
-        valid_labels: List of valid labels
-        invalid_labels: Optional list of invalid labels
-        extraction_function: Optional function to extract text to classify
-
-    Examples:
-        ```python
-        from sifaka.adapters.classifier import ClassifierRuleConfig
-
-        # Create a configuration
-        config = ClassifierRuleConfig(
-            threshold=0.8,
-            valid_labels=["positive", "neutral"],
-            extraction_function=lambda text: text.split(":")[-1] if ":" in text else text
-        )
-        ```
+        threshold (float): Confidence threshold for accepting a classification
+        valid_labels (List[str]): List of valid labels
+        invalid_labels (Optional[List[str]]): Optional list of invalid labels
+        extraction_function (Optional[Callable[[str], str]]): Optional function to extract text to classify
     """
 
     threshold: float = Field(
@@ -230,42 +256,56 @@ class ClassifierRule(Rule):
     """
     Rule that uses a classifier for validation.
 
+    ## Overview
     This rule adapts a classifier to function as a validation rule, allowing
     for sophisticated content analysis and validation based on classification
     results.
 
-    Attributes:
-        classifier: The classifier to use for validation
-        threshold: Confidence threshold for accepting classifications
-        valid_labels: List of labels considered valid
-        invalid_labels: Optional list of labels considered invalid
-        extraction_function: Optional function to extract text for classification
-        rule_id: Unique identifier for the rule
-        name: Human-readable name of the rule
-        description: Description of the rule's purpose
-        severity: Severity level of validation failures
+    ## Architecture
+    The rule follows a standard pattern:
+    1. Text extraction (if needed)
+    2. Classification
+    3. Result evaluation
+    4. Rule result generation
 
-    Lifecycle:
+    ## Lifecycle
     1. Initialization: Set up with classifier and configuration
     2. Text Extraction: Extract relevant text if needed
     3. Classification: Apply classifier to text
-    4. Result Evaluation: Check if classification meets criteria
+    4. Result Evaluation: Determine if classification meets criteria
 
-    Examples:
-        ```python
-        # Create a sentiment rule
-        rule = ClassifierRule(
-            classifier=SentimentClassifier(),
-            threshold=0.8,
-            valid_labels=["positive", "neutral"],
-            name="positive_sentiment_rule",
-            description="Ensures text has positive or neutral sentiment"
-        )
+    ## Error Handling
+    - ConfigurationError: Raised when configuration is invalid
+    - ValidationError: Raised when validation fails
+    - TypeError: Raised when input types are incompatible
 
-        # Validate text
-        result = rule.validate("This is great!")
-        print(f"Validation {'passed' if result.passed else 'failed'}")
-        ```
+    ## Examples
+    ```python
+    from sifaka.adapters.classifier import create_classifier_rule
+    from sifaka.classifiers.safety import SentimentClassifier
+
+    # Create a rule
+    classifier = SentimentClassifier()
+    rule = create_classifier_rule(
+        classifier=classifier,
+        threshold=0.8,
+        valid_labels=["positive", "neutral"]
+    )
+
+    # Use the rule
+    result = rule.validate("This is a great example!")
+    ```
+
+    Attributes:
+        classifier (Classifier): The classifier to use for validation
+        threshold (float): Confidence threshold for accepting classifications
+        valid_labels (List[str]): List of labels considered valid
+        invalid_labels (Optional[List[str]]): Optional list of labels considered invalid
+        extraction_function (Optional[Callable[[str], str]]): Optional function to extract text for classification
+        rule_id (str): Unique identifier for the rule
+        name (str): Human-readable name of the rule
+        description (str): Description of the rule's purpose
+        severity (str): Severity level of validation failures
     """
 
     def __init__(
@@ -547,75 +587,53 @@ class ClassifierRule(Rule):
 
 class ClassifierAdapter(BaseAdapter[str, Classifier]):
     """
-    Adapter that converts classifiers to validators.
+    Adapter for using classifiers as validators.
 
-    This adapter bridges between Sifaka's validation system and classifiers,
-    allowing classifiers to be used as validation rules. It handles the
-    conversion of classification results to validation results.
+    ## Overview
+    This adapter converts classifiers into validators, allowing them to be used
+    in Sifaka's validation system.
 
     ## Architecture
-    The ClassifierAdapter follows the Adapter pattern to convert classifiers into validators:
-    - Wraps a classifier instance that implements the Classifier protocol
-    - Provides a validate() method that conforms to the BaseValidator interface
-    - Manages configuration for validation thresholds and valid labels
-    - Converts classification results to standardized RuleResults
+    The adapter follows a standard pattern:
+    1. Text extraction (if needed)
+    2. Classification
+    3. Result evaluation
+    4. Rule result generation
 
     ## Lifecycle
     1. Initialization: Set up with classifier and configuration
-    2. Validation: Run classifier on input text
-    3. Result Conversion: Convert classification to validation result
-    4. Caching: Optionally cache results for performance
+    2. Text Extraction: Extract relevant text if needed
+    3. Classification: Apply classifier to text
+    4. Result Evaluation: Determine if classification meets criteria
 
     ## Error Handling
-    - Empty text is handled according to Sifaka conventions
-    - Classifier exceptions are caught and converted to failed validation results
-    - Configuration errors are detected during initialization
+    - ConfigurationError: Raised when configuration is invalid
+    - ValidationError: Raised when validation fails
+    - TypeError: Raised when input types are incompatible
+
+    ## Examples
+    ```python
+    from sifaka.adapters.classifier import create_classifier_adapter
+    from sifaka.classifiers.safety import SentimentClassifier
+
+    # Create an adapter
+    classifier = SentimentClassifier()
+    adapter = create_classifier_adapter(
+        classifier=classifier,
+        threshold=0.8,
+        valid_labels=["positive", "neutral"]
+    )
+
+    # Use the adapter
+    result = adapter.validate("This is a great example!")
+    ```
 
     Attributes:
-        classifier: The classifier being adapted
-        threshold: Confidence threshold for accepting classifications
-        valid_labels: List of labels considered valid
-        invalid_labels: Optional list of labels considered invalid
-        extraction_function: Optional function to extract text for classification
-
-    Examples:
-        ```python
-        from sifaka.adapters.classifier import ClassifierAdapter
-        from sifaka.classifiers.toxicity import create_toxicity_classifier
-
-        # Create a toxicity classifier
-        toxicity_classifier = create_toxicity_classifier()
-
-        # Create an adapter with basic configuration
-        adapter = ClassifierAdapter(
-            classifier=toxicity_classifier,
-            threshold=0.8,
-            valid_labels=["non_toxic"]
-        )
-
-        # Validate text
-        result = adapter.validate("This is a friendly message")
-        print(f"Validation {'passed' if result.passed else 'failed'}")
-        print(f"Label: {result.metadata['label']}")
-        print(f"Confidence: {result.metadata['confidence']}")
-
-        # Using an extraction function
-        def extract_content(text):
-            # Extract just the content part after "Content: "
-            if "Content: " in text:
-                return text.split("Content: ")[1]
-            return text
-
-        adapter_with_extraction = ClassifierAdapter(
-            classifier=toxicity_classifier,
-            threshold=0.7,
-            valid_labels=["non_toxic"],
-            extraction_function=extract_content
-        )
-
-        # The adapter will only classify the extracted part
-        result = adapter_with_extraction.validate("Message type: Email, Content: Hello team!")
-        ```
+        classifier (Classifier): The classifier to use for validation
+        threshold (float): Confidence threshold for accepting classifications
+        valid_labels (List[str]): List of labels considered valid
+        invalid_labels (Optional[List[str]]): Optional list of labels considered invalid
+        extraction_function (Optional[Callable[[str], str]]): Optional function to extract text for classification
     """
 
     def __init__(
@@ -663,7 +681,7 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
             def extract_message(text):
                 # Extract message content from a structured format
                 if ":" in text:
-                    return text.split(":", 1)[1].strip()
+                    return text.split("Content:")[1].strip()
                 return text
 
             adapter = ClassifierAdapter(
@@ -897,62 +915,46 @@ def create_classifier_rule(
     **kwargs: Any,
 ) -> ClassifierRule:
     """
-    Create a rule from a classifier.
+    Factory function to create a classifier rule.
 
-    This factory function creates a ClassifierRule with the specified
-    configuration options. It follows the standard Sifaka configuration pattern
-    by using RuleConfig with params for all configuration options.
+    ## Overview
+    This function simplifies the creation of classifier rules by providing a
+    consistent interface.
 
     Args:
-        classifier: Classifier to use for validation
-        threshold: Confidence threshold for accepting a classification
-        valid_labels: List of valid labels
-        invalid_labels: List of invalid labels
-        extraction_function: Function to extract text to classify from input
-        rule_id: Unique identifier for the rule
-        name: Name of the rule
-        description: Description of the rule
-        severity: Severity of the rule
-        config: Optional RuleConfig object
-        **kwargs: Additional configuration options
+        classifier (Classifier): The classifier to use for validation
+        threshold (float): Confidence threshold for accepting classifications
+        valid_labels (Optional[List[str]]): List of labels considered valid
+        invalid_labels (Optional[List[str]]): Optional list of labels considered invalid
+        extraction_function (Optional[Callable[[str], str]]): Optional function to extract text for classification
+        rule_id (Optional[str]): Unique identifier for the rule
+        name (Optional[str]): Human-readable name of the rule
+        description (Optional[str]): Description of the rule's purpose
+        severity (str): Severity level of validation failures
+        config (Optional[RuleConfig]): Additional rule configuration
+        **kwargs: Additional keyword arguments
 
     Returns:
-        A rule that uses the classifier for validation
+        ClassifierRule: A configured classifier rule
 
-    Examples:
-        ```python
-        from sifaka.adapters.classifier import create_classifier_rule
-        from sifaka.classifiers.content import ToxicityClassifier
-        from sifaka.rules.base import RuleConfig
+    Raises:
+        ConfigurationError: If configuration is invalid
+        ValueError: If threshold is invalid
+        TypeError: If label lists are invalid
 
-        # Create a classifier
-        classifier = ToxicityClassifier()
+    ## Examples
+    ```python
+    from sifaka.adapters.classifier import create_classifier_rule
+    from sifaka.classifiers.safety import SentimentClassifier
 
-        # Create a rule from the classifier with direct parameters
-        rule = create_classifier_rule(
-            classifier=classifier,
-            threshold=0.7,
-            valid_labels=["safe"],
-            name="safety_rule",
-            description="Ensures text is safe and non-toxic"
-        )
-
-        # Create a rule with a RuleConfig
-        rule_config = RuleConfig(
-            priority="HIGH",
-            cost=5,
-            params={
-                "threshold": 0.8,
-                "valid_labels": ["safe"],
-            }
-        )
-        rule = create_classifier_rule(
-            classifier=classifier,
-            config=rule_config,
-            name="high_priority_safety_rule",
-            description="High priority safety validation"
-        )
-        ```
+    # Create a rule
+    classifier = SentimentClassifier()
+    rule = create_classifier_rule(
+        classifier=classifier,
+        threshold=0.8,
+        valid_labels=["positive", "neutral"]
+    )
+    ```
     """
     # Import here to avoid circular imports
     from sifaka.utils import standardize_rule_config
@@ -992,83 +994,42 @@ def create_classifier_adapter(
     **kwargs: Any,
 ) -> ClassifierAdapter:
     """
-    Create an adapter from a classifier.
+    Factory function to create a classifier adapter.
 
-    This factory function creates a ClassifierAdapter with the specified
-    configuration options. It follows the standard Sifaka configuration pattern
-    by using a consistent approach to configuration.
-
-    ## Usage Patterns
-    - Direct parameter configuration: Pass parameters directly to the function
-    - Dictionary configuration: Pass a config dictionary with parameter values
-    - Mixed configuration: Combine direct parameters with a config dictionary
-
-    ## Configuration Priority
-    1. Values in kwargs (highest priority)
-    2. Values in config dictionary
-    3. Direct parameter values
-    4. Default values (lowest priority)
+    ## Overview
+    This function simplifies the creation of classifier adapters by providing a
+    consistent interface.
 
     Args:
-        classifier: Classifier to use for validation
-        threshold: Confidence threshold for accepting a classification (0.0 to 1.0)
-        valid_labels: List of valid labels for validation to pass
-        invalid_labels: List of invalid labels (mutually exclusive with valid_labels)
-        extraction_function: Function to extract text to classify from input
-        config: Optional configuration dictionary with any of the above parameters
-        **kwargs: Additional configuration options that override other settings
+        classifier (Classifier): The classifier to use for validation
+        threshold (float): Confidence threshold for accepting classifications
+        valid_labels (Optional[List[str]]): List of labels considered valid
+        invalid_labels (Optional[List[str]]): Optional list of labels considered invalid
+        extraction_function (Optional[Callable[[str], str]]): Optional function to extract text for classification
+        config (Optional[Dict[str, Any]]): Additional adapter configuration
+        **kwargs: Additional keyword arguments
 
     Returns:
-        An adapter that uses the classifier for validation
+        ClassifierAdapter: A configured classifier adapter
 
     Raises:
-        ValueError: If the classifier doesn't implement the Classifier protocol
-        ValueError: If both valid_labels and invalid_labels are provided
+        ConfigurationError: If configuration is invalid
+        ValueError: If threshold is invalid
+        TypeError: If label lists are invalid
 
-    Examples:
-        ```python
-        from sifaka.adapters.classifier import create_classifier_adapter
-        from sifaka.classifiers.toxicity import create_toxicity_classifier
-        from sifaka.classifiers.sentiment import create_sentiment_classifier
+    ## Examples
+    ```python
+    from sifaka.adapters.classifier import create_classifier_adapter
+    from sifaka.classifiers.safety import SentimentClassifier
 
-        # Create classifiers
-        toxicity_classifier = create_toxicity_classifier()
-        sentiment_classifier = create_sentiment_classifier()
-
-        # Create an adapter with direct parameters
-        toxicity_adapter = create_classifier_adapter(
-            classifier=toxicity_classifier,
-            threshold=0.8,
-            valid_labels=["non_toxic"]
-        )
-
-        # Create an adapter with a configuration dictionary
-        sentiment_adapter = create_classifier_adapter(
-            classifier=sentiment_classifier,
-            config={
-                "threshold": 0.7,
-                "valid_labels": ["positive", "neutral"]
-            }
-        )
-
-        # Create an adapter with an extraction function
-        def extract_content(text):
-            if "Content:" in text:
-                return text.split("Content:")[1].strip()
-            return text
-
-        content_adapter = create_classifier_adapter(
-            classifier=toxicity_classifier,
-            threshold=0.8,
-            valid_labels=["non_toxic"],
-            extraction_function=extract_content
-        )
-
-        # Validate text with the adapters
-        result1 = toxicity_adapter.validate("Hello, this is a friendly message.")
-        result2 = sentiment_adapter.validate("I love this product!")
-        result3 = content_adapter.validate("Email - Content: Thanks for your help.")
-        ```
+    # Create an adapter
+    classifier = SentimentClassifier()
+    adapter = create_classifier_adapter(
+        classifier=classifier,
+        threshold=0.8,
+        valid_labels=["positive", "neutral"]
+    )
+    ```
     """
     # First check if the classifier is valid
     if not isinstance(classifier, Classifier):

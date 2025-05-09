@@ -1,34 +1,20 @@
 """
-Adapter for using Guardrails validators as rules.
+Guardrails Adapter
 
+Adapter for using Guardrails validators as rules in the Sifaka framework.
+
+## Overview
 This module provides adapters for using validators from the Guardrails library as Sifaka rules.
 It enables seamless integration between Guardrails' validation capabilities and Sifaka's
 rule system, allowing for sophisticated content validation.
 
-## Architecture Overview
-
-The Guardrails adapter follows an adapter pattern to convert Guardrails validators into Sifaka rules:
-
+## Components
 1. **GuardrailsValidatable Protocol**: Defines the expected interface for Guardrails validators
 2. **GuardrailsValidatorAdapter**: Adapts Guardrails validators to work as Sifaka validators
 3. **GuardrailsRule**: Rule that uses a Guardrails validator for validation
 4. **Factory Functions**: Simple creation patterns for Guardrails-based rules
 
-## Component Lifecycle
-
-### GuardrailsValidatorAdapter
-1. **Initialization**: Set up with a Guardrails validator
-2. **Validation**: Call Guardrails validator with input text
-3. **Result Conversion**: Convert Guardrails validation result to Sifaka RuleResult
-
-### GuardrailsRule
-1. **Initialization**: Set up with a Guardrails validator and configuration
-2. **Validation**: Delegate to GuardrailsValidatorAdapter
-3. **Result Processing**: Add rule-specific metadata to validation result
-
 ## Usage Examples
-
-### Basic Usage
 ```python
 from guardrails.hub import RegexMatch
 from sifaka.adapters.guardrails import create_guardrails_rule
@@ -48,37 +34,16 @@ phone_rule = create_guardrails_rule(
 result = chain.run("What's a good phone number format?")
 ```
 
-### Using Multiple Validators
-```python
-from guardrails.hub import RegexMatch, LengthValidator
-from sifaka.adapters.guardrails import create_guardrails_rule
-from sifaka.rules import CompositeRule
+## Error Handling
+- ImportError: Raised when Guardrails is not installed
+- ValidationError: Raised when validation fails
+- TypeError: Raised when input types are incompatible
 
-# Create Guardrails validators
-phone_validator = RegexMatch(regex=r"\\d{3}-\\d{3}-\\d{4}")
-length_validator = LengthValidator(min_length=10, max_length=12)
-
-# Create Sifaka rules
-phone_rule = create_guardrails_rule(
-    guardrails_validator=phone_validator,
-    rule_id="phone_format"
-)
-
-length_rule = create_guardrails_rule(
-    guardrails_validator=length_validator,
-    rule_id="phone_length"
-)
-
-# Combine rules
-phone_validation = CompositeRule(
-    rules=[phone_rule, length_rule],
-    operator="AND",
-    name="Complete Phone Validation"
-)
-
-# Use in validation
-result = phone_validation.validate("123-456-7890")
-```
+## Configuration
+- guardrails_validator: The Guardrails validator to use
+- rule_id: Unique identifier for the rule
+- name: Human-readable name of the rule
+- description: Description of the rule's purpose
 """
 
 from typing import Any, Dict, Optional, Union, Protocol, runtime_checkable
@@ -117,19 +82,34 @@ class GuardrailsValidatable(Protocol):
     """
     Protocol for components that can be validated by Guardrails.
 
+    ## Overview
     This defines the minimum interface needed for a component
     to be used with the Guardrails adapter.
 
-    Examples:
-        ```python
-        class CustomValidator(GuardrailsValidatable):
-            def validate(self, value, metadata=None):
-                # Custom validation logic
-                if valid:
-                    return PassResult(value)
-                else:
-                    return FailResult(value, "Validation failed")
-        ```
+    ## Architecture
+    The protocol defines a minimal interface that validators must implement
+    to be compatible with Sifaka's adapter system.
+
+    ## Lifecycle
+    1. Initialization: Set up with validation configuration
+    2. Validation: Process input value and apply validation logic
+    3. Result: Return standardized validation result
+
+    ## Error Handling
+    - ValueError: Raised when input value is invalid
+    - RuntimeError: Raised when validation fails
+    - TypeError: Raised when input types are incompatible
+
+    ## Examples
+    ```python
+    class CustomValidator(GuardrailsValidatable):
+        def validate(self, value, metadata=None):
+            # Custom validation logic
+            if valid:
+                return PassResult(value)
+            else:
+                return FailResult(value, "Validation failed")
+    ```
     """
 
     def validate(self, value: str, metadata: Optional[Dict[str, Any]] = None) -> ValidationResult:
@@ -137,29 +117,34 @@ class GuardrailsValidatable(Protocol):
         Validate a value.
 
         Args:
-            value: The value to validate
-            metadata: Additional context for validation
+            value (str): The value to validate
+            metadata (Optional[Dict[str, Any]]): Additional context for validation
 
         Returns:
-            Validation result
+            ValidationResult: Validation result with pass/fail status and metadata
+
+        Raises:
+            ValueError: If input value is invalid
+            RuntimeError: If validation fails
         """
         ...
 
 
 class GuardrailsValidatorAdapter(BaseValidator[str]):
     """
-    Adapter that allows Guardrails validators to be used within Sifaka.
+    Adapter for using Guardrails validators as Sifaka validators.
 
-    This adapter converts a Guardrails validator into a format compatible
-    with Sifaka's validation system. It handles the conversion between
+    ## Overview
+    This adapter converts Guardrails validators into a format compatible
+    with Sifaka's validation system, handling the conversion between
     Guardrails' validation results and Sifaka's RuleResult format.
 
     ## Architecture
-    The GuardrailsValidatorAdapter follows the Adapter pattern to convert Guardrails validators into Sifaka validators:
-    - Wraps a Guardrails validator instance
-    - Provides a validate() method that conforms to the BaseValidator interface
-    - Converts Guardrails ValidationResult objects to Sifaka RuleResult objects
-    - Handles empty text according to Sifaka conventions
+    The adapter follows a standard pattern:
+    1. Wraps a Guardrails validator instance
+    2. Provides a validate() method conforming to BaseValidator interface
+    3. Converts Guardrails ValidationResult to Sifaka RuleResult
+    4. Handles empty text according to Sifaka conventions
 
     ## Lifecycle
     1. Initialization: Set up with a Guardrails validator
@@ -167,46 +152,28 @@ class GuardrailsValidatorAdapter(BaseValidator[str]):
     3. Result: Return standardized RuleResult
 
     ## Error Handling
-    - Empty text is handled according to Sifaka conventions
-    - Guardrails validator exceptions are caught and converted to failed validation results
-    - Import errors are detected during initialization
+    - ImportError: Raised when Guardrails is not installed
+    - ValidationError: Raised when validation fails
+    - TypeError: Raised when input types are incompatible
+
+    ## Examples
+    ```python
+    from guardrails.hub import RegexMatch
+    from sifaka.adapters.guardrails import GuardrailsValidatorAdapter
+
+    # Create a Guardrails validator for phone numbers
+    regex_validator = RegexMatch(regex=r"\\d{3}-\\d{3}-\\d{4}")
+
+    # Create the adapter
+    adapter = GuardrailsValidatorAdapter(regex_validator)
+
+    # Validate text
+    result = adapter.validate("123-456-7890")
+    print(f"Validation {'passed' if result.passed else 'failed'}")
+    ```
 
     Attributes:
-        guardrails_validator: The Guardrails validator being adapted
-
-    Examples:
-        ```python
-        from guardrails.hub import RegexMatch
-        from sifaka.adapters.guardrails import GuardrailsValidatorAdapter
-
-        # Create a Guardrails validator for phone numbers
-        regex_validator = RegexMatch(regex=r"\\d{3}-\\d{3}-\\d{4}")
-
-        # Create the adapter
-        adapter = GuardrailsValidatorAdapter(regex_validator)
-
-        # Validate text
-        result = adapter.validate("123-456-7890")
-        print(f"Validation {'passed' if result.passed else 'failed'}")
-
-        # Validate invalid text
-        result = adapter.validate("invalid phone number")
-        print(f"Validation {'passed' if result.passed else 'failed'}")
-        print(f"Error message: {result.message}")
-
-        # Using with different Guardrails validators
-        from guardrails.hub import LengthValidator
-
-        # Create a length validator
-        length_validator = LengthValidator(min_length=5, max_length=10)
-
-        # Create the adapter
-        length_adapter = GuardrailsValidatorAdapter(length_validator)
-
-        # Validate text
-        result = length_adapter.validate("Hello")  # Should pass
-        print(f"Validation {'passed' if result.passed else 'failed'}")
-        ```
+        guardrails_validator (GuardrailsValidator): The Guardrails validator being adapted
     """
 
     def __init__(self, guardrails_validator: GuardrailsValidator):
@@ -308,74 +275,49 @@ class GuardrailsRule(Rule):
     """
     Rule that uses a Guardrails validator for validation.
 
-    This rule provides a bridge between Guardrails validators
-    and the Sifaka rule system, allowing Guardrails validators
-    to be used as Sifaka rules.
+    ## Overview
+    This rule adapts a Guardrails validator to function as a Sifaka rule,
+    allowing for sophisticated content validation using Guardrails' capabilities.
 
     ## Architecture
-    The GuardrailsRule follows the Adapter pattern to convert Guardrails validators into Sifaka rules:
-    - Wraps a Guardrails validator instance
-    - Creates a GuardrailsValidatorAdapter to handle validation
-    - Provides a validate() method that conforms to the Rule interface
-    - Adds rule-specific metadata to validation results
+    The rule follows a standard pattern:
+    1. Wraps a Guardrails validator
+    2. Provides rule-specific configuration
+    3. Delegates validation to GuardrailsValidatorAdapter
+    4. Adds rule metadata to validation results
 
     ## Lifecycle
-    1. Initialization: Set up with a Guardrails validator and configuration
+    1. Initialization: Set up with validator and configuration
     2. Validation: Delegate to GuardrailsValidatorAdapter
-    3. Result Processing: Add rule-specific metadata to validation result
+    3. Result Processing: Add rule-specific metadata
 
     ## Error Handling
-    - Empty text is handled according to Sifaka conventions
-    - Guardrails validator exceptions are caught and converted to failed validation results
-    - Import errors are detected during initialization
+    - ImportError: Raised when Guardrails is not installed
+    - ValidationError: Raised when validation fails
+    - TypeError: Raised when input types are incompatible
+
+    ## Examples
+    ```python
+    from guardrails.hub import RegexMatch
+    from sifaka.adapters.guardrails import create_guardrails_rule
+
+    # Create a rule
+    validator = RegexMatch(regex=r"\\d{3}-\\d{3}-\\d{4}")
+    rule = create_guardrails_rule(
+        guardrails_validator=validator,
+        name="phone_format",
+        description="Validates phone number format"
+    )
+
+    # Use the rule
+    result = rule.validate("123-456-7890")
+    ```
 
     Attributes:
-        guardrails_validator: The Guardrails validator being used
-        rule_id: Unique identifier for the rule
-
-    Examples:
-        ```python
-        from guardrails.hub import RegexMatch
-        from sifaka.adapters.guardrails import GuardrailsRule
-
-        # Create a Guardrails validator for phone numbers
-        regex_validator = RegexMatch(regex=r"\\d{3}-\\d{3}-\\d{4}")
-
-        # Create a rule with the validator
-        rule = GuardrailsRule(
-            guardrails_validator=regex_validator,
-            rule_id="phone_format",
-            name="Phone Number Format",
-            description="Validates that text contains a properly formatted phone number"
-        )
-
-        # Validate text
-        result = rule.validate("123-456-7890")
-        print(f"Validation {'passed' if result.passed else 'failed'}")
-
-        # Validate invalid text
-        result = rule.validate("invalid phone number")
-        print(f"Validation {'passed' if result.passed else 'failed'}")
-        print(f"Error message: {result.message}")
-
-        # Using with different Guardrails validators
-        from guardrails.hub import LengthValidator
-
-        # Create a length validator
-        length_validator = LengthValidator(min_length=5, max_length=10)
-
-        # Create a rule with the validator
-        length_rule = GuardrailsRule(
-            guardrails_validator=length_validator,
-            rule_id="text_length",
-            name="Text Length Rule",
-            description="Validates that text is between 5 and 10 characters"
-        )
-
-        # Validate text
-        result = length_rule.validate("Hello")  # Should pass
-        print(f"Validation {'passed' if result.passed else 'failed'}")
-        ```
+        guardrails_validator (GuardrailsValidator): The Guardrails validator to use
+        rule_id (str): Unique identifier for the rule
+        name (str): Human-readable name of the rule
+        description (str): Description of the rule's purpose
     """
 
     def __init__(
@@ -532,64 +474,40 @@ def create_guardrails_rule(
     **kwargs,
 ) -> GuardrailsRule:
     """
-    Create a Sifaka rule that uses a Guardrails validator.
+    Factory function to create a Guardrails rule.
 
-    This factory function creates a GuardrailsRule with the specified
-    configuration options. It provides a convenient way to create rules
-    from Guardrails validators.
-
-    ## Usage Patterns
-    - Basic usage: Pass a Guardrails validator to create a rule
-    - Custom configuration: Provide rule_id, name, and description
-    - Advanced configuration: Pass additional parameters in kwargs
+    ## Overview
+    This function simplifies the creation of Guardrails rules by providing a
+    consistent interface.
 
     Args:
-        guardrails_validator: The Guardrails validator to adapt for validation
-        rule_id: Identifier for the rule (default: generated from validator name)
-        name: Display name for the rule (default: generated from validator name)
-        description: Description of the rule (default: generated from validator name)
-        **kwargs: Additional configuration for the rule (e.g., severity)
+        guardrails_validator (GuardrailsValidator): The Guardrails validator to use
+        rule_id (Optional[str]): Unique identifier for the rule
+        name (Optional[str]): Human-readable name of the rule
+        description (Optional[str]): Description of the rule's purpose
+        **kwargs: Additional keyword arguments
 
     Returns:
-        Configured GuardrailsRule using the Guardrails validator
+        GuardrailsRule: A configured Guardrails rule
 
     Raises:
         ImportError: If Guardrails is not installed
+        ValueError: If validator is invalid
+        TypeError: If input types are incompatible
 
-    Examples:
-        ```python
-        from guardrails.hub import RegexMatch, LengthValidator
-        from sifaka.adapters.guardrails import create_guardrails_rule
-        from sifaka.rules import CompositeRule
+    ## Examples
+    ```python
+    from guardrails.hub import RegexMatch
+    from sifaka.adapters.guardrails import create_guardrails_rule
 
-        # Create a rule for phone number validation
-        regex_validator = RegexMatch(regex=r"\\d{3}-\\d{3}-\\d{4}")
-        phone_rule = create_guardrails_rule(
-            guardrails_validator=regex_validator,
-            rule_id="phone_format",
-            name="Phone Number Format",
-            description="Validates that text contains a properly formatted phone number"
-        )
-
-        # Create a rule for text length validation
-        length_validator = LengthValidator(min_length=5, max_length=100)
-        length_rule = create_guardrails_rule(
-            guardrails_validator=length_validator,
-            rule_id="text_length",
-            severity="warning"  # Additional configuration
-        )
-
-        # Use the rules for validation
-        result = phone_rule.validate("123-456-7890")
-        print(f"Phone validation: {'passed' if result.passed else 'failed'}")
-
-        # Combine rules using CompositeRule
-        combined_rule = CompositeRule(
-            rules=[phone_rule, length_rule],
-            operator="AND",
-            name="Phone Number Validation"
-        )
-        ```
+    # Create a rule
+    validator = RegexMatch(regex=r"\\d{3}-\\d{3}-\\d{4}")
+    rule = create_guardrails_rule(
+        guardrails_validator=validator,
+        name="phone_format",
+        description="Validates phone number format"
+    )
+    ```
     """
     if not GUARDRAILS_AVAILABLE:
         raise ImportError(

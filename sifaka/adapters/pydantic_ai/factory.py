@@ -1,9 +1,45 @@
 """
+PydanticAI Factory
+
 Factory functions for creating PydanticAI adapters.
 
+## Overview
 This module provides factory functions for creating PydanticAI adapters with
 various configurations. These functions simplify the creation of adapters by
 providing a consistent interface and handling common configuration patterns.
+
+## Components
+1. **create_pydantic_adapter**: Creates a basic PydanticAI adapter
+2. **create_pydantic_adapter_with_critic**: Creates a PydanticAI adapter with critic support
+
+## Usage Examples
+```python
+from pydantic import BaseModel
+from sifaka.adapters.pydantic_ai import create_pydantic_adapter
+from sifaka.rules.formatting.length import create_length_rule
+
+# Define a Pydantic model
+class Response(BaseModel):
+    content: str
+
+# Create rules and adapter
+rules = [create_length_rule(min_chars=10, max_chars=100)]
+adapter = create_pydantic_adapter(
+    rules=rules,
+    output_model=Response,
+    max_refine=2
+)
+```
+
+## Error Handling
+- ValueError: Raised when configuration is invalid
+- TypeError: Raised when input types are incompatible
+- ImportError: Raised when required dependencies are missing
+
+## Configuration
+- max_refine: Maximum number of refinement attempts
+- prioritize_by_cost: Whether to prioritize rules by cost
+- config: Optional configuration dictionary or SifakaPydanticConfig instance
 """
 
 from typing import Any, Dict, List, Optional, Type, Union
@@ -27,41 +63,45 @@ def create_pydantic_adapter(
     **kwargs: Any,
 ) -> SifakaPydanticAdapter:
     """
-    Create a PydanticAI adapter with the specified rules.
+    Factory function to create a PydanticAI adapter.
 
-    This factory function creates a SifakaPydanticAdapter with the specified
-    rules and configuration. It provides a simple way to create adapters for
-    common use cases.
+    ## Overview
+    This function creates a SifakaPydanticAdapter with the specified rules and
+    configuration, providing a simple way to create adapters for common use cases.
 
     Args:
-        rules: List of Sifaka rules to validate against
-        output_model: The Pydantic model type for the output
-        max_refine: Maximum number of refinement attempts
-        prioritize_by_cost: Whether to prioritize rules by cost
-        config: Optional configuration for the adapter
+        rules (List[Rule]): List of Sifaka rules to validate against
+        output_model (Type[BaseModel]): The Pydantic model type for the output
+        max_refine (int): Maximum number of refinement attempts
+        prioritize_by_cost (bool): Whether to prioritize rules by cost
+        config (Optional[Union[Dict[str, Any], SifakaPydanticConfig]]): Optional configuration
         **kwargs: Additional keyword arguments for the adapter
 
     Returns:
-        A configured SifakaPydanticAdapter instance
+        SifakaPydanticAdapter: A configured adapter instance
 
-    Examples:
-        ```python
-        from pydantic import BaseModel
-        from sifaka.adapters.pydantic_ai import create_pydantic_adapter
-        from sifaka.rules.formatting.length import create_length_rule
+    Raises:
+        ValueError: If configuration is invalid
+        TypeError: If input types are incompatible
 
-        # Define a Pydantic model
-        class Response(BaseModel):
-            content: str
+    ## Examples
+    ```python
+    from pydantic import BaseModel
+    from sifaka.adapters.pydantic_ai import create_pydantic_adapter
+    from sifaka.rules.formatting.length import create_length_rule
 
-        # Create rules and adapter
-        rules = [create_length_rule(min_chars=10, max_chars=100)]
-        adapter = create_pydantic_adapter(
-            rules=rules,
-            output_model=Response,
-            max_refine=2
-        )
-        ```
+    # Define a Pydantic model
+    class Response(BaseModel):
+        content: str
+
+    # Create rules and adapter
+    rules = [create_length_rule(min_chars=10, max_chars=100)]
+    adapter = create_pydantic_adapter(
+        rules=rules,
+        output_model=Response,
+        max_refine=2
+    )
+    ```
     """
     # Process configuration
     adapter_config = None
@@ -106,50 +146,56 @@ def create_pydantic_adapter_with_critic(
     **kwargs: Any,
 ) -> SifakaPydanticAdapter:
     """
-    Create a PydanticAI adapter with the specified rules and critic.
+    Factory function to create a PydanticAI adapter with critic support.
 
-    This factory function creates a SifakaPydanticAdapter with the specified
-    rules, critic, and configuration. It provides a simple way to create adapters
-    for common use cases that require refinement.
+    ## Overview
+    This function creates a SifakaPydanticAdapter with the specified rules, critic,
+    and configuration, providing a simple way to create adapters for use cases
+    that require refinement.
 
     Args:
-        rules: List of Sifaka rules to validate against
-        output_model: The Pydantic model type for the output
-        critic: Optional Sifaka critic for refinement
-        model_provider: Optional model provider for creating a critic
-        system_prompt: Optional system prompt for creating a critic
-        max_refine: Maximum number of refinement attempts
-        prioritize_by_cost: Whether to prioritize rules by cost
-        config: Optional configuration for the adapter
+        rules (List[Rule]): List of Sifaka rules to validate against
+        output_model (Type[BaseModel]): The Pydantic model type for the output
+        critic (Optional[BaseCritic]): Optional Sifaka critic for refinement
+        model_provider (Optional[ModelProvider]): Optional model provider for creating a critic
+        system_prompt (Optional[str]): Optional system prompt for creating a critic
+        max_refine (int): Maximum number of refinement attempts
+        prioritize_by_cost (bool): Whether to prioritize rules by cost
+        config (Optional[Union[Dict[str, Any], SifakaPydanticConfig]]): Optional configuration
         **kwargs: Additional keyword arguments for the adapter
 
     Returns:
-        A configured SifakaPydanticAdapter instance
+        SifakaPydanticAdapter: A configured adapter instance with critic support
 
-    Examples:
-        ```python
-        from pydantic import BaseModel
-        from sifaka.adapters.pydantic_ai import create_pydantic_adapter_with_critic
-        from sifaka.rules.formatting.length import create_length_rule
-        from sifaka.models.factories import create_openai_provider
+    Raises:
+        ValueError: If configuration is invalid
+        TypeError: If input types are incompatible
+        ImportError: If required dependencies are missing
 
-        # Define a Pydantic model
-        class Response(BaseModel):
-            content: str
+    ## Examples
+    ```python
+    from pydantic import BaseModel
+    from sifaka.adapters.pydantic_ai import create_pydantic_adapter_with_critic
+    from sifaka.rules.formatting.length import create_length_rule
+    from sifaka.models.factories import create_openai_provider
 
-        # Create model provider
-        provider = create_openai_provider(model_name="gpt-4")
+    # Define a Pydantic model
+    class Response(BaseModel):
+        content: str
 
-        # Create rules and adapter
-        rules = [create_length_rule(min_chars=10, max_chars=100)]
-        adapter = create_pydantic_adapter_with_critic(
-            rules=rules,
-            output_model=Response,
-            model_provider=provider,
-            system_prompt="You are an expert editor that improves text while maintaining its original meaning.",
-            max_refine=2
-        )
-        ```
+    # Create model provider
+    provider = create_openai_provider(model_name="gpt-4")
+
+    # Create rules and adapter
+    rules = [create_length_rule(min_chars=10, max_chars=100)]
+    adapter = create_pydantic_adapter_with_critic(
+        rules=rules,
+        output_model=Response,
+        model_provider=provider,
+        system_prompt="You are an expert editor that improves text while maintaining its original meaning.",
+        max_refine=2
+    )
+    ```
     """
     # Process configuration
     adapter_config = None

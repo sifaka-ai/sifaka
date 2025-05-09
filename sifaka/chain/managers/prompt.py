@@ -1,8 +1,85 @@
 """
-Prompt manager module for Sifaka.
+Prompt Manager Module
 
-This module provides the PromptManager class which is responsible for
-creating, modifying, and managing prompts.
+Manages prompt creation and modification for Sifaka's chain system.
+
+## Overview
+This module provides the PromptManager class which handles prompt creation,
+modification, and validation. It supports adding feedback, history, context,
+and examples to prompts, providing a flexible way to enhance prompts based
+on chain execution results.
+
+## Components
+1. **PromptManager**: Main prompt management class
+   - Prompt creation
+   - Prompt modification
+   - Prompt validation
+   - Prompt formatting
+
+2. **Prompt Enhancement**: Specialized prompt modifiers
+   - Feedback addition
+   - History integration
+   - Context inclusion
+   - Example incorporation
+
+## Usage Examples
+```python
+from sifaka.chain.managers.prompt import PromptManager
+
+# Create prompt manager
+manager = PromptManager()
+
+# Create basic prompt
+prompt = manager.create_prompt("Write a story about a robot")
+
+# Add feedback
+prompt_with_feedback = manager.create_prompt_with_feedback(
+    prompt,
+    "Make the story more emotional"
+)
+
+# Add history
+prompt_with_history = manager.create_prompt_with_history(
+    prompt,
+    ["Previous story about a sad robot", "Story about a happy robot"]
+)
+
+# Add context
+prompt_with_context = manager.create_prompt_with_context(
+    prompt,
+    "The story should be set in the future"
+)
+
+# Add examples
+prompt_with_examples = manager.create_prompt_with_examples(
+    prompt,
+    ["Example story about a curious robot", "Example story about a brave robot"]
+)
+
+# Create complex prompt
+complex_prompt = manager.create_prompt(
+    "Write a story about a robot",
+    feedback="Make it emotional",
+    history=["Previous story"],
+    context="Set in future",
+    examples=["Example story"]
+)
+
+# Validate prompt
+if manager.validate_prompt(complex_prompt):
+    print("Prompt is valid")
+```
+
+## Error Handling
+- ValueError: Raised for invalid input types or empty prompts
+- TypeError: Raised for type validation failures
+- RuntimeError: Raised for unexpected conditions
+
+## Configuration
+- feedback: Optional feedback to include in prompts
+- history: Optional list of previous attempts
+- context: Optional context information
+- examples: Optional list of example outputs
 """
 
 from typing import Any, List, Optional
@@ -15,15 +92,80 @@ logger = get_logger(__name__)
 
 class PromptManager(PromptManagerProtocol[str]):
     """
-    Manages prompts for chains.
+    Manages prompt creation and modification for chains.
 
-    This class is responsible for creating, modifying, and managing prompts
-    for use in chains. It implements the PromptManagerProtocol interface.
+    ## Overview
+    This class provides centralized management of prompt creation, modification,
+    and validation. It supports various ways to enhance prompts with feedback,
+    history, context, and examples, implementing the PromptManagerProtocol interface.
+
+    ## Architecture
+    PromptManager follows a builder pattern:
+    1. **Prompt Creation**: Creates base prompts from input
+    2. **Prompt Enhancement**: Adds additional context and guidance
+    3. **Prompt Validation**: Ensures prompt quality and format
+
+    ## Lifecycle
+    1. **Creation**: Create base prompts
+       - Process input values
+       - Apply basic formatting
+       - Validate structure
+
+    2. **Enhancement**: Add additional context
+       - Add feedback from previous attempts
+       - Include execution history
+       - Add contextual information
+       - Include example outputs
+
+    ## Error Handling
+    - ValueError: Raised for invalid input types or empty prompts
+    - TypeError: Raised for type validation failures
+    - RuntimeError: Raised for unexpected conditions
+
+    ## Examples
+    ```python
+    from sifaka.chain.managers.prompt import PromptManager
+
+    # Create manager
+    manager = PromptManager()
+
+    # Create basic prompt
+    prompt = manager.create_prompt(
+        "Write a story",
+        feedback="Make it longer",
+        context="Set in future",
+        examples=["Example story"]
+    )
+
+    # Add feedback
+    prompt = manager.create_prompt_with_feedback(
+        prompt,
+        "Add more dialogue"
+    )
+
+    # Validate prompt
+    if manager.validate_prompt(prompt):
+        print("Prompt is valid")
+    ```
     """
 
     def create_prompt_with_feedback(self, original_prompt: str, feedback: str) -> str:
         """
         Create a new prompt with feedback.
+
+        ## Overview
+        This method enhances a prompt by adding feedback from previous attempts
+        or validation results. The feedback is appended to the original prompt
+        in a structured format.
+
+        ## Lifecycle
+        1. **Input Processing**: Process inputs
+           - Validate original prompt
+           - Validate feedback string
+
+        2. **Prompt Enhancement**: Add feedback
+           - Format feedback section
+           - Combine with original prompt
 
         Args:
             original_prompt: The original prompt

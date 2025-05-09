@@ -1,22 +1,20 @@
 """
-PydanticAI adapter for Sifaka.
+PydanticAI Adapter
 
+Adapter for integrating Sifaka's validation and refinement with PydanticAI agents.
+
+## Overview
 This module provides adapters for integrating Sifaka's validation and refinement
 capabilities with PydanticAI agents. It enables PydanticAI agents to benefit from
 Sifaka's rule-based validation and critic-based refinement to improve the semantic
 quality of outputs beyond just structural validation.
 
-## Architecture Overview
+## Components
+1. **SifakaPydanticAdapter**: Core adapter class for PydanticAI integration
+2. **SifakaPydanticConfig**: Configuration class for the adapter
+3. **Factory Functions**: Simple creation patterns for common use cases
 
-The PydanticAI adapter follows an adapter pattern to enable Sifaka to work with
-PydanticAI agents:
-
-1. **Adapter Components**: Implement wrappers that translate between systems
-2. **Factory Functions**: Provide simple creation patterns for common use cases
-3. **Integration Points**: Connect with PydanticAI's output validation system
-
-## Usage Example
-
+## Usage Examples
 ```python
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
@@ -53,7 +51,16 @@ result = agent.run_sync("Create an order summary for customer John Doe")
 print(result.output)
 ```
 
-For more advanced usage, see the examples directory.
+## Error Handling
+- ImportError: Raised when PydanticAI is not installed
+- ValueError: Raised when configuration is invalid
+- ModelRetry: Raised when validation fails and refinement is needed
+
+## Configuration
+- max_refine: Maximum number of refinement attempts
+- prioritize_by_cost: Whether to prioritize rules by cost
+- serialize_method: Method to use for serializing Pydantic models
+- deserialize_method: Method to use for deserializing Pydantic models
 """
 
 from sifaka.adapters.pydantic_ai.adapter import (

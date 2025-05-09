@@ -1,30 +1,19 @@
 """
+Adapters
+
 Adapters for external libraries and services integration with Sifaka.
 
+## Overview
 This package provides adapter implementations that allow Sifaka to integrate with
-various external libraries, services, and model providers.
+various external libraries, services, and model providers. It follows the adapter
+pattern to enable loose coupling between Sifaka and external systems.
 
-## Architecture Overview
-
-The adapters module follows an adapter pattern to enable Sifaka to work with
-external libraries and services without tight coupling:
-
-1. **Protocol Definitions**: Define the expected interface for integration
-2. **Adapter Components**: Implement wrappers that translate between systems
-3. **Factory Functions**: Provide simple creation patterns for common use cases
-
-## Component Types
-
-Sifaka provides several types of adapters:
-
+## Components
 1. **Classifier Adapters**: Adapters for text classification systems
 2. **Guardrails Adapters**: Adapters for using Guardrails validators
 3. **PydanticAI Adapters**: Adapters for integrating with PydanticAI agents
 
-## Usage Patterns
-
-The recommended way to use adapters is through factory functions:
-
+## Usage Examples
 ```python
 from sifaka.adapters import ClassifierAdapter, create_classifier_rule
 from sifaka.classifiers.toxicity import ToxicityClassifier
@@ -45,7 +34,16 @@ rule = create_classifier_rule(
 result = rule.validate("This is a friendly message")
 ```
 
-For details on specific adapter implementations, see the respective module documentation.
+## Error Handling
+- ImportError: Raised when optional dependencies are not available
+- ConfigurationError: Raised when adapter configuration is invalid
+- ValidationError: Raised when validation fails
+
+## Configuration
+Each adapter type has its own configuration options:
+- Classifier adapters: Configure with classifier instance and validation parameters
+- Guardrails adapters: Configure with validator instance and validation rules
+- PydanticAI adapters: Configure with model and validation settings
 """
 
 # Base adapter components

@@ -1,10 +1,53 @@
 """
+PydanticAI Adapter
+
 Core adapter implementation for PydanticAI integration with Sifaka.
 
+## Overview
 This module provides the core adapter class that bridges between PydanticAI agents
 and Sifaka's validation and refinement capabilities. It enables PydanticAI agents
 to benefit from Sifaka's rule-based validation and critic-based refinement to
 improve the semantic quality of outputs beyond just structural validation.
+
+## Components
+1. **SifakaPydanticConfig**: Configuration for the adapter
+2. **SifakaPydanticAdapter**: Main adapter class for PydanticAI integration
+
+## Usage Examples
+```python
+from pydantic import BaseModel
+from pydantic_ai import Agent, RunContext
+from sifaka.adapters.pydantic_ai import SifakaPydanticAdapter
+from sifaka.rules.formatting.length import create_length_rule
+
+# Define a Pydantic model
+class Response(BaseModel):
+    content: str
+
+# Create rules and adapter
+rules = [create_length_rule(min_chars=10, max_chars=100)]
+adapter = SifakaPydanticAdapter(
+    rules=rules,
+    output_model=Response,
+    max_refine=2
+)
+
+# Use as a PydanticAI output validator
+@agent.output_validator
+def validate_with_sifaka(ctx: RunContext, output: Response) -> Response:
+    return adapter(ctx, output)
+```
+
+## Error Handling
+- ImportError: Raised when PydanticAI is not installed
+- ValueError: Raised when output model is invalid
+- ModelRetry: Raised when validation fails and refinement is needed
+
+## Configuration
+- max_refine: Maximum number of refinement attempts
+- prioritize_by_cost: Whether to prioritize rules by cost
+- serialize_method: Method to use for serializing Pydantic models
+- deserialize_method: Method to use for deserializing Pydantic models
 """
 
 from dataclasses import dataclass, field
@@ -35,11 +78,38 @@ class SifakaPydanticConfig:
     """
     Configuration for the SifakaPydanticAdapter.
 
+    ## Overview
+    This class provides configuration options for the PydanticAI adapter,
+    controlling aspects like refinement attempts and serialization methods.
+
+    ## Architecture
+    The configuration follows a standard pattern with:
+    1. Refinement settings
+    2. Rule prioritization
+    3. Serialization methods
+
+    ## Error Handling
+    - ValueError: Raised when max_refine is invalid
+    - TypeError: Raised when serialization methods are invalid
+
+    ## Examples
+    ```python
+    from sifaka.adapters.pydantic_ai import SifakaPydanticConfig
+
+    # Create a configuration
+    config = SifakaPydanticConfig(
+        max_refine=3,
+        prioritize_by_cost=True,
+        serialize_method="model_dump",
+        deserialize_method="model_validate"
+    )
+    ```
+
     Attributes:
-        max_refine: Maximum number of refinement attempts
-        prioritize_by_cost: Whether to prioritize rules by cost
-        serialize_method: Method to use for serializing Pydantic models
-        deserialize_method: Method to use for deserializing Pydantic models
+        max_refine (int): Maximum number of refinement attempts
+        prioritize_by_cost (bool): Whether to prioritize rules by cost
+        serialize_method (str): Method to use for serializing Pydantic models
+        deserialize_method (str): Method to use for deserializing Pydantic models
     """
 
     max_refine: int = 2
@@ -50,49 +120,62 @@ class SifakaPydanticConfig:
 
 class SifakaPydanticAdapter:
     """
-    Adapter that integrates Sifaka's validation and refinement with PydanticAI agents.
+    Adapter for integrating Sifaka's validation and refinement with PydanticAI agents.
 
+    ## Overview
     This adapter bridges between PydanticAI's output validation system and Sifaka's
     rule-based validation and critic-based refinement capabilities. It enables
     PydanticAI agents to benefit from Sifaka's semantic validation beyond just
     structural validation.
 
-    Attributes:
-        rules: List of Sifaka rules to validate against
-        critic: Optional Sifaka critic for refinement
-        output_model: The Pydantic model type for the output
-        config: Configuration for the adapter
+    ## Architecture
+    The adapter follows a standard pattern:
+    1. Initialization with rules and configuration
+    2. Validation against Sifaka rules
+    3. Refinement using critic if needed
+    4. Result conversion to Pydantic model
 
-    Lifecycle:
+    ## Lifecycle
     1. Initialization: Set up with rules, critic, and configuration
     2. Validation: Validate PydanticAI output against Sifaka rules
     3. Refinement: If validation fails, use critic to refine output
     4. Result: Return validated or refined output
 
-    Examples:
-        ```python
-        from pydantic import BaseModel
-        from pydantic_ai import Agent, RunContext
-        from sifaka.adapters.pydantic_ai import SifakaPydanticAdapter
-        from sifaka.rules.formatting.length import create_length_rule
+    ## Error Handling
+    - ImportError: Raised when PydanticAI is not installed
+    - ValueError: Raised when output model is invalid
+    - ModelRetry: Raised when validation fails and refinement is needed
 
-        # Define a Pydantic model
-        class Response(BaseModel):
-            content: str
+    ## Examples
+    ```python
+    from pydantic import BaseModel
+    from pydantic_ai import Agent, RunContext
+    from sifaka.adapters.pydantic_ai import SifakaPydanticAdapter
+    from sifaka.rules.formatting.length import create_length_rule
 
-        # Create rules and adapter
-        rules = [create_length_rule(min_chars=10, max_chars=100)]
-        adapter = SifakaPydanticAdapter(
-            rules=rules,
-            output_model=Response,
-            max_refine=2
-        )
+    # Define a Pydantic model
+    class Response(BaseModel):
+        content: str
 
-        # Use as a PydanticAI output validator
-        @agent.output_validator
-        def validate_with_sifaka(ctx: RunContext, output: Response) -> Response:
-            return adapter(ctx, output)
-        ```
+    # Create rules and adapter
+    rules = [create_length_rule(min_chars=10, max_chars=100)]
+    adapter = SifakaPydanticAdapter(
+        rules=rules,
+        output_model=Response,
+        max_refine=2
+    )
+
+    # Use as a PydanticAI output validator
+    @agent.output_validator
+    def validate_with_sifaka(ctx: RunContext, output: Response) -> Response:
+        return adapter(ctx, output)
+    ```
+
+    Attributes:
+        rules (List[Rule]): List of Sifaka rules to validate against
+        critic (Optional[BaseCritic]): Optional Sifaka critic for refinement
+        output_model (Type[BaseModel]): The Pydantic model type for the output
+        config (SifakaPydanticConfig): Configuration for the adapter
     """
 
     def __init__(
@@ -129,19 +212,21 @@ class SifakaPydanticAdapter:
         """
         Validate and potentially refine the PydanticAI output.
 
+        ## Overview
         This method is called by PydanticAI's output validation system. It validates
         the output against Sifaka rules and, if validation fails, uses the critic
         to refine the output.
 
         Args:
-            ctx: The PydanticAI run context
-            output: The PydanticAI output to validate
+            ctx (RunContext): The PydanticAI run context
+            output (T): The PydanticAI output to validate
 
         Returns:
-            The validated or refined output
+            T: The validated or refined output
 
         Raises:
             ModelRetry: If validation fails and refinement is needed
+            ValueError: If output model is invalid
         """
         # Set up logging
         import logging
@@ -232,12 +317,20 @@ class SifakaPydanticAdapter:
         """
         Refine the output using the critic.
 
+        ## Overview
+        This method uses the configured critic to refine the output based on
+        validation issues.
+
         Args:
-            output_data: The output data to refine
-            issues: The validation issues to address
+            output_data (Dict[str, Any]): The output data to refine
+            issues (List[str]): The validation issues to address
 
         Returns:
-            The refined output data
+            T: The refined output data
+
+        Raises:
+            ValueError: If critic is not configured
+            RuntimeError: If refinement fails
         """
         # Set up logging
         import logging
