@@ -646,3 +646,61 @@ def standardize_validation_config(
     else:
         # Create a new config with the params and kwargs
         return ValidationConfig(params=final_params, **kwargs)
+
+
+def extract_classifier_config_params(
+    labels: Optional[List[str]] = None,
+    cache_size: int = 0,
+    min_confidence: float = 0.0,
+    cost: Optional[float] = None,
+    provided_params: Optional[Dict[str, Any]] = None,
+    default_params: Optional[Dict[str, Any]] = None,
+    **kwargs: Any,
+) -> Dict[str, Any]:
+    """
+    Extract and merge configuration parameters for classifier factory methods.
+
+    This utility function standardizes parameter extraction for classifier factory methods,
+    ensuring consistent handling of configuration options. It merges parameters from various
+    sources with the following precedence (highest to lowest):
+    1. Explicitly provided kwargs
+    2. Values in provided_params dictionary
+    3. Default values in default_params dictionary
+
+    Args:
+        labels: Optional list of classification labels
+        cache_size: Size of the classification result cache
+        min_confidence: Minimum confidence threshold
+        cost: Optional computational cost metric
+        provided_params: Dictionary of parameters provided by the caller
+        default_params: Dictionary of default parameters
+        **kwargs: Additional parameters to extract
+
+    Returns:
+        Dict containing merged configuration parameters and a params dictionary
+    """
+    # Extract params from kwargs if not explicitly provided
+    params = kwargs.pop("params", {}) if provided_params is None else provided_params.copy()
+
+    # Start with default params if provided
+    if default_params:
+        # Only use defaults for keys not in params
+        for key, value in default_params.items():
+            if key not in params:
+                params[key] = value
+
+    # Create config dictionary
+    config_dict = {"cache_size": cache_size, "min_confidence": min_confidence, "params": params}
+
+    # Add cost if provided
+    if cost is not None:
+        config_dict["cost"] = cost
+
+    # Add labels if provided
+    if labels is not None:
+        config_dict["labels"] = labels
+
+    # Add any remaining kwargs
+    config_dict.update(kwargs)
+
+    return config_dict

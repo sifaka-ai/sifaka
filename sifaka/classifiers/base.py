@@ -456,6 +456,31 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
             raise ValueError("Input must be a list of strings")
         return True
 
+    def validate_component(self, component: Any, protocol_type: Type, component_name: str) -> bool:
+        """
+        Validate that a component implements a required protocol.
+
+        This generic validation method can be used by subclasses to validate
+        components against protocol classes, reducing redundant type checking code.
+
+        Args:
+            component: The component to validate
+            protocol_type: The protocol or interface type to check against
+            component_name: Name of the component for error messages
+
+        Returns:
+            True if the component is valid
+
+        Raises:
+            ValueError: If the component doesn't implement the required protocol
+        """
+        if not isinstance(component, protocol_type):
+            raise ValueError(
+                f"{component_name} must implement {protocol_type.__name__} protocol, "
+                f"got {type(component)}"
+            )
+        return True
+
     @abstractmethod
     def _classify_impl_uncached(self, text: T) -> ClassificationResult[R]:
         """
@@ -549,28 +574,29 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
         Returns:
             ClassificationResult with label and confidence
         """
-        # If caching is enabled, use a function-local cache
+        # If caching is enabled, use the state API for caching
         if self.config.cache_size > 0:
             # Create a cache key from the text
             cache_key = str(text)
 
-            # Check if we have a cached result
-            if not hasattr(self, "_result_cache"):
-                # Initialize the cache as a dict mapping strings to ClassificationResults
-                self._result_cache: Dict[str, ClassificationResult[R]] = {}
+            # Get the result cache from state
+            result_cache = self._state.get("result_cache", {})
 
-            if cache_key in self._result_cache:
-                return self._result_cache[cache_key]
+            # Check if we have a cached result
+            if cache_key in result_cache:
+                return result_cache[cache_key]
 
             # Get the result
             result = self._classify_impl_uncached(text)
 
             # Cache the result
-            if len(self._result_cache) >= self.config.cache_size:
+            if len(result_cache) >= self.config.cache_size:
                 # Simple LRU: just clear the cache when it gets full
                 # A more sophisticated implementation would use an OrderedDict
-                self._result_cache.clear()
-            self._result_cache[cache_key] = result
+                result_cache.clear()
+
+            result_cache[cache_key] = result
+            self._state.update("result_cache", result_cache)
 
             return result
         else:
@@ -729,6 +755,57 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
         """
         self.validate_batch_input(texts)
         return [self.classify(text) for text in texts]
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get classifier usage statistics.
+
+        This method provides access to statistics collected during classifier operation,
+        including classification counts by label, error counts, cache information, and configuration details.
+
+        Returns:
+            Dictionary containing statistics
+        """
+        stats = {
+            # Classification counts by label
+            "classifications": self._state.get("statistics", {}),
+            # Number of errors encountered
+            "error_count": len(self._state.get("errors", [])),
+            # Cache information
+            "cache_enabled": self.config.cache_size > 0,
+            "cache_size": self.config.cache_size,
+            # State initialization status
+            "initialized": self._state.get("initialized", False),
+            # Config information
+            "min_confidence": self.config.min_confidence,
+            "labels": list(self.config.labels),
+        }
+
+        # Add cache hit ratio if caching is enabled
+        result_cache = self._state.get("result_cache", {})
+        if self.config.cache_size > 0:
+            stats["cache_entries"] = len(result_cache)
+
+        return stats
+
+    def clear_cache(self) -> None:
+        """
+        Clear any cached data in the classifier.
+
+        This method clears both the result cache and resets statistics in the state
+        but preserves any initialized resources and state.
+        """
+        # Clear classification result cache
+        self._state.update("result_cache", {})
+
+        # Reset statistics
+        self._state.update("statistics", {})
+
+        # Reset errors list
+        self._state.update("errors", [])
+
+        # Notify that cache has been cleared
+        logger.debug(f"Cache cleared for {self.name} classifier")
 
     def warm_up(self) -> None:
         """

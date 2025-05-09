@@ -20,7 +20,7 @@ from sifaka.utils.state import create_classifier_state
 logger = get_logger(__name__)
 
 
-class TopicClassifier(BaseClassifier):
+class TopicClassifier(BaseClassifier[str, str]):
     """
     A topic classifier using Latent Dirichlet Allocation from scikit-learn.
 
@@ -34,15 +34,28 @@ class TopicClassifier(BaseClassifier):
     # Class constants
     DEFAULT_COST: ClassVar[float] = 2.0
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_classifier_state)
+    # Class-level constants
+    DEFAULT_LABELS: ClassVar[List[str]] = [
+        "technology",
+        "business",
+        "politics",
+        "entertainment",
+        "health",
+        "science",
+        "sports",
+        "other",
+    ]
+
+    # State is inherited from BaseClassifier as _state
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def __init__(
         self,
         name: str = "topic_classifier",
-        description: str = "Classifies text into topics using LDA",
-        config: Optional[Dict[str, Any]] = None,
-        **kwargs,
+        description: str = "Classifies text by topic",
+        config: Optional[ClassifierConfig[str]] = None,
+        **kwargs: Any,
     ) -> None:
         """
         Initialize the topic classifier.
@@ -75,9 +88,10 @@ class TopicClassifier(BaseClassifier):
         super().__init__(name=name, description=description, config=config)
 
         # Initialize state
-        state = self._state_manager.get_state()
-        state.initialized = False
-        state.cache = {}
+        state = self._state.get("cache", {})
+        state["initialized"] = False
+        state["model"] = None
+        self._state.update("cache", state)
 
     @property
     def num_topics(self) -> int:
@@ -135,32 +149,32 @@ class TopicClassifier(BaseClassifier):
             RuntimeError: If model initialization fails
         """
         # Get state
-        state = self._state_manager.get_state()
+        state = self._state.get("cache", {})
 
         # Check if already initialized
-        if not state.initialized:
+        if not state.get("initialized"):
             # Load dependencies
             sklearn = self._load_dependencies()
-            state.dependencies_loaded = True
+            state["dependencies_loaded"] = True
 
             # Get configuration from params
             max_features = self.config.params.get("max_features", 1000)
             random_state = self.config.params.get("random_state", 42)
 
             # Create vectorizer
-            state.vectorizer = sklearn["feature_extraction_text"].TfidfVectorizer(
+            state["vectorizer"] = sklearn["feature_extraction_text"].TfidfVectorizer(
                 max_features=max_features,
                 stop_words="english",
             )
 
             # Create LDA model
-            state.model = sklearn["decomposition"].LatentDirichletAllocation(
+            state["model"] = sklearn["decomposition"].LatentDirichletAllocation(
                 n_components=self.num_topics,
                 random_state=random_state,
             )
 
             # Mark as initialized
-            state.initialized = True
+            state["initialized"] = True
 
     def fit(self, texts: List[str]) -> "TopicClassifier":
         """
@@ -173,30 +187,30 @@ class TopicClassifier(BaseClassifier):
             self: The fitted classifier
         """
         # Get state
-        state = self._state_manager.get_state()
+        state = self._state.get("cache", {})
 
         # Ensure initialized
         self.warm_up()
 
         # Transform texts to TF-IDF features
-        X = state.vectorizer.fit_transform(texts)
+        X = state["vectorizer"].fit_transform(texts)
 
         # Fit LDA model
-        state.model.fit(X)
+        state["model"].fit(X)
 
         # Get feature names for later interpretation
-        feature_names = state.vectorizer.get_feature_names_out()
-        state.feature_names = feature_names
+        feature_names = state["vectorizer"].get_feature_names_out()
+        state["feature_names"] = feature_names
 
         # Extract the words that define each topic
         topic_words = []
-        for _, topic in enumerate(state.model.components_):
+        for _, topic in enumerate(state["model"].components_):
             top_features_ind = topic.argsort()[: -self.top_words_per_topic - 1 : -1]
             top_features = [feature_names[i] for i in top_features_ind]
             topic_words.append(top_features)
 
         # Store topic words in state cache
-        state.cache["topic_words"] = topic_words
+        state["cache"]["topic_words"] = topic_words
 
         # Update labels with meaningful topic names
         labels = [f"topic_{i}_{'+'.join(words[:3])}" for i, words in enumerate(topic_words)]
@@ -233,25 +247,25 @@ class TopicClassifier(BaseClassifier):
             RuntimeError: If classification fails
         """
         # Get state
-        state = self._state_manager.get_state()
+        state = self._state.get("cache", {})
 
-        if not state.model or not state.vectorizer:
+        if not state.get("model") or not state.get("vectorizer"):
             raise RuntimeError(
                 "Model not initialized. You must call fit() with a corpus before classification."
             )
 
         # Transform the input text
-        X = state.vectorizer.transform([text])
+        X = state["vectorizer"].transform([text])
 
         # Get topic distribution
-        topic_distribution = state.model.transform(X)[0]
+        topic_distribution = state["model"].transform(X)[0]
 
         # Get dominant topic
         dominant_topic_idx = topic_distribution.argmax()
         confidence = float(topic_distribution[dominant_topic_idx])
 
         # Get topic words from state cache
-        topic_words = state.cache.get("topic_words", [])
+        topic_words = state["cache"].get("topic_words", [])
 
         # Create detailed metadata
         all_topics = {}
@@ -296,23 +310,23 @@ class TopicClassifier(BaseClassifier):
             RuntimeError: If batch classification fails
         """
         # Get state
-        state = self._state_manager.get_state()
+        state = self._state.get("cache", {})
 
         self.validate_batch_input(texts)
 
-        if not state.model or not state.vectorizer:
+        if not state.get("model") or not state.get("vectorizer"):
             raise RuntimeError(
                 "Model not initialized. You must call fit() with a corpus before classification."
             )
 
         # Transform all texts at once
-        X = state.vectorizer.transform(texts)
+        X = state["vectorizer"].transform(texts)
 
         # Get topic distributions for all texts
-        topic_distributions = state.model.transform(X)
+        topic_distributions = state["model"].transform(X)
 
         # Get topic words from state cache
-        topic_words = state.cache.get("topic_words", [])
+        topic_words = state["cache"].get("topic_words", [])
 
         results = []
         labels = list(self.config.labels)  # Convert FieldInfo to list

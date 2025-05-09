@@ -90,6 +90,7 @@ from sifaka.classifiers.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
 from sifaka.classifiers.implementations.content.toxicity_model import ToxicityModel
+from sifaka.utils.config import extract_classifier_config_params
 
 logger = get_logger(__name__)
 
@@ -250,9 +251,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
         Raises:
             ValueError: If the model doesn't implement the ToxicityModel protocol
         """
-        if not isinstance(model, ToxicityModel):
-            raise ValueError(f"Model must implement ToxicityModel protocol, got {type(model)}")
-        return True
+        return self.validate_component(model, ToxicityModel, "Model")
 
     def _load_detoxify(self) -> ToxicityModel:
         """
@@ -658,42 +657,46 @@ class ToxicityClassifier(BaseClassifier[str, str]):
         **kwargs: Any,
     ) -> T:
         """
-        Create a new instance with the given parameters.
-
-        This factory method creates a new instance of the classifier with the
-        specified parameters, handling the creation of the ClassifierConfig
-        object and setting up the classifier with the appropriate parameters.
+        Factory method to create a toxicity classifier.
 
         Args:
             name: Name of the classifier
-            description: Description of the classifier
-            labels: List of valid labels
-            cache_size: Size of the classification cache (0 to disable)
-            min_confidence: Minimum confidence for classification
-            cost: Computational cost of this classifier
-            params: Additional configuration parameters
-            **kwargs: Additional keyword arguments
+            description: Description of what the classifier does
+            labels: Optional list of labels (defaults to predefined labels)
+            cache_size: Size of the classification cache (0 for no caching)
+            min_confidence: Minimum confidence threshold for results
+            cost: Computational cost metric (defaults to class default)
+            params: Optional dictionary of additional parameters
+            **kwargs: Additional configuration parameters
 
         Returns:
-            A new instance of the classifier
+            Configured ToxicityClassifier instance
         """
-        # Create params dictionary if not provided
-        if params is None:
-            params = {}
+        from sifaka.utils.config import extract_classifier_config_params
 
-        # Add kwargs to params
-        params.update(kwargs)
+        # Set up default params with thresholds
+        default_params = {
+            "general_threshold": cls.DEFAULT_GENERAL_THRESHOLD,
+            "severe_toxic_threshold": cls.DEFAULT_SEVERE_TOXIC_THRESHOLD,
+            "threat_threshold": cls.DEFAULT_THREAT_THRESHOLD,
+            "model_name": "original",
+        }
 
-        # Create config
-        config = ClassifierConfig(
-            labels=labels or cls.DEFAULT_LABELS,
+        # Extract and merge configuration parameters
+        config_dict = extract_classifier_config_params(
+            labels=labels if labels else cls.DEFAULT_LABELS,
             cache_size=cache_size,
             min_confidence=min_confidence,
-            cost=cost or cls.DEFAULT_COST,
-            params=params,
+            cost=cost if cost is not None else cls.DEFAULT_COST,
+            provided_params=params,
+            default_params=default_params,
+            **kwargs,
         )
 
-        # Create and return instance
+        # Create config with merged parameters
+        config = ClassifierConfig[str](**config_dict)
+
+        # Create and return the classifier instance
         return cls(name=name, description=description, config=config)
 
     @classmethod

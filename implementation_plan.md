@@ -1,333 +1,330 @@
-# Implementation Plan
+# Sifaka Implementation Plan
 
-## 1. Pydantic 2 Migration (1 week)
+This document outlines a structured approach to address the improvement areas identified in the code review, with specific actionable tasks, priorities, and timelines.
 
-### Step 1: Create Base Model Configuration
+## 1. Eliminate Component Duplication
+
+### High-Priority Tasks (1-2 weeks)
+- ✅ Replace duplicate `StateManager` in classifiers with unified implementation from utils
+- Audit the codebase for other duplicated components by running static analysis tools
+- Create centralized component registry for common interfaces like validators, processors, and handlers
+
+### Medium-Priority Tasks (2-4 weeks)
+- Refactor critics and rules implementations to share common code where appropriate
+- Create shared base classes for similar components like `TextProcessor` and `TextTransformer`
+- Standardize error handling patterns across component types
+
+### Implementation Approach
 ```python
-# sifaka/core/models.py
-from pydantic import BaseModel, ConfigDict
+# Example: Centralized component registry
+from typing import Dict, Type, TypeVar, Generic
 
-class BaseModelConfig:
-    """Base configuration for all Pydantic models."""
+T = TypeVar('T')
+
+class ComponentRegistry(Generic[T]):
+    """Centralized registry for component types."""
+
+    def __init__(self):
+        self._components: Dict[str, Type[T]] = {}
+
+    def register(self, name: str, component_type: Type[T]) -> None:
+        """Register a component type."""
+        self._components[name] = component_type
+
+    def get(self, name: str) -> Type[T]:
+        """Get a component type by name."""
+        if name not in self._components:
+            raise KeyError(f"Component '{name}' not registered")
+        return self._components[name]
+```
+
+## 2. Standardize Factory Function Patterns
+
+### High-Priority Tasks (1-2 weeks)
+- Audit all factory functions and standardize naming convention (e.g., `create_*` vs `standardize_*_config`)
+- Create consistent parameter ordering and default handling across all factory functions
+- Implement typed factory pattern with clear return types
+
+### Medium-Priority Tasks (2-4 weeks)
+- Add builder pattern alternatives for complex object construction
+- Document factory pattern guidelines for contributors
+- Create test cases to verify factory function behavior
+
+### Implementation Approach
+```python
+# Example: Standardized factory function template
+from typing import Dict, Any, Type, TypeVar, Optional, cast
+
+T = TypeVar('T', bound='BaseComponent')
+
+def create_component(
+    component_type: Type[T],
+    name: str,
+    description: str = "",
+    config: Optional[Dict[str, Any]] = None,
+    **kwargs: Any,
+) -> T:
+    """
+    Standardized factory function for component creation.
+
+    Args:
+        component_type: The type of component to create
+        name: Component name
+        description: Component description
+        config: Optional configuration dictionary
+        **kwargs: Additional component-specific parameters
+
+    Returns:
+        Instantiated component
+    """
+    merged_config = standardize_config(config, **kwargs)
+    return cast(T, component_type(name=name, description=description, config=merged_config))
+```
+
+## 3. Reduce Complexity and Improve Learning Curve
+
+### High-Priority Tasks (1-2 weeks)
+- Create getting started guides for each major component type
+- Develop interactive examples that demonstrate key concepts
+- Simplify public API by hiding implementation details
+
+### Medium-Priority Tasks (2-4 weeks)
+- Create a simplified facade layer for common operations
+- Develop cookbooks for common use cases
+- Add progressive complexity in documentation (basic → advanced)
+
+### Implementation Approach
+```python
+# Example: Simplified facade for common operations
+from sifaka.facade import SifakaAPI
+
+# Simple high-level API
+api = SifakaAPI()
+
+# Instead of complex setup:
+# rule = ToxicityRule.create(name="toxicity", config=RuleConfig(...))
+# critic = PromptCritic.create(name="refine", config=CriticConfig(...))
+# chain = Chain.create(rules=[rule], critics=[critic], ...)
+
+# Simple API:
+result = api.validate_and_improve(
+    text="Your text here",
+    rules=["toxicity", "length"],
+    improve_if_failed=True
+)
+```
+
+## 4. Improve Test Coverage
+
+### High-Priority Tasks (1-2 weeks)
+- Add unit test templates for each component type
+- Implement critical path integration tests
+- Set up CI/CD pipeline with coverage reporting
+
+### Medium-Priority Tasks (2-4 weeks)
+- Add property-based testing for complex components
+- Create test fixtures for common test scenarios
+- Implement regression test suite for bug fixes
+
+### Implementation Approach
+```python
+# Example: Test template for validators
+import pytest
+from sifaka.rules.base import BaseValidator, RuleResult
+
+class TestBaseValidator:
+    def test_validate_input_validation(self):
+        # Test that validation properly checks input types
+        validator = BaseValidator()
+        with pytest.raises(ValueError):
+            validator.validate(123)  # Non-string input should fail
+
+    def test_empty_text_handling(self):
+        # Test empty text handling
+        validator = BaseValidator()
+        result = validator.validate("")
+        assert not result.passed
+        assert "empty text" in result.message.lower()
+
+    # Additional tests for specific validator behaviors
+```
+
+## 5. Standardize Pydantic Usage
+
+### High-Priority Tasks (2-3 weeks)
+- Audit all Pydantic model usage and document current version
+- Create migration plan to Pydantic 2 if not already using it
+- Update all models to use consistent Pydantic configuration
+
+### Medium-Priority Tasks (3-5 weeks)
+- Standardize validation error handling
+- Create custom Pydantic types for common patterns
+- Implement consistent serialization/deserialization patterns
+
+### Implementation Approach
+```python
+# Example: Standardized Pydantic model configuration
+from pydantic import BaseModel, ConfigDict, Field
+from typing import Dict, Any, Optional
+
+class SifakaBaseModel(BaseModel):
+    """Base model for all Sifaka models with standardized configuration."""
 
     model_config = ConfigDict(
-        frozen=True,
-        extra="forbid",
-        validate_assignment=True,
-        populate_by_name=True,
-        str_strip_whitespace=True
+        extra="forbid",  # Prevent extra attributes
+        frozen=False,    # Allow mutation unless explicitly frozen
+        validate_assignment=True,  # Validate on attribute assignment
+        arbitrary_types_allowed=True,  # Allow complex types like callbacks
+        populate_by_name=True,  # Allow populating by alias
     )
 
-class BaseModel(BaseModel):
-    """Base model for all Sifaka models."""
-
-    model_config = BaseModelConfig.model_config
-```
-
-### Step 2: Update Core Models
-```python
-# sifaka/core/config.py
-from .models import BaseModel
-
-class CoreConfig(BaseModel):
-    """Core configuration for Sifaka."""
-
-    debug: bool = False
-    log_level: str = "INFO"
-    trace_enabled: bool = True
-```
-
-### Step 3: Update Feature Models
-```python
-# sifaka/rules/config.py
-from ..core.models import BaseModel
-
-class RuleConfig(BaseModel):
-    """Configuration for rules."""
-
-    priority: str = "MEDIUM"
-    cache_size: int = 0
-    cost: int = 1
-    params: Dict[str, Any] = Field(default_factory=dict)
-```
-
-### Step 4: Remove Legacy Code
-- Remove all Pydantic 1.x imports
-- Remove compatibility layers
-- Remove legacy model configurations
-- Update type hints
-
-## 2. Configuration System (1 week)
-
-### Step 1: Create Base Configuration
-```python
-# sifaka/core/config.py
-from .models import BaseModel
-from typing import Dict, Any, Optional, TypeVar, Generic
-
-T = TypeVar("T", bound=BaseModel)
-
-class BaseConfig(BaseModel):
-    """Base configuration for all components."""
-
-    params: Dict[str, Any] = Field(default_factory=dict)
-
-    def with_params(self, **params: Any) -> "BaseConfig":
-        """Create new config with updated params."""
-        return self.model_copy(update={"params": {**self.params, **params}})
-
-    def with_options(self, **options: Any) -> "BaseConfig":
-        """Create new config with updated options."""
-        return self.model_copy(update=options)
-
-class Configurable(Generic[T]):
-    """Type-safe configuration handling."""
-
-    def __init__(self, config_class: Type[T]):
-        self.config_class = config_class
-
-    def create_config(self, **kwargs: Any) -> T:
-        """Create type-safe configuration."""
-        return self.config_class(**kwargs)
-```
-
-### Step 2: Update Component Configurations
-```python
-# sifaka/rules/config.py
-from ..core.config import BaseConfig
-
-class RuleConfig(BaseConfig):
-    """Configuration for rules."""
-
-    priority: str = "MEDIUM"
-    cache_size: int = 0
-    cost: int = 1
-
-# sifaka/critics/config.py
-class CriticConfig(BaseConfig):
-    """Configuration for critics."""
-
-    min_confidence: float = 0.8
-    max_attempts: int = 3
-```
-
-### Step 3: Update Factory Functions
-```python
-# sifaka/rules/factories.py
-from ..core.config import Configurable
-
-def create_rule(
-    rule_type: Type[Rule],
-    config: Optional[RuleConfig] = None,
-    **kwargs: Any
-) -> Rule:
-    """Create a rule with standardized configuration."""
-    configurable = Configurable(RuleConfig)
-    config = config or configurable.create_config(**kwargs)
-    return rule_type(config=config)
-```
-
-### Step 4: Remove Legacy Configuration
-- Remove old configuration classes
-- Remove configuration compatibility layers
-- Update all components to use new system
-- Update documentation
-
-## 3. State Management (1 week)
-
-### Step 1: Create State Manager
-```python
-# sifaka/core/state.py
-from typing import Dict, Any, List, Optional
-from .models import BaseModel
-
-class State(BaseModel):
-    """Immutable state container."""
-
-    data: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
-class StateManager:
-    """Unified state management for all components."""
+    def with_metadata(self, **kwargs: Any) -> "SifakaBaseModel":
+        """Create a new instance with updated metadata."""
+        return self.model_copy(update={"metadata": {**self.metadata, **kwargs}})
+```
+
+## 6. Standardize State Management
+
+### High-Priority Tasks (1-2 weeks)
+- ✅ Consolidate on single StateManager implementation
+- Create state management guidelines for developers
+- Implement state introspection tools for debugging
+
+### Medium-Priority Tasks (2-4 weeks)
+- Add observability hooks to state changes
+- Create state persistence patterns for long-running components
+- Implement state sharing patterns for related components
+
+### Implementation Approach
+```python
+# Example: Enhanced state management with observability
+from typing import Any, Dict, List, Callable, Optional
+from sifaka.utils.state import State
+
+class ObservableStateManager:
+    """State manager with change observers."""
 
     def __init__(self):
-        self._state: State = State()
+        self._state = State()
         self._history: List[State] = []
+        self._observers: Dict[str, List[Callable[[str, Any, Any], None]]] = {}
 
     def update(self, key: str, value: Any) -> None:
-        """Update state with history tracking."""
+        """Update state with history tracking and observer notification."""
+        old_value = self._state.data.get(key)
         self._history.append(self._state)
-        self._state = self._state.model_copy(
-            update={"data": {**self._state.data, key: value}}
-        )
+        self._state = self._state.model_copy(update={"data": {**self._state.data, key: value}})
 
-    def rollback(self) -> None:
-        """Rollback to previous state."""
-        if self._history:
-            self._state = self._history.pop()
+        # Notify observers
+        if key in self._observers:
+            for observer in self._observers[key]:
+                observer(key, old_value, value)
 
-    def get(self, key: str) -> Any:
-        """Get state value."""
-        return self._state.data.get(key)
-
-    def set_metadata(self, key: str, value: Any) -> None:
-        """Set metadata value."""
-        self._state = self._state.model_copy(
-            update={"metadata": {**self._state.metadata, key: value}}
-        )
+    def observe(self, key: str, callback: Callable[[str, Any, Any], None]) -> None:
+        """Add observer for a specific key."""
+        if key not in self._observers:
+            self._observers[key] = []
+        self._observers[key].append(callback)
 ```
 
-### Step 2: Create Stateful Component Base
+## 7. Standardize Factory Functions Implementation
+
+### High-Priority Tasks (1-2 weeks)
+- Create unified factory function implementation guidelines
+- Standardize error handling in factory functions
+- Implement consistent validation in factory functions
+
+### Medium-Priority Tasks (2-4 weeks)
+- Create factory function decorators for common patterns
+- Implement factory registration system for component discovery
+- Add factory function test helpers
+
+### Implementation Approach
 ```python
-# sifaka/core/component.py
-from .state import StateManager
+# Example: Factory function decorator for standardization
+from functools import wraps
+from typing import TypeVar, Any, Callable, Dict, Optional, Type, cast
 
-class StatefulComponent:
-    """Base class for stateful components."""
+T = TypeVar('T')
 
-    def __init__(self):
-        self.state = StateManager()
+def standardized_factory(config_class: Type[Any]):
+    """Decorator for standardizing factory functions."""
 
-    def update_state(self, key: str, value: Any) -> None:
-        """Update component state."""
-        self.state.update(key, value)
+    def decorator(factory_func: Callable[..., T]) -> Callable[..., T]:
+        @wraps(factory_func)
+        def wrapper(
+            config: Optional[Dict[str, Any]] = None,
+            params: Optional[Dict[str, Any]] = None,
+            **kwargs: Any
+        ) -> T:
+            # Standardize config handling
+            final_params = {}
+            if params:
+                final_params.update(params)
 
-    def get_state(self, key: str) -> Any:
-        """Get component state."""
-        return self.state.get(key)
+            if isinstance(config, dict):
+                dict_params = config.pop("params", {}) if config else {}
+                final_params.update(dict_params)
+                return factory_func(
+                    config=config_class(**(config or {})),
+                    params=final_params,
+                    **kwargs
+                )
+            elif isinstance(config, config_class):
+                final_params.update(config.params)
+                return factory_func(
+                    config=config,
+                    params=final_params,
+                    **kwargs
+                )
+            else:
+                return factory_func(
+                    config=config_class(),
+                    params=final_params,
+                    **kwargs
+                )
 
-    def set_metadata(self, key: str, value: Any) -> None:
-        """Set component metadata."""
-        self.state.set_metadata(key, value)
+        return wrapper
+
+    return decorator
 ```
 
-### Step 3: Update Components
-```python
-# sifaka/rules/base.py
-from ..core.component import StatefulComponent
+## Timeline and Prioritization
 
-class Rule(StatefulComponent):
-    """Base class for rules."""
+### Phase 1: Foundation (Weeks 1-4)
+- Complete high-priority tasks for component duplication
+- Complete high-priority tasks for state management
+- Begin standardizing factory function patterns
+- Set up testing infrastructure
 
-    def __init__(self, config: RuleConfig):
-        super().__init__()
-        self.config = config
-        self.set_metadata("rule_type", self.__class__.__name__)
-```
+### Phase 2: Standardization (Weeks 5-8)
+- Complete Pydantic standardization
+- Finalize factory function implementation standards
+- Complete complexity reduction high-priority tasks
+- Implement core integration tests
 
-### Step 4: Remove Legacy State Management
-- Remove old state management code
-- Remove state compatibility layers
-- Update all components to use new system
-- Update documentation
+### Phase 3: Refinement (Weeks 9-12)
+- Complete all remaining medium-priority tasks
+- Add comprehensive documentation
+- Perform usability testing
+- Create contribution guidelines
 
-## Implementation Order
+### Phase 4: Validation (Weeks 13-16)
+- Conduct internal code reviews
+- Complete test coverage goals
+- Create example projects
+- Prepare for community feedback
 
-1. **Week 1: Pydantic 2 Migration**
-   - Day 1: Create base model configuration
-   - Day 2: Update core models
-   - Day 3: Update feature models
-   - Day 4: Remove legacy code
-   - Day 5: Testing and documentation
+## Success Metrics
 
-2. **Week 2: Configuration System**
-   - Day 1: Create base configuration
-   - Day 2: Update component configurations
-   - Day 3: Update factory functions
-   - Day 4: Remove legacy configuration
-   - Day 5: Testing and documentation
+1. **Code Duplication**: < 5% duplication as measured by static analysis tools
+2. **Test Coverage**: > 80% line coverage for core components
+3. **Documentation**: 100% of public APIs documented with examples
+4. **Consistency**: 100% compliance with established patterns for new code
+5. **Learning Curve**: New contributor onboarding time reduced by 50%
 
-3. **Week 3: State Management**
-   - Day 1: Create state manager
-   - Day 2: Create stateful component base
-   - Day 3: Update components
-   - Day 4: Remove legacy state management
-   - Day 5: Testing and documentation
+## Conclusion
 
-## Testing Strategy
-
-1. **Unit Tests**
-   - Test all new base classes
-   - Test configuration handling
-   - Test state management
-   - Test model validation
-
-2. **Integration Tests**
-   - Test component interactions
-   - Test configuration flow
-   - Test state management flow
-   - Test error handling
-
-3. **Migration Tests**
-   - Test component updates
-   - Test configuration updates
-   - Test state management updates
-   - Test error handling updates
-
-## Documentation Updates
-
-1. **API Documentation**
-   - Update model documentation
-   - Update configuration documentation
-   - Update state management documentation
-   - Update factory function documentation
-
-2. **Architecture Documentation**
-   - Update model architecture
-   - Update configuration architecture
-   - Update state management architecture
-   - Update component architecture
-
-3. **Migration Guide**
-   - Document breaking changes
-   - Document new patterns
-   - Document best practices
-   - Document examples
-
-## Success Criteria
-
-1. **Pydantic 2 Migration**
-   - All models use Pydantic 2
-   - No legacy code remains
-   - All type hints are correct
-   - All tests pass
-
-2. **Configuration System**
-   - All components use new system
-   - No legacy configuration remains
-   - All factory functions updated
-   - All tests pass
-
-3. **State Management**
-   - All components use new system
-   - No legacy state management remains
-   - All state operations work
-   - All tests pass
-
-## Risk Mitigation
-
-1. **Breaking Changes**
-   - Document all breaking changes
-   - Provide clear migration paths
-   - Update all examples
-   - Update all documentation
-
-2. **Testing**
-   - Comprehensive unit tests
-   - Comprehensive integration tests
-   - Comprehensive migration tests
-   - Regular test runs
-
-3. **Documentation**
-   - Clear API documentation
-   - Clear architecture documentation
-   - Clear migration guide
-   - Clear examples
-
-## Next Steps
-
-1. Review and approve implementation plan
-2. Set up development environment
-3. Create feature branches
-4. Begin implementation
-5. Regular progress updates
+This implementation plan provides a structured approach to address the identified improvement areas in Sifaka. By following this plan, we can significantly enhance the codebase's maintainability, consistency, and usability while preserving its powerful capabilities.

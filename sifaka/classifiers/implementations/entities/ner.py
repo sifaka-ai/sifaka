@@ -28,13 +28,14 @@ from typing import (
 )
 
 from typing_extensions import TypeGuard
-from pydantic import PrivateAttr
+from pydantic import ConfigDict, PrivateAttr
 
 from sifaka.classifiers.base import BaseClassifier
 from sifaka.classifiers.models import ClassificationResult
 from sifaka.classifiers.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
+from sifaka.utils.config import extract_classifier_config_params
 
 logger = get_logger(__name__)
 
@@ -69,7 +70,7 @@ class EntityResult:
         return self.entity_count / max(len(self.text.split()), 1)  # Avoid division by zero
 
 
-class NERClassifier(BaseClassifier):
+class NERClassifier(BaseClassifier[str, List[Dict[str, Any]]]):
     """
     A Named Entity Recognition (NER) classifier using spaCy.
 
@@ -79,9 +80,6 @@ class NERClassifier(BaseClassifier):
     Requires the 'ner' extra to be installed:
     pip install sifaka[ner]
     """
-
-    # State management already inherited from BaseClassifier as _state
-    # Remove: _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
     # Define class-level constants with ClassVar annotation
     DEFAULT_LABELS: ClassVar[List[str]] = [
@@ -93,6 +91,10 @@ class NERClassifier(BaseClassifier):
         "unknown",
     ]
     DEFAULT_COST: ClassVar[int] = 2  # Moderate cost for NLP model
+
+    # State is inherited from BaseClassifier as _state
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def __init__(
         self,
@@ -138,9 +140,7 @@ class NERClassifier(BaseClassifier):
 
     def _validate_engine(self, engine: Any) -> TypeGuard[NEREngine]:
         """Validate that an engine implements the required protocol."""
-        if not isinstance(engine, NEREngine):
-            raise ValueError(f"Engine must implement NEREngine protocol, got {type(engine)}")
-        return True
+        return self.validate_component(engine, NEREngine, "Engine")
 
     def _load_spacy(self) -> NEREngine:
         """Load the spaCy NER engine."""
@@ -446,8 +446,9 @@ class NERClassifier(BaseClassifier):
             **kwargs,
         )
 
-        # Initialize state
-        instance._state.update("cache", {"engine": engine})
+        # Initialize state with engine and mark as initialized
+        cache = {"engine": engine}
+        instance._state.update("cache", cache)
         instance._state.update("initialized", True)
 
         return instance
@@ -460,8 +461,8 @@ def create_ner_classifier(
     entity_types: Optional[List[str]] = None,
     min_confidence: float = 0.5,
     cache_size: int = 0,
-    cost: int = 2,
-    **kwargs,
+    cost: int = NERClassifier.DEFAULT_COST,
+    **kwargs: Any,
 ) -> NERClassifier:
     """
     Factory function to create a NER classifier.
@@ -479,23 +480,26 @@ def create_ner_classifier(
     Returns:
         Configured NERClassifier instance
     """
-    # Prepare params
-    params = kwargs.pop("params", {})
-    params.update(
-        {
-            "model_name": model_name,
-            "entity_types": entity_types or NERClassifier.DEFAULT_LABELS,
-            "min_confidence": min_confidence,
-        }
-    )
+    # Set up default params
+    default_params = {
+        "model_name": model_name,
+        "entity_types": entity_types or NERClassifier.DEFAULT_LABELS,
+        "min_confidence": min_confidence,
+    }
 
-    # Create config
-    config = ClassifierConfig(
+    # Extract and merge configuration parameters
+    config_dict = extract_classifier_config_params(
         labels=NERClassifier.DEFAULT_LABELS,
         cache_size=cache_size,
+        min_confidence=min_confidence,
         cost=cost,
-        params=params,
+        provided_params=kwargs.pop("params", {}),
+        default_params=default_params,
+        **kwargs,
     )
+
+    # Create config with merged parameters
+    config = ClassifierConfig[str](**config_dict)
 
     # Create and return classifier
     return NERClassifier(

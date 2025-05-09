@@ -42,6 +42,7 @@ from .config import RuleConfig, RulePriority
 from .result import RuleResult
 from ..utils.logging import get_logger
 from ..utils.state import StateManager, create_rule_state
+from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
 
 logger = get_logger(__name__)
 
@@ -146,116 +147,21 @@ class RuleValidator(Protocol[T_contra]):
         ...
 
 
-class BaseValidator(Generic[T]):
-    """Base class for validators that implements the RuleValidator protocol."""
+class BaseValidator(Validatable[T], Generic[T]):
+    """Base class for validators."""
 
-    def __init__(self):
+    def __init__(self, validation_type: Type[T] = str):
         """Initialize the validator."""
-        # Initialize state manager
-        self._state = StateManager()
-        self._state.update("initialized", False)
-        self._state.update("cache", {})
-        self._state.set_metadata("component_type", "validator")
-        self._state.set_metadata("validation_count", 0)
+        self._validation_type = validation_type
 
-    def validate(self, output: T, **kwargs: Any) -> RuleResult:
-        """
-        Validate the output.
+    def can_validate(self, input: T) -> bool:
+        """Check if this validator can validate the input."""
+        return isinstance(input, self._validation_type)
 
-        This method handles common validation logic, including empty text handling.
-        Subclasses should override this method to implement their validation logic.
-
-        Args:
-            output: The output to validate
-            **kwargs: Additional validation context
-
-        Returns:
-            Validation result
-
-        Raises:
-            NotImplementedError: If not implemented by subclass
-        """
-        # Track validation count
-        count = self._state.get_metadata("validation_count", 0)
-        self._state.set_metadata("validation_count", count + 1)
-
-        # Handle empty text for string validators
-        if isinstance(output, str):
-            from sifaka.utils.text import handle_empty_text
-
-            empty_result = handle_empty_text(output, component_type="rule")
-            if empty_result:
-                # Track empty validations
-                empty_count = self._state.get_metadata("empty_count", 0)
-                self._state.set_metadata("empty_count", empty_count + 1)
-                return empty_result
-
-        # This is a placeholder implementation that should be overridden
-        # by subclasses. We're using _ to indicate unused parameters.
-        _ = output, kwargs
-        raise NotImplementedError("Subclasses must implement validate method")
-
-    def handle_empty_text(self, text: str) -> Optional[RuleResult]:
-        """
-        Handle empty text validation.
-
-        Args:
-            text: The text to check
-
-        Returns:
-            RuleResult if text is empty, None otherwise
-        """
-        from sifaka.utils.text import handle_empty_text
-
-        return handle_empty_text(text, component_type="rule")
-
-    def can_validate(self, output: T) -> bool:
-        """
-        Check if this validator can validate the output.
-
-        Args:
-            output: The output to check
-
-        Returns:
-            True if this validator can validate the output
-        """
-        # Track validation check
-        check_count = self._state.get_metadata("can_validate_checks", 0)
-        self._state.set_metadata("can_validate_checks", check_count + 1)
-
-        result = isinstance(output, self.validation_type)
-
-        # Track validation type matches
-        if result:
-            match_count = self._state.get_metadata("validation_type_matches", 0)
-            self._state.set_metadata("validation_type_matches", match_count + 1)
-
-        return result
-
-    @property
-    def validation_type(self) -> type:
-        """
-        Get the type this validator can validate.
-
-        Returns:
-            The type this validator can validate
-        """
-        # Default implementation returns str type
-        return str
-
-    def get_statistics(self) -> Dict[str, Any]:
-        """
-        Get validation statistics for this validator.
-
-        Returns:
-            Dictionary with statistics
-        """
-        return {
-            "validation_count": self._state.get_metadata("validation_count", 0),
-            "empty_count": self._state.get_metadata("empty_count", 0),
-            "can_validate_checks": self._state.get_metadata("can_validate_checks", 0),
-            "validation_type_matches": self._state.get_metadata("validation_type_matches", 0),
-        }
+    @abstractmethod
+    def validate(self, input: T) -> RuleResult:
+        """Validate the input."""
+        ...
 
 
 R_contra = TypeVar("R_contra", contravariant=True)
@@ -299,223 +205,64 @@ class RuleResultHandler(Protocol[R_contra]):
         ...
 
 
-class Rule(Generic[T, R, V, H], ABC):
-    """Base class for all Sifaka rules."""
-
-    # Add state manager as a private attribute
-    _state = PrivateAttr(default_factory=create_rule_state)
+class BaseRule(BaseComponent[T, RuleResult], Generic[T]):
+    """Base class for all rules."""
 
     def __init__(
         self,
         name: str,
         description: str,
         config: Optional[RuleConfig] = None,
-        validator: Optional[V] = None,
-        result_handler: Optional[H] = None,
+        validator: Optional[BaseValidator[T]] = None,
+        **kwargs: Any,
     ) -> None:
-        """
-        Initialize a rule.
+        """Initialize the rule."""
+        super().__init__(name, description, config or RuleConfig(**kwargs))
+        self._validator = validator or self._create_default_validator()
 
-        Args:
-            name: The name of the rule
-            description: Description of the rule
-            config: Rule configuration
-            validator: Optional validator implementation
-            result_handler: Optional handler for validation results
+    @abstractmethod
+    def _create_default_validator(self) -> BaseValidator[T]:
+        """Create the default validator for this rule."""
+        ...
 
-        Raises:
-            ConfigurationError: If validator or handler doesn't meet requirements
-        """
-        self._name: Final[str] = name
-        self._description: Final[str] = description
-        self._config: Final[RuleConfig] = config or RuleConfig()
+    def validate(self, input: T) -> RuleResult:
+        """Validate the input using the rule's validator."""
+        # Validate input
+        if not self.validate_input(input):
+            return RuleResult(
+                passed=False, message="Invalid input", metadata={"error_type": "invalid_input"}
+            )
 
-        # Initialize state
-        self._state.update("initialized", False)
-        self._state.update("cache", {})
-        self._state.update("validation_count", 0)
-        self._state.set_metadata("component_type", "rule")
-        self._state.set_metadata("name", name)
-        self._state.set_metadata("description", description)
-        self._state.set_metadata("priority", str(self._config.priority))
+        # Handle empty input
+        empty_result = self.handle_empty_input(input)
+        if empty_result:
+            return empty_result
 
-        # Set validator (either provided or create default)
-        if validator is not None:
-            if not isinstance(validator, RuleValidator):
-                raise ConfigurationError(
-                    f"Validator must implement RuleValidator protocol, got {type(validator)}"
+        try:
+            # Run validation
+            if not self._validator.can_validate(input):
+                return RuleResult(
+                    passed=False,
+                    message="Invalid input type",
+                    metadata={"error_type": "invalid_type"},
                 )
-            self._validator: V = validator
-            self._state.update("validator", validator)
-        else:
-            # Create a default validator
-            self._validator = self._create_default_validator()
-            self._state.update("validator", self._validator)
 
-        # Set result handler (either provided or create default)
-        if result_handler is not None:
-            if not isinstance(result_handler, RuleResultHandler):
-                raise ConfigurationError(
-                    f"Result handler must implement RuleResultHandler protocol, got {type(result_handler)}"
-                )
-            self._result_handler: Optional[H] = result_handler
-            self._state.update("result_handler", result_handler)
-        else:
-            # No default handler
-            self._result_handler = None
+            return self._validator.validate(input)
 
-    def _create_default_validator(self) -> V:
-        """
-        Create a default validator for this rule.
+        except Exception as e:
+            logger.error(f"Error validating input: {e}")
+            return RuleResult(
+                passed=False, message=f"Error: {str(e)}", metadata={"error_type": type(e).__name__}
+            )
 
-        Returns:
-            Default validator instance
+    def process(self, input: T) -> RuleResult:
+        """Process the input through the rule pipeline."""
+        return self.validate(input)
 
-        Raises:
-            NotImplementedError: If not implemented by subclass
-        """
-        raise NotImplementedError("Subclasses must implement _create_default_validator")
-
-    @property
-    def name(self) -> str:
-        """
-        Get the name of the rule.
-
-        Returns:
-            The name of the rule
-        """
-        return self._name
-
-    @property
-    def description(self) -> str:
-        """
-        Get the description of the rule.
-
-        Returns:
-            The description of the rule
-        """
-        return self._description
-
-    @property
-    def config(self) -> RuleConfig:
-        """
-        Get the configuration of the rule.
-
-        Returns:
-            The configuration of the rule
-        """
-        return self._config
-
-    @property
-    def validator(self) -> V:
-        """
-        Get the validator used by this rule.
-
-        Returns:
-            The validator used by this rule
-        """
-        return self._validator
-
-    def validate(self, text: str, **kwargs: Any) -> RuleResult:
-        """
-        Validate text against this rule.
-
-        Args:
-            text: The text to validate
-            **kwargs: Additional validation options
-
-        Returns:
-            Validation result
-        """
-        # Check if result is already cached
-        cache = self._state.get("cache", {})
-        cache_key = self._create_cache_key(text, kwargs)
-
-        if cache_key in cache and self._config.use_cache:
-            self._state.set_metadata("cache_hit", True)
-            return cache[cache_key]
-
-        # Mark as cache miss
-        self._state.set_metadata("cache_hit", False)
-
-        # Delegate validation to the validator
-        result = self._validator.validate(text, **kwargs)
-
-        # Add rule metadata to the result
-        result_with_metadata = result.with_metadata(
-            rule_name=self.name,
-            rule_description=self.description,
-        )
-
-        # Handle the result if a handler is provided
-        if self._result_handler is not None:
-            self._result_handler.handle_result(result_with_metadata)
-
-        # Update validation statistics
-        validation_count = self._state.get("validation_count", 0)
-        self._state.update("validation_count", validation_count + 1)
-
-        # Update the pass/fail statistics
-        if result.passed:
-            pass_count = self._state.get_metadata("pass_count", 0)
-            self._state.set_metadata("pass_count", pass_count + 1)
-        else:
-            fail_count = self._state.get_metadata("fail_count", 0)
-            self._state.set_metadata("fail_count", fail_count + 1)
-
-        # Cache the result if caching is enabled
-        if self._config.use_cache:
-            cache[cache_key] = result_with_metadata
-            self._state.update("cache", cache)
-
-        return result_with_metadata
-
-    def _create_cache_key(self, text: str, kwargs: Dict[str, Any]) -> str:
-        """
-        Create a cache key for validation results.
-
-        Args:
-            text: The text to validate
-            kwargs: Additional validation options
-
-        Returns:
-            Cache key as a string
-        """
-        # For simple cases, we can just use the text itself
-        if not kwargs:
-            return text[:100]  # Limit key size for large texts
-
-        # For more complex cases with kwargs, create a hash
-        key_parts = [text[:100]]
-        for k, v in sorted(kwargs.items()):
-            key_parts.append(f"{k}:{str(v)}")
-
-        combined = "|".join(key_parts)
-        return hashlib.md5(combined.encode()).hexdigest()
-
-    def get_statistics(self) -> Dict[str, Any]:
-        """
-        Get validation statistics for this rule.
-
-        Returns:
-            Dictionary with statistics
-        """
-        return {
-            "validation_count": self._state.get("validation_count", 0),
-            "pass_count": self._state.get_metadata("pass_count", 0),
-            "fail_count": self._state.get_metadata("fail_count", 0),
-            "cache_size": len(self._state.get("cache", {})),
-        }
-
-    def reset_statistics(self) -> None:
-        """Reset validation statistics."""
-        self._state.update("validation_count", 0)
-        self._state.set_metadata("pass_count", 0)
-        self._state.set_metadata("fail_count", 0)
-
-    def clear_cache(self) -> None:
-        """Clear the validation result cache."""
-        self._state.update("cache", {})
+    @classmethod
+    def create(cls: Type["BaseRule"], name: str, description: str, **kwargs: Any) -> "BaseRule":
+        """Create a new rule instance."""
+        return cls(name=name, description=description, config=RuleConfig(**kwargs))
 
 
 class FunctionValidator(BaseValidator[T]):
@@ -563,7 +310,7 @@ class FunctionValidator(BaseValidator[T]):
         return self._validation_type
 
 
-class FunctionRule(Rule[T, RuleResult, FunctionValidator[T], None]):
+class FunctionRule(BaseRule[T, RuleResult, FunctionValidator[T], None]):
     """Rule that uses a function for validation."""
 
     def __init__(
@@ -614,7 +361,7 @@ def create_rule(
     description: str = "",
     config: Optional[RuleConfig] = None,
     **kwargs: Any,
-) -> Rule:
+) -> BaseRule:
     """
     Create a rule with the given validator and configuration.
 
@@ -646,7 +393,7 @@ __all__ = [
     "RuleResultHandler",
     # Base classes
     "BaseValidator",
-    "Rule",
+    "BaseRule",
     # Concrete classes
     "FunctionValidator",
     "FunctionRule",

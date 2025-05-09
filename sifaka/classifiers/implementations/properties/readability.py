@@ -21,6 +21,7 @@ from typing import (
 
 from typing_extensions import TypeGuard
 from pydantic import PrivateAttr
+from pydantic import ConfigDict
 
 from sifaka.classifiers.base import BaseClassifier
 from sifaka.classifiers.models import ClassificationResult
@@ -97,7 +98,7 @@ class ReadabilityMetrics:
         self.difficult_words = difficult_words
 
 
-class ReadabilityClassifier(BaseClassifier):
+class ReadabilityClassifier(BaseClassifier[str, str]):
     """
     A classifier that analyzes text readability using textstat.
 
@@ -109,8 +110,14 @@ class ReadabilityClassifier(BaseClassifier):
     """
 
     # Class-level constants
-    DEFAULT_LABELS: ClassVar[List[str]] = ["elementary", "middle", "high", "college", "graduate"]
-    DEFAULT_COST: ClassVar[int] = 1  # Low cost for statistical analysis
+    DEFAULT_LABELS: ClassVar[List[str]] = [
+        "very_easy",
+        "easy",
+        "medium",
+        "difficult",
+        "very_difficult",
+    ]
+    DEFAULT_COST: ClassVar[int] = 1  # Low cost for rule-based classification
 
     # Default grade level bounds
     DEFAULT_GRADE_LEVEL_BOUNDS: ClassVar[Dict[str, tuple[float, float]]] = {
@@ -121,8 +128,9 @@ class ReadabilityClassifier(BaseClassifier):
         "graduate": (16.0, float("inf")),
     }
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_classifier_state)
+    # State is inherited from BaseClassifier as _state
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def __init__(
         self,
@@ -160,7 +168,7 @@ class ReadabilityClassifier(BaseClassifier):
         super().__init__(name=name, description=description, config=config)
 
         # Initialize state
-        state = self._state_manager.get_state()
+        state = self._state.get_state()
         state.initialized = False
         state.cache = {}
 
@@ -192,7 +200,7 @@ class ReadabilityClassifier(BaseClassifier):
     def warm_up(self) -> None:
         """Initialize the analyzer if needed."""
         # Get state
-        state = self._state_manager.get_state()
+        state = self._state.get_state()
 
         # Check if already initialized
         if not state.initialized:
@@ -237,7 +245,7 @@ class ReadabilityClassifier(BaseClassifier):
     def _calculate_metrics(self, text: str) -> ReadabilityMetrics:
         """Calculate comprehensive readability metrics."""
         # Get state
-        state = self._state_manager.get_state()
+        state = self._state.get_state()
 
         # Get analyzer from state
         analyzer = state.model
@@ -312,7 +320,7 @@ class ReadabilityClassifier(BaseClassifier):
             ClassificationResult with readability level and confidence
         """
         # Get state
-        state = self._state_manager.get_state()
+        state = self._state.get_state()
 
         # Ensure initialized
         self.warm_up()

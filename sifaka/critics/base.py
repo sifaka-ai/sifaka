@@ -105,6 +105,11 @@ from typing import (
 
 from typing_extensions import TypeGuard
 
+from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
+from sifaka.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
 # Import the interfaces
 from .interfaces.critic import TextValidator, TextImprover, TextCritic, CritiqueResult
 
@@ -610,7 +615,7 @@ class TextCritic(Protocol[T, R]):
         ...
 
 
-class BaseCritic(ABC, Generic[T, R]):
+class BaseCritic(BaseComponent[T, CriticResult], Generic[T]):
     """
     Abstract base class for critics.
 
@@ -676,89 +681,19 @@ class BaseCritic(ABC, Generic[T, R]):
         R: The result type
     """
 
-    def __init__(self, config: CriticConfig) -> None:
+    def __init__(
+        self, name: str, description: str, config: Optional[CriticConfig] = None, **kwargs: Any
+    ) -> None:
         """
         Initialize the critic.
 
         Args:
-            config: The critic configuration
+            name: Name of the critic
+            description: Description of the critic
+            config: Optional critic configuration
+            **kwargs: Additional configuration parameters
         """
-        self._config = config
-        self._validate_config()
-        self.initialize()
-
-    @property
-    def config(self) -> CriticConfig:
-        """
-        Get critic configuration.
-
-        Returns:
-            The critic configuration
-        """
-        return self._config
-
-    @property
-    def name(self) -> str:
-        """
-        Get critic name.
-
-        Returns:
-            The critic name
-        """
-        return self._config.name
-
-    @property
-    def description(self) -> str:
-        """
-        Get critic description.
-
-        Returns:
-            The critic description
-        """
-        return self._config.description
-
-    def update_config(self, config: CriticConfig) -> None:
-        """
-        Update critic configuration.
-
-        Args:
-            config: The new configuration
-        """
-        self._config = config
-        self._validate_config()
-
-    def initialize(self) -> None:
-        """
-        Initialize critic resources.
-        """
-        pass
-
-    def cleanup(self) -> None:
-        """
-        Clean up critic resources.
-        """
-        pass
-
-    def _validate_config(self) -> None:
-        """
-        Validate critic configuration.
-        """
-        if not self._config.name:
-            raise ValueError("Critic name is required")
-        if not self._config.description:
-            raise ValueError("Critic description is required")
-
-    def is_valid_text(self, text: Any) -> TypeGuard[T]:
-        """
-        Check if text is valid.
-
-        Args:
-            text: The text to check
-
-        Returns:
-            True if text is valid, False otherwise
-        """
-        return isinstance(text, str) and bool(text)
+        super().__init__(name, description, config or CriticConfig(**kwargs))
 
     @abstractmethod
     def validate(self, text: T) -> bool:
@@ -771,7 +706,7 @@ class BaseCritic(ABC, Generic[T, R]):
         Returns:
             True if text is valid, False otherwise
         """
-        pass
+        ...
 
     @abstractmethod
     def improve(self, text: T, feedback: Optional[str] = None) -> T:
@@ -785,10 +720,10 @@ class BaseCritic(ABC, Generic[T, R]):
         Returns:
             The improved text
         """
-        pass
+        ...
 
     @abstractmethod
-    def critique(self, text: T) -> CriticMetadata[R]:
+    def critique(self, text: T) -> CriticResult:
         """
         Critique text.
 
@@ -796,77 +731,62 @@ class BaseCritic(ABC, Generic[T, R]):
             text: The text to critique
 
         Returns:
-            CriticMetadata containing the critique details
+            CriticResult containing the critique details
         """
-        pass
+        ...
 
-    @abstractmethod
-    def improve_with_feedback(self, text: T, feedback: str) -> T:
-        """
-        Improve text with feedback.
-
-        Args:
-            text: The text to improve
-            feedback: Feedback to guide improvement
-
-        Returns:
-            The improved text
-        """
-        pass
-
-    def process(self, text: T, feedback: Optional[str] = None) -> CriticOutput[T, R]:
+    def process(self, text: T) -> CriticResult:
         """
         Process text through the critic pipeline.
 
         Args:
             text: The text to process
-            feedback: Optional feedback to guide improvement
 
         Returns:
-            CriticOutput containing the processing results
+            CriticResult containing the processing results
         """
-        if not self.is_valid_text(text):
-            return CriticOutput(
-                result=CriticResultEnum.FAILURE,
-                improved_text=text,
-                metadata=CriticMetadata(
-                    score=0.0, feedback="Invalid text", issues=["Text must be a non-empty string"]
-                ),
+        # Validate input
+        if not self.validate_input(text):
+            return CriticResult(
+                passed=False, message="Invalid input", metadata={"error_type": "invalid_input"}
             )
+
+        # Handle empty text
+        empty_result = self.handle_empty_input(text)
+        if empty_result:
+            return empty_result
 
         try:
-            # Validate text
-            is_valid = self.validate(text)
-            if not is_valid:
-                return CriticOutput(
-                    result=CriticResultEnum.NEEDS_IMPROVEMENT,
-                    improved_text=text,
-                    metadata=CriticMetadata(
-                        score=0.0,
-                        feedback="Text needs improvement",
-                        issues=["Text failed validation"],
-                    ),
-                )
+            # Run critique
+            result = self.critique(text)
 
-            # Improve text if feedback provided
-            improved_text = text
-            if feedback:
-                improved_text = self.improve_with_feedback(text, feedback)
+            # If improvement needed, try to improve
+            if not result.passed and result.suggestions:
+                improved_text = self.improve(text, result.feedback)
+                result = result.with_metadata(improved_text=improved_text, improvement_applied=True)
 
-            # Get critique
-            metadata = self.critique(improved_text)
+            return result
 
-            return CriticOutput(
-                result=CriticResultEnum.SUCCESS, improved_text=improved_text, metadata=metadata
-            )
         except Exception as e:
-            return CriticOutput(
-                result=CriticResultEnum.FAILURE,
-                improved_text=text,
-                metadata=CriticMetadata(
-                    score=0.0, feedback=f"Error: {str(e)}", issues=["Processing failed"]
-                ),
+            logger.error(f"Error processing text: {e}")
+            return CriticResult(
+                passed=False, message=f"Error: {str(e)}", metadata={"error_type": type(e).__name__}
             )
+
+    @classmethod
+    def create(cls: Type[C], name: str, description: str, **kwargs: Any) -> C:
+        """
+        Create a new critic instance.
+
+        Args:
+            name: Name of the critic
+            description: Description of the critic
+            **kwargs: Additional configuration parameters
+
+        Returns:
+            A new critic instance
+        """
+        return cls(name=name, description=description, config=CriticConfig(**kwargs))
 
 
 @overload
@@ -1057,7 +977,7 @@ def create_critic(
         raise TypeError(f"critic_class must be a subclass of BaseCritic, got {critic_class}")
 
     # Create and return critic instance
-    return critic_class(config)
+    return critic_class(name, description, config)
 
 
 class Critic(BaseCritic[str, str]):
@@ -1188,7 +1108,7 @@ class Critic(BaseCritic[str, str]):
 
         return improved
 
-    def critique(self, text: str) -> CriticMetadata[str]:
+    def critique(self, text: str) -> CriticResult:
         """
         Critique text.
 
@@ -1196,11 +1116,11 @@ class Critic(BaseCritic[str, str]):
             text: The text to critique
 
         Returns:
-            CriticMetadata containing the critique details
+            CriticResult containing the critique details
         """
         if not self.is_valid_text(text):
-            return CriticMetadata(
-                score=0.0, feedback="Invalid text", issues=["Text must be a non-empty string"]
+            return CriticResult(
+                passed=False, message="Invalid text", metadata={"error_type": "invalid_text"}
             )
 
         # Analyze text quality
@@ -1239,8 +1159,15 @@ class Critic(BaseCritic[str, str]):
 
         feedback = "Good text quality" if score >= 0.8 else "Text needs improvement"
 
-        return CriticMetadata(
-            score=score, feedback=feedback, issues=issues, suggestions=suggestions
+        return CriticResult(
+            passed=score >= 0.8,
+            message=feedback,
+            metadata={
+                "score": score,
+                "feedback": feedback,
+                "issues": issues,
+                "suggestions": suggestions,
+            },
         )
 
 
@@ -1282,8 +1209,8 @@ def create_basic_critic(
     # Use the critic
     text = "This is a test text."
     result = critic.process(text)
-    print(f"Score: {result.metadata.score:.2f}")
-    print(f"Feedback: {result.metadata.feedback}")
+    print(f"Score: {result.metadata['score']:.2f}")
+    print(f"Feedback: {result.message}")
     ```
 
     ## Error Handling

@@ -9,15 +9,24 @@ import os
 import re
 import pickle
 import importlib
-from typing import Any, Dict, List, Optional, ClassVar, Union
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+)
 
-from pydantic import ConfigDict, PrivateAttr
+from pydantic import ConfigDict
 
 from sifaka.classifiers.base import BaseClassifier
 from sifaka.classifiers.models import ClassificationResult
-from sifaka.classifiers.config import ClassifierConfig, standardize_classifier_config
+from sifaka.classifiers.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import create_classifier_state
+from sifaka.utils.config import extract_classifier_config_params
 
 logger = get_logger(__name__)
 
@@ -36,7 +45,7 @@ DEFAULT_BIAS_TYPES: List[str] = [
 ]
 
 
-class BiasDetector(BaseClassifier):
+class BiasDetector(BaseClassifier[str, str]):
     """
     A bias detector using Support Vector Machines from scikit-learn.
 
@@ -62,8 +71,7 @@ class BiasDetector(BaseClassifier):
     # Class constants
     DEFAULT_COST: ClassVar[float] = 2.5
 
-    # State management already inherited from BaseClassifier as _state
-    # Remove: _state_manager = PrivateAttr(default_factory=create_classifier_state)
+    # State is inherited from BaseClassifier as _state
 
     # Default keywords for each bias category to enhance detection
     DEFAULT_BIAS_KEYWORDS: ClassVar[Dict[str, List[str]]] = {
@@ -637,16 +645,13 @@ def create_bias_detector(
     **kwargs: Any,
 ) -> BiasDetector:
     """
-    Create a bias detector.
-
-    This factory function creates a BiasDetector with the specified
-    configuration options.
+    Factory function to create a bias detector.
 
     Args:
         name: Name of the classifier
         description: Description of the classifier
-        bias_types: List of bias types to detect
-        bias_keywords: Dictionary mapping bias types to keywords
+        bias_types: List of bias types to detect (defaults to DEFAULT_BIAS_TYPES)
+        bias_keywords: Dictionary mapping bias types to keywords (defaults to DEFAULT_BIAS_KEYWORDS)
         min_confidence: Minimum confidence threshold
         max_features: Maximum number of features for the vectorizer
         random_state: Random state for reproducibility
@@ -656,48 +661,37 @@ def create_bias_detector(
         **kwargs: Additional configuration parameters
 
     Returns:
-        A BiasDetector instance
-
-    Examples:
-        ```python
-        from sifaka.classifiers.bias import create_bias_detector
-
-        # Create a bias detector with default settings
-        detector = create_bias_detector()
-
-        # Create a bias detector with custom settings
-        detector = create_bias_detector(
-            name="custom_bias_detector",
-            description="Custom bias detector with specific bias types",
-            bias_types=["gender", "racial", "political"],
-            min_confidence=0.8,
-            cache_size=200
-        )
-
-        # Classify text
-        result = detector.classify("Men are better at math than women.")
-        print(f"Bias type: {result.label}, Confidence: {result.confidence:.2f}")
-        ```
+        Configured BiasDetector instance
     """
-    # Use standardize_classifier_config to handle different config formats
-    classifier_config = standardize_classifier_config(
-        config=config,
-        labels=bias_types or DEFAULT_BIAS_TYPES,
+    bias_types = bias_types or DEFAULT_BIAS_TYPES
+    bias_keywords = bias_keywords or BiasDetector.DEFAULT_BIAS_KEYWORDS
+
+    # Set up default params
+    default_params = {
+        "bias_types": bias_types,
+        "bias_keywords": bias_keywords,
+        "max_features": max_features,
+        "random_state": random_state,
+        "min_confidence": min_confidence,
+    }
+
+    # Extract and merge configuration parameters
+    config_dict = extract_classifier_config_params(
+        labels=bias_types,
+        cache_size=cache_size,
         min_confidence=min_confidence,
         cost=cost,
-        cache_size=cache_size,
-        params={
-            "bias_types": bias_types or DEFAULT_BIAS_TYPES,
-            "bias_keywords": bias_keywords or BiasDetector.DEFAULT_BIAS_KEYWORDS,
-            "min_confidence": min_confidence,
-            "max_features": max_features,
-            "random_state": random_state,
-        },
+        provided_params=kwargs.pop("params", {}),
+        default_params=default_params,
         **kwargs,
     )
 
+    # Create config with merged parameters
+    config = ClassifierConfig[str](**config_dict)
+
+    # Create and return classifier
     return BiasDetector(
         name=name,
         description=description,
-        config=classifier_config,
+        config=config,
     )
