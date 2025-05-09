@@ -1,222 +1,273 @@
-# Implementation Notes: LAC (LLM-Based Actor-Critic) Critic
+# Implementation Notes: LAC Critic
 
 This document provides implementation details and notes for the LAC (LLM-Based Actor-Critic) Critic in the Sifaka project.
 
 ## Overview
 
-The LAC Critic implements the LLM-Based Actor-Critic approach from the paper [Language Feedback Improves Language Model-based Decision Making](https://arxiv.org/abs/2403.03692). It combines language feedback and value scoring to improve language model-based decision making, providing both qualitative feedback and quantitative assessment of text quality.
+The LAC Critic implements the LLM-Based Actor-Critic approach, which combines language feedback and value scoring to improve language model-based decision making.
+
+Based on: [Language Feedback Improves Language Model-based Decision Making](https://arxiv.org/abs/2403.03692)
+
+## Architecture
+
+The LAC Critic combines two specialized critics:
+
+1. **FeedbackCritic**: Produces natural language feedback for a model's response
+2. **ValueCritic**: Estimates a numeric value for a model's response
+
+These critics work together in the `LACCritic` class to provide both qualitative and quantitative feedback.
 
 ## Implementation Details
 
 ### State Management
 
-The LAC Critic follows the standard state management pattern used in other Sifaka critics:
-
-- Uses a `CriticState` object to store all mutable state
-- Stores configuration values in the state's cache dictionary
-- Accesses state through direct state access
+Each critic uses direct state management with a `CriticState` object:
 
 ```python
 # Initialize state
 self._state = CriticState()
 
 # Store components in state
+self._state.model = llm_provider
 self._state.cache = {
-    "feedback_critic": FeedbackCritic(config=feedback_config, llm_provider=llm_provider),
-    "value_critic": ValueCritic(config=value_config, llm_provider=llm_provider),
+    "feedback_prompt_template": config.feedback_prompt_template,
+    "value_prompt_template": config.value_prompt_template,
     "system_prompt": config.system_prompt,
     "temperature": config.temperature,
     "max_tokens": config.max_tokens,
 }
-self._state.model = llm_provider
 self._state.initialized = True
 ```
 
 ### Configuration
 
-The LAC Critic uses three dedicated configuration classes:
+The LAC Critic uses three configuration classes:
 
-1. `FeedbackCriticConfig` - For the feedback component
-2. `ValueCriticConfig` - For the value component
-3. `LACCriticConfig` - For the combined LAC critic
-
+1. **FeedbackCriticConfig**:
 ```python
-class FeedbackCriticConfig(PromptCriticConfig):
+class FeedbackCriticConfig(CriticConfig):
     feedback_prompt_template: str = Field(
         default=DEFAULT_FEEDBACK_PROMPT_TEMPLATE,
         description="Template for feedback prompts",
     )
-
-class ValueCriticConfig(PromptCriticConfig):
-    value_prompt_template: str = Field(
-        default=DEFAULT_VALUE_PROMPT_TEMPLATE,
-        description="Template for value prompts",
-    )
-
-class LACCriticConfig(CriticConfig):
     system_prompt: str = Field(
         default=DEFAULT_SYSTEM_PROMPT,
         description="System prompt for the model",
-        min_length=1,
     )
     temperature: float = Field(
-        default=0.7, description="Temperature for model generation", ge=0.0, le=1.0
+        default=0.7,
+        description="Temperature for model generation",
+        ge=0.0,
+        le=1.0,
     )
-    max_tokens: int = Field(default=1000, description="Maximum tokens for model generation", gt=0)
-    feedback_prompt_template: str = Field(
-        default=DEFAULT_FEEDBACK_PROMPT_TEMPLATE,
-        description="Template for feedback prompts",
+    max_tokens: int = Field(
+        default=1000,
+        description="Maximum tokens for model generation",
+        gt=0,
     )
+```
+
+2. **ValueCriticConfig**:
+```python
+class ValueCriticConfig(CriticConfig):
     value_prompt_template: str = Field(
         default=DEFAULT_VALUE_PROMPT_TEMPLATE,
         description="Template for value prompts",
     )
-```
-
-### Core Components
-
-The LAC Critic consists of three main components:
-
-1. **FeedbackCritic**: Provides natural language feedback for text
-2. **ValueCritic**: Estimates numeric values (e.g., probability of success) for text
-3. **LACCritic**: Combines both feedback and value critics
-
-Each component implements the standard critic methods:
-- `validate`: Check if text meets quality standards
-- `improve`: Improve text based on feedback
-- `critique`: Analyze text and provide feedback
-- `improve_with_feedback`: Improve text based on provided feedback
-
-### Core Algorithm
-
-The core algorithm for the LAC Critic is implemented in the `run` method:
-
-1. Generate natural language feedback using the FeedbackCritic
-2. Generate a numeric value using the ValueCritic
-3. Combine both signals into a single result
-
-```python
-def run(self, task: str, response: str) -> Dict[str, Any]:
-    """
-    Generate feedback and value for a response to a task.
-    """
-    self._check_input(response)
-
-    # Get feedback and value critics
-    feedback_critic = self._state.cache.get("feedback_critic")
-    value_critic = self._state.cache.get("value_critic")
-
-    # Generate feedback and value
-    feedback = feedback_critic.run(task, response)
-    value = value_critic.run(task, response)
-
-    # Return results
-    return {
-        "feedback": feedback,
-        "value": value,
-    }
-```
-
-The `improve` method uses both feedback and value to generate an improved response:
-
-```python
-def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
-    """
-    Improve text based on feedback and value.
-    """
-    # Get task from metadata
-    task = self._get_task_from_metadata(metadata)
-
-    # Generate feedback and value
-    result = self.run(task, text)
-    feedback = result["feedback"]
-    value = result["value"]
-
-    # Create improvement prompt
-    prompt = (
-        f"Task:\n{task}\n\n"
-        f"Original response:\n{text}\n\n"
-        f"Feedback:\n{feedback}\n\n"
-        f"Quality score: {value:.2f} (on a scale of 0 to 1)\n\n"
-        f"Improved response:"
+    system_prompt: str = Field(
+        default=DEFAULT_SYSTEM_PROMPT,
+        description="System prompt for the model",
     )
+    temperature: float = Field(
+        default=0.7,
+        description="Temperature for model generation",
+        ge=0.0,
+        le=1.0,
+    )
+    max_tokens: int = Field(
+        default=1000,
+        description="Maximum tokens for model generation",
+        gt=0,
+    )
+    min_score: float = Field(
+        default=0.0,
+        description="Minimum possible score",
+        ge=0.0,
+        le=1.0,
+    )
+    max_score: float = Field(
+        default=1.0,
+        description="Maximum possible score",
+        ge=0.0,
+        le=1.0,
+    )
+```
 
-    # Generate improved response
-    improved_text = self._state.model.generate(
-        prompt,
-        system_prompt=self._state.cache.get("system_prompt", ""),
-        temperature=self._state.cache.get("temperature", 0.7),
-        max_tokens=self._state.cache.get("max_tokens", 1000),
-    ).strip()
+3. **LACCriticConfig**:
+```python
+class LACCriticConfig(CriticConfig):
+    feedback_critic_config: FeedbackCriticConfig
+    value_critic_config: ValueCriticConfig
+```
 
-    return improved_text
+### Core Methods
+
+Each critic implements these core methods:
+
+1. **FeedbackCritic**:
+```python
+def run(self, task: str, response: str) -> str
+async def arun(self, task: str, response: str) -> str
+def validate(self, text: str) -> bool
+def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str
+def improve_with_feedback(self, text: str, feedback: str) -> str
+def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]
+```
+
+2. **ValueCritic**:
+```python
+def run(self, task: str, response: str) -> float
+def validate(self, text: str) -> bool
+def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str
+def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]
+```
+
+3. **LACCritic**:
+```python
+def run(self, task: str, response: str) -> Dict[str, Any]
+def validate(self, text: str) -> bool
+def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str
+def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]
 ```
 
 ### Factory Functions
 
-The LAC Critic provides three factory functions for easy creation:
+The LAC Critic provides three factory functions:
 
-1. `create_feedback_critic`: Creates a FeedbackCritic
-2. `create_value_critic`: Creates a ValueCritic
-3. `create_lac_critic`: Creates a LACCritic
+1. **create_feedback_critic**:
+```python
+def create_feedback_critic(
+    llm_provider: Any,
+    name: str = "feedback_critic",
+    description: str = "Provides natural language feedback for text",
+    min_confidence: float = None,
+    max_attempts: int = None,
+    cache_size: int = None,
+    priority: int = None,
+    cost: float = None,
+    system_prompt: str = None,
+    temperature: float = None,
+    max_tokens: int = None,
+    feedback_prompt_template: str = None,
+    config: Optional[Union[Dict[str, Any], FeedbackCriticConfig]] = None,
+    **kwargs: Any,
+) -> FeedbackCritic
+```
 
+2. **create_value_critic**:
+```python
+def create_value_critic(
+    llm_provider: Any,
+    name: str = "value_critic",
+    description: str = "Provides numeric value scoring for text",
+    min_confidence: float = None,
+    max_attempts: int = None,
+    cache_size: int = None,
+    priority: int = None,
+    cost: float = None,
+    system_prompt: str = None,
+    temperature: float = None,
+    max_tokens: int = None,
+    value_prompt_template: str = None,
+    min_score: float = None,
+    max_score: float = None,
+    config: Optional[Union[Dict[str, Any], ValueCriticConfig]] = None,
+    **kwargs: Any,
+) -> ValueCritic
+```
+
+3. **create_lac_critic**:
 ```python
 def create_lac_critic(
     llm_provider: Any,
     name: str = "lac_critic",
     description: str = "Combines language feedback and value scoring",
-    min_confidence: float = 0.7,
-    max_attempts: int = 3,
-    cache_size: int = 100,
-    priority: int = 1,
-    cost: float = 1.0,
-    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
-    temperature: float = 0.7,
-    max_tokens: int = 1000,
-    feedback_prompt_template: str = DEFAULT_FEEDBACK_PROMPT_TEMPLATE,
-    value_prompt_template: str = DEFAULT_VALUE_PROMPT_TEMPLATE,
+    min_confidence: float = None,
+    max_attempts: int = None,
+    cache_size: int = None,
+    priority: int = None,
+    cost: float = None,
+    system_prompt: str = None,
+    temperature: float = None,
+    max_tokens: int = None,
+    feedback_prompt_template: str = None,
+    value_prompt_template: str = None,
     config: Optional[Union[Dict[str, Any], LACCriticConfig]] = None,
     **kwargs: Any,
-) -> LACCritic:
-    # Implementation details...
+) -> LACCritic
 ```
 
-## Integration with Sifaka
+## Usage Example
 
-The LAC Critic is integrated with the Sifaka project in the following ways:
+```python
+from sifaka.critics.implementations.lac import create_lac_critic
+from sifaka.models.providers import OpenAIProvider
 
-1. Added to the `critics` module with proper imports and exports
-2. Added to the `__all__` list in `critics/__init__.py`
-3. Added default configurations:
-   - `DEFAULT_FEEDBACK_CONFIG`
-   - `DEFAULT_VALUE_CONFIG`
-   - `DEFAULT_LAC_CONFIG`
-4. Provided examples in:
-   - `examples/critics/lac_critic_demo.py`
-   - `examples/critics/lac_comparison_demo.py`
+# Create a language model provider
+provider = OpenAIProvider(api_key="your-api-key")
+
+# Create a LAC critic
+critic = create_lac_critic(llm_provider=provider)
+
+# Use the critic to improve text
+task = "Summarize the causes of World War I in 3 bullet points."
+response = provider.generate(f"Task:\n{task}")
+results = critic.critique(response, {"task": task})
+
+print("Feedback:", results["feedback"])
+print("Value Score:", results["value"])
+```
+
+## Error Handling
+
+The LAC Critic handles these error cases:
+
+1. **Initialization Errors**
+   - Missing required parameters
+   - Invalid provider type
+   - Invalid configuration values
+
+2. **Validation Errors**
+   - Empty text
+   - Missing task in metadata
+   - Uninitialized critic
+
+3. **Generation Errors**
+   - Model provider failures
+   - Invalid prompt formatting
+   - Response parsing errors
 
 ## Testing
 
 The LAC Critic includes comprehensive tests that verify:
 
-1. Initialization with different configurations
-2. Validation of text
-3. Feedback generation
-4. Value estimation
-5. Text improvement using both feedback and value
-6. Factory function behavior
+1. Initialization of all three critic types
+2. Feedback generation
+3. Value scoring
+4. Combined feedback and scoring
+5. Factory function behavior
+6. Error handling
+7. Async method behavior
 
 ## Future Improvements
 
 Potential future improvements for the LAC Critic include:
 
-1. Adding support for more sophisticated value estimation techniques
-2. Implementing a more robust parsing of feedback
-3. Adding support for multi-step improvement with different prompts at each step
-4. Implementing a more sophisticated scoring mechanism for feedback
-5. Adding support for tracking the history of improvements
-6. Addressing the warning about prompt tokens exceeding max_tokens
-7. Improving the tracing functionality to reduce unnecessary warnings
+1. Adding support for more sophisticated value scoring
+2. Implementing feedback aggregation
+3. Adding support for multi-step feedback
+4. Implementing feedback history tracking
+5. Adding support for custom scoring ranges
 
 ## References
 

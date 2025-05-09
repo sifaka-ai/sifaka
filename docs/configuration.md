@@ -10,8 +10,100 @@ Sifaka follows these principles for configuration:
 2. **Immutability**: Configuration objects are immutable to prevent accidental changes
 3. **Extensibility**: Base configuration classes can be extended for specialized needs
 4. **Standardization**: All component-specific parameters are stored in a `params` dictionary
+5. **Type Safety**: All configurations use Pydantic models for type safety and validation
 
 ## Configuration Classes
+
+### ChainConfig
+
+The `ChainConfig` class is used for configuring chains:
+
+```python
+from sifaka.chain.config import ChainConfig
+
+# Create a chain configuration
+config = ChainConfig(
+    max_attempts=3,
+    trace_enabled=True,
+    params={
+        "system_prompt": "You are a helpful assistant.",
+        "use_critic": True,
+    }
+)
+
+# Access configuration values
+print(f"Max attempts: {config.max_attempts}")
+print(f"System prompt: {config.params.get('system_prompt')}")
+
+# Create a new configuration with updated options
+updated_config = config.with_options(max_attempts=5)
+
+# Create a new configuration with updated params
+parameterized_config = config.with_params(system_prompt="You are an expert coder.")
+```
+
+### RetryConfig
+
+The `RetryConfig` class is used for configuring retry strategies:
+
+```python
+from sifaka.chain.config import RetryConfig, BackoffRetryConfig
+
+# Create a basic retry configuration
+config = RetryConfig(
+    max_attempts=3,
+    params={
+        "use_backoff": True,
+    }
+)
+
+# Create a backoff retry configuration
+backoff_config = BackoffRetryConfig(
+    max_attempts=5,
+    initial_backoff=1.0,
+    backoff_factor=2.0,
+    max_backoff=60.0,
+    params={
+        "jitter": True,
+    }
+)
+
+# Access configuration values
+print(f"Max attempts: {config.max_attempts}")
+print(f"Use backoff: {config.params.get('use_backoff')}")
+
+# Create a new configuration with updated options
+updated_config = config.with_options(max_attempts=5)
+
+# Create a new configuration with updated params
+parameterized_config = config.with_params(use_backoff=False)
+```
+
+### ValidationConfig
+
+The `ValidationConfig` class is used for configuring validation managers:
+
+```python
+from sifaka.chain.config import ValidationConfig
+
+# Create a validation configuration
+config = ValidationConfig(
+    prioritize_by_cost=True,
+    params={
+        "fail_fast": True,
+    }
+)
+
+# Access configuration values
+print(f"Prioritize by cost: {config.prioritize_by_cost}")
+print(f"Fail fast: {config.params.get('fail_fast')}")
+
+# Create a new configuration with updated options
+updated_config = config.with_options(prioritize_by_cost=False)
+
+# Create a new configuration with updated params
+parameterized_config = config.with_params(fail_fast=False)
+```
 
 ### RuleConfig
 
@@ -40,33 +132,6 @@ updated_config = config.with_options(priority=RulePriority.CRITICAL)
 
 # Create a new configuration with updated params
 parameterized_config = config.with_params(min_length=20, max_length=200)
-```
-
-### ClassifierConfig
-
-The `ClassifierConfig` class is used for configuring classifiers:
-
-```python
-from sifaka.classifiers.base import ClassifierConfig
-
-# Create a classifier configuration
-config = ClassifierConfig(
-    labels=["positive", "negative", "neutral"],
-    min_confidence=0.7,
-    cache_size=100,
-    cost=5,
-    params={
-        "model_name": "sentiment-large",
-        "threshold": 0.7,
-    }
-)
-
-# Access configuration values
-print(f"Labels: {config.labels}")
-print(f"Model name: {config.params.get('model_name')}")
-
-# Create a new configuration with updated options
-updated_config = config.with_options(min_confidence=0.8)
 ```
 
 ### CriticConfig
@@ -99,97 +164,58 @@ prompt_config = PromptCriticConfig(
 )
 ```
 
-## Standardization Utilities
+## Configuration Methods
 
-Sifaka provides utility functions to standardize configuration handling:
+All configuration classes in Sifaka provide these standard methods:
 
-### standardize_rule_config
-
-```python
-from sifaka.utils.config import standardize_rule_config
-
-# Create a rule config with direct parameters
-config = standardize_rule_config(
-    priority="HIGH",
-    cost=5,
-    params={
-        "min_length": 10,
-        "max_length": 100,
-    }
-)
-
-# Update an existing config
-updated_config = standardize_rule_config(
-    config=config,
-    params={"min_length": 20},
-    cost=10
-)
-
-# Create from dictionary
-config_dict = {
-    "priority": "LOW",
-    "params": {
-        "min_length": 5,
-        "max_length": 50,
-    }
-}
-dict_config = standardize_rule_config(config=config_dict)
-```
-
-### standardize_classifier_config
+### with_options
 
 ```python
-from sifaka.utils.config import standardize_classifier_config
-
-# Create a classifier config with direct parameters
-config = standardize_classifier_config(
-    labels=["positive", "negative", "neutral"],
-    min_confidence=0.7,
-    params={
-        "model_name": "sentiment-large",
-        "threshold": 0.7,
-    }
-)
-
-# Update an existing config
-updated_config = standardize_classifier_config(
-    config=config,
-    params={"threshold": 0.8},
-    min_confidence=0.9
+# Update top-level configuration options
+updated_config = config.with_options(
+    max_attempts=5,
+    trace_enabled=True
 )
 ```
 
-### standardize_critic_config
+### with_params
 
 ```python
-from sifaka.utils.config import standardize_critic_config
-from sifaka.critics.models import PromptCriticConfig
-
-# Create a critic config with direct parameters
-config = standardize_critic_config(
-    name="basic_critic",
-    description="A basic critic",
-    min_confidence=0.7,
-    max_attempts=3,
-    params={
-        "system_prompt": "You are an expert editor.",
-    }
-)
-
-# Create a specialized critic config
-prompt_config = standardize_critic_config(
-    config_class=PromptCriticConfig,
-    name="prompt_critic",
-    description="A prompt-based critic",
-    system_prompt="You are an expert editor.",
-    temperature=0.7,
-    max_tokens=1000
+# Update or add component-specific parameters
+parameterized_config = config.with_params(
+    system_prompt="You are an expert coder.",
+    use_critic=True
 )
 ```
 
 ## Factory Functions
 
 Factory functions in Sifaka use the standardized configuration approach:
+
+### Chain Factory Functions
+
+```python
+from sifaka.chain import ChainOrchestrator
+from sifaka.chain.config import ChainConfig
+
+# Create a chain with direct parameters
+chain = ChainOrchestrator(
+    model=model,
+    rules=rules,
+    max_attempts=3,
+    trace_enabled=True
+)
+
+# Create a chain with a ChainConfig
+config = ChainConfig(
+    max_attempts=3,
+    trace_enabled=True,
+    params={
+        "system_prompt": "You are a helpful assistant.",
+    }
+)
+chain = ChainOrchestrator(model=model, rules=rules, config=config)
+```
 
 ### Rule Factory Functions
 
@@ -217,51 +243,21 @@ rule_config = RuleConfig(
 rule = create_length_rule(config=rule_config)
 ```
 
-### Classifier Factory Functions
-
-```python
-from sifaka.classifiers.base import ClassifierConfig
-from sifaka.classifiers.toxicity import create_toxicity_classifier
-
-# Create a classifier with direct parameters
-classifier = create_toxicity_classifier(
-    general_threshold=0.5,
-    severe_toxic_threshold=0.7,
-    threat_threshold=0.7
-)
-
-# Create a classifier with a ClassifierConfig
-config = ClassifierConfig(
-    labels=["toxic", "non-toxic"],
-    min_confidence=0.7,
-    params={
-        "general_threshold": 0.5,
-        "severe_toxic_threshold": 0.7,
-        "threat_threshold": 0.7,
-    }
-)
-classifier = create_toxicity_classifier(config=config)
-```
-
 ### Critic Factory Functions
 
 ```python
 from sifaka.critics.models import PromptCriticConfig
 from sifaka.critics.factories import create_prompt_critic
-from sifaka.models.mock import MockProvider
 
 # Create a critic with direct parameters
-model = MockProvider()
 critic = create_prompt_critic(
     llm_provider=model,
-    name="my_critic",
-    description="A custom critic",
     system_prompt="You are an expert editor.",
     temperature=0.7,
     max_tokens=1000
 )
 
-# Create a critic with a CriticConfig
+# Create a critic with a PromptCriticConfig
 config = PromptCriticConfig(
     name="prompt_critic",
     description="A prompt-based critic",
@@ -269,7 +265,7 @@ config = PromptCriticConfig(
     temperature=0.7,
     max_tokens=1000
 )
-critic = create_prompt_critic(llm_provider=model, config=config)
+critic = create_prompt_critic(config=config)
 ```
 
 ## Best Practices

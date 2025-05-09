@@ -6,15 +6,22 @@ This document provides implementation details and notes for the Reflexion Critic
 
 The Reflexion Critic implements the Reflexion approach, which enables language model agents to learn from feedback without requiring weight updates. It maintains reflections in memory to improve future text generation.
 
+## Architecture
+
+The ReflexionCritic follows a component-based architecture with memory-augmented generation:
+
+1. **Core Components**
+   - **ReflexionCritic**: Main class that implements the critic interfaces
+   - **CritiqueService**: Service that handles the core critique functionality
+   - **ReflexionCriticPromptManager**: Creates prompts with reflection context
+   - **ResponseParser**: Parses and validates model responses
+   - **MemoryManager**: Manages the memory buffer of past reflections
+
 ## Implementation Details
 
 ### State Management
 
-The Reflexion Critic follows the standard state management pattern used in Sifaka critics:
-
-- Uses a `CriticState` object to store all mutable state
-- Stores configuration values in the state's cache dictionary
-- Accesses state through direct state access
+The ReflexionCritic uses direct state management with a `CriticState` object:
 
 ```python
 # Initialize state
@@ -25,124 +32,125 @@ self._state.model = llm_provider
 self._state.prompt_manager = prompt_factory or ReflexionCriticPromptManager(config)
 self._state.response_parser = ResponseParser()
 self._state.memory_manager = MemoryManager(buffer_size=config.memory_buffer_size)
-self._state.cache = {
-    "system_prompt": config.system_prompt,
-    "temperature": config.temperature,
-    "max_tokens": config.max_tokens,
-    "reflection_depth": config.reflection_depth,
-    "critique_service": CritiqueService(
-        llm_provider=llm_provider,
-        prompt_manager=self._state.prompt_manager,
-        response_parser=self._state.response_parser,
-        memory_manager=self._state.memory_manager,
-    ),
-}
+
+# Create service and store in state cache
+self._state.cache["critique_service"] = CritiqueService(
+    llm_provider=llm_provider,
+    prompt_manager=self._state.prompt_manager,
+    response_parser=self._state.response_parser,
+    memory_manager=self._state.memory_manager,
+)
+
+# Mark as initialized
 self._state.initialized = True
 ```
 
-### Configuration
+### Prompt Templates
 
-The Reflexion Critic uses a dedicated configuration class that extends `PromptCriticConfig`:
+The ReflexionCritic uses specialized prompt templates for different operations:
 
-```python
-class ReflexionCriticConfig(PromptCriticConfig):
-    memory_buffer_size: int = Field(
-        default=5,
-        description="Size of the memory buffer for storing reflections",
-        gt=0,
-    )
-    reflection_depth: int = Field(
-        default=1,
-        description="Number of past reflections to consider",
-        ge=0,
-    )
+1. **Validation Prompt**:
+```
+Please validate the following text:
+
+TEXT TO VALIDATE:
+{text}
+
+FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
+VALID: [true/false]
+REASON: [reason for validation result]
+
+VALIDATION:
 ```
 
-### Memory Management
+2. **Critique Prompt**:
+```
+Please critique the following text:
 
-The Reflexion Critic uses a `MemoryManager` to store and retrieve past reflections:
+TEXT TO CRITIQUE:
+{text}
 
-```python
-class MemoryManager:
-    """Manages memory for reflection-based critics."""
+FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
+SCORE: [number between 0 and 1]
+FEEDBACK: [your general feedback]
+ISSUES:
+- [issue 1]
+- [issue 2]
+SUGGESTIONS:
+- [suggestion 1]
+- [suggestion 2]
 
-    def __init__(self, buffer_size: int = 5):
-        """Initialize the memory manager."""
-        self.buffer_size = buffer_size
-        self.memory = []
-
-    def add_to_memory(self, item: str) -> None:
-        """Add an item to memory."""
-        self.memory.append(item)
-        if len(self.memory) > self.buffer_size:
-            self.memory.pop(0)
-
-    def get_memory(self, max_items: Optional[int] = None) -> List[str]:
-        """Get items from memory."""
-        if max_items is None or max_items >= len(self.memory):
-            return self.memory.copy()
-        return self.memory[-max_items:]
-
-    def clear_memory(self) -> None:
-        """Clear all memory."""
-        self.memory = []
+CRITIQUE:
 ```
 
-### Prompt Management
+3. **Improvement Prompt**:
+```
+Please improve the following text:
 
-The Reflexion Critic uses a specialized prompt manager that incorporates past reflections:
+TEXT TO IMPROVE:
+{text}
 
-```python
-class ReflexionCriticPromptManager(PromptManager):
-    """Manages prompts for reflexion critics."""
+FEEDBACK:
+{feedback}
 
-    def create_improvement_prompt(self, text: str, feedback: str) -> str:
-        """Create a prompt for improving text with feedback and reflections."""
-        # Get reflections from memory
-        reflections = self.memory_manager.get_memory(self.config.reflection_depth)
-        
-        # Format reflections if available
-        reflections_text = ""
-        if reflections:
-            reflections_text = "PREVIOUS REFLECTIONS:\n" + "\n".join(reflections) + "\n\n"
-        
-        # Create improvement prompt
-        return f"""Please improve the following text based on the feedback and previous reflections:
+PREVIOUS REFLECTIONS:
+{reflections}
 
-        TEXT TO IMPROVE:
-        {text}
+FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
+IMPROVED_TEXT: [improved text]
 
-        FEEDBACK:
-        {feedback}
+IMPROVEMENT:
+```
 
-        {reflections_text}IMPROVED TEXT:"""
+4. **Reflection Prompt**:
+```
+Please reflect on the following text improvement process:
+
+ORIGINAL TEXT:
+{text}
+
+FEEDBACK RECEIVED:
+{feedback}
+
+IMPROVED TEXT:
+{improved_text}
+
+Reflect on what went well, what went wrong, and what could be improved in future iterations.
+Focus on specific patterns, mistakes, or strategies that could be applied to similar tasks.
+
+FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
+REFLECTION: [your reflection]
+
+REFLECTION:
 ```
 
 ### Core Methods
 
-The Reflexion Critic implements three core methods:
+The ReflexionCritic implements these core methods:
 
-1. **validate**: Determines if text meets quality standards
-2. **critique**: Analyzes text and provides detailed feedback
-3. **improve**: Generates an improved version of text based on feedback and reflections
-
-Each method delegates to a `CritiqueService` that handles the interaction with the language model:
-
+1. **Validation and Critique**:
 ```python
-def improve(self, text: str, feedback: str = None) -> str:
-    """Improve text based on feedback and reflections."""
-    self._check_input(text)
-    feedback_str = self._format_feedback(feedback)
-    return self._state.cache["critique_service"].improve(text, feedback_str)
+def validate(self, text: str) -> bool
+def critique(self, text: str) -> dict
+async def avalidate(self, text: str) -> bool
+async def acritique(self, text: str) -> dict
+```
+
+2. **Text Improvement**:
+```python
+def improve(self, text: str, feedback: str = None) -> str
+def improve_with_feedback(self, text: str, feedback: str) -> str
+async def aimprove(self, text: str, feedback: str = None) -> str
+async def aimprove_with_feedback(self, text: str, feedback: str) -> str
 ```
 
 ### Factory Function
 
-The Reflexion Critic provides a factory function for easy creation:
+The ReflexionCritic provides a factory function for easy creation:
 
 ```python
 def create_reflexion_critic(
-    llm_provider: LanguageModel,
+    llm_provider: Any,
     name: str = "reflexion_critic",
     description: str = "Improves text using reflections on past feedback",
     system_prompt: str = DEFAULT_SYSTEM_PROMPT,
@@ -153,56 +161,69 @@ def create_reflexion_critic(
     memory_buffer_size: int = 5,
     reflection_depth: int = 1,
     config: Optional[Union[Dict[str, Any], ReflexionCriticConfig]] = None,
-) -> ReflexionCritic:
-    """Create a reflexion critic with the given parameters."""
-    # Implementation details...
+) -> ReflexionCritic
 ```
 
-## Integration with Sifaka
+## Usage Example
 
-The Reflexion Critic is integrated with the Sifaka project in the following ways:
+```python
+from sifaka.critics.implementations.reflexion import create_reflexion_critic
+from sifaka.models.providers import OpenAIProvider
 
-1. Added to the `critics` module with proper imports and exports
-2. Added to the `__all__` list in `critics/__init__.py`
-3. Added a default configuration `DEFAULT_REFLEXION_CONFIG`
-4. Provided comprehensive tests in `tests/critics/test_reflexion.py`
-5. Provided examples in `examples/critics/reflexion_critic_example.py`
+# Create a language model provider
+provider = OpenAIProvider(api_key="your-api-key")
 
-## Component Interactions
+# Create a reflexion critic
+critic = create_reflexion_critic(llm_provider=provider)
 
-The Reflexion Critic interacts with several components:
+# Improve text with feedback
+text = "This is a sample technical document."
+feedback = "The text needs more detail and better structure."
+improved_text = critic.improve(text, feedback)
+```
 
-1. **Language Model Provider**: Generates responses based on prompts
-2. **Prompt Manager**: Creates and formats prompts that incorporate reflections
-3. **Response Parser**: Parses responses from language models
-4. **Memory Manager**: Stores and retrieves past reflections
-5. **Critique Service**: Coordinates the critique and improvement process
+## Error Handling
 
-This component-based architecture allows for flexible customization and extension of the critic's capabilities.
+The ReflexionCritic handles these error cases:
+
+1. **Initialization Errors**
+   - Missing required parameters
+   - Invalid provider type
+   - Invalid configuration values
+
+2. **Validation Errors**
+   - Empty text
+   - Invalid feedback format
+   - Uninitialized critic
+
+3. **Generation Errors**
+   - Model provider failures
+   - Invalid prompt formatting
+   - Response parsing errors
 
 ## Testing
 
-The Reflexion Critic includes comprehensive tests that verify:
+The ReflexionCritic includes comprehensive tests that verify:
 
 1. Initialization with different configurations
-2. Validation of text
-3. Critique generation
+2. Text validation
+3. Feedback generation
 4. Text improvement with reflections
 5. Memory management
-6. Factory function behavior
+6. Async method behavior
 7. Error handling
 
 ## Future Improvements
 
-Potential future improvements for the Reflexion Critic include:
+Potential future improvements for the ReflexionCritic include:
 
-1. Adding support for more sophisticated memory management
-2. Implementing a more robust parsing of reflections
-3. Adding support for different types of reflections
-4. Implementing a more sophisticated scoring mechanism
-5. Adding support for tracking the history of improvements
+1. Adding support for more sophisticated reflection strategies
+2. Implementing parallel processing for multiple improvements
+3. Adding support for custom reflection templates
+4. Implementing more advanced memory management
+5. Adding support for streaming responses
 
 ## References
 
-- [Reflexion: Language Agents with Verbal Reinforcement Learning](https://arxiv.org/abs/2303.11366)
 - [Sifaka Critics Documentation](../components/critics.md)
+- [Reflexion: Language Agents with Verbal Reinforcement Learning](https://arxiv.org/abs/2303.11366)

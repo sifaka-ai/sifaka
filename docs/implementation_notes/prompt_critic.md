@@ -4,174 +4,172 @@ This document provides implementation details and notes for the Prompt Critic in
 
 ## Overview
 
-The Prompt Critic is a fundamental critic implementation that uses language models to evaluate, validate, and improve text outputs. It serves as the foundation for many other critic types in Sifaka.
+The Prompt Critic uses language models to evaluate, validate, and improve text outputs based on rule violations. It analyzes text for clarity, ambiguity, completeness, and effectiveness using a language model to generate feedback and validation scores.
+
+## Architecture
+
+The PromptCritic follows a component-based architecture with clear separation of concerns:
+
+1. **Core Components**
+   - **PromptCritic**: Main class that implements the critic interfaces
+   - **CritiqueService**: Service that handles the core critique functionality
+   - **PromptManager**: Manages prompt creation and formatting
+   - **ResponseParser**: Parses and validates model responses
+   - **MemoryManager**: Manages history of improvements and critiques
 
 ## Implementation Details
 
+### Component Lifecycle
+
+1. **Initialization Phase**
+   - Configuration validation
+   - Provider setup
+   - Factory initialization
+   - Resource allocation
+
+2. **Operation Phase**
+   - Text validation
+   - Critique generation
+   - Text improvement
+   - Feedback processing
+
+3. **Cleanup Phase**
+   - Resource cleanup
+   - State reset
+   - Error recovery
+
 ### State Management
 
-The Prompt Critic follows the standard state management pattern used in Sifaka critics:
-
-- Uses a `CriticState` object to store all mutable state
-- Stores configuration values in the state's cache dictionary
-- Accesses state through direct state access
+The PromptCritic uses direct state management with a `CriticState` object:
 
 ```python
 # Initialize state
 self._state = CriticState()
+self._state.initialized = False
 
 # Store components in state
 self._state.model = llm_provider
 self._state.prompt_manager = prompt_factory or PromptCriticPromptManager(config)
 self._state.response_parser = ResponseParser()
-self._state.memory_manager = MemoryManager(buffer_size=config.memory_buffer_size)
-self._state.cache = {
-    "system_prompt": config.system_prompt,
-    "temperature": config.temperature,
-    "max_tokens": config.max_tokens,
-    "critique_service": CritiqueService(
-        llm_provider=llm_provider,
-        prompt_manager=self._state.prompt_manager,
-        response_parser=self._state.response_parser,
-    ),
-}
+self._state.memory_manager = MemoryManager(buffer_size=10)
+
+# Create services and store in state cache
+self._state.cache["critique_service"] = CritiqueService(
+    llm_provider=llm_provider,
+    prompt_manager=self._state.prompt_manager,
+    response_parser=self._state.response_parser,
+    memory_manager=self._state.memory_manager,
+)
+
+# Mark as initialized
 self._state.initialized = True
-```
-
-### Configuration
-
-The Prompt Critic uses a dedicated configuration class:
-
-```python
-class PromptCriticConfig(CriticConfig):
-    system_prompt: str = Field(
-        default="You are an expert at evaluating and improving text.",
-        description="System prompt for the model",
-    )
-    temperature: float = Field(
-        default=0.7,
-        description="Temperature for model generation",
-        ge=0.0,
-        le=1.0,
-    )
-    max_tokens: int = Field(
-        default=1000,
-        description="Maximum tokens for model generation",
-        gt=0,
-    )
-    validation_prompt_template: Optional[str] = Field(
-        default=None,
-        description="Template for validation prompts",
-    )
-    critique_prompt_template: Optional[str] = Field(
-        default=None,
-        description="Template for critique prompts",
-    )
-    improvement_prompt_template: Optional[str] = Field(
-        default=None,
-        description="Template for improvement prompts",
-    )
 ```
 
 ### Core Methods
 
-The Prompt Critic implements three core methods:
+The PromptCritic implements these core methods:
 
-1. **validate**: Determines if text meets quality standards
-2. **critique**: Analyzes text and provides detailed feedback
-3. **improve**: Generates an improved version of text based on feedback
-
-Each method delegates to a `CritiqueService` that handles the interaction with the language model:
-
+1. **Text Improvement**:
 ```python
-def validate(self, text: str) -> bool:
-    """Validate text quality."""
-    # Ensure initialized
-    if not self._state.initialized:
-        raise RuntimeError("PromptCritic not properly initialized")
+def improve(self, text: str, feedback: str = None) -> str
+def improve_with_feedback(self, text: str, feedback: str) -> str
+def improve_with_history(self, text: str, feedback: str = None) -> Tuple[str, List[Dict[str, Any]]]
+async def aimprove(self, text: str, feedback: str = None) -> str
+```
 
-    if not isinstance(text, str) or not text.strip():
-        return False
+2. **Feedback Loop**:
+```python
+def close_feedback_loop(self, text: str, generator_response: str, feedback: str = None) -> Tuple[str, Dict[str, Any]]
+async def aclose_feedback_loop(self, text: str, generator_response: str, feedback: str = None) -> Tuple[str, Dict[str, Any]]
+```
 
-    # Get critique service from state
-    critique_service = self._state.cache.get("critique_service")
-    if not critique_service:
-        raise RuntimeError("Critique service not initialized")
-
-    # Delegate to critique service
-    return critique_service.validate(text)
+3. **Validation and Critique**:
+```python
+def validate(self, text: str) -> bool
+def critique(self, text: str) -> dict
 ```
 
 ### Factory Function
 
-The Prompt Critic provides a factory function for easy creation:
+The PromptCritic provides a factory function for easy creation:
 
 ```python
 def create_prompt_critic(
-    llm_provider: LanguageModel,
-    name: str = "factory_critic",
-    description: str = "Evaluates and improves text using language models",
-    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
-    temperature: float = 0.7,
-    max_tokens: int = 1000,
-    min_confidence: float = 0.7,
-    max_attempts: int = 3,
-    validation_prompt_template: Optional[str] = None,
-    critique_prompt_template: Optional[str] = None,
-    improvement_prompt_template: Optional[str] = None,
-    config: Optional[Union[Dict[str, Any], PromptCriticConfig]] = None,
-    **kwargs: Any,
-) -> PromptCritic:
-    """
-    Create a prompt critic with the given parameters.
-    """
-    # Implementation details...
+    llm_provider: Any,
+    name: str = "prompt_critic",
+    description: str = "A critic that uses prompts to improve text",
+    system_prompt: Optional[str] = None,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+    min_confidence: Optional[float] = None,
+    max_attempts: Optional[int] = None,
+    prompt_factory: Optional[Any] = None,
+    config: Optional[PromptCriticConfig] = None,
+) -> PromptCritic
 ```
 
-## Integration with Sifaka
+## Usage Example
 
-The Prompt Critic is integrated with the Sifaka project in the following ways:
+```python
+from sifaka.critics.implementations.prompt import create_prompt_critic
+from sifaka.models.providers import OpenAIProvider
 
-1. Added to the `critics` module with proper imports and exports
-2. Added to the `__all__` list in `critics/__init__.py`
-3. Added a default configuration `DEFAULT_PROMPT_CONFIG`
-4. Provided comprehensive tests in `tests/critics/test_prompt.py`
-5. Provided examples in `examples/critics/prompt_critic_example.py`
+# Create a language model provider
+provider = OpenAIProvider(api_key="your-api-key")
 
-## Component Interactions
+# Create a prompt critic
+critic = create_prompt_critic(llm_provider=provider)
 
-The Prompt Critic interacts with several components:
+# Use the critic to improve text
+text = "The quick brown fox jumps over the lazy dog."
+improved_text = critic.improve(text, "Make the text more descriptive")
 
-1. **Language Model Provider**: Generates responses based on prompts
-2. **Prompt Manager**: Creates and formats prompts for different operations
-3. **Response Parser**: Parses responses from language models
-4. **Memory Manager**: Stores past interactions for potential future use
-5. **Critique Service**: Coordinates the critique and improvement process
+# Get improvement history
+improved_text, history = critic.improve_with_history(text)
+```
 
-This component-based architecture allows for flexible customization and extension of the critic's capabilities.
+## Error Handling
+
+The PromptCritic handles these error cases:
+
+1. **Initialization Errors**
+   - Missing required parameters
+   - Invalid provider type
+   - Invalid configuration values
+
+2. **Validation Errors**
+   - Empty text
+   - Invalid feedback format
+   - Uninitialized critic
+
+3. **Generation Errors**
+   - Model provider failures
+   - Invalid prompt formatting
+   - Response parsing errors
 
 ## Testing
 
-The Prompt Critic includes comprehensive tests that verify:
+The PromptCritic includes comprehensive tests that verify:
 
 1. Initialization with different configurations
-2. Validation of text
-3. Critique generation
-4. Text improvement
-5. Factory function behavior
+2. Text improvement functionality
+3. Feedback loop closure
+4. History tracking
+5. Async method behavior
 6. Error handling
+7. Memory management
 
 ## Future Improvements
 
-Potential future improvements for the Prompt Critic include:
+Potential future improvements for the PromptCritic include:
 
 1. Adding support for more sophisticated prompt templates
-2. Implementing a more robust parsing of responses
-3. Adding support for few-shot examples in prompts
-4. Implementing a more sophisticated scoring mechanism
-5. Adding support for tracking the history of improvements
+2. Implementing parallel processing for multiple improvements
+3. Adding support for custom improvement strategies
+4. Implementing more advanced memory management
+5. Adding support for streaming responses
 
 ## References
 
 - [Sifaka Critics Documentation](../components/critics.md)
-- [Prompt Engineering Guide](https://www.promptingguide.ai/)
+- [Prompt Engineering Best Practices](../best_practices/prompt_engineering.md)

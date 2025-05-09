@@ -8,15 +8,22 @@ The Constitutional Critic implements a Constitutional AI approach, which evaluat
 
 Based on the paper [Constitutional AI: Harmlessness from AI Feedback](https://arxiv.org/abs/2212.08073).
 
+## Architecture
+
+The ConstitutionalCritic follows a component-based architecture with principles-based evaluation:
+
+1. **Core Components**
+   - **ConstitutionalCritic**: Main class that implements the critic interfaces
+   - **PrinciplesManager**: Manages the list of principles (the "constitution")
+   - **CritiqueGenerator**: Evaluates responses against principles
+   - **ResponseImprover**: Improves responses based on critiques
+   - **PromptManager**: Creates specialized prompts for critique and improvement
+
 ## Implementation Details
 
 ### State Management
 
-The Constitutional Critic follows the standard state management pattern used in Sifaka critics:
-
-- Uses a `CriticState` object to store all mutable state
-- Stores configuration values in the state's cache dictionary
-- Accesses state through direct state access
+The Constitutional Critic uses direct state management with a `CriticState` object:
 
 ```python
 # Initialize state
@@ -26,11 +33,11 @@ self._state = CriticState()
 self._state.model = llm_provider
 self._state.cache = {
     "principles": config.principles,
+    "critique_prompt_template": config.critique_prompt_template,
+    "improvement_prompt_template": config.improvement_prompt_template,
     "system_prompt": config.system_prompt,
     "temperature": config.temperature,
     "max_tokens": config.max_tokens,
-    "critique_prompt_template": config.critique_prompt_template,
-    "improvement_prompt_template": config.improvement_prompt_template,
 }
 self._state.initialized = True
 ```
@@ -88,65 +95,29 @@ class ConstitutionalCriticConfig(CriticConfig):
     )
 ```
 
-### Principles Management
-
-The Constitutional Critic manages principles through a dedicated method:
-
-```python
-def _format_principles(self) -> str:
-    """Format principles for inclusion in prompts."""
-    principles = self._state.cache.get("principles", [])
-    if not principles:
-        return "No principles defined."
-    
-    return "\n".join(f"{i+1}. {principle}" for i, principle in enumerate(principles))
-```
-
 ### Core Methods
 
-The Constitutional Critic implements three core methods:
+The Constitutional Critic implements these core methods:
 
 1. **validate**: Determines if a response adheres to principles
 2. **critique**: Evaluates a response against principles and provides feedback
 3. **improve**: Generates an improved response based on critique
+4. **improve_with_feedback**: Improves a response using provided feedback
 
-Each method interacts directly with the language model:
+Each method has both synchronous and asynchronous versions:
 
 ```python
-def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """
-    Analyze a response against the principles and provide detailed feedback.
-    """
-    # Ensure initialized
-    if not self._state.initialized:
-        raise RuntimeError("ConstitutionalCritic not properly initialized")
+# Synchronous methods
+def validate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool
+def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]
+def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str
+def improve_with_feedback(self, text: str, feedback: str) -> str
 
-    if not isinstance(text, str) or not text.strip():
-        raise ValueError("text must be a non-empty string")
-
-    # Get task from metadata
-    task = self._get_task_from_metadata(metadata)
-
-    # Format principles
-    principles_text = self._format_principles()
-
-    # Create critique prompt
-    prompt = self._state.cache.get("critique_prompt_template", "").format(
-        principles=principles_text,
-        task=task,
-        response=text,
-    )
-
-    # Generate critique
-    critique_text = self._state.model.generate(
-        prompt,
-        system_prompt=self._state.cache.get("system_prompt", ""),
-        temperature=self._state.cache.get("temperature", 0.7),
-        max_tokens=self._state.cache.get("max_tokens", 1000),
-    ).strip()
-
-    # Parse critique
-    # Implementation details...
+# Asynchronous methods
+async def avalidate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool
+async def acritique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]
+async def aimprove(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str
+async def aimprove_with_feedback(self, text: str, feedback: str) -> str
 ```
 
 ### Factory Function
@@ -156,47 +127,79 @@ The Constitutional Critic provides a factory function for easy creation:
 ```python
 def create_constitutional_critic(
     llm_provider: Any,
-    principles: List[str],
+    principles: List[str] = None,
     name: str = "constitutional_critic",
     description: str = "Evaluates responses against principles",
-    min_confidence: float = 0.7,
-    max_attempts: int = 3,
-    cache_size: int = 100,
-    priority: int = 1,
-    cost: float = 1.0,
-    system_prompt: str = "You are an expert at evaluating content against principles.",
-    temperature: float = 0.7,
-    max_tokens: int = 1000,
+    min_confidence: float = None,
+    max_attempts: int = None,
+    cache_size: int = None,
+    priority: int = None,
+    cost: float = None,
+    system_prompt: str = None,
+    temperature: float = None,
+    max_tokens: int = None,
     critique_prompt_template: Optional[str] = None,
     improvement_prompt_template: Optional[str] = None,
     config: Optional[Union[Dict[str, Any], ConstitutionalCriticConfig]] = None,
     **kwargs: Any,
-) -> ConstitutionalCritic:
-    """
-    Create a constitutional critic with the given parameters.
-    """
-    # Implementation details...
+) -> ConstitutionalCritic
 ```
 
-## Integration with Sifaka
+## Usage Example
 
-The Constitutional Critic is integrated with the Sifaka project in the following ways:
+```python
+from sifaka.critics.implementations.constitutional import create_constitutional_critic
+from sifaka.models.providers import OpenAIProvider
 
-1. Added to the `critics` module with proper imports and exports
-2. Added to the `__all__` list in `critics/__init__.py`
-3. Added a default configuration `DEFAULT_CONSTITUTIONAL_CONFIG`
-4. Provided comprehensive tests in `tests/critics/test_constitutional.py`
-5. Provided examples in `examples/critics/constitutional_critic_example.py`
+# Create a language model provider
+provider = OpenAIProvider(api_key="your-api-key")
 
-## Component Interactions
+# Define principles
+principles = [
+    "Do not provide harmful, offensive, or biased content.",
+    "Explain reasoning in a clear and truthful manner.",
+    "Respect user autonomy and avoid manipulative language.",
+]
 
-The Constitutional Critic interacts with several components:
+# Create a constitutional critic
+critic = create_constitutional_critic(
+    llm_provider=provider,
+    principles=principles
+)
 
-1. **Language Model Provider**: Generates responses based on prompts
-2. **Principles**: Define the standards that responses should meet
-3. **Metadata**: Provides context for evaluation (e.g., task description)
+# Validate a response
+task = "Explain why some people believe climate change isn't real."
+response = "Climate change is a hoax created by scientists to get funding."
+is_valid = critic.validate(response, metadata={"task": task})
+print(f"Response is valid: {is_valid}")
 
-This architecture allows for explicit control over the behavior of language models by defining clear principles that responses should follow.
+# Get critique for a response
+critique = critic.critique(response, metadata={"task": task})
+print(f"Critique: {critique}")
+
+# Improve a response
+improved_response = critic.improve(response, metadata={"task": task})
+print(f"Improved response: {improved_response}")
+```
+
+## Error Handling
+
+The Constitutional Critic handles these error cases:
+
+1. **Initialization Errors**
+   - Missing required parameters
+   - Invalid provider type
+   - Empty principles list
+
+2. **Validation Errors**
+   - Empty text
+   - Missing task in metadata
+   - Uninitialized critic
+
+3. **Generation Errors**
+   - Model provider failures
+   - Invalid prompt formatting
+   - Response parsing errors
 
 ## Testing
 
@@ -208,6 +211,7 @@ The Constitutional Critic includes comprehensive tests that verify:
 4. Response improvement
 5. Factory function behavior
 6. Error handling
+7. Async method behavior
 
 ## Future Improvements
 

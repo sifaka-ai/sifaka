@@ -4,17 +4,26 @@ This document provides implementation details and notes for the Self-RAG Critic 
 
 ## Overview
 
-The Self-RAG Critic implements the Self-Reflective Retrieval-Augmented Generation approach from the paper [Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection](https://arxiv.org/abs/2310.11511). It enables language models to decide when to retrieve information, generate responses using retrieved information, and reflect on the quality and relevance of the information used.
+The Self-RAG Critic implements the Self-Reflective Retrieval-Augmented Generation approach, which enables language models to decide when and what to retrieve, and reflect on the relevance and utility of the retrieved information.
+
+Based on: [Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection](https://arxiv.org/abs/2310.11511)
+
+## Architecture
+
+The SelfRAGCritic follows a component-based architecture with retrieval augmentation:
+
+1. **Core Components**
+   - **SelfRAGCritic**: Main class that implements the critic interfaces
+   - **Retriever**: Component that retrieves relevant information
+   - **PromptManager**: Creates prompts for different stages of the process
+   - **ResponseParser**: Parses and validates model responses
+   - **MemoryManager**: Manages history of retrievals and reflections
 
 ## Implementation Details
 
 ### State Management
 
-The Self-RAG Critic follows the standard state management pattern used in other Sifaka critics:
-
-- Uses a `CriticState` object to store all mutable state
-- Stores configuration values and components in the state's cache dictionary
-- Accesses state through direct state access
+The SelfRAGCritic uses direct state management with a `CriticState` object:
 
 ```python
 # Initialize state
@@ -22,196 +31,147 @@ self._state = CriticState()
 
 # Store components in state
 self._state.model = llm_provider
+self._state.retriever = retriever
 self._state.cache = {
-    "retriever": retriever,
-    "system_prompt": config.system_prompt,
-    "temperature": config.temperature,
-    "max_tokens": config.max_tokens,
     "retrieval_threshold": config.retrieval_threshold,
     "retrieval_prompt_template": config.retrieval_prompt_template,
     "generation_prompt_template": config.generation_prompt_template,
     "reflection_prompt_template": config.reflection_prompt_template,
+    "system_prompt": config.system_prompt,
+    "temperature": config.temperature,
+    "max_tokens": config.max_tokens,
+    "reflection_enabled": config.reflection_enabled,
 }
 self._state.initialized = True
 ```
 
-### Configuration
+### Core Methods
 
-The Self-RAG Critic uses a dedicated configuration class that extends `PromptCriticConfig`:
+The SelfRAGCritic implements these core methods:
 
+1. **Validation and Critique**:
 ```python
-class SelfRAGCriticConfig(PromptCriticConfig):
-    """Configuration for the Self-RAG critic."""
-
-    retrieval_threshold: float = Field(
-        default=0.5,
-        description="Threshold for determining when to retrieve information",
-        ge=0.0,
-        le=1.0,
-    )
-    retrieval_prompt_template: Optional[str] = Field(
-        default=None,
-        description="Template for retrieval query generation",
-    )
-    generation_prompt_template: Optional[str] = Field(
-        default=None,
-        description="Template for response generation",
-    )
-    reflection_prompt_template: Optional[str] = Field(
-        default=None,
-        description="Template for self-reflection",
-    )
+def validate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool
+def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]
+async def avalidate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool
+async def acritique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]
 ```
 
-### Core Algorithm
-
-The core algorithm for the Self-RAG Critic is implemented in the `run` method:
-
-1. Generate a retrieval query based on the task
-2. Determine if retrieval is needed based on the query
-3. If retrieval is needed, retrieve relevant information
-4. Generate a response using the retrieved information (if any)
-5. Generate a reflection on the response and retrieval process
-6. Return the results
-
+2. **Text Improvement**:
 ```python
-# Step 1: Generate retrieval query
-retrieval_query = self._generate_retrieval_query(task)
-
-# Step 2: Determine if retrieval is needed
-retrieval_needed = self._should_retrieve(retrieval_query)
-
-# Step 3: Retrieve information if needed
-retrieved_context = ""
-if retrieval_needed:
-    retrieved_context = self._retrieve_information(retrieval_query)
-
-# Step 4: Generate response
-response = self._generate_response(task, retrieved_context)
-
-# Step 5: Generate reflection
-reflection = self._generate_reflection(task, retrieved_context, response)
-
-# Return results
-return {
-    "response": response,
-    "retrieval_query": retrieval_query,
-    "retrieved_context": retrieved_context,
-    "reflection": reflection,
-}
+def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str
+def improve_with_feedback(self, text: str, feedback: str) -> str
+async def aimprove(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str
 ```
 
-### Retrieval Integration
-
-The Self-RAG Critic integrates with the retrieval system through a `Retriever` interface:
-
+3. **Core Process**:
 ```python
-class Retriever(Protocol):
-    """Protocol for retrieval systems."""
-
-    def retrieve(self, query: str) -> str:
-        """
-        Retrieve information based on a query.
-
-        Args:
-            query: The query to retrieve information for
-
-        Returns:
-            Retrieved information as a string
-        """
-        ...
-```
-
-A simple implementation, `SimpleRetriever`, is provided for testing and demonstration purposes:
-
-```python
-class SimpleRetriever:
-    """A simple retriever that searches a dictionary of documents."""
-
-    def __init__(self, documents: Dict[str, str]):
-        """Initialize the retriever with a dictionary of documents."""
-        self.documents = documents
-
-    def retrieve(self, query: str) -> str:
-        """Retrieve information based on a query."""
-        if not query or not query.strip():
-            raise ValueError("Query cannot be empty")
-
-        # Find documents that match the query
-        matches = []
-        for key, content in self.documents.items():
-            if any(term.lower() in key.lower() or term.lower() in content.lower() 
-                  for term in query.lower().split()):
-                matches.append(content)
-
-        # Return formatted results
-        if not matches:
-            return "No relevant documents found for the query."
-
-        return "Retrieved information:\n\n" + "\n\n".join(
-            f"Document {i+1}:\n\n{content}\n" for i, content in enumerate(matches)
-        )
+def run(self, task: str, response: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]
+async def arun(self, task: str, response: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]
 ```
 
 ### Factory Function
 
-The Self-RAG Critic provides a factory function for easy creation:
+The SelfRAGCritic provides a factory function for easy creation:
 
 ```python
 def create_self_rag_critic(
     llm_provider: Any,
-    retriever: Any,
+    retriever: Retriever,
     name: str = "self_rag_critic",
     description: str = "Improves text through self-reflective retrieval-augmented generation",
-    system_prompt: str = "You are an expert at deciding when to retrieve information and reflecting on its relevance.",
-    temperature: float = 0.7,
-    max_tokens: int = 1000,
-    retrieval_threshold: float = 0.5,
+    min_confidence: float = None,
+    max_attempts: int = None,
+    cache_size: int = None,
+    priority: int = None,
+    cost: float = None,
+    system_prompt: str = None,
+    temperature: float = None,
+    max_tokens: int = None,
+    retrieval_threshold: float = None,
     retrieval_prompt_template: Optional[str] = None,
     generation_prompt_template: Optional[str] = None,
     reflection_prompt_template: Optional[str] = None,
     config: Optional[Union[Dict[str, Any], SelfRAGCriticConfig]] = None,
     **kwargs: Any,
-) -> SelfRAGCritic:
-    # Implementation details...
+) -> SelfRAGCritic
 ```
 
-## Integration with Sifaka
+## Usage Example
 
-The Self-RAG Critic is integrated with the Sifaka project in the following ways:
+```python
+from sifaka.critics.implementations.self_rag import create_self_rag_critic
+from sifaka.models.providers import OpenAIProvider
+from sifaka.retrieval import SimpleRetriever
 
-1. Added to the `critics` module with proper imports and exports
-2. Added to the `__all__` list in `critics/__init__.py`
-3. Added a default configuration `DEFAULT_SELF_RAG_CONFIG`
-4. Provided comprehensive tests in `tests/critics/test_self_rag.py`
-5. Provided an example in `examples/self_rag_example.py`
+# Create a language model provider
+provider = OpenAIProvider(api_key="your-api-key")
+
+# Create a retriever with some documents
+documents = [
+    "Health insurance claims must be filed within 90 days of service.",
+    "To file a claim, you need to submit the claim form and receipts.",
+    "Claims can be submitted online or by mail."
+]
+retriever = SimpleRetriever(documents=documents)
+
+# Create a Self-RAG critic
+critic = create_self_rag_critic(
+    llm_provider=provider,
+    retriever=retriever
+)
+
+# Use the critic to improve text
+task = "What are the steps to file a claim for health reimbursement?"
+result = critic.run(task, response=None)
+print(f"Response: {result['response']}")
+print(f"Reflection: {result['reflection']}")
+```
+
+## Error Handling
+
+The SelfRAGCritic handles these error cases:
+
+1. **Initialization Errors**
+   - Missing required parameters
+   - Invalid provider type
+   - Invalid retriever type
+   - Invalid configuration values
+
+2. **Validation Errors**
+   - Empty text
+   - Missing task in metadata
+   - Uninitialized critic
+
+3. **Generation Errors**
+   - Model provider failures
+   - Retrieval failures
+   - Invalid prompt formatting
+   - Response parsing errors
 
 ## Testing
 
-The Self-RAG Critic includes comprehensive tests that verify:
+The SelfRAGCritic includes comprehensive tests that verify:
 
 1. Initialization with different configurations
-2. Retrieval query generation
-3. Response generation with and without retrieved information
-4. Self-reflection generation
-5. The full Self-RAG process
-6. Factory function behavior
-7. Asynchronous operations
+2. Retrieval functionality
+3. Text generation
+4. Reflection generation
+5. Async method behavior
+6. Error handling
+7. Memory management
 
 ## Future Improvements
 
-Potential future improvements for the Self-RAG Critic include:
+Potential future improvements for the SelfRAGCritic include:
 
-1. Adding support for more sophisticated retrieval systems
-2. Implementing a more robust parsing of retrieval queries
-3. Adding support for multi-step retrieval with different queries
-4. Implementing a more sophisticated scoring mechanism for reflections
-5. Adding support for tracking the history of retrievals and responses
-6. Supporting streaming responses
-7. Implementing a more sophisticated retrieval threshold mechanism
+1. Adding support for more sophisticated retrieval strategies
+2. Implementing parallel processing for multiple retrievals
+3. Adding support for custom retrieval templates
+4. Implementing more advanced memory management
+5. Adding support for streaming responses
 
 ## References
 
-- [Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection](https://arxiv.org/abs/2310.11511)
 - [Sifaka Critics Documentation](../components/critics.md)
-- [Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks](https://arxiv.org/abs/2005.11401)
+- [Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection](https://arxiv.org/abs/2310.11511)

@@ -2,130 +2,140 @@
 
 ## Overview
 
-Sifaka is a framework for building and managing AI-powered text generation chains with built-in validation, improvement, and monitoring capabilities. The system follows a component-based architecture that emphasizes modularity, extensibility, and maintainability.
+Sifaka is a framework for building reliable and reflective AI systems, with a focus on validation, improvement, and monitoring capabilities. The system follows a component-based architecture that emphasizes modularity, extensibility, and maintainability.
 
 ## Core Components
 
-### 1. Chain Core
+### 1. Chain System (`/chain`)
 The central orchestrator that coordinates all other components.
 
-**Key Responsibilities:**
-- Managing the execution flow
-- Coordinating between components
-- Handling retries and error recovery
-- Formatting and returning results
+**Key Components:**
+- `ChainCore` - Main interface that delegates to specialized components
+- `ChainOrchestrator` - Main user-facing class for standardized implementation
+- `PromptManager` - Manages prompt creation and management
+- `ValidationManager` - Manages validation logic and rule management
+- `RetryStrategy` - Handles retry logic with different strategies
+- `ResultFormatter` - Handles formatting and processing of results
 
-**Lifecycle:**
-1. **Initialization**
-   - Configure with required components
-   - Set up validation rules
-   - Initialize monitoring
-   - Prepare retry strategies
+**Directory Structure:**
+- `/chain/core.py` - Core chain implementation
+- `/chain/orchestrator.py` - Main orchestrator implementation
+- `/chain/strategies/` - Retry strategy implementations
+- `/chain/managers/` - Prompt and validation managers
+- `/chain/formatters/` - Result formatting implementations
+- `/chain/interfaces/` - Component interfaces
+- `/chain/factories.py` - Factory functions for creating chains
+- `/chain/config.py` - Chain configuration
+- `/chain/utils.py` - Utility functions
 
-2. **Execution**
-   - Process input prompts
-   - Generate text
-   - Validate outputs
-   - Apply improvements if needed
-   - Format and return results
+### 2. Critics System (`/critics`)
+Handles content analysis and improvement suggestions.
 
-3. **Monitoring**
-   - Track performance metrics
-   - Log validation results
-   - Monitor resource usage
-   - Report errors and issues
+**Key Components:**
+- `CriticCore` - Base critic implementation
+- `PromptCritic` - Prompt-based improvement
+- `ReflexionCritic` - Self-reflection based improvement
+- `ConstitutionalCritic` - Constitutional AI-based improvement
+- `SelfRagCritic` - Self-RAG based improvement
+- `SelfRefineCritic` - Self-refinement based improvement
+- `LacCritic` - Language-Aware Critic for improvement
 
-### 2. Model Providers
-Interface with various AI models for text generation.
+**Directory Structure:**
+- `/critics/core.py` - Core critic implementation
+- `/critics/base.py` - Base critic classes and interfaces
+- `/critics/strategies/` - Improvement strategies
+- `/critics/implementations/` - Specific critic implementations
+  - `prompt.py` - Prompt-based critic
+  - `reflexion.py` - Reflexion-based critic
+  - `constitutional.py` - Constitutional AI critic
+  - `self_rag.py` - Self-RAG critic
+  - `self_refine.py` - Self-refinement critic
+  - `lac.py` - Language-Aware Critic
+- `/critics/services/` - Supporting services
+- `/critics/managers/` - Critic management
+- `/critics/interfaces/` - Critic interfaces
+- `/critics/config.py` - Critic configuration
+- `/critics/utils.py` - Utility functions
 
-**Supported Providers:**
-- OpenAI
-- Anthropic
-- Local models
-- Custom providers
+### 3. Rules System (`/rules`)
+Defines and manages validation rules.
 
-**Features:**
-- Standardized interface
-- Token counting
-- Error handling
-- Rate limiting
-- Caching
-- Batch processing
-- Timeout handling
+**Key Components:**
+- `Rule` - Base rule interface
+- Formatting Rules:
+  - `LengthRule` - Length validation
+  - `StructureRule` - Structure validation
+  - `StyleRule` - Style validation
+  - `WhitespaceRule` - Whitespace validation
+  - `FormatRule` - General format validation
+- Content Rules:
+  - `SentimentRule` - Sentiment analysis
+  - `ToneRule` - Tone analysis
+  - `LanguageRule` - Language validation
+  - `ProhibitedRule` - Prohibited content detection
+  - `SafetyRule` - Safety checks
 
-### 3. Validation System
-Ensures generated content meets specified criteria.
+**Directory Structure:**
+- `/rules/base.py` - Base rule classes and interfaces
+- `/rules/formatting/` - Format-specific rules
+  - `length.py` - Length validation rules
+  - `structure.py` - Structure validation rules
+  - `style.py` - Style validation rules
+  - `whitespace.py` - Whitespace validation rules
+  - `format.py` - General format validation rules
+- `/rules/content/` - Content-specific rules
+  - `sentiment.py` - Sentiment analysis rules
+  - `tone.py` - Tone analysis rules
+  - `language.py` - Language validation rules
+  - `prohibited.py` - Prohibited content rules
+  - `safety.py` - Safety validation rules
+- `/rules/managers/` - Rule management
+- `/rules/interfaces/` - Rule interfaces
+- `/rules/factories.py` - Rule factory functions
+- `/rules/config.py` - Rule configuration
+- `/rules/utils.py` - Utility functions
 
-**Components:**
-- **Rules**: Define validation criteria
-  - Length rules
-  - Toxicity detection
-  - Content classification
-  - Topic matching
-  - Custom rules
+### 4. Classifiers (`/classifiers`)
+Specialized components for content classification.
 
-- **Validators**: Apply rules to content
-  - Parallel validation
-  - Early termination
-  - Error collection
-  - Result aggregation
-  - Confidence scoring
+**Key Components:**
+- Content classifiers
+- Topic classifiers
+- Quality classifiers
 
-### 4. Improvement System
-Enhances generated content that fails validation.
+### 5. Adapters (`/adapters`)
+Interface adapters for external systems.
 
-**Components:**
-- **Critics**: Analyze and suggest improvements
-  - Content analysis
-  - Error identification
-  - Improvement suggestions
-  - Quality assessment
-  - Confidence scoring
-
-- **Improvers**: Apply suggested changes
-  - Content modification
-  - Style adjustment
-  - Error correction
-  - Quality enhancement
-  - Batch processing
-
-### 5. Monitoring System
-Tracks system performance and behavior.
-
-**Features:**
-- Performance metrics
-- Error tracking
-- Resource monitoring
-- Usage statistics
-- Cache statistics
-- Alerting
-- Detailed logging
+**Key Components:**
+- Model adapters
+- Service adapters
+- Integration adapters
 
 ## Data Flow
 
 1. **Input Processing**
    ```
-   User Input → Prompt Manager → Chain Core
+   User Input → PromptManager → ChainCore
    ```
 
 2. **Generation**
    ```
-   Chain Core → Model Provider → Generated Text
+   ChainCore → Model Provider → Generated Text
    ```
 
 3. **Validation**
    ```
-   Generated Text → Validation Manager → Validation Results
+   Generated Text → Validator → ValidationResult
    ```
 
 4. **Improvement (if needed)**
    ```
-   Validation Results → Critic → Improvement Suggestions → Improver → Enhanced Text
+   ValidationResult → Critic → Improvement Suggestions → Improver → Enhanced Text
    ```
 
 5. **Output**
    ```
-   Final Text → Result Formatter → Formatted Output
+   Final Text → ResultFormatter → Formatted Output
    ```
 
 ## Error Handling
@@ -145,7 +155,6 @@ Tracks system performance and behavior.
 - Format problems
 - Quality concerns
 - Topic mismatches
-- Toxicity detection
 - Confidence threshold failures
 
 ### 3. Improvement Errors
@@ -153,14 +162,11 @@ Tracks system performance and behavior.
 - Improver issues
 - Content conflicts
 - Resource constraints
-- Confidence threshold failures
 - Maximum attempts exceeded
-- Batch processing errors
 
 ### 4. Recovery Strategies
-- Automatic retries
-- Fallback providers
-- Simplified validation
+- Simple retry strategy
+- Exponential backoff retry strategy
 - Error reporting
 - State preservation
 - Graceful degradation
@@ -169,54 +175,49 @@ Tracks system performance and behavior.
 
 ### 1. Chain Configuration
 ```python
-chain_config = {
-    "model": {
-        "provider": "openai",
-        "model_name": "gpt-3.5-turbo",
-        "temperature": 0.7,
-        "max_tokens": 1000
-    },
-    "validation": {
-        "rules": [
-            {"type": "length", "min": 10, "max": 1000},
-            {"type": "toxicity", "threshold": 0.7},
-            {"type": "topic", "allowed_topics": ["technology", "science"]}
-        ]
-    },
-    "improvement": {
-        "enabled": True,
-        "max_attempts": 3,
-        "critic": {
-            "type": "content",
-            "confidence_threshold": 0.8
-        }
-    },
-    "monitoring": {
-        "enabled": True,
-        "metrics": ["performance", "errors", "usage", "cache_stats"]
-    }
-}
+from sifaka.chain import ChainOrchestrator
+from sifaka.models import OpenAIProvider
+from sifaka.rules import create_length_rule
+from sifaka.critics import create_prompt_critic
+
+# Create components
+model = OpenAIProvider("gpt-3.5-turbo")
+rules = [create_length_rule(min_chars=10, max_chars=1000)]
+critic = create_prompt_critic(
+    llm_provider=model,
+    system_prompt="You are an expert editor that improves text."
+)
+
+# Create chain
+chain = ChainOrchestrator(
+    model=model,
+    rules=rules,
+    critic=critic,
+    max_attempts=3
+)
 ```
 
-### 2. Component Configuration
-Each component can be configured independently:
-- Model provider settings
-- Validation rule parameters
-- Improvement strategies
-- Monitoring options
-- Cache settings
-- Timeout values
-- Batch sizes
+### 2. Validator Configuration
+```python
+from sifaka.validation import ValidatorConfig
+from sifaka.rules import create_length_rule
+
+config = ValidatorConfig(
+    rules=[create_length_rule(min_chars=10, max_chars=1000)],
+    fail_fast=True,
+    params={"custom_param": "value"}
+)
+```
 
 ## Best Practices
 
 ### 1. Chain Design
-- Start with clear requirements
-- Define validation criteria
-- Plan improvement strategies
-- Consider monitoring needs
+- Use appropriate interfaces for components
+- Implement proper error handling
+- Configure retry strategies
+- Set up monitoring
 - Design for scalability
-- Plan for error handling
+- Plan for resource usage
 
 ### 2. Component Selection
 - Choose appropriate model providers
@@ -224,13 +225,11 @@ Each component can be configured independently:
 - Select suitable critics
 - Configure monitoring
 - Consider performance requirements
-- Plan for resource usage
 
 ### 3. Error Handling
 - Implement comprehensive validation
-- Plan for common failures
+- Use appropriate retry strategies
 - Set up monitoring
-- Define recovery strategies
 - Handle edge cases
 - Implement graceful degradation
 
@@ -240,83 +239,43 @@ Each component can be configured independently:
 - Optimize validation
 - Monitor resource usage
 - Use batch processing when possible
-- Implement early termination for validation
 - Configure appropriate timeouts
-- Use appropriate confidence thresholds
 
 ## Examples
 
 ### 1. Basic Chain
 ```python
-from sifaka.chain import create_simple_chain
-from sifaka.models import create_openai_provider
+from sifaka.chain import ChainOrchestrator
+from sifaka.models import OpenAIProvider
 from sifaka.rules import create_length_rule
 
 # Create components
-model = create_openai_provider("gpt-3.5-turbo")
+model = OpenAIProvider("gpt-3.5-turbo")
 rules = [create_length_rule(min_chars=10, max_chars=1000)]
 
 # Create chain
-chain = create_simple_chain(model=model, rules=rules)
+chain = ChainOrchestrator(model=model, rules=rules)
 
 # Run chain
 result = chain.run("Write a short story")
 ```
 
-### 2. Advanced Chain
-```python
-from sifaka.chain import create_backoff_chain
-from sifaka.models import create_openai_provider
-from sifaka.rules import create_length_rule, create_toxicity_rule
-from sifaka.critics import create_prompt_critic
-
-# Create components
-model = create_openai_provider("gpt-3.5-turbo")
-rules = [
-    create_length_rule(min_chars=10, max_chars=1000),
-    create_toxicity_rule(threshold=0.7)
-]
-critic = create_prompt_critic(
-    llm_provider=model,
-    system_prompt="You are an expert editor that improves text."
-)
-
-# Create chain with backoff retry strategy
-chain = create_backoff_chain(
-    model=model,
-    rules=rules,
-    critic=critic,
-    max_attempts=3,
-    initial_backoff=1.0,
-    backoff_factor=2.0,
-    max_backoff=60.0
-)
-
-# Run chain
-result = chain.run("Write a short story")
-print(f"Output: {result.output}")
-print(f"All rules passed: {all(r.passed for r in result.rule_results)}")
-```
-
-### 3. Using ChainOrchestrator
+### 2. Advanced Chain with Critic
 ```python
 from sifaka.chain import ChainOrchestrator
-from sifaka.models import create_openai_provider
-from sifaka.rules import create_length_rule, create_toxicity_rule
+from sifaka.models import OpenAIProvider
+from sifaka.rules import create_length_rule
 from sifaka.critics import create_prompt_critic
 
 # Create components
-model = create_openai_provider("gpt-3.5-turbo")
-rules = [
-    create_length_rule(min_chars=10, max_chars=1000),
-    create_toxicity_rule(threshold=0.7)
-]
+model = OpenAIProvider("gpt-3.5-turbo")
+rules = [create_length_rule(min_chars=10, max_chars=1000)]
 critic = create_prompt_critic(
     llm_provider=model,
     system_prompt="You are an expert editor that improves text."
 )
 
-# Create chain orchestrator
+# Create chain
 chain = ChainOrchestrator(
     model=model,
     rules=rules,
@@ -326,4 +285,6 @@ chain = ChainOrchestrator(
 
 # Run chain
 result = chain.run("Write a short story")
+print(f"Output: {result.output}")
+print(f"All rules passed: {all(r.passed for r in result.rule_results)}")
 ```

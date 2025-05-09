@@ -2,18 +2,41 @@
 # flake8: noqa
 # mypy: ignore-errors
 """
-Base classes and protocols for adapter-based rules.
+Base Adapters
 
+Base classes and protocols for adapter-based rules in the Sifaka framework.
+
+## Overview
 This module provides the foundation for adapting various components to function as validation rules,
 such as classifiers, models, or external services. It defines the core interfaces and base classes
 that enable the adapter pattern implementation throughout the Sifaka framework.
 
-Key Components:
+## Components
 1. Adaptable Protocol: Defines the interface for components that can be adapted
 2. BaseAdapter: Abstract base class for implementing specific adapters
 3. Validation Types: Support for different input types and validation strategies
 
-See examples in the tests/ directory for usage patterns.
+## Usage Examples
+```python
+class CustomAdapter(BaseAdapter[str, CustomComponent]):
+    def validate(self, input_value: str, **kwargs) -> RuleResult:
+        # Convert component's functionality to validation
+        result = self.adaptee.process(input_value)
+        return RuleResult(
+            passed=result.is_valid,
+            message=result.message,
+            metadata={"confidence": result.confidence}
+        )
+```
+
+## Error Handling
+- ConfigurationError: Raised when adapter configuration is invalid
+- ValidationError: Raised when validation fails due to an error
+- TypeError: Raised when input types are incompatible
+
+## Configuration
+- adaptee: The component being adapted
+- validation_type: The type of input this adapter validates
 """
 
 from typing import Any, Dict, Generic, Optional, Protocol, Type, TypeVar, cast, runtime_checkable
@@ -32,11 +55,15 @@ class Adaptable(Protocol):
     """
     Protocol for components that can be adapted to rules.
 
+    ## Overview
     Any component that can be adapted to a Sifaka rule must implement
     this protocol, which requires a name and description.
 
-    ## Lifecycle
+    ## Architecture
+    The protocol defines a minimal interface that components must implement
+    to be compatible with Sifaka's adapter system.
 
+    ## Lifecycle
     1. **Implementation**: Component implements the required properties
        - Provide a name for identification
        - Provide a description of functionality
@@ -48,6 +75,22 @@ class Adaptable(Protocol):
     3. **Usage**: Adapted component is used as a Sifaka rule validator
        - Adapter translates between component and rule interfaces
        - Component's functionality is leveraged in validation
+
+    ## Error Handling
+    - TypeError: Raised if required properties are not implemented
+    - ValueError: Raised if property values are invalid
+
+    ## Examples
+    ```python
+    class MyComponent:
+        @property
+        def name(self) -> str:
+            return "my_component"
+
+        @property
+        def description(self) -> str:
+            return "A custom component"
+    ```
     """
 
     @property
@@ -56,7 +99,10 @@ class Adaptable(Protocol):
         Get the component name.
 
         Returns:
-            A string name for the component
+            str: A string name for the component
+
+        Raises:
+            NotImplementedError: If the property is not implemented
         """
         ...
 
@@ -66,7 +112,10 @@ class Adaptable(Protocol):
         Get the component description.
 
         Returns:
-            A string description of the component's purpose
+            str: A string description of the component's purpose
+
+        Raises:
+            NotImplementedError: If the property is not implemented
         """
         ...
 
@@ -75,31 +124,42 @@ class BaseAdapter(BaseModel, BaseValidator[T], Generic[T, A]):
     """
     Base class for implementing adapters that convert components to validators.
 
+    ## Overview
     This class serves as the foundation for creating adapters that bridge between
     external components and Sifaka's validation system. It handles the core
     adaptation logic while allowing specific implementations to customize behavior.
 
-    Attributes:
-        adaptee: The component being adapted
-        validation_type: The type of input this adapter validates
+    ## Architecture
+    The adapter follows a standard adapter pattern:
+    1. Receives an adaptee component
+    2. Translates between component and validator interfaces
+    3. Provides standardized validation results
 
-    Lifecycle:
+    ## Lifecycle
     1. Initialization: Set up with adaptee and configuration
     2. Validation: Convert adaptee's functionality to validation
     3. Result Handling: Standardize validation results
 
-    Examples:
-        ```python
-        class CustomAdapter(BaseAdapter[str, CustomComponent]):
-            def validate(self, input_value: str, **kwargs) -> RuleResult:
-                # Convert component's functionality to validation
-                result = self.adaptee.process(input_value)
-                return RuleResult(
-                    passed=result.is_valid,
-                    message=result.message,
-                    metadata={"confidence": result.confidence}
-                )
-        ```
+    ## Error Handling
+    - ConfigurationError: Raised when adaptee is invalid
+    - ValidationError: Raised when validation fails
+    - TypeError: Raised when input types are incompatible
+
+    ## Examples
+    ```python
+    class CustomAdapter(BaseAdapter[str, CustomComponent]):
+        def validate(self, input_value: str, **kwargs) -> RuleResult:
+            result = self.adaptee.process(input_value)
+            return RuleResult(
+                passed=result.is_valid,
+                message=result.message,
+                metadata={"confidence": result.confidence}
+            )
+    ```
+
+    Attributes:
+        adaptee (A): The component being adapted
+        validation_type (Type[T]): The type of input this adapter validates
     """
 
     # Pydantic configuration
@@ -114,7 +174,7 @@ class BaseAdapter(BaseModel, BaseValidator[T], Generic[T, A]):
         Get the type of input this adapter validates.
 
         Returns:
-            The type of input this adapter accepts for validation
+            type: The type of input this adapter accepts for validation
         """
         return T
 
@@ -123,7 +183,7 @@ class BaseAdapter(BaseModel, BaseValidator[T], Generic[T, A]):
         Initialize the adapter with a component to adapt.
 
         Args:
-            adaptee: The component to adapt for validation
+            adaptee (A): The component to adapt for validation
 
         Raises:
             ConfigurationError: If the adaptee is invalid or incompatible
@@ -141,7 +201,7 @@ class BaseAdapter(BaseModel, BaseValidator[T], Generic[T, A]):
         Validate that the adaptee is compatible with this adapter.
 
         Args:
-            adaptee: The component to validate
+            adaptee (Any): The component to validate
 
         Raises:
             ConfigurationError: If the adaptee is invalid or incompatible
@@ -157,7 +217,7 @@ class BaseAdapter(BaseModel, BaseValidator[T], Generic[T, A]):
         Get the component being adapted.
 
         Returns:
-            The component instance being adapted
+            A: The component instance being adapted
         """
         return self._state_manager.get_state().adaptee
 
@@ -166,10 +226,10 @@ class BaseAdapter(BaseModel, BaseValidator[T], Generic[T, A]):
         Handle empty or invalid input text.
 
         Args:
-            text: The input text to check
+            text (str): The input text to check
 
         Returns:
-            RuleResult if the text is empty or invalid, None otherwise
+            Optional[RuleResult]: RuleResult if the text is empty or invalid, None otherwise
         """
         from sifaka.utils.text import handle_empty_text
 
@@ -182,11 +242,11 @@ class BaseAdapter(BaseModel, BaseValidator[T], Generic[T, A]):
         Validate the input value using the adapted component.
 
         Args:
-            input_value: The value to validate
+            input_value (T): The value to validate
             **kwargs: Additional validation parameters
 
         Returns:
-            RuleResult containing validation outcome and metadata
+            RuleResult: RuleResult containing validation outcome and metadata
 
         Raises:
             ValidationError: If validation fails due to an error
@@ -210,20 +270,30 @@ def create_adapter(
     """
     Factory function to create an adapter with standardized configuration.
 
+    ## Overview
     This function simplifies the creation of adapters by providing a
     consistent interface.
 
     Args:
-        adapter_type: The class of the adapter to create
-        adaptee: The component to adapt
+        adapter_type (Type[BaseAdapter[T, A]]): The class of the adapter to create
+        adaptee (A): The component to adapt
         **kwargs: Additional keyword arguments for the adapter
 
     Returns:
-        A configured adapter instance
+        BaseAdapter[T, A]: A configured adapter instance
 
     Raises:
         ConfigurationError: If adapter_type is not a subclass of BaseAdapter
         ConfigurationError: If adaptee doesn't implement required protocol
+
+    ## Examples
+    ```python
+    adapter = create_adapter(
+        adapter_type=CustomAdapter,
+        adaptee=my_component,
+        additional_param="value"
+    )
+    ```
     """
     if not issubclass(adapter_type, BaseAdapter):
         raise ConfigurationError(
