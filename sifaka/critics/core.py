@@ -204,39 +204,12 @@ class CriticCore(BaseCritic):
         self._state.initialized = True
 
     def validate(self, text: str) -> bool:
-        """Validate text against quality standards.
+        """
+        Validate text against quality standards.
 
-        This method checks if the given text meets the quality standards
-        defined by the critic's configuration.
-
-        ## Overview
-        The method provides:
-        - Text quality validation
-        - Standard compliance checking
-        - Error detection
-        - Validation result reporting
-
-        ## Usage Examples
-        ```python
-        # Validate text
-        text = "This is a sample technical document."
-        is_valid = critic.validate(text)
-        print(f"Text is valid: {is_valid}")
-
-        # Validate with error handling
-        try:
-            is_valid = critic.validate("")
-        except ValueError as e:
-            print(f"Validation error: {e}")
-        ```
-
-        ## Error Handling
-        The method implements:
-        - Empty text validation
-        - Invalid text format checking
-        - Validation error reporting
-        - State validation
-        - Service availability checking
+        This method checks if the text meets the quality standards defined by the critic.
+        It uses the language model to analyze the text and determine if it meets the
+        required criteria.
 
         Args:
             text: The text to validate
@@ -245,8 +218,19 @@ class CriticCore(BaseCritic):
             bool: True if the text meets quality standards, False otherwise
 
         Raises:
-            ValueError: If text is empty or invalid
-            RuntimeError: If validation fails
+            ValueError: If the text is empty or invalid
+            RuntimeError: If the language model fails to process the text
+
+        Example:
+            ```python
+            critic = create_core_critic(...)
+            text = "This is a sample text."
+            is_valid = critic.validate(text)
+            if is_valid:
+                print("Text meets quality standards")
+            else:
+                print("Text needs improvement")
+            ```
         """
         # Ensure initialized
         if not self._state.initialized:
@@ -268,54 +252,37 @@ class CriticCore(BaseCritic):
         return critique.score >= self.config.min_confidence
 
     def improve(self, text: str, violations: List[Dict[str, Any]]) -> str:
-        """Improve text based on identified violations.
+        """
+        Improve text based on identified violations.
 
-        This method attempts to improve the given text by addressing the
-        specified violations using the language model.
-
-        ## Overview
-        The method provides:
-        - Text improvement based on violations
-        - Multiple improvement attempts
-        - Improvement validation
-        - Result reporting
-
-        ## Usage Examples
-        ```python
-        # Improve text with violations
-        text = "This is a sample technical document."
-        violations = [
-            {"type": "clarity", "description": "Unclear explanation"},
-            {"type": "detail", "description": "Missing important details"}
-        ]
-        improved_text = critic.improve(text, violations)
-        print(f"Improved text: {improved_text}")
-
-        # Improve with error handling
-        try:
-            improved_text = critic.improve("", [])
-        except ValueError as e:
-            print(f"Improvement error: {e}")
-        ```
-
-        ## Error Handling
-        The method implements:
-        - Input validation
-        - Violation format checking
-        - Improvement attempt tracking
-        - Result validation
-        - Service availability checking
+        This method takes text and a list of violations, then uses the language model
+        to generate an improved version of the text that addresses the violations.
 
         Args:
             text: The text to improve
-            violations: List of violations to address
+            violations: List of dictionaries containing violation details
 
         Returns:
             str: The improved text
 
         Raises:
-            ValueError: If text or violations are invalid
-            RuntimeError: If improvement fails
+            ValueError: If the text is empty or invalid
+            RuntimeError: If the language model fails to process the text
+
+        Example:
+            ```python
+            critic = create_core_critic(...)
+            text = "This is a sample text."
+            violations = [
+                {
+                    "rule_id": "clarity",
+                    "message": "Text is unclear",
+                    "suggestion": "Add more context"
+                }
+            ]
+            improved_text = critic.improve(text, violations)
+            print(f"Improved text: {improved_text}")
+            ```
         """
         # Ensure initialized
         if not self._state.initialized:
@@ -345,50 +312,40 @@ class CriticCore(BaseCritic):
         return text
 
     def critique(self, text: str) -> CriticMetadata:
-        """Critique text and provide feedback.
+        """
+        Critique text and provide detailed feedback.
 
-        This method analyzes the given text and provides detailed feedback
-        about its quality and potential improvements.
-
-        ## Overview
-        The method provides:
-        - Text quality analysis
-        - Detailed feedback generation
-        - Score calculation
-        - Improvement suggestions
-
-        ## Usage Examples
-        ```python
-        # Critique text
-        text = "This is a sample technical document."
-        critique = critic.critique(text)
-        print(f"Score: {critique.score}")
-        print(f"Feedback: {critique.feedback}")
-
-        # Critique with error handling
-        try:
-            critique = critic.critique("")
-        except ValueError as e:
-            print(f"Critique error: {e}")
-        ```
-
-        ## Error Handling
-        The method implements:
-        - Input validation
-        - Analysis error handling
-        - Result validation
-        - Service availability checking
-        - State validation
+        This method analyzes the text and provides detailed feedback about its quality,
+        including a score, feedback message, and specific issues and suggestions.
 
         Args:
             text: The text to critique
 
         Returns:
-            CriticMetadata: The critique results
+            CriticMetadata: Object containing critique details including:
+                - score: Quality score between 0.0 and 1.0
+                - feedback: Detailed feedback message
+                - issues: List of identified issues
+                - suggestions: List of improvement suggestions
 
         Raises:
-            ValueError: If text is invalid
-            RuntimeError: If critique fails
+            ValueError: If the text is empty or invalid
+            RuntimeError: If the language model fails to process the text
+
+        Example:
+            ```python
+            critic = create_core_critic(...)
+            text = "This is a sample text."
+            critique = critic.critique(text)
+            print(f"Score: {critique.score}")
+            print(f"Feedback: {critique.feedback}")
+            print("Issues:")
+            for issue in critique.issues:
+                print(f"- {issue}")
+            print("Suggestions:")
+            for suggestion in critique.suggestions:
+                print(f"- {suggestion}")
+            ```
         """
         # Ensure initialized
         if not self._state.initialized:
@@ -407,51 +364,31 @@ class CriticCore(BaseCritic):
         return critique_service.critique(text)
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
-        """Improve text based on feedback.
+        """
+        Improve text based on specific feedback.
 
-        This method attempts to improve the given text based on the provided
-        feedback using the language model.
-
-        ## Overview
-        The method provides:
-        - Text improvement based on feedback
-        - Multiple improvement attempts
-        - Improvement validation
-        - Result reporting
-
-        ## Usage Examples
-        ```python
-        # Improve text with feedback
-        text = "This is a sample technical document."
-        feedback = "The text needs more detail about the implementation."
-        improved_text = critic.improve_with_feedback(text, feedback)
-        print(f"Improved text: {improved_text}")
-
-        # Improve with error handling
-        try:
-            improved_text = critic.improve_with_feedback("", "")
-        except ValueError as e:
-            print(f"Improvement error: {e}")
-        ```
-
-        ## Error Handling
-        The method implements:
-        - Input validation
-        - Feedback format checking
-        - Improvement attempt tracking
-        - Result validation
-        - Service availability checking
+        This method takes text and feedback, then uses the language model to generate
+        an improved version of the text that addresses the specific feedback.
 
         Args:
             text: The text to improve
-            feedback: The feedback to use for improvement
+            feedback: Specific feedback about what needs improvement
 
         Returns:
             str: The improved text
 
         Raises:
-            ValueError: If text or feedback are invalid
-            RuntimeError: If improvement fails
+            ValueError: If the text or feedback is empty or invalid
+            RuntimeError: If the language model fails to process the text
+
+        Example:
+            ```python
+            critic = create_core_critic(...)
+            text = "This is a sample text."
+            feedback = "The text needs more detail about the process."
+            improved_text = critic.improve_with_feedback(text, feedback)
+            print(f"Improved text: {improved_text}")
+            ```
         """
         # Ensure initialized
         if not self._state.initialized:
