@@ -79,6 +79,7 @@ from .result import RuleResult
 from .factories import create_rule, create_validation_manager
 from .interfaces.rule import RuleProtocol
 from .managers.validation import ValidationManager
+from .utils import create_rule_result, create_error_result, try_validate
 
 # Import from content rules
 from .content.prohibited import create_prohibited_content_rule
@@ -102,6 +103,10 @@ __all__ = [
     # Factory functions
     "create_rule",
     "create_validation_manager",
+    # Utility functions
+    "create_rule_result",
+    "create_error_result",
+    "try_validate",
     # Content rules
     "create_prohibited_content_rule",
     "create_toxicity_rule",

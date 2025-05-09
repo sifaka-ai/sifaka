@@ -44,6 +44,9 @@ from .managers.prompt import PromptManager
 from .managers.validation import ValidationManager
 from .strategies.retry import RetryStrategy, SimpleRetryStrategy, BackoffRetryStrategy
 
+# Utility functions
+from .utils import create_chain_result, create_error_result, try_chain_operation
+
 __all__ = [
     # Interfaces
     "Chain",
@@ -69,4 +72,8 @@ __all__ = [
     "BackoffRetryStrategy",
     # Formatters
     "ResultFormatter",
+    # Utility functions
+    "create_chain_result",
+    "create_error_result",
+    "try_chain_operation",
 ]

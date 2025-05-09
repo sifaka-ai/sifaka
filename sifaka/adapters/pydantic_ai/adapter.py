@@ -155,14 +155,14 @@ class SifakaPydanticAdapter:
 
         logger.info(f"PydanticAI adapter processing output (attempt {retries + 1})")
 
-        # Convert Pydantic model to dict for validation
+        # Convert Pydantic model to dict for validation using Pydantic 2 method
         serialize_method = getattr(output, self.config.serialize_method, None)
         if serialize_method is None:
-            # Fallback for Pydantic v1
-            serialize_method = getattr(output, "dict", None)
-            if serialize_method is None:
-                raise ValueError(f"Cannot serialize {type(output).__name__}")
+            raise ValueError(
+                f"Cannot serialize {type(output).__name__}. The model must be a Pydantic v2 model with a {self.config.serialize_method} method."
+            )
 
+        # Call the serialization method to get the data
         output_data = serialize_method()
         logger.debug(f"Serialized output: {output_data}")
         issues = []
@@ -228,7 +228,7 @@ class SifakaPydanticAdapter:
         )
         return output
 
-    def _refine_with_critic(self, output_data: Dict[str, Any], issues: List[str]) -> Dict[str, Any]:
+    def _refine_with_critic(self, output_data: Dict[str, Any], issues: List[str]) -> T:
         """
         Refine the output using the critic.
 
@@ -239,8 +239,16 @@ class SifakaPydanticAdapter:
         Returns:
             The refined output data
         """
+        # Set up logging
+        import logging
+
+        logger = logging.getLogger("sifaka.adapters.pydantic_ai")
+
+        # Store the original output for fallback
+        original_output = self.output
+
         if not self.critic:
-            return output_data
+            return original_output
 
         # Convert output_data to string for the critic
         output_str = str(output_data)
@@ -252,13 +260,25 @@ class SifakaPydanticAdapter:
         # Use the critic to improve the output
         improved_output = self.critic.improve(output_str, feedback)
 
-        # Try to parse the improved output back to a dict
+        # Try to parse the improved output back to a Pydantic model
         try:
             # This is a simplified approach - in a real implementation,
             # you would need more robust parsing logic
             import json
 
-            return json.loads(improved_output)
-        except Exception:
-            # If parsing fails, return the original output
-            return output_data
+            # Parse the improved output to a dict
+            improved_data = json.loads(improved_output)
+
+            # Use Pydantic v2's model_validate method to convert back to the model
+            deserialize_method = getattr(self.output_model, self.config.deserialize_method, None)
+            if deserialize_method is None:
+                raise ValueError(
+                    f"Cannot deserialize to {self.output_model.__name__}. The model must be a Pydantic v2 model with a {self.config.deserialize_method} method."
+                )
+
+            # Return the validated model
+            return deserialize_method(improved_data)
+        except Exception as e:
+            # If parsing fails, log the error and return the original output
+            logger.warning(f"Failed to parse improved output: {e}")
+            return original_output

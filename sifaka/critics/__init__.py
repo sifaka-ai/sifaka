@@ -68,6 +68,14 @@ from .strategies import (
     DefaultImprovementStrategy,
 )
 
+# Import utility functions
+from .utils import (
+    CriticMetadata as CriticMetadataUtil,
+    create_critic_metadata,
+    create_error_metadata,
+    try_critique,
+)
+
 # Import managers and services for advanced usage
 from .managers import (
     DefaultPromptManager,
@@ -94,6 +102,11 @@ __all__ = [
     "FeedbackCriticConfig",
     "ValueCriticConfig",
     "LACCriticConfig",
+    # Utility functions
+    "CriticMetadataUtil",
+    "create_critic_metadata",
+    "create_error_metadata",
+    "try_critique",
     # Critics
     "PromptCritic",
     "ReflexionCritic",

@@ -15,7 +15,15 @@ Sifaka uses a structured exception hierarchy:
      - **ResourceError**: Raised when a resource is unavailable
      - **TimeoutError**: Raised when an operation times out
 
-2. **Common Error Types**:
+2. **Component-Specific Errors**:
+   - **ChainError**: Raised by chain components
+   - **ModelError**: Raised by model providers
+   - **RuleError**: Raised during rule validation
+   - **CriticError**: Raised by critics
+   - **ClassifierError**: Raised by classifiers
+   - **RetrievalError**: Raised during retrieval operations
+
+3. **Common Error Types**:
    - **InputError**: Raised when input is invalid
    - **StateError**: Raised when state is invalid
    - **DependencyError**: Raised when a dependency fails
@@ -61,10 +69,34 @@ result = try_operation(
 
 import logging
 import traceback
-from typing import Any, Callable, Dict, Optional, Type, TypeVar, cast
+from typing import Any, Callable, Dict, Optional, TypeVar
 
 # Configure logger
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    # Base error classes
+    "SifakaError",
+    "ValidationError",
+    "ConfigurationError",
+    "ProcessingError",
+    "ResourceError",
+    "TimeoutError",
+    "InputError",
+    "StateError",
+    "DependencyError",
+    # Component-specific error classes
+    "ChainError",
+    "ModelError",
+    "RuleError",
+    "CriticError",
+    "ClassifierError",
+    "RetrievalError",
+    # Error handling functions
+    "handle_error",
+    "try_operation",
+    "log_error",
+]
 
 # Type variable for return type
 T = TypeVar("T")
@@ -174,6 +206,69 @@ class DependencyError(SifakaError):
 
     This error is raised when a dependency fails, such as when an
     external service, library, or component encounters an error.
+    """
+
+    pass
+
+
+# Component-specific error classes
+
+
+class ChainError(SifakaError):
+    """Error raised by chain components.
+
+    This error is raised when a chain component encounters an error,
+    such as during orchestration, execution, or result processing.
+    """
+
+    pass
+
+
+class ModelError(SifakaError):
+    """Error raised by model providers.
+
+    This error is raised when a model provider encounters an error,
+    such as during model initialization, inference, or API communication.
+    """
+
+    pass
+
+
+class RuleError(ValidationError):
+    """Error raised during rule validation.
+
+    This error is raised when a rule encounters an error during validation,
+    such as when a rule's validation logic fails or produces unexpected results.
+    """
+
+    pass
+
+
+class CriticError(SifakaError):
+    """Error raised by critics.
+
+    This error is raised when a critic encounters an error,
+    such as during critique generation, feedback processing, or improvement.
+    """
+
+    pass
+
+
+class ClassifierError(SifakaError):
+    """Error raised by classifiers.
+
+    This error is raised when a classifier encounters an error,
+    such as during classification, model inference, or result processing.
+    """
+
+    pass
+
+
+class RetrievalError(SifakaError):
+    """Error raised during retrieval operations.
+
+    This error is raised when a retrieval operation encounters an error,
+    such as during document retrieval, indexing, or query processing.
     """
 
     pass

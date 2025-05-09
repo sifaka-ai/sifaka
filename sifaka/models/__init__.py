@@ -41,6 +41,9 @@ from .services import GenerationService
 # Import result models
 from .result import ModelResult, GenerationResult, TokenCountResult
 
+# Import utility functions
+from .utils import create_generation_result, create_error_result, try_generate
+
 __all__ = [
     # Main provider classes
     "ModelProvider",
@@ -74,4 +77,8 @@ __all__ = [
     "ModelResult",
     "GenerationResult",
     "TokenCountResult",
+    # Utility functions
+    "create_generation_result",
+    "create_error_result",
+    "try_generate",
 ]
