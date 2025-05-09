@@ -149,6 +149,9 @@ from typing import (
 
 from typing_extensions import TypeGuard
 
+# Import the interfaces
+from ..interfaces.critics import Critic as CriticInterface, TextValidator, TextImprover, TextCritic
+
 # Import the Pydantic models
 from .models import CriticConfig, CriticMetadata
 
@@ -828,6 +831,8 @@ class BaseCritic(ABC, Generic[T, R]):
     improve, and critique text. It implements common functionality and
     defines abstract methods that must be implemented by subclasses.
 
+    This class implements the Critic interface from sifaka.interfaces.critics.
+
     ## Lifecycle Management
 
     1. **Initialization**
@@ -933,6 +938,65 @@ class BaseCritic(ABC, Generic[T, R]):
         """
         return self._config
 
+    @property
+    def name(self) -> str:
+        """
+        Get the critic name.
+
+        Returns:
+            The name of the critic
+        """
+        return self._config.name
+
+    @property
+    def description(self) -> str:
+        """
+        Get the critic description.
+
+        Returns:
+            The description of the critic
+        """
+        return self._config.description
+
+    def update_config(self, config: CriticConfig) -> None:
+        """
+        Update the critic configuration.
+
+        Args:
+            config: The new configuration object
+
+        Raises:
+            ValueError: If the configuration is invalid
+        """
+        if not isinstance(config, CriticConfig):
+            raise ValueError(f"Config must be a CriticConfig instance, got {type(config)}")
+        self._config = config
+        self._validate_config()
+
+    def initialize(self) -> None:
+        """
+        Initialize the critic.
+
+        This method initializes any resources needed by the critic.
+
+        Raises:
+            RuntimeError: If initialization fails
+        """
+        # Default implementation does nothing
+        pass
+
+    def cleanup(self) -> None:
+        """
+        Clean up the critic.
+
+        This method releases any resources held by the critic.
+
+        Raises:
+            RuntimeError: If cleanup fails
+        """
+        # Default implementation does nothing
+        pass
+
     def _validate_config(self) -> None:
         """
         Validate critic configuration.
@@ -980,19 +1044,19 @@ class BaseCritic(ABC, Generic[T, R]):
         ...
 
     @abstractmethod
-    def improve(self, text: T, violations: List[Dict[str, Any]]) -> T:
+    def improve(self, text: T, feedback: Optional[str] = None) -> T:
         """
-        Improve text based on violations.
+        Improve text based on feedback.
 
         Args:
             text: The text to improve
-            violations: List of rule violations
+            feedback: Optional feedback to guide improvement
 
         Returns:
             The improved text
 
         Raises:
-            ValueError: If text or violations are invalid
+            ValueError: If text or feedback is invalid
         """
         ...
 
@@ -1029,22 +1093,22 @@ class BaseCritic(ABC, Generic[T, R]):
         """
         ...
 
-    def process(self, text: T, violations: List[Dict[str, Any]]) -> CriticOutput[T, R]:
+    def process(self, text: T, feedback: Optional[str] = None) -> CriticOutput[T, R]:
         """
-        Process text and violations.
+        Process text with optional feedback.
 
         This method combines validation, improvement, and critique
         operations into a single workflow.
 
         Args:
             text: The text to process
-            violations: List of rule violations
+            feedback: Optional feedback to guide improvement
 
         Returns:
             CriticOutput containing the results
 
         Raises:
-            ValueError: If text or violations are invalid
+            ValueError: If text or feedback is invalid
         """
         if not self.is_valid_text(text):
             raise ValueError("text must be a non-empty string")
@@ -1053,7 +1117,7 @@ class BaseCritic(ABC, Generic[T, R]):
         is_valid = self.validate(text)
 
         # Improve text
-        improved_text = self.improve(text, violations)
+        improved_text = self.improve(text, feedback)
 
         # Critique text
         metadata = self.critique(improved_text)

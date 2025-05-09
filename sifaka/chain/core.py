@@ -131,14 +131,20 @@ result = chain.run("Write a short story about a robot learning to paint.")
 ```
 """
 
-from typing import Generic, Optional, TypeVar
+from typing import Any, Dict, Generic, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict, PrivateAttr
 
 from ..critics import CriticCore
 from ..generation import Generator
+from ..interfaces.core import Component, Configurable, Identifiable
 from ..models.base import ModelProvider
 from .formatters.result import ResultFormatter
+from .interfaces.chain import Chain as ChainInterface
+from .interfaces.critic import CriticProtocol
+from .interfaces.formatter import ResultFormatterProtocol
+from .interfaces.manager import PromptManagerProtocol, ValidationManagerProtocol
+from .interfaces.strategy import RetryStrategyProtocol
 from .managers.prompt import PromptManager
 from .managers.validation import ValidationManager
 from .result import ChainResult
@@ -151,12 +157,12 @@ logger = get_logger(__name__)
 OutputType = TypeVar("OutputType")
 
 
-class ChainCore(BaseModel, Generic[OutputType]):
+class ChainCore(BaseModel, ChainInterface[str, ChainResult[OutputType]], Generic[OutputType]):
     """
     Core chain implementation that delegates to specialized components.
 
-    This class implements the Chain interface but delegates most of its
-    functionality to specialized components for better separation of concerns.
+    This class implements the Chain interface from sifaka.interfaces.chain but delegates
+    most of its functionality to specialized components for better separation of concerns.
     It serves as the central orchestration component that coordinates the
     interaction between model providers, rules, critics, and other components
     to generate and validate text.
@@ -554,6 +560,136 @@ class ChainCore(BaseModel, Generic[OutputType]):
         if not state.initialized:
             raise RuntimeError("ChainCore not properly initialized")
         return state.generator
+
+    @property
+    def name(self) -> str:
+        """
+        Get the chain name.
+
+        Returns:
+            The name of the chain
+        """
+        return "ChainCore"
+
+    @property
+    def description(self) -> str:
+        """
+        Get the chain description.
+
+        Returns:
+            The description of the chain
+        """
+        return "Core chain implementation that delegates to specialized components"
+
+    @property
+    def config(self) -> Dict[str, Any]:
+        """
+        Get the chain configuration.
+
+        Returns:
+            The configuration of the chain
+        """
+        state = self._state_manager.get_state()
+        if not state.initialized:
+            raise RuntimeError("ChainCore not properly initialized")
+
+        return {
+            "model": state.model.name if hasattr(state.model, "name") else str(state.model),
+            "validation_rules": (
+                [rule.name for rule in state.validation_manager.rules]
+                if hasattr(state.validation_manager, "rules")
+                else []
+            ),
+            "critic": state.critic.name if state.critic and hasattr(state.critic, "name") else None,
+        }
+
+    def update_config(self, config: Dict[str, Any]) -> None:
+        """
+        Update the chain configuration.
+
+        Args:
+            config: The new configuration object
+
+        Raises:
+            ValueError: If the configuration is invalid
+        """
+        # This is a placeholder implementation
+        # In a real implementation, this would update the configuration of the chain
+        logger.info(f"Updating configuration for {self.name} chain")
+
+    def initialize(self) -> None:
+        """
+        Initialize the chain.
+
+        This method initializes any resources needed by the chain.
+
+        Raises:
+            RuntimeError: If initialization fails
+        """
+        state = self._state_manager.get_state()
+        if state.initialized:
+            logger.debug(f"{self.name} chain already initialized")
+            return
+
+        try:
+            # Initialize model if it has an initialize method
+            if hasattr(state.model, "initialize"):
+                state.model.initialize()
+
+            # Initialize other components if they have initialize methods
+            for component_name in [
+                "validation_manager",
+                "prompt_manager",
+                "retry_strategy",
+                "result_formatter",
+                "critic",
+            ]:
+                component = getattr(state, component_name, None)
+                if component and hasattr(component, "initialize"):
+                    component.initialize()
+
+            state.initialized = True
+            logger.info(f"Initialized {self.name} chain")
+        except Exception as e:
+            logger.error(f"Failed to initialize {self.name} chain: {e}")
+            raise RuntimeError(f"Failed to initialize {self.name} chain: {e}") from e
+
+    def cleanup(self) -> None:
+        """
+        Clean up the chain.
+
+        This method releases any resources held by the chain.
+
+        Raises:
+            RuntimeError: If cleanup fails
+        """
+        state = self._state_manager.get_state()
+        if not state.initialized:
+            logger.debug(f"{self.name} chain not initialized, nothing to clean up")
+            return
+
+        try:
+            # Clean up model if it has a cleanup method
+            if hasattr(state.model, "cleanup"):
+                state.model.cleanup()
+
+            # Clean up other components if they have cleanup methods
+            for component_name in [
+                "validation_manager",
+                "prompt_manager",
+                "retry_strategy",
+                "result_formatter",
+                "critic",
+            ]:
+                component = getattr(state, component_name, None)
+                if component and hasattr(component, "cleanup"):
+                    component.cleanup()
+
+            state.initialized = False
+            logger.info(f"Cleaned up {self.name} chain")
+        except Exception as e:
+            logger.error(f"Failed to clean up {self.name} chain: {e}")
+            raise RuntimeError(f"Failed to clean up {self.name} chain: {e}") from e
 
     def run(self, prompt: str) -> ChainResult[OutputType]:
         """

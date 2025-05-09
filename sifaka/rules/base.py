@@ -155,6 +155,7 @@ from typing import (
 
 from pydantic import BaseModel, Field, ConfigDict
 
+from ..interfaces.rules import Rule as RuleInterface, Validator
 from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -1142,6 +1143,8 @@ class Rule(Generic[T, R, V, H], ABC):
     the core validation logic and delegation pattern used throughout the Sifaka
     framework.
 
+    This class implements the Rule interface from sifaka.interfaces.rules.
+
     Rules follow a delegation pattern:
     1. The Rule receives text to validate
     2. The Rule delegates validation to its Validator
@@ -1347,6 +1350,43 @@ class Rule(Generic[T, R, V, H], ABC):
             The configuration of the rule
         """
         return self._config
+
+    def update_config(self, config: RuleConfig) -> None:
+        """
+        Update the rule configuration.
+
+        Args:
+            config: The new configuration object
+
+        Raises:
+            ValueError: If the configuration is invalid
+        """
+        if not isinstance(config, RuleConfig):
+            raise ValueError(f"Config must be an instance of RuleConfig, got {type(config)}")
+        self._config = config
+        logger.info(f"Updated configuration for rule {self.name}")
+
+    def initialize(self) -> None:
+        """
+        Initialize the rule.
+
+        This method initializes any resources needed by the rule.
+
+        Raises:
+            RuntimeError: If initialization fails
+        """
+        logger.info(f"Initialized rule {self.name}")
+
+    def cleanup(self) -> None:
+        """
+        Clean up the rule.
+
+        This method releases any resources held by the rule.
+
+        Raises:
+            RuntimeError: If cleanup fails
+        """
+        logger.info(f"Cleaned up rule {self.name}")
 
     def _get_cache_key(self, output: T, **kwargs: Any) -> str:
         """

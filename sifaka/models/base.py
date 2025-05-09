@@ -83,6 +83,7 @@ from typing import (
     runtime_checkable,
 )
 
+from sifaka.interfaces.models import APIClient, TokenCounter, ModelProvider
 from sifaka.utils.logging import get_logger
 from sifaka.utils.tracing import Tracer
 
@@ -280,170 +281,12 @@ class ModelConfig:
         return replace(self, trace_enabled=trace_enabled)
 
 
-@runtime_checkable
-class APIClient(Protocol):
-    """
-    Protocol for API clients that handle direct communication with LLM services.
-
-    Classes implementing this protocol are responsible for sending prompts to
-    language model services and returning the responses.
-
-    ## Lifecycle
-
-    1. **Initialization**: Set up client libraries and authentication
-    2. **Request Preparation**: Format prompts and parameters for the API
-    3. **Request Execution**: Send requests to the API
-    4. **Response Handling**: Process and return responses
-    5. **Error Handling**: Manage API errors and retries
-    6. **Cleanup**: Release resources when no longer needed
-
-    ## Error Handling
-
-    Implementations should handle:
-    - Network errors (timeouts, connection issues)
-    - Authentication errors (invalid API keys)
-    - Rate limiting and quota issues
-    - Service availability problems
-    - Malformed responses
-
-    ## Examples
-
-    ```python
-    from sifaka.models.base import APIClient, ModelConfig
-    import requests
-
-    class SimpleAPIClient(APIClient):
-        def __init__(self, base_url: str):
-            self.base_url = base_url
-            self.session = requests.Session()
-
-        def send_prompt(self, prompt: str, config: ModelConfig) -> str:
-            # Prepare request
-            headers = {"Authorization": f"Bearer {config.api_key}"}
-            payload = {
-                "prompt": prompt,
-                "temperature": config.temperature,
-                "max_tokens": config.max_tokens
-            }
-
-            # Send request with error handling
-            try:
-                response = self.session.post(
-                    f"{self.base_url}/generate",
-                    headers=headers,
-                    json=payload,
-                    timeout=30  # Prevent indefinite hanging
-                )
-                response.raise_for_status()  # Raise exception for HTTP errors
-                return response.json().get("text", "")
-
-            except requests.Timeout:
-                raise RuntimeError("Request timed out, service may be overloaded")
-            except requests.ConnectionError:
-                raise RuntimeError("Connection error, check network connectivity")
-            except requests.HTTPError as e:
-                if e.response.status_code == 401:
-                    raise ValueError("Invalid API key")
-                elif e.response.status_code == 429:
-                    raise RuntimeError("Rate limit exceeded, try again later")
-                else:
-                    raise RuntimeError(f"API error: {e}")
-            except Exception as e:
-                raise RuntimeError(f"Unexpected error: {e}")
-
-        def close(self):
-            self.session.close()
-    ```
-    """
-
-    def send_prompt(self, prompt: str, config: ModelConfig) -> str:
-        """
-        Send a prompt to the LLM service and return the response.
-
-        Args:
-            prompt: The prompt to send to the LLM service
-            config: The configuration to use for the request
-
-        Returns:
-            The text response from the LLM service
-
-        Raises:
-            ValueError: If there's an issue with the input parameters
-            RuntimeError: If there's an error communicating with the service
-            TimeoutError: If the request times out
-        """
-        ...
+# Re-export the APIClient protocol from interfaces.models
+# The implementation details are now in the interfaces module
 
 
-@runtime_checkable
-class TokenCounter(Protocol):
-    """
-    Protocol for token counting functionality.
-
-    Classes implementing this protocol are responsible for counting
-    the number of tokens in a piece of text, using the appropriate
-    tokenization method for a specific model.
-
-    ## Lifecycle
-
-    1. **Initialization**: Set up tokenizers or models
-    2. **Usage**: Count tokens in text
-    3. **Cleanup**: Release resources when no longer needed
-
-    ## Error Handling
-
-    Implementations should handle:
-    - Text encoding issues
-    - Tokenizer initialization failures
-    - Invalid inputs (empty strings, non-text content)
-
-    ## Examples
-
-    ```python
-    from sifaka.models.base import TokenCounter
-    import tiktoken
-
-    class OpenAITokenCounter(TokenCounter):
-        def __init__(self, model_name: str = "gpt-4"):
-            try:
-                self.encoding = tiktoken.encoding_for_model(model_name)
-            except KeyError:
-                # Fallback to a default encoding if model-specific one not found
-                self.encoding = tiktoken.get_encoding("cl100k_base")
-                print(f"Warning: Using fallback encoding for model {model_name}")
-
-        def count_tokens(self, text: str) -> int:
-            if not isinstance(text, str):
-                raise TypeError("Input must be a string")
-
-            if not text:
-                return 0
-
-            try:
-                return len(self.encoding.encode(text))
-            except Exception as e:
-                # Log error and use character-based approximation as fallback
-                print(f"Error counting tokens: {e}")
-                return len(text) // 4  # Rough approximation
-    ```
-    """
-
-    def count_tokens(self, text: str) -> int:
-        """
-        Count the number of tokens in the given text.
-
-        Args:
-            text: The text to count tokens for
-
-        Returns:
-            The number of tokens in the text
-
-        Raises:
-            TypeError: If text is not a string
-            ValueError: If there's an issue with the text content
-            RuntimeError: If there's an error with the tokenizer
-        """
-        ...
+# Re-export the TokenCounter protocol from interfaces.models
+# The implementation details are now in the interfaces module
 
 
 @runtime_checkable
@@ -576,7 +419,8 @@ class ModelProvider(ABC, Generic[C]):
     """
     Abstract base class for model providers.
 
-    This class enforces a consistent interface for all model providers
+    This class implements the ModelProvider interface from sifaka.interfaces.models
+    and enforces a consistent interface for all model providers
     while allowing for flexible implementation of specific provider features.
 
     Type Parameters:
@@ -805,7 +649,62 @@ class ModelProvider(ABC, Generic[C]):
         self._api_client = api_client
         self._token_counter = token_counter
         self._tracer = tracer or (Tracer() if self._config.trace_enabled else None)
-        logger.info(f"Initialized {self.__class__.__name__} with model {model_name}")
+        self._initialized = False
+        logger.info(f"Created {self.__class__.__name__} with model {model_name}")
+
+    def initialize(self) -> None:
+        """
+        Initialize the model provider.
+
+        This method initializes any resources needed by the model provider.
+        It ensures that the API client and token counter are created if they
+        haven't been provided during initialization.
+
+        Raises:
+            RuntimeError: If initialization fails
+        """
+        if self._initialized:
+            logger.debug(f"{self.__class__.__name__} already initialized")
+            return
+
+        try:
+            # Ensure API client and token counter are created
+            self._ensure_api_client()
+            self._ensure_token_counter()
+            self._initialized = True
+            logger.info(f"Initialized {self.__class__.__name__} with model {self.model_name}")
+        except Exception as e:
+            logger.error(f"Failed to initialize {self.__class__.__name__}: {e}")
+            raise RuntimeError(f"Failed to initialize {self.__class__.__name__}: {e}") from e
+
+    def cleanup(self) -> None:
+        """
+        Clean up the model provider.
+
+        This method releases any resources held by the model provider.
+        It ensures that the API client and token counter are properly closed.
+
+        Raises:
+            RuntimeError: If cleanup fails
+        """
+        if not self._initialized:
+            logger.debug(f"{self.__class__.__name__} not initialized, nothing to clean up")
+            return
+
+        try:
+            # Close API client if it has a close method
+            if self._api_client and hasattr(self._api_client, "close"):
+                self._api_client.close()
+
+            # Close token counter if it has a close method
+            if self._token_counter and hasattr(self._token_counter, "close"):
+                self._token_counter.close()
+
+            self._initialized = False
+            logger.info(f"Cleaned up {self.__class__.__name__} with model {self.model_name}")
+        except Exception as e:
+            logger.error(f"Failed to clean up {self.__class__.__name__}: {e}")
+            raise RuntimeError(f"Failed to clean up {self.__class__.__name__}: {e}") from e
 
     @property
     def model_name(self) -> str:
@@ -826,6 +725,31 @@ class ModelProvider(ABC, Generic[C]):
             The current model configuration
         """
         return self._config
+
+    @property
+    def description(self) -> str:
+        """
+        Get the model provider description.
+
+        Returns:
+            The description of the model provider
+        """
+        return f"{self.__class__.__name__} for {self.model_name}"
+
+    def update_config(self, config: C) -> None:
+        """
+        Update the model configuration.
+
+        Args:
+            config: The new configuration object
+
+        Raises:
+            ValueError: If the configuration is invalid
+        """
+        if not isinstance(config, ModelConfig):
+            raise ValueError(f"Config must be an instance of ModelConfig, got {type(config)}")
+        self._config = config
+        logger.info(f"Updated configuration for {self.__class__.__name__} with {self.model_name}")
 
     def _create_default_config(self) -> C:
         """

@@ -17,7 +17,22 @@ functionality into smaller, focused components:
 It also provides factory functions for creating different types of chains:
 - create_simple_chain - Creates a simple chain with a fixed number of retries
 - create_backoff_chain - Creates a chain with exponential backoff retry strategy
+
+The module also provides interfaces for each component type:
+- Chain - Interface for chains
+- PromptManagerProtocol - Interface for prompt managers
+- ValidationManagerProtocol - Interface for validation managers
+- RetryStrategyProtocol - Interface for retry strategies
+- ResultFormatterProtocol - Interface for result formatters
+- CriticProtocol - Interface for critics
 """
+
+# Interfaces
+from .interfaces.chain import Chain, AsyncChain
+from .interfaces.critic import CriticProtocol
+from .interfaces.formatter import ResultFormatterProtocol
+from .interfaces.manager import PromptManagerProtocol, ValidationManagerProtocol
+from .interfaces.strategy import RetryStrategyProtocol
 
 # Core components
 from .core import ChainCore
@@ -30,6 +45,14 @@ from .managers.validation import ValidationManager
 from .strategies.retry import RetryStrategy, SimpleRetryStrategy, BackoffRetryStrategy
 
 __all__ = [
+    # Interfaces
+    "Chain",
+    "AsyncChain",
+    "CriticProtocol",
+    "ResultFormatterProtocol",
+    "PromptManagerProtocol",
+    "ValidationManagerProtocol",
+    "RetryStrategyProtocol",
     # Core components
     "ChainCore",
     "ChainOrchestrator",

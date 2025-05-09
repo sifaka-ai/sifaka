@@ -5,8 +5,9 @@ This module provides the ValidationManager class which is responsible for
 validating outputs against rules.
 """
 
-from typing import Generic, List, TypeVar
+from typing import Any, Generic, List, TypeVar
 
+from ..interfaces.manager import ValidationManagerProtocol
 from ...rules import Rule
 from ...validation import ValidationResult, Validator
 from ...utils.logging import get_logger
@@ -16,12 +17,14 @@ logger = get_logger(__name__)
 OutputType = TypeVar("OutputType")
 
 
-class ValidationManager(Generic[OutputType]):
+class ValidationManager(
+    ValidationManagerProtocol[OutputType, ValidationResult[OutputType]], Generic[OutputType]
+):
     """
     Manages validation for chains.
 
     This class is responsible for validating outputs against rules and
-    managing rule-related functionality.
+    managing rule-related functionality. It implements the ValidationManagerProtocol interface.
     """
 
     def __init__(self, rules: List[Rule], prioritize_by_cost: bool = False):
@@ -84,3 +87,54 @@ class ValidationManager(Generic[OutputType]):
             The error messages
         """
         return self._validator.get_error_messages(validation_result)
+
+    def add_rule(self, rule: Any) -> None:
+        """
+        Add a rule for validation.
+
+        This method implements the ValidationManagerProtocol.add_rule method.
+
+        Args:
+            rule: The rule to add
+
+        Raises:
+            ValueError: If the rule is invalid
+        """
+        if not isinstance(rule, Rule):
+            raise ValueError(f"Expected Rule instance, got {type(rule)}")
+
+        self._rules.append(rule)
+        self._validator = Validator[OutputType](self._rules)
+        logger.info(f"Added rule {rule.name if hasattr(rule, 'name') else str(rule)}")
+
+    def remove_rule(self, rule_name: str) -> None:
+        """
+        Remove a rule from validation.
+
+        This method implements the ValidationManagerProtocol.remove_rule method.
+
+        Args:
+            rule_name: The name of the rule to remove
+
+        Raises:
+            ValueError: If the rule is not found
+        """
+        for i, rule in enumerate(self._rules):
+            if getattr(rule, "name", str(rule)) == rule_name:
+                self._rules.pop(i)
+                self._validator = Validator[OutputType](self._rules)
+                logger.info(f"Removed rule {rule_name}")
+                return
+
+        raise ValueError(f"Rule {rule_name} not found")
+
+    def get_rules(self) -> List[Any]:
+        """
+        Get all registered rules.
+
+        This method implements the ValidationManagerProtocol.get_rules method.
+
+        Returns:
+            A list of registered rules
+        """
+        return self._rules

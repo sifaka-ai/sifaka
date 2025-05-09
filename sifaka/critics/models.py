@@ -150,9 +150,10 @@ except ValidationError as e:
 ```
 """
 
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Literal, Optional, Union
+from typing_extensions import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 
 class CriticConfig(BaseModel):
@@ -216,21 +217,120 @@ class CriticConfig(BaseModel):
         new_config = config.model_copy(
             update={"min_confidence": 0.9}
         )
+
+        # Serialize to JSON
+        json_data = config.model_dump_json()
+
+        # Create from JSON
+        from_json = CriticConfig.model_validate_json(json_data)
         ```
     """
 
-    model_config = ConfigDict(frozen=True)
-
-    name: str = Field(description="Name of the critic", min_length=1)
-    description: str = Field(description="Description of the critic", min_length=1)
-    min_confidence: float = Field(
-        default=0.7, description="Minimum confidence threshold", ge=0.0, le=1.0
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": "example_critic",
+                    "description": "An example critic configuration",
+                    "min_confidence": 0.8,
+                    "max_attempts": 3,
+                    "cache_size": 100,
+                    "priority": 1,
+                    "cost": 1.0,
+                    "params": {"custom_param": "value"},
+                }
+            ]
+        },
     )
-    max_attempts: int = Field(default=3, description="Maximum number of improvement attempts", gt=0)
-    cache_size: int = Field(default=100, description="Size of the cache", ge=0)
-    priority: int = Field(default=1, description="Priority of the critic", ge=0)
-    cost: float = Field(default=1.0, description="Cost of using the critic", ge=0.0)
-    params: Dict[str, Any] = Field(default_factory=dict, description="Additional parameters")
+
+    name: str = Field(
+        description="Name of the critic",
+        min_length=1,
+        examples=["grammar_critic", "content_critic"],
+        json_schema_extra={"error_messages": {"min_length": "Name cannot be empty"}},
+    )
+
+    description: str = Field(
+        description="Description of the critic",
+        min_length=1,
+        examples=["Checks grammar and spelling", "Evaluates content quality"],
+        json_schema_extra={"error_messages": {"min_length": "Description cannot be empty"}},
+    )
+
+    min_confidence: float = Field(
+        default=0.7,
+        description="Minimum confidence threshold",
+        ge=0.0,
+        le=1.0,
+        examples=[0.7, 0.8, 0.9],
+        json_schema_extra={
+            "error_messages": {
+                "ge": "Confidence must be at least 0.0",
+                "le": "Confidence must be at most 1.0",
+            }
+        },
+    )
+
+    max_attempts: int = Field(
+        default=3,
+        description="Maximum number of improvement attempts",
+        gt=0,
+        examples=[1, 3, 5],
+        json_schema_extra={"error_messages": {"gt": "Max attempts must be greater than 0"}},
+    )
+
+    cache_size: int = Field(
+        default=100,
+        description="Size of the cache",
+        ge=0,
+        examples=[50, 100, 200],
+        json_schema_extra={"error_messages": {"ge": "Cache size cannot be negative"}},
+    )
+
+    priority: int = Field(
+        default=1,
+        description="Priority of the critic",
+        ge=0,
+        examples=[1, 2, 3],
+        json_schema_extra={"error_messages": {"ge": "Priority cannot be negative"}},
+    )
+
+    cost: float = Field(
+        default=1.0,
+        description="Cost of using the critic",
+        ge=0.0,
+        examples=[0.5, 1.0, 2.0],
+        json_schema_extra={"error_messages": {"ge": "Cost cannot be negative"}},
+    )
+
+    params: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional parameters",
+        examples=[{"threshold": 0.5, "mode": "strict"}],
+    )
+
+    @computed_field
+    @property
+    def id(self) -> str:
+        """
+        Generate a unique identifier for this critic configuration.
+
+        Returns:
+            A string identifier based on the name and priority
+        """
+        return f"{self.name}_{self.priority}"
+
+    @computed_field
+    @property
+    def is_high_priority(self) -> bool:
+        """
+        Check if this critic has high priority.
+
+        Returns:
+            True if priority is greater than 1, False otherwise
+        """
+        return self.priority > 1
 
     @field_validator("name")
     @classmethod
@@ -275,6 +375,25 @@ class CriticConfig(BaseModel):
         if not v.strip():
             raise ValueError("description cannot be empty or whitespace")
         return v
+
+    @model_validator(mode="after")
+    def validate_cost_priority_relationship(self) -> "CriticConfig":
+        """
+        Validate the relationship between cost and priority.
+
+        This validator ensures that high-priority critics have appropriate costs.
+
+        Returns:
+            The validated model
+
+        Raises:
+            ValueError: If validation fails
+        """
+        if self.priority > 2 and self.cost < 1.5:
+            raise ValueError(
+                "High-priority critics (priority > 2) must have a cost of at least 1.5"
+            )
+        return self
 
 
 class PromptCriticConfig(CriticConfig):
@@ -629,16 +748,151 @@ class CriticMetadata(BaseModel):
         new_metadata = metadata.model_copy(
             update={"score": 0.9}
         )
+
+        # Serialize to JSON
+        json_data = metadata.model_dump_json()
+
+        # Create from JSON
+        from_json = CriticMetadata.model_validate_json(json_data)
         ```
     """
 
-    model_config = ConfigDict(frozen=True)
-
-    score: float = Field(description="Score between 0 and 1", ge=0.0, le=1.0)
-    feedback: str = Field(description="General feedback")
-    issues: List[str] = Field(default_factory=list, description="List of issues")
-    suggestions: List[str] = Field(default_factory=list, description="List of suggestions")
-    attempt_number: int = Field(default=1, description="Attempt number", gt=0)
-    processing_time_ms: float = Field(
-        default=0.0, description="Processing time in milliseconds", ge=0.0
+    model_config = ConfigDict(
+        frozen=True,
+        json_schema_extra={
+            "examples": [
+                {
+                    "score": 0.85,
+                    "feedback": "Good text quality with minor issues",
+                    "issues": ["Could use more detail"],
+                    "suggestions": ["Add specific examples"],
+                    "attempt_number": 1,
+                    "processing_time_ms": 150.0,
+                }
+            ]
+        },
     )
+
+    score: float = Field(
+        description="Score between 0 and 1",
+        ge=0.0,
+        le=1.0,
+        examples=[0.7, 0.85, 0.95],
+        json_schema_extra={
+            "error_messages": {
+                "ge": "Score must be at least 0.0",
+                "le": "Score must be at most 1.0",
+            }
+        },
+    )
+
+    feedback: str = Field(
+        description="General feedback",
+        examples=["Good text quality", "Needs improvement"],
+        min_length=1,
+        json_schema_extra={"error_messages": {"min_length": "Feedback cannot be empty"}},
+    )
+
+    issues: List[str] = Field(
+        default_factory=list,
+        description="List of issues",
+        examples=[["Could use more detail", "Lacks examples"]],
+    )
+
+    suggestions: List[str] = Field(
+        default_factory=list,
+        description="List of suggestions",
+        examples=[["Add specific examples", "Improve clarity"]],
+    )
+
+    attempt_number: int = Field(
+        default=1,
+        description="Attempt number",
+        gt=0,
+        examples=[1, 2, 3],
+        json_schema_extra={"error_messages": {"gt": "Attempt number must be greater than 0"}},
+    )
+
+    processing_time_ms: float = Field(
+        default=0.0,
+        description="Processing time in milliseconds",
+        ge=0.0,
+        examples=[50.0, 150.0, 300.0],
+        json_schema_extra={"error_messages": {"ge": "Processing time cannot be negative"}},
+    )
+
+    # Optional fields for additional metadata
+    source: Optional[str] = Field(
+        default=None,
+        description="Source of the critique",
+        examples=["grammar_critic", "content_critic"],
+    )
+
+    timestamp: Optional[str] = Field(
+        default=None, description="Timestamp of the critique", examples=["2023-06-15T14:30:00Z"]
+    )
+
+    @computed_field
+    @property
+    def quality_level(self) -> str:
+        """
+        Get the quality level based on the score.
+
+        Returns:
+            A string representing the quality level
+        """
+        if self.score >= 0.9:
+            return "excellent"
+        elif self.score >= 0.7:
+            return "good"
+        elif self.score >= 0.5:
+            return "acceptable"
+        else:
+            return "poor"
+
+    @computed_field
+    @property
+    def has_issues(self) -> bool:
+        """
+        Check if there are any issues.
+
+        Returns:
+            True if there are issues, False otherwise
+        """
+        return len(self.issues) > 0
+
+    @field_validator("feedback")
+    @classmethod
+    def feedback_must_not_be_empty(cls, v: str) -> str:
+        """
+        Validate that feedback is not empty.
+
+        Args:
+            v: The feedback value to validate
+
+        Returns:
+            The validated feedback
+
+        Raises:
+            ValueError: If feedback is empty or whitespace
+        """
+        if not v.strip():
+            raise ValueError("feedback cannot be empty or whitespace")
+        return v
+
+    @model_validator(mode="after")
+    def validate_issues_and_suggestions(self) -> "CriticMetadata":
+        """
+        Validate the relationship between issues and suggestions.
+
+        This validator ensures that if there are issues, there should be suggestions.
+
+        Returns:
+            The validated model
+
+        Raises:
+            ValueError: If validation fails
+        """
+        if self.issues and not self.suggestions:
+            raise ValueError("If issues are provided, suggestions should also be provided")
+        return self
