@@ -9,7 +9,7 @@ Based on Constitutional AI: https://arxiv.org/abs/2212.08073
 
 Example:
     ```python
-    from sifaka.critics.constitutional import create_constitutional_critic
+    from sifaka.critics.implementations.constitutional import create_constitutional_critic
     from sifaka.models.providers import OpenAIProvider
 
     # Create a language model provider
@@ -49,16 +49,12 @@ from typing import Any, Dict, List, Optional, Union, cast
 
 from pydantic import PrivateAttr, ConfigDict
 
-from .base import BaseCritic
-from .models import ConstitutionalCriticConfig
-from .protocols import TextCritic, TextImprover, TextValidator
-from .prompt import LanguageModel
+from ..base import BaseCritic
+from ..config import ConstitutionalCriticConfig
+from ..interfaces.critic import TextCritic, TextImprover, TextValidator
 
 # Configure logging
 logger = logging.getLogger(__name__)
-
-
-# Configuration is defined in models.py
 
 
 class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
@@ -81,113 +77,6 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
        - **CritiqueGenerator**: Evaluates responses against principles
        - **ResponseImprover**: Improves responses based on critiques
        - **PromptManager**: Creates specialized prompts for critique and improvement
-
-    2. **Component Relationships**
-       - ConstitutionalCritic delegates to CritiqueGenerator for evaluation
-       - ConstitutionalCritic delegates to ResponseImprover for improvement
-       - Both components use the same language model provider
-       - Both components use the same set of principles
-       - PrinciplesManager formats principles for inclusion in prompts
-
-    3. **State Management**
-       - Uses direct state pattern with _state attribute
-       - State contains references to all components
-       - State.cache dictionary stores principles and prompt templates
-       - Initialization flag prevents operations before setup is complete
-
-    4. **Evaluation Process**
-       - Principles are formatted as a bulleted list
-       - Response is evaluated against each principle
-       - Violations are identified and detailed feedback is generated
-       - Feedback is used to guide response improvement
-       - Improved response is checked for continued violations
-
-    ## Lifecycle Management
-
-    The ConstitutionalCritic manages its lifecycle through three main phases:
-
-    1. **Initialization**
-       - Validates configuration
-       - Sets up language model provider
-       - Initializes principles
-       - Allocates resources
-
-    2. **Operation**
-       - Validates responses against principles
-       - Generates critiques for violations
-       - Improves responses based on critiques
-       - Processes feedback
-
-    3. **Cleanup**
-       - Releases resources
-       - Resets state
-       - Logs final status
-
-    ## Error Handling
-
-    1. **Input Validation**
-       - Empty text checks
-       - Missing task information
-       - Type validation
-       - Format verification
-
-    2. **Processing Errors**
-       - Model generation failures
-       - Invalid model outputs
-       - Timeout handling
-       - Resource limitations
-
-    3. **Recovery Strategies**
-       - Retry mechanisms
-       - Fallback responses
-       - Graceful degradation
-       - Error reporting
-
-    Examples:
-        ```python
-        from sifaka.critics.constitutional import ConstitutionalCritic, ConstitutionalCriticConfig
-        from sifaka.models.providers import OpenAIProvider
-
-        # Create a language model provider
-        provider = OpenAIProvider(api_key="your-api-key")
-
-        # Define principles
-        principles = [
-            "Do not provide harmful, offensive, or biased content.",
-            "Explain reasoning in a clear and truthful manner.",
-            "Respect user autonomy and avoid manipulative language.",
-        ]
-
-        # Create a constitutional critic configuration
-        config = ConstitutionalCriticConfig(
-            name="my_critic",
-            description="A critic for evaluating responses against principles",
-            principles=principles,
-            system_prompt="You are an expert at evaluating content.",
-            temperature=0.7,
-            max_tokens=1000
-        )
-
-        # Create a constitutional critic
-        critic = ConstitutionalCritic(
-            config=config,
-            llm_provider=provider
-        )
-
-        # Validate a response
-        task = "Explain why some people believe climate change isn't real."
-        response = "Climate change is a hoax created by scientists to get funding."
-        is_valid = critic.validate(response, metadata={"task": task})
-        print(f"Response is valid: {is_valid}")
-
-        # Get critique for a response
-        critique = critic.critique(response, metadata={"task": task})
-        print(f"Critique: {critique}")
-
-        # Improve a response
-        improved_response = critic.improve(response, metadata={"task": task})
-        print(f"Improved response: {improved_response}")
-        ```
     """
 
     # Class constants
@@ -202,31 +91,52 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
 
     def __init__(
         self,
-        config: ConstitutionalCriticConfig,
-        llm_provider: LanguageModel,
-    ):
+        name: str = DEFAULT_NAME,
+        description: str = DEFAULT_DESCRIPTION,
+        llm_provider: Any = None,
+        principles: Optional[List[str]] = None,
+        config: Optional[ConstitutionalCriticConfig] = None,
+    ) -> None:
         """
-        Initialize a constitutional critic.
+        Initialize the constitutional critic.
 
         Args:
-            config: Configuration for the critic
-            llm_provider: Language model provider to use for critiquing
+            name: Name of the critic
+            description: Description of the critic
+            llm_provider: Language model provider to use
+            principles: List of principles to evaluate responses against
+            config: Optional critic configuration (overrides other parameters)
 
         Raises:
-            ValueError: If configuration is invalid
-            TypeError: If llm_provider is not a valid language model
+            ValueError: If llm_provider is None or principles is empty
+            TypeError: If llm_provider is not a valid provider
         """
-        # Validate inputs
-        if not isinstance(config, ConstitutionalCriticConfig):
-            raise TypeError("config must be a ConstitutionalCriticConfig")
-        if not config.principles or not all(isinstance(p, str) for p in config.principles):
-            raise ValueError("principles must be a non-empty list of strings")
+        # Validate required parameters
+        if llm_provider is None:
+            from pydantic import ValidationError
+
+            raise ValidationError.from_exception_data(
+                "Field required",
+                [{"loc": ("llm_provider",), "msg": "Field required", "type": "missing"}],
+            )
+
+        # Create default config if not provided
+        if config is None:
+            from ..config import DEFAULT_CONSTITUTIONAL_CONFIG
+
+            config = DEFAULT_CONSTITUTIONAL_CONFIG.model_copy(
+                update={"name": name, "description": description}
+            )
+
+            # Override principles if provided
+            if principles is not None:
+                config.principles = principles
 
         # Initialize base class
         super().__init__(config)
 
         # Initialize state
-        from ..utils.state import CriticState
+        from ...utils.state import CriticState
 
         self._state = CriticState()
 
@@ -252,7 +162,7 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         principles = self._state.cache.get("principles", [])
         return "\n".join(f"- {p}" for p in principles)
 
-    def _get_task_from_metadata(self, metadata: Optional[Dict[str, Any]] = None) -> str:
+    def _get_task_from_metadata(self, metadata: Optional[Dict[str, Any]]) -> str:
         """
         Extract task from metadata.
 
@@ -263,11 +173,16 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             Task string
 
         Raises:
-            ValueError: If task is not provided in metadata
+            ValueError: If metadata is None or missing task key
         """
-        if not metadata or "task" not in metadata:
-            raise ValueError("metadata must contain 'task' key")
+        if metadata is None or "task" not in metadata:
+            raise ValueError("metadata must contain a 'task' key")
         return metadata["task"]
+
+    @property
+    def config(self) -> ConstitutionalCriticConfig:
+        """Get the constitutional critic configuration."""
+        return cast(ConstitutionalCriticConfig, self._config)
 
     def validate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
         """
@@ -292,10 +207,10 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             raise ValueError("text must be a non-empty string")
 
         # Get critique
-        critique_result = self.critique(text, metadata)
+        critique = self.critique(text, metadata)
 
-        # Check if critique indicates violations
-        return not critique_result.get("issues", [])
+        # Response is valid if there are no issues
+        return len(critique.get("issues", [])) == 0
 
     def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -376,11 +291,12 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
                     else:
                         issues.append(line[2:].strip())
 
-            # If no structured issues were found, add the whole critique as an issue
-            if not issues:
-                issues = [critique_text]
-
-        return {"score": score, "feedback": feedback, "issues": issues, "suggestions": suggestions}
+        return {
+            "score": score,
+            "feedback": feedback,
+            "issues": issues,
+            "suggestions": suggestions,
+        }
 
     def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         """
@@ -566,17 +482,17 @@ class ConstitutionalCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
 
 def create_constitutional_critic(
     llm_provider: Any,
-    principles: List[str],
+    principles: List[str] = None,
     name: str = "constitutional_critic",
     description: str = "Evaluates responses against principles",
-    min_confidence: float = 0.7,
-    max_attempts: int = 3,
-    cache_size: int = 100,
-    priority: int = 1,
-    cost: float = 1.0,
-    system_prompt: str = "You are an expert at evaluating content against principles.",
-    temperature: float = 0.7,
-    max_tokens: int = 1000,
+    min_confidence: float = None,
+    max_attempts: int = None,
+    cache_size: int = None,
+    priority: int = None,
+    cost: float = None,
+    system_prompt: str = None,
+    temperature: float = None,
+    max_tokens: int = None,
     critique_prompt_template: Optional[str] = None,
     improvement_prompt_template: Optional[str] = None,
     config: Optional[Union[Dict[str, Any], ConstitutionalCriticConfig]] = None,
@@ -584,9 +500,6 @@ def create_constitutional_critic(
 ) -> ConstitutionalCritic:
     """
     Create a constitutional critic with the given parameters.
-
-    This factory function creates a configured constitutional critic instance
-    that evaluates responses against a set of principles.
 
     Args:
         llm_provider: Language model provider to use
@@ -604,61 +517,57 @@ def create_constitutional_critic(
         critique_prompt_template: Optional custom template for critique prompts
         improvement_prompt_template: Optional custom template for improvement prompts
         config: Optional critic configuration (overrides other parameters)
-        **kwargs: Additional keyword arguments for the critic
+        **kwargs: Additional keyword arguments
 
     Returns:
-        A configured constitutional critic
-
-    Raises:
-        ValueError: If principles is empty or invalid
-        TypeError: If llm_provider is not a valid language model
+        ConstitutionalCritic: Configured constitutional critic
     """
-    # Create configuration
+    # Create config if not provided
     if config is None:
-        config_dict = {
-            "name": name,
-            "description": description,
-            "min_confidence": min_confidence,
-            "max_attempts": max_attempts,
-            "cache_size": cache_size,
-            "priority": priority,
-            "cost": cost,
-            "principles": principles,
-            "system_prompt": system_prompt,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
+        from ..config import DEFAULT_CONSTITUTIONAL_CONFIG
 
-        if critique_prompt_template:
-            config_dict["critique_prompt_template"] = critique_prompt_template
+        config = DEFAULT_CONSTITUTIONAL_CONFIG.model_copy()
 
-        if improvement_prompt_template:
-            config_dict["improvement_prompt_template"] = improvement_prompt_template
+        # Update config with provided values
+        updates = {}
+        if name is not None:
+            updates["name"] = name
+        if description is not None:
+            updates["description"] = description
+        if principles is not None:
+            updates["principles"] = principles
+        if system_prompt is not None:
+            updates["system_prompt"] = system_prompt
+        if temperature is not None:
+            updates["temperature"] = temperature
+        if max_tokens is not None:
+            updates["max_tokens"] = max_tokens
+        if min_confidence is not None:
+            updates["min_confidence"] = min_confidence
+        if max_attempts is not None:
+            updates["max_attempts"] = max_attempts
+        if cache_size is not None:
+            updates["cache_size"] = cache_size
+        if priority is not None:
+            updates["priority"] = priority
+        if cost is not None:
+            updates["cost"] = cost
+        if critique_prompt_template is not None:
+            updates["critique_prompt_template"] = critique_prompt_template
+        if improvement_prompt_template is not None:
+            updates["improvement_prompt_template"] = improvement_prompt_template
 
-        config = ConstitutionalCriticConfig(**config_dict)
+        config = config.model_copy(update=updates)
     elif isinstance(config, dict):
-        # Ensure principles are included in the config
-        if "principles" not in config and principles:
-            config["principles"] = principles
+        from ..config import ConstitutionalCriticConfig
+
         config = ConstitutionalCriticConfig(**config)
-    elif not isinstance(config, ConstitutionalCriticConfig):
-        raise TypeError("config must be a ConstitutionalCriticConfig or dict")
 
-    # Create and return critic
+    # Create and return the critic
     return ConstitutionalCritic(
-        config=config,
+        name=name,
+        description=description,
         llm_provider=llm_provider,
+        principles=principles,
+        config=config,
     )
-
-
-"""
-@misc{bai2022constitutionalaiharmlessnessai,
-      title={Constitutional AI: Harmlessness from AI Feedback},
-      author={Yuntao Bai and Saurav Kadavath and Sandipan Kundu and Amanda Askell and Jackson Kernion and Andy Jones and Anna Chen and Anna Goldie and Azalia Mirhoseini and Cameron McKinnon and Carol Chen and Catherine Olsson and Christopher Olah and Danny Hernandez and Dawn Drain and Deep Ganguli and Dustin Li and Eli Tran-Johnson and Ethan Perez and Jamie Kerr and Jared Mueller and Jeffrey Ladish and Joshua Landau and Kamal Ndousse and Kamile Lukosuite and Liane Lovitt and Michael Sellitto and Nelson Elhage and Nicholas Schiefer and Noemi Mercado and Nova DasSarma and Robert Lasenby and Robin Larson and Sam Ringer and Scott Johnston and Shauna Kravec and Sheer El Showk and Stanislav Fort and Tamera Lanham and Timothy Telleen-Lawton and Tom Conerly and Tom Henighan and Tristan Hume and Samuel R. Bowman and Zac Hatfield-Dodds and Ben Mann and Dario Amodei and Nicholas Joseph and Sam McCandlish and Tom Brown and Jared Kaplan},
-      year={2022},
-      eprint={2212.08073},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL},
-      url={https://arxiv.org/abs/2212.08073},
-}
-"""

@@ -1,0 +1,574 @@
+"""
+Self-RAG critic module for Sifaka.
+
+This module implements the Self-Reflective Retrieval-Augmented Generation approach for critics,
+which enables language models to decide when and what to retrieve, and reflect on the
+relevance and utility of the retrieved information.
+
+Based on Self-RAG: https://arxiv.org/abs/2310.11511
+
+Example:
+    ```python
+    from sifaka.critics.implementations.self_rag import create_self_rag_critic
+    from sifaka.models.providers import OpenAIProvider
+    from sifaka.retrieval import SimpleRetriever
+
+    # Create a language model provider
+    provider = OpenAIProvider(api_key="your-api-key")
+
+    # Create a retriever with some documents
+    documents = [
+        "Health insurance claims must be filed within 90 days of service.",
+        "To file a claim, you need to submit the claim form and receipts.",
+        "Claims can be submitted online or by mail."
+    ]
+    retriever = SimpleRetriever(documents=documents)
+
+    # Create a Self-RAG critic
+    critic = create_self_rag_critic(
+        llm_provider=provider,
+        retriever=retriever
+    )
+
+    # Use the critic to improve text
+    task = "What are the steps to file a claim for health reimbursement?"
+    result = critic.run(task, response=None)
+    print(f"Response: {result['response']}")
+    print(f"Reflection: {result['reflection']}")
+    ```
+"""
+
+from typing import Any, Dict, List, Optional, Union, cast
+
+from pydantic import ConfigDict, Field, PrivateAttr
+
+from ..base import BaseCritic
+from ..config import SelfRAGCriticConfig
+from ..interfaces.critic import TextCritic, TextImprover, TextValidator
+from ...retrieval import Retriever
+
+
+class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
+    """
+    A critic that implements the Self-Reflective Retrieval-Augmented Generation approach.
+
+    This critic enables language models to decide when and what to retrieve,
+    and reflect on the relevance and utility of the retrieved information.
+
+    Based on Self-RAG: https://arxiv.org/abs/2310.11511
+
+    ## Architecture
+
+    The SelfRAGCritic follows a component-based architecture with retrieval augmentation:
+
+    1. **Core Components**
+       - **SelfRAGCritic**: Main class that implements the critic interfaces
+       - **Retriever**: Component that retrieves relevant information
+       - **PromptManager**: Creates prompts for different stages of the process
+       - **ResponseParser**: Parses and validates model responses
+       - **MemoryManager**: Manages history of retrievals and reflections
+    """
+
+    # Class constants
+    DEFAULT_NAME = "self_rag_critic"
+    DEFAULT_DESCRIPTION = "Improves text through self-reflective retrieval-augmented generation"
+
+    # State management using direct state
+    _state = PrivateAttr(default_factory=lambda: None)
+
+    def __init__(
+        self,
+        config: SelfRAGCriticConfig,
+        llm_provider: Any,
+        retriever: Retriever,
+    ) -> None:
+        """
+        Initialize the Self-RAG critic.
+
+        Args:
+            config: Configuration for the critic
+            llm_provider: Language model provider to use
+            retriever: Retriever to use for information retrieval
+
+        Raises:
+            ValueError: If llm_provider or retriever is None
+            TypeError: If llm_provider or retriever is not a valid provider
+        """
+        # Validate required parameters
+        if llm_provider is None:
+            raise ValueError("llm_provider cannot be None")
+        if retriever is None:
+            raise ValueError("retriever cannot be None")
+
+        # Initialize base class
+        super().__init__(config)
+
+        # Initialize state
+        from ...utils.state import CriticState
+
+        self._state = CriticState()
+
+        # Store components in state
+        self._state.model = llm_provider
+        self._state.retriever = retriever
+        self._state.cache = {
+            "retrieval_threshold": config.retrieval_threshold,
+            "retrieval_prompt_template": config.retrieval_prompt_template,
+            "generation_prompt_template": config.generation_prompt_template,
+            "reflection_prompt_template": config.reflection_prompt_template,
+            "system_prompt": config.system_prompt,
+            "temperature": config.temperature,
+            "max_tokens": config.max_tokens,
+            "reflection_enabled": config.reflection_enabled,
+        }
+        self._state.initialized = True
+
+    def _check_input(self, text: str) -> None:
+        """
+        Validate input text and initialization state.
+
+        Args:
+            text: The text to validate
+
+        Raises:
+            ValueError: If text is empty
+            RuntimeError: If critic is not properly initialized
+        """
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("text must be a non-empty string")
+
+        if not self._state.initialized:
+            raise RuntimeError("SelfRAGCritic not properly initialized")
+
+    def _get_task_from_metadata(self, metadata: Optional[Dict[str, Any]]) -> str:
+        """
+        Extract task from metadata.
+
+        Args:
+            metadata: Optional metadata dictionary
+
+        Returns:
+            Task string
+
+        Raises:
+            ValueError: If metadata is None or missing task key
+        """
+        if metadata is None or "task" not in metadata:
+            raise ValueError("metadata must contain a 'task' key")
+        return metadata["task"]
+
+    @property
+    def config(self) -> SelfRAGCriticConfig:
+        """Get the Self-RAG critic configuration."""
+        return cast(SelfRAGCriticConfig, self._config)
+
+    def validate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
+        """
+        Validate text.
+
+        Args:
+            text: The text to validate
+            metadata: Optional metadata containing the task
+
+        Returns:
+            True if text is valid, False otherwise
+
+        Raises:
+            ValueError: If text is empty
+            RuntimeError: If critic is not properly initialized
+        """
+        self._check_input(text)
+
+        # For SelfRAG, validation is always True as it focuses on improvement
+        return True
+
+    def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Analyze text and provide detailed feedback.
+
+        Args:
+            text: The text to critique
+            metadata: Optional metadata containing the task
+
+        Returns:
+            Dictionary containing score, feedback, issues, and suggestions
+
+        Raises:
+            ValueError: If text is empty
+            RuntimeError: If critic is not properly initialized
+        """
+        self._check_input(text)
+
+        # Get task from metadata
+        task = self._get_task_from_metadata(metadata)
+
+        # Run the full Self-RAG process
+        result = self.run(task, text, metadata)
+
+        # Extract reflection as feedback
+        reflection = result.get("reflection", "")
+
+        # Parse reflection for issues and suggestions
+        issues = []
+        suggestions = []
+
+        # Extract issues and suggestions from reflection
+        for line in reflection.split("\n"):
+            line = line.strip()
+            if line.startswith("- ") or line.startswith("* "):
+                if (
+                    "should" in line.lower()
+                    or "could" in line.lower()
+                    or "recommend" in line.lower()
+                ):
+                    suggestions.append(line[2:])
+                else:
+                    issues.append(line[2:])
+
+        # Calculate score based on issues
+        score = 1.0 if not issues else 0.5
+
+        return {
+            "score": score,
+            "feedback": reflection,
+            "issues": issues,
+            "suggestions": suggestions,
+        }
+
+    def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+        """
+        Improve text through self-reflective retrieval-augmented generation.
+
+        Args:
+            text: The text to improve
+            metadata: Optional metadata containing the task
+
+        Returns:
+            Improved text
+
+        Raises:
+            ValueError: If text is empty
+            RuntimeError: If critic is not properly initialized
+        """
+        self._check_input(text)
+
+        # Get task from metadata
+        task = self._get_task_from_metadata(metadata)
+
+        # Run the full Self-RAG process
+        result = self.run(task, text, metadata)
+
+        # Return the improved response
+        return result.get("response", text)
+
+    def improve_with_feedback(self, text: str, feedback: str) -> str:
+        """
+        Improve text based on specific feedback.
+
+        Args:
+            text: The text to improve
+            feedback: Feedback to guide the improvement
+
+        Returns:
+            Improved text
+
+        Raises:
+            ValueError: If text or feedback is empty
+            RuntimeError: If critic is not properly initialized
+        """
+        self._check_input(text)
+        if not isinstance(feedback, str) or not feedback.strip():
+            raise ValueError("feedback must be a non-empty string")
+
+        # Use the feedback as context for generation
+        generation_template = self._state.cache.get("generation_prompt_template")
+        if not generation_template:
+            generation_template = (
+                "Please answer the following task using the provided context (if available).\n\n"
+                "Context:\n{context}\n\n"
+                "Task:\n{task}\n\n"
+                "Answer:"
+            )
+        generation_prompt = generation_template.format(
+            context=f"Feedback: {feedback}",
+            task=f"Improve the following text based on the feedback:\n{text}",
+        )
+
+        # Generate improved response
+        improved_text = self._state.model.generate(
+            generation_prompt,
+            system_prompt=self._state.cache.get("system_prompt", ""),
+            temperature=self._state.cache.get("temperature", 0.7),
+            max_tokens=self._state.cache.get("max_tokens", 1000),
+        ).strip()
+
+        return improved_text
+
+    def run(
+        self, task: str, response: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Run the full Self-RAG process.
+
+        Args:
+            task: The task or question to process
+            response: Optional initial response to improve
+            metadata: Optional metadata
+
+        Returns:
+            Dictionary containing response, retrieval_query, retrieved_context, and reflection
+
+        Raises:
+            ValueError: If task is empty
+            RuntimeError: If critic is not properly initialized
+        """
+        if not self._state.initialized:
+            raise RuntimeError("SelfRAGCritic not properly initialized")
+
+        if not isinstance(task, str) or not task.strip():
+            raise ValueError("task must be a non-empty string")
+
+        # Step 1: Ask model to decide whether to retrieve and what to retrieve
+        retrieval_template = self._state.cache.get("retrieval_prompt_template")
+        if not retrieval_template:
+            retrieval_template = (
+                "For the following task, decide whether you need to retrieve information and what to retrieve.\n\n"
+                "Task:\n{task}\n\n"
+                "Current Response (if any):\n{response}\n\n"
+                "Do you need to retrieve information? If yes, what would you like to retrieve? "
+                "If no, explain why retrieval is not necessary."
+            )
+        retrieval_prompt = retrieval_template.format(
+            task=task, response=response or "No response yet."
+        )
+
+        retrieval_decision = self._state.model.generate(
+            retrieval_prompt,
+            system_prompt=self._state.cache.get("system_prompt", ""),
+            temperature=self._state.cache.get("temperature", 0.7),
+            max_tokens=self._state.cache.get("max_tokens", 1000),
+        ).strip()
+
+        # Step 2: Extract retrieval query and decide whether to retrieve
+        retrieval_threshold = self._state.cache.get("retrieval_threshold", 0.5)
+        should_retrieve = False
+        retrieval_query = ""
+
+        if "yes" in retrieval_decision.lower() or "retrieve" in retrieval_decision.lower():
+            should_retrieve = True
+            # Extract query from decision
+            retrieval_query = task  # Default to using the task as the query
+            for line in retrieval_decision.split("\n"):
+                if "query:" in line.lower() or "retrieve:" in line.lower():
+                    retrieval_query = line.split(":", 1)[1].strip()
+                    break
+
+        # Step 3: Retrieve information and generate response
+        context = ""
+        if should_retrieve and retrieval_query:
+            # Retrieve information
+            results = self._state.retriever.retrieve(retrieval_query, top_k=3)
+            if results:
+                context = "\n\n".join([result.content for result in results])
+
+        # Generate response if not provided
+        if response is None:
+            generation_template = self._state.cache.get("generation_prompt_template")
+            if not generation_template:
+                generation_template = (
+                    "Please answer the following task using the provided context (if available).\n\n"
+                    "Context:\n{context}\n\n"
+                    "Task:\n{task}\n\n"
+                    "Answer:"
+                )
+            generation_prompt = generation_template.format(
+                context=context or "No relevant information found.", task=task
+            )
+
+            response = self._state.model.generate(
+                generation_prompt,
+                system_prompt=self._state.cache.get("system_prompt", ""),
+                temperature=self._state.cache.get("temperature", 0.7),
+                max_tokens=self._state.cache.get("max_tokens", 1000),
+            ).strip()
+
+        # Step 4: Ask model to reflect on whether the answer is good and the retrieval helped
+        reflection = ""
+        if self._state.cache.get("reflection_enabled", True):
+            reflection_template = self._state.cache.get("reflection_prompt_template")
+            if not reflection_template:
+                reflection_template = (
+                    "Reflect on whether your answer used relevant information and addressed the task accurately.\n\n"
+                    "Task:\n{task}\n\n"
+                    "Retrieved Context:\n{context}\n\n"
+                    "Your Response:\n{response}\n\n"
+                    "Reflection:"
+                )
+            reflection_prompt = reflection_template.format(
+                task=task, context=context, response=response
+            )
+
+            reflection = self._state.model.generate(
+                reflection_prompt,
+                system_prompt=self._state.cache.get("system_prompt", ""),
+                temperature=self._state.cache.get("temperature", 0.7),
+                max_tokens=self._state.cache.get("max_tokens", 1000),
+            ).strip()
+
+        return {
+            "response": response,
+            "retrieval_query": retrieval_query,
+            "retrieved_context": context,
+            "reflection": reflection,
+        }
+
+    # Async methods are implemented similarly to the synchronous ones
+    async def avalidate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
+        """Asynchronously validate text."""
+        self._check_input(text)
+        return True
+
+    async def acritique(
+        self, text: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Asynchronously analyze text and provide detailed feedback."""
+        self._check_input(text)
+        task = self._get_task_from_metadata(metadata)
+        result = await self.arun(task, text, metadata)
+        
+        # Extract reflection as feedback
+        reflection = result.get("reflection", "")
+        issues = []
+        suggestions = []
+        
+        for line in reflection.split("\n"):
+            line = line.strip()
+            if line.startswith("- ") or line.startswith("* "):
+                if (
+                    "should" in line.lower()
+                    or "could" in line.lower()
+                    or "recommend" in line.lower()
+                ):
+                    suggestions.append(line[2:])
+                else:
+                    issues.append(line[2:])
+                    
+        score = 1.0 if not issues else 0.5
+        
+        return {
+            "score": score,
+            "feedback": reflection,
+            "issues": issues,
+            "suggestions": suggestions,
+        }
+
+    async def aimprove(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+        """Asynchronously improve text through self-reflective retrieval-augmented generation."""
+        self._check_input(text)
+        task = self._get_task_from_metadata(metadata)
+        result = await self.arun(task, text, metadata)
+        return result.get("response", text)
+
+    async def arun(
+        self, task: str, response: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Asynchronously run the full Self-RAG process."""
+        # For simplicity, we'll use the synchronous implementation for now
+        return self.run(task, response, metadata)
+
+
+def create_self_rag_critic(
+    llm_provider: Any,
+    retriever: Retriever,
+    name: str = "self_rag_critic",
+    description: str = "Improves text through self-reflective retrieval-augmented generation",
+    min_confidence: float = None,
+    max_attempts: int = None,
+    cache_size: int = None,
+    priority: int = None,
+    cost: float = None,
+    system_prompt: str = None,
+    temperature: float = None,
+    max_tokens: int = None,
+    retrieval_threshold: float = None,
+    retrieval_prompt_template: Optional[str] = None,
+    generation_prompt_template: Optional[str] = None,
+    reflection_prompt_template: Optional[str] = None,
+    config: Optional[Union[Dict[str, Any], SelfRAGCriticConfig]] = None,
+    **kwargs: Any,
+) -> SelfRAGCritic:
+    """
+    Create a Self-RAG critic with the given parameters.
+
+    Args:
+        llm_provider: Language model provider to use
+        retriever: Retriever to use for information retrieval
+        name: Name of the critic
+        description: Description of the critic
+        min_confidence: Minimum confidence threshold
+        max_attempts: Maximum number of improvement attempts
+        cache_size: Size of the cache
+        priority: Priority of the critic
+        cost: Cost of using the critic
+        system_prompt: System prompt for the model
+        temperature: Temperature for model generation
+        max_tokens: Maximum tokens for model generation
+        retrieval_threshold: Threshold for deciding whether to retrieve
+        retrieval_prompt_template: Template for retrieval prompts
+        generation_prompt_template: Template for generation prompts
+        reflection_prompt_template: Template for reflection prompts
+        config: Optional critic configuration (overrides other parameters)
+        **kwargs: Additional keyword arguments
+
+    Returns:
+        SelfRAGCritic: Configured Self-RAG critic
+    """
+    # Create config if not provided
+    if config is None:
+        from ..config import DEFAULT_SELF_RAG_CONFIG
+
+        config = DEFAULT_SELF_RAG_CONFIG.model_copy()
+
+        # Update config with provided values
+        updates = {}
+        if name is not None:
+            updates["name"] = name
+        if description is not None:
+            updates["description"] = description
+        if system_prompt is not None:
+            updates["system_prompt"] = system_prompt
+        if temperature is not None:
+            updates["temperature"] = temperature
+        if max_tokens is not None:
+            updates["max_tokens"] = max_tokens
+        if min_confidence is not None:
+            updates["min_confidence"] = min_confidence
+        if max_attempts is not None:
+            updates["max_attempts"] = max_attempts
+        if cache_size is not None:
+            updates["cache_size"] = cache_size
+        if priority is not None:
+            updates["priority"] = priority
+        if cost is not None:
+            updates["cost"] = cost
+        if retrieval_threshold is not None:
+            updates["retrieval_threshold"] = retrieval_threshold
+        if retrieval_prompt_template is not None:
+            updates["retrieval_prompt_template"] = retrieval_prompt_template
+        if generation_prompt_template is not None:
+            updates["generation_prompt_template"] = generation_prompt_template
+        if reflection_prompt_template is not None:
+            updates["reflection_prompt_template"] = reflection_prompt_template
+
+        config = config.model_copy(update=updates)
+    elif isinstance(config, dict):
+        from ..config import SelfRAGCriticConfig
+
+        config = SelfRAGCriticConfig(**config)
+
+    # Create and return the critic
+    return SelfRAGCritic(
+        config=config,
+        llm_provider=llm_provider,
+        retriever=retriever,
+    )

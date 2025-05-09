@@ -150,10 +150,10 @@ from typing import (
 from typing_extensions import TypeGuard
 
 # Import the interfaces
-from ..interfaces.critics import Critic as CriticInterface, TextValidator, TextImprover, TextCritic
+from .interfaces.critic import TextValidator, TextImprover, TextCritic, CritiqueResult
 
 # Import the Pydantic models
-from .models import CriticConfig, CriticMetadata
+from .config import CriticConfig, CriticMetadata
 
 # Default configuration values
 DEFAULT_MIN_CONFIDENCE = 0.7
@@ -166,7 +166,7 @@ R = TypeVar("R")  # Result type
 C = TypeVar("C", bound="BaseCritic")  # Critic type
 
 
-class CriticResult(str, Enum):
+class CriticResultEnum(str, Enum):
     """Enumeration of possible critic results.
 
     This enum defines the possible outcomes of critic operations:
@@ -176,8 +176,8 @@ class CriticResult(str, Enum):
 
     Examples:
         ```python
-        result = CriticResult.SUCCESS
-        if result == CriticResult.NEEDS_IMPROVEMENT:
+        result = CriticResultEnum.SUCCESS
+        if result == CriticResultEnum.NEEDS_IMPROVEMENT:
             print("Text needs improvement")
         ```
     """
@@ -344,7 +344,7 @@ class CriticOutput(Generic[T, R]):
         ```
     """
 
-    result: CriticResult
+    result: CriticResultEnum
     improved_text: T
     metadata: CriticMetadata[R]
 
@@ -1124,11 +1124,11 @@ class BaseCritic(ABC, Generic[T, R]):
 
         # Determine result
         if is_valid and metadata.score >= self.config.min_confidence:
-            result = CriticResult.SUCCESS
+            result = CriticResultEnum.SUCCESS
         elif is_valid:
-            result = CriticResult.NEEDS_IMPROVEMENT
+            result = CriticResultEnum.NEEDS_IMPROVEMENT
         else:
-            result = CriticResult.FAILURE
+            result = CriticResultEnum.FAILURE
 
         return CriticOutput(result=result, improved_text=improved_text, metadata=metadata)
 
@@ -1542,7 +1542,7 @@ __all__ = [
     "BaseCritic",
     "CriticMetadata",
     "CriticOutput",
-    "CriticResult",
+    "CriticResultEnum",
     "TextValidator",
     "TextImprover",
     "TextCritic",

@@ -7,7 +7,7 @@ in memory to improve future text generation.
 
 Example:
     ```python
-    from sifaka.critics.reflexion import create_reflexion_critic
+    from sifaka.critics.implementations.reflexion import create_reflexion_critic
     from sifaka.models.providers import OpenAIProvider
 
     # Create a language model provider
@@ -28,16 +28,12 @@ from typing import Any, Dict, List, Optional, Union, cast
 
 from pydantic import PrivateAttr, ConfigDict
 
-from .base import BaseCritic
-from .models import ReflexionCriticConfig
-from .protocols import TextCritic, TextImprover, TextValidator
-from .prompt import LanguageModel
+from ..base import BaseCritic
+from ..config import ReflexionCriticConfig
+from ..interfaces.critic import TextCritic, TextImprover, TextValidator
 
 # Configure logging
 logger = logging.getLogger(__name__)
-
-
-# Import the Pydantic ReflexionCriticConfig from models.py
 
 
 # Note: This class is kept for backward compatibility with tests
@@ -139,119 +135,6 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
        - **ReflexionCriticPromptManager**: Creates prompts with reflection context
        - **ResponseParser**: Parses and validates model responses
        - **MemoryManager**: Manages the memory buffer of past reflections
-
-    2. **Component Relationships**
-       - ReflexionCritic delegates to CritiqueService for core operations
-       - CritiqueService uses ReflexionCriticPromptManager to create prompts
-       - ReflexionCriticPromptManager incorporates reflections from MemoryManager
-       - CritiqueService uses ResponseParser to parse model responses
-       - ReflexionCritic uses MemoryManager to track reflections
-
-    3. **State Management**
-       - Uses direct state pattern with _state attribute
-       - State contains references to all components
-       - State.cache dictionary stores additional runtime data
-       - Initialization flag prevents operations before setup is complete
-
-    4. **Memory Management**
-       - Maintains a buffer of past reflections
-       - Reflections are generated after each improvement
-       - Reflections are incorporated into future prompts
-       - Buffer size is configurable via memory_buffer_size
-       - Oldest reflections are removed when buffer is full
-
-    ## Lifecycle Management
-
-    The ReflexionCritic manages its lifecycle through three main phases:
-
-    1. **Initialization**
-       - Validates configuration
-       - Sets up language model provider
-       - Initializes prompt factory
-       - Creates memory manager with configured buffer size
-       - Allocates resources
-
-    2. **Operation**
-       - Validates text input
-       - Retrieves relevant reflections from memory
-       - Generates critiques with reflection context
-       - Improves text quality using reflections
-       - Generates new reflections from improvements
-       - Stores reflections in memory buffer
-
-    3. **Cleanup**
-       - Releases resources
-       - Resets state
-       - Logs final status
-
-    ## Error Handling
-
-    The ReflexionCritic implements comprehensive error handling:
-
-    1. **Input Validation**
-       - Validates text input
-       - Checks feedback format
-       - Verifies configuration
-       - Ensures initialization before operations
-
-    2. **Model Interaction**
-       - Handles provider errors
-       - Manages response parsing
-       - Validates output formats
-       - Handles reflection generation failures
-
-    3. **Memory Management**
-       - Handles memory buffer overflow
-       - Manages reflection storage errors
-       - Handles reflection retrieval failures
-
-    ## Examples
-
-    ```python
-    from sifaka.critics.reflexion import ReflexionCritic, ReflexionCriticConfig
-    from sifaka.models.providers import OpenAIProvider
-
-    # Create a language model provider
-    provider = OpenAIProvider(api_key="your-api-key")
-
-    # Create a reflexion critic configuration
-    config = ReflexionCriticConfig(
-        name="my_reflexion_critic",
-        description="A critic that learns from past feedback",
-        system_prompt="You are an expert editor that improves text through reflection.",
-        temperature=0.7,
-        max_tokens=1000,
-        memory_buffer_size=5,
-        reflection_depth=2
-    )
-
-    # Create a reflexion critic
-    critic = ReflexionCritic(
-        name="my_reflexion_critic",
-        description="A critic that learns from past feedback",
-        llm_provider=provider,
-        config=config
-    )
-
-    # Validate text
-    text = "This is a sample technical document."
-    is_valid = critic.validate(text)
-    print(f"Text is valid: {is_valid}")
-
-    # Critique text
-    critique = critic.critique(text)
-    print(f"Critique: {critique}")
-
-    # Improve text with feedback
-    feedback = "The text needs more specific details and examples."
-    improved_text = critic.improve(text, feedback)
-    print(f"Improved text: {improved_text}")
-
-    # Improve another text - now with reflections from previous improvement
-    another_text = "This is another document that needs improvement."
-    improved_text2 = critic.improve(another_text, "Make it more professional.")
-    print(f"Improved text with reflections: {improved_text2}")
-    ```
     """
 
     # Class constants
@@ -284,31 +167,25 @@ class ReflexionCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
 
         # Create default config if not provided
         if config is None:
-            config = ReflexionCriticConfig(
-                name=name,
-                description=description,
-                system_prompt=DEFAULT_SYSTEM_PROMPT,
-                temperature=0.7,
-                max_tokens=1000,
-                min_confidence=0.7,
-                max_attempts=3,
-                memory_buffer_size=5,
-                reflection_depth=1,
+            from ..config import DEFAULT_REFLEXION_CONFIG
+
+            config = DEFAULT_REFLEXION_CONFIG.model_copy(
+                update={"name": name, "description": description}
             )
 
         # Initialize base class
         super().__init__(config)
 
         # Initialize state
-        from ..utils.state import CriticState
+        from ...utils.state import CriticState
 
         self._state = CriticState()
 
         # Import required components
-        from .managers.prompt_factories import ReflexionCriticPromptManager
-        from .managers.response import ResponseParser
-        from .managers.memory import MemoryManager
-        from .services.critique import CritiqueService
+        from ..managers.prompt_factories import ReflexionCriticPromptManager
+        from ..managers.response import ResponseParser
+        from ..managers.memory import MemoryManager
+        from ..services.critique import CritiqueService
 
         # Store components in state
         self._state.model = llm_provider
@@ -406,7 +283,7 @@ them to new situations."""
 
 
 def create_reflexion_critic(
-    llm_provider: LanguageModel,
+    llm_provider: Any,
     name: str = "reflexion_critic",
     description: str = "Improves text using reflections on past feedback",
     system_prompt: str = DEFAULT_SYSTEM_PROMPT,
@@ -418,26 +295,11 @@ def create_reflexion_critic(
     reflection_depth: int = 1,
     config: Optional[Union[Dict[str, Any], ReflexionCriticConfig]] = None,
 ) -> ReflexionCritic:
-    """Create a reflexion critic with the given parameters.
-
-    Args:
-        llm_provider: Language model provider
-        name: Name of the critic
-        description: Description of the critic
-        system_prompt: System prompt for the model
-        temperature: Temperature for model generation
-        max_tokens: Maximum tokens for model generation
-        min_confidence: Minimum confidence threshold
-        max_attempts: Maximum number of improvement attempts
-        memory_buffer_size: Maximum number of reflections to store
-        reflection_depth: How many levels of reflection to perform
-        config: Optional pre-configured config
-
-    Returns:
-        ReflexionCritic: Configured reflexion critic
-    """
+    """Create a reflexion critic with the given parameters."""
     # Create config if not provided
     if config is None:
+        from ..config import ReflexionCriticConfig
+
         config = ReflexionCriticConfig(
             name=name,
             description=description,
@@ -450,21 +312,11 @@ def create_reflexion_critic(
             reflection_depth=reflection_depth,
         )
     elif isinstance(config, dict):
+        from ..config import ReflexionCriticConfig
+
         config = ReflexionCriticConfig(**config)
 
     # Create and return the critic
     return ReflexionCritic(
         config=config, llm_provider=llm_provider, name=name, description=description
     )
-
-
-"""
-@misc{shinn2023reflexion,
-      title={Reflexion: Language Agents with Verbal Reinforcement Learning},
-      author={Noah Shinn and Federico Cassano and Edward Berman and Ashwin Gopinath and Karthik Narasimhan and Shunyu Yao},
-      year={2023},
-      eprint={2303.11366},
-      archivePrefix={arXiv},
-      primaryClass={cs.AI}
-}
-"""

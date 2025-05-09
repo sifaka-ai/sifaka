@@ -122,18 +122,18 @@ print(f"Improved text: {improved_text}")
 ```
 """
 
-from typing import Any, Dict, List, Optional, ClassVar, Union
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import PrivateAttr
 
 from .base import BaseCritic
-from .models import CriticConfig, CriticMetadata
+from .config import CriticConfig, CriticMetadata
 from .managers.memory import MemoryManager
 from .managers.prompt import DefaultPromptManager, PromptManager
 from .managers.response import ResponseParser
 from .services.critique import CritiqueService
 from ..utils.logging import get_logger
-from ..utils.state import create_critic_state, CriticState
+from ..utils.state import CriticState
 
 logger = get_logger(__name__)
 
