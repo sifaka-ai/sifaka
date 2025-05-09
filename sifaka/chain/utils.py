@@ -1,7 +1,7 @@
 """
 Chain Utilities Module
 
-A collection of utility functions for Sifaka's chain system.
+A brief description of the module's purpose and functionality.
 
 ## Overview
 This module provides utility functions for chains in the Sifaka framework,
@@ -106,8 +106,8 @@ def create_chain_result(
 
     Detailed description of what the function does, including:
     - Creates a standardized ChainResult object
-    - Ensures consistent structure across all chain results
     - Handles optional parameters with defaults
+    - Ensures type safety
 
     Args:
         output (T): The generated output
@@ -167,7 +167,7 @@ def create_error_result(
     Detailed description of what the function does, including:
     - Creates a standardized result for a chain error
     - Includes error type, message, and metadata
-    - Ensures consistent error handling across the chain system
+    - Ensures consistent error handling
 
     Args:
         error (Exception): The exception that occurred
@@ -203,10 +203,20 @@ def try_chain_operation(
     """
     Execute a chain operation with error handling.
 
-    Detailed description of what the function does, including:
-    - Executes a chain operation with standardized error handling
-    - Returns default result if operation fails
-    - Logs errors with specified log level
+    ## Overview
+    This function executes a chain operation with standardized error handling.
+    It returns a default result if the operation fails and logs errors with
+    the specified log level.
+
+    ## Lifecycle
+    1. **Operation Execution**: Execute operation
+       - Call operation function
+       - Handle exceptions
+       - Log errors
+    2. **Result Handling**: Handle result
+       - Return operation result
+       - Return default result if operation fails
+       - Log result
 
     Args:
         operation_func (Callable[[], T]): The operation function to execute
@@ -222,7 +232,7 @@ def try_chain_operation(
         ValueError: When input validation fails
         TypeError: When type validation fails
 
-    Example:
+    Examples:
         ```python
         # Execute a chain operation with error handling
         def run_chain(prompt: str) -> ChainResult[str]:

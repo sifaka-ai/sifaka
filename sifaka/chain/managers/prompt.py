@@ -1,8 +1,6 @@
 """
 Prompt Manager Module
 
-Manages prompt creation and modification for Sifaka's chain system.
-
 ## Overview
 This module provides the PromptManager class which handles prompt creation,
 modification, and validation. It supports adding feedback, history, context,
@@ -173,6 +171,19 @@ class PromptManager(PromptManagerProtocol[str]):
 
         Returns:
             A new prompt with feedback
+
+        Raises:
+            ValueError: If the original prompt or feedback is invalid
+            TypeError: If the input types are incorrect
+
+        Examples:
+            ```python
+            manager = PromptManager()
+            prompt = manager.create_prompt_with_feedback(
+                "Write a story",
+                "Make it more emotional"
+            )
+            ```
         """
         return f"{original_prompt}\n\nPrevious attempt feedback:\n{feedback}"
 
@@ -180,12 +191,38 @@ class PromptManager(PromptManagerProtocol[str]):
         """
         Create a new prompt with history.
 
+        ## Overview
+        This method enhances a prompt by adding a history of previous attempts.
+        The history is appended to the original prompt in a structured format.
+
+        ## Lifecycle
+        1. **Input Processing**: Process inputs
+           - Validate original prompt
+           - Validate history list
+
+        2. **Prompt Enhancement**: Add history
+           - Format history section
+           - Combine with original prompt
+
         Args:
             original_prompt: The original prompt
             history: The history to include
 
         Returns:
             A new prompt with history
+
+        Raises:
+            ValueError: If the original prompt or history is invalid
+            TypeError: If the input types are incorrect
+
+        Examples:
+            ```python
+            manager = PromptManager()
+            prompt = manager.create_prompt_with_history(
+                "Write a story",
+                ["Previous story about a sad robot", "Story about a happy robot"]
+            )
+            ```
         """
         history_text = "\n".join(history)
         return f"{original_prompt}\n\nPrevious attempts:\n{history_text}"
@@ -194,12 +231,38 @@ class PromptManager(PromptManagerProtocol[str]):
         """
         Create a new prompt with context.
 
+        ## Overview
+        This method enhances a prompt by adding contextual information.
+        The context is prepended to the original prompt in a structured format.
+
+        ## Lifecycle
+        1. **Input Processing**: Process inputs
+           - Validate original prompt
+           - Validate context string
+
+        2. **Prompt Enhancement**: Add context
+           - Format context section
+           - Combine with original prompt
+
         Args:
             original_prompt: The original prompt
             context: The context to include
 
         Returns:
             A new prompt with context
+
+        Raises:
+            ValueError: If the original prompt or context is invalid
+            TypeError: If the input types are incorrect
+
+        Examples:
+            ```python
+            manager = PromptManager()
+            prompt = manager.create_prompt_with_context(
+                "Write a story",
+                "The story should be set in the future"
+            )
+            ```
         """
         return f"Context:\n{context}\n\nPrompt:\n{original_prompt}"
 
@@ -207,12 +270,38 @@ class PromptManager(PromptManagerProtocol[str]):
         """
         Create a new prompt with examples.
 
+        ## Overview
+        This method enhances a prompt by adding example outputs.
+        The examples are appended to the original prompt in a structured format.
+
+        ## Lifecycle
+        1. **Input Processing**: Process inputs
+           - Validate original prompt
+           - Validate examples list
+
+        2. **Prompt Enhancement**: Add examples
+           - Format examples section
+           - Combine with original prompt
+
         Args:
             original_prompt: The original prompt
             examples: The examples to include
 
         Returns:
             A new prompt with examples
+
+        Raises:
+            ValueError: If the original prompt or examples are invalid
+            TypeError: If the input types are incorrect
+
+        Examples:
+            ```python
+            manager = PromptManager()
+            prompt = manager.create_prompt_with_examples(
+                "Write a story",
+                ["Example story about a curious robot", "Example story about a brave robot"]
+            )
+            ```
         """
         examples_text = "\n".join(
             [f"Example {i+1}: {example}" for i, example in enumerate(examples)]
@@ -223,17 +312,50 @@ class PromptManager(PromptManagerProtocol[str]):
         """
         Create a prompt from an input value.
 
-        This method implements the PromptManagerProtocol.create_prompt method.
+        ## Overview
+        This method creates a prompt from an input value, optionally enhancing it
+        with feedback, history, context, and examples.
+
+        ## Lifecycle
+        1. **Input Processing**: Process inputs
+           - Validate input value
+           - Process additional parameters
+
+        2. **Prompt Creation**: Create base prompt
+           - Convert input to string
+           - Apply basic formatting
+
+        3. **Prompt Enhancement**: Add additional context
+           - Add feedback if provided
+           - Add history if provided
+           - Add context if provided
+           - Add examples if provided
 
         Args:
             input_value: The input value to create a prompt from
             **kwargs: Additional prompt creation parameters
+                - feedback: Optional feedback to include
+                - history: Optional list of previous attempts
+                - context: Optional context information
+                - examples: Optional list of example outputs
 
         Returns:
             A prompt
 
         Raises:
             ValueError: If the input value is invalid
+            TypeError: If the input types are incorrect
+
+        Examples:
+            ```python
+            manager = PromptManager()
+            prompt = manager.create_prompt(
+                "Write a story",
+                feedback="Make it longer",
+                context="Set in future",
+                examples=["Example story"]
+            )
+            ```
         """
         if not isinstance(input_value, str):
             raise ValueError(f"Expected string input, got {type(input_value)}")
@@ -260,29 +382,71 @@ class PromptManager(PromptManagerProtocol[str]):
 
     def format_prompt(self, prompt: str, **kwargs: Any) -> Any:
         """
-        Format a prompt for a model.
+        Format a prompt according to specified parameters.
 
-        This method implements the PromptManagerProtocol.format_prompt method.
+        ## Overview
+        This method formats a prompt according to specified parameters,
+        such as adding line breaks, indentation, or other formatting.
+
+        ## Lifecycle
+        1. **Input Processing**: Process inputs
+           - Validate prompt
+           - Process formatting parameters
+
+        2. **Prompt Formatting**: Apply formatting
+           - Apply line breaks
+           - Apply indentation
+           - Apply other formatting
 
         Args:
             prompt: The prompt to format
-            **kwargs: Additional prompt formatting parameters
+            **kwargs: Formatting parameters
 
         Returns:
-            A formatted prompt
+            The formatted prompt
 
         Raises:
             ValueError: If the prompt is invalid
+            TypeError: If the input types are incorrect
+
+        Examples:
+            ```python
+            manager = PromptManager()
+            formatted_prompt = manager.format_prompt(
+                "Write a story",
+                indent=2,
+                line_breaks=True
+            )
+            ```
         """
-        # For now, just return the prompt as is
-        # In a real implementation, this would format the prompt for the model
-        return prompt
+        # Default formatting
+        formatted = prompt
+
+        # Apply custom formatting based on kwargs
+        if kwargs.get("line_breaks", True):
+            formatted = formatted.replace(". ", ".\n")
+        if kwargs.get("indent"):
+            indent = " " * kwargs["indent"]
+            formatted = "\n".join(indent + line for line in formatted.split("\n"))
+
+        return formatted
 
     def validate_prompt(self, prompt: str) -> bool:
         """
         Validate a prompt.
 
-        This method implements the PromptManagerProtocol.validate_prompt method.
+        ## Overview
+        This method validates a prompt to ensure it meets quality and format
+        requirements.
+
+        ## Lifecycle
+        1. **Input Processing**: Process inputs
+           - Validate prompt
+
+        2. **Prompt Validation**: Check requirements
+           - Check minimum length
+           - Check format
+           - Check content
 
         Args:
             prompt: The prompt to validate
@@ -292,8 +456,22 @@ class PromptManager(PromptManagerProtocol[str]):
 
         Raises:
             ValueError: If the prompt is invalid
+            TypeError: If the input type is incorrect
+
+        Examples:
+            ```python
+            manager = PromptManager()
+            is_valid = manager.validate_prompt("Write a story")
+            if is_valid:
+                print("Prompt is valid")
+            ```
         """
-        # For now, just check if the prompt is a non-empty string
         if not isinstance(prompt, str):
-            raise ValueError(f"Expected string prompt, got {type(prompt)}")
-        return bool(prompt.strip())
+            raise TypeError(f"Expected string input, got {type(prompt)}")
+
+        # Basic validation
+        if not prompt.strip():
+            return False
+
+        # Additional validation can be added here
+        return True

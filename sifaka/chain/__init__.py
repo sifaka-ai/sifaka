@@ -1,12 +1,11 @@
 """
 Chain Module
 
-Core orchestration system for Sifaka's validation and improvement flow.
-
 ## Overview
 This module provides components for orchestrating the validation and improvement
 flow between models, rules, and critics. It serves as the central coordinator
-for Sifaka's validation and refinement capabilities.
+for Sifaka's validation and refinement capabilities, implementing a flexible
+and extensible chain system.
 
 ## Components
 1. **ChainCore**: Main interface that delegates to specialized components
@@ -57,27 +56,44 @@ print(f"All rules passed: {all(r.passed for r in result.rule_results)}")
 - fail_fast: Whether to stop on first validation failure
 - validation_timeout: Timeout for validation operations
 
+## Architecture
 The module follows the Single Responsibility Principle by breaking down the chain
 functionality into smaller, focused components:
 
-1. ChainCore - Main interface that delegates to specialized components
-2. ChainOrchestrator - Main user-facing class for a standardized implementation
-3. PromptManager - Manages prompt creation and management
-4. ValidationManager - Manages validation logic and rule management
-5. RetryStrategy - Handles retry logic with different strategies
-6. ResultFormatter - Handles formatting and processing of results
+1. **Core Components**
+   - ChainCore: Main interface that delegates to specialized components
+   - ChainOrchestrator: Main user-facing class for standardized implementation
+   - ChainResult: Represents the result of running a chain
 
-It also provides factory functions for creating different types of chains:
-- create_simple_chain - Creates a simple chain with a fixed number of retries
-- create_backoff_chain - Creates a chain with exponential backoff retry strategy
+2. **Managers**
+   - PromptManager: Manages prompt creation and management
+   - ValidationManager: Manages validation logic and rule management
 
-The module also provides interfaces for each component type:
-- Chain - Interface for chains
-- PromptManagerProtocol - Interface for prompt managers
-- ValidationManagerProtocol - Interface for validation managers
-- RetryStrategyProtocol - Interface for retry strategies
-- ResultFormatterProtocol - Interface for result formatters
-- CriticProtocol - Interface for critics
+3. **Strategies**
+   - RetryStrategy: Base interface for retry strategies
+   - SimpleRetryStrategy: Fixed number of retries
+   - BackoffRetryStrategy: Exponential backoff retry strategy
+
+4. **Formatters**
+   - ResultFormatter: Handles formatting and processing of results
+
+5. **Factories**
+   - create_simple_chain: Creates a simple chain with fixed retries
+   - create_backoff_chain: Creates a chain with exponential backoff
+
+6. **Interfaces**
+   - Chain: Interface for chains
+   - AsyncChain: Interface for asynchronous chains
+   - PromptManagerProtocol: Interface for prompt managers
+   - ValidationManagerProtocol: Interface for validation managers
+   - RetryStrategyProtocol: Interface for retry strategies
+   - ResultFormatterProtocol: Interface for result formatters
+   - CriticProtocol: Interface for critics
+
+7. **Utilities**
+   - create_chain_result: Creates standardized chain results
+   - create_error_result: Creates standardized error results
+   - try_chain_operation: Executes chain operations with error handling
 """
 
 # Interfaces

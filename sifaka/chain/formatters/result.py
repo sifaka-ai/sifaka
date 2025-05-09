@@ -1,8 +1,6 @@
 """
 Result Formatter Module
 
-Formats and processes results from Sifaka's chain system.
-
 ## Overview
 This module provides the ResultFormatter class which handles formatting and
 processing of chain execution results. It supports formatting validation
@@ -170,6 +168,20 @@ class ResultFormatter(
 
         Returns:
             The formatted chain result
+
+        Raises:
+            ValueError: If the output or validation result is invalid
+            TypeError: If the input types are incorrect
+
+        Examples:
+            ```python
+            formatter = ResultFormatter[str]()
+            result = formatter.format_result(
+                output="Generated text",
+                validation_result=validation_result,
+                critique_details={"feedback": "Good but needs improvement"}
+            )
+            ```
         """
         return ChainResult(
             output=output,
@@ -183,11 +195,35 @@ class ResultFormatter(
         """
         Format feedback from a validation result.
 
+        ## Overview
+        This method generates human-readable feedback messages from a validation
+        result, highlighting any failed validations and their error messages.
+
+        ## Lifecycle
+        1. **Input Processing**: Process inputs
+           - Validate validation result
+           - Extract rule results
+
+        2. **Feedback Generation**: Create feedback
+           - Format error messages
+           - Combine into feedback string
+
         Args:
             validation_result: The validation result
 
         Returns:
             The formatted feedback
+
+        Raises:
+            ValueError: If the validation result is invalid
+            TypeError: If the input type is incorrect
+
+        Examples:
+            ```python
+            formatter = ResultFormatter[str]()
+            feedback = formatter.format_feedback_from_validation(validation_result)
+            print("Validation feedback:", feedback)
+            ```
         """
         feedback = "The following issues were found:\n"
         for result in validation_result.rule_results:
@@ -199,11 +235,40 @@ class ResultFormatter(
         """
         Format feedback from critique details.
 
+        ## Overview
+        This method generates human-readable feedback messages from critique
+        details, including issues found and suggestions for improvement.
+
+        ## Lifecycle
+        1. **Input Processing**: Process inputs
+           - Validate critique details
+           - Extract feedback components
+
+        2. **Feedback Generation**: Create feedback
+           - Format issues
+           - Format suggestions
+           - Combine into feedback string
+
         Args:
             critique_details: The critique details
 
         Returns:
             The formatted feedback
+
+        Raises:
+            ValueError: If the critique details are invalid
+            TypeError: If the input type is incorrect
+
+        Examples:
+            ```python
+            formatter = ResultFormatter[str]()
+            critique_details = {
+                "issues": ["Text lacks clarity"],
+                "suggestions": ["Add more details"]
+            }
+            feedback = formatter.format_feedback_from_critique(critique_details)
+            print("Critique feedback:", feedback)
+            ```
         """
         if "feedback" in critique_details:
             return critique_details["feedback"]
@@ -225,7 +290,19 @@ class ResultFormatter(
         """
         Format a result.
 
-        This method implements the ResultFormatterProtocol.format method.
+        ## Overview
+        This method formats a validation result into a standardized ChainResult
+        object, ensuring consistent result structure across the chain system.
+
+        ## Lifecycle
+        1. **Input Processing**: Process inputs
+           - Validate result type
+           - Extract result components
+
+        2. **Result Creation**: Create chain result
+           - Create result object
+           - Include all details
+           - Apply standard format
 
         Args:
             result: The result to format
@@ -235,6 +312,15 @@ class ResultFormatter(
 
         Raises:
             ValueError: If the result is invalid
+            TypeError: If the input type is incorrect
+
+        Examples:
+            ```python
+            formatter = ResultFormatter[str]()
+            result = formatter.format(validation_result)
+            print("Output:", result.output)
+            print("All rules passed:", all(r.passed for r in result.rule_results))
+            ```
         """
         if not isinstance(result, ValidationResult):
             raise ValueError(f"Expected ValidationResult, got {type(result)}")

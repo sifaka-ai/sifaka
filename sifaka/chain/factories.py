@@ -1,11 +1,11 @@
 """
 Chain Factory Module
 
-Factory functions for creating different types of chains.
-
 ## Overview
 This module provides factory functions for creating different types of chains,
 including simple chains and chains with exponential backoff retry strategies.
+These factories simplify the creation of complex chain configurations by providing
+sensible defaults and handling component initialization.
 
 ## Components
 1. **create_simple_chain**: Creates a basic chain with simple retry strategy
@@ -103,10 +103,25 @@ def create_simple_chain(
     """
     Create a simple chain with the given parameters.
 
-    Detailed description of what the function does, including:
-    - Creates a basic chain with a simple retry strategy
-    - Uses the provided model provider, rules, and optional critic
-    - Configures standard validation and prompt managers
+    ## Overview
+    This function creates a basic chain with a simple retry strategy, using the
+    provided model provider, rules, and optional critic. It configures standard
+    validation and prompt managers for consistent behavior.
+
+    ## Lifecycle
+    1. **Component Creation**: Create components
+       - Create validation manager
+       - Create prompt manager
+       - Create retry strategy
+       - Create result formatter
+    2. **Chain Assembly**: Assemble chain
+       - Configure orchestrator
+       - Set up components
+       - Initialize state
+    3. **Chain Usage**: Use chain
+       - Run chain
+       - Process results
+       - Handle errors
 
     Args:
         model (ModelProvider): The model provider to use
@@ -124,7 +139,7 @@ def create_simple_chain(
         CriticError: When critic refinement fails
         ModelError: When model generation fails
 
-    Example:
+    Examples:
         ```python
         from sifaka.chain import create_simple_chain
         from sifaka.models import create_openai_chat_provider
@@ -177,10 +192,26 @@ def create_backoff_chain(
     """
     Create a chain with exponential backoff retry strategy.
 
-    Detailed description of what the function does, including:
-    - Creates a chain with an exponential backoff retry strategy
-    - Increases wait time between retry attempts to handle rate limits
-    - Uses the provided model provider, rules, and optional critic
+    ## Overview
+    This function creates a chain with an exponential backoff retry strategy,
+    which increases wait time between retry attempts to handle rate limits and
+    other transient failures. It uses the provided model provider, rules, and
+    optional critic, with configurable backoff parameters.
+
+    ## Lifecycle
+    1. **Component Creation**: Create components
+       - Create validation manager
+       - Create prompt manager
+       - Create backoff retry strategy
+       - Create result formatter
+    2. **Chain Assembly**: Assemble chain
+       - Configure orchestrator
+       - Set up components
+       - Initialize state
+    3. **Chain Usage**: Use chain
+       - Run chain
+       - Process results
+       - Handle errors
 
     Args:
         model (ModelProvider): The model provider to use
@@ -201,7 +232,7 @@ def create_backoff_chain(
         CriticError: When critic refinement fails
         ModelError: When model generation fails
 
-    Example:
+    Examples:
         ```python
         from sifaka.chain import create_backoff_chain
         from sifaka.models import create_openai_chat_provider

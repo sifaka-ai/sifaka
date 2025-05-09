@@ -1,8 +1,6 @@
 """
 Validation Manager Module
 
-Manages validation rules and execution for Sifaka's chain system.
-
 ## Overview
 This module provides the ValidationManager class which handles validation of outputs
 against rules. It manages rule registration, validation execution, and error message
@@ -166,6 +164,23 @@ class ValidationManager(
             rules: The rules to validate against
             prioritize_by_cost: If True, rules will be sorted by cost (lowest first)
             fail_fast: If True, validation will stop after the first failure
+
+        Raises:
+            ValueError: If the rules are invalid
+            TypeError: If the input types are incorrect
+
+        Examples:
+            ```python
+            from sifaka.chain.managers.validation import ValidationManager
+            from sifaka.rules import create_length_rule
+
+            # Create manager with rules
+            manager = ValidationManager(
+                rules=[create_length_rule(min_length=10)],
+                prioritize_by_cost=True,
+                fail_fast=True
+            )
+            ```
         """
         self._rules = rules
 
@@ -188,8 +203,19 @@ class ValidationManager(
         """
         Get the rules.
 
+        ## Overview
+        This property returns the list of validation rules currently registered
+        with the manager.
+
         Returns:
-            The rules
+            The list of validation rules
+
+        Examples:
+            ```python
+            manager = ValidationManager(rules=[create_length_rule(min_length=10)])
+            current_rules = manager.rules
+            print(f"Number of rules: {len(current_rules)}")
+            ```
         """
         return self._rules
 
@@ -198,8 +224,19 @@ class ValidationManager(
         """
         Get the validator.
 
+        ## Overview
+        This property returns the validator instance used by the manager
+        to execute validation rules.
+
         Returns:
-            The validator
+            The validator instance
+
+        Examples:
+            ```python
+            manager = ValidationManager(rules=[create_length_rule(min_length=10)])
+            validator = manager.validator
+            print(f"Validator config: {validator.config}")
+            ```
         """
         return self._validator
 
@@ -207,11 +244,38 @@ class ValidationManager(
         """
         Validate the output against rules.
 
+        ## Overview
+        This method validates the output against all registered rules,
+        returning a validation result that indicates whether all rules
+        passed and contains any error messages.
+
+        ## Lifecycle
+        1. **Input Processing**: Process inputs
+           - Validate output type
+           - Prepare for validation
+
+        2. **Validation Execution**: Execute rules
+           - Run each rule
+           - Collect results
+           - Handle failures
+
         Args:
             output: The output to validate
 
         Returns:
             The validation result
+
+        Raises:
+            ValueError: If the output is invalid
+            TypeError: If the input type is incorrect
+
+        Examples:
+            ```python
+            manager = ValidationManager(rules=[create_length_rule(min_length=10)])
+            result = manager.validate("Some text")
+            if result.all_passed:
+                print("Validation passed!")
+            ```
         """
         return self._validator.validate(output)
 
@@ -219,11 +283,38 @@ class ValidationManager(
         """
         Get error messages from a validation result.
 
+        ## Overview
+        This method extracts error messages from a validation result,
+        providing a list of human-readable error messages for failed
+        validations.
+
+        ## Lifecycle
+        1. **Input Processing**: Process inputs
+           - Validate result type
+           - Extract error data
+
+        2. **Message Generation**: Create messages
+           - Format error messages
+           - Handle multiple errors
+
         Args:
             validation_result: The validation result
 
         Returns:
-            The error messages
+            The list of error messages
+
+        Raises:
+            ValueError: If the validation result is invalid
+            TypeError: If the input type is incorrect
+
+        Examples:
+            ```python
+            manager = ValidationManager(rules=[create_length_rule(min_length=10)])
+            result = manager.validate("Short")
+            if not result.all_passed:
+                errors = manager.get_error_messages(result)
+                print("Validation failed:", errors)
+            ```
         """
         return self._validator.get_error_messages(validation_result)
 
@@ -231,13 +322,32 @@ class ValidationManager(
         """
         Add a rule for validation.
 
-        This method implements the ValidationManagerProtocol.add_rule method.
+        ## Overview
+        This method adds a new validation rule to the manager's rule list.
+        The rule will be used in subsequent validations.
+
+        ## Lifecycle
+        1. **Input Processing**: Process inputs
+           - Validate rule type
+           - Check rule validity
+
+        2. **Rule Addition**: Add rule
+           - Add to rule list
+           - Update validator
 
         Args:
             rule: The rule to add
 
         Raises:
             ValueError: If the rule is invalid
+            TypeError: If the input type is incorrect
+
+        Examples:
+            ```python
+            manager = ValidationManager(rules=[create_length_rule(min_length=10)])
+            new_rule = create_length_rule(max_length=1000)
+            manager.add_rule(new_rule)
+            ```
         """
         if not isinstance(rule, Rule):
             raise ValueError(f"Expected Rule instance, got {type(rule)}")
@@ -248,46 +358,80 @@ class ValidationManager(
         # Add rule to the list
         self._rules.append(rule)
 
-        # Recreate validator with the same config
+        # Create new validator with updated rules
         self._validator = Validator[OutputType](rules=self._rules, config=current_config)
-
-        logger.info(f"Added rule {rule.name if hasattr(rule, 'name') else str(rule)}")
 
     def remove_rule(self, rule_name: str) -> None:
         """
-        Remove a rule from validation.
+        Remove a rule by name.
 
-        This method implements the ValidationManagerProtocol.remove_rule method.
+        ## Overview
+        This method removes a validation rule from the manager's rule list
+        based on its name. The rule will no longer be used in subsequent
+        validations.
+
+        ## Lifecycle
+        1. **Input Processing**: Process inputs
+           - Validate rule name
+           - Find rule to remove
+
+        2. **Rule Removal**: Remove rule
+           - Remove from rule list
+           - Update validator
 
         Args:
             rule_name: The name of the rule to remove
 
         Raises:
-            ValueError: If the rule is not found
+            ValueError: If the rule name is invalid or rule not found
+            TypeError: If the input type is incorrect
+
+        Examples:
+            ```python
+            manager = ValidationManager(rules=[create_length_rule(min_length=10)])
+            manager.remove_rule("length_rule")
+            ```
         """
+        # Find rule by name
+        rule_to_remove = None
+        for rule in self._rules:
+            if rule.name == rule_name:
+                rule_to_remove = rule
+                break
+
+        if rule_to_remove is None:
+            raise ValueError(f"Rule not found: {rule_name}")
+
+        # Remove rule from list
+        self._rules.remove(rule_to_remove)
+
         # Get current validator config
         current_config = self._validator.config
 
-        # Find and remove the rule
-        for i, rule in enumerate(self._rules):
-            if getattr(rule, "name", str(rule)) == rule_name:
-                self._rules.pop(i)
-
-                # Recreate validator with the same config
-                self._validator = Validator[OutputType](rules=self._rules, config=current_config)
-
-                logger.info(f"Removed rule {rule_name}")
-                return
-
-        raise ValueError(f"Rule {rule_name} not found")
+        # Create new validator with updated rules
+        self._validator = Validator[OutputType](rules=self._rules, config=current_config)
 
     def get_rules(self) -> List[Any]:
         """
         Get all registered rules.
 
-        This method implements the ValidationManagerProtocol.get_rules method.
+        ## Overview
+        This method returns a list of all validation rules currently
+        registered with the manager.
+
+        ## Lifecycle
+        1. **Rule Retrieval**: Get rules
+           - Access rule list
+           - Return rules
 
         Returns:
-            A list of registered rules
+            The list of registered rules
+
+        Examples:
+            ```python
+            manager = ValidationManager(rules=[create_length_rule(min_length=10)])
+            rules = manager.get_rules()
+            print(f"Number of rules: {len(rules)}")
+            ```
         """
         return self._rules
