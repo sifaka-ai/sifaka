@@ -179,10 +179,13 @@ prompt_manager = CustomPromptManager(config)
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+import time
+from pydantic import PrivateAttr
 
 from ..config import CriticConfig
 from ...utils.logging import get_logger
+from ...utils.state import StateManager
 
 logger = get_logger(__name__)
 
@@ -269,6 +272,9 @@ class PromptManager(ABC):
     ```
     """
 
+    # State management
+    _state = PrivateAttr(default_factory=StateManager)
+
     def __init__(self, config: CriticConfig):
         """
         Initialize a PromptManager instance.
@@ -290,6 +296,20 @@ class PromptManager(ABC):
             RuntimeError: If initialization fails
         """
         self._config = config
+
+        # Initialize state
+        self._state.update("config", config)
+        self._state.update("initialized", True)
+        self._state.update("template_cache", {})
+
+        # Initialize metadata
+        self._state.set_metadata("component_type", "prompt_manager")
+        self._state.set_metadata("validation_prompt_count", 0)
+        self._state.set_metadata("critique_prompt_count", 0)
+        self._state.set_metadata("improvement_prompt_count", 0)
+        self._state.set_metadata("reflection_prompt_count", 0)
+        self._state.set_metadata("error_count", 0)
+        self._state.set_metadata("creation_time", time.time())
 
     def create_validation_prompt(self, text: str) -> str:
         """Create a prompt for text validation.
@@ -338,9 +358,58 @@ class PromptManager(ABC):
         if not text or not isinstance(text, str):
             raise ValueError("Text must be a non-empty string")
 
+        # Start timing
+        start_time = time.time()
+
+        # Track validation prompt count
+        count = self._state.get_metadata("validation_prompt_count", 0)
+        self._state.set_metadata("validation_prompt_count", count + 1)
+
         try:
-            return self._create_validation_prompt_impl(text)
+            # Check cache for prompt
+            cache_key = f"validation:{hash(text)}"
+            template_cache = self._state.get("template_cache", {})
+
+            if cache_key in template_cache:
+                self._state.set_metadata("cache_hit", True)
+                return template_cache[cache_key]
+
+            self._state.set_metadata("cache_hit", False)
+
+            # Create prompt
+            prompt = self._create_validation_prompt_impl(text)
+
+            # Record execution time
+            end_time = time.time()
+            execution_time = end_time - start_time
+
+            # Update average creation time
+            total_time = self._state.get_metadata("validation_prompt_time", 0)
+            new_total = total_time + execution_time
+            self._state.set_metadata("validation_prompt_time", new_total)
+            avg_time = new_total / (count + 1)
+            self._state.set_metadata("avg_validation_prompt_time", avg_time)
+
+            # Cache the prompt
+            cache_size = 100  # Could make this configurable
+            if len(template_cache) >= cache_size:
+                template_cache = {}
+
+            template_cache[cache_key] = prompt
+            self._state.update("template_cache", template_cache)
+
+            return prompt
         except Exception as e:
+            # Track error
+            error_count = self._state.get_metadata("error_count", 0)
+            self._state.set_metadata("error_count", error_count + 1)
+
+            # Track specific error type
+            errors = self._state.get_metadata("errors", {})
+            error_type = type(e).__name__
+            errors[error_type] = errors.get(error_type, 0) + 1
+            self._state.set_metadata("errors", errors)
+
             logger.error(f"Failed to create validation prompt: {e}")
             raise RuntimeError(f"Failed to create validation prompt: {e}")
 
@@ -392,9 +461,58 @@ class PromptManager(ABC):
         if not text or not isinstance(text, str):
             raise ValueError("Text must be a non-empty string")
 
+        # Start timing
+        start_time = time.time()
+
+        # Track critique prompt count
+        count = self._state.get_metadata("critique_prompt_count", 0)
+        self._state.set_metadata("critique_prompt_count", count + 1)
+
         try:
-            return self._create_critique_prompt_impl(text)
+            # Check cache for prompt
+            cache_key = f"critique:{hash(text)}"
+            template_cache = self._state.get("template_cache", {})
+
+            if cache_key in template_cache:
+                self._state.set_metadata("cache_hit", True)
+                return template_cache[cache_key]
+
+            self._state.set_metadata("cache_hit", False)
+
+            # Create prompt
+            prompt = self._create_critique_prompt_impl(text)
+
+            # Record execution time
+            end_time = time.time()
+            execution_time = end_time - start_time
+
+            # Update average creation time
+            total_time = self._state.get_metadata("critique_prompt_time", 0)
+            new_total = total_time + execution_time
+            self._state.set_metadata("critique_prompt_time", new_total)
+            avg_time = new_total / (count + 1)
+            self._state.set_metadata("avg_critique_prompt_time", avg_time)
+
+            # Cache the prompt
+            cache_size = 100  # Could make this configurable
+            if len(template_cache) >= cache_size:
+                template_cache = {}
+
+            template_cache[cache_key] = prompt
+            self._state.update("template_cache", template_cache)
+
+            return prompt
         except Exception as e:
+            # Track error
+            error_count = self._state.get_metadata("error_count", 0)
+            self._state.set_metadata("error_count", error_count + 1)
+
+            # Track specific error type
+            errors = self._state.get_metadata("errors", {})
+            error_type = type(e).__name__
+            errors[error_type] = errors.get(error_type, 0) + 1
+            self._state.set_metadata("errors", errors)
+
             logger.error(f"Failed to create critique prompt: {e}")
             raise RuntimeError(f"Failed to create critique prompt: {e}")
 
@@ -468,9 +586,45 @@ class PromptManager(ABC):
         if reflections is not None and not isinstance(reflections, list):
             raise ValueError("Reflections must be a list")
 
+        # Start timing
+        start_time = time.time()
+
+        # Track improvement prompt count
+        count = self._state.get_metadata("improvement_prompt_count", 0)
+        self._state.set_metadata("improvement_prompt_count", count + 1)
+
+        # Track reflection usage
+        if reflections:
+            reflection_count = self._state.get_metadata("reflection_usage", 0)
+            self._state.set_metadata("reflection_usage", reflection_count + 1)
+
         try:
-            return self._create_improvement_prompt_impl(text, feedback, reflections)
+            # Create prompt (don't cache improvement prompts as they vary too much)
+            prompt = self._create_improvement_prompt_impl(text, feedback, reflections)
+
+            # Record execution time
+            end_time = time.time()
+            execution_time = end_time - start_time
+
+            # Update average creation time
+            total_time = self._state.get_metadata("improvement_prompt_time", 0)
+            new_total = total_time + execution_time
+            self._state.set_metadata("improvement_prompt_time", new_total)
+            avg_time = new_total / (count + 1)
+            self._state.set_metadata("avg_improvement_prompt_time", avg_time)
+
+            return prompt
         except Exception as e:
+            # Track error
+            error_count = self._state.get_metadata("error_count", 0)
+            self._state.set_metadata("error_count", error_count + 1)
+
+            # Track specific error type
+            errors = self._state.get_metadata("errors", {})
+            error_type = type(e).__name__
+            errors[error_type] = errors.get(error_type, 0) + 1
+            self._state.set_metadata("errors", errors)
+
             logger.error(f"Failed to create improvement prompt: {e}")
             raise RuntimeError(f"Failed to create improvement prompt: {e}")
 
@@ -514,6 +668,7 @@ class PromptManager(ABC):
         - Empty text validation
         - Invalid text format checking
         - Feedback validation
+        - Improved text validation
         - Template error handling
         - Implementation error recovery
 
@@ -526,7 +681,7 @@ class PromptManager(ABC):
             str: The reflection prompt
 
         Raises:
-            ValueError: If any input is empty or invalid
+            ValueError: If any inputs are empty or invalid
             RuntimeError: If prompt creation fails
         """
         if not original_text or not isinstance(original_text, str):
@@ -536,48 +691,78 @@ class PromptManager(ABC):
         if not improved_text or not isinstance(improved_text, str):
             raise ValueError("Improved text must be a non-empty string")
 
+        # Start timing
+        start_time = time.time()
+
+        # Track reflection prompt count
+        count = self._state.get_metadata("reflection_prompt_count", 0)
+        self._state.set_metadata("reflection_prompt_count", count + 1)
+
         try:
-            return self._create_reflection_prompt_impl(original_text, feedback, improved_text)
+            # Create prompt (don't cache reflection prompts as they vary too much)
+            prompt = self._create_reflection_prompt_impl(original_text, feedback, improved_text)
+
+            # Record execution time
+            end_time = time.time()
+            execution_time = end_time - start_time
+
+            # Update average creation time
+            total_time = self._state.get_metadata("reflection_prompt_time", 0)
+            new_total = total_time + execution_time
+            self._state.set_metadata("reflection_prompt_time", new_total)
+            avg_time = new_total / (count + 1)
+            self._state.set_metadata("avg_reflection_prompt_time", avg_time)
+
+            return prompt
         except Exception as e:
+            # Track error
+            error_count = self._state.get_metadata("error_count", 0)
+            self._state.set_metadata("error_count", error_count + 1)
+
+            # Track specific error type
+            errors = self._state.get_metadata("errors", {})
+            error_type = type(e).__name__
+            errors[error_type] = errors.get(error_type, 0) + 1
+            self._state.set_metadata("errors", errors)
+
             logger.error(f"Failed to create reflection prompt: {e}")
             raise RuntimeError(f"Failed to create reflection prompt: {e}")
 
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get statistics about prompt creation.
+
+        Returns:
+            Dictionary with prompt statistics
+        """
+        return {
+            "validation_prompt_count": self._state.get_metadata("validation_prompt_count", 0),
+            "critique_prompt_count": self._state.get_metadata("critique_prompt_count", 0),
+            "improvement_prompt_count": self._state.get_metadata("improvement_prompt_count", 0),
+            "reflection_prompt_count": self._state.get_metadata("reflection_prompt_count", 0),
+            "reflection_usage": self._state.get_metadata("reflection_usage", 0),
+            "error_count": self._state.get_metadata("error_count", 0),
+            "avg_validation_prompt_time": self._state.get_metadata("avg_validation_prompt_time", 0),
+            "avg_critique_prompt_time": self._state.get_metadata("avg_critique_prompt_time", 0),
+            "avg_improvement_prompt_time": self._state.get_metadata(
+                "avg_improvement_prompt_time", 0
+            ),
+            "avg_reflection_prompt_time": self._state.get_metadata("avg_reflection_prompt_time", 0),
+            "errors": self._state.get_metadata("errors", {}),
+            "cache_size": len(self._state.get("template_cache", {})),
+        }
+
+    def clear_cache(self) -> None:
+        """Clear the template cache."""
+        self._state.update("template_cache", {})
+
     @abstractmethod
     def _create_validation_prompt_impl(self, text: str) -> str:
-        """Create a validation prompt implementation.
+        """
+        Implement validation prompt creation.
 
-        This method is responsible for the actual creation of validation prompts.
-        It should be implemented by concrete prompt manager classes.
-
-        ## Overview
-        The method provides:
-        - Template-based prompt creation
-        - Variable substitution
-        - Format validation
-        - Error handling
-
-        ## Usage Examples
-        ```python
-        class CustomPromptManager(PromptManager):
-            def _create_validation_prompt_impl(self, text: str) -> str:
-                return (
-                    "Please validate the following text:\n\n"
-                    f"{text}\n\n"
-                    "Consider the following aspects:\n"
-                    "1. Grammar and spelling\n"
-                    "2. Clarity and coherence\n"
-                    "3. Style and tone\n"
-                    "4. Overall quality\n\n"
-                    "Provide a detailed analysis."
-                )
-        ```
-
-        ## Error Handling
-        The method implements:
-        - Template validation
-        - Variable substitution error handling
-        - Format validation
-        - Resource management
+        This abstract method must be implemented by subclasses to create
+        validation prompts based on the specific requirements of the critic.
 
         Args:
             text: The text to validate
@@ -586,45 +771,17 @@ class PromptManager(ABC):
             str: The validation prompt
 
         Raises:
-            RuntimeError: If prompt creation fails
+            NotImplementedError: Must be implemented by subclasses
         """
         pass
 
     @abstractmethod
     def _create_critique_prompt_impl(self, text: str) -> str:
-        """Create a critique prompt implementation.
+        """
+        Implement critique prompt creation.
 
-        This method is responsible for the actual creation of critique prompts.
-        It should be implemented by concrete prompt manager classes.
-
-        ## Overview
-        The method provides:
-        - Template-based prompt creation
-        - Variable substitution
-        - Format validation
-        - Error handling
-
-        ## Usage Examples
-        ```python
-        class CustomPromptManager(PromptManager):
-            def _create_critique_prompt_impl(self, text: str) -> str:
-                return (
-                    "Please critique the following text:\n\n"
-                    f"{text}\n\n"
-                    "Focus on:\n"
-                    "1. Strengths and weaknesses\n"
-                    "2. Areas for improvement\n"
-                    "3. Specific suggestions\n"
-                    "4. Overall assessment"
-                )
-        ```
-
-        ## Error Handling
-        The method implements:
-        - Template validation
-        - Variable substitution error handling
-        - Format validation
-        - Resource management
+        This abstract method must be implemented by subclasses to create
+        critique prompts based on the specific requirements of the critic.
 
         Args:
             text: The text to critique
@@ -633,7 +790,7 @@ class PromptManager(ABC):
             str: The critique prompt
 
         Raises:
-            RuntimeError: If prompt creation fails
+            NotImplementedError: Must be implemented by subclasses
         """
         pass
 
@@ -641,44 +798,11 @@ class PromptManager(ABC):
     def _create_improvement_prompt_impl(
         self, text: str, feedback: str, reflections: Optional[List[str]] = None
     ) -> str:
-        """Create an improvement prompt implementation.
+        """
+        Implement improvement prompt creation.
 
-        This method is responsible for the actual creation of improvement prompts.
-        It should be implemented by concrete prompt manager classes.
-
-        ## Overview
-        The method provides:
-        - Template-based prompt creation
-        - Variable substitution
-        - Format validation
-        - Error handling
-        - Reflection integration
-
-        ## Usage Examples
-        ```python
-        class CustomPromptManager(PromptManager):
-            def _create_improvement_prompt_impl(
-                self, text: str, feedback: str, reflections: Optional[List[str]] = None
-            ) -> str:
-                prompt = (
-                    "Please improve the following text:\n\n"
-                    f"{text}\n\n"
-                    f"Feedback: {feedback}\n\n"
-                )
-                if reflections:
-                    prompt += "Previous reflections:\n"
-                    for i, reflection in enumerate(reflections, 1):
-                        prompt += f"{i}. {reflection}\n"
-                return prompt
-        ```
-
-        ## Error Handling
-        The method implements:
-        - Template validation
-        - Variable substitution error handling
-        - Format validation
-        - Resource management
-        - Reflection format validation
+        This abstract method must be implemented by subclasses to create
+        improvement prompts based on the specific requirements of the critic.
 
         Args:
             text: The text to improve
@@ -689,7 +813,7 @@ class PromptManager(ABC):
             str: The improvement prompt
 
         Raises:
-            RuntimeError: If prompt creation fails
+            NotImplementedError: Must be implemented by subclasses
         """
         pass
 
@@ -697,45 +821,11 @@ class PromptManager(ABC):
     def _create_reflection_prompt_impl(
         self, original_text: str, feedback: str, improved_text: str
     ) -> str:
-        """Create a reflection prompt implementation.
+        """
+        Implement reflection prompt creation.
 
-        This method is responsible for the actual creation of reflection prompts.
-        It should be implemented by concrete prompt manager classes.
-
-        ## Overview
-        The method provides:
-        - Template-based prompt creation
-        - Variable substitution
-        - Format validation
-        - Error handling
-        - Improvement analysis
-
-        ## Usage Examples
-        ```python
-        class CustomPromptManager(PromptManager):
-            def _create_reflection_prompt_impl(
-                self, original_text: str, feedback: str, improved_text: str
-            ) -> str:
-                return (
-                    "Please reflect on the improvement process:\n\n"
-                    f"Original text: {original_text}\n\n"
-                    f"Feedback: {feedback}\n\n"
-                    f"Improved text: {improved_text}\n\n"
-                    "Consider:\n"
-                    "1. How well the feedback was addressed\n"
-                    "2. What worked and what didn't\n"
-                    "3. What could be improved further\n"
-                    "4. Lessons learned"
-                )
-        ```
-
-        ## Error Handling
-        The method implements:
-        - Template validation
-        - Variable substitution error handling
-        - Format validation
-        - Resource management
-        - Improvement analysis validation
+        This abstract method must be implemented by subclasses to create
+        reflection prompts based on the specific requirements of the critic.
 
         Args:
             original_text: The original text
@@ -746,7 +836,7 @@ class PromptManager(ABC):
             str: The reflection prompt
 
         Raises:
-            RuntimeError: If prompt creation fails
+            NotImplementedError: Must be implemented by subclasses
         """
         pass
 

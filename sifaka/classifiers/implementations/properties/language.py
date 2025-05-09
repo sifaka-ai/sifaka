@@ -130,9 +130,6 @@ class LanguageClassifier(BaseClassifier):
 
     DEFAULT_COST: int = 1  # Low cost for statistical analysis
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_classifier_state)
-
     def __init__(
         self,
         name: str = "language_classifier",
@@ -167,13 +164,13 @@ class LanguageClassifier(BaseClassifier):
         # Initialize base class
         super().__init__(name=name, description=description, config=config)
 
-        # Initialize state
-        state = self._state_manager.get_state()
-        state.initialized = False
+        # Initialize state - handled by BaseClassifier in model_post_init
 
         # Store detector in state if provided
         if detector is not None and self._validate_detector(detector):
-            state.cache["detector"] = detector
+            cache = self._state.get("cache", {})
+            cache["detector"] = detector
+            self._state.update("cache", cache)
 
     def _validate_detector(self, detector: Any) -> TypeGuard[LanguageDetector]:
         """Validate that a detector implements the required protocol."""
@@ -186,12 +183,9 @@ class LanguageClassifier(BaseClassifier):
     def _load_langdetect(self) -> LanguageDetector:
         """Load the language detector."""
         try:
-            # Get state
-            state = self._state_manager.get_state()
-
             # Check if detector is already in state
-            if "detector" in state.cache:
-                return state.cache["detector"]
+            if self._state.get("cache", {}).get("detector"):
+                return self._state.get("cache")["detector"]
 
             langdetect = importlib.import_module("langdetect")
             # Set seed for consistent results
@@ -215,7 +209,9 @@ class LanguageClassifier(BaseClassifier):
 
             # Validate and store in state
             if self._validate_detector(detector):
-                state.cache["detector"] = detector
+                cache = self._state.get("cache", {})
+                cache["detector"] = detector
+                self._state.update("cache", cache)
                 return detector
 
         except ImportError:
@@ -228,18 +224,17 @@ class LanguageClassifier(BaseClassifier):
 
     def warm_up(self) -> None:
         """Initialize the language detector if needed."""
-        # Get state
-        state = self._state_manager.get_state()
-
-        if not state.initialized:
+        if not self._state.get("initialized", False):
             # Load detector
             detector = self._load_langdetect()
 
             # Store in state
-            state.cache["detector"] = detector
+            cache = self._state.get("cache", {})
+            cache["detector"] = detector
+            self._state.update("cache", cache)
 
             # Mark as initialized
-            state.initialized = True
+            self._state.update("initialized", True)
 
     def get_language_name(self, lang_code: str) -> str:
         """Get full language name from language code."""
@@ -255,11 +250,8 @@ class LanguageClassifier(BaseClassifier):
         Returns:
             ClassificationResult with detected language
         """
-        # Get state
-        state = self._state_manager.get_state()
-
         # Ensure resources are initialized
-        if not state.initialized:
+        if not self._state.get("initialized", False):
             self.warm_up()
 
         # Get configuration from params
@@ -269,7 +261,7 @@ class LanguageClassifier(BaseClassifier):
 
         try:
             # Get detector from state
-            detector = state.cache.get("detector")
+            detector = self._state.get("cache", {}).get("detector")
             if not detector:
                 raise RuntimeError("Language detector not initialized")
 
@@ -302,7 +294,7 @@ class LanguageClassifier(BaseClassifier):
                 )
 
             # Return the detected language
-            return ClassificationResult(
+            result = ClassificationResult(
                 label=best_lang,
                 confidence=best_prob,
                 metadata={
@@ -318,8 +310,22 @@ class LanguageClassifier(BaseClassifier):
                 },
             )
 
+            # Track statistics
+            stats = self._state.get("statistics", {})
+            stats[best_lang] = stats.get(best_lang, 0) + 1
+            self._state.update("statistics", stats)
+
+            return result
+
         except Exception as e:
             logger.error("Failed to detect language: %s", e)
+
+            # Track errors in state
+            error_info = {"error": str(e), "type": type(e).__name__}
+            errors = self._state.get("errors", [])
+            errors.append(error_info)
+            self._state.update("errors", errors)
+
             return ClassificationResult(
                 label=fallback_lang,
                 confidence=fallback_confidence,
@@ -345,6 +351,64 @@ class LanguageClassifier(BaseClassifier):
         """
         self.validate_batch_input(texts)
         return [self.classify(text) for text in texts]
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get classifier usage statistics.
+
+        This method provides access to statistics collected during classifier operation,
+        including classification counts by label, error counts, and cache information.
+
+        Returns:
+            Dictionary containing statistics
+        """
+        stats = {
+            # Classification counts by label
+            "classifications": self._state.get("statistics", {}),
+            # Number of errors encountered
+            "error_count": len(self._state.get("errors", [])),
+            # Cache information
+            "cache_enabled": self.config.cache_size > 0,
+            "cache_size": self.config.cache_size,
+            # State initialization status
+            "initialized": self._state.get("initialized", False),
+            # Configuration
+            "seed": self.config.params.get("seed", 0),
+        }
+
+        # Add cache hit ratio if caching is enabled
+        if hasattr(self, "_result_cache"):
+            stats["cache_entries"] = len(self._result_cache)
+
+        # Add language counts
+        detected_languages = set(self._state.get("statistics", {}).keys())
+        stats["detected_languages"] = [
+            {"code": lang, "name": self.get_language_name(lang)} for lang in detected_languages
+        ]
+
+        return stats
+
+    def clear_cache(self) -> None:
+        """
+        Clear any cached data in the classifier.
+
+        This method clears both the result cache and resets statistics in the state
+        but preserves the detector and initialization status.
+        """
+        # Clear classification result cache
+        if hasattr(self, "_result_cache"):
+            self._result_cache.clear()
+
+        # Reset statistics
+        self._state.update("statistics", {})
+
+        # Reset errors list but keep detector and initialized status
+        self._state.update("errors", [])
+
+        # Keep the detector in cache
+        cache = self._state.get("cache", {})
+        preserved_cache = {k: v for k, v in cache.items() if k == "detector"}
+        self._state.update("cache", preserved_cache)
 
     @classmethod
     def create_with_custom_detector(
@@ -396,9 +460,8 @@ class LanguageClassifier(BaseClassifier):
         )
 
         # Initialize state
-        state = instance._state.get_state()
-        state.cache["detector"] = detector
-        state.initialized = True
+        instance._state.update("cache", {"detector": detector})
+        instance._state.update("initialized", True)
 
         return instance
 

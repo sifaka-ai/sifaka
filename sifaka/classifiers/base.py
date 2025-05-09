@@ -114,7 +114,7 @@ for text, result in zip(texts, results):
 The recommended way to create classifiers is through the create() factory method:
 
 ```python
-from sifaka.classifiers.toxicity import ToxicityClassifier
+from sifaka.classifiers.implementations.content.toxicity import ToxicityClassifier
 
 # Create a classifier using the factory method
 classifier = ToxicityClassifier.create(
@@ -139,9 +139,10 @@ from typing import (
     TypeVar,
 )
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from sifaka.utils.logging import get_logger
+from sifaka.utils.state import create_classifier_state, StateManager
 
 from .models import ClassificationResult, ClassifierConfig
 
@@ -348,6 +349,9 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
     description: str = Field(description="Description of the classifier", min_length=1)
     config: ClassifierConfig[T]
 
+    # Add state manager as a private attribute
+    _state = PrivateAttr(default_factory=create_classifier_state)
+
     def model_post_init(self, _: Any) -> None:
         """
         Initialize after model creation.
@@ -363,8 +367,12 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
         Args:
             _: Ignored parameter
         """
-        # We don't need to do anything special for caching
-        # The _classify_impl method will handle caching internally
+        # Initialize state with basic values
+        self._state.update("initialized", False)
+        self._state.update("cache", {})
+        self._state.set_metadata("component_type", "classifier")
+        self._state.set_metadata("name", self.name)
+        self._state.set_metadata("description", self.description)
 
     @property
     def min_confidence(self) -> float:
@@ -606,7 +614,7 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
         Basic usage:
 
         ```python
-        from sifaka.classifiers.toxicity import create_toxicity_classifier
+        from sifaka.classifiers.implementations.content.toxicity import create_toxicity_classifier
 
         # Create a toxicity classifier
         classifier = create_toxicity_classifier()
@@ -691,7 +699,7 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
 
         Examples:
             ```python
-            from sifaka.classifiers.toxicity import create_toxicity_classifier
+            from sifaka.classifiers.implementations.content.toxicity import create_toxicity_classifier
 
             classifier = create_toxicity_classifier()
 
@@ -724,31 +732,24 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
 
     def warm_up(self) -> None:
         """
-        Optional warm-up method for classifiers that need initialization.
+        Warm up the classifier.
 
-        This method should be overridden by subclasses that need to load
-        models or resources before classification.
-
-        Lifecycle:
-            - Not called automatically
-            - Should be called before classification if expensive resources are needed
-            - Implementations should be idempotent (safe to call multiple times)
+        This method is called before the classifier is used to
+        prepare any needed resources. It should be overridden by
+        subclasses that need specific warm-up logic.
 
         Examples:
             ```python
-            from sifaka.classifiers.toxicity import create_toxicity_classifier
-
-            # Create the classifier
-            classifier = create_toxicity_classifier()
-
-            # Warm up the classifier (loads the model)
-            classifier.warm_up()
-
-            # Now classify (model is already loaded)
-            result = classifier.classify("Hello world")
+            classifier = SentimentClassifier()
+            classifier.warm_up()  # Load models or other resources
             ```
         """
-        pass
+        # Update state to indicate that warm-up was attempted
+        if not self._state.get("initialized", False):
+            # Set initialized to True to prevent repeated warm-ups
+            self._state.update("initialized", True)
+            self._state.set_metadata("warm_up_attempted", True)
+            self._state.set_metadata("warm_up_time", "0ms")  # Default value
 
     @classmethod
     def create(

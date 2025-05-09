@@ -16,7 +16,7 @@ from sifaka.utils.config import (
 )
 from sifaka.classifiers.config import standardize_classifier_config
 from sifaka.adapters.rules import create_classifier_rule
-from sifaka.classifiers.toxicity import create_toxicity_classifier
+from sifaka.classifiers.implementations.content.toxicity import create_toxicity_classifier
 from sifaka.critics.factories import create_prompt_critic
 from sifaka.models.mock import MockProvider
 

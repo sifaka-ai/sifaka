@@ -126,7 +126,7 @@ class ClassifierProtocol(Protocol[T, R]):
     Checking if an object follows the classifier protocol:
 
     ```python
-    from sifaka.classifiers.toxicity import ToxicityClassifier
+    from sifaka.classifiers.implementations.content.toxicity import ToxicityClassifier
     from sifaka.classifiers.interfaces import ClassifierProtocol
 
     classifier = ToxicityClassifier()

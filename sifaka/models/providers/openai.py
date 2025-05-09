@@ -20,10 +20,12 @@ from typing import Optional, Any, Dict, ClassVar
 import openai
 import tiktoken
 from openai import OpenAI
+from pydantic import PrivateAttr
 
 from sifaka.models.base import APIClient, ModelConfig, TokenCounter
 from sifaka.models.core import ModelProviderCore
 from sifaka.utils.logging import get_logger
+from sifaka.utils.state import StateManager, create_model_state
 
 logger = get_logger(__name__)
 
@@ -96,6 +98,9 @@ class OpenAIProvider(ModelProviderCore):
     # Class constants
     DEFAULT_MODEL: ClassVar[str] = "gpt-4-turbo"
 
+    # State management
+    _state = PrivateAttr(default_factory=create_model_state)
+
     def __init__(
         self,
         model_name: str = DEFAULT_MODEL,
@@ -128,13 +133,37 @@ class OpenAIProvider(ModelProviderCore):
             token_counter=token_counter,
         )
 
+        # Initialize state
+        self._state.update("model_name", model_name)
+        self._state.update("config", config)
+        self._state.update("initialized", False)
+        self._state.update(
+            "token_usage", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        )
+        self._state.update("cache", {})
+
+        # Store client and token counter if provided
+        if api_client:
+            self._state.update("client", api_client)
+        if token_counter:
+            self._state.update("token_counter", token_counter)
+
+        # Set metadata
+        self._state.set_metadata("component_type", "model_provider")
+        self._state.set_metadata("provider_type", "openai")
+        self._state.set_metadata("model_family", "gpt")
+
     def _create_default_client(self) -> APIClient:
         """Create a default OpenAI client."""
-        return OpenAIClient(api_key=self.config.api_key)
+        client = OpenAIClient(api_key=self.config.api_key)
+        self._state.update("client", client)
+        return client
 
     def _create_default_token_counter(self) -> TokenCounter:
         """Create a default token counter for the current model."""
-        return OpenAITokenCounter(model=self.model_name)
+        token_counter = OpenAITokenCounter(model=self.model_name)
+        self._state.update("token_counter", token_counter)
+        return token_counter
 
     def invoke(self, prompt: str) -> Any:
         """
@@ -148,7 +177,42 @@ class OpenAIProvider(ModelProviderCore):
         Returns:
             The generated text
         """
-        return self.generate(prompt)
+        # Check if we have a cached result
+        cache = self._state.get("cache", {})
+        if prompt in cache:
+            self._state.set_metadata("cache_hit", True)
+            return cache[prompt]
+
+        # Generate and cache the result
+        result = self.generate(prompt)
+
+        # Update cache
+        cache[prompt] = result
+        self._state.update("cache", cache)
+        self._state.set_metadata("cache_hit", False)
+
+        # Update token usage
+        self._update_token_usage(prompt, result)
+
+        return result
+
+    def _update_token_usage(self, prompt: str, result: str) -> None:
+        """Update token usage statistics."""
+        if not self.token_counter:
+            return
+
+        prompt_tokens = self.token_counter.count_tokens(prompt)
+        completion_tokens = self.token_counter.count_tokens(result)
+        total_tokens = prompt_tokens + completion_tokens
+
+        token_usage = self._state.get(
+            "token_usage", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        )
+        token_usage["prompt_tokens"] += prompt_tokens
+        token_usage["completion_tokens"] += completion_tokens
+        token_usage["total_tokens"] += total_tokens
+
+        self._state.update("token_usage", token_usage)
 
     @property
     def name(self) -> str:
@@ -159,3 +223,14 @@ class OpenAIProvider(ModelProviderCore):
             The provider name
         """
         return f"OpenAI-{self.model_name}"
+
+    def get_token_usage(self) -> Dict[str, int]:
+        """
+        Get token usage statistics.
+
+        Returns:
+            Dictionary with token usage statistics
+        """
+        return self._state.get(
+            "token_usage", {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        )

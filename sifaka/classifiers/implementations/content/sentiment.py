@@ -225,8 +225,8 @@ class SentimentClassifier(BaseClassifier[str, str]):
     DEFAULT_POSITIVE_THRESHOLD: ClassVar[float] = 0.05
     DEFAULT_NEGATIVE_THRESHOLD: ClassVar[float] = -0.05
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_classifier_state)
+    # State management already inherited from BaseClassifier as _state
+    # Remove: _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
     # Pydantic configuration
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -272,21 +272,22 @@ class SentimentClassifier(BaseClassifier[str, str]):
         # Initialize base class
         super().__init__(name=name, description=description, config=config)
 
-        # Initialize state
-        state = self._state_manager.get_state()
-        state.initialized = False
-
+        # Initialize state - this is now handled by BaseClassifier in model_post_init
         # Store thresholds in state
-        state.cache["positive_threshold"] = self.config.params.get(
+        cache = self._state.get("cache", {})
+        cache["positive_threshold"] = self.config.params.get(
             "positive_threshold", self.DEFAULT_POSITIVE_THRESHOLD
         )
-        state.cache["negative_threshold"] = self.config.params.get(
+        cache["negative_threshold"] = self.config.params.get(
             "negative_threshold", self.DEFAULT_NEGATIVE_THRESHOLD
         )
+        self._state.update("cache", cache)
 
         # Store analyzer in state if provided
         if analyzer is not None and self._validate_analyzer(analyzer):
-            state.cache["analyzer"] = analyzer
+            cache = self._state.get("cache", {})
+            cache["analyzer"] = analyzer
+            self._state.update("cache", cache)
 
     def _validate_analyzer(self, analyzer: Any) -> TypeGuard[SentimentAnalyzer]:
         """
@@ -319,19 +320,18 @@ class SentimentClassifier(BaseClassifier[str, str]):
             RuntimeError: If VADER initialization fails
         """
         try:
-            # Get state
-            state = self._state_manager.get_state()
-
             # Check if analyzer is already in state
-            if "analyzer" in state.cache:
-                return state.cache["analyzer"]
+            if self._state.get("cache", {}).get("analyzer"):
+                return self._state.get("cache")["analyzer"]
 
             vader_module = importlib.import_module("vaderSentiment.vaderSentiment")
             analyzer = vader_module.SentimentIntensityAnalyzer()
 
             # Validate and store in state
             if self._validate_analyzer(analyzer):
-                state.cache["analyzer"] = analyzer
+                cache = self._state.get("cache", {})
+                cache["analyzer"] = analyzer
+                self._state.update("cache", cache)
                 return analyzer
 
         except ImportError:
@@ -350,21 +350,21 @@ class SentimentClassifier(BaseClassifier[str, str]):
         It is called automatically when needed but can also be called
         explicitly to pre-initialize resources.
         """
-        # Get state
-        state = self._state_manager.get_state()
-
-        if not state.initialized:
+        if not self._state.get("initialized", False):
             try:
                 # Load analyzer
                 analyzer = self._load_vader()
 
                 # Store in state
-                state.cache["analyzer"] = analyzer
+                cache = self._state.get("cache", {})
+                cache["analyzer"] = analyzer
+                self._state.update("cache", cache)
 
                 # Mark as initialized
-                state.initialized = True
+                self._state.update("initialized", True)
             except Exception as e:
                 logger.error("Failed to initialize sentiment analyzer: %s", e)
+                self._state.update("error", f"Failed to initialize sentiment analyzer: {e}")
                 raise RuntimeError(f"Failed to initialize sentiment analyzer: {e}") from e
 
     def _get_sentiment_label(self, compound_score: float) -> Tuple[str, float]:
@@ -377,12 +377,10 @@ class SentimentClassifier(BaseClassifier[str, str]):
         Returns:
             Tuple of (sentiment_label, confidence)
         """
-        # Get state
-        state = self._state_manager.get_state()
-
         # Get thresholds from state
-        positive_threshold = state.cache.get("positive_threshold", self.DEFAULT_POSITIVE_THRESHOLD)
-        negative_threshold = state.cache.get("negative_threshold", self.DEFAULT_NEGATIVE_THRESHOLD)
+        cache = self._state.get("cache", {})
+        positive_threshold = cache.get("positive_threshold", self.DEFAULT_POSITIVE_THRESHOLD)
+        negative_threshold = cache.get("negative_threshold", self.DEFAULT_NEGATIVE_THRESHOLD)
 
         # Determine sentiment label
         if compound_score >= positive_threshold:
@@ -410,11 +408,8 @@ class SentimentClassifier(BaseClassifier[str, str]):
         Returns:
             ClassificationResult with sentiment scores
         """
-        # Get state
-        state = self._state_manager.get_state()
-
         # Ensure resources are initialized
-        if not state.initialized:
+        if not self._state.get("initialized", False):
             self.warm_up()
 
         # Handle empty or whitespace-only text
@@ -434,7 +429,7 @@ class SentimentClassifier(BaseClassifier[str, str]):
 
         try:
             # Get analyzer from state
-            analyzer = state.cache.get("analyzer")
+            analyzer = self._state.get("cache", {}).get("analyzer")
             if not analyzer:
                 raise RuntimeError("Sentiment analyzer not initialized")
 
@@ -450,7 +445,7 @@ class SentimentClassifier(BaseClassifier[str, str]):
                 confidence = 0.0
 
             # Return result with detailed metadata
-            return ClassificationResult[str](
+            result = ClassificationResult[str](
                 label=label,
                 confidence=confidence,
                 metadata={
@@ -460,9 +455,23 @@ class SentimentClassifier(BaseClassifier[str, str]):
                     "neu_score": scores["neu"],
                 },
             )
+
+            # Track statistics
+            stats = self._state.get("statistics", {})
+            stats[label] = stats.get(label, 0) + 1
+            self._state.update("statistics", stats)
+
+            return result
         except Exception as e:
             # Log the error and return a fallback result
             logger.error("Failed to classify text sentiment: %s", e)
+
+            # Track errors in state
+            error_info = {"error": str(e), "type": type(e).__name__}
+            errors = self._state.get("errors", [])
+            errors.append(error_info)
+            self._state.update("errors", errors)
+
             return ClassificationResult[str](
                 label="unknown",
                 confidence=0.0,
@@ -475,6 +484,67 @@ class SentimentClassifier(BaseClassifier[str, str]):
                     "neu_score": 1.0,
                 },
             )
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get classifier usage statistics.
+
+        This method provides access to statistics collected during classifier operation,
+        including classification counts by label, error counts, cache information, and thresholds.
+
+        Returns:
+            Dictionary containing statistics
+        """
+        stats = {
+            # Classification counts by label
+            "classifications": self._state.get("statistics", {}),
+            # Number of errors encountered
+            "error_count": len(self._state.get("errors", [])),
+            # Cache information
+            "cache_enabled": self.config.cache_size > 0,
+            "cache_size": self.config.cache_size,
+            # State initialization status
+            "initialized": self._state.get("initialized", False),
+            # Threshold information
+            "positive_threshold": self._state.get("cache", {}).get(
+                "positive_threshold", self.DEFAULT_POSITIVE_THRESHOLD
+            ),
+            "negative_threshold": self._state.get("cache", {}).get(
+                "negative_threshold", self.DEFAULT_NEGATIVE_THRESHOLD
+            ),
+        }
+
+        # Add cache hit ratio if caching is enabled
+        if hasattr(self, "_result_cache"):
+            stats["cache_entries"] = len(self._result_cache)
+
+        return stats
+
+    def clear_cache(self) -> None:
+        """
+        Clear any cached data in the classifier.
+
+        This method clears both the result cache and resets statistics in the state
+        but preserves the analyzer and initialization status.
+        """
+        # Clear classification result cache
+        if hasattr(self, "_result_cache"):
+            self._result_cache.clear()
+
+        # Reset statistics
+        self._state.update("statistics", {})
+
+        # Reset errors list but keep analyzer and initialization status
+        self._state.update("errors", [])
+
+        # Keep the analyzer and thresholds in cache
+        cache = self._state.get("cache", {})
+        preserved_cache = {
+            k: v
+            for k, v in cache.items()
+            if k in ("analyzer", "positive_threshold", "negative_threshold")
+        }
+        self._state.update("cache", preserved_cache)
 
     @classmethod
     def create(
@@ -568,10 +638,11 @@ class SentimentClassifier(BaseClassifier[str, str]):
             **kwargs,
         )
 
-        # Initialize state
-        state = instance._state.get_state()
-        state.cache["analyzer"] = analyzer
-        state.initialized = True
+        # Set the analyzer and mark as initialized
+        cache = instance._state.get("cache", {})
+        cache["analyzer"] = analyzer
+        instance._state.update("cache", cache)
+        instance._state.update("initialized", True)
 
         return instance
 

@@ -62,8 +62,8 @@ class BiasDetector(BaseClassifier):
     # Class constants
     DEFAULT_COST: ClassVar[float] = 2.5
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_classifier_state)
+    # State management already inherited from BaseClassifier as _state
+    # Remove: _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
     # Default keywords for each bias category to enhance detection
     DEFAULT_BIAS_KEYWORDS: ClassVar[Dict[str, List[str]]] = {
@@ -151,16 +151,13 @@ class BiasDetector(BaseClassifier):
 
     def warm_up(self) -> None:
         """Initialize the model if needed."""
-        # Get state
-        state = self._state_manager.get_state()
-
         # Check if already initialized
-        if state.initialized:
+        if self._state.get("initialized", False):
             return
 
         # Load dependencies
         sklearn = self._load_dependencies()
-        state.dependencies_loaded = True
+        self._state.update("dependencies_loaded", True)
 
         # Get configuration from params
         model_path = self.config.params.get("model_path")
@@ -171,11 +168,12 @@ class BiasDetector(BaseClassifier):
             self._load_model(model_path)
         else:
             # Create TF-IDF vectorizer with custom analyzer to catch bias keywords
-            state.vectorizer = sklearn["feature_extraction_text"].TfidfVectorizer(
+            vectorizer = sklearn["feature_extraction_text"].TfidfVectorizer(
                 max_features=max_features,
                 stop_words="english",
                 ngram_range=(1, 2),
             )
+            self._state.update("vectorizer", vectorizer)
 
             # Create SVM model with probability estimates
             svm = sklearn["svm"].LinearSVC(
@@ -185,21 +183,23 @@ class BiasDetector(BaseClassifier):
             )
 
             # Calibrate the SVM to get probability estimates
-            state.model = sklearn["calibration"].CalibratedClassifierCV(
+            model = sklearn["calibration"].CalibratedClassifierCV(
                 estimator=svm,
                 cv=3,
             )
+            self._state.update("model", model)
 
             # Create pipeline
-            state.pipeline = sklearn["pipeline"].Pipeline(
+            pipeline = sklearn["pipeline"].Pipeline(
                 [
-                    ("vectorizer", state.vectorizer),
-                    ("classifier", state.model),
+                    ("vectorizer", vectorizer),
+                    ("classifier", model),
                 ]
             )
+            self._state.update("pipeline", pipeline)
 
         # Mark as initialized
-        state.initialized = True
+        self._state.update("initialized", True)
 
     def _extract_bias_features(self, text: str) -> Dict[str, float]:
         """Extract bias-related features from text."""
@@ -213,39 +213,33 @@ class BiasDetector(BaseClassifier):
 
     def _save_model(self, path: str) -> None:
         """Save the trained model to disk."""
-        # Get state
-        state = self._state_manager.get_state()
-
         # Check if initialized
-        if not state.initialized:
+        if not self._state.get("initialized", False):
             raise RuntimeError("Model not initialized")
 
         with open(path, "wb") as f:
             pickle.dump(
                 {
-                    "vectorizer": state.vectorizer,
-                    "model": state.model,
-                    "pipeline": state.pipeline,
+                    "vectorizer": self._state.get("vectorizer"),
+                    "model": self._state.get("model"),
+                    "pipeline": self._state.get("pipeline"),
                     "config_params": self.config.params,
-                    "feature_names": state.feature_names,
+                    "feature_names": self._state.get("feature_names"),
                 },
                 f,
             )
 
     def _load_model(self, path: str) -> None:
         """Load a trained model from disk."""
-        # Get state
-        state = self._state_manager.get_state()
-
         with open(path, "rb") as f:
             data = pickle.load(f)
-            state.vectorizer = data["vectorizer"]
-            state.model = data["model"]
-            state.pipeline = data["pipeline"]
+            self._state.update("vectorizer", data["vectorizer"])
+            self._state.update("model", data["model"])
+            self._state.update("pipeline", data["pipeline"])
 
             # Load feature names if available
             if "feature_names" in data:
-                state.feature_names = data["feature_names"]
+                self._state.update("feature_names", data["feature_names"])
 
             # Update config params if available in the saved model
             if "config_params" in data:
@@ -258,48 +252,48 @@ class BiasDetector(BaseClassifier):
                 )
 
             # Mark as initialized
-            state.initialized = True
+            self._state.update("initialized", True)
 
     def fit(self, texts: List[str], labels: List[str]) -> "BiasDetector":
         """Train the bias detector."""
         if not texts or not labels:
             raise ValueError("Empty training data")
 
-        # Get state
-        state = self._state_manager.get_state()
-
         # Load scikit-learn dependencies
         sklearn = self._load_dependencies()
-        state.dependencies_loaded = True
+        self._state.update("dependencies_loaded", True)
 
         # Get configuration from params
         max_features = self.config.params.get("max_features", 3000)
         random_state = self.config.params.get("random_state", 42)
 
         # Create vectorizer
-        state.vectorizer = sklearn["feature_extraction_text"].TfidfVectorizer(
+        vectorizer = sklearn["feature_extraction_text"].TfidfVectorizer(
             max_features=max_features,
             stop_words="english",
         )
+        self._state.update("vectorizer", vectorizer)
 
         # Create and train SVM classifier
-        state.model = sklearn["svm"].SVC(
+        model = sklearn["svm"].SVC(
             kernel="linear",
             probability=True,
             random_state=random_state,
         )
+        self._state.update("model", model)
 
         # Create pipeline
-        state.pipeline = sklearn["pipeline"].Pipeline(
+        pipeline = sklearn["pipeline"].Pipeline(
             [
-                ("vectorizer", state.vectorizer),
-                ("classifier", state.model),
+                ("vectorizer", vectorizer),
+                ("classifier", model),
             ]
         )
 
         # Fit pipeline
-        state.pipeline.fit(texts, labels)
-        state.initialized = True
+        pipeline.fit(texts, labels)
+        self._state.update("pipeline", pipeline)
+        self._state.update("initialized", True)
 
         # Extract feature explanations
         self._extract_explanations()
@@ -313,25 +307,27 @@ class BiasDetector(BaseClassifier):
 
     def _extract_explanations(self) -> None:
         """Extract feature coefficients for explanations."""
-        # Get state
-        state = self._state_manager.get_state()
-
         try:
-            if not hasattr(state.model, "base_estimator"):
+            model = self._state.get("model")
+            if not hasattr(model, "base_estimator"):
                 return
 
             # Get feature names
-            feature_names = state.vectorizer.get_feature_names_out()
+            vectorizer = self._state.get("vectorizer")
+            feature_names = vectorizer.get_feature_names_out()
 
             # Store feature names in state
-            state.feature_names = {
-                "names": feature_names,
-                "count": len(feature_names),
-            }
+            self._state.update(
+                "feature_names",
+                {
+                    "names": feature_names,
+                    "count": len(feature_names),
+                },
+            )
 
             # Extract coefficients from the SVM
-            if hasattr(state.model.base_estimator, "coef_"):
-                coefficients = state.model.base_estimator.coef_
+            if hasattr(model.base_estimator, "coef_"):
+                coefficients = model.base_estimator.coef_
 
                 # For each class, extract the top features
                 explanations = {}
@@ -358,36 +354,46 @@ class BiasDetector(BaseClassifier):
                     }
 
                 # Store explanations in state cache
-                state.cache["explanations"] = explanations
+                cache = self._state.get("cache", {})
+                cache["explanations"] = explanations
+                self._state.update("cache", cache)
         except Exception as e:
             logger.warning(f"Could not extract explanations: {e}")
-            state.error = f"Failed to extract explanations: {e}"
+            self._state.update("error", f"Failed to extract explanations: {e}")
+
+            # Track errors in state
+            error_info = {
+                "error": str(e),
+                "type": type(e).__name__,
+                "context": "extract_explanations",
+            }
+            errors = self._state.get("errors", [])
+            errors.append(error_info)
+            self._state.update("errors", errors)
 
     def _classify_impl(self, text: str) -> ClassificationResult:
         """Implement classification logic."""
-        # Get state
-        state = self._state_manager.get_state()
-
         # Check if initialized
-        if not state.initialized:
+        if not self._state.get("initialized", False):
             self.warm_up()
 
         # Check if still not initialized
-        if not state.initialized:
+        if not self._state.get("initialized", False):
             raise RuntimeError("Model not initialized")
 
         # Get prediction and probability
-        label = state.pipeline.predict([text])[0]
-        probs = state.pipeline.predict_proba([text])[0]
+        pipeline = self._state.get("pipeline")
+        label = pipeline.predict([text])[0]
+        probs = pipeline.predict_proba([text])[0]
         confidence = max(probs)
 
         # Extract bias features
         bias_features = self._extract_bias_features(text)
 
         # Get explanations from cache
-        explanations = state.cache.get("explanations", {}).get(label, {})
+        explanations = self._state.get("cache", {}).get("explanations", {}).get(label, {})
 
-        return ClassificationResult(
+        result = ClassificationResult(
             label=label,
             confidence=confidence,
             metadata={
@@ -395,6 +401,13 @@ class BiasDetector(BaseClassifier):
                 "explanations": explanations,
             },
         )
+
+        # Track statistics
+        stats = self._state.get("statistics", {})
+        stats[label] = stats.get(label, 0) + 1
+        self._state.update("statistics", stats)
+
+        return result
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
         """
@@ -406,21 +419,19 @@ class BiasDetector(BaseClassifier):
         Returns:
             List of ClassificationResults
         """
-        # Get state
-        state = self._state_manager.get_state()
-
         # Check if initialized
-        if not state.initialized:
+        if not self._state.get("initialized", False):
             self.warm_up()
 
         # Check if still not initialized
-        if not state.pipeline:
+        pipeline = self._state.get("pipeline")
+        if not pipeline:
             raise RuntimeError(
                 "Model not initialized. You must either provide a model_path or call fit() before classification."
             )
 
         # Get model predictions for all texts
-        probas = state.pipeline.predict_proba(texts)
+        probas = pipeline.predict_proba(texts)
 
         results = []
         for i, text in enumerate(texts):
@@ -439,7 +450,7 @@ class BiasDetector(BaseClassifier):
             min_confidence = self.config.min_confidence
 
             # Get explanations from cache
-            explanations = state.cache.get("explanations", {}).get(label, {})
+            explanations = self._state.get("cache", {}).get("explanations", {}).get(label, {})
 
             metadata = {
                 "probabilities": all_probs,
@@ -457,6 +468,11 @@ class BiasDetector(BaseClassifier):
                 )
             )
 
+            # Track statistics for this label
+            stats = self._state.get("statistics", {})
+            stats[label] = stats.get(label, 0) + 1
+            self._state.update("statistics", stats)
+
         return results
 
     def get_bias_explanation(self, bias_type: str, text: str) -> Dict[str, Any]:
@@ -473,15 +489,12 @@ class BiasDetector(BaseClassifier):
         if bias_type not in self.config.labels:
             raise ValueError(f"Invalid bias type: {bias_type}. Must be one of {self.config.labels}")
 
-        # Get state
-        state = self._state_manager.get_state()
-
         # Get the classification result without explanation to avoid recursion
         result = self._classify_impl(text)
 
         # Extract the features that contributed to this bias type
         explanation = {}
-        explanations = state.cache.get("explanations", {})
+        explanations = self._state.get("cache", {}).get("explanations", {})
         if explanations and bias_type in explanations:
             explanation = explanations[bias_type]
 
@@ -502,6 +515,65 @@ class BiasDetector(BaseClassifier):
             "bias_specific_features": bias_features,
             "examples": self.config.params.get("bias_keywords", {}).get(bias_type, []),
         }
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get classifier usage statistics.
+
+        This method provides access to statistics collected during classifier operation,
+        including classification counts by label, error counts, cache information, and model details.
+
+        Returns:
+            Dictionary containing statistics
+        """
+        stats = {
+            # Classification counts by label
+            "classifications": self._state.get("statistics", {}),
+            # Number of errors encountered
+            "error_count": len(self._state.get("errors", [])),
+            # Cache information
+            "cache_enabled": self.config.cache_size > 0,
+            "cache_size": self.config.cache_size,
+            # State initialization status
+            "initialized": self._state.get("initialized", False),
+            # Model information
+            "model_path": self.config.params.get("model_path"),
+            "max_features": self.config.params.get("max_features", 3000),
+            "random_state": self.config.params.get("random_state", 42),
+        }
+
+        # Add feature information if available
+        feature_names = self._state.get("feature_names")
+        if feature_names:
+            stats["feature_count"] = feature_names.get("count", 0)
+
+        # Add cache hit ratio if caching is enabled
+        if hasattr(self, "_result_cache"):
+            stats["cache_entries"] = len(self._result_cache)
+
+        return stats
+
+    def clear_cache(self) -> None:
+        """
+        Clear any cached data in the classifier.
+
+        This method clears both the result cache and resets statistics in the state
+        but preserves the model, vectorizer, pipeline and initialization status.
+        """
+        # Clear classification result cache
+        if hasattr(self, "_result_cache"):
+            self._result_cache.clear()
+
+        # Reset statistics
+        self._state.update("statistics", {})
+
+        # Reset errors list but keep model components and initialized status
+        self._state.update("errors", [])
+
+        # Clear explanation cache but keep model, vectorizer, and pipeline
+        cache = self._state.get("cache", {})
+        cache.pop("explanations", None)
+        self._state.update("cache", cache)
 
     @classmethod
     def create_pretrained(

@@ -9,9 +9,10 @@ and utilities for managing state in a consistent way.
 
 The module provides standardized state management:
 
-1. **StateManager**: Utility class for managing component state
-2. **ComponentState**: Base class for component state
-3. **Specialized State Classes**: State classes for specific component types
+1. **State**: Immutable state container
+2. **StateManager**: Utility class for managing component state
+3. **ComponentState**: Base class for component state
+4. **Specialized State Classes**: State classes for specific component types
    - **ClassifierState**: State for classifiers
    - **RuleState**: State for rules
    - **CriticState**: State for critics
@@ -19,71 +20,10 @@ The module provides standardized state management:
    - **ChainState**: State for chains
    - **AdapterState**: State for adapters
 
-## State Creation
-
-The module provides factory functions for creating state managers:
-
-1. **create_state_manager**: Create a state manager for a specific state class
-2. **create_classifier_state**: Create a state manager for a classifier
-3. **create_rule_state**: Create a state manager for a rule
-4. **create_critic_state**: Create a state manager for a critic
-5. **create_model_state**: Create a state manager for a model provider
-6. **create_chain_state**: Create a state manager for a chain
-7. **create_adapter_state**: Create a state manager for an adapter
-
 ## Usage Examples
 
 ```python
-from sifaka.utils.state import (
-    create_classifier_state, ClassifierState, StateManager
-)
-from pydantic import BaseModel, PrivateAttr
-
-# Create a component with state management
-class MyClassifier(BaseModel):
-    # Configuration
-    name: str
-    threshold: float = 0.5
-
-    # State manager
-    _state_manager = PrivateAttr(default_factory=create_classifier_state)
-
-    def __init__(self, **data):
-        super().__init__(**data)
-        # Initialize state
-        self._state = self._state_manager.get_state()
-
-    def warm_up(self) -> None:
-        # Initialize the component
-        if not self._state.initialized:
-            self._state.model = self._load_model()
-            self._state.cache = {}
-            self._state.initialized = True
-
-    def classify(self, text: str) -> str:
-        # Use state in component methods
-        if not self._state.initialized:
-            self.warm_up()
-
-        # Check cache
-        if text in self._state.cache:
-            return self._state.cache[text]
-
-        # Use model
-        result = self._state.model.predict(text)
-
-        # Update cache
-        self._state.cache[text] = result
-
-        return result
-```
-
-## Direct State Pattern
-
-In Pydantic v2, the recommended pattern is to use a direct state attribute:
-
-```python
-from sifaka.utils.state import ClassifierState
+from sifaka.utils.state import State, StateManager, ClassifierState
 from pydantic import BaseModel, ConfigDict
 
 class MyClassifier(BaseModel):
@@ -96,329 +36,143 @@ class MyClassifier(BaseModel):
 
     def __init__(self, **data):
         super().__init__(**data)
-        # Initialize state directly
-        self._state = ClassifierState()
+        # Initialize state manager
+        self.state = StateManager()
 
     def warm_up(self) -> None:
         # Initialize the component
-        if not self._state.initialized:
-            self._state.model = self._load_model()
-            self._state.cache = {}
-            self._state.initialized = True
+        if not self.state.get("initialized"):
+            self.state.update("model", self._load_model())
+            self.state.update("cache", {})
+            self.state.update("initialized", True)
+```
+
+## State Management Pattern
+
+The recommended pattern is to use the StateManager directly:
+
+```python
+from sifaka.utils.state import StateManager
+
+class MyComponent(BaseModel):
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.state = StateManager()
+
+    def process(self, data: Any) -> Any:
+        # Update state
+        self.state.update("last_processed", data)
+
+        # Get state
+        cache = self.state.get("cache", {})
+
+        # Set metadata
+        self.state.set_metadata("component_type", self.__class__.__name__)
 ```
 """
 
-from typing import Any, Callable, Dict, Generic, Optional, Type, TypeVar, cast
-
-from pydantic import BaseModel, PrivateAttr
+from typing import Any, Dict, List, Optional, TypeVar, Generic
+from pydantic import BaseModel, Field, ConfigDict
 
 T = TypeVar("T")
 
 
-class StateManager(Generic[T]):
-    """
-    Utility class for standardized state management.
+class State(BaseModel):
+    """Immutable state container."""
 
-    This class provides a standardized way to manage state in Sifaka components.
-    It handles initialization, access, and modification of state in a consistent way.
+    model_config = ConfigDict(frozen=True, extra="forbid", validate_assignment=True)
 
-    Examples:
-        ```python
-        from sifaka.utils.state import StateManager
+    data: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
-        class MyComponent(BaseModel):
-            # Configuration
-            name: str
 
-            # State manager
-            _state_manager = PrivateAttr(default_factory=create_classifier_state)
+class StateManager:
+    """Unified state management for all components."""
 
-            def warm_up(self) -> None:
-                # Initialize the component.
-                state = self._state_manager.get_state()
-                if not state.initialized:
-                    state.model = self._load_model()
-                    state.initialized = True
-        ```
-    """
+    def __init__(self):
+        self._state: State = State()
+        self._history: List[State] = []
 
-    def __init__(
-        self,
-        initializer: Callable[[], T],
-        initialized: bool = False,
-        state: Optional[T] = None,
-    ) -> None:
-        """
-        Initialize the state manager.
+    def update(self, key: str, value: Any) -> None:
+        """Update state with history tracking."""
+        self._history.append(self._state)
+        self._state = self._state.model_copy(update={"data": {**self._state.data, key: value}})
 
-        Args:
-            initializer: Function that initializes the state
-            initialized: Whether the state is already initialized
-            state: Initial state (if already initialized)
-        """
-        self._initializer = initializer
-        self._initialized = initialized
-        self._state = state
+    def rollback(self) -> None:
+        """Rollback to previous state."""
+        if self._history:
+            self._state = self._history.pop()
 
-    def initialize(self) -> T:
-        """
-        Initialize the state if not already initialized.
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get state value."""
+        return self._state.data.get(key, default)
 
-        Returns:
-            The initialized state
-        """
-        if not self._initialized:
-            self._state = self._initializer()
-            self._initialized = True
-        return cast(T, self._state)
+    def set_metadata(self, key: str, value: Any) -> None:
+        """Set metadata value."""
+        self._state = self._state.model_copy(
+            update={"metadata": {**self._state.metadata, key: value}}
+        )
 
-    def get_state(self) -> T:
-        """
-        Get the state, initializing it if necessary.
-
-        Returns:
-            The state
-        """
-        return self.initialize()
-
-    def set_state(self, state: T) -> None:
-        """
-        Set the state.
-
-        Args:
-            state: The new state
-        """
-        self._state = state
-        self._initialized = True
-
-    def update_state(self, updater: Callable[[T], T]) -> T:
-        """
-        Update the state using an updater function.
-
-        Args:
-            updater: Function that takes the current state and returns the new state
-
-        Returns:
-            The updated state
-        """
-        state = self.get_state()
-        new_state = updater(state)
-        self.set_state(new_state)
-        return new_state
+    def get_metadata(self, key: str, default: Any = None) -> Any:
+        """Get metadata value."""
+        return self._state.metadata.get(key, default)
 
     def reset(self) -> None:
-        """Reset the state to uninitialized."""
-        self._state = None
-        self._initialized = False
-
-    @property
-    def is_initialized(self) -> bool:
-        """Check if the state is initialized."""
-        return self._initialized
+        """Reset state to initial values."""
+        self._state = State()
+        self._history.clear()
 
 
 class ComponentState(BaseModel):
-    """
-    Base class for component state.
+    """Base class for component state."""
 
-    This class provides a standardized way to represent component state.
-    It can be extended to represent the state of specific component types.
-
-    Examples:
-        ```python
-        from sifaka.utils.state import ComponentState, create_classifier_state
-
-        class ClassifierState(ComponentState):
-            model: Optional[Any] = None
-            cache: Dict[str, Any] = {}
-            feature_names: List[str] = []
-
-        class MyClassifier(BaseModel):
-            # Configuration
-            name: str
-
-            # State
-            _state_manager = PrivateAttr(default_factory=create_classifier_state)
-
-            def warm_up(self) -> None:
-                # Initialize the classifier.
-                state = self._state_manager.get_state()
-                if not state.initialized:
-                    state.model = self._load_model()
-                    state.initialized = True
-        ```
-    """
+    model_config = ConfigDict(frozen=True, extra="forbid", validate_assignment=True)
 
     initialized: bool = False
     error: Optional[str] = None
 
-    def reset(self) -> None:
-        """Reset the state to uninitialized."""
-        self.initialized = False
-        self.error = None
-
 
 class ClassifierState(ComponentState):
-    """
-    State for classifiers.
-
-    This class represents the state of a classifier component.
-    It includes common state variables used by classifiers.
-
-    Examples:
-        ```python
-        from sifaka.utils.state import create_classifier_state
-
-        class MyClassifier(BaseModel):
-            # Configuration
-            name: str
-
-            # State
-            _state_manager = PrivateAttr(default_factory=create_classifier_state)
-
-            def warm_up(self) -> None:
-                # Initialize the classifier.
-                state = self._state_manager.get_state()
-                if not state.initialized:
-                    state.model = self._load_model()
-                    state.initialized = True
-        ```
-    """
+    """State for classifiers."""
 
     model: Optional[Any] = None
     vectorizer: Optional[Any] = None
     pipeline: Optional[Any] = None
-    feature_names: Dict[str, Any] = {}
-    cache: Dict[str, Any] = {}
+    feature_names: Dict[str, Any] = Field(default_factory=dict)
+    cache: Dict[str, Any] = Field(default_factory=dict)
     dependencies_loaded: bool = False
 
 
 class RuleState(ComponentState):
-    """
-    State for rules.
-
-    This class represents the state of a rule component.
-    It includes common state variables used by rules.
-
-    Examples:
-        ```python
-        from sifaka.utils.state import create_rule_state
-
-        class MyRule(BaseModel):
-            # Configuration
-            name: str
-
-            # State
-            _state_manager = PrivateAttr(default_factory=create_rule_state)
-
-            def warm_up(self) -> None:
-                # Initialize the rule.
-                state = self._state_manager.get_state()
-                if not state.initialized:
-                    state.validator = self._create_validator()
-                    state.initialized = True
-        ```
-    """
+    """State for rules."""
 
     validator: Optional[Any] = None
     handler: Optional[Any] = None
-    cache: Dict[str, Any] = {}
-    compiled_patterns: Dict[str, Any] = {}
+    cache: Dict[str, Any] = Field(default_factory=dict)
+    compiled_patterns: Dict[str, Any] = Field(default_factory=dict)
 
 
 class CriticState(ComponentState):
-    """
-    State for critics.
-
-    This class represents the state of a critic component.
-    It includes common state variables used by critics.
-
-    Examples:
-        ```python
-        from sifaka.utils.state import create_critic_state
-
-        class MyCritic(BaseModel):
-            # Configuration
-            name: str
-
-            # State
-            _state_manager = PrivateAttr(default_factory=create_critic_state)
-
-            def warm_up(self) -> None:
-                # Initialize the critic.
-                state = self._state_manager.get_state()
-                if not state.initialized:
-                    state.model = self._load_model()
-                    state.initialized = True
-        ```
-    """
+    """State for critics."""
 
     model: Optional[Any] = None
     prompt_manager: Optional[Any] = None
     response_parser: Optional[Any] = None
     memory_manager: Optional[Any] = None
-    cache: Dict[str, Any] = {}
+    cache: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ModelState(ComponentState):
-    """
-    State for model providers.
-
-    This class represents the state of a model provider component.
-    It includes common state variables used by model providers.
-
-    Examples:
-        ```python
-        from sifaka.utils.state import create_model_state
-
-        class MyModelProvider(BaseModel):
-            # Configuration
-            name: str
-
-            # State
-            _state_manager = PrivateAttr(default_factory=create_model_state)
-
-            def warm_up(self) -> None:
-                # Initialize the model provider.
-                state = self._state_manager.get_state()
-                if not state.initialized:
-                    state.client = self._create_client()
-                    state.initialized = True
-        ```
-    """
+    """State for model providers."""
 
     client: Optional[Any] = None
     token_counter: Optional[Any] = None
     tracer: Optional[Any] = None
-    cache: Dict[str, Any] = {}
+    cache: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ChainState(ComponentState):
-    """
-    State for chains.
-
-    This class represents the state of a chain component.
-    It includes common state variables used by chains.
-
-    Examples:
-        ```python
-        from sifaka.utils.state import create_chain_state
-
-        class MyChain(BaseModel):
-            # Configuration
-            name: str
-
-            # State
-            _state_manager = PrivateAttr(default_factory=create_chain_state)
-
-            def initialize(self) -> None:
-                # Initialize the chain.
-                state = self._state_manager.get_state()
-                if not state.initialized:
-                    state.generator = self._create_generator()
-                    state.initialized = True
-        ```
-    """
+    """State for chains."""
 
     model: Optional[Any] = None
     generator: Optional[Any] = None
@@ -427,197 +181,53 @@ class ChainState(ComponentState):
     retry_strategy: Optional[Any] = None
     result_formatter: Optional[Any] = None
     critic: Optional[Any] = None
-    cache: Dict[str, Any] = {}
+    cache: Dict[str, Any] = Field(default_factory=dict)
 
 
 class AdapterState(ComponentState):
-    """
-    State for adapters.
-
-    This class represents the state of an adapter component.
-    It includes common state variables used by adapters.
-
-    Examples:
-        ```python
-        from sifaka.utils.state import create_adapter_state
-
-        class MyAdapter(BaseModel):
-            # Configuration
-            name: str
-
-            # State
-            _state_manager = PrivateAttr(default_factory=create_adapter_state)
-
-            def initialize(self) -> None:
-                # Initialize the adapter.
-                state = self._state_manager.get_state()
-                if not state.initialized:
-                    state.adaptee_cache = self._create_adaptee_cache()
-                    state.initialized = True
-        ```
-    """
+    """State for adapters."""
 
     adaptee: Optional[Any] = None
-    adaptee_cache: Dict[str, Any] = {}
-    config_cache: Dict[str, Any] = {}
-    cache: Dict[str, Any] = {}
+    adaptee_cache: Dict[str, Any] = Field(default_factory=dict)
+    config_cache: Dict[str, Any] = Field(default_factory=dict)
+    cache: Dict[str, Any] = Field(default_factory=dict)
 
 
-def create_state_manager(state_class: Type[T], **kwargs: Any) -> StateManager[T]:
-    """
-    Create a state manager for a specific state class.
-
-    This function creates a StateManager instance for a specific state class,
-    with an initializer that creates an instance of the state class with the
-    provided arguments.
-
-    Args:
-        state_class: The state class to use
-        **kwargs: Additional arguments to pass to the state class constructor
-
-    Returns:
-        A state manager for the specified state class
-
-    Examples:
-        ```python
-        from sifaka.utils.state import create_state_manager, ComponentState
-
-        # Create a custom state class
-        class MyCustomState(ComponentState):
-            model: Optional[Any] = None
-            cache: Dict[str, Any] = {}
-
-        # Create a state manager for the custom state class
-        state_manager = create_state_manager(
-            state_class=MyCustomState,
-            initialized=False
-        )
-
-        # Use the state manager
-        state = state_manager.get_state()
-        state.model = load_model()
-        state.initialized = True
-
-        # Create with initial values
-        state_manager = create_state_manager(
-            state_class=MyCustomState,
-            model=preloaded_model,
-            initialized=True
-        )
-        ```
-    """
-    return StateManager(initializer=lambda: state_class(**kwargs))
+# Factory functions for creating state managers with specific state types
+def create_state_manager(state_class: type[T], **kwargs: Any) -> StateManager:
+    """Create a state manager for a specific state class."""
+    manager = StateManager()
+    state = state_class(**kwargs)
+    for key, value in state.model_dump().items():
+        manager.update(key, value)
+    return manager
 
 
-def create_classifier_state(**kwargs: Any) -> StateManager[ClassifierState]:
-    """
-    Create a state manager for a classifier.
-
-    This function creates a StateManager instance for a ClassifierState,
-    with an initializer that creates a ClassifierState instance with the
-    provided arguments.
-
-    Args:
-        **kwargs: Additional arguments to pass to the ClassifierState constructor
-
-    Returns:
-        A state manager for a classifier
-
-    Examples:
-        ```python
-        from sifaka.utils.state import create_classifier_state
-        from pydantic import BaseModel, PrivateAttr
-
-        class MyClassifier(BaseModel):
-            # Configuration
-            name: str
-
-            # State manager
-            _state_manager = PrivateAttr(default_factory=create_classifier_state)
-
-            def warm_up(self) -> None:
-                # Initialize the classifier
-                state = self._state_manager.get_state()
-                if not state.initialized:
-                    state.model = self._load_model()
-                    state.cache = {}
-                    state.initialized = True
-
-            def classify(self, text: str) -> str:
-                # Ensure initialized
-                if not self._state_manager.is_initialized:
-                    self.warm_up()
-
-                # Get state
-                state = self._state_manager.get_state()
-
-                # Use model
-                return state.model.predict(text)
-        ```
-    """
+def create_classifier_state(**kwargs: Any) -> StateManager:
+    """Create a state manager for a classifier."""
     return create_state_manager(ClassifierState, **kwargs)
 
 
-def create_rule_state(**kwargs: Any) -> StateManager[RuleState]:
-    """
-    Create a state manager for a rule.
-
-    Args:
-        **kwargs: Additional arguments to pass to the RuleState constructor
-
-    Returns:
-        A state manager for a rule
-    """
+def create_rule_state(**kwargs: Any) -> StateManager:
+    """Create a state manager for a rule."""
     return create_state_manager(RuleState, **kwargs)
 
 
-def create_critic_state(**kwargs: Any) -> StateManager[CriticState]:
-    """
-    Create a state manager for a critic.
-
-    Args:
-        **kwargs: Additional arguments to pass to the CriticState constructor
-
-    Returns:
-        A state manager for a critic
-    """
+def create_critic_state(**kwargs: Any) -> StateManager:
+    """Create a state manager for a critic."""
     return create_state_manager(CriticState, **kwargs)
 
 
-def create_model_state(**kwargs: Any) -> StateManager[ModelState]:
-    """
-    Create a state manager for a model provider.
-
-    Args:
-        **kwargs: Additional arguments to pass to the ModelState constructor
-
-    Returns:
-        A state manager for a model provider
-    """
+def create_model_state(**kwargs: Any) -> StateManager:
+    """Create a state manager for a model provider."""
     return create_state_manager(ModelState, **kwargs)
 
 
-def create_chain_state(**kwargs: Any) -> StateManager[ChainState]:
-    """
-    Create a state manager for a chain.
-
-    Args:
-        **kwargs: Additional arguments to pass to the ChainState constructor
-
-    Returns:
-        A state manager for a chain
-    """
+def create_chain_state(**kwargs: Any) -> StateManager:
+    """Create a state manager for a chain."""
     return create_state_manager(ChainState, **kwargs)
 
 
-def create_adapter_state(**kwargs: Any) -> StateManager[AdapterState]:
-    """
-    Create a state manager for an adapter.
-
-    Args:
-        **kwargs: Additional arguments to pass to the AdapterState constructor
-
-    Returns:
-        A state manager for an adapter
-    """
+def create_adapter_state(**kwargs: Any) -> StateManager:
+    """Create a state manager for an adapter."""
     return create_state_manager(AdapterState, **kwargs)

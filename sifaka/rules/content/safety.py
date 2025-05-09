@@ -35,7 +35,7 @@ from typing import Dict, List, Optional, Any
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
-from sifaka.classifiers.toxicity import ToxicityClassifier
+from sifaka.classifiers.implementations.content.toxicity import ToxicityClassifier
 from sifaka.rules.base import (
     BaseValidator,
     Rule,

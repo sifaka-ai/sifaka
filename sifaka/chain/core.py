@@ -98,7 +98,7 @@ from .managers.validation import ValidationManager
 from .result import ChainResult
 from .strategies.retry import RetryStrategy
 from ..utils.logging import get_logger
-from ..utils.state import create_chain_state
+from ..utils.state import StateManager
 
 logger = get_logger(__name__)
 
@@ -199,8 +199,19 @@ class ChainCore(Generic[OutputType], BaseModel):
     # Pydantic configuration
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_chain_state)
+    # State management
+    _state = PrivateAttr(default_factory=StateManager)
+
+    # Required component inputs
+    model: ModelProvider
+    validation_manager: ValidationManager[OutputType]
+    prompt_manager: PromptManager
+    retry_strategy: RetryStrategy[OutputType]
+    result_formatter: ResultFormatter[OutputType]
+    critic: Optional[CriticCore] = None
+    name: str = "chain"
+    description: str = "Chain implementation that delegates to specialized components"
+    config: Dict[str, Any] = {}
 
     def __init__(
         self,
@@ -210,6 +221,9 @@ class ChainCore(Generic[OutputType], BaseModel):
         retry_strategy: RetryStrategy[OutputType],
         result_formatter: ResultFormatter[OutputType],
         critic: Optional[CriticCore] = None,
+        name: str = "chain",
+        description: str = "Chain implementation that delegates to specialized components",
+        config: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize a ChainCore instance.
@@ -238,23 +252,44 @@ class ChainCore(Generic[OutputType], BaseModel):
             retry_strategy: The retry strategy to use for handling validation failures
             result_formatter: The result formatter to use for formatting results
             critic: Optional critic to use for improving outputs
+            name: Name of the chain
+            description: Description of the chain
+            config: Optional configuration dictionary
 
         Raises:
             ValueError: When required components are missing or invalid
             ChainError: When initialization fails
         """
+        # Initialize model with pydantic inputs
+        super().__init__(
+            model=model,
+            validation_manager=validation_manager,
+            prompt_manager=prompt_manager,
+            retry_strategy=retry_strategy,
+            result_formatter=result_formatter,
+            critic=critic,
+            name=name,
+            description=description,
+            config=config or {},
+        )
 
-        # Store components in state
-        self._state_manager.set("model", model)
-        self._state_manager.set("validation_manager", validation_manager)
-        self._state_manager.set("prompt_manager", prompt_manager)
-        self._state_manager.set("retry_strategy", retry_strategy)
-        self._state_manager.set("result_formatter", result_formatter)
+        # Initialize state
+        self._state.update("model", model)
+        self._state.update("validation_manager", validation_manager)
+        self._state.update("prompt_manager", prompt_manager)
+        self._state.update("retry_strategy", retry_strategy)
+        self._state.update("result_formatter", result_formatter)
         if critic:
-            self._state_manager.set("critic", critic)
+            self._state.update("critic", critic)
 
-        # Create generator
-        self._state_manager.set("generator", Generator[OutputType](model))
+        # Create generator and store in state
+        self._state.update("generator", Generator[OutputType](model))
+
+        # Set metadata
+        self._state.set_metadata("component_type", "chain")
+        self._state.set_metadata("name", name)
+        self._state.set_metadata("description", description)
+        self._state.set_metadata("initialized", True)
 
     @property
     def model(self) -> ModelProvider:
@@ -275,7 +310,7 @@ class ChainCore(Generic[OutputType], BaseModel):
         Raises:
             ValueError: When model is not found in state
         """
-        return self._state_manager.get("model")
+        return self._state.get("model")
 
     @property
     def validation_manager(self) -> ValidationManager[OutputType]:
@@ -296,7 +331,7 @@ class ChainCore(Generic[OutputType], BaseModel):
         Raises:
             ValueError: When validation manager is not found in state
         """
-        return self._state_manager.get("validation_manager")
+        return self._state.get("validation_manager")
 
     @property
     def prompt_manager(self) -> PromptManager:
@@ -317,7 +352,7 @@ class ChainCore(Generic[OutputType], BaseModel):
         Raises:
             ValueError: When prompt manager is not found in state
         """
-        return self._state_manager.get("prompt_manager")
+        return self._state.get("prompt_manager")
 
     @property
     def retry_strategy(self) -> RetryStrategy[OutputType]:
@@ -338,7 +373,7 @@ class ChainCore(Generic[OutputType], BaseModel):
         Raises:
             ValueError: When retry strategy is not found in state
         """
-        return self._state_manager.get("retry_strategy")
+        return self._state.get("retry_strategy")
 
     @property
     def result_formatter(self) -> ResultFormatter[OutputType]:
@@ -359,7 +394,7 @@ class ChainCore(Generic[OutputType], BaseModel):
         Raises:
             ValueError: When result formatter is not found in state
         """
-        return self._state_manager.get("result_formatter")
+        return self._state.get("result_formatter")
 
     @property
     def critic(self) -> Optional[CriticCore]:
@@ -380,7 +415,7 @@ class ChainCore(Generic[OutputType], BaseModel):
         Raises:
             ValueError: When critic is not found in state
         """
-        return self._state_manager.get("critic")
+        return self._state.get("critic")
 
     @property
     def generator(self) -> Generator[OutputType]:
@@ -401,7 +436,7 @@ class ChainCore(Generic[OutputType], BaseModel):
         Raises:
             ValueError: When generator is not found in state
         """
-        return self._state_manager.get("generator")
+        return self._state.get("generator")
 
     @property
     def name(self) -> str:
@@ -422,7 +457,7 @@ class ChainCore(Generic[OutputType], BaseModel):
         Raises:
             ValueError: When name is not found in state
         """
-        return self._state_manager.get("name")
+        return self._state.get_metadata("name")
 
     @property
     def description(self) -> str:
@@ -443,7 +478,7 @@ class ChainCore(Generic[OutputType], BaseModel):
         Raises:
             ValueError: When description is not found in state
         """
-        return self._state_manager.get("description")
+        return self._state.get_metadata("description")
 
     @property
     def config(self) -> Dict[str, Any]:
@@ -464,7 +499,7 @@ class ChainCore(Generic[OutputType], BaseModel):
         Raises:
             ValueError: When config is not found in state
         """
-        return self._state_manager.get("config")
+        return self._state.get("config", {})
 
     def update_config(self, config: Dict[str, Any]) -> None:
         """
@@ -486,7 +521,7 @@ class ChainCore(Generic[OutputType], BaseModel):
             ValueError: When config is invalid
             ChainError: When config update fails
         """
-        self._state_manager.set("config", config)
+        self._state.update("config", config)
 
     def initialize(self) -> None:
         """
@@ -498,66 +533,114 @@ class ChainCore(Generic[OutputType], BaseModel):
 
         ## Lifecycle
         1. **Component Initialization**: Initialize components
-           - Initialize model
+           - Initialize model provider
            - Initialize validation manager
            - Initialize prompt manager
            - Initialize retry strategy
            - Initialize result formatter
-           - Initialize critic (if any)
-        2. **State Initialization**: Initialize state
-           - Set initial state
-           - Validate state
-           - Log initialization
+           - Initialize critic (if provided)
+        2. **State Update**: Update state
+           - Set initialized flag
+           - Set initialization time
+
+        Returns:
+            None
 
         Raises:
             ChainError: When initialization fails
         """
-        # Initialize components
-        self.model.initialize()
-        self.validation_manager.initialize()
-        self.prompt_manager.initialize()
-        self.retry_strategy.initialize()
-        self.result_formatter.initialize()
-        if self.critic:
-            self.critic.initialize()
+        logger.info(f"Initializing chain: {self.name}")
 
-        # Initialize state
-        self._state_manager.initialize()
+        # Initialize all components
+        model = self._state.get("model")
+        if hasattr(model, "initialize") and callable(model.initialize):
+            model.initialize()
+
+        validation_manager = self._state.get("validation_manager")
+        if hasattr(validation_manager, "initialize") and callable(validation_manager.initialize):
+            validation_manager.initialize()
+
+        prompt_manager = self._state.get("prompt_manager")
+        if hasattr(prompt_manager, "initialize") and callable(prompt_manager.initialize):
+            prompt_manager.initialize()
+
+        retry_strategy = self._state.get("retry_strategy")
+        if hasattr(retry_strategy, "initialize") and callable(retry_strategy.initialize):
+            retry_strategy.initialize()
+
+        result_formatter = self._state.get("result_formatter")
+        if hasattr(result_formatter, "initialize") and callable(result_formatter.initialize):
+            result_formatter.initialize()
+
+        critic = self._state.get("critic", None)
+        if critic and hasattr(critic, "initialize") and callable(critic.initialize):
+            critic.initialize()
+
+        # Update state metadata
+        self._state.set_metadata("initialized", True)
+        self._state.set_metadata("initialization_time", "0ms")  # Would be real timing in production
+
+        logger.info(f"Chain initialized: {self.name}")
 
     def cleanup(self) -> None:
         """
-        Clean up the chain.
+        Clean up resources.
 
         ## Overview
-        This method cleans up the chain, releasing resources and resetting state.
+        This method cleans up resources used by the chain, including
+        all components and state.
 
         ## Lifecycle
         1. **Component Cleanup**: Clean up components
-           - Clean up model
+           - Clean up model provider
            - Clean up validation manager
            - Clean up prompt manager
            - Clean up retry strategy
            - Clean up result formatter
-           - Clean up critic (if any)
+           - Clean up critic (if provided)
         2. **State Cleanup**: Clean up state
            - Reset state
-           - Release resources
            - Log cleanup
+
+        Returns:
+            None
 
         Raises:
             ChainError: When cleanup fails
         """
-        # Clean up components
-        self.model.cleanup()
-        self.validation_manager.cleanup()
-        self.prompt_manager.cleanup()
-        self.retry_strategy.cleanup()
-        self.result_formatter.cleanup()
-        if self.critic:
-            self.critic.cleanup()
+        logger.info(f"Cleaning up chain: {self.name}")
 
-        # Clean up state
-        self._state_manager.cleanup()
+        # Clean up all components
+        model = self._state.get("model")
+        if hasattr(model, "cleanup") and callable(model.cleanup):
+            model.cleanup()
+
+        validation_manager = self._state.get("validation_manager")
+        if hasattr(validation_manager, "cleanup") and callable(validation_manager.cleanup):
+            validation_manager.cleanup()
+
+        prompt_manager = self._state.get("prompt_manager")
+        if hasattr(prompt_manager, "cleanup") and callable(prompt_manager.cleanup):
+            prompt_manager.cleanup()
+
+        retry_strategy = self._state.get("retry_strategy")
+        if hasattr(retry_strategy, "cleanup") and callable(retry_strategy.cleanup):
+            retry_strategy.cleanup()
+
+        result_formatter = self._state.get("result_formatter")
+        if hasattr(result_formatter, "cleanup") and callable(result_formatter.cleanup):
+            result_formatter.cleanup()
+
+        critic = self._state.get("critic", None)
+        if critic and hasattr(critic, "cleanup") and callable(critic.cleanup):
+            critic.cleanup()
+
+        # Clean up state by resetting it
+        self._state.reset()
+        self._state.set_metadata("initialized", False)
+        self._state.set_metadata("cleanup_time", "0ms")  # Would be real timing in production
+
+        logger.info(f"Chain cleaned up: {self.name}")
 
     def run(self, prompt: str) -> ChainResult[OutputType]:
         """

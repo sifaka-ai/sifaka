@@ -20,7 +20,10 @@ import psutil
 from tqdm import tqdm
 
 from sifaka.classifiers.language import LanguageClassifier, LanguageConfig
-from sifaka.classifiers.profanity import ProfanityClassifier, ProfanityConfig
+from sifaka.classifiers.implementations.content.profanity import (
+    ProfanityClassifier,
+    ProfanityConfig,
+)
 from sifaka.classifiers.readability import ReadabilityClassifier, ReadabilityConfig
 from sifaka.classifiers.sentiment import SentimentClassifier, SentimentThresholds
 from sifaka.rules.content import ContentAnalyzer

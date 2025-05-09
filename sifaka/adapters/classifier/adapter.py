@@ -614,18 +614,31 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
     ## Examples
     ```python
     from sifaka.adapters.classifier import create_classifier_adapter
-    from sifaka.classifiers.safety import SentimentClassifier
+    from sifaka.classifiers.implementations.content.toxicity import create_toxicity_classifier
 
-    # Create an adapter
-    classifier = SentimentClassifier()
-    adapter = create_classifier_adapter(
+    # Create a toxicity classifier
+    classifier = create_toxicity_classifier()
+
+    # Create an adapter with basic configuration
+    adapter = ClassifierAdapter(
         classifier=classifier,
         threshold=0.8,
-        valid_labels=["positive", "neutral"]
+        valid_labels=["non_toxic"]
     )
 
-    # Use the adapter
-    result = adapter.validate("This is a great example!")
+    # Create an adapter with an extraction function
+    def extract_message(text):
+        # Extract message content from a structured format
+        if ":" in text:
+            return text.split("Content:")[1].strip()
+        return text
+
+    adapter = ClassifierAdapter(
+        classifier=classifier,
+        threshold=0.7,
+        valid_labels=["non_toxic"],
+        extraction_function=extract_message
+    )
     ```
 
     Attributes:
@@ -665,7 +678,7 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         Example:
             ```python
             from sifaka.adapters.classifier import ClassifierAdapter
-            from sifaka.classifiers.toxicity import create_toxicity_classifier
+            from sifaka.classifiers.implementations.content.toxicity import create_toxicity_classifier
 
             # Create a toxicity classifier
             classifier = create_toxicity_classifier()
@@ -806,7 +819,7 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         Example:
             ```python
             from sifaka.adapters.classifier import ClassifierAdapter
-            from sifaka.classifiers.toxicity import create_toxicity_classifier
+            from sifaka.classifiers.implementations.content.toxicity import create_toxicity_classifier
 
             # Create a classifier and adapter
             classifier = create_toxicity_classifier()

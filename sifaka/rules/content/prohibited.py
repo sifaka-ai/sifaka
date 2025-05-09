@@ -39,7 +39,7 @@ from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from sifaka.classifiers.profanity import ProfanityClassifier
+from sifaka.classifiers.implementations.content.profanity import ProfanityClassifier
 from sifaka.classifiers.base import ClassifierConfig
 from sifaka.rules.base import (
     BaseValidator,

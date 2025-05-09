@@ -35,12 +35,13 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 
 from .interfaces.rule import RuleProtocol
 from .config import RuleConfig, RulePriority
 from .result import RuleResult
 from ..utils.logging import get_logger
+from ..utils.state import StateManager, create_rule_state
 
 logger = get_logger(__name__)
 
@@ -53,11 +54,13 @@ H = TypeVar("H", bound="RuleResultHandler")  # Handler type
 
 class ValidationError(Exception):
     """Base exception for validation errors."""
+
     pass
 
 
 class ConfigurationError(Exception):
     """Base exception for configuration errors."""
+
     pass
 
 
@@ -146,6 +149,15 @@ class RuleValidator(Protocol[T_contra]):
 class BaseValidator(Generic[T]):
     """Base class for validators that implements the RuleValidator protocol."""
 
+    def __init__(self):
+        """Initialize the validator."""
+        # Initialize state manager
+        self._state = StateManager()
+        self._state.update("initialized", False)
+        self._state.update("cache", {})
+        self._state.set_metadata("component_type", "validator")
+        self._state.set_metadata("validation_count", 0)
+
     def validate(self, output: T, **kwargs: Any) -> RuleResult:
         """
         Validate the output.
@@ -163,12 +175,19 @@ class BaseValidator(Generic[T]):
         Raises:
             NotImplementedError: If not implemented by subclass
         """
+        # Track validation count
+        count = self._state.get_metadata("validation_count", 0)
+        self._state.set_metadata("validation_count", count + 1)
+
         # Handle empty text for string validators
         if isinstance(output, str):
             from sifaka.utils.text import handle_empty_text
 
             empty_result = handle_empty_text(output, component_type="rule")
             if empty_result:
+                # Track empty validations
+                empty_count = self._state.get_metadata("empty_count", 0)
+                self._state.set_metadata("empty_count", empty_count + 1)
                 return empty_result
 
         # This is a placeholder implementation that should be overridden
@@ -200,7 +219,18 @@ class BaseValidator(Generic[T]):
         Returns:
             True if this validator can validate the output
         """
-        return isinstance(output, self.validation_type)
+        # Track validation check
+        check_count = self._state.get_metadata("can_validate_checks", 0)
+        self._state.set_metadata("can_validate_checks", check_count + 1)
+
+        result = isinstance(output, self.validation_type)
+
+        # Track validation type matches
+        if result:
+            match_count = self._state.get_metadata("validation_type_matches", 0)
+            self._state.set_metadata("validation_type_matches", match_count + 1)
+
+        return result
 
     @property
     def validation_type(self) -> type:
@@ -212,6 +242,20 @@ class BaseValidator(Generic[T]):
         """
         # Default implementation returns str type
         return str
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get validation statistics for this validator.
+
+        Returns:
+            Dictionary with statistics
+        """
+        return {
+            "validation_count": self._state.get_metadata("validation_count", 0),
+            "empty_count": self._state.get_metadata("empty_count", 0),
+            "can_validate_checks": self._state.get_metadata("can_validate_checks", 0),
+            "validation_type_matches": self._state.get_metadata("validation_type_matches", 0),
+        }
 
 
 R_contra = TypeVar("R_contra", contravariant=True)
@@ -258,6 +302,9 @@ class RuleResultHandler(Protocol[R_contra]):
 class Rule(Generic[T, R, V, H], ABC):
     """Base class for all Sifaka rules."""
 
+    # Add state manager as a private attribute
+    _state = PrivateAttr(default_factory=create_rule_state)
+
     def __init__(
         self,
         name: str,
@@ -283,6 +330,15 @@ class Rule(Generic[T, R, V, H], ABC):
         self._description: Final[str] = description
         self._config: Final[RuleConfig] = config or RuleConfig()
 
+        # Initialize state
+        self._state.update("initialized", False)
+        self._state.update("cache", {})
+        self._state.update("validation_count", 0)
+        self._state.set_metadata("component_type", "rule")
+        self._state.set_metadata("name", name)
+        self._state.set_metadata("description", description)
+        self._state.set_metadata("priority", str(self._config.priority))
+
         # Set validator (either provided or create default)
         if validator is not None:
             if not isinstance(validator, RuleValidator):
@@ -290,9 +346,11 @@ class Rule(Generic[T, R, V, H], ABC):
                     f"Validator must implement RuleValidator protocol, got {type(validator)}"
                 )
             self._validator: V = validator
+            self._state.update("validator", validator)
         else:
             # Create a default validator
             self._validator = self._create_default_validator()
+            self._state.update("validator", self._validator)
 
         # Set result handler (either provided or create default)
         if result_handler is not None:
@@ -301,6 +359,7 @@ class Rule(Generic[T, R, V, H], ABC):
                     f"Result handler must implement RuleResultHandler protocol, got {type(result_handler)}"
                 )
             self._result_handler: Optional[H] = result_handler
+            self._state.update("result_handler", result_handler)
         else:
             # No default handler
             self._result_handler = None
@@ -368,6 +427,17 @@ class Rule(Generic[T, R, V, H], ABC):
         Returns:
             Validation result
         """
+        # Check if result is already cached
+        cache = self._state.get("cache", {})
+        cache_key = self._create_cache_key(text, kwargs)
+
+        if cache_key in cache and self._config.use_cache:
+            self._state.set_metadata("cache_hit", True)
+            return cache[cache_key]
+
+        # Mark as cache miss
+        self._state.set_metadata("cache_hit", False)
+
         # Delegate validation to the validator
         result = self._validator.validate(text, **kwargs)
 
@@ -381,7 +451,71 @@ class Rule(Generic[T, R, V, H], ABC):
         if self._result_handler is not None:
             self._result_handler.handle_result(result_with_metadata)
 
+        # Update validation statistics
+        validation_count = self._state.get("validation_count", 0)
+        self._state.update("validation_count", validation_count + 1)
+
+        # Update the pass/fail statistics
+        if result.passed:
+            pass_count = self._state.get_metadata("pass_count", 0)
+            self._state.set_metadata("pass_count", pass_count + 1)
+        else:
+            fail_count = self._state.get_metadata("fail_count", 0)
+            self._state.set_metadata("fail_count", fail_count + 1)
+
+        # Cache the result if caching is enabled
+        if self._config.use_cache:
+            cache[cache_key] = result_with_metadata
+            self._state.update("cache", cache)
+
         return result_with_metadata
+
+    def _create_cache_key(self, text: str, kwargs: Dict[str, Any]) -> str:
+        """
+        Create a cache key for validation results.
+
+        Args:
+            text: The text to validate
+            kwargs: Additional validation options
+
+        Returns:
+            Cache key as a string
+        """
+        # For simple cases, we can just use the text itself
+        if not kwargs:
+            return text[:100]  # Limit key size for large texts
+
+        # For more complex cases with kwargs, create a hash
+        key_parts = [text[:100]]
+        for k, v in sorted(kwargs.items()):
+            key_parts.append(f"{k}:{str(v)}")
+
+        combined = "|".join(key_parts)
+        return hashlib.md5(combined.encode()).hexdigest()
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get validation statistics for this rule.
+
+        Returns:
+            Dictionary with statistics
+        """
+        return {
+            "validation_count": self._state.get("validation_count", 0),
+            "pass_count": self._state.get_metadata("pass_count", 0),
+            "fail_count": self._state.get_metadata("fail_count", 0),
+            "cache_size": len(self._state.get("cache", {})),
+        }
+
+    def reset_statistics(self) -> None:
+        """Reset validation statistics."""
+        self._state.update("validation_count", 0)
+        self._state.set_metadata("pass_count", 0)
+        self._state.set_metadata("fail_count", 0)
+
+    def clear_cache(self) -> None:
+        """Clear the validation result cache."""
+        self._state.update("cache", {})
 
 
 class FunctionValidator(BaseValidator[T]):
@@ -495,12 +629,9 @@ def create_rule(
         A new rule instance
     """
     from .factories import create_rule as factory_create_rule
+
     return factory_create_rule(
-        name=name, 
-        validator=validator, 
-        description=description, 
-        config=config, 
-        **kwargs
+        name=name, validator=validator, description=description, config=config, **kwargs
     )
 
 

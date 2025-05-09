@@ -87,10 +87,14 @@ print(f"Memory size after clear: {memory_manager.memory_size}")
 ```
 """
 
+import time
 from collections import deque
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+
+from pydantic import PrivateAttr
 
 from ...utils.logging import get_logger
+from ...utils.state import StateManager
 
 logger = get_logger(__name__)
 
@@ -169,6 +173,9 @@ class MemoryManager:
     ```
     """
 
+    # State management
+    _state = PrivateAttr(default_factory=StateManager)
+
     def __init__(self, buffer_size: int = 5):
         """
         Initialize a MemoryManager instance.
@@ -189,8 +196,21 @@ class MemoryManager:
             ValueError: If buffer_size is invalid
             RuntimeError: If initialization fails
         """
-        self._buffer_size = max(1, buffer_size)
-        self._memory_buffer: deque = deque(maxlen=self._buffer_size)
+        buffer_size = max(1, buffer_size)
+
+        # Initialize state
+        self._state.update("buffer_size", buffer_size)
+        self._state.update("memory_buffer", list())
+        self._state.update("initialized", True)
+
+        # Initialize metadata
+        self._state.set_metadata("component_type", "memory_manager")
+        self._state.set_metadata("creation_time", time.time())
+        self._state.set_metadata("add_count", 0)
+        self._state.set_metadata("retrieve_count", 0)
+        self._state.set_metadata("clear_count", 0)
+        self._state.set_metadata("overflow_count", 0)
+        self._state.set_metadata("error_count", 0)
 
     def add_to_memory(self, item: str) -> None:
         """
@@ -229,8 +249,43 @@ class MemoryManager:
             ```
         """
         if not item or not isinstance(item, str):
+            # Track error
+            error_count = self._state.get_metadata("error_count", 0)
+            self._state.set_metadata("error_count", error_count + 1)
             raise ValueError("Invalid memory item: must be non-empty string")
-        self._memory_buffer.append(item)
+
+        # Track add count
+        add_count = self._state.get_metadata("add_count", 0)
+        self._state.set_metadata("add_count", add_count + 1)
+
+        try:
+            # Get current buffer and buffer size
+            memory_buffer = self._state.get("memory_buffer", list())
+            buffer_size = self._state.get("buffer_size", 5)
+
+            # Add the item to the buffer
+            memory_buffer.append(item)
+
+            # Handle overflow - if buffer exceeds size limit, remove oldest items
+            if len(memory_buffer) > buffer_size:
+                # Track overflow
+                overflow_count = self._state.get_metadata("overflow_count", 0)
+                self._state.set_metadata("overflow_count", overflow_count + 1)
+
+                # Remove oldest items
+                memory_buffer = memory_buffer[-buffer_size:]
+
+            # Update the buffer in state
+            self._state.update("memory_buffer", memory_buffer)
+
+        except Exception as e:
+            # Track error
+            error_count = self._state.get_metadata("error_count", 0)
+            self._state.set_metadata("error_count", error_count + 1)
+
+            # Log and raise
+            logger.error(f"Failed to add item to memory: {e}")
+            raise RuntimeError(f"Failed to add item to memory: {e}")
 
     def get_memory(self, max_items: Optional[int] = None) -> List[str]:
         """
@@ -277,11 +332,35 @@ class MemoryManager:
             ```
         """
         if max_items is not None and max_items < 0:
+            # Track error
+            error_count = self._state.get_metadata("error_count", 0)
+            self._state.set_metadata("error_count", error_count + 1)
             raise ValueError("max_items must be non-negative")
-        items = list(self._memory_buffer)
-        if max_items is not None:
-            items = items[-max_items:]
-        return items
+
+        # Track retrieve count
+        retrieve_count = self._state.get_metadata("retrieve_count", 0)
+        self._state.set_metadata("retrieve_count", retrieve_count + 1)
+
+        try:
+            # Get memory buffer
+            memory_buffer = self._state.get("memory_buffer", list())
+
+            # Return all or recent items based on max_items
+            if max_items is not None:
+                items = memory_buffer[-max_items:] if memory_buffer else []
+            else:
+                items = list(memory_buffer)
+
+            return items
+
+        except Exception as e:
+            # Track error
+            error_count = self._state.get_metadata("error_count", 0)
+            self._state.set_metadata("error_count", error_count + 1)
+
+            # Log and raise
+            logger.error(f"Failed to retrieve items from memory: {e}")
+            raise RuntimeError(f"Failed to retrieve items from memory: {e}")
 
     def clear_memory(self) -> None:
         """
@@ -312,7 +391,22 @@ class MemoryManager:
             print(memory_manager.memory_size)  # 0
             ```
         """
-        self._memory_buffer.clear()
+        # Track clear count
+        clear_count = self._state.get_metadata("clear_count", 0)
+        self._state.set_metadata("clear_count", clear_count + 1)
+
+        try:
+            # Clear the memory buffer
+            self._state.update("memory_buffer", list())
+
+        except Exception as e:
+            # Track error
+            error_count = self._state.get_metadata("error_count", 0)
+            self._state.set_metadata("error_count", error_count + 1)
+
+            # Log and raise
+            logger.error(f"Failed to clear memory: {e}")
+            raise RuntimeError(f"Failed to clear memory: {e}")
 
     @property
     def memory_size(self) -> int:
@@ -345,4 +439,30 @@ class MemoryManager:
             print(memory_manager.memory_size)  # 0
             ```
         """
-        return len(self._memory_buffer)
+        try:
+            # Get the memory buffer and return its length
+            memory_buffer = self._state.get("memory_buffer", list())
+            return len(memory_buffer)
+
+        except Exception as e:
+            # Log error but don't raise (property accessor should be safe)
+            logger.error(f"Failed to get memory size: {e}")
+            return 0
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get statistics about memory usage.
+
+        Returns:
+            Dictionary with memory statistics
+        """
+        return {
+            "buffer_size": self._state.get("buffer_size", 0),
+            "memory_size": self.memory_size,
+            "add_count": self._state.get_metadata("add_count", 0),
+            "retrieve_count": self._state.get_metadata("retrieve_count", 0),
+            "clear_count": self._state.get_metadata("clear_count", 0),
+            "overflow_count": self._state.get_metadata("overflow_count", 0),
+            "error_count": self._state.get_metadata("error_count", 0),
+            "uptime": time.time() - self._state.get_metadata("creation_time", time.time()),
+        }

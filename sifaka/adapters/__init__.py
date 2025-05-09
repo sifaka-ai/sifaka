@@ -16,7 +16,7 @@ pattern to enable loose coupling between Sifaka and external systems.
 ## Usage Examples
 ```python
 from sifaka.adapters import ClassifierAdapter, create_classifier_rule
-from sifaka.classifiers.toxicity import ToxicityClassifier
+from sifaka.classifiers.implementations.content.toxicity import ToxicityClassifier
 
 # Create a classifier
 classifier = ToxicityClassifier()

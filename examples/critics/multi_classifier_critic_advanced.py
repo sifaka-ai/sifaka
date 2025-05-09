@@ -32,9 +32,12 @@ from sifaka.classifiers import (
     ProfanityClassifier,
     SpamClassifier,
     TopicClassifier,
-    ToxicityClassifier,
     ClassifierConfig,
     NERClassifier,
+)
+from sifaka.classifiers.implementations.content.toxicity import (
+    ToxicityClassifier,
+    create_toxicity_classifier,
 )
 from sifaka.classifiers.base import (
     BaseClassifier,
@@ -1453,7 +1456,8 @@ def create_all_classifier_rules(openai_model=None) -> List[Rule]:
     # 10. ToxicityClassifier - ensure content is not toxic (NEW)
     try:
         # Use the standardized factory function
-        from sifaka.classifiers.toxicity import create_toxicity_classifier
+        # Import already included above
+        # from sifaka.classifiers.toxicity import create_toxicity_classifier
 
         toxicity_classifier = create_toxicity_classifier(
             name="toxicity_classifier",
