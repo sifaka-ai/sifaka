@@ -22,7 +22,7 @@ from sifaka.rules.formatting.length import create_length_rule
 from sifaka.rules.content.prohibited import create_prohibited_content_rule
 from sifaka.rules.formatting.style import create_style_rule, CapitalizationStyle
 from sifaka.chain.managers.validation import ValidationManager
-from sifaka.validation import ValidationResult
+from sifaka.validation.models import ValidationResult
 
 # Configure logging
 logging.basicConfig(

@@ -44,7 +44,7 @@ from sifaka.models.openai import OpenAIProvider
 from sifaka.models.anthropic import AnthropicProvider
 from sifaka.rules import Rule, RuleConfig, RuleResult
 from sifaka.rules.base import BaseValidator
-from sifaka.validation import ValidationResult
+from sifaka.validation.models import ValidationResult
 
 # Configure logging
 logging.basicConfig(

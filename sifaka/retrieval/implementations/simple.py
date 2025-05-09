@@ -36,7 +36,7 @@ demonstration purposes.
 ## Examples
 
 ```python
-from sifaka.retrieval import SimpleRetriever
+from sifaka.retrieval.implementations import SimpleRetriever
 
 # Create a simple retriever with a document collection
 documents = {
@@ -47,17 +47,20 @@ retriever = SimpleRetriever(documents=documents)
 
 # Retrieve information based on a query
 result = retriever.retrieve("How does quantum computing work?")
-print(result)
+print(result.get_formatted_results())
 ```
 """
 
-import re
-from typing import Dict, List, Optional, Set, Union
+import time
+from typing import Any, Dict, List, Optional, Set, Union
 
-from .base import Retriever
+from ..core import RetrieverCore
+from ..config import RetrieverConfig
+from ..result import StringRetrievalResult
+from ..strategies.ranking import SimpleRankingStrategy
 
 
-class SimpleRetriever(Retriever):
+class SimpleRetriever(RetrieverCore):
     """
     A simple retriever implementation for in-memory document collections.
 
@@ -97,7 +100,7 @@ class SimpleRetriever(Retriever):
         self,
         documents: Optional[Dict[str, str]] = None,
         corpus: Optional[str] = None,
-        max_results: int = 3,
+        config: Optional[RetrieverConfig] = None,
     ):
         """
         Initialize the simple retriever.
@@ -105,14 +108,17 @@ class SimpleRetriever(Retriever):
         Args:
             documents: Dictionary mapping document keys to content
             corpus: Path to a text file containing documents (one per line)
-            max_results: Maximum number of results to return
+            config: The retriever configuration
 
         Raises:
             ValueError: If both documents and corpus are None
             FileNotFoundError: If corpus file doesn't exist
         """
-        self.max_results = max_results
+        super().__init__(config)
+        self._name = "SimpleRetriever"
+        self._description = "Simple retriever for in-memory document collections"
         self.documents = {}
+        self.ranking_strategy = SimpleRankingStrategy(self.config.ranking)
 
         if documents is not None:
             self.documents = documents
@@ -129,7 +135,7 @@ class SimpleRetriever(Retriever):
             import warnings
             warnings.warn("Initializing SimpleRetriever with empty document collection")
 
-    def retrieve(self, query: str) -> str:
+    def retrieve(self, query: str, **kwargs: Any) -> StringRetrievalResult:
         """
         Retrieve information based on a query.
 
@@ -138,108 +144,49 @@ class SimpleRetriever(Retriever):
 
         Args:
             query: The query to retrieve information for
+            **kwargs: Additional retrieval parameters
 
         Returns:
-            Retrieved information as a string
+            A StringRetrievalResult object
 
         Raises:
             ValueError: If query is empty
             RuntimeError: If retrieval fails
         """
+        start_time = time.time()
+
         if not query or not isinstance(query, str):
             raise ValueError("Query must be a non-empty string")
 
         if not self.documents:
-            return "No documents available for retrieval."
+            return self.create_result(
+                query=query,
+                processed_query=query,
+                documents=[],
+                execution_time_ms=0,
+            )
 
-        # Extract keywords from query
-        keywords = self._extract_keywords(query)
-        if not keywords:
-            return "Could not extract meaningful keywords from query."
+        # Process the query
+        processed_query = self.process_query(query)
 
-        # Find relevant documents
-        relevant_docs = self._find_relevant_documents(keywords)
-        if not relevant_docs:
-            return "No relevant documents found for the query."
+        # Convert documents to the format expected by the ranking strategy
+        doc_list = [
+            {
+                "content": content,
+                "metadata": {"document_id": doc_id},
+            }
+            for doc_id, content in self.documents.items()
+        ]
 
-        # Format results
-        return self._format_results(relevant_docs)
+        # Rank the documents
+        ranked_docs = self.ranking_strategy.rank(processed_query, doc_list)
 
-    def _extract_keywords(self, query: str) -> Set[str]:
-        """
-        Extract keywords from a query.
+        end_time = time.time()
+        execution_time_ms = (end_time - start_time) * 1000
 
-        Args:
-            query: The query to extract keywords from
-
-        Returns:
-            Set of keywords
-        """
-        # Remove punctuation and convert to lowercase
-        query = re.sub(r'[^\w\s]', '', query.lower())
-        
-        # Split into words
-        words = query.split()
-        
-        # Remove common stop words
-        stop_words = {
-            "a", "an", "the", "and", "or", "but", "is", "are", "was", "were",
-            "be", "been", "being", "in", "on", "at", "to", "for", "with",
-            "about", "against", "between", "into", "through", "during",
-            "before", "after", "above", "below", "from", "up", "down", "of",
-            "off", "over", "under", "again", "further", "then", "once", "here",
-            "there", "when", "where", "why", "how", "all", "any", "both",
-            "each", "few", "more", "most", "other", "some", "such", "no",
-            "nor", "not", "only", "own", "same", "so", "than", "too", "very",
-            "s", "t", "can", "will", "just", "don", "should", "now"
-        }
-        
-        return {word for word in words if word not in stop_words}
-
-    def _find_relevant_documents(self, keywords: Set[str]) -> List[str]:
-        """
-        Find relevant documents based on keywords.
-
-        Args:
-            keywords: Set of keywords to match
-
-        Returns:
-            List of relevant document contents
-        """
-        # Calculate relevance scores
-        scores = {}
-        for doc_id, content in self.documents.items():
-            score = 0
-            content_lower = content.lower()
-            for keyword in keywords:
-                if keyword.lower() in content_lower:
-                    score += 1
-            if score > 0:
-                scores[doc_id] = score
-        
-        # Sort by relevance score
-        sorted_docs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        
-        # Get top results
-        top_docs = [self.documents[doc_id] for doc_id, _ in sorted_docs[:self.max_results]]
-        
-        return top_docs
-
-    def _format_results(self, documents: List[str]) -> str:
-        """
-        Format retrieval results.
-
-        Args:
-            documents: List of document contents
-
-        Returns:
-            Formatted results as a string
-        """
-        if not documents:
-            return ""
-        
-        result = "Retrieved information:\n\n"
-        for i, doc in enumerate(documents, 1):
-            result += f"Document {i}:\n{doc}\n\n"
-        
-        return result.strip()
+        return self.create_result(
+            query=query,
+            processed_query=processed_query,
+            documents=ranked_docs,
+            execution_time_ms=execution_time_ms,
+        )

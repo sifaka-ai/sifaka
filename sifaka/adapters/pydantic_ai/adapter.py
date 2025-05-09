@@ -23,7 +23,8 @@ except ImportError:
 # Import Sifaka components
 from sifaka.critics.base import BaseCritic
 from sifaka.rules.base import Rule, RuleResult
-from sifaka.validation import ValidationResult, Validator
+from sifaka.validation.models import ValidationResult
+from sifaka.validation.validator import Validator, ValidatorConfig
 
 # Type variables
 T = TypeVar("T", bound=BaseModel)
@@ -114,7 +115,15 @@ class SifakaPydanticAdapter:
         self.critic = critic
         self.output_model = output_model
         self.config = config or SifakaPydanticConfig()
-        self.validator = Validator(self.rules)
+
+        # Create validator config
+        validator_config = ValidatorConfig(
+            prioritize_by_cost=self.config.prioritize_by_cost,
+            fail_fast=False,  # Don't fail fast for PydanticAI integration
+        )
+
+        # Create validator with config
+        self.validator = Validator(rules=self.rules, config=validator_config)
 
     def __call__(self, ctx: RunContext, output: T) -> T:
         """

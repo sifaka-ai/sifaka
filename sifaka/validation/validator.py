@@ -1,80 +1,46 @@
 """
-Validation module for Sifaka.
+Validator module for Sifaka.
 
-This module provides components for validating outputs against rules. It includes:
-- ValidationResult: A generic container for validation results
-- Validator: A class that applies validation rules to outputs
-
-The validation process follows these steps:
-1. Initialize a Validator with a set of rules
-2. Pass an output to the validate() method
-3. Receive a ValidationResult containing:
-   - The original output
-   - Results for each rule
-   - Overall validation status
-4. Extract error messages if needed
-
-Example:
-    ```python
-    from sifaka.validation import Validator
-    from sifaka.rules import LengthRule, ContentRule
-
-    # Create rules
-    rules = [
-        LengthRule(min_length=10),
-        ContentRule(forbidden_words=["bad", "inappropriate"])
-    ]
-
-    # Create validator
-    validator = Validator(rules)
-
-    # Validate output
-    result = validator.validate("This is a test output")
-    if not result.all_passed:
-        errors = validator.get_error_messages(result)
-        print(f"Validation failed: {errors}")
-    ```
+This module provides the Validator class for validating outputs against rules.
+It handles rule execution, result aggregation, and error message extraction.
 """
 
-from dataclasses import dataclass
-from typing import List, Optional, TypeVar, Generic
+from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 
-from .rules import Rule, RuleResult
+from pydantic import BaseModel, Field, ConfigDict
 
-OutputType = TypeVar("OutputType")
+from ..rules.base import Rule
+from .models import ValidationResult
+
+# Define a type variable for the output type
+T = TypeVar("T")
 
 
-@dataclass
-class ValidationResult(Generic[OutputType]):
+class ValidatorConfig(BaseModel):
     """
-    Result from validation, including the output and validation details.
+    Configuration for the Validator.
 
-    This class serves as a container for validation results, providing:
-    - The original output being validated
-    - Results from each validation rule
-    - Overall validation status
-
-    Attributes:
-        output: The output that was validated
-        rule_results: List of results from each validation rule
-        all_passed: Boolean indicating if all rules passed
-
-    Example:
-        ```python
-        result = ValidationResult(
-            output="Test output",
-            rule_results=[RuleResult(passed=True)],
-            all_passed=True
-        )
-        ```
+    This class provides configuration options for the Validator,
+    controlling how rules are executed and results are processed.
     """
 
-    output: OutputType
-    rule_results: List[RuleResult]
-    all_passed: bool
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    prioritize_by_cost: bool = Field(
+        default=False,
+        description="Whether to prioritize rules by cost (lowest first)",
+    )
+    fail_fast: bool = Field(
+        default=False,
+        description="Whether to stop validation after the first failure",
+    )
+    params: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Validator-specific configuration parameters",
+    )
 
 
-class Validator(Generic[OutputType]):
+class Validator(Generic[T]):
     """
     Validator class that handles validation of outputs against rules.
 
@@ -88,22 +54,37 @@ class Validator(Generic[OutputType]):
     2. Validate outputs using validate()
     3. Extract error messages if needed using get_error_messages()
 
-    Example:
+    Examples:
         ```python
-        validator = Validator([LengthRule(min_length=10)])
+        from sifaka.validation.validator import Validator
+        from sifaka.rules import create_length_rule
+
+        # Create rules
+        rules = [create_length_rule(min_chars=10)]
+
+        # Create validator
+        validator = Validator(rules)
+
+        # Validate output
         result = validator.validate("Short")
         if not result.all_passed:
             errors = validator.get_error_messages(result)
+            print(f"Validation failed: {errors}")
         ```
     """
 
-    def __init__(self, rules: List[Rule]):
+    def __init__(
+        self, 
+        rules: List[Rule],
+        config: Optional[ValidatorConfig] = None
+    ):
         """
         Initialize a Validator instance.
 
         Args:
             rules: List of validation rules to apply. Each rule must implement
                   the Rule protocol and provide a validate() method.
+            config: Configuration for the validator
 
         Raises:
             ValueError: If rules list is empty
@@ -111,9 +92,18 @@ class Validator(Generic[OutputType]):
         """
         if not rules:
             raise ValueError("Rules list cannot be empty")
+        
         self.rules = rules
+        self.config = config or ValidatorConfig()
+        
+        # Sort rules by cost if prioritization is enabled
+        if self.config.prioritize_by_cost:
+            self.rules = sorted(
+                self.rules, 
+                key=lambda rule: getattr(rule.config, "cost", float("inf"))
+            )
 
-    def validate(self, output: OutputType) -> ValidationResult[OutputType]:
+    def validate(self, output: T) -> ValidationResult[T]:
         """
         Validate the output against all rules.
 
@@ -134,31 +124,35 @@ class Validator(Generic[OutputType]):
             - Overall validation status
 
         Raises:
-            ValueError: If output is None or empty
+            ValueError: If output is None
             RuntimeError: If any rule fails during validation
         """
         if output is None:
             raise ValueError("Output cannot be None")
 
         rule_results = []
-        all_passed = True
+        metadata = {"validator_config": self.config.model_dump()}
 
         for rule in self.rules:
             try:
                 result = rule.validate(output)
                 rule_results.append(result)
-                if not result.passed:
-                    all_passed = False
+                
+                # If fail_fast is enabled and a rule failed, stop validation
+                if self.config.fail_fast and not result.passed:
+                    metadata["fail_fast_triggered"] = True
+                    break
+                    
             except Exception as e:
                 raise RuntimeError(f"Rule validation failed: {str(e)}")
 
         return ValidationResult(
             output=output,
             rule_results=rule_results,
-            all_passed=all_passed
+            metadata=metadata
         )
 
-    def get_error_messages(self, validation_result: ValidationResult[OutputType]) -> List[str]:
+    def get_error_messages(self, validation_result: ValidationResult[T]) -> List[str]:
         """
         Get error messages from failed validations.
 

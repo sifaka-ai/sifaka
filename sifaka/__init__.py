@@ -5,6 +5,7 @@ Sifaka: A framework for building reliable and reflective AI systems.
 # Apply compatibility patches early
 try:
     from sifaka.utils.patches import apply_all_patches
+
     apply_all_patches()
 except ImportError:
     # If patches are not available, continue without them
@@ -15,7 +16,7 @@ from sifaka.critics import CriticCore, create_prompt_critic, create_reflexion_cr
 from sifaka.generation import Generator
 from sifaka.improvement import Improver, ImprovementResult
 from sifaka.models import AnthropicProvider, OpenAIProvider
-from sifaka.validation import Validator, ValidationResult
+from sifaka.validation import Validator, ValidationResult, ValidatorConfig
 
 from sifaka.rules import (
     LengthRule,
@@ -39,6 +40,7 @@ __all__ = [
     "ImprovementResult",
     "Validator",
     "ValidationResult",
+    "ValidatorConfig",
     "Rule",
     "RuleConfig",
     # Model providers

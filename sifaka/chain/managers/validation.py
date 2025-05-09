@@ -5,11 +5,12 @@ This module provides the ValidationManager class which is responsible for
 validating outputs against rules.
 """
 
-from typing import Any, Generic, List, TypeVar
+from typing import Any, Generic, List, Optional, TypeVar
 
 from ..interfaces.manager import ValidationManagerProtocol
 from ...rules import Rule
-from ...validation import ValidationResult, Validator
+from ...validation.models import ValidationResult
+from ...validation.validator import Validator, ValidatorConfig
 from ...utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -27,22 +28,32 @@ class ValidationManager(
     managing rule-related functionality. It implements the ValidationManagerProtocol interface.
     """
 
-    def __init__(self, rules: List[Rule], prioritize_by_cost: bool = False):
+    def __init__(
+        self, rules: List[Rule], prioritize_by_cost: bool = False, fail_fast: bool = False
+    ):
         """
         Initialize a ValidationManager instance.
 
         Args:
             rules: The rules to validate against
             prioritize_by_cost: If True, rules will be sorted by cost (lowest first)
+            fail_fast: If True, validation will stop after the first failure
         """
         self._rules = rules
 
-        # Sort rules by cost if prioritization is enabled
-        if prioritize_by_cost:
-            self._rules = sorted(rules, key=lambda rule: getattr(rule.config, "cost", float("inf")))
-            logger.info(f"Sorted {len(rules)} rules by cost")
+        # Create validator config
+        validator_config = ValidatorConfig(
+            prioritize_by_cost=prioritize_by_cost, fail_fast=fail_fast
+        )
 
-        self._validator = Validator[OutputType](self._rules)
+        # Log configuration
+        if prioritize_by_cost:
+            logger.info(f"Validation will prioritize rules by cost (lowest first)")
+        if fail_fast:
+            logger.info(f"Validation will stop after the first failure")
+
+        # Create validator with config
+        self._validator = Validator[OutputType](rules=self._rules, config=validator_config)
 
     @property
     def rules(self) -> List[Rule]:
@@ -103,8 +114,15 @@ class ValidationManager(
         if not isinstance(rule, Rule):
             raise ValueError(f"Expected Rule instance, got {type(rule)}")
 
+        # Get current validator config
+        current_config = self._validator.config
+
+        # Add rule to the list
         self._rules.append(rule)
-        self._validator = Validator[OutputType](self._rules)
+
+        # Recreate validator with the same config
+        self._validator = Validator[OutputType](rules=self._rules, config=current_config)
+
         logger.info(f"Added rule {rule.name if hasattr(rule, 'name') else str(rule)}")
 
     def remove_rule(self, rule_name: str) -> None:
@@ -119,10 +137,17 @@ class ValidationManager(
         Raises:
             ValueError: If the rule is not found
         """
+        # Get current validator config
+        current_config = self._validator.config
+
+        # Find and remove the rule
         for i, rule in enumerate(self._rules):
             if getattr(rule, "name", str(rule)) == rule_name:
                 self._rules.pop(i)
-                self._validator = Validator[OutputType](self._rules)
+
+                # Recreate validator with the same config
+                self._validator = Validator[OutputType](rules=self._rules, config=current_config)
+
                 logger.info(f"Removed rule {rule_name}")
                 return
 
