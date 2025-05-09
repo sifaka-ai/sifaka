@@ -2,20 +2,14 @@
 Formatting rules for Sifaka.
 
 This package provides rules for validating text formatting:
-- Length: Length validation for text
-- Style: Style validation for text
+- length.py: Length validation for text
+- structure.py: Structure validation for text
 """
 
-from .length import (
-    LengthRule,
-    LengthConfig,
-    DefaultLengthValidator,
-    create_length_rule,
-)
+from .length import create_length_rule
+from .structure import create_structure_rule
 
 __all__ = [
-    "LengthRule",
-    "LengthConfig",
-    "DefaultLengthValidator",
     "create_length_rule",
+    "create_structure_rule",
 ]

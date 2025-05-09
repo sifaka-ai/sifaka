@@ -131,7 +131,7 @@ def create_pydantic_adapter_with_critic(
         from pydantic import BaseModel
         from sifaka.adapters.pydantic_ai import create_pydantic_adapter_with_critic
         from sifaka.rules.formatting.length import create_length_rule
-        from sifaka.models.openai import create_openai_provider
+        from sifaka.models.factories import create_openai_provider
 
         # Define a Pydantic model
         class Response(BaseModel):

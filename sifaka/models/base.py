@@ -36,7 +36,7 @@ The model system implements several error handling patterns:
 
 ```python
 from sifaka.models import create_model_provider, ModelConfig
-from sifaka.models.anthropic import AnthropicProvider
+from sifaka.models.providers.anthropic import AnthropicProvider
 
 # Basic usage with factory function
 provider = create_model_provider(
@@ -560,7 +560,7 @@ class ModelProvider(ABC, Generic[C]):
         Basic initialization with just a model name:
 
         ```python
-        from sifaka.models.openai import OpenAIProvider
+        from sifaka.models.providers.openai import OpenAIProvider
 
         # Create a provider with just a model name
         # Default configuration and dependencies will be created when needed
@@ -571,7 +571,7 @@ class ModelProvider(ABC, Generic[C]):
 
         ```python
         from sifaka.models.base import ModelConfig
-        from sifaka.models.anthropic import AnthropicProvider
+        from sifaka.models.providers.anthropic import AnthropicProvider
 
         # Create a custom configuration
         config = ModelConfig().with_temperature(0.9).with_max_tokens(2000)
@@ -584,7 +584,7 @@ class ModelProvider(ABC, Generic[C]):
 
         ```python
         from sifaka.models.base import APIClient, TokenCounter
-        from sifaka.models.openai import OpenAIProvider
+        from sifaka.models.providers.openai import OpenAIProvider
         from sifaka.utils.tracing import Tracer
 
         # Create custom dependencies
@@ -1216,8 +1216,8 @@ def create_model_provider(
 
     Examples:
         ```python
-        from sifaka.models.anthropic import AnthropicProvider
-        from sifaka.models.openai import OpenAIProvider
+        from sifaka.models.providers.anthropic import AnthropicProvider
+        from sifaka.models.providers.openai import OpenAIProvider
 
         # Create an Anthropic provider
         provider = create_model_provider(

@@ -13,61 +13,17 @@ communication, token counting, and response processing.
 - **OpenAIProvider**: Main provider class for OpenAI models
 - **OpenAIClient**: API client implementation for OpenAI
 - **OpenAITokenCounter**: Token counter implementation for OpenAI models
-- **create_openai_provider**: Factory function for creating OpenAI providers
-
-## Usage Examples
-```python
-from sifaka.models.openai import create_openai_provider
-import os
-
-# Create a provider with default settings
-provider = create_openai_provider(api_key=os.environ.get("OPENAI_API_KEY"))
-
-# Create a provider with custom settings
-provider = create_openai_provider(
-    model_name="gpt-4",
-    temperature=0.8,
-    max_tokens=2000,
-    api_key=os.environ.get("OPENAI_API_KEY")
-)
-
-# Generate text
-response = provider.generate("Explain quantum computing in simple terms.")
-print(response)
-
-# Count tokens
-token_count = provider.count_tokens("How many tokens is this?")
-print(f"Token count: {token_count}")
-```
-
-## Error Handling
-The module implements several error handling strategies:
-- Validates API key and configuration parameters
-- Catches and logs OpenAI API errors
-- Provides informative error messages for common issues
-- Implements retry logic for transient errors
-- Gracefully handles rate limiting and quota errors
-
-## Configuration
-The provider supports standard ModelConfig options plus OpenAI-specific parameters:
-- **model_name**: Name of the OpenAI model to use (e.g., "gpt-4", "gpt-3.5-turbo")
-- **temperature**: Controls randomness (0-1)
-- **max_tokens**: Maximum tokens to generate
-- **api_key**: OpenAI API key
-- **params**: Additional OpenAI-specific parameters (frequency_penalty, presence_penalty, etc.)
 """
 
-from typing import Optional, Any, Dict, ClassVar, Union
+from typing import Optional, Any, Dict, ClassVar
 
 import openai
 import tiktoken
 from openai import OpenAI
-from pydantic import PrivateAttr
 
 from sifaka.models.base import APIClient, ModelConfig, TokenCounter
 from sifaka.models.core import ModelProviderCore
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import create_model_state, ModelState, StateManager
 
 logger = get_logger(__name__)
 
@@ -135,67 +91,6 @@ class OpenAIProvider(ModelProviderCore):
     3. **Token Counter Creation**: Token counter is created on first use
     4. **Generation**: Text is generated using the model
     5. **Token Counting**: Tokens are counted for input text
-
-    ## Error Handling
-    The provider implements comprehensive error handling:
-    - Validates input parameters during initialization
-    - Catches and logs OpenAI API errors during generation
-    - Handles token counting errors
-    - Provides informative error messages for debugging
-    - Implements retry logic for transient errors
-    - Gracefully handles rate limiting and quota errors
-
-    ## Examples
-    ```python
-    from sifaka.models.openai import OpenAIProvider, create_openai_provider
-    from sifaka.models.base import ModelConfig
-    import os
-
-    # Direct instantiation
-    provider = OpenAIProvider(
-        model_name="gpt-4",
-        config=ModelConfig(
-            api_key=os.environ.get("OPENAI_API_KEY"),
-            temperature=0.7,
-            max_tokens=1000
-        )
-    )
-
-    # Using factory function (recommended)
-    provider = create_openai_provider(
-        model_name="gpt-4",
-        api_key=os.environ.get("OPENAI_API_KEY"),
-        temperature=0.7,
-        max_tokens=1000
-    )
-
-    # Generate text
-    response = provider.generate("Explain quantum computing in simple terms.")
-    print(response)
-
-    # With parameter overrides
-    response = provider.generate(
-        "Write a creative story.",
-        temperature=0.9,
-        max_tokens=2000
-    )
-
-    # Count tokens
-    token_count = provider.count_tokens("How many tokens is this?")
-    print(f"Token count: {token_count}")
-
-    # Error handling
-    try:
-        response = provider.generate("Explain quantum computing")
-    except ValueError as e:
-        # Handle input validation errors
-        print(f"Input error: {e}")
-    except RuntimeError as e:
-        # Handle API and generation errors
-        print(f"Generation failed: {e}")
-        # Use fallback strategy
-        response = "I couldn't generate a response."
-    ```
     """
 
     # Class constants
@@ -254,55 +149,3 @@ class OpenAIProvider(ModelProviderCore):
             The generated text
         """
         return self.generate(prompt)
-
-
-def create_openai_provider(
-    model_name: str = OpenAIProvider.DEFAULT_MODEL,
-    temperature: float = 0.7,
-    max_tokens: int = 1000,
-    api_key: Optional[str] = None,
-    trace_enabled: bool = True,
-    config: Optional[Union[Dict[str, Any], ModelConfig]] = None,
-    api_client: Optional[APIClient] = None,
-    token_counter: Optional[TokenCounter] = None,
-    **kwargs: Any,
-) -> OpenAIProvider:
-    """
-    Create an OpenAI model provider.
-
-    This factory function creates an OpenAIProvider with the specified
-    configuration options.
-
-    Args:
-        model_name: Name of the model to use (e.g., "gpt-4-turbo", "gpt-3.5-turbo")
-        temperature: Temperature for generation (0-1)
-        max_tokens: Maximum number of tokens to generate
-        api_key: OpenAI API key
-        trace_enabled: Whether to enable tracing
-        config: Optional model configuration
-        api_client: Optional API client to use
-        token_counter: Optional token counter to use
-        **kwargs: Additional configuration options
-
-    Returns:
-        An initialized OpenAIProvider instance
-    """
-    # Create configuration
-    if config is None:
-        config = ModelConfig(
-            temperature=temperature,
-            max_tokens=max_tokens,
-            api_key=api_key,
-            trace_enabled=trace_enabled,
-            **kwargs,
-        )
-    elif isinstance(config, dict):
-        config = ModelConfig(**{**config, **kwargs})
-
-    # Create provider
-    return OpenAIProvider(
-        model_name=model_name,
-        config=config,
-        api_client=api_client,
-        token_counter=token_counter,
-    )

@@ -394,7 +394,7 @@ def create_core_critic(
     Examples:
         ```python
         from sifaka.critics.core import create_core_critic
-        from sifaka.models.openai import create_openai_provider
+        from sifaka.models.factories import create_openai_provider
 
         # Create a critic with default settings
         critic = create_core_critic(

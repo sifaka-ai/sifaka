@@ -5,7 +5,7 @@ This module provides the GeminiProvider class which implements the ModelProvider
 interface for Google Gemini models.
 """
 
-from typing import Optional, Dict, Any, ClassVar, Union
+from typing import Optional, Dict, Any, ClassVar
 
 import google.generativeai as genai
 import tiktoken
@@ -190,91 +190,3 @@ class GeminiProvider(ModelProviderCore):
             state.initialized = True
 
         return self.generate(prompt, **kwargs)
-
-
-def create_gemini_provider(
-    model_name: str = GeminiProvider.DEFAULT_MODEL,
-    temperature: float = 0.7,
-    max_tokens: int = 1000,
-    api_key: Optional[str] = None,
-    trace_enabled: bool = True,
-    config: Optional[Union[Dict[str, Any], ModelConfig]] = None,
-    api_client: Optional[APIClient] = None,
-    token_counter: Optional[TokenCounter] = None,
-    **kwargs: Any,
-) -> GeminiProvider:
-    """
-    Create a Google Gemini model provider.
-
-    This factory function creates a GeminiProvider with the specified
-    configuration options.
-
-    Args:
-        model_name: Name of the model to use (e.g., "gemini-pro")
-        temperature: Temperature for generation (0-1)
-        max_tokens: Maximum number of tokens to generate
-        api_key: Google API key
-        trace_enabled: Whether to enable tracing
-        config: Optional model configuration
-        api_client: Optional API client to use
-        token_counter: Optional token counter to use
-        **kwargs: Additional configuration parameters
-
-    Returns:
-        A GeminiProvider instance
-
-    Examples:
-        ```python
-        from sifaka.models.gemini import create_gemini_provider
-        import os
-
-        # Create a provider with default settings
-        provider = create_gemini_provider(api_key=os.environ.get("GOOGLE_API_KEY"))
-
-        # Create a provider with custom settings
-        provider = create_gemini_provider(
-            model_name="gemini-pro",
-            temperature=0.8,
-            max_tokens=2000,
-            api_key=os.environ.get("GOOGLE_API_KEY")
-        )
-
-        # Generate text
-        response = provider.generate("Explain quantum computing in simple terms.")
-        print(response)
-        ```
-    """
-    # Try to use standardize_model_config if available
-    try:
-        from sifaka.utils.config import standardize_model_config
-
-        # Use standardize_model_config to handle different config formats
-        model_config = standardize_model_config(
-            config=config,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            api_key=api_key,
-            trace_enabled=trace_enabled,
-            **kwargs,
-        )
-    except (ImportError, AttributeError):
-        # Create config manually
-        if isinstance(config, ModelConfig):
-            model_config = config
-        elif isinstance(config, dict):
-            model_config = ModelConfig(**config)
-        else:
-            model_config = ModelConfig(
-                temperature=temperature,
-                max_tokens=max_tokens,
-                api_key=api_key,
-                trace_enabled=trace_enabled,
-                **kwargs,
-            )
-
-    return GeminiProvider(
-        model_name=model_name,
-        config=model_config,
-        api_client=api_client,
-        token_counter=token_counter,
-    )

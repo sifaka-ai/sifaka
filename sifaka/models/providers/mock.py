@@ -1,6 +1,6 @@
 """Mock model provider for testing."""
 
-from typing import Dict, Any, Optional, ClassVar, Union
+from typing import Dict, Any, Optional, ClassVar
 from pydantic import PrivateAttr
 
 from sifaka.models.base import ModelProvider, ModelConfig, APIClient, TokenCounter
@@ -133,81 +133,3 @@ class MockProvider(ModelProvider):
             raise ValueError("Name is required")
         if not config.get("description"):
             raise ValueError("Description is required")
-
-
-def create_mock_provider(
-    model_name: str = MockProvider.DEFAULT_MODEL,
-    temperature: float = 0.7,
-    max_tokens: int = 100,
-    api_key: str = "mock-api-key",
-    trace_enabled: bool = True,
-    config: Optional[Union[Dict[str, Any], ModelConfig]] = None,
-    **kwargs: Any,
-) -> MockProvider:
-    """
-    Create a mock model provider for testing.
-
-    This factory function creates a MockProvider with the specified
-    configuration options.
-
-    Args:
-        model_name: Name of the model to use
-        temperature: Temperature for generation (0-1)
-        max_tokens: Maximum number of tokens to generate
-        api_key: Mock API key
-        trace_enabled: Whether to enable tracing
-        config: Optional model configuration
-        **kwargs: Additional configuration parameters
-
-    Returns:
-        A MockProvider instance
-
-    Examples:
-        ```python
-        from sifaka.models.mock import create_mock_provider
-
-        # Create a provider with default settings
-        provider = create_mock_provider()
-
-        # Create a provider with custom settings
-        provider = create_mock_provider(
-            model_name="custom-mock-model",
-            temperature=0.8,
-            max_tokens=200
-        )
-
-        # Generate text
-        response = provider.generate("Explain quantum computing in simple terms.")
-        print(response["text"])
-        ```
-    """
-    # Try to use standardize_model_config if available
-    if config is None:
-        try:
-            from sifaka.utils.config import standardize_model_config
-
-            config = standardize_model_config(
-                temperature=temperature,
-                max_tokens=max_tokens,
-                api_key=api_key,
-                trace_enabled=trace_enabled,
-                name="Mock Provider",
-                description="Mock provider for testing",
-                **kwargs,
-            )
-        except (ImportError, AttributeError):
-            config = ModelConfig(
-                temperature=temperature,
-                max_tokens=max_tokens,
-                api_key=api_key,
-                trace_enabled=trace_enabled,
-                name="Mock Provider",
-                description="Mock provider for testing",
-                **kwargs,
-            )
-
-    return MockProvider(
-        model_name=model_name,
-        config=config,
-        **kwargs,
-    )
