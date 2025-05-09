@@ -39,7 +39,7 @@ ToxicityClassifier follows the standard Sifaka classifier architecture:
 ## Usage Examples
 
 ```python
-from sifaka.classifiers.toxicity import create_toxicity_classifier
+from sifaka.classifiers.implementations.content.toxicity import create_toxicity_classifier
 
 # Create a toxicity classifier with default settings
 classifier = create_toxicity_classifier()
@@ -79,20 +79,17 @@ from typing import (
     TypeVar,
     Type,
     Tuple,
-    Union,
+    # Union,
 )
 from typing_extensions import TypeGuard
 from pydantic import ConfigDict, PrivateAttr
 
-from sifaka.classifiers.base import (
-    BaseClassifier,
-    ClassificationResult,
-    ClassifierConfig,
-)
+from sifaka.classifiers.base import BaseClassifier
+from sifaka.classifiers.models import ClassificationResult
+from sifaka.classifiers.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import ClassifierState, create_classifier_state
-from sifaka.classifiers.config import standardize_classifier_config
-from sifaka.classifiers.toxicity_model import ToxicityModel
+from sifaka.utils.state import create_classifier_state
+from sifaka.classifiers.implementations.content.toxicity_model import ToxicityModel
 
 logger = get_logger(__name__)
 
@@ -143,7 +140,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
     ## Examples
 
     ```python
-    from sifaka.classifiers.toxicity import create_toxicity_classifier
+    from sifaka.classifiers.implementations.content.toxicity import create_toxicity_classifier
 
     # Create a toxicity classifier with default settings
     classifier = create_toxicity_classifier()
@@ -717,7 +714,7 @@ def create_toxicity_classifier(
 
     Examples:
         ```python
-        from sifaka.classifiers.toxicity import create_toxicity_classifier
+        from sifaka.classifiers.implementations.content.toxicity import create_toxicity_classifier
 
         # Create a toxicity classifier with default settings
         classifier = create_toxicity_classifier()

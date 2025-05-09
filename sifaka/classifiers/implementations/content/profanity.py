@@ -39,7 +39,7 @@ ProfanityClassifier follows the standard Sifaka classifier architecture:
 ## Usage Examples
 
 ```python
-from sifaka.classifiers.profanity import create_profanity_classifier
+from sifaka.classifiers.implementations.content.profanity import create_profanity_classifier
 
 # Create a profanity classifier with default settings
 classifier = create_profanity_classifier()
@@ -80,13 +80,11 @@ from typing import (
 from typing_extensions import TypeGuard
 from pydantic import ConfigDict, PrivateAttr
 
-from sifaka.classifiers.base import (
-    BaseClassifier,
-    ClassificationResult,
-    ClassifierConfig,
-)
+from sifaka.classifiers.base import BaseClassifier
+from sifaka.classifiers.models import ClassificationResult
+from sifaka.classifiers.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import StateManager, ClassifierState, create_classifier_state
+from sifaka.utils.state import create_classifier_state
 
 logger = get_logger(__name__)
 
@@ -179,7 +177,7 @@ class ProfanityClassifier(BaseClassifier):
     ## Examples
 
     ```python
-    from sifaka.classifiers.profanity import create_profanity_classifier
+    from sifaka.classifiers.implementations.content.profanity import create_profanity_classifier
 
     # Create a profanity classifier with default settings
     classifier = create_profanity_classifier()

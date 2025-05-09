@@ -5,20 +5,17 @@ This module provides a classifier for extracting topics from text using
 Latent Dirichlet Allocation (LDA) from scikit-learn.
 """
 
-import os
-import pickle
+# import os
+# import pickle
 import importlib
-from typing import List, Optional, Any, Dict, ClassVar, Union
+from typing import List, Optional, Any, Dict, ClassVar
 
 from pydantic import PrivateAttr
-from sifaka.classifiers.base import (
-    BaseClassifier,
-    ClassificationResult,
-    ClassifierConfig,
-)
-from sifaka.classifiers.config import standardize_classifier_config
+from sifaka.classifiers.base import BaseClassifier
+from sifaka.classifiers.models import ClassificationResult
+from sifaka.classifiers.config import ClassifierConfig, standardize_classifier_config
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import ClassifierState, create_classifier_state
+from sifaka.utils.state import create_classifier_state
 
 logger = get_logger(__name__)
 
@@ -44,7 +41,7 @@ class TopicClassifier(BaseClassifier):
         self,
         name: str = "topic_classifier",
         description: str = "Classifies text into topics using LDA",
-        config: Optional[ClassifierConfig] = None,
+        config: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> None:
         """
@@ -356,7 +353,7 @@ class TopicClassifier(BaseClassifier):
         corpus: List[str],
         name: str = "pretrained_topic_classifier",
         description: str = "Pre-trained topic classifier",
-        config: Optional[ClassifierConfig] = None,
+        config: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> "TopicClassifier":
         """
@@ -422,7 +419,7 @@ def create_topic_classifier(
     top_words_per_topic: int = 10,
     cache_size: int = 100,
     cost: float = TopicClassifier.DEFAULT_COST,
-    config: Optional[Union[Dict[str, Any], ClassifierConfig]] = None,
+    config: Optional[Dict[str, Any]] = None,
     **kwargs: Any,
 ) -> TopicClassifier:
     """

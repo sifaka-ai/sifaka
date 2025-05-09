@@ -13,14 +13,11 @@ from typing import Any, Dict, List, Optional, ClassVar, Union
 
 from pydantic import ConfigDict, PrivateAttr
 
-from sifaka.classifiers.base import (
-    BaseClassifier,
-    ClassificationResult,
-    ClassifierConfig,
-)
-from sifaka.classifiers.config import standardize_classifier_config
+from sifaka.classifiers.base import BaseClassifier
+from sifaka.classifiers.models import ClassificationResult
+from sifaka.classifiers.config import ClassifierConfig, standardize_classifier_config
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import ClassifierState, create_classifier_state
+from sifaka.utils.state import create_classifier_state
 
 logger = get_logger(__name__)
 

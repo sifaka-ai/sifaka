@@ -29,14 +29,11 @@ from typing import (
 from typing_extensions import TypeGuard
 from pydantic import PrivateAttr
 
-from sifaka.classifiers.base import (
-    BaseClassifier,
-    ClassificationResult,
-    ClassifierConfig,
-)
-from sifaka.classifiers.config import standardize_classifier_config
+from sifaka.classifiers.base import BaseClassifier
+from sifaka.classifiers.models import ClassificationResult
+from sifaka.classifiers.config import ClassifierConfig, standardize_classifier_config
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import ClassifierState, create_classifier_state
+from sifaka.utils.state import create_classifier_state
 
 logger = get_logger(__name__)
 
@@ -441,7 +438,7 @@ def create_language_classifier(
 
     Examples:
         ```python
-        from sifaka.classifiers.language import create_language_classifier
+        from sifaka.classifiers.implementations.properties.language import create_language_classifier
 
         # Create a language classifier with default settings
         classifier = create_language_classifier()

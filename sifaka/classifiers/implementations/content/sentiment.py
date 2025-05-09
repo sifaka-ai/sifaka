@@ -39,7 +39,7 @@ SentimentClassifier follows the standard Sifaka classifier architecture:
 ## Usage Examples
 
 ```python
-from sifaka.classifiers.sentiment import create_sentiment_classifier
+from sifaka.classifiers.implementations.content.sentiment import create_sentiment_classifier
 
 # Create a sentiment classifier with default settings
 classifier = create_sentiment_classifier()
@@ -87,13 +87,11 @@ from typing import (
 from typing_extensions import TypeGuard
 from pydantic import ConfigDict, PrivateAttr
 
-from sifaka.classifiers.base import (
-    BaseClassifier,
-    ClassificationResult,
-    ClassifierConfig,
-)
+from sifaka.classifiers.base import BaseClassifier
+from sifaka.classifiers.models import ClassificationResult
+from sifaka.classifiers.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import StateManager, ClassifierState, create_classifier_state
+from sifaka.utils.state import create_classifier_state
 
 logger = get_logger(__name__)
 
@@ -122,7 +120,7 @@ class SentimentAnalyzer(Protocol):
     ## Examples
 
     ```python
-    from sifaka.classifiers.sentiment import SentimentAnalyzer
+    from sifaka.classifiers.implementations.content.sentiment import SentimentAnalyzer
 
     class CustomAnalyzer:
         def polarity_scores(self, text: str) -> Dict[str, float]:
@@ -199,7 +197,7 @@ class SentimentClassifier(BaseClassifier[str, str]):
     ## Examples
 
     ```python
-    from sifaka.classifiers.sentiment import create_sentiment_classifier
+    from sifaka.classifiers.implementations.content.sentiment import create_sentiment_classifier
 
     # Create a sentiment classifier with default settings
     classifier = create_sentiment_classifier()

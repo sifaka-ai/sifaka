@@ -40,16 +40,14 @@ SpamClassifier follows the standard Sifaka classifier architecture:
 import importlib
 import os
 import pickle
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import ClassVar, List, Optional
 
 from pydantic import PrivateAttr
-from sifaka.classifiers.base import (
-    BaseClassifier,
-    ClassificationResult,
-    ClassifierConfig,
-)
+from sifaka.classifiers.base import BaseClassifier
+from sifaka.classifiers.models import ClassificationResult
+from sifaka.classifiers.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import StateManager, ClassifierState, create_classifier_state
+from sifaka.utils.state import create_classifier_state
 
 logger = get_logger(__name__)
 

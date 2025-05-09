@@ -7,7 +7,8 @@ This module provides classifiers for assessing the readability of text content.
 import importlib
 import statistics
 from abc import abstractmethod
-from dataclasses import dataclass
+
+# from dataclasses import dataclass
 from typing import (
     Any,
     Dict,
@@ -16,20 +17,16 @@ from typing import (
     Protocol,
     runtime_checkable,
     ClassVar,
-    Union,
 )
 
 from typing_extensions import TypeGuard
 from pydantic import PrivateAttr
 
-from sifaka.classifiers.base import (
-    BaseClassifier,
-    ClassificationResult,
-    ClassifierConfig,
-)
-from sifaka.classifiers.config import standardize_classifier_config
+from sifaka.classifiers.base import BaseClassifier
+from sifaka.classifiers.models import ClassificationResult
+from sifaka.classifiers.config import ClassifierConfig, standardize_classifier_config
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import ClassifierState, create_classifier_state
+from sifaka.utils.state import create_classifier_state
 
 logger = get_logger(__name__)
 
@@ -132,7 +129,7 @@ class ReadabilityClassifier(BaseClassifier):
         name: str = "readability_classifier",
         description: str = "Analyzes text readability",
         analyzer: Optional[ReadabilityAnalyzer] = None,
-        config: Optional[ClassifierConfig] = None,
+        config: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> None:
         """
@@ -383,7 +380,7 @@ class ReadabilityClassifier(BaseClassifier):
         analyzer: ReadabilityAnalyzer,
         name: str = "custom_readability_classifier",
         description: str = "Custom readability analyzer",
-        config: Optional[ClassifierConfig] = None,
+        config: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> "ReadabilityClassifier":
         """
@@ -446,7 +443,7 @@ def create_readability_classifier(
     min_confidence: float = 0.7,
     cache_size: int = 100,
     cost: float = ReadabilityClassifier.DEFAULT_COST,
-    config: Optional[Union[Dict[str, Any], ClassifierConfig]] = None,
+    config: Optional[Dict[str, Any]] = None,
     **kwargs: Any,
 ) -> ReadabilityClassifier:
     """

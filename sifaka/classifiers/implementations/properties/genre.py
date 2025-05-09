@@ -8,18 +8,15 @@ such as news, fiction, academic, technical, etc. using textual features.
 import importlib
 import os
 import pickle
-from typing import Dict, List, Optional, Any, ClassVar, Union
+from typing import Dict, List, Optional, Any, ClassVar
 
 from pydantic import ConfigDict, PrivateAttr
 
-from sifaka.classifiers.base import (
-    BaseClassifier,
-    ClassificationResult,
-    ClassifierConfig,
-)
-from sifaka.classifiers.config import standardize_classifier_config
+from sifaka.classifiers.base import BaseClassifier
+from sifaka.classifiers.models import ClassificationResult
+from sifaka.classifiers.config import ClassifierConfig, standardize_classifier_config
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import ClassifierState, create_classifier_state
+from sifaka.utils.state import create_classifier_state
 
 logger = get_logger(__name__)
 
@@ -493,7 +490,7 @@ class GenreClassifier(BaseClassifier):
         labels: List[str],
         name: str = "pretrained_genre_classifier",
         description: str = "Pre-trained genre classifier",
-        config: Optional[ClassifierConfig] = None,
+        config: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> "GenreClassifier":
         """
@@ -564,7 +561,7 @@ def create_genre_classifier(
     n_estimators: int = 100,
     cache_size: int = 100,
     cost: float = GenreClassifier.DEFAULT_COST,
-    config: Optional[Union[Dict[str, Any], ClassifierConfig]] = None,
+    config: Optional[Dict[str, Any]] = None,
     **kwargs: Any,
 ) -> GenreClassifier:
     """

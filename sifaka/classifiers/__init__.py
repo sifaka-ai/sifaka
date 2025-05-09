@@ -35,10 +35,12 @@ Available Classifiers:
 4. Entity Analysis:
    - NERClassifier: Identifies named entities (people, organizations, locations, etc.)
 
-Usage Example:
+Usage Examples:
+
+Example 1: Using factory functions (recommended)
     from sifaka.classifiers import create_sentiment_classifier, create_toxicity_classifier
 
-    # Create classifiers using factory functions (recommended)
+    # Create classifiers using factory functions
     sentiment = create_sentiment_classifier(
         positive_threshold=0.1,
         negative_threshold=-0.1,
@@ -65,37 +67,98 @@ Usage Example:
         threshold=0.6,
         valid_labels=["positive"]
     )
+
+Example 2: Using the generic factory function
+    from sifaka.classifiers import create_classifier_by_name
+
+    # Create classifiers using the generic factory function
+    sentiment = create_classifier_by_name(
+        name="sentiment",
+        positive_threshold=0.1,
+        negative_threshold=-0.1,
+        cache_size=100
+    )
+
+    toxicity = create_classifier_by_name(
+        name="toxicity",
+        general_threshold=0.5,
+        cache_size=100
+    )
+
+    # Analyze text
+    result = toxicity.classify("This is a test.")
+    print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
 """
 
-from .base import (
-    BaseClassifier,
-    Classifier,
-    ClassificationResult,
-    ClassifierConfig,
-    ClassifierProtocol,
-    TextProcessor,
-    TextClassifier,
+# Base components
+from .base import BaseClassifier, Classifier, TextClassifier
+
+# Models
+from .models import ClassificationResult
+
+# Configuration
+from .config import standardize_classifier_config
+from .config import ClassifierConfig
+
+# Interfaces
+from .interfaces.classifier import ClassifierProtocol, TextProcessor
+
+# Managers
+from .managers.state import StateManager
+
+# Strategies
+from .strategies.caching import CachingStrategy
+
+# Factory functions
+from .factories import create_classifier_by_name
+
+# Implementations
+from .implementations import (
+    # Content analysis classifiers
+    BiasDetector,
+    ProfanityClassifier,
+    SentimentClassifier,
+    SpamClassifier,
+    ToxicityClassifier,
+    # Text properties classifiers
+    GenreClassifier,
+    LanguageClassifier,
+    ReadabilityClassifier,
+    TopicClassifier,
+    # Entity analysis classifiers
+    NERClassifier,
+    # Factory functions
+    create_bias_detector,
+    create_profanity_classifier,
+    create_sentiment_classifier,
+    create_spam_classifier,
+    create_toxicity_classifier,
+    create_genre_classifier,
+    create_language_classifier,
+    create_readability_classifier,
+    create_topic_classifier,
+    create_ner_classifier,
 )
-from .bias import BiasDetector, create_bias_detector
-from .genre import GenreClassifier, create_genre_classifier
-from .language import LanguageClassifier, create_language_classifier
-from .ner import NERClassifier, create_ner_classifier
-from .profanity import ProfanityClassifier, create_profanity_classifier
-from .readability import ReadabilityClassifier, create_readability_classifier
-from .sentiment import SentimentClassifier, create_sentiment_classifier
-from .spam import SpamClassifier, create_spam_classifier
-from .topic import TopicClassifier, create_topic_classifier
-from .toxicity import ToxicityClassifier, create_toxicity_classifier
 
 __all__ = [
     # Base Classes
     "BaseClassifier",
     "Classifier",
+    "TextClassifier",
+    # Models
     "ClassificationResult",
+    # Configuration
     "ClassifierConfig",
+    "standardize_classifier_config",
+    # Interfaces
     "ClassifierProtocol",
     "TextProcessor",
-    "TextClassifier",
+    # Managers
+    "StateManager",
+    # Strategies
+    "CachingStrategy",
+    # Factory Functions
+    "create_classifier_by_name",
     # Content Analysis Classes
     "SentimentClassifier",
     "ProfanityClassifier",
@@ -109,7 +172,7 @@ __all__ = [
     "GenreClassifier",
     # Entity Analysis
     "NERClassifier",
-    # Factory Functions
+    # Specialized Factory Functions
     "create_sentiment_classifier",
     "create_toxicity_classifier",
     "create_spam_classifier",
