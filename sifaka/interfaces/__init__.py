@@ -1,36 +1,45 @@
 """
 Interfaces module for Sifaka.
 
-This module provides the core interfaces and protocols that define the contracts
-for all components in the Sifaka framework. These interfaces establish clear
-boundaries between components and enable better modularity and extensibility.
+IMPORTANT: This module is deprecated. All interfaces have been moved to their component-specific locations.
 
-## Module Structure
+## New Import Locations
 
 1. **Core Interfaces**
-   - `Component`: Base interface for all components
-   - `Configurable`: Interface for components with configuration
-   - `Stateful`: Interface for components with state management
-   - `Identifiable`: Interface for components with identity
+   - Import from `sifaka.core.interfaces`
+   - Example: `from sifaka.core.interfaces import Component, Configurable`
 
-2. **Component-Specific Interfaces**
-   - `models`: Interfaces for model providers
-   - `rules`: Interfaces for rules and validators
-   - `critics`: Interfaces for critics
-   - `chain`: Interfaces for chains
-   - `retrieval`: Interfaces for retrieval components
+2. **Model Interfaces**
+   - Import from `sifaka.models.interfaces`
+   - Example: `from sifaka.models.interfaces import ModelProviderProtocol`
 
-## Usage
+3. **Rule Interfaces**
+   - Import from `sifaka.rules.interfaces`
+   - Example: `from sifaka.rules.interfaces import Rule, RuleProtocol`
 
-Interfaces in this module are defined using Python's Protocol class from typing,
-which enables structural subtyping. This means that classes don't need to
-explicitly inherit from these interfaces; they just need to implement the
-required methods and properties.
+4. **Critic Interfaces**
+   - Import from `sifaka.critics.interfaces`
+   - Example: `from sifaka.critics.interfaces import Critic, TextValidator`
 
-Example:
+5. **Chain Interfaces**
+   - Import from `sifaka.interfaces.chain`
+   - Example: `from sifaka.interfaces.chain import Chain`
+
+6. **Retrieval Interfaces**
+   - Import from `sifaka.interfaces.retrieval`
+   - Example: `from sifaka.interfaces.retrieval import Retriever`
+
+## Usage Example
+
 ```python
-from sifaka.interfaces import Component
-from sifaka.interfaces.models import ModelProvider
+# Old import (deprecated)
+# from sifaka.interfaces import Component, ModelProvider
+
+# New imports
+from sifaka.core.interfaces import Component, Configurable
+from sifaka.models.interfaces import ModelProviderProtocol
+from sifaka.rules.interfaces import Rule
+from sifaka.critics.interfaces import Critic
 
 # Check if a class implements an interface
 if isinstance(my_object, Component):
@@ -40,33 +49,26 @@ if isinstance(my_object, Component):
 class MyModelProvider:
     def __init__(self, name: str):
         self.name = name
-        
+
     def get_name(self) -> str:
         return self.name
-        
+
     # Implement other required methods...
 
 # Check implementation
 provider = MyModelProvider("my-provider")
-assert isinstance(provider, ModelProvider)
+assert isinstance(provider, ModelProviderProtocol)
 ```
 """
 
-from sifaka.interfaces.core import (
-    Component,
-    Configurable,
-    Stateful,
-    Identifiable,
-    Loggable,
-    Traceable,
+# Raise an ImportError to force users to update their imports
+raise ImportError(
+    "The sifaka.interfaces module is deprecated. "
+    "Please import interfaces from their component-specific locations:\n"
+    "- Core interfaces: from sifaka.core.interfaces import ...\n"
+    "- Model interfaces: from sifaka.models.interfaces import ...\n"
+    "- Rule interfaces: from sifaka.rules.interfaces import ...\n"
+    "- Critic interfaces: from sifaka.critics.interfaces import ...\n"
+    "- Chain interfaces: from sifaka.interfaces.chain import ...\n"
+    "- Retrieval interfaces: from sifaka.interfaces.retrieval import ..."
 )
-
-__all__ = [
-    # Core interfaces
-    "Component",
-    "Configurable",
-    "Stateful",
-    "Identifiable",
-    "Loggable",
-    "Traceable",
-]

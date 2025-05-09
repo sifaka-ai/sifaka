@@ -2,28 +2,49 @@
 Interfaces for critics.
 
 This package provides protocol interfaces for critics in the Sifaka framework.
+
+## Interface Hierarchy
+
+1. **Critic**: Base interface for all critics
+   - **TextValidator**: Interface for text validators
+   - **TextImprover**: Interface for text improvers
+   - **TextCritic**: Interface for text critics
+   - **LLMProvider**: Interface for language model providers
+   - **PromptFactory**: Interface for prompt factories
 """
 
 from .critic import (
+    # Core critic interfaces
+    Critic,
+    AsyncCritic,
+    # Text validation protocols
     TextValidator,
-    TextImprover,
-    TextCritic,
     SyncTextValidator,
-    SyncTextImprover,
-    SyncTextCritic,
     AsyncTextValidator,
+    # Text improvement protocols
+    TextImprover,
+    SyncTextImprover,
     AsyncTextImprover,
+    # Text critiquing protocols
+    TextCritic,
+    SyncTextCritic,
     AsyncTextCritic,
+    # Language model protocols
     LLMProvider,
-    PromptFactory,
     SyncLLMProvider,
-    SyncPromptFactory,
     AsyncLLMProvider,
+    # Prompt factory protocols
+    PromptFactory,
+    SyncPromptFactory,
     AsyncPromptFactory,
+    # Type definitions
     CritiqueResult,
 )
 
 __all__ = [
+    # Core critic interfaces
+    "Critic",
+    "AsyncCritic",
     # Synchronous protocols
     "TextValidator",
     "TextImprover",

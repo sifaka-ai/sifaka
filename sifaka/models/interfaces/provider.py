@@ -8,7 +8,7 @@ establishing a common contract for model provider behavior.
 from abc import abstractmethod
 from typing import Any, Dict, Generic, Optional, Protocol, TypeVar, runtime_checkable
 
-from sifaka.interfaces.core import Configurable, Identifiable
+from sifaka.core.interfaces import Configurable, Identifiable
 
 # Type variables
 ConfigType = TypeVar("ConfigType")

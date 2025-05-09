@@ -83,7 +83,11 @@ from typing import (
     runtime_checkable,
 )
 
-from sifaka.interfaces.models import APIClient, TokenCounter, ModelProvider
+from sifaka.models.interfaces import (
+    APIClientProtocol as APIClient,
+    TokenCounterProtocol as TokenCounter,
+    ModelProviderProtocol as ModelProviderInterface,
+)
 from sifaka.utils.logging import get_logger
 from sifaka.utils.tracing import Tracer
 
@@ -415,11 +419,11 @@ class LanguageModel(Protocol[R]):
         ...
 
 
-class ModelProvider(ABC, Generic[C]):
+class ModelProvider(ABC, Generic[C], ModelProviderInterface):
     """
     Abstract base class for model providers.
 
-    This class implements the ModelProvider interface from sifaka.interfaces.models
+    This class implements the ModelProviderProtocol interface from sifaka.models.interfaces
     and enforces a consistent interface for all model providers
     while allowing for flexible implementation of specific provider features.
 
@@ -477,7 +481,8 @@ class ModelProvider(ABC, Generic[C]):
     ## Examples
 
     ```python
-    from sifaka.models.base import ModelProvider, ModelConfig, APIClient, TokenCounter
+    from sifaka.models.base import ModelProvider, ModelConfig
+    from sifaka.models.interfaces import APIClientProtocol, TokenCounterProtocol
 
     # Basic usage
     provider = OpenAIProvider(model_name="gpt-4")
@@ -489,15 +494,19 @@ class ModelProvider(ABC, Generic[C]):
     provider = AnthropicProvider(model_name="claude-3-opus", config=config)
 
     # With explicit dependencies
-    class CustomClient(APIClient):
+    class CustomClient:
         def send_prompt(self, prompt, config):
             # Custom implementation
             return "Response"
 
-    class CustomTokenCounter(TokenCounter):
+    class CustomTokenCounter:
         def count_tokens(self, text):
             # Custom implementation
             return len(text.split())
+
+    # Verify protocol compliance
+    assert isinstance(CustomClient(), APIClientProtocol)
+    assert isinstance(CustomTokenCounter(), TokenCounterProtocol)
 
     provider = AnthropicProvider(
         model_name="claude-3-opus",

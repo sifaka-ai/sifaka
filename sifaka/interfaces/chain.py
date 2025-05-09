@@ -24,7 +24,7 @@ required methods and properties.
 from abc import abstractmethod
 from typing import Any, Dict, Generic, List, Optional, Protocol, TypeVar, runtime_checkable
 
-from sifaka.interfaces.core import Component, Configurable, Identifiable, Stateful
+from sifaka.core.interfaces import Component, Configurable, Identifiable, Stateful
 
 # Type variables
 T = TypeVar("T")

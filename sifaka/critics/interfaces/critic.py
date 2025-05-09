@@ -33,9 +33,22 @@ The module provides several key protocols:
    - `SyncPromptFactory`: Synchronous prompt factory
    - `AsyncPromptFactory`: Asynchronous prompt factory
    - `PromptFactory`: Combined synchronous protocol
+
+6. **Critic Interfaces**
+   - `Critic`: Interface for critics
+   - `AsyncCritic`: Interface for asynchronous critics
 """
 
-from typing import Any, List, Protocol, TypedDict, runtime_checkable
+from abc import abstractmethod
+from typing import Any, List, Optional, Protocol, TypeVar, TypedDict, runtime_checkable
+
+from sifaka.core.interfaces import Configurable, Identifiable
+
+# Type variables
+ConfigType = TypeVar("ConfigType")
+InputType = TypeVar("InputType")
+OutputType = TypeVar("OutputType")
+ResultType = TypeVar("ResultType")
 
 
 @runtime_checkable
@@ -384,3 +397,205 @@ class PromptFactory(SyncPromptFactory, Protocol):
     """
 
     ...
+
+
+@runtime_checkable
+class Critic(Identifiable, Configurable[ConfigType], Protocol[InputType, OutputType, ResultType]):
+    """
+    Interface for critics.
+
+    This interface defines the contract for components that critique and improve text.
+    It ensures that critics can validate, critique, and improve text, and expose
+    critic metadata.
+
+    ## Lifecycle
+
+    1. **Initialization**: Set up critic resources and configuration
+    2. **Validation**: Validate text
+    3. **Critique**: Critique text
+    4. **Improvement**: Improve text
+    5. **Configuration Management**: Manage critic configuration
+    6. **Cleanup**: Release resources when no longer needed
+
+    ## Implementation Requirements
+
+    Classes implementing this interface must:
+    - Provide validate, critique, and improve methods
+    - Return standardized results
+    - Provide name and description properties
+    - Provide a config property to access the critic configuration
+    - Provide an update_config method to update the critic configuration
+    """
+
+    @abstractmethod
+    def validate(self, text: InputType) -> bool:
+        """
+        Validate text.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            True if the text is valid, False otherwise
+
+        Raises:
+            ValueError: If the text is invalid
+        """
+        pass
+
+    @abstractmethod
+    def critique(self, text: InputType) -> ResultType:
+        """
+        Critique text.
+
+        Args:
+            text: The text to critique
+
+        Returns:
+            A critique result
+
+        Raises:
+            ValueError: If the text is invalid
+        """
+        pass
+
+    @abstractmethod
+    def improve(self, text: InputType, feedback: Optional[str] = None) -> OutputType:
+        """
+        Improve text.
+
+        Args:
+            text: The text to improve
+            feedback: Optional feedback to guide improvement
+
+        Returns:
+            Improved text
+
+        Raises:
+            ValueError: If the text is invalid
+        """
+        pass
+
+
+@runtime_checkable
+class AsyncCritic(Protocol[InputType, OutputType, ResultType]):
+    """
+    Interface for asynchronous critics.
+
+    This interface defines the contract for components that critique and improve text
+    asynchronously. It ensures that critics can validate, critique, and improve text
+    asynchronously, and expose critic metadata.
+
+    ## Lifecycle
+
+    1. **Initialization**: Set up critic resources and configuration
+    2. **Validation**: Validate text asynchronously
+    3. **Critique**: Critique text asynchronously
+    4. **Improvement**: Improve text asynchronously
+    5. **Configuration Management**: Manage critic configuration
+    6. **Cleanup**: Release resources when no longer needed
+
+    ## Implementation Requirements
+
+    Classes implementing this interface must:
+    - Provide async validate, critique, and improve methods
+    - Return standardized results
+    - Provide name and description properties
+    - Provide a config property to access the critic configuration
+    - Provide an update_config method to update the critic configuration
+    """
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """
+        Get the critic name.
+
+        Returns:
+            The critic name
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def description(self) -> str:
+        """
+        Get the critic description.
+
+        Returns:
+            The critic description
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def config(self) -> ConfigType:
+        """
+        Get the critic configuration.
+
+        Returns:
+            The critic configuration
+        """
+        pass
+
+    @abstractmethod
+    def update_config(self, config: ConfigType) -> None:
+        """
+        Update the critic configuration.
+
+        Args:
+            config: The new configuration object or values to update
+
+        Raises:
+            ValueError: If the configuration is invalid
+        """
+        pass
+
+    @abstractmethod
+    async def validate(self, text: InputType) -> bool:
+        """
+        Validate text asynchronously.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            True if the text is valid, False otherwise
+
+        Raises:
+            ValueError: If the text is invalid
+        """
+        pass
+
+    @abstractmethod
+    async def critique(self, text: InputType) -> ResultType:
+        """
+        Critique text asynchronously.
+
+        Args:
+            text: The text to critique
+
+        Returns:
+            A critique result
+
+        Raises:
+            ValueError: If the text is invalid
+        """
+        pass
+
+    @abstractmethod
+    async def improve(self, text: InputType, feedback: Optional[str] = None) -> OutputType:
+        """
+        Improve text asynchronously.
+
+        Args:
+            text: The text to improve
+            feedback: Optional feedback to guide improvement
+
+        Returns:
+            Improved text
+
+        Raises:
+            ValueError: If the text is invalid
+        """
+        pass
