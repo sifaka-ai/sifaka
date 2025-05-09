@@ -1,16 +1,14 @@
 """
 Sifaka Classifiers Package
 
+A comprehensive package for text classification in the Sifaka framework.
+
+## Overview
 This package provides a collection of text classifiers that analyze content for various
 characteristics. Each classifier follows a consistent interface and can be used
-independently or integrated with rules.
+independently or integrated with rules and critics in the Sifaka framework.
 
-Architecture Overview:
-- Each classifier inherits from the base BaseClassifier class
-- Classifiers return ClassificationResult objects with consistent structure
-- Classifiers can be combined with rules using ClassifierRule
-
-Available Classifiers:
+## Components
 1. Base Classes:
    - BaseClassifier: Abstract base class for all classifiers
    - Classifier: Alias for BaseClassifier
@@ -35,59 +33,52 @@ Available Classifiers:
 4. Entity Analysis:
    - NERClassifier: Identifies named entities (people, organizations, locations, etc.)
 
-Usage Examples:
+## Usage Examples
+```python
+from sifaka.classifiers import create_sentiment_classifier, create_toxicity_classifier
 
-Example 1: Using factory functions (recommended)
-    from sifaka.classifiers import create_sentiment_classifier, create_toxicity_classifier
+# Create classifiers using factory functions
+sentiment = create_sentiment_classifier(
+    positive_threshold=0.1,
+    negative_threshold=-0.1,
+    cache_size=100
+)
 
-    # Create classifiers using factory functions
-    sentiment = create_sentiment_classifier(
-        positive_threshold=0.1,
-        negative_threshold=-0.1,
-        cache_size=100
-    )
+# Analyze text
+sentiment_result = sentiment.classify("This is fantastic!")
+print(f"Sentiment: {sentiment_result.label}, Confidence: {sentiment_result.confidence:.2f}")
+print(f"Compound score: {sentiment_result.metadata['compound_score']:.2f}")
 
-    # Analyze text
-    sentiment_result = sentiment.classify("This is fantastic!")
-    print(f"Sentiment: {sentiment_result.label}, Confidence: {sentiment_result.confidence:.2f}")
-    print(f"Compound score: {sentiment_result.metadata['compound_score']:.2f}")
+# Create another classifier
+toxicity = create_toxicity_classifier(
+    general_threshold=0.5,
+    cache_size=100
+)
 
-    # Create another classifier
-    toxicity = create_toxicity_classifier(
-        general_threshold=0.5,
-        cache_size=100
-    )
+# Use with rules
+from sifaka.adapters.classifier import create_classifier_rule
+sentiment_rule = create_classifier_rule(
+    classifier=sentiment,
+    name="sentiment_rule",
+    description="Ensures text has positive sentiment",
+    threshold=0.6,
+    valid_labels=["positive"]
+)
+```
 
-    # Use with rules
-    from sifaka.adapters.classifier import create_classifier_rule
-    sentiment_rule = create_classifier_rule(
-        classifier=sentiment,
-        name="sentiment_rule",
-        description="Ensures text has positive sentiment",
-        threshold=0.6,
-        valid_labels=["positive"]
-    )
+## Error Handling
+The package handles errors by:
+- Validating input parameters
+- Providing clear error messages
+- Supporting graceful fallbacks
+- Including error details in results
 
-Example 2: Using the generic factory function
-    from sifaka.classifiers import create_classifier_by_name
-
-    # Create classifiers using the generic factory function
-    sentiment = create_classifier_by_name(
-        name="sentiment",
-        positive_threshold=0.1,
-        negative_threshold=-0.1,
-        cache_size=100
-    )
-
-    toxicity = create_classifier_by_name(
-        name="toxicity",
-        general_threshold=0.5,
-        cache_size=100
-    )
-
-    # Analyze text
-    result = toxicity.classify("This is a test.")
-    print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
+## Configuration
+The package supports various configuration options:
+- Factory functions for easy instantiation
+- Flexible parameter customization
+- Caching strategies
+- Integration with rules and critics
 """
 
 # Base components

@@ -1,8 +1,60 @@
 """
-Data models for classifiers.
+Classifier Models Module
 
-This module provides the data models used by classifiers in the Sifaka framework,
-including classification results, configuration, and related data structures.
+A module that provides data models for Sifaka classifiers.
+
+## Overview
+This module provides the core data models used by classifiers in the Sifaka framework,
+including classification results, configuration, and related data structures. These
+models ensure consistent data handling and type safety across the framework.
+
+## Components
+- ClassifierConfig: Configuration model for classifiers
+- ClassificationResult: Result model for classification operations
+
+## Usage Examples
+```python
+from sifaka.classifiers.models import ClassifierConfig, ClassificationResult
+
+# Create a classifier configuration
+config = ClassifierConfig[str](
+    labels=["positive", "negative", "neutral"],
+    min_confidence=0.7,
+    cache_size=100,
+    params={"threshold": 0.8}
+)
+
+# Create a classification result
+result = ClassificationResult[str](
+    label="positive",
+    confidence=0.85,
+    metadata={"scores": {"positive": 0.85, "negative": 0.10}}
+)
+
+# Update configuration
+new_config = config.with_options(
+    min_confidence=0.8,
+    params={"new_param": "value"}
+)
+
+# Enhance result with metadata
+enhanced_result = result.with_metadata(
+    processing_time_ms=42,
+    model_version="1.2.3"
+)
+```
+
+## Error Handling
+The models handle errors by:
+- Validating input parameters (e.g., confidence range)
+- Ensuring type safety through generics
+- Providing clear error messages for invalid inputs
+
+## Configuration
+The models support various configuration options:
+- Generic type parameters for flexibility
+- Validation rules for critical fields
+- Immutable result objects for data integrity
 """
 
 from dataclasses import dataclass
@@ -21,6 +73,54 @@ class ClassifierConfig(BaseModel, Generic[T]):
 
     This class represents the configuration for a classifier, including
     labels, minimum confidence threshold, and caching settings.
+
+    ## Architecture
+    The configuration follows a layered approach:
+    - Base configuration with required fields
+    - Optional parameters for customization
+    - Validation rules for critical values
+
+    ## Lifecycle
+    1. Creation: Instantiate with required and optional parameters
+    2. Validation: Parameters are validated on creation
+    3. Modification: Create new instances with with_options()
+    4. Usage: Pass to classifiers for configuration
+
+    ## Error Handling
+    - Validates required fields (e.g., labels)
+    - Enforces value ranges (e.g., confidence)
+    - Provides clear error messages
+
+    ## Examples
+    ```python
+    from sifaka.classifiers.models import ClassifierConfig
+
+    # Create basic configuration
+    config = ClassifierConfig[str](
+        labels=["positive", "negative"],
+        min_confidence=0.7
+    )
+
+    # Create with all options
+    full_config = ClassifierConfig[str](
+        labels=["spam", "ham"],
+        min_confidence=0.8,
+        cache_size=100,
+        params={"threshold": 0.9}
+    )
+
+    # Update configuration
+    updated = config.with_options(
+        min_confidence=0.8,
+        params={"new_param": "value"}
+    )
+    ```
+
+    Attributes:
+        labels (List[str]): List of possible classification labels
+        min_confidence (float): Minimum confidence threshold
+        cache_size (int): Size of the classification cache
+        params (Dict[str, Any]): Additional parameters
     """
 
     model_config = ConfigDict(
@@ -53,11 +153,28 @@ class ClassifierConfig(BaseModel, Generic[T]):
         """
         Create a new config with updated options.
 
+        Creates a new ClassifierConfig instance with the specified options
+        updated, while preserving other settings from the current config.
+
         Args:
-            **kwargs: Options to update
+            **kwargs (Any): Options to update in the new config
 
         Returns:
-            New ClassifierConfig with updated options
+            ClassifierConfig[T]: New configuration with updated options
+
+        Example:
+            ```python
+            config = ClassifierConfig[str](
+                labels=["positive", "negative"],
+                min_confidence=0.7
+            )
+
+            # Update specific options
+            updated = config.with_options(
+                min_confidence=0.8,
+                params={"threshold": 0.9}
+            )
+            ```
         """
         # Create a copy of the current config
         data = self.model_dump()
@@ -84,34 +201,23 @@ class ClassificationResult(Generic[R]):
     the predicted label, confidence score, and additional metadata. It is
     designed to be immutable to ensure result integrity.
 
+    ## Architecture
+    The result follows an immutable pattern:
+    - Frozen dataclass for immutability
+    - Generic type parameter for label type
+    - Structured metadata for extensibility
+
     ## Lifecycle
-
-    1. **Creation**: Instantiate with required and optional parameters
-       - Provide label and confidence (required)
-       - Add optional metadata dictionary
-
-    2. **Access**: Read properties to get classification details
-       - Access label for the classification result
-       - Read confidence for the prediction strength
-       - Examine metadata for additional details
-
-    3. **Enhancement**: Create new instances with additional metadata
-       - Use with_metadata() to add new metadata
-       - Original result remains unchanged (immutable)
-       - Chain multiple with_metadata() calls for progressive enhancement
+    1. Creation: Instantiate with required and optional parameters
+    2. Access: Read properties to get classification details
+    3. Enhancement: Create new instances with additional metadata
 
     ## Error Handling
-
-    The class implements these error handling patterns:
-    - Validation of confidence range (0-1)
-    - Immutability to prevent result tampering
-    - Type checking for critical parameters
-    - Structured metadata for error details
+    - Validates confidence range (0-1)
+    - Ensures immutability
+    - Type checks critical parameters
 
     ## Examples
-
-    Creating and using a classification result:
-
     ```python
     from sifaka.classifiers.models import ClassificationResult
 
@@ -120,42 +226,33 @@ class ClassificationResult(Generic[R]):
         label="positive",
         confidence=0.85,
         metadata={
-            "scores": {"positive": 0.85, "negative": 0.10, "neutral": 0.05},
+            "scores": {"positive": 0.85, "negative": 0.10},
             "text_length": 120
         }
     )
 
-    # Access the result
-    if result.confidence > 0.8:
-        print(f"High confidence classification: {result.label}")
+    # Access properties
+    print(f"Label: {result.label}")
+    print(f"Confidence: {result.confidence:.2f}")
 
-    # Access metadata
-    if "scores" in result.metadata:
-        print(f"Negative score: {result.metadata['scores']['negative']:.2f}")
-
-    # Add additional metadata
+    # Add metadata
     enhanced = result.with_metadata(
         processing_time_ms=42,
         model_version="1.2.3"
     )
 
-    print(f"Processing time: {enhanced.metadata['processing_time_ms']} ms")
-
     # Chain metadata additions
-    enhanced = result.with_metadata(
+    final = enhanced.with_metadata(
         timestamp="2023-07-01T12:34:56"
     ).with_metadata(
         action_taken="content_removed"
     )
-
-    print(f"Action taken: {enhanced.metadata['action_taken']}")
-    print(f"Timestamp: {enhanced.metadata['timestamp']}")
     ```
 
     Attributes:
-        label: The predicted label/class
-        confidence: Confidence score for the prediction (0-1)
-        metadata: Additional metadata about the classification
+        label (R): The predicted label/class
+        confidence (float): Confidence score for the prediction (0-1)
+        metadata (Dict[str, Any]): Additional metadata about the classification
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)  # Immutable model
@@ -168,15 +265,35 @@ class ClassificationResult(Generic[R]):
         """
         Create a new result with additional metadata.
 
-        This method creates a new ClassificationResult with the same label and confidence,
+        Creates a new ClassificationResult with the same label and confidence,
         but with additional metadata merged with the existing metadata. The original
         result remains unchanged due to immutability.
 
         Args:
-            **kwargs: Additional metadata to add to the result
+            **kwargs (Any): Additional metadata to add to the result
 
         Returns:
-            A new ClassificationResult with merged metadata
+            ClassificationResult[R]: New result with merged metadata
+
+        Example:
+            ```python
+            result = ClassificationResult(
+                label="positive",
+                confidence=0.85,
+                metadata={"scores": {"positive": 0.85}}
+            )
+
+            # Add metadata
+            enhanced = result.with_metadata(
+                processing_time_ms=42,
+                model_version="1.2.3"
+            )
+
+            # Chain metadata additions
+            final = enhanced.with_metadata(
+                timestamp="2023-07-01T12:34:56"
+            )
+            ```
         """
         # Create a new metadata dictionary with existing and new metadata
         new_metadata = {**self.metadata, **kwargs}
