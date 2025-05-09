@@ -137,7 +137,7 @@ from pydantic import BaseModel, ConfigDict, PrivateAttr
 
 from ..critics import CriticCore
 from ..generation import Generator
-from ..interfaces.core import Component, Configurable, Identifiable
+from ..core.interfaces import Component, Configurable, Identifiable
 from ..models.base import ModelProvider
 from .formatters.result import ResultFormatter
 from .interfaces.chain import Chain as ChainInterface
@@ -157,7 +157,9 @@ logger = get_logger(__name__)
 OutputType = TypeVar("OutputType")
 
 
-class ChainCore(BaseModel, ChainInterface[str, ChainResult[OutputType]], Generic[OutputType]):
+class ChainCore(Generic[OutputType], BaseModel):
+    """Implementation of the ChainInterface protocol"""
+
     """
     Core chain implementation that delegates to specialized components.
 

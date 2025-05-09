@@ -149,3 +149,13 @@ class OpenAIProvider(ModelProviderCore):
             The generated text
         """
         return self.generate(prompt)
+
+    @property
+    def name(self) -> str:
+        """
+        Get the provider name.
+
+        Returns:
+            The provider name
+        """
+        return f"OpenAI-{self.model_name}"

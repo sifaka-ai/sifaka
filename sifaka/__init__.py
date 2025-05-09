@@ -18,15 +18,8 @@ from sifaka.improvement import Improver, ImprovementResult
 from sifaka.models import AnthropicProvider, OpenAIProvider
 from sifaka.validation import Validator, ValidationResult, ValidatorConfig
 
-from sifaka.rules import (
-    LengthRule,
-    Rule,
-    RuleConfig,
-    create_length_rule,
-    create_prohibited_content_rule,
-    create_sentiment_rule,
-    create_toxicity_rule,
-)
+from sifaka.rules.base import Rule
+from sifaka.rules.formatting.length import create_length_rule
 
 # Version information
 __version__ = "0.1.0"
@@ -42,16 +35,11 @@ __all__ = [
     "ValidationResult",
     "ValidatorConfig",
     "Rule",
-    "RuleConfig",
     # Model providers
     "AnthropicProvider",
     "OpenAIProvider",
     # Rules
-    "LengthRule",
     "create_length_rule",
-    "create_prohibited_content_rule",
-    "create_sentiment_rule",
-    "create_toxicity_rule",
     # Critics
     "CriticCore",
     "create_prompt_critic",

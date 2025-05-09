@@ -419,7 +419,7 @@ class LanguageModel(Protocol[R]):
         ...
 
 
-class ModelProvider(ABC, Generic[C], ModelProviderInterface):
+class ModelProvider(ModelProviderInterface, Generic[C], ABC):
     """
     Abstract base class for model providers.
 

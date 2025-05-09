@@ -9,7 +9,7 @@ modularity and extensibility.
 from abc import abstractmethod
 from typing import Any, Dict, Generic, Protocol, TypeVar, runtime_checkable
 
-from ...interfaces.core import Configurable, Identifiable
+from ...core.interfaces import Configurable, Identifiable
 
 # Type variables
 InputType = TypeVar("InputType", contravariant=True)

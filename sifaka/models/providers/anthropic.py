@@ -298,3 +298,13 @@ class AnthropicProvider(ModelProviderCore):
             temperature=temperature,
             max_tokens=max_tokens,
         )
+
+    @property
+    def name(self) -> str:
+        """
+        Get the provider name.
+
+        Returns:
+            The provider name
+        """
+        return f"Anthropic-{self.model_name}"

@@ -7,7 +7,7 @@ consistently across the Sifaka framework.
 
 from typing import Any, Dict, List, Optional, Union
 
-from sifaka.classifiers.base import ClassifierConfig
+from sifaka.classifiers.models import ClassifierConfig
 
 
 def standardize_classifier_config(

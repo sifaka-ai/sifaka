@@ -143,8 +143,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from sifaka.utils.logging import get_logger
 
-from .config import ClassifierConfig
-from .models import ClassificationResult
+from .models import ClassificationResult, ClassifierConfig
 
 logger = get_logger(__name__)
 

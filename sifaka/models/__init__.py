@@ -12,7 +12,8 @@ It also provides base classes and interfaces:
 - Interfaces: Protocol interfaces for model providers, clients, and token counters
 """
 
-from sifaka.critics.prompt import LanguageModel
+# Import removed to fix circular dependency
+# from sifaka.critics.prompt import LanguageModel
 
 # Import base classes and interfaces
 from .base import ModelProvider, APIClient, TokenCounter, ModelConfig
@@ -52,7 +53,7 @@ __all__ = [
     "AnthropicProvider",
     "GeminiProvider",
     "MockProvider",
-    "LanguageModel",
+    # "LanguageModel",  # Removed to fix circular dependency
     # Factory functions
     "create_model_provider",
     "create_openai_provider",

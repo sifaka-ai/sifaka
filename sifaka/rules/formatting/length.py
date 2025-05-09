@@ -278,6 +278,7 @@ class DefaultLengthValidator(LengthValidator):
 
         return RuleResult(
             passed=not errors,
+            rule_name="length_validator",
             message=errors[0] if errors else "Text length validation successful",
             metadata={
                 "char_count": char_count,

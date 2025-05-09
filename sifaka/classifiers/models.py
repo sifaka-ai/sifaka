@@ -2,16 +2,77 @@
 Data models for classifiers.
 
 This module provides the data models used by classifiers in the Sifaka framework,
-including classification results and related data structures.
+including classification results, configuration, and related data structures.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, Generic, TypeVar
+from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# Type variable for generic models
+# Type variables for generic models
 R = TypeVar("R")  # Result label type
+T = TypeVar("T")  # Input text type
+
+
+class ClassifierConfig(BaseModel, Generic[T]):
+    """
+    Configuration for classifiers.
+
+    This class represents the configuration for a classifier, including
+    labels, minimum confidence threshold, and caching settings.
+    """
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        from_attributes=True,
+        validate_assignment=True,
+    )
+
+    labels: List[str] = Field(
+        description="List of possible classification labels",
+        min_length=1,
+    )
+    min_confidence: float = Field(
+        default=0.5,
+        description="Minimum confidence threshold for classification",
+        ge=0.0,
+        le=1.0,
+    )
+    cache_size: int = Field(
+        default=0,
+        description="Size of the classification cache (0 to disable)",
+        ge=0,
+    )
+    params: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional parameters for the classifier",
+    )
+
+    def with_options(self, **kwargs: Any) -> "ClassifierConfig[T]":
+        """
+        Create a new config with updated options.
+
+        Args:
+            **kwargs: Options to update
+
+        Returns:
+            New ClassifierConfig with updated options
+        """
+        # Create a copy of the current config
+        data = self.model_dump()
+
+        # Update with new options
+        for key, value in kwargs.items():
+            if key == "params" and isinstance(value, dict):
+                # Merge params dictionaries
+                data["params"] = {**data.get("params", {}), **value}
+            else:
+                # Set other options directly
+                data[key] = value
+
+        # Create a new config with the updated data
+        return ClassifierConfig(**data)
 
 
 @dataclass(frozen=True)
@@ -67,19 +128,19 @@ class ClassificationResult(Generic[R]):
     # Access the result
     if result.confidence > 0.8:
         print(f"High confidence classification: {result.label}")
-        
+
     # Access metadata
     if "scores" in result.metadata:
         print(f"Negative score: {result.metadata['scores']['negative']:.2f}")
-        
+
     # Add additional metadata
     enhanced = result.with_metadata(
         processing_time_ms=42,
         model_version="1.2.3"
     )
-    
+
     print(f"Processing time: {enhanced.metadata['processing_time_ms']} ms")
-    
+
     # Chain metadata additions
     enhanced = result.with_metadata(
         timestamp="2023-07-01T12:34:56"
@@ -119,10 +180,8 @@ class ClassificationResult(Generic[R]):
         """
         # Create a new metadata dictionary with existing and new metadata
         new_metadata = {**self.metadata, **kwargs}
-        
+
         # Return a new instance with the same label and confidence but updated metadata
         return ClassificationResult(
-            label=self.label,
-            confidence=self.confidence,
-            metadata=new_metadata
+            label=self.label, confidence=self.confidence, metadata=new_metadata
         )
