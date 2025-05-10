@@ -28,7 +28,7 @@ from typing import (
 )
 
 from typing_extensions import TypeGuard
-from pydantic import ConfigDict, PrivateAttr
+from pydantic import ConfigDict
 
 from sifaka.classifiers.base import BaseClassifier
 from sifaka.classifiers.models import ClassificationResult
@@ -92,7 +92,7 @@ class NERClassifier(BaseClassifier[str, List[Dict[str, Any]]]):
     ]
     DEFAULT_COST: ClassVar[int] = 2  # Moderate cost for NLP model
 
-    # State is inherited from BaseClassifier as _state
+    # State is inherited from BaseClassifier as _state_manager
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -134,9 +134,9 @@ class NERClassifier(BaseClassifier[str, List[Dict[str, Any]]]):
 
         # Store engine in state if provided
         if engine is not None and self._validate_engine(engine):
-            cache = self._state.get("cache", {})
+            cache = self._state_manager.get("cache", {})
             cache["engine"] = engine
-            self._state.update("cache", cache)
+            self._state_manager.update("cache", cache)
 
     def _validate_engine(self, engine: Any) -> TypeGuard[NEREngine]:
         """Validate that an engine implements the required protocol."""
@@ -146,8 +146,8 @@ class NERClassifier(BaseClassifier[str, List[Dict[str, Any]]]):
         """Load the spaCy NER engine."""
         try:
             # Check if engine is already in state
-            if self._state.get("cache", {}).get("engine"):
-                return self._state.get("cache")["engine"]
+            if self._state_manager.get("cache", {}).get("engine"):
+                return self._state_manager.get("cache")["engine"]
 
             spacy = importlib.import_module("spacy")
 
@@ -176,9 +176,9 @@ class NERClassifier(BaseClassifier[str, List[Dict[str, Any]]]):
 
             # Validate and store in state
             if self._validate_engine(engine):
-                cache = self._state.get("cache", {})
+                cache = self._state_manager.get("cache", {})
                 cache["engine"] = engine
-                self._state.update("cache", cache)
+                self._state_manager.update("cache", cache)
                 return engine
 
         except ImportError:
@@ -198,16 +198,16 @@ class NERClassifier(BaseClassifier[str, List[Dict[str, Any]]]):
 
     def warm_up(self) -> None:
         """Initialize the NER engine if needed."""
-        if not self._state.get("initialized", False):
+        if not self._state_manager.get("initialized", False):
             # Load engine if not already in state
-            if not self._state.get("cache", {}).get("engine"):
+            if not self._state_manager.get("cache", {}).get("engine"):
                 engine = self._load_spacy()
-                cache = self._state.get("cache", {})
+                cache = self._state_manager.get("cache", {})
                 cache["engine"] = engine
-                self._state.update("cache", cache)
+                self._state_manager.update("cache", cache)
 
             # Mark as initialized
-            self._state.update("initialized", True)
+            self._state_manager.update("initialized", True)
 
     def _extract_entities(self, text: str) -> EntityResult:
         """
@@ -220,11 +220,11 @@ class NERClassifier(BaseClassifier[str, List[Dict[str, Any]]]):
             EntityResult with entity details
         """
         # Ensure resources are initialized
-        if not self._state.get("initialized", False):
+        if not self._state_manager.get("initialized", False):
             self.warm_up()
 
         # Get engine from state
-        engine = self._state.get("cache", {}).get("engine")
+        engine = self._state_manager.get("cache", {}).get("engine")
         if not engine:
             raise RuntimeError("NER engine not initialized")
 
@@ -326,9 +326,9 @@ class NERClassifier(BaseClassifier[str, List[Dict[str, Any]]]):
             )
 
             # Track statistics
-            stats = self._state.get("statistics", {})
+            stats = self._state_manager.get("statistics", {})
             stats[result.label] = stats.get(result.label, 0) + 1
-            self._state.update("statistics", stats)
+            self._state_manager.update("statistics", stats)
 
             return result
 
@@ -337,9 +337,9 @@ class NERClassifier(BaseClassifier[str, List[Dict[str, Any]]]):
 
             # Track errors in state
             error_info = {"error": str(e), "type": type(e).__name__}
-            errors = self._state.get("errors", [])
+            errors = self._state_manager.get("errors", [])
             errors.append(error_info)
-            self._state.update("errors", errors)
+            self._state_manager.update("errors", errors)
 
             return ClassificationResult(
                 label="unknown",
@@ -362,14 +362,14 @@ class NERClassifier(BaseClassifier[str, List[Dict[str, Any]]]):
         """
         stats = {
             # Classification counts by label
-            "classifications": self._state.get("statistics", {}),
+            "classifications": self._state_manager.get("statistics", {}),
             # Number of errors encountered
-            "error_count": len(self._state.get("errors", [])),
+            "error_count": len(self._state_manager.get("errors", [])),
             # Cache information
             "cache_enabled": self.config.cache_size > 0,
             "cache_size": self.config.cache_size,
             # State initialization status
-            "initialized": self._state.get("initialized", False),
+            "initialized": self._state_manager.get("initialized", False),
             # Model information
             "model_name": self.config.params.get("model_name", "en_core_web_sm"),
             "entity_types": list(self.entity_types),
@@ -393,15 +393,15 @@ class NERClassifier(BaseClassifier[str, List[Dict[str, Any]]]):
             self._result_cache.clear()
 
         # Reset statistics
-        self._state.update("statistics", {})
+        self._state_manager.update("statistics", {})
 
         # Reset errors list but keep engine and initialized status
-        self._state.update("errors", [])
+        self._state_manager.update("errors", [])
 
         # Keep the engine in cache
-        cache = self._state.get("cache", {})
+        cache = self._state_manager.get("cache", {})
         preserved_cache = {k: v for k, v in cache.items() if k == "engine"}
-        self._state.update("cache", preserved_cache)
+        self._state_manager.update("cache", preserved_cache)
 
     @classmethod
     def create_with_custom_engine(
@@ -448,8 +448,8 @@ class NERClassifier(BaseClassifier[str, List[Dict[str, Any]]]):
 
         # Initialize state with engine and mark as initialized
         cache = {"engine": engine}
-        instance._state.update("cache", cache)
-        instance._state.update("initialized", True)
+        instance._state_manager.update("cache", cache)
+        instance._state_manager.update("initialized", True)
 
         return instance
 

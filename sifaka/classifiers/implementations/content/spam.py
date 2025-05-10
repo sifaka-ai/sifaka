@@ -76,6 +76,9 @@ class SpamClassifier(BaseClassifier[str, str]):
     DEFAULT_LABELS: ClassVar[List[str]] = ["ham", "spam"]
     DEFAULT_COST: ClassVar[int] = 1.5  # Slightly higher cost for ML-based model
 
+    # State management
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
+
     def __init__(
         self,
         name: str = "spam_classifier",
@@ -118,16 +121,16 @@ class SpamClassifier(BaseClassifier[str, str]):
         """Load scikit-learn dependencies."""
         try:
             # Import necessary scikit-learn modules
-            cache = self._state.get("cache", {})
+            cache = self._state_manager.get("cache", {})
             cache["sklearn_feature_extraction_text"] = importlib.import_module(
                 "sklearn.feature_extraction.text"
             )
             cache["sklearn_naive_bayes"] = importlib.import_module("sklearn.naive_bayes")
             cache["sklearn_pipeline"] = importlib.import_module("sklearn.pipeline")
-            self._state.update("cache", cache)
+            self._state_manager.update("cache", cache)
 
             # Mark dependencies as loaded
-            self._state.update("dependencies_loaded", True)
+            self._state_manager.update("dependencies_loaded", True)
             return True
         except ImportError:
             raise ImportError(
@@ -139,7 +142,7 @@ class SpamClassifier(BaseClassifier[str, str]):
 
     def warm_up(self) -> None:
         """Initialize the model if needed."""
-        if not self._state.get("initialized", False):
+        if not self._state_manager.get("initialized", False):
             # Load dependencies
             self._load_dependencies()
 
@@ -152,7 +155,7 @@ class SpamClassifier(BaseClassifier[str, str]):
                 use_bigrams = self.config.params.get("use_bigrams", True)
 
                 # Get scikit-learn modules from state
-                cache = self._state.get("cache", {})
+                cache = self._state_manager.get("cache", {})
                 sklearn_feature_extraction_text = cache["sklearn_feature_extraction_text"]
                 sklearn_naive_bayes = cache["sklearn_naive_bayes"]
                 sklearn_pipeline = cache["sklearn_pipeline"]
@@ -177,18 +180,18 @@ class SpamClassifier(BaseClassifier[str, str]):
                 )
 
                 # Store in state
-                self._state.update("vectorizer", vectorizer)
-                self._state.update("model", model)
-                self._state.update("pipeline", pipeline)
+                self._state_manager.update("vectorizer", vectorizer)
+                self._state_manager.update("model", model)
+                self._state_manager.update("pipeline", pipeline)
 
             # Mark as initialized
-            self._state.update("initialized", True)
+            self._state_manager.update("initialized", True)
 
     def _save_model(self, path: str) -> None:
         """Save the model to a file."""
         try:
             with open(path, "wb") as f:
-                pickle.dump(self._state.get("pipeline"), f)
+                pickle.dump(self._state_manager.get("pipeline"), f)
             logger.info(f"Model saved to {path}")
         except Exception as e:
             logger.error(f"Failed to save model: {e}")
@@ -198,10 +201,10 @@ class SpamClassifier(BaseClassifier[str, str]):
         try:
             with open(path, "rb") as f:
                 pipeline = pickle.load(f)
-                self._state.update("pipeline", pipeline)
+                self._state_manager.update("pipeline", pipeline)
                 # Extract vectorizer and model from pipeline
-                self._state.update("vectorizer", pipeline.named_steps["vectorizer"])
-                self._state.update("model", pipeline.named_steps["classifier"])
+                self._state_manager.update("vectorizer", pipeline.named_steps["vectorizer"])
+                self._state_manager.update("model", pipeline.named_steps["classifier"])
             logger.info(f"Model loaded from {path}")
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
@@ -231,9 +234,9 @@ class SpamClassifier(BaseClassifier[str, str]):
         self.warm_up()
 
         # Fit the pipeline
-        pipeline = self._state.get("pipeline")
+        pipeline = self._state_manager.get("pipeline")
         pipeline.fit(texts, label_indices)
-        self._state.update("pipeline", pipeline)
+        self._state_manager.update("pipeline", pipeline)
 
         # Save the model if path is provided
         model_path = self.config.params.get("model_path")
@@ -252,12 +255,12 @@ class SpamClassifier(BaseClassifier[str, str]):
         Returns:
             ClassificationResult with prediction details
         """
-        if not self._state.get("initialized", False):
+        if not self._state_manager.get("initialized", False):
             self.warm_up()
 
         try:
             # Get prediction probabilities
-            pipeline = self._state.get("pipeline")
+            pipeline = self._state_manager.get("pipeline")
             proba = pipeline.predict_proba([text])[0]
 
             # Get predicted label index and confidence
@@ -276,9 +279,9 @@ class SpamClassifier(BaseClassifier[str, str]):
             )
 
             # Track statistics
-            stats = self._state.get("statistics", {})
+            stats = self._state_manager.get("statistics", {})
             stats[label] = stats.get(label, 0) + 1
-            self._state.update("statistics", stats)
+            self._state_manager.update("statistics", stats)
 
             return result
         except Exception as e:
@@ -286,9 +289,9 @@ class SpamClassifier(BaseClassifier[str, str]):
 
             # Track errors in state
             error_info = {"error": str(e), "type": type(e).__name__}
-            errors = self._state.get("errors", [])
+            errors = self._state_manager.get("errors", [])
             errors.append(error_info)
-            self._state.update("errors", errors)
+            self._state_manager.update("errors", errors)
 
             return ClassificationResult[str](
                 label="unknown",
@@ -308,12 +311,12 @@ class SpamClassifier(BaseClassifier[str, str]):
         """
         self.validate_batch_input(texts)
 
-        if not self._state.get("initialized", False):
+        if not self._state_manager.get("initialized", False):
             self.warm_up()
 
         try:
             # Predict probabilities for all texts
-            pipeline = self._state.get("pipeline")
+            pipeline = self._state_manager.get("pipeline")
             probas = pipeline.predict_proba(texts)
 
             results = []
@@ -335,9 +338,9 @@ class SpamClassifier(BaseClassifier[str, str]):
                 )
 
                 # Track statistics
-                stats = self._state.get("statistics", {})
+                stats = self._state_manager.get("statistics", {})
                 stats[label] = stats.get(label, 0) + 1
-                self._state.update("statistics", stats)
+                self._state_manager.update("statistics", stats)
 
             return results
         except Exception as e:
@@ -345,9 +348,9 @@ class SpamClassifier(BaseClassifier[str, str]):
 
             # Track errors in state
             error_info = {"error": str(e), "type": type(e).__name__, "batch_size": len(texts)}
-            errors = self._state.get("errors", [])
+            errors = self._state_manager.get("errors", [])
             errors.append(error_info)
-            self._state.update("errors", errors)
+            self._state_manager.update("errors", errors)
 
             return [
                 ClassificationResult[str](
@@ -370,14 +373,14 @@ class SpamClassifier(BaseClassifier[str, str]):
         """
         stats = {
             # Classification counts by label
-            "classifications": self._state.get("statistics", {}),
+            "classifications": self._state_manager.get("statistics", {}),
             # Number of errors encountered
-            "error_count": len(self._state.get("errors", [])),
+            "error_count": len(self._state_manager.get("errors", [])),
             # Cache information
             "cache_enabled": self.config.cache_size > 0,
             "cache_size": self.config.cache_size,
             # State initialization status
-            "initialized": self._state.get("initialized", False),
+            "initialized": self._state_manager.get("initialized", False),
             # Model information
             "model_path": self.config.params.get("model_path"),
             "max_features": self.config.params.get("max_features", 1000),
@@ -401,10 +404,10 @@ class SpamClassifier(BaseClassifier[str, str]):
             self._result_cache.clear()
 
         # Reset statistics
-        self._state.update("statistics", {})
+        self._state_manager.update("statistics", {})
 
         # Reset errors list but keep model and initialized status
-        self._state.update("errors", [])
+        self._state_manager.update("errors", [])
 
     @classmethod
     def create_pretrained(

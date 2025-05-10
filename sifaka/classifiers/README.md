@@ -1,145 +1,213 @@
 # Sifaka Classifiers
 
-This package provides a collection of text classifiers that analyze content for various characteristics. Each classifier follows a consistent interface and can be used independently or integrated with rules.
-
-## Directory Structure
-
-```
-classifiers/
-├── __init__.py           # Public API
-├── base.py               # Base classifier classes
-├── config.py             # Configuration classes
-├── factories.py          # Factory functions
-├── models.py             # Data models
-├── interfaces/           # Protocol interfaces
-│   ├── __init__.py
-│   └── classifier.py     # Classifier protocols
-├── managers/             # State management
-│   ├── __init__.py
-│   └── state.py          # State manager
-├── strategies/           # Strategy implementations
-│   ├── __init__.py
-│   └── caching.py        # Caching strategy
-└── implementations/      # Concrete classifier implementations
-    ├── __init__.py
-    ├── content/          # Content analysis classifiers
-    │   ├── __init__.py
-    │   ├── bias.py       # Bias detection
-    │   ├── profanity.py  # Profanity detection
-    │   ├── sentiment.py  # Sentiment analysis
-    │   ├── spam.py       # Spam detection
-    │   └── toxicity.py   # Toxicity detection
-    ├── properties/       # Text properties classifiers
-    │   ├── __init__.py
-    │   ├── genre.py      # Genre classification
-    │   ├── language.py   # Language detection
-    │   ├── readability.py # Readability analysis
-    │   └── topic.py      # Topic classification
-    └── entities/         # Entity analysis classifiers
-        ├── __init__.py
-        └── ner.py        # Named entity recognition
-```
+This package provides a simplified and more maintainable implementation of the classifiers system for categorizing and analyzing text.
 
 ## Architecture
 
-The classifiers package follows a layered architecture:
+The classifiers architecture follows a simplified component-based design:
 
-1. **Public API**: The `__init__.py` file exports all public classes and functions
-2. **Base Classes**: The `base.py` file provides abstract base classes
-3. **Interfaces**: The `interfaces/` directory defines protocol interfaces
-4. **Managers**: The `managers/` directory provides state management components
-5. **Strategies**: The `strategies/` directory provides strategy implementations
-6. **Implementations**: The `implementations/` directory contains concrete classifier implementations
+```
+Classifier
+├── Engine (core classification logic)
+│   └── StateTracker (centralized state management)
+├── Components (pluggable components)
+│   └── ClassifierImplementation (text classification)
+└── Plugins (extension mechanism)
+    ├── PluginRegistry (plugin discovery and registration)
+    └── PluginLoader (dynamic plugin loading)
+```
+
+### Core Components
+
+- **Classifier**: Main user-facing class for classification
+- **Engine**: Core classification engine that coordinates the flow
+- **StateTracker**: Centralized state management
+- **ClassifierImplementation**: Interface for classifier implementations
+- **ClassificationResult**: Result of a classification operation
+- **Plugin**: Interface for plugins
 
 ## Usage
 
-### Using Factory Functions (Recommended)
+### Basic Usage
 
 ```python
-from sifaka.classifiers import create_sentiment_classifier, create_toxicity_classifier
+from sifaka.classifiers import Classifier
+from sifaka.classifiers.implementations.content import ToxicityClassifier
 
-# Create classifiers using factory functions
-sentiment = create_sentiment_classifier(
-    positive_threshold=0.1,
-    negative_threshold=-0.1,
-    cache_size=100
-)
+# Create classifier implementation
+implementation = ToxicityClassifier()
 
-# Analyze text
-sentiment_result = sentiment.classify("This is fantastic!")
-print(f"Sentiment: {sentiment_result.label}, Confidence: {sentiment_result.confidence:.2f}")
-print(f"Compound score: {sentiment_result.metadata['compound_score']:.2f}")
-```
+# Create classifier
+classifier = Classifier(implementation=implementation)
 
-### Using the Generic Factory Function
-
-```python
-from sifaka.classifiers import create_classifier_by_name
-
-# Create classifiers using the generic factory function
-sentiment = create_classifier_by_name(
-    name="sentiment",
-    positive_threshold=0.1,
-    negative_threshold=-0.1,
-    cache_size=100
-)
-
-toxicity = create_classifier_by_name(
-    name="toxicity",
-    general_threshold=0.5,
-    cache_size=100
-)
-
-# Analyze text
-result = toxicity.classify("This is a test.")
-print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
-```
-
-### Using with Rules
-
-```python
-from sifaka.classifiers import create_sentiment_classifier
-from sifaka.adapters.classifier import create_classifier_rule
-
-# Create a classifier
-sentiment = create_sentiment_classifier(
-    positive_threshold=0.1,
-    negative_threshold=-0.1,
-    cache_size=100
-)
-
-# Create a rule using the classifier
-sentiment_rule = create_classifier_rule(
-    classifier=sentiment,
-    name="sentiment_rule",
-    description="Ensures text has positive sentiment",
-    threshold=0.6,
-    valid_labels=["positive"]
-)
-
-# Apply the rule
-result = sentiment_rule.apply("This is fantastic!")
-print(f"Rule passed: {result.passed}")
+# Classify text
+result = classifier.classify("This is a friendly message.")
+print(f"Label: {result.label}")
 print(f"Confidence: {result.confidence:.2f}")
 ```
 
-## Available Classifiers
+### Using Factory Functions
 
-### Content Analysis
+```python
+from sifaka.classifiers import create_classifier
+from sifaka.classifiers.implementations.content import ToxicityClassifier
 
-- **SentimentClassifier**: Analyzes text sentiment (positive/negative/neutral)
-- **ProfanityClassifier**: Detects profane or inappropriate language
-- **ToxicityClassifier**: Identifies toxic content
-- **SpamClassifier**: Detects spam content in text
-- **BiasDetector**: Identifies various forms of bias in text
+# Create classifier implementation
+implementation = ToxicityClassifier()
 
-### Text Properties
+# Create classifier using factory
+classifier = create_classifier(
+    implementation=implementation,
+    name="toxicity_classifier",
+    description="Detects toxic content in text",
+    cache_enabled=True,
+    cache_size=100,
+    min_confidence=0.7
+)
 
-- **ReadabilityClassifier**: Evaluates reading difficulty level
-- **LanguageClassifier**: Identifies the language of text
-- **TopicClassifier**: Identifies topics in text using LDA
-- **GenreClassifier**: Categorizes text into genres (news, fiction, academic, etc.)
+# Classify text
+result = classifier.classify("This is a friendly message.")
+```
 
-### Entity Analysis
+### Batch Classification
 
-- **NERClassifier**: Identifies named entities (people, organizations, locations, etc.)
+```python
+from sifaka.classifiers import Classifier
+from sifaka.classifiers.implementations.content import SentimentClassifier
+
+# Create classifier
+classifier = Classifier(implementation=SentimentClassifier())
+
+# Classify batch of texts
+results = classifier.classify_batch([
+    "I love this product!",
+    "I'm not sure about this.",
+    "This is terrible."
+])
+
+# Process results
+for i, result in enumerate(results):
+    print(f"Text {i+1}: {result.label} ({result.confidence:.2f})")
+```
+
+### Asynchronous Classification
+
+```python
+import asyncio
+from sifaka.classifiers import Classifier
+from sifaka.classifiers.config import ClassifierConfig
+from sifaka.classifiers.implementations.content import ToxicityClassifier
+
+# Create classifier with async enabled
+classifier = Classifier(
+    implementation=ToxicityClassifier(),
+    config=ClassifierConfig(async_enabled=True)
+)
+
+# Classify text asynchronously
+async def classify_async():
+    result = await classifier.classify_async("This is a friendly message.")
+    print(f"Label: {result.label}")
+    print(f"Confidence: {result.confidence:.2f}")
+
+# Run async function
+asyncio.run(classify_async())
+```
+
+## Extending
+
+### Creating a Custom Implementation
+
+```python
+from sifaka.classifiers.interfaces import ClassifierImplementation
+from sifaka.classifiers.result import ClassificationResult
+
+class SentimentClassifier(ClassifierImplementation):
+    def __init__(self):
+        self.positive_words = ["good", "great", "excellent", "happy"]
+        self.negative_words = ["bad", "terrible", "awful", "sad"]
+
+    def classify(self, text: str) -> ClassificationResult:
+        # Simple implementation that checks for positive/negative words
+        text_lower = text.lower()
+        positive_count = sum(word in text_lower for word in self.positive_words)
+        negative_count = sum(word in text_lower for word in self.negative_words)
+
+        if positive_count > negative_count:
+            return ClassificationResult(
+                label="positive",
+                confidence=0.8,
+                metadata={"positive_words": positive_count, "negative_words": negative_count}
+            )
+        elif negative_count > positive_count:
+            return ClassificationResult(
+                label="negative",
+                confidence=0.8,
+                metadata={"positive_words": positive_count, "negative_words": negative_count}
+            )
+        else:
+            return ClassificationResult(
+                label="neutral",
+                confidence=0.6,
+                metadata={"positive_words": positive_count, "negative_words": negative_count}
+            )
+
+    async def classify_async(self, text: str) -> ClassificationResult:
+        # For simple implementations, async can just call the sync version
+        return self.classify(text)
+```
+
+### Creating a Plugin
+
+```python
+from typing import Any, Dict
+from sifaka.classifiers.interfaces import Plugin, ClassifierImplementation
+from sifaka.classifiers.result import ClassificationResult
+
+class SentimentPlugin(Plugin):
+    @property
+    def name(self) -> str:
+        return "sentiment_plugin"
+
+    @property
+    def version(self) -> str:
+        return "1.0.0"
+
+    @property
+    def component_type(self) -> str:
+        return "classifier_implementation"
+
+    def create_component(self, config: Dict[str, Any]) -> ClassifierImplementation:
+        positive_words = config.get("positive_words", ["good", "great", "excellent", "happy"])
+        negative_words = config.get("negative_words", ["bad", "terrible", "awful", "sad"])
+
+        class SentimentClassifier(ClassifierImplementation):
+            def classify(self, text: str) -> ClassificationResult:
+                text_lower = text.lower()
+                positive_count = sum(word in text_lower for word in positive_words)
+                negative_count = sum(word in text_lower for word in negative_words)
+
+                if positive_count > negative_count:
+                    return ClassificationResult(
+                        label="positive",
+                        confidence=0.8,
+                        metadata={"positive_words": positive_count, "negative_words": negative_count}
+                    )
+                elif negative_count > positive_count:
+                    return ClassificationResult(
+                        label="negative",
+                        confidence=0.8,
+                        metadata={"positive_words": positive_count, "negative_words": negative_count}
+                    )
+                else:
+                    return ClassificationResult(
+                        label="neutral",
+                        confidence=0.6,
+                        metadata={"positive_words": positive_count, "negative_words": negative_count}
+                    )
+
+            async def classify_async(self, text: str) -> ClassificationResult:
+                return self.classify(text)
+
+        return SentimentClassifier()
+```

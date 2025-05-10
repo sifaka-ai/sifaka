@@ -78,7 +78,7 @@ from typing import (
 )
 
 from typing_extensions import TypeGuard
-from pydantic import ConfigDict, PrivateAttr
+from pydantic import ConfigDict
 
 from sifaka.classifiers.base import BaseClassifier
 from sifaka.classifiers.models import ClassificationResult
@@ -240,7 +240,7 @@ class ProfanityClassifier(BaseClassifier):
         # Store checker in state if provided
         if checker is not None:
             if self._validate_checker(checker):
-                self._state.update("cache", {"checker": checker})
+                self._state_manager.update("cache", {"checker": checker})
 
     def _validate_checker(self, checker: Any) -> TypeGuard[ProfanityChecker]:
         """Validate that a checker implements the required protocol."""
@@ -254,8 +254,8 @@ class ProfanityClassifier(BaseClassifier):
         """Load the profanity checker."""
         try:
             # Check if checker is already in state
-            if self._state.get("cache", {}).get("checker"):
-                return self._state.get("cache")["checker"]
+            if self._state_manager.get("cache", {}).get("checker"):
+                return self._state_manager.get("cache")["checker"]
 
             profanity_module = importlib.import_module("better_profanity")
             checker = profanity_module.Profanity()
@@ -277,9 +277,9 @@ class ProfanityClassifier(BaseClassifier):
 
             # Validate and store in state
             if self._validate_checker(checker):
-                cache = self._state.get("cache", {})
+                cache = self._state_manager.get("cache", {})
                 cache["checker"] = checker
-                self._state.update("cache", cache)
+                self._state_manager.update("cache", cache)
                 return checker
 
         except ImportError:
@@ -307,19 +307,19 @@ class ProfanityClassifier(BaseClassifier):
         """Add custom words to the profanity list."""
         self.warm_up()
 
-        checker = self._state.get("cache", {}).get("checker")
+        checker = self._state_manager.get("cache", {}).get("checker")
         if checker:
             checker.add_censor_words(words)
 
     def warm_up(self) -> None:
         """Initialize the profanity checker if needed."""
-        if not self._state.get("initialized", False):
+        if not self._state_manager.get("initialized", False):
             # Load profanity checker
             checker = self._load_profanity()
-            cache = self._state.get("cache", {})
+            cache = self._state_manager.get("cache", {})
             cache["checker"] = checker
-            self._state.update("cache", cache)
-            self._state.update("initialized", True)
+            self._state_manager.update("cache", cache)
+            self._state_manager.update("initialized", True)
 
     def _censor_text(self, text: str) -> CensorResult:
         """
@@ -331,10 +331,10 @@ class ProfanityClassifier(BaseClassifier):
         Returns:
             CensorResult with censoring details
         """
-        if not self._state.get("initialized", False):
+        if not self._state_manager.get("initialized", False):
             raise RuntimeError("Profanity checker not initialized. Call warm_up() first.")
 
-        checker = self._state.get("cache", {}).get("checker")
+        checker = self._state_manager.get("cache", {}).get("checker")
         if not checker:
             raise RuntimeError("Profanity checker not found in state.")
 
@@ -366,7 +366,7 @@ class ProfanityClassifier(BaseClassifier):
         Returns:
             ClassificationResult with label and confidence
         """
-        if not self._state.get("initialized", False):
+        if not self._state_manager.get("initialized", False):
             self.warm_up()
 
         try:
@@ -378,7 +378,7 @@ class ProfanityClassifier(BaseClassifier):
                 return empty_result
 
             # Get checker from state
-            checker = self._state.get("cache", {}).get("checker")
+            checker = self._state_manager.get("cache", {}).get("checker")
 
             # Check for profanity and censor text
             contains_profanity = checker.contains_profanity(text)
@@ -405,9 +405,9 @@ class ProfanityClassifier(BaseClassifier):
             )
 
             # Track statistics
-            stats = self._state.get("statistics", {})
+            stats = self._state_manager.get("statistics", {})
             stats[result.label] = stats.get(result.label, 0) + 1
-            self._state.update("statistics", stats)
+            self._state_manager.update("statistics", stats)
 
             return result
 
@@ -415,9 +415,9 @@ class ProfanityClassifier(BaseClassifier):
             logger.error("Failed to check profanity: %s", e)
             # Track errors in state
             error_info = {"error": str(e), "type": type(e).__name__}
-            errors = self._state.get("errors", [])
+            errors = self._state_manager.get("errors", [])
             errors.append(error_info)
-            self._state.update("errors", errors)
+            self._state_manager.update("errors", errors)
 
             return ClassificationResult(
                 label="unknown",
@@ -440,14 +440,14 @@ class ProfanityClassifier(BaseClassifier):
         """
         stats = {
             # Classification counts by label
-            "classifications": self._state.get("statistics", {}),
+            "classifications": self._state_manager.get("statistics", {}),
             # Number of errors encountered
-            "error_count": len(self._state.get("errors", [])),
+            "error_count": len(self._state_manager.get("errors", [])),
             # Cache information
             "cache_enabled": self.config.cache_size > 0,
             "cache_size": self.config.cache_size,
             # State initialization status
-            "initialized": self._state.get("initialized", False),
+            "initialized": self._state_manager.get("initialized", False),
         }
 
         # Add cache hit ratio if caching is enabled
@@ -455,7 +455,7 @@ class ProfanityClassifier(BaseClassifier):
             stats["cache_entries"] = len(self._result_cache)
 
         # Add checker information if available
-        if self._state.get("cache", {}).get("checker"):
+        if self._state_manager.get("cache", {}).get("checker"):
             stats["has_checker"] = True
 
         return stats
@@ -471,14 +471,14 @@ class ProfanityClassifier(BaseClassifier):
             self._result_cache.clear()
 
         # Reset state cache but keep the checker
-        checker = self._state.get("cache", {}).get("checker")
-        self._state.update("cache", {"checker": checker} if checker else {})
+        checker = self._state_manager.get("cache", {}).get("checker")
+        self._state_manager.update("cache", {"checker": checker} if checker else {})
 
         # Reset statistics
-        self._state.update("statistics", {})
+        self._state_manager.update("statistics", {})
 
         # Reset errors list but keep initialized status
-        self._state.update("errors", [])
+        self._state_manager.update("errors", [])
 
     @classmethod
     def create(

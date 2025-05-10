@@ -11,7 +11,7 @@ except ImportError:
     # If patches are not available, continue without them
     pass
 
-from sifaka.chain import ChainCore, ChainResult
+from sifaka.chain import Chain, ChainResult
 from sifaka.critics import CriticCore, create_prompt_critic, create_reflexion_critic
 from sifaka.core.generation import Generator
 from sifaka.core.improvement import Improver, ImprovementResult
@@ -26,7 +26,7 @@ __version__ = "0.1.0"
 
 __all__ = [
     # Core components
-    "ChainCore",
+    "Chain",
     "ChainResult",
     "Generator",
     "Improver",

@@ -10,7 +10,7 @@ import os
 import pickle
 from typing import Dict, List, Optional, Any, ClassVar
 
-from pydantic import ConfigDict, PrivateAttr
+from pydantic import ConfigDict
 
 from sifaka.classifiers.base import BaseClassifier
 from sifaka.classifiers.models import ClassificationResult
@@ -60,7 +60,7 @@ class GenreClassifier(BaseClassifier[str, str]):
     ]
     DEFAULT_COST: ClassVar[int] = 1  # Low cost for rule-based classification
 
-    # State is inherited from BaseClassifier as _state
+    # State is inherited from BaseClassifier as _state_manager
 
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
@@ -91,7 +91,7 @@ class GenreClassifier(BaseClassifier[str, str]):
             )
 
         # Initialize state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
         state.initialized = False
         state.cache = {}
 
@@ -142,7 +142,7 @@ class GenreClassifier(BaseClassifier[str, str]):
             RuntimeError: If model initialization fails
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Check if already initialized
         if not state.initialized:
@@ -202,7 +202,7 @@ class GenreClassifier(BaseClassifier[str, str]):
             RuntimeError: If model is not trained
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         try:
             # Get custom labels from state cache
@@ -240,7 +240,7 @@ class GenreClassifier(BaseClassifier[str, str]):
             ValueError: If model files are invalid
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         try:
             with open(path, "rb") as f:
@@ -284,7 +284,7 @@ class GenreClassifier(BaseClassifier[str, str]):
             self: The fitted classifier
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         if len(texts) != len(labels):
             raise ValueError("Number of texts and labels must match")
@@ -338,7 +338,7 @@ class GenreClassifier(BaseClassifier[str, str]):
             RuntimeError: If model is not trained
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         if not state.model or not hasattr(state.model, "feature_importances_"):
             return {}
@@ -385,7 +385,7 @@ class GenreClassifier(BaseClassifier[str, str]):
             RuntimeError: If classification fails
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         if not state.pipeline:
             raise RuntimeError(
@@ -444,7 +444,7 @@ class GenreClassifier(BaseClassifier[str, str]):
             RuntimeError: If batch classification fails
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         self.validate_batch_input(texts)
 

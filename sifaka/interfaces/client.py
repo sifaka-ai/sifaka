@@ -1,8 +1,28 @@
 """
-Protocol interfaces for API clients.
+Client interfaces for Sifaka.
 
-This module defines the protocol interfaces for API clients,
-establishing a common contract for API client behavior.
+This module defines the interfaces for API clients in the Sifaka framework.
+These interfaces establish a common contract for API client behavior, enabling better
+modularity and extensibility.
+
+## Interface Hierarchy
+
+1. **APIClientProtocol**: Base interface for all API clients
+
+## Usage
+
+These interfaces are defined using Python's Protocol class from typing,
+which enables structural subtyping. This means that classes don't need to
+explicitly inherit from these interfaces; they just need to implement the
+required methods and properties.
+
+## Error Handling
+
+The interfaces define error handling patterns:
+- ValueError for invalid inputs
+- RuntimeError for execution failures
+- TypeError for type mismatches
+- Detailed error tracking and reporting
 """
 
 from abc import abstractmethod

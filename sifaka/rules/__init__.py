@@ -77,7 +77,13 @@ from .base import Rule
 from .config import RuleConfig, RulePriority
 from .result import RuleResult
 from .factories import create_rule, create_validation_manager
-from .interfaces.rule import RuleProtocol
+from sifaka.interfaces import (
+    Rule as RuleInterface,
+    AsyncRule,
+    RuleProtocol,
+    RuleResultHandler,
+    Validatable,
+)
 from .managers.validation import ValidationManager
 from .utils import create_rule_result, create_error_result, try_validate
 
@@ -98,6 +104,10 @@ __all__ = [
     "RulePriority",
     # Interfaces
     "RuleProtocol",
+    "RuleInterface",
+    "AsyncRule",
+    "RuleResultHandler",
+    "Validatable",
     # Managers
     "ValidationManager",
     # Factory functions

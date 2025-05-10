@@ -11,7 +11,7 @@ ToxicityClassifier follows the standard Sifaka classifier architecture:
 1. **Public API**: classify() and batch_classify() methods (inherited)
 2. **Caching Layer**: _classify_impl() handles caching (inherited)
 3. **Core Logic**: _classify_impl_uncached() implements toxicity detection
-4. **State Management**: Uses PrivateAttr for internal state
+4. **State Management**: Uses StateManager for internal state
 
 ## Lifecycle
 
@@ -82,7 +82,7 @@ from typing import (
     # Union,
 )
 from typing_extensions import TypeGuard
-from pydantic import ConfigDict, PrivateAttr
+from pydantic import ConfigDict
 
 from sifaka.classifiers.base import BaseClassifier
 from sifaka.classifiers.models import ClassificationResult
@@ -183,12 +183,12 @@ class ToxicityClassifier(BaseClassifier[str, str]):
     @property
     def _initialized(self) -> bool:
         """Get initialization status from state manager."""
-        return self._state.get("initialized", False)
+        return self._state_manager.get("initialized", False)
 
     @property
     def _model(self) -> Any:
         """Get model from state manager."""
-        return self._state.get("model")
+        return self._state_manager.get("model")
 
     @property
     def _model_name(self) -> str:
@@ -291,14 +291,14 @@ class ToxicityClassifier(BaseClassifier[str, str]):
             RuntimeError: If model initialization fails
         """
         # Check if already initialized
-        if not self._state.get("initialized", False):
+        if not self._state_manager.get("initialized", False):
             try:
                 # Load model
                 model = self._load_detoxify()
-                self._state.update("model", model)
+                self._state_manager.update("model", model)
 
                 # Store thresholds in state cache
-                cache = self._state.get("cache", {})
+                cache = self._state_manager.get("cache", {})
                 cache["thresholds"] = {
                     "general_threshold": self.config.params.get(
                         "general_threshold", self.DEFAULT_GENERAL_THRESHOLD
@@ -310,18 +310,18 @@ class ToxicityClassifier(BaseClassifier[str, str]):
                         "threat_threshold", self.DEFAULT_THREAT_THRESHOLD
                     ),
                 }
-                self._state.update("cache", cache)
+                self._state_manager.update("cache", cache)
 
                 # Store model name in state cache
-                cache = self._state.get("cache", {})
+                cache = self._state_manager.get("cache", {})
                 cache["model_name"] = self.config.params.get("model_name", "original")
-                self._state.update("cache", cache)
+                self._state_manager.update("cache", cache)
 
                 # Mark as initialized
-                self._state.update("initialized", True)
+                self._state_manager.update("initialized", True)
             except Exception as e:
                 logger.error("Failed to initialize toxicity model: %s", e)
-                self._state.update("error", f"Failed to initialize toxicity model: {e}")
+                self._state_manager.update("error", f"Failed to initialize toxicity model: {e}")
                 raise RuntimeError(f"Failed to initialize toxicity model: {e}") from e
 
     def _get_thresholds(self) -> Dict[str, float]:
@@ -332,8 +332,8 @@ class ToxicityClassifier(BaseClassifier[str, str]):
             Dictionary of threshold values for different toxicity categories
         """
         # Get thresholds from state cache or use defaults
-        if "thresholds" in self._state.get("cache", {}):
-            return self._state.get("cache", {})["thresholds"]
+        if "thresholds" in self._state_manager.get("cache", {}):
+            return self._state_manager.get("cache", {})["thresholds"]
 
         # If not in cache, use defaults from config
         return {
@@ -402,7 +402,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
             ClassificationResult with toxicity scores
         """
         # Ensure resources are initialized
-        if not self._state.get("initialized", False):
+        if not self._state_manager.get("initialized", False):
             self.warm_up()
 
         # Handle empty or whitespace-only text
@@ -426,7 +426,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
 
         try:
             # Get toxicity scores from Detoxify
-            model = self._state.get("model")
+            model = self._state_manager.get("model")
             scores = model.predict(text)
             scores = {k: float(v) for k, v in scores.items()}
 
@@ -441,21 +441,21 @@ class ToxicityClassifier(BaseClassifier[str, str]):
             )
 
             # Track statistics in state
-            stats = self._state.get("statistics", {})
+            stats = self._state_manager.get("statistics", {})
             stats[label] = stats.get(label, 0) + 1
-            self._state.update("statistics", stats)
+            self._state_manager.update("statistics", stats)
 
             return result
         except Exception as e:
             # Log the error and return a fallback result
             logger.error("Failed to classify text: %s", e)
-            self._state.update("error", f"Failed to classify text: {e}")
+            self._state_manager.update("error", f"Failed to classify text: {e}")
 
             # Track errors in state
             error_info = {"error": str(e), "type": type(e).__name__}
-            errors = self._state.get("errors", [])
+            errors = self._state_manager.get("errors", [])
             errors.append(error_info)
-            self._state.update("errors", errors)
+            self._state_manager.update("errors", errors)
 
             return ClassificationResult[str](
                 label="unknown",
@@ -485,7 +485,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
         self.validate_batch_input(texts)
 
         # Ensure resources are initialized
-        if not self._state.get("initialized", False):
+        if not self._state_manager.get("initialized", False):
             self.warm_up()
 
         # Process empty texts
@@ -523,7 +523,7 @@ class ToxicityClassifier(BaseClassifier[str, str]):
 
         try:
             # Get batch predictions for non-empty texts
-            model = self._state.get("model")
+            model = self._state_manager.get("model")
             batch_scores = model.predict(non_empty_texts)
             non_empty_results = []
 
@@ -554,13 +554,13 @@ class ToxicityClassifier(BaseClassifier[str, str]):
         except Exception as e:
             # Log the error and return fallback results
             logger.error("Failed to batch classify texts: %s", e)
-            self._state.update("error", f"Failed to batch classify texts: {e}")
+            self._state_manager.update("error", f"Failed to batch classify texts: {e}")
 
             # Track errors in state
             error_info = {"error": str(e), "type": type(e).__name__, "batch_size": len(texts)}
-            errors = self._state.get("errors", [])
+            errors = self._state_manager.get("errors", [])
             errors.append(error_info)
-            self._state.update("errors", errors)
+            self._state_manager.update("errors", errors)
 
             # Create error results for non-empty texts
             error_results = [
@@ -600,16 +600,16 @@ class ToxicityClassifier(BaseClassifier[str, str]):
         """
         stats = {
             # Classification counts by label
-            "classifications": self._state.get("statistics", {}),
+            "classifications": self._state_manager.get("statistics", {}),
             # Number of errors encountered
-            "error_count": len(self._state.get("errors", [])),
+            "error_count": len(self._state_manager.get("errors", [])),
             # Cache information
             "cache_enabled": self.config.cache_size > 0,
             "cache_size": self.config.cache_size,
             # State initialization status
-            "initialized": self._state.get("initialized", False),
+            "initialized": self._state_manager.get("initialized", False),
             # Model information
-            "model_name": self._state.get("cache", {}).get("model_name", self._model_name),
+            "model_name": self._state_manager.get("cache", {}).get("model_name", self._model_name),
         }
 
         # Add thresholds information
@@ -634,15 +634,15 @@ class ToxicityClassifier(BaseClassifier[str, str]):
             self._result_cache.clear()
 
         # Reset statistics
-        self._state.update("statistics", {})
+        self._state_manager.update("statistics", {})
 
         # Reset errors list but keep model and initialized status
-        self._state.update("errors", [])
+        self._state_manager.update("errors", [])
 
         # Keep the model, thresholds, and model_name in cache
-        cache = self._state.get("cache", {})
+        cache = self._state_manager.get("cache", {})
         preserved_cache = {k: v for k, v in cache.items() if k in ("thresholds", "model_name")}
-        self._state.update("cache", preserved_cache)
+        self._state_manager.update("cache", preserved_cache)
 
     @classmethod
     def create(
@@ -738,8 +738,8 @@ class ToxicityClassifier(BaseClassifier[str, str]):
         )
 
         # Set the model and mark as initialized
-        instance._state.update("model", model)
-        instance._state.update("initialized", True)
+        instance._state_manager.update("model", model)
+        instance._state_manager.update("initialized", True)
 
         return instance
 

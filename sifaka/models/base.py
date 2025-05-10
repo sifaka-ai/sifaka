@@ -83,7 +83,7 @@ from typing import (
     runtime_checkable,
 )
 
-from sifaka.models.interfaces import (
+from sifaka.interfaces import (
     APIClientProtocol as APIClient,
     TokenCounterProtocol as TokenCounter,
     ModelProviderProtocol as ModelProviderInterface,
@@ -482,7 +482,7 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
 
     ```python
     from sifaka.models.base import ModelProvider, ModelConfig
-    from sifaka.models.interfaces import APIClientProtocol, TokenCounterProtocol
+    from sifaka.interfaces import APIClientProtocol, TokenCounterProtocol
 
     # Basic usage
     provider = OpenAIProvider(model_name="gpt-4")

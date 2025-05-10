@@ -37,7 +37,7 @@ Chain
 ### Basic Usage
 
 ```python
-from sifaka.chain.v2 import Chain
+from sifaka.chain import Chain
 from sifaka.models import OpenAIProvider
 from sifaka.rules import create_length_rule
 
@@ -63,7 +63,7 @@ print(f"All validations passed: {result.all_passed}")
 ### Advanced Usage with Improver
 
 ```python
-from sifaka.chain.v2 import Chain
+from sifaka.chain import Chain
 from sifaka.models import OpenAIProvider
 from sifaka.rules import create_length_rule, create_toxicity_rule
 from sifaka.critics import create_prompt_critic
@@ -100,7 +100,7 @@ print(f"Suggestions: {result.suggestions}")
 ### Using Factory Functions
 
 ```python
-from sifaka.chain.v2 import create_chain
+from sifaka.chain import create_chain
 from sifaka.models import OpenAIProvider
 from sifaka.rules import create_length_rule
 from sifaka.critics import create_prompt_critic
@@ -130,16 +130,16 @@ result = chain.run("Write a short story about a robot.")
 ### Creating a Custom Model
 
 ```python
-from sifaka.chain.v2.interfaces import Model
+from sifaka.chain.interfaces import Model
 
 class MyCustomModel(Model):
     def __init__(self, model_name: str):
         self.model_name = model_name
-        
+
     def generate(self, prompt: str) -> str:
         # Custom generation logic
         return f"Generated text for prompt: {prompt}"
-        
+
     async def generate_async(self, prompt: str) -> str:
         # Custom async generation logic
         return f"Async generated text for prompt: {prompt}"
@@ -148,13 +148,13 @@ class MyCustomModel(Model):
 ### Creating a Custom Validator
 
 ```python
-from sifaka.chain.v2.interfaces import Validator, ValidationResult
+from sifaka.chain.interfaces import Validator, ValidationResult
 
 class MyCustomValidator(Validator):
     def __init__(self, min_length: int, max_length: int):
         self.min_length = min_length
         self.max_length = max_length
-        
+
     def validate(self, output: str) -> ValidationResult:
         length = len(output)
         if length < self.min_length:
@@ -178,7 +178,7 @@ class MyCustomValidator(Validator):
             message="Length validation passed",
             score=1.0
         )
-        
+
     async def validate_async(self, output: str) -> ValidationResult:
         # For simple validators, async can just call the sync version
         return self.validate(output)
@@ -188,25 +188,25 @@ class MyCustomValidator(Validator):
 
 ```python
 from typing import Any, Dict
-from sifaka.chain.v2.interfaces import Plugin, Validator, ValidationResult
+from sifaka.chain.interfaces import Plugin, Validator, ValidationResult
 
 class MyValidatorPlugin(Plugin):
     @property
     def name(self) -> str:
         return "my_validator_plugin"
-        
+
     @property
     def version(self) -> str:
         return "1.0.0"
-        
+
     @property
     def component_type(self) -> str:
         return "validator"
-        
+
     def create_component(self, config: Dict[str, Any]) -> Validator:
         min_length = config.get("min_length", 10)
         max_length = config.get("max_length", 1000)
-        
+
         class LengthValidator(Validator):
             def validate(self, output: str) -> ValidationResult:
                 length = len(output)
@@ -227,9 +227,9 @@ class MyValidatorPlugin(Plugin):
                     message="Length validation passed",
                     score=1.0
                 )
-                
+
             async def validate_async(self, output: str) -> ValidationResult:
                 return self.validate(output)
-                
+
         return LengthValidator()
 ```

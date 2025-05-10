@@ -41,7 +41,7 @@ logger = get_logger(__name__)
 
 from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 
-from ..interfaces.rule import RuleProtocol
+from sifaka.interfaces import RuleProtocol
 
 
 class ValidationConfig(BaseModel):

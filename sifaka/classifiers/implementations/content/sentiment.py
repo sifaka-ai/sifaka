@@ -274,20 +274,20 @@ class SentimentClassifier(BaseClassifier[str, str]):
 
         # Initialize state - this is now handled by BaseClassifier in model_post_init
         # Store thresholds in state
-        cache = self._state.get("cache", {})
+        cache = self._state_manager.get("cache", {})
         cache["positive_threshold"] = self.config.params.get(
             "positive_threshold", self.DEFAULT_POSITIVE_THRESHOLD
         )
         cache["negative_threshold"] = self.config.params.get(
             "negative_threshold", self.DEFAULT_NEGATIVE_THRESHOLD
         )
-        self._state.update("cache", cache)
+        self._state_manager.update("cache", cache)
 
         # Store analyzer in state if provided
         if analyzer is not None and self._validate_analyzer(analyzer):
-            cache = self._state.get("cache", {})
+            cache = self._state_manager.get("cache", {})
             cache["analyzer"] = analyzer
-            self._state.update("cache", cache)
+            self._state_manager.update("cache", cache)
 
     def _validate_analyzer(self, analyzer: Any) -> TypeGuard[SentimentAnalyzer]:
         """
@@ -317,17 +317,17 @@ class SentimentClassifier(BaseClassifier[str, str]):
         """
         try:
             # Check if analyzer is already in state
-            if self._state.get("cache", {}).get("analyzer"):
-                return self._state.get("cache")["analyzer"]
+            if self._state_manager.get("cache", {}).get("analyzer"):
+                return self._state_manager.get("cache")["analyzer"]
 
             vader_module = importlib.import_module("vaderSentiment.vaderSentiment")
             analyzer = vader_module.SentimentIntensityAnalyzer()
 
             # Validate and store in state
             if self._validate_analyzer(analyzer):
-                cache = self._state.get("cache", {})
+                cache = self._state_manager.get("cache", {})
                 cache["analyzer"] = analyzer
-                self._state.update("cache", cache)
+                self._state_manager.update("cache", cache)
                 return analyzer
 
         except ImportError:
@@ -346,21 +346,21 @@ class SentimentClassifier(BaseClassifier[str, str]):
         It is called automatically when needed but can also be called
         explicitly to pre-initialize resources.
         """
-        if not self._state.get("initialized", False):
+        if not self._state_manager.get("initialized", False):
             try:
                 # Load analyzer
                 analyzer = self._load_vader()
 
                 # Store in state
-                cache = self._state.get("cache", {})
+                cache = self._state_manager.get("cache", {})
                 cache["analyzer"] = analyzer
-                self._state.update("cache", cache)
+                self._state_manager.update("cache", cache)
 
                 # Mark as initialized
-                self._state.update("initialized", True)
+                self._state_manager.update("initialized", True)
             except Exception as e:
                 logger.error("Failed to initialize sentiment analyzer: %s", e)
-                self._state.update("error", f"Failed to initialize sentiment analyzer: {e}")
+                self._state_manager.update("error", f"Failed to initialize sentiment analyzer: {e}")
                 raise RuntimeError(f"Failed to initialize sentiment analyzer: {e}") from e
 
     def _get_sentiment_label(self, compound_score: float) -> Tuple[str, float]:
@@ -374,7 +374,7 @@ class SentimentClassifier(BaseClassifier[str, str]):
             Tuple of (sentiment_label, confidence)
         """
         # Get thresholds from state
-        cache = self._state.get("cache", {})
+        cache = self._state_manager.get("cache", {})
         positive_threshold = cache.get("positive_threshold", self.DEFAULT_POSITIVE_THRESHOLD)
         negative_threshold = cache.get("negative_threshold", self.DEFAULT_NEGATIVE_THRESHOLD)
 
@@ -405,7 +405,7 @@ class SentimentClassifier(BaseClassifier[str, str]):
             ClassificationResult with sentiment scores
         """
         # Ensure resources are initialized
-        if not self._state.get("initialized", False):
+        if not self._state_manager.get("initialized", False):
             self.warm_up()
 
         # Handle empty or whitespace-only text
@@ -425,7 +425,7 @@ class SentimentClassifier(BaseClassifier[str, str]):
 
         try:
             # Get analyzer from state
-            analyzer = self._state.get("cache", {}).get("analyzer")
+            analyzer = self._state_manager.get("cache", {}).get("analyzer")
             if not analyzer:
                 raise RuntimeError("Sentiment analyzer not initialized")
 
@@ -453,9 +453,9 @@ class SentimentClassifier(BaseClassifier[str, str]):
             )
 
             # Track statistics
-            stats = self._state.get("statistics", {})
+            stats = self._state_manager.get("statistics", {})
             stats[label] = stats.get(label, 0) + 1
-            self._state.update("statistics", stats)
+            self._state_manager.update("statistics", stats)
 
             return result
         except Exception as e:
@@ -464,9 +464,9 @@ class SentimentClassifier(BaseClassifier[str, str]):
 
             # Track errors in state
             error_info = {"error": str(e), "type": type(e).__name__}
-            errors = self._state.get("errors", [])
+            errors = self._state_manager.get("errors", [])
             errors.append(error_info)
-            self._state.update("errors", errors)
+            self._state_manager.update("errors", errors)
 
             return ClassificationResult[str](
                 label="unknown",
@@ -493,19 +493,19 @@ class SentimentClassifier(BaseClassifier[str, str]):
         """
         stats = {
             # Classification counts by label
-            "classifications": self._state.get("statistics", {}),
+            "classifications": self._state_manager.get("statistics", {}),
             # Number of errors encountered
-            "error_count": len(self._state.get("errors", [])),
+            "error_count": len(self._state_manager.get("errors", [])),
             # Cache information
             "cache_enabled": self.config.cache_size > 0,
             "cache_size": self.config.cache_size,
             # State initialization status
-            "initialized": self._state.get("initialized", False),
+            "initialized": self._state_manager.get("initialized", False),
             # Threshold information
-            "positive_threshold": self._state.get("cache", {}).get(
+            "positive_threshold": self._state_manager.get("cache", {}).get(
                 "positive_threshold", self.DEFAULT_POSITIVE_THRESHOLD
             ),
-            "negative_threshold": self._state.get("cache", {}).get(
+            "negative_threshold": self._state_manager.get("cache", {}).get(
                 "negative_threshold", self.DEFAULT_NEGATIVE_THRESHOLD
             ),
         }
@@ -528,19 +528,19 @@ class SentimentClassifier(BaseClassifier[str, str]):
             self._result_cache.clear()
 
         # Reset statistics
-        self._state.update("statistics", {})
+        self._state_manager.update("statistics", {})
 
         # Reset errors list but keep analyzer and initialization status
-        self._state.update("errors", [])
+        self._state_manager.update("errors", [])
 
         # Keep the analyzer and thresholds in cache
-        cache = self._state.get("cache", {})
+        cache = self._state_manager.get("cache", {})
         preserved_cache = {
             k: v
             for k, v in cache.items()
             if k in ("analyzer", "positive_threshold", "negative_threshold")
         }
-        self._state.update("cache", preserved_cache)
+        self._state_manager.update("cache", preserved_cache)
 
     @classmethod
     def create(
@@ -641,10 +641,10 @@ class SentimentClassifier(BaseClassifier[str, str]):
         )
 
         # Set the analyzer and mark as initialized
-        cache = instance._state.get("cache", {})
+        cache = instance._state_manager.get("cache", {})
         cache["analyzer"] = analyzer
-        instance._state.update("cache", cache)
-        instance._state.update("initialized", True)
+        instance._state_manager.update("cache", cache)
+        instance._state_manager.update("initialized", True)
 
         return instance
 

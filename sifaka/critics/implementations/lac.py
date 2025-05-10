@@ -1064,12 +1064,16 @@ class ValueCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover,
         )
 
         # Generate improved response
-        improved_text = self._state.model.generate(
-            prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
-        ).strip()
+        improved_text = (
+            self._state_manager.get("model")
+            .generate(
+                prompt,
+                system_prompt=self._state_manager.get("cache", {}).get("system_prompt", ""),
+                temperature=self._state_manager.get("cache", {}).get("temperature", 0.7),
+                max_tokens=self._state_manager.get("cache", {}).get("max_tokens", 1000),
+            )
+            .strip()
+        )
 
         return improved_text
 
@@ -1258,7 +1262,7 @@ class LACCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, T
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        if not self._state_manager.initialized:
+        if not self._state_manager.get("initialized", False):
             raise RuntimeError("LACCritic not properly initialized")
 
     def _get_task_from_metadata(self, metadata: Optional[Dict[str, Any]]) -> str:
@@ -1296,8 +1300,9 @@ class LACCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, T
         self._check_input(response)
 
         # Get feedback and value critics
-        feedback_critic = self._state_manager.cache.get("feedback_critic")
-        value_critic = self._state_manager.cache.get("value_critic")
+        cache = self._state_manager.get("cache", {})
+        feedback_critic = cache.get("feedback_critic")
+        value_critic = cache.get("value_critic")
 
         # Generate feedback and value
         feedback = feedback_critic.run(task, response)
@@ -1362,11 +1367,13 @@ class LACCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, T
         )
 
         # Generate improved response
-        improved_text = self._state_manager.model.generate(
+        model = self._state_manager.get("model")
+        cache = self._state_manager.get("cache", {})
+        improved_text = model.generate(
             prompt,
-            system_prompt=self._state_manager.cache.get("system_prompt", ""),
-            temperature=self._state_manager.cache.get("temperature", 0.7),
-            max_tokens=self._state_manager.cache.get("max_tokens", 1000),
+            system_prompt=cache.get("system_prompt", ""),
+            temperature=cache.get("temperature", 0.7),
+            max_tokens=cache.get("max_tokens", 1000),
         ).strip()
 
         return improved_text

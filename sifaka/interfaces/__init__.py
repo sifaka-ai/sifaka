@@ -45,10 +45,14 @@ class MyCritic(Critic[str, str]):
 
 # Import interfaces from component-specific directories
 from .chain import Chain, AsyncChain
-from .retrieval import Retriever, AsyncRetriever
+from .retrieval import Retriever, AsyncRetriever, DocumentStore, IndexManager, QueryProcessor
 from .classifier import ClassifierProtocol, TextProcessor
 from .critic import Critic, AsyncCritic, CritiqueResult
 from .adapter import Adaptable
+from .model import ModelProviderProtocol, AsyncModelProviderProtocol
+from .client import APIClientProtocol
+from .counter import TokenCounterProtocol
+from .rule import Rule, AsyncRule, RuleProtocol, RuleResultHandler, Validatable
 
 __all__ = [
     # Chain interfaces
@@ -57,6 +61,9 @@ __all__ = [
     # Retrieval interfaces
     "Retriever",
     "AsyncRetriever",
+    "DocumentStore",
+    "IndexManager",
+    "QueryProcessor",
     # Classifier interfaces
     "ClassifierProtocol",
     "TextProcessor",
@@ -66,4 +73,15 @@ __all__ = [
     "CritiqueResult",
     # Adapter interfaces
     "Adaptable",
+    # Model interfaces
+    "ModelProviderProtocol",
+    "AsyncModelProviderProtocol",
+    "APIClientProtocol",
+    "TokenCounterProtocol",
+    # Rule interfaces
+    "Rule",
+    "AsyncRule",
+    "RuleProtocol",
+    "RuleResultHandler",
+    "Validatable",
 ]

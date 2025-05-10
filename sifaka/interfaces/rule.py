@@ -10,6 +10,38 @@ modularity and extensibility.
 1. **Rule**: Base interface for all rules
    - **Validator**: Interface for validators
    - **RuleResultHandler**: Interface for rule result handlers
+   - **RuleProtocol**: Simplified protocol for rules
+
+## Usage
+
+These interfaces are defined using Python's Protocol class from typing,
+which enables structural subtyping. This means that classes don't need to
+explicitly inherit from these interfaces; they just need to implement the
+required methods and properties.
+
+## State Management
+
+The interfaces support standardized state management:
+- Single _state_manager attribute for all mutable state
+- State initialization during construction
+- State access through state manager methods
+- Clear separation of configuration and state
+
+## Error Handling
+
+The interfaces define error handling patterns:
+- ValueError for invalid inputs
+- RuntimeError for execution failures
+- TypeError for type mismatches
+- Detailed error tracking and reporting
+
+## Execution Tracking
+
+The interfaces support execution tracking:
+- Execution count tracking
+- Execution time tracking
+- Success/failure tracking
+- Performance statistics
 """
 
 from abc import abstractmethod
@@ -22,9 +54,6 @@ T = TypeVar("T")
 ConfigType = TypeVar("ConfigType")
 InputType = TypeVar("InputType")
 ResultType = TypeVar("ResultType")
-
-from ..config import RuleConfig
-from ..result import RuleResult
 
 
 @runtime_checkable
@@ -132,7 +161,41 @@ class Rule(Identifiable, Configurable[ConfigType], Protocol[InputType, ResultTyp
     - Provide name and description properties
     - Provide a config property to access the rule configuration
     - Provide an update_config method to update the rule configuration
+    - Implement state management using _state_manager
+    - Implement error handling and tracking
+    - Implement execution tracking and statistics
     """
+
+    @property
+    @abstractmethod
+    def _state_manager(self) -> Any:
+        """
+        Get the state manager.
+
+        Returns:
+            The state manager
+        """
+        pass
+
+    @abstractmethod
+    def reset_state(self) -> None:
+        """
+        Reset the state to its initial values.
+
+        Raises:
+            RuntimeError: If state reset fails
+        """
+        pass
+
+    @abstractmethod
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get execution statistics.
+
+        Returns:
+            A dictionary of execution statistics
+        """
+        pass
 
     @abstractmethod
     def validate(self, input_value: InputType) -> ResultType:
@@ -176,6 +239,9 @@ class AsyncRule(Protocol[InputType, ResultType]):
     - Provide name and description properties
     - Provide a config property to access the rule configuration
     - Provide an update_config method to update the rule configuration
+    - Implement state management using _state_manager
+    - Implement error handling and tracking
+    - Implement execution tracking and statistics
     """
 
     @property
@@ -278,7 +344,7 @@ class RuleProtocol(Protocol):
         ...
 
     @property
-    def config(self) -> RuleConfig:
+    def config(self) -> Any:
         """
         Get the rule configuration.
 
@@ -287,7 +353,7 @@ class RuleProtocol(Protocol):
         """
         ...
 
-    def validate(self, text: str, **kwargs: Any) -> RuleResult:
+    def validate(self, text: str, **kwargs: Any) -> Any:
         """
         Validate text against the rule.
 

@@ -18,7 +18,7 @@ It also provides base classes and interfaces:
 # Import base classes and interfaces
 from .base import ModelProvider, APIClient, TokenCounter, ModelConfig
 from .core import ModelProviderCore
-from .interfaces import ModelProviderProtocol, APIClientProtocol, TokenCounterProtocol
+from sifaka.interfaces import ModelProviderProtocol, APIClientProtocol, TokenCounterProtocol
 
 # Import providers
 from .providers.openai import OpenAIProvider

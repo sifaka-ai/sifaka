@@ -20,7 +20,6 @@ from typing import (
 )
 
 from typing_extensions import TypeGuard
-from pydantic import PrivateAttr
 from pydantic import ConfigDict
 
 from sifaka.classifiers.base import BaseClassifier
@@ -128,7 +127,7 @@ class ReadabilityClassifier(BaseClassifier[str, str]):
         "graduate": (16.0, float("inf")),
     }
 
-    # State is inherited from BaseClassifier as _state
+    # State is inherited from BaseClassifier as _state_manager
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -168,7 +167,7 @@ class ReadabilityClassifier(BaseClassifier[str, str]):
         super().__init__(name=name, description=description, config=config)
 
         # Initialize state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
         state.initialized = False
         state.cache = {}
 
@@ -200,7 +199,7 @@ class ReadabilityClassifier(BaseClassifier[str, str]):
     def warm_up(self) -> None:
         """Initialize the analyzer if needed."""
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Check if already initialized
         if not state.initialized:
@@ -245,7 +244,7 @@ class ReadabilityClassifier(BaseClassifier[str, str]):
     def _calculate_metrics(self, text: str) -> ReadabilityMetrics:
         """Calculate comprehensive readability metrics."""
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Get analyzer from state
         analyzer = state.model
@@ -320,7 +319,7 @@ class ReadabilityClassifier(BaseClassifier[str, str]):
             ClassificationResult with readability level and confidence
         """
         # Get state
-        state = self._state.get_state()
+        state = self._state_manager.get_state()
 
         # Ensure initialized
         self.warm_up()

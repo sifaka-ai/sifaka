@@ -10,7 +10,7 @@ Latent Dirichlet Allocation (LDA) from scikit-learn.
 import importlib
 from typing import List, Optional, Any, Dict, ClassVar
 
-from pydantic import PrivateAttr, ConfigDict
+from pydantic import ConfigDict
 from sifaka.classifiers.base import BaseClassifier
 from sifaka.classifiers.models import ClassificationResult
 from sifaka.classifiers.config import ClassifierConfig, standardize_classifier_config
@@ -46,7 +46,7 @@ class TopicClassifier(BaseClassifier[str, str]):
         "other",
     ]
 
-    # State is inherited from BaseClassifier as _state
+    # State is inherited from BaseClassifier as _state_manager
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -88,10 +88,10 @@ class TopicClassifier(BaseClassifier[str, str]):
         super().__init__(name=name, description=description, config=config)
 
         # Initialize state
-        state = self._state.get("cache", {})
+        state = self._state_manager.get("cache", {})
         state["initialized"] = False
         state["model"] = None
-        self._state.update("cache", state)
+        self._state_manager.update("cache", state)
 
     @property
     def num_topics(self) -> int:
@@ -149,7 +149,7 @@ class TopicClassifier(BaseClassifier[str, str]):
             RuntimeError: If model initialization fails
         """
         # Get state
-        state = self._state.get("cache", {})
+        state = self._state_manager.get("cache", {})
 
         # Check if already initialized
         if not state.get("initialized"):
@@ -187,7 +187,7 @@ class TopicClassifier(BaseClassifier[str, str]):
             self: The fitted classifier
         """
         # Get state
-        state = self._state.get("cache", {})
+        state = self._state_manager.get("cache", {})
 
         # Ensure initialized
         self.warm_up()
@@ -247,7 +247,7 @@ class TopicClassifier(BaseClassifier[str, str]):
             RuntimeError: If classification fails
         """
         # Get state
-        state = self._state.get("cache", {})
+        state = self._state_manager.get("cache", {})
 
         if not state.get("model") or not state.get("vectorizer"):
             raise RuntimeError(
@@ -310,7 +310,7 @@ class TopicClassifier(BaseClassifier[str, str]):
             RuntimeError: If batch classification fails
         """
         # Get state
-        state = self._state.get("cache", {})
+        state = self._state_manager.get("cache", {})
 
         self.validate_batch_input(texts)
 

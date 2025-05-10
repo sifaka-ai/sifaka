@@ -53,7 +53,7 @@ print(result.get_formatted_results())
 """
 
 # Import interfaces
-from .interfaces.retriever import (
+from sifaka.interfaces import (
     Retriever,
     AsyncRetriever,
     DocumentStore,
