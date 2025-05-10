@@ -156,7 +156,7 @@ class ConstitutionalCritic(
             # Import required components
             from ..managers.prompt_factories import ConstitutionalCriticPromptManager
             from ..managers.response import ResponseParser
-            from ..managers.memory import MemoryManager
+            from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
             from ..services.critique import CritiqueService
 
             # Store components in state

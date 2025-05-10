@@ -84,7 +84,7 @@ from ..models.base import ModelProvider
 from ..rules import Rule
 from .orchestrator import ChainOrchestrator
 from .formatters.result import ResultFormatter
-from .managers.prompt import PromptManager
+from sifaka.core.managers.prompt import PromptManager
 from .managers.validation import ValidationManager
 from .strategies.retry import RetryStrategy
 from .core import ChainCore

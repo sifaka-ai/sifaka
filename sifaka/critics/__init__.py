@@ -77,14 +77,14 @@ from .utils import (
 )
 
 # Import managers and services for advanced usage
-from .managers import (
+from sifaka.core.managers.prompt import (
     DefaultPromptManager,
-    MemoryManager,
     PromptCriticPromptManager,
-    PromptManager,
+    CriticPromptManager as PromptManager,
     ReflexionCriticPromptManager,
-    ResponseParser,
 )
+from .managers import ResponseParser
+from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
 from .services import CritiqueService
 
 __all__ = [

@@ -113,9 +113,13 @@ print(f"Recent feedback: {recent_items}")
 ```
 """
 
-from .memory import MemoryManager
-from .prompt import DefaultPromptManager, PromptManager
-from .prompt_factories import PromptCriticPromptManager, ReflexionCriticPromptManager
+from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
+from sifaka.core.managers.prompt import (
+    DefaultPromptManager,
+    CriticPromptManager as PromptManager,
+    PromptCriticPromptManager,
+    ReflexionCriticPromptManager,
+)
 from .response import ResponseParser
 
 __all__ = [

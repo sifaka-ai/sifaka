@@ -126,7 +126,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             # Import required components
             from ..managers.prompt_factories import SelfRefineCriticPromptManager
             from ..managers.response import ResponseParser
-            from ..managers.memory import MemoryManager
+            from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
             from ..services.critique import CritiqueService
 
             # Store components in state

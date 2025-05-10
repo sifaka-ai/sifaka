@@ -125,10 +125,10 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
 
         try:
             # Create components
-            from ..managers.prompt_factories import PromptCriticPromptManager
+            from sifaka.core.managers.prompt import PromptCriticPromptManager
             from ..managers.response import ResponseParser
             from ..services.critique import CritiqueService
-            from ..managers.memory import MemoryManager
+            from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
 
             # Store components in state
             self._state_manager.update("model", llm_provider)
@@ -879,7 +879,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
 
             # Create memory manager if needed
             if not self._state_manager.get("memory_manager"):
-                from ..managers.memory import MemoryManager
+                from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
 
                 self._state_manager.update("memory_manager", MemoryManager(buffer_size=10))
 

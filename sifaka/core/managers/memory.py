@@ -1,22 +1,12 @@
 """
-Memory manager for Sifaka chains.
+Memory managers for Sifaka.
 
-This module provides the memory manager for Sifaka chains,
-enabling stateful memory management and context tracking.
+This module provides two memory manager implementations:
+1. KeyValueMemoryManager: For key-value based memory storage and retrieval
+2. BufferMemoryManager: For simple circular buffer storage of string items
 
-## Architecture
-The MemoryManager follows a component-based architecture:
-- Inherits from BaseComponent for consistent behavior
-- Uses StateManager for state management
-- Implements caching for performance
-- Tracks statistics for monitoring
-
-## Lifecycle
-1. Initialization: Set up with memories and configuration
-2. Storage: Store values in memory
-3. Retrieval: Retrieve values from memory
-4. Memory Management: Add/remove memories as needed
-5. Statistics: Track memory operations performance
+Both implementations use StateManager for consistent state management
+and provide statistics tracking.
 """
 
 from typing import Any, Dict, List, Optional, TypeVar, Protocol
@@ -35,8 +25,11 @@ R = TypeVar("R")  # Result type
 V = TypeVar("V")  # Value type
 
 
+# Key-Value Memory Manager Implementation
+
+
 class MemoryConfig(BaseConfig):
-    """Configuration for memory manager."""
+    """Configuration for key-value memory manager."""
 
     cache_enabled: bool = Field(default=True, description="Whether to enable caching")
     max_items: int = Field(default=100, description="Maximum number of items to store in memory")
@@ -72,15 +65,15 @@ class BaseMemory(Protocol[V]):
         ...
 
 
-class MemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
+class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
     """
-    Memory manager for Sifaka chains.
+    Key-value memory manager for Sifaka.
 
     This class provides stateful memory management and context tracking,
     coordinating between multiple memory stores and tracking memory operations.
 
     ## Architecture
-    The MemoryManager follows a component-based architecture:
+    The KeyValueMemoryManager follows a component-based architecture:
     - Inherits from BaseComponent for consistent behavior
     - Uses StateManager for state management
     - Implements caching for performance
@@ -101,7 +94,7 @@ class MemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
         self,
         memories: List[BaseMemory[Any]],
         name: str = "memory_manager",
-        description: str = "Memory manager for Sifaka chains",
+        description: str = "Memory manager for Sifaka",
         cache_enabled: bool = True,
         max_items: int = 100,
         config: Optional[MemoryConfig] = None,
@@ -414,33 +407,12 @@ class MemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
         """
         Add a memory store.
 
-        ## Overview
-        This method adds a new memory store to the manager's memory list.
-        The memory will be used in subsequent operations.
-
-        ## Lifecycle
-        1. **Input Processing**: Process inputs
-           - Validate memory type
-           - Check memory validity
-
-        2. **Memory Addition**: Add memory
-           - Add to memory list
-           - Update state
-           - Clear cache
-
         Args:
             memory: The memory store to add
 
         Raises:
             ValueError: If the memory is invalid
             TypeError: If the input type is incorrect
-
-        Examples:
-            ```python
-            manager = MemoryManager(memories=[])
-            new_memory = SimpleMemory(name="simple_memory")
-            manager.add_memory(new_memory)
-            ```
         """
         # Validate memory type
         if not isinstance(memory, BaseMemory):
@@ -471,32 +443,11 @@ class MemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
         """
         Remove a memory store by name.
 
-        ## Overview
-        This method removes a memory store from the manager's memory list
-        based on its name. The memory will no longer be used in subsequent
-        operations.
-
-        ## Lifecycle
-        1. **Input Processing**: Process inputs
-           - Validate memory name
-           - Find memory to remove
-
-        2. **Memory Removal**: Remove memory
-           - Remove from memory list
-           - Update state
-           - Clear cache
-
         Args:
             memory_name: The name of the memory store to remove
 
         Raises:
             ValueError: If the memory name is invalid or memory not found
-
-        Examples:
-            ```python
-            manager = MemoryManager(memories=[...])
-            manager.remove_memory("simple_memory")
-            ```
         """
         # Validate input
         if not memory_name or not isinstance(memory_name, str):
@@ -529,38 +480,22 @@ class MemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
         """
         Get all registered memories.
 
-        ## Overview
-        This method returns a list of all memories currently
-        registered with the manager.
-
-        ## Lifecycle
-        1. **Memory Retrieval**: Get memories
-           - Access memory list
-           - Return memories
-
         Returns:
             The list of registered memories
-
-        Examples:
-            ```python
-            manager = MemoryManager(memories=[...])
-            memories = manager.get_memories()
-            print(f"Number of memories: {len(memories)}")
-            ```
         """
         return self._state.get("memories", [])
 
 
-def create_memory_manager(
+def create_key_value_memory_manager(
     memories: List[BaseMemory] = None,
     name: str = "memory_manager",
-    description: str = "Memory manager for Sifaka chains",
+    description: str = "Memory manager for Sifaka",
     cache_enabled: bool = True,
     max_items: int = 100,
     **kwargs: Any,
-) -> MemoryManager:
+) -> KeyValueMemoryManager:
     """
-    Create a memory manager.
+    Create a key-value memory manager.
 
     Args:
         memories: List of memories to use for storage
@@ -571,7 +506,7 @@ def create_memory_manager(
         **kwargs: Additional configuration parameters
 
     Returns:
-        Configured MemoryManager instance
+        Configured KeyValueMemoryManager instance
     """
     config = MemoryConfig(
         name=name,
@@ -581,9 +516,260 @@ def create_memory_manager(
         **kwargs,
     )
 
-    return MemoryManager(
+    return KeyValueMemoryManager(
         memories=memories or [],
         name=name,
         description=description,
         config=config,
     )
+
+
+# Buffer Memory Manager Implementation
+
+
+class BufferMemoryManager:
+    """
+    Manages memory for components using a circular buffer.
+
+    This class is responsible for storing and retrieving string items
+    using a fixed-size circular buffer. It implements a simple interface
+    for adding and retrieving items, with automatic overflow handling.
+
+    ## Lifecycle Management
+
+    The BufferMemoryManager manages its lifecycle through three main phases:
+
+    1. **Initialization**
+       - Validates configuration
+       - Sets up buffer
+       - Configures error handling
+       - Allocates resources
+
+    2. **Operation**
+       - Stores memory items
+       - Retrieves memory
+       - Manages buffer
+       - Handles errors
+
+    3. **Cleanup**
+       - Clears memory
+       - Releases resources
+       - Logs final status
+    """
+
+    # State management
+    _state = PrivateAttr(default_factory=StateManager)
+
+    def __init__(self, buffer_size: int = 5):
+        """
+        Initialize a BufferMemoryManager instance.
+
+        This method sets up the memory manager with a fixed-size buffer
+        for storing memory items.
+
+        Args:
+            buffer_size: The maximum number of items to store in memory
+
+        Raises:
+            ValueError: If buffer_size is invalid
+            RuntimeError: If initialization fails
+        """
+        buffer_size = max(1, buffer_size)
+
+        # Initialize state
+        self._state.update("buffer_size", buffer_size)
+        self._state.update("memory_buffer", list())
+        self._state.update("initialized", True)
+
+        # Initialize metadata
+        self._state.set_metadata("component_type", "buffer_memory_manager")
+        self._state.set_metadata("creation_time", time.time())
+        self._state.set_metadata("add_count", 0)
+        self._state.set_metadata("retrieve_count", 0)
+        self._state.set_metadata("clear_count", 0)
+        self._state.set_metadata("overflow_count", 0)
+        self._state.set_metadata("error_count", 0)
+
+    def add_to_memory(self, item: str) -> None:
+        """
+        Add an item to memory.
+
+        This method adds a new item to the memory buffer, maintaining
+        the buffer size limit by removing the oldest item if necessary.
+
+        Args:
+            item: The string item to add to memory
+
+        Raises:
+            ValueError: If item is empty or invalid
+            RuntimeError: If memory operation fails
+        """
+        if not item or not isinstance(item, str):
+            # Track error
+            error_count = self._state.get_metadata("error_count", 0)
+            self._state.set_metadata("error_count", error_count + 1)
+            raise ValueError("Invalid memory item: must be non-empty string")
+
+        # Track add count
+        add_count = self._state.get_metadata("add_count", 0)
+        self._state.set_metadata("add_count", add_count + 1)
+
+        try:
+            # Get current buffer and buffer size
+            memory_buffer = self._state.get("memory_buffer", list())
+            buffer_size = self._state.get("buffer_size", 5)
+
+            # Add the item to the buffer
+            memory_buffer.append(item)
+
+            # Handle overflow - if buffer exceeds size limit, remove oldest items
+            if len(memory_buffer) > buffer_size:
+                # Track overflow
+                overflow_count = self._state.get_metadata("overflow_count", 0)
+                self._state.set_metadata("overflow_count", overflow_count + 1)
+
+                # Remove oldest items
+                memory_buffer = memory_buffer[-buffer_size:]
+
+            # Update the buffer in state
+            self._state.update("memory_buffer", memory_buffer)
+
+        except Exception as e:
+            # Track error
+            error_count = self._state.get_metadata("error_count", 0)
+            self._state.set_metadata("error_count", error_count + 1)
+
+            # Log and raise
+            logger.error(f"Failed to add item to memory: {e}")
+            raise RuntimeError(f"Failed to add item to memory: {e}")
+
+    def get_memory(self, max_items: Optional[int] = None) -> List[str]:
+        """
+        Retrieve items from memory.
+
+        This method returns items from the memory buffer, optionally
+        limiting the number of items returned. Items are returned in
+        chronological order (oldest first).
+
+        Args:
+            max_items: Optional maximum number of items to return.
+                      If None, returns all items.
+
+        Returns:
+            A list of memory items, ordered from oldest to newest
+
+        Raises:
+            ValueError: If max_items is invalid
+            RuntimeError: If memory retrieval fails
+        """
+        if max_items is not None and max_items < 0:
+            # Track error
+            error_count = self._state.get_metadata("error_count", 0)
+            self._state.set_metadata("error_count", error_count + 1)
+            raise ValueError("max_items must be non-negative")
+
+        # Track retrieve count
+        retrieve_count = self._state.get_metadata("retrieve_count", 0)
+        self._state.set_metadata("retrieve_count", retrieve_count + 1)
+
+        try:
+            # Get memory buffer
+            memory_buffer = self._state.get("memory_buffer", list())
+
+            # Return all or recent items based on max_items
+            if max_items is not None:
+                items = memory_buffer[-max_items:] if memory_buffer else []
+            else:
+                items = list(memory_buffer)
+
+            return items
+
+        except Exception as e:
+            # Track error
+            error_count = self._state.get_metadata("error_count", 0)
+            self._state.set_metadata("error_count", error_count + 1)
+
+            # Log and raise
+            logger.error(f"Failed to retrieve items from memory: {e}")
+            raise RuntimeError(f"Failed to retrieve items from memory: {e}")
+
+    def clear_memory(self) -> None:
+        """
+        Clear all items from memory.
+
+        This method removes all items from the memory buffer, effectively
+        resetting the memory state. The buffer size remains unchanged.
+
+        Raises:
+            RuntimeError: If memory clearing fails
+        """
+        # Track clear count
+        clear_count = self._state.get_metadata("clear_count", 0)
+        self._state.set_metadata("clear_count", clear_count + 1)
+
+        try:
+            # Clear the memory buffer
+            self._state.update("memory_buffer", list())
+
+        except Exception as e:
+            # Track error
+            error_count = self._state.get_metadata("error_count", 0)
+            self._state.set_metadata("error_count", error_count + 1)
+
+            # Log and raise
+            logger.error(f"Failed to clear memory: {e}")
+            raise RuntimeError(f"Failed to clear memory: {e}")
+
+    @property
+    def memory_size(self) -> int:
+        """
+        Get the current number of items in memory.
+
+        This property returns the current number of items stored in
+        the memory buffer, which will be between 0 and the buffer size.
+
+        Returns:
+            The number of items currently in memory
+        """
+        try:
+            # Get the memory buffer and return its length
+            memory_buffer = self._state.get("memory_buffer", list())
+            return len(memory_buffer)
+
+        except Exception as e:
+            # Log error but don't raise (property accessor should be safe)
+            logger.error(f"Failed to get memory size: {e}")
+            return 0
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get statistics about memory usage.
+
+        Returns:
+            Dictionary with memory statistics
+        """
+        return {
+            "buffer_size": self._state.get("buffer_size", 0),
+            "memory_size": self.memory_size,
+            "add_count": self._state.get_metadata("add_count", 0),
+            "retrieve_count": self._state.get_metadata("retrieve_count", 0),
+            "clear_count": self._state.get_metadata("clear_count", 0),
+            "overflow_count": self._state.get_metadata("overflow_count", 0),
+            "error_count": self._state.get_metadata("error_count", 0),
+            "uptime": time.time() - self._state.get_metadata("creation_time", time.time()),
+        }
+
+
+def create_buffer_memory_manager(
+    buffer_size: int = 5,
+) -> BufferMemoryManager:
+    """
+    Create a buffer memory manager.
+
+    Args:
+        buffer_size: The maximum number of items to store in memory
+
+    Returns:
+        Configured BufferMemoryManager instance
+    """
+    return BufferMemoryManager(buffer_size=buffer_size)

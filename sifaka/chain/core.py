@@ -14,7 +14,7 @@ from sifaka.core.base import BaseComponent, BaseResult
 from sifaka.models.core import ModelProviderCore
 from sifaka.critics.core import CriticCore
 from sifaka.chain.managers.validation import ValidationManager
-from sifaka.chain.managers.prompt import PromptManager
+from sifaka.core.managers.prompt import PromptManager
 from sifaka.chain.strategies.retry import RetryStrategy
 from sifaka.chain.formatters.result import ResultFormatter
 from sifaka.utils.state import StateManager

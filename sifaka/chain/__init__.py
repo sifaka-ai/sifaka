@@ -109,7 +109,7 @@ from .orchestrator import ChainOrchestrator
 from .result import ChainResult
 from .factories import create_simple_chain, create_backoff_chain
 from .formatters.result import ResultFormatter
-from .managers.prompt import PromptManager
+from sifaka.core.managers.prompt import PromptManager
 from .managers.validation import ValidationManager
 from .strategies.retry import RetryStrategy
 

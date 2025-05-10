@@ -81,7 +81,7 @@ from pydantic import PrivateAttr
 
 from .base import BaseCritic
 from .config import CriticConfig, CriticMetadata
-from .managers.memory import MemoryManager
+from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
 from .managers.prompt import DefaultPromptManager, PromptManager
 from .managers.response import ResponseParser
 from .services.critique import CritiqueService

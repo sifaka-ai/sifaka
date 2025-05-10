@@ -29,8 +29,8 @@
 3. ✅ Ensure all components follow the established patterns
 4. ✅ Remove any remaining backwards compatibility code
 5. ⬜ Ensure there is no redundant code
-   - ⬜ Consolidate duplicated memory managers
-   - ⬜ Consolidate duplicated prompt managers
+   - ✅ Consolidate duplicated memory managers
+   - ✅ Consolidate duplicated prompt managers
    - ⬜ Consolidate redundant result classes
    - ⬜ Refactor duplicated error handling patterns
 6. ⬜ Ensure there is no duplicated code
@@ -311,15 +311,16 @@ DO NOT MAINTAIN BACKWARDS COMPATABILITY
 ## Redundant Code to Address
 
 ### 1. Duplicated Manager Implementations
-- ⬜ **Memory Managers**:
-  - `sifaka/chain/managers/memory.py` and `sifaka/critics/managers/memory.py` have similar functionality
-  - Need to consolidate into a single implementation in a common location
-  - Update all imports to reference the consolidated implementation
+- ✅ **Memory Managers**:
+  - Consolidated `sifaka/chain/managers/memory.py` and `sifaka/critics/managers/memory.py` into `sifaka/core/managers/memory.py`
+  - Created separate implementations for key-value and buffer-based memory managers
+  - Updated all imports to reference the consolidated implementation
 
-- ⬜ **Prompt Managers**:
-  - `sifaka/chain/managers/prompt.py` and `sifaka/critics/managers/prompt.py` have similar functionality
-  - Need to consolidate into a single implementation in a common location
-  - Update all imports to reference the consolidated implementation
+- ✅ **Prompt Managers**:
+  - Consolidated `sifaka/chain/managers/prompt.py` and `sifaka/critics/managers/prompt.py` into `sifaka/core/managers/prompt.py`
+  - Created a unified implementation that supports all use cases
+  - Updated all imports to reference the consolidated implementation
+  - Removed the redundant implementations
 
 ### 2. Redundant Result Classes
 - ⬜ **Chain Results**:
@@ -460,18 +461,18 @@ The state management standardization is nearly complete:
 ### Phase 1: Consolidate Manager Implementations
 
 1. **Memory Managers Consolidation**:
-   - ⬜ Create a unified `MemoryManager` in `sifaka/core/managers/memory.py`
-   - ⬜ Merge functionality from both existing implementations
-   - ⬜ Ensure the consolidated implementation supports all use cases
-   - ⬜ Update imports in all files referencing the old implementations
-   - ⬜ Remove the redundant implementations after successful migration
+   - ✅ Created separate implementations in `sifaka/core/managers/memory.py`:
+     - `KeyValueMemoryManager` (based on chain implementation)
+     - `BufferMemoryManager` (based on critics implementation)
+   - ✅ Updated imports in all files referencing the old implementations
+   - ✅ Removed the redundant implementations after successful migration
 
 2. **Prompt Managers Consolidation**:
-   - ⬜ Create a unified `PromptManager` in `sifaka/core/managers/prompt.py`
-   - ⬜ Merge functionality from both existing implementations
-   - ⬜ Ensure the consolidated implementation supports all use cases
-   - ⬜ Update imports in all files referencing the old implementations
-   - ⬜ Remove the redundant implementations after successful migration
+   - ✅ Created a unified `PromptManager` in `sifaka/core/managers/prompt.py`
+   - ✅ Merged functionality from both existing implementations
+   - ✅ Ensured the consolidated implementation supports all use cases
+   - ✅ Updated imports in all files referencing the old implementations
+   - ✅ Removed the redundant implementations after successful migration
 
 ### Phase 2: Consolidate Result Classes
 

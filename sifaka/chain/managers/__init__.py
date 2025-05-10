@@ -160,12 +160,12 @@ from .validation import (
     ValidationResult,
     create_validation_manager,
 )
-from .memory import (
-    MemoryManager,
+from sifaka.core.managers.memory import (
+    KeyValueMemoryManager as MemoryManager,
     MemoryConfig,
     MemoryResult,
     BaseMemory,
-    create_memory_manager,
+    create_key_value_memory_manager as create_memory_manager,
 )
 
 __all__ = [

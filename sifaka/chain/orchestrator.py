@@ -80,7 +80,7 @@ from ..models.core import ModelProviderCore
 from ..rules.base import Rule
 from .core import ChainCore
 from .formatters.result import ResultFormatter
-from .managers.prompt import PromptManager
+from sifaka.core.managers.prompt import PromptManager
 from .managers.validation import ValidationManager
 from .result import ChainResult
 from .strategies.retry import RetryStrategy

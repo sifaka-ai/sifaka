@@ -239,9 +239,9 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
 
         try:
             # Import required components
-            from ..managers.prompt_factories import ReflexionCriticPromptManager
+            from sifaka.core.managers.prompt import ReflexionCriticPromptManager
             from ..managers.response import ResponseParser
-            from ..managers.memory import MemoryManager
+            from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
             from ..services.critique import CritiqueService
 
             # Store components in state
