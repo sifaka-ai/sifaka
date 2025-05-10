@@ -34,6 +34,89 @@
    - ✅ Consolidate redundant result classes
    - ✅ Refactor duplicated error handling patterns
 6. ⬜ Ensure there is no duplicated code
+   - ⬜ Standardize result object structures across all components
+   - ⬜ Implement consistent error handling patterns in remaining areas
+   - ⬜ Reduce any remaining code duplication
+
+## Analysis of Remaining Standardization Needs
+
+### 1. Result Object Structure Analysis
+
+The codebase currently has several different result object structures across components:
+
+1. **Chain Results**:
+   - `ChainResult` in `sifaka/chain/result.py` extends `BaseResult` from core
+   - Includes fields for output, rule_results, critique_details, attempts, status
+   - Has properties like `all_passed` for rule validation results
+
+2. **Retrieval Results**:
+   - `RetrievalResult` in `sifaka/retrieval/result.py` is a standalone Pydantic model
+   - Includes fields for documents, query, processed_query, total_results, execution_time_ms
+   - Has properties like `top_document` and `top_content`
+   - Does not extend `BaseResult` from core
+
+3. **Rule Results**:
+   - `RuleResult` in `sifaka/rules/result.py` is a standalone Pydantic model
+   - Includes fields for passed, rule_name, message, metadata, score, issues, suggestions
+   - Uses frozen=True for immutability
+   - Does not extend `BaseResult` from core
+
+4. **Critic Results**:
+   - `CriticMetadata` in `sifaka/critics/models.py` for critic results
+   - Includes fields for score, feedback, issues, suggestions, metadata
+   - Does not extend `BaseResult` from core
+
+#### Standardization Needs:
+- Ensure all result objects extend `BaseResult` from core for consistency
+- Standardize common fields (passed/success, message, metadata, score, issues, suggestions)
+- Maintain component-specific fields where necessary
+- Ensure consistent immutability approach (frozen vs. non-frozen)
+- Standardize property naming and behavior
+
+### 2. Error Handling Pattern Analysis
+
+The codebase has made significant progress in standardizing error handling with:
+
+1. **Centralized Error Utilities**:
+   - `sifaka/utils/errors.py` provides base error classes and utilities
+   - `sifaka/utils/error_patterns.py` provides factory pattern for error handlers
+
+2. **Component-Specific Error Handling**:
+   - Some components use the standardized error handlers
+   - Some components have custom try/except blocks with inconsistent patterns
+   - Error result creation varies between components
+
+3. **Inconsistent Error Handling in Implementations**:
+   - Critics implementations have similar but not identical error handling
+   - Some components use `try_operation` while others use custom try/except blocks
+   - Error metadata collection varies between components
+
+#### Standardization Needs:
+- Ensure all components use the factory-based error handlers
+- Replace custom try/except blocks with standardized utilities
+- Standardize error result creation across all components
+- Ensure consistent error metadata collection and logging
+
+### 3. Code Duplication Analysis
+
+Despite significant progress in reducing code duplication, some areas remain:
+
+1. **Similar Error Handling in Implementations**:
+   - Critics implementations have nearly identical error handling blocks
+   - These could be consolidated into a shared utility function
+
+2. **Similar State Management Patterns**:
+   - While standardized on `_state_manager`, some implementation patterns are duplicated
+   - Common state access patterns could be extracted to utility functions
+
+3. **Utility Functions**:
+   - Some utility functions with similar purposes exist across components
+   - These could be consolidated into shared utilities
+
+#### Consolidation Needs:
+- Extract common error handling patterns from implementations into shared utilities
+- Create shared state management utilities for common patterns
+- Consolidate similar utility functions across components
 7. ⬜ Update tests to reflect new patterns
 8. ⬜ Update examples to reflect new patterns
 9. ⬜ Update documentation to reflect changes
