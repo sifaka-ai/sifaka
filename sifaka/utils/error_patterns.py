@@ -71,6 +71,7 @@ from sifaka.utils.errors import (
     RetrievalError,
     handle_error,
     try_operation,
+    try_component_operation,
 )
 
 # Type variable for return type
@@ -298,6 +299,132 @@ create_classifier_error_result = create_error_result_factory("Classifier", Class
 create_retrieval_error_result = create_error_result_factory("Retrieval", RetrievalError)
 
 
+# Function to safely execute component operations with standardized error handling
+def safely_execute_component_operation(
+    operation: Callable[[], T],
+    component_name: str,
+    component_type: str,
+    error_class: Type[SifakaError],
+    default_result: Optional[Union[T, ErrorResult]] = None,
+    log_level: str = "error",
+    include_traceback: bool = True,
+    additional_metadata: Optional[Dict[str, Any]] = None,
+) -> Union[T, ErrorResult]:
+    """
+    Safely execute a component operation with standardized error handling.
+
+    This function executes an operation and handles any errors that occur,
+    providing standardized error handling and logging. It returns either
+    the operation result or an ErrorResult object.
+
+    Args:
+        operation: The operation to execute
+        component_name: Name of the component executing the operation
+        component_type: Type of the component (e.g., "Chain", "Model")
+        error_class: SifakaError subclass to use for wrapping generic exceptions
+        default_result: Value or ErrorResult to return if operation fails
+        log_level: Log level to use for errors
+        include_traceback: Whether to include traceback in error metadata
+        additional_metadata: Additional metadata to include in error
+
+    Returns:
+        Either the operation result or an ErrorResult object
+
+    Examples:
+        ```python
+        from sifaka.utils.error_patterns import safely_execute_component_operation, ChainError
+
+        # Execute a chain operation safely
+        result = safely_execute_component_operation(
+            lambda: chain.run(prompt),
+            component_name="MyChain",
+            component_type="Chain",
+            error_class=ChainError
+        )
+
+        # Check if result is an error
+        if isinstance(result, ErrorResult):
+            print(f"Chain error: {result.error_message}")
+        else:
+            print(f"Chain result: {result}")
+        ```
+    """
+    try:
+        # Try to execute the operation
+        return try_component_operation(
+            operation=operation,
+            component_name=component_name,
+            component_type=component_type,
+            error_class=error_class,
+            log_level=log_level,
+            include_traceback=include_traceback,
+            additional_metadata=additional_metadata,
+        )
+    except Exception as e:
+        # If operation fails, create an error result
+        if default_result is not None:
+            return default_result
+
+        return create_error_result(
+            error=e,
+            component_name=component_name,
+            component_type=component_type,
+            error_class=error_class,
+            log_level=log_level,
+            include_traceback=include_traceback,
+            additional_metadata=additional_metadata,
+        )
+
+
+# Factory function for creating component-specific safe execution functions
+def create_safe_execution_factory(component_type: str, error_class: Type[SifakaError]) -> Callable:
+    """
+    Create a safe execution factory for a specific component type.
+
+    This factory function creates a safe execution function for a specific component type,
+    using the generic safely_execute_component_operation function with the appropriate
+    component type and error class.
+
+    Args:
+        component_type: Type of the component (e.g., "Chain", "Model")
+        error_class: SifakaError subclass to use for conversion
+
+    Returns:
+        A safe execution function for the specified component type
+    """
+
+    def factory(
+        operation: Callable[[], T],
+        component_name: str,
+        default_result: Optional[Union[T, ErrorResult]] = None,
+        log_level: str = "error",
+        include_traceback: bool = True,
+        additional_metadata: Optional[Dict[str, Any]] = None,
+    ) -> Union[T, ErrorResult]:
+        """Safely execute an operation for a specific component type."""
+        return safely_execute_component_operation(
+            operation=operation,
+            component_name=component_name,
+            component_type=component_type,
+            error_class=error_class,
+            default_result=default_result,
+            log_level=log_level,
+            include_traceback=include_traceback,
+            additional_metadata=additional_metadata,
+        )
+
+    return factory
+
+
+# Create component-specific safe execution functions
+safely_execute_chain = create_safe_execution_factory("Chain", ChainError)
+safely_execute_model = create_safe_execution_factory("Model", ModelError)
+safely_execute_rule = create_safe_execution_factory("Rule", RuleError)
+safely_execute_critic = create_safe_execution_factory("Critic", CriticError)
+safely_execute_classifier = create_safe_execution_factory("Classifier", ClassifierError)
+safely_execute_retrieval = create_safe_execution_factory("Retrieval", RetrievalError)
+
+
 # Add __all__ list for exports
 __all__ = [
     "ErrorResult",
@@ -317,4 +444,12 @@ __all__ = [
     "create_critic_error_result",
     "create_classifier_error_result",
     "create_retrieval_error_result",
+    "safely_execute_component_operation",
+    "create_safe_execution_factory",
+    "safely_execute_chain",
+    "safely_execute_model",
+    "safely_execute_rule",
+    "safely_execute_critic",
+    "safely_execute_classifier",
+    "safely_execute_retrieval",
 ]

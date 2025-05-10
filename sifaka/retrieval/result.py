@@ -50,6 +50,8 @@ from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
 
+from sifaka.core.base import BaseResult
+
 T = TypeVar("T")
 
 
@@ -197,12 +199,14 @@ class RetrievedDocument(BaseModel, Generic[T]):
         return self.model_copy(update={"score": score})
 
 
-class RetrievalResult(BaseModel, Generic[T]):
+class RetrievalResult(BaseResult, Generic[T]):
     """
     Result of a retrieval operation.
 
     This class defines the result of a retrieval operation,
     including the retrieved documents and query information.
+    It extends BaseResult to provide a consistent result structure
+    across the Sifaka framework.
 
     ## Attributes
 
@@ -222,6 +226,8 @@ class RetrievalResult(BaseModel, Generic[T]):
         processed_query="processed example query",
         total_results=2,
         execution_time_ms=10.5,
+        passed=True,
+        message="Successfully retrieved documents",
     )
 
     # Access top document
@@ -254,19 +260,6 @@ class RetrievalResult(BaseModel, Generic[T]):
         default=0,
         description="The total number of results found",
         ge=0,
-    )
-    execution_time_ms: Optional[float] = Field(
-        default=None,
-        description="The execution time in milliseconds",
-        ge=0.0,
-    )
-    additional_info: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Additional information about the retrieval operation",
-    )
-    timestamp: datetime = Field(
-        default_factory=datetime.now,
-        description="The timestamp of the retrieval operation",
     )
 
     @property
@@ -389,6 +382,8 @@ class StringRetrievalResult(RetrievalResult[str]):
         processed_query="processed example query",
         total_results=2,
         execution_time_ms=10.5,
+        passed=True,
+        message="Successfully retrieved documents",
     )
 
     # Get concatenated content

@@ -69,14 +69,17 @@ The module implements:
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, ConfigDict
+from sifaka.core.base import BaseResult
 
 
-class CriticMetadata(BaseModel):
+class CriticMetadata(BaseResult):
     """
     Metadata for critic results.
 
     This class provides a standardized structure for critic metadata,
     including scores, feedback, issues, and suggestions.
+    It extends BaseResult to provide a consistent result structure
+    across the Sifaka framework.
 
     ## Overview
     The class provides:
@@ -94,6 +97,8 @@ class CriticMetadata(BaseModel):
     metadata = CriticMetadata(
         score=0.85,
         feedback="Good text quality",
+        passed=True,
+        message="Critique completed successfully",
         issues=["Could be more concise"],
         suggestions=["Remove redundant phrases"]
     )
@@ -102,6 +107,8 @@ class CriticMetadata(BaseModel):
     metadata = CriticMetadata(
         score=0.75,
         feedback="Text needs improvement",
+        passed=False,
+        message="Text needs improvement",
         issues=["Too verbose", "Unclear structure"],
         suggestions=["Simplify language", "Add clear sections"],
         metadata={
@@ -121,9 +128,11 @@ class CriticMetadata(BaseModel):
     Attributes:
         score: Score for the critique (0.0 to 1.0)
         feedback: Human-readable feedback
-        issues: List of identified issues
-        suggestions: List of improvement suggestions
-        metadata: Additional metadata
+        issues: List of identified issues (inherited from BaseResult)
+        suggestions: List of improvement suggestions (inherited from BaseResult)
+        metadata: Additional metadata (inherited from BaseResult)
+        passed: Whether the critique passed (inherited from BaseResult)
+        message: Human-readable message (inherited from BaseResult)
     """
 
     score: float = Field(
@@ -133,18 +142,6 @@ class CriticMetadata(BaseModel):
     )
     feedback: str = Field(
         description="Human-readable feedback",
-    )
-    issues: List[str] = Field(
-        default_factory=list,
-        description="List of identified issues",
-    )
-    suggestions: List[str] = Field(
-        default_factory=list,
-        description="List of improvement suggestions",
-    )
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Additional metadata",
     )
 
 

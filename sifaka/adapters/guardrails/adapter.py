@@ -342,7 +342,7 @@ class GuardrailsValidatorAdapter(BaseValidator[str], BaseComponent):
     """
 
     # State management
-    _state = PrivateAttr(default_factory=StateManager)
+    _state_manager = PrivateAttr(default_factory=StateManager)
 
     def __init__(
         self,
@@ -359,17 +359,17 @@ class GuardrailsValidatorAdapter(BaseValidator[str], BaseComponent):
                 "Guardrails is not installed. Please install it with 'pip install guardrails-ai'"
             )
 
-        self._state.update("validator", guardrails_validator)
-        self._state.update("name", name)
-        self._state.update("description", description)
-        self._state.update("config", config or {})
-        self._state.update("initialized", True)
-        self._state.update("execution_count", 0)
-        self._state.update("result_cache", {})
+        self._state_manager.update("validator", guardrails_validator)
+        self._state_manager.update("name", name)
+        self._state_manager.update("description", description)
+        self._state_manager.update("config", config or {})
+        self._state_manager.update("initialized", True)
+        self._state_manager.update("execution_count", 0)
+        self._state_manager.update("result_cache", {})
 
         # Set metadata
-        self._state.set_metadata("component_type", "validator")
-        self._state.set_metadata("creation_time", time.time())
+        self._state_manager.set_metadata("component_type", "validator")
+        self._state_manager.set_metadata("creation_time", time.time())
 
     def _convert_guardrails_result(self, gr_result: ValidationResult) -> RuleResult:
         """Convert a Guardrails validation result to a Sifaka rule result."""
@@ -389,24 +389,24 @@ class GuardrailsValidatorAdapter(BaseValidator[str], BaseComponent):
     def validate(self, output: str, **kwargs) -> RuleResult:
         """Validate text using the Guardrails validator."""
         # Track execution count
-        execution_count = self._state.get("execution_count", 0)
-        self._state.update("execution_count", execution_count + 1)
+        execution_count = self._state_manager.get("execution_count", 0)
+        self._state_manager.update("execution_count", execution_count + 1)
 
         # Check cache
-        cache = self._state.get("result_cache", {})
+        cache = self._state_manager.get("result_cache", {})
         if output in cache:
-            self._state.set_metadata("cache_hit", True)
+            self._state_manager.set_metadata("cache_hit", True)
             return cache[output]
 
         # Mark as cache miss
-        self._state.set_metadata("cache_hit", False)
+        self._state_manager.set_metadata("cache_hit", False)
 
         # Record start time
         start_time = time.time()
 
         try:
             # Get validator from state
-            validator = self._state.get("validator")
+            validator = self._state_manager.get("validator")
 
             # Handle empty text
             if not output:
@@ -425,26 +425,26 @@ class GuardrailsValidatorAdapter(BaseValidator[str], BaseComponent):
             exec_time = end_time - start_time
 
             # Update average execution time
-            avg_time = self._state.get_metadata("avg_execution_time", 0)
-            count = self._state.get("execution_count", 1)
+            avg_time = self._state_manager.get_metadata("avg_execution_time", 0)
+            count = self._state_manager.get("execution_count", 1)
             new_avg = ((avg_time * (count - 1)) + exec_time) / count
-            self._state.set_metadata("avg_execution_time", new_avg)
+            self._state_manager.set_metadata("avg_execution_time", new_avg)
 
             # Update max execution time if needed
-            max_time = self._state.get_metadata("max_execution_time", 0)
+            max_time = self._state_manager.get_metadata("max_execution_time", 0)
             if exec_time > max_time:
-                self._state.set_metadata("max_execution_time", exec_time)
+                self._state_manager.set_metadata("max_execution_time", exec_time)
 
             # Cache result
             cache[output] = result
-            self._state.update("result_cache", cache)
+            self._state_manager.update("result_cache", cache)
 
             return result
 
         except Exception as e:
             # Track error
-            error_count = self._state.get_metadata("error_count", 0)
-            self._state.set_metadata("error_count", error_count + 1)
+            error_count = self._state_manager.get_metadata("error_count", 0)
+            self._state_manager.set_metadata("error_count", error_count + 1)
             logger.error(f"Validation error: {str(e)}")
             raise
 
@@ -456,16 +456,16 @@ class GuardrailsValidatorAdapter(BaseValidator[str], BaseComponent):
     def get_statistics(self) -> Dict[str, Any]:
         """Get statistics about validator usage."""
         return {
-            "execution_count": self._state.get("execution_count", 0),
-            "cache_size": len(self._state.get("result_cache", {})),
-            "avg_execution_time": self._state.get_metadata("avg_execution_time", 0),
-            "max_execution_time": self._state.get_metadata("max_execution_time", 0),
-            "error_count": self._state.get_metadata("error_count", 0),
+            "execution_count": self._state_manager.get("execution_count", 0),
+            "cache_size": len(self._state_manager.get("result_cache", {})),
+            "avg_execution_time": self._state_manager.get_metadata("avg_execution_time", 0),
+            "max_execution_time": self._state_manager.get_metadata("max_execution_time", 0),
+            "error_count": self._state_manager.get_metadata("error_count", 0),
         }
 
     def clear_cache(self) -> None:
         """Clear the validator result cache."""
-        self._state.update("result_cache", {})
+        self._state_manager.update("result_cache", {})
         logger.debug("Validator cache cleared")
 
 
@@ -478,7 +478,7 @@ class GuardrailsRule(Rule, BaseComponent):
     """
 
     # State management
-    _state = PrivateAttr(default_factory=StateManager)
+    _state_manager = PrivateAttr(default_factory=StateManager)
 
     def __init__(
         self,
@@ -497,40 +497,40 @@ class GuardrailsRule(Rule, BaseComponent):
                 "Guardrails is not installed. Please install it with 'pip install guardrails-ai'"
             )
 
-        self._state.update("validator", guardrails_validator)
-        self._state.update("rule_id", rule_id or "guardrails_rule")
-        self._state.update("name", name or "Guardrails Rule")
-        self._state.update("description", description or "Rule using Guardrails validator")
-        self._state.update("config", config or {})
-        self._state.update("initialized", True)
-        self._state.update("execution_count", 0)
-        self._state.update("result_cache", {})
+        self._state_manager.update("validator", guardrails_validator)
+        self._state_manager.update("rule_id", rule_id or "guardrails_rule")
+        self._state_manager.update("name", name or "Guardrails Rule")
+        self._state_manager.update("description", description or "Rule using Guardrails validator")
+        self._state_manager.update("config", config or {})
+        self._state_manager.update("initialized", True)
+        self._state_manager.update("execution_count", 0)
+        self._state_manager.update("result_cache", {})
 
         # Set metadata
-        self._state.set_metadata("component_type", "rule")
-        self._state.set_metadata("creation_time", time.time())
+        self._state_manager.set_metadata("component_type", "rule")
+        self._state_manager.set_metadata("creation_time", time.time())
 
     def validate(self, text: str, **kwargs) -> RuleResult:
         """Validate text using the Guardrails validator."""
         # Track execution count
-        execution_count = self._state.get("execution_count", 0)
-        self._state.update("execution_count", execution_count + 1)
+        execution_count = self._state_manager.get("execution_count", 0)
+        self._state_manager.update("execution_count", execution_count + 1)
 
         # Check cache
-        cache = self._state.get("result_cache", {})
+        cache = self._state_manager.get("result_cache", {})
         if text in cache:
-            self._state.set_metadata("cache_hit", True)
+            self._state_manager.set_metadata("cache_hit", True)
             return cache[text]
 
         # Mark as cache miss
-        self._state.set_metadata("cache_hit", False)
+        self._state_manager.set_metadata("cache_hit", False)
 
         # Record start time
         start_time = time.time()
 
         try:
             # Get validator from state
-            validator = self._state.get("validator")
+            validator = self._state_manager.get("validator")
 
             # Handle empty text
             if not text:
@@ -549,42 +549,42 @@ class GuardrailsRule(Rule, BaseComponent):
             exec_time = end_time - start_time
 
             # Update average execution time
-            avg_time = self._state.get_metadata("avg_execution_time", 0)
-            count = self._state.get("execution_count", 1)
+            avg_time = self._state_manager.get_metadata("avg_execution_time", 0)
+            count = self._state_manager.get("execution_count", 1)
             new_avg = ((avg_time * (count - 1)) + exec_time) / count
-            self._state.set_metadata("avg_execution_time", new_avg)
+            self._state_manager.set_metadata("avg_execution_time", new_avg)
 
             # Update max execution time if needed
-            max_time = self._state.get_metadata("max_execution_time", 0)
+            max_time = self._state_manager.get_metadata("max_execution_time", 0)
             if exec_time > max_time:
-                self._state.set_metadata("max_execution_time", exec_time)
+                self._state_manager.set_metadata("max_execution_time", exec_time)
 
             # Cache result
             cache[text] = result
-            self._state.update("result_cache", cache)
+            self._state_manager.update("result_cache", cache)
 
             return result
 
         except Exception as e:
             # Track error
-            error_count = self._state.get_metadata("error_count", 0)
-            self._state.set_metadata("error_count", error_count + 1)
+            error_count = self._state_manager.get_metadata("error_count", 0)
+            self._state_manager.set_metadata("error_count", error_count + 1)
             logger.error(f"Validation error: {str(e)}")
             raise
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get statistics about rule usage."""
         return {
-            "execution_count": self._state.get("execution_count", 0),
-            "cache_size": len(self._state.get("result_cache", {})),
-            "avg_execution_time": self._state.get_metadata("avg_execution_time", 0),
-            "max_execution_time": self._state.get_metadata("max_execution_time", 0),
-            "error_count": self._state.get_metadata("error_count", 0),
+            "execution_count": self._state_manager.get("execution_count", 0),
+            "cache_size": len(self._state_manager.get("result_cache", {})),
+            "avg_execution_time": self._state_manager.get_metadata("avg_execution_time", 0),
+            "max_execution_time": self._state_manager.get_metadata("max_execution_time", 0),
+            "error_count": self._state_manager.get_metadata("error_count", 0),
         }
 
     def clear_cache(self) -> None:
         """Clear the rule result cache."""
-        self._state.update("result_cache", {})
+        self._state_manager.update("result_cache", {})
         logger.debug("Rule cache cleared")
 
 

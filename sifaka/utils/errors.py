@@ -69,7 +69,7 @@ result = try_operation(
 
 import logging
 import traceback
-from typing import Any, Callable, Dict, Optional, TypeVar
+from typing import Any, Callable, Dict, Optional, Type, TypeVar
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -96,6 +96,8 @@ __all__ = [
     "handle_error",
     "try_operation",
     "log_error",
+    # New standardized error handling functions
+    "try_component_operation",
 ]
 
 # Type variable for return type
@@ -371,36 +373,55 @@ def handle_error(
 def try_operation(
     operation: Callable[[], T],
     component_name: str,
+    component_type: Optional[str] = None,
+    error_class: Optional[Type[SifakaError]] = None,
     default_value: Optional[T] = None,
     log_level: str = "error",
     error_handler: Optional[Callable[[Exception], Optional[T]]] = None,
+    include_traceback: bool = True,
+    additional_metadata: Optional[Dict[str, Any]] = None,
 ) -> T:
     """Execute an operation with standardized error handling.
 
     This function executes an operation and handles any errors that occur,
-    providing standardized error handling and logging.
+    providing standardized error handling and logging. It can also wrap generic
+    exceptions in component-specific error classes.
 
     Args:
         operation: The operation to execute
         component_name: Name of the component executing the operation
+        component_type: Type of the component (e.g., "Chain", "Model")
+        error_class: SifakaError subclass to use for wrapping generic exceptions
         default_value: Value to return if operation fails
         log_level: Log level to use for errors
         error_handler: Custom error handler function
+        include_traceback: Whether to include traceback in error metadata
+        additional_metadata: Additional metadata to include in error
 
     Returns:
         Result of the operation or default value if it fails
 
     Raises:
-        Exception: If error_handler raises an exception
+        SifakaError: If error_class is provided and a generic exception occurs
+        Exception: If error_handler raises an exception or no default value is provided
 
     Examples:
         ```python
-        from sifaka.utils.errors import try_operation
+        from sifaka.utils.errors import try_operation, ChainError
 
         # Basic usage with default value
         result = try_operation(
             lambda: process_data(input_data),
             component_name="DataProcessor",
+            default_value=None
+        )
+
+        # With component type and error class
+        result = try_operation(
+            lambda: process_data(input_data),
+            component_name="MyChain",
+            component_type="Chain",
+            error_class=ChainError,
             default_value=None
         )
 
@@ -425,6 +446,14 @@ def try_operation(
             error_handler=custom_error_handler
         )
 
+        # With additional metadata
+        result = try_operation(
+            lambda: process_data(input_data),
+            component_name="DataProcessor",
+            default_value=None,
+            additional_metadata={"input_size": len(input_data)}
+        )
+
         # Using with a function that returns a specific type
         def get_user_count() -> int:
             # Database operation that might fail
@@ -441,7 +470,9 @@ def try_operation(
         return operation()
     except Exception as e:
         # Handle the error
-        handle_error(e, component_name, log_level)
+        error_metadata = handle_error(
+            e, component_name, log_level, include_traceback, additional_metadata
+        )
 
         # Use custom error handler if provided
         if error_handler:
@@ -449,12 +480,86 @@ def try_operation(
             if result is not None:
                 return result
 
-        # Return default value
+        # Return default value if provided
         if default_value is not None:
             return default_value
 
-        # Re-raise the exception if no default value or handler result
+        # Wrap in component-specific error if requested
+        if component_type and error_class and not isinstance(e, SifakaError):
+            error_message = f"{component_type} error in {component_name}: {str(e)}"
+            raise error_class(error_message, metadata=error_metadata) from e
+
+        # Re-raise the original exception
         raise
+
+
+def try_component_operation(
+    operation: Callable[[], T],
+    component_name: str,
+    component_type: str,
+    error_class: Type[SifakaError],
+    default_value: Optional[T] = None,
+    log_level: str = "error",
+    include_traceback: bool = True,
+    additional_metadata: Optional[Dict[str, Any]] = None,
+) -> T:
+    """Execute an operation with component-specific error handling.
+
+    This function is a convenience wrapper around try_operation that provides
+    component-specific error handling. It automatically wraps generic exceptions
+    in the specified error class and includes component type information.
+
+    Args:
+        operation: The operation to execute
+        component_name: Name of the component executing the operation
+        component_type: Type of the component (e.g., "Chain", "Model")
+        error_class: SifakaError subclass to use for wrapping generic exceptions
+        default_value: Value to return if operation fails
+        log_level: Log level to use for errors
+        include_traceback: Whether to include traceback in error metadata
+        additional_metadata: Additional metadata to include in error
+
+    Returns:
+        Result of the operation or default value if it fails
+
+    Raises:
+        SifakaError: If a generic exception occurs
+        Exception: If no default value is provided
+
+    Examples:
+        ```python
+        from sifaka.utils.errors import try_component_operation, ChainError
+
+        # Basic usage with default value
+        result = try_component_operation(
+            lambda: process_data(input_data),
+            component_name="MyChain",
+            component_type="Chain",
+            error_class=ChainError,
+            default_value=None
+        )
+
+        # With additional metadata
+        result = try_component_operation(
+            lambda: process_data(input_data),
+            component_name="MyChain",
+            component_type="Chain",
+            error_class=ChainError,
+            default_value=None,
+            additional_metadata={"input_size": len(input_data)}
+        )
+        ```
+    """
+    return try_operation(
+        operation=operation,
+        component_name=component_name,
+        component_type=component_type,
+        error_class=error_class,
+        default_value=default_value,
+        log_level=log_level,
+        include_traceback=include_traceback,
+        additional_metadata=additional_metadata,
+    )
 
 
 def log_error(

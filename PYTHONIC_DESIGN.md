@@ -157,7 +157,7 @@ Sifaka uses Protocol classes to define interfaces, following Python's "duck typi
 @runtime_checkable
 class RuleProtocol(Protocol[T]):
     """Protocol for rule validation logic."""
-    
+
     def validate(self, input: T) -> RuleResult:
         """Validate the input."""
         ...
@@ -214,7 +214,7 @@ class RetryStrategy:
         self.max_retries = max_retries
         self.backoff_factor = backoff_factor
         self.jitter = jitter
-        
+
     def should_retry(self, attempt: int, result: Any) -> bool:
         """Determine if another retry should be attempted."""
         if attempt >= self.max_retries:
@@ -247,13 +247,13 @@ Sifaka uses a dedicated StateManager class to handle component state, providing 
 ```python
 class BaseComponent:
     # Add state manager as a private attribute
-    _state = PrivateAttr(default_factory=StateManager)
-    
+    _state_manager = PrivateAttr(default_factory=StateManager)
+
     def _initialize_state(self) -> None:
         """Initialize component state."""
-        self._state.update("initialized", False)
-        self._state.update("cache", {})
-        self._state.set_metadata("component_type", self.__class__.__name__)
+        self._state_manager.update("initialized", False)
+        self._state_manager.update("cache", {})
+        self._state_manager.set_metadata("component_type", self.__class__.__name__)
 ```
 
 ## Conclusion

@@ -1,286 +1,118 @@
 """
-Chain Factory Module
+Chain Factories Module
 
-## Overview
-This module provides factory functions for creating different types of chains,
-including simple chains and chains with exponential backoff retry strategies.
-These factories simplify the creation of complex chain configurations by providing
-sensible defaults and handling component initialization.
+This module provides factory functions for creating chains and components.
+These factories simplify the creation of chains with sensible defaults.
 
-## Components
-1. **create_simple_chain**: Creates a basic chain with simple retry strategy
-2. **create_backoff_chain**: Creates a chain with exponential backoff retry
+## Factory Functions
+1. **create_chain**: Creates a chain with the specified components
+2. **create_model_adapter**: Creates a model adapter for existing model providers
+3. **create_validator_adapter**: Creates a validator adapter for existing rules
+4. **create_improver_adapter**: Creates an improver adapter for existing critics
 
 ## Usage Examples
 ```python
-from sifaka.chain import create_simple_chain, create_backoff_chain
-from sifaka.models import create_openai_chat_provider
-from sifaka.rules import create_length_rule, create_toxicity_rule
+from sifaka.chain.v2.factories import create_chain
+from sifaka.models import OpenAIProvider
+from sifaka.rules import create_length_rule
 from sifaka.critics import create_prompt_critic
 
-# Create model provider
-model_provider = create_openai_chat_provider(
-    model_name="gpt-3.5-turbo",
-    api_key="your-api-key"
-)
-
-# Create rules
-rules = [
-    create_length_rule(min_length=10, max_length=1000),
-    create_toxicity_rule(threshold=0.7)
-]
-
-# Create critic
+# Create components
+model = OpenAIProvider("gpt-3.5-turbo")
+validators = [create_length_rule(min_chars=10, max_chars=1000)]
 critic = create_prompt_critic(
-    llm_provider=model_provider,
+    llm_provider=model,
     system_prompt="You are an expert editor that improves text."
 )
 
-# Create simple chain
-simple_chain = create_simple_chain(
-    model=model_provider,
-    rules=rules,
-    critic=critic,
+# Create chain using factory
+chain = create_chain(
+    model=model,
+    validators=validators,
+    improver=critic,
     max_attempts=3
 )
 
-# Create chain with backoff
-backoff_chain = create_backoff_chain(
-    model=model_provider,
-    rules=rules,
-    critic=critic,
-    max_attempts=3,
-    initial_backoff=1.0,
-    backoff_factor=2.0,
-    max_backoff=60.0
-)
-
-# Run the chains
-simple_result = simple_chain.run("Write a short story about a robot learning to paint.")
-backoff_result = backoff_chain.run("Write a poem about autumn.")
+# Run chain
+result = chain.run("Write a short story")
+print(f"Output: {result.output}")
+print(f"All validations passed: {result.all_passed}")
 ```
-
-## Error Handling
-- ValueError: Raised when validation fails after max attempts
-- ChainError: Raised when chain execution fails
-- ValidationError: Raised when validation fails
-- CriticError: Raised when critic refinement fails
-- ModelError: Raised when model generation fails
-
-## Configuration
-- model: The model provider for text generation
-- rules: List of rules to validate outputs against
-- critic: Optional critic for improving outputs
-- max_attempts: Maximum number of validation attempts
-- initial_backoff: Initial backoff time in seconds (backoff chain only)
-- backoff_factor: Factor to multiply backoff by each attempt (backoff chain only)
-- max_backoff: Maximum backoff time in seconds (backoff chain only)
 """
 
-from typing import Generic, List, Optional, TypeVar
+from typing import Any, Dict, List, Optional
 
-from ..critics import CriticCore
-from ..models.base import ModelProvider
-from ..rules import Rule
-from .orchestrator import ChainOrchestrator
-from .formatters.result import ResultFormatter
-from sifaka.core.managers.prompt import PromptManager
-from .managers.validation import ValidationManager
-from .strategies.retry import RetryStrategy
-from .core import ChainCore
-from ..utils.logging import get_logger
-
-logger = get_logger(__name__)
-
-OutputType = TypeVar("OutputType")
+from .chain import Chain
+from .interfaces import Model, Validator, Improver, Formatter
+from .config import ChainConfig
+from .adapters import ModelAdapter, ValidatorAdapter, ImproverAdapter, FormatterAdapter
 
 
-def create_simple_chain(
-    model: ModelProvider,
-    rules: List[Rule],
-    critic: Optional[CriticCore] = None,
+def create_chain(
+    model: Any,
+    validators: List[Any] = None,
+    improver: Optional[Any] = None,
+    formatter: Optional[Any] = None,
     max_attempts: int = 3,
-) -> ChainOrchestrator[OutputType]:
+    config: Optional[ChainConfig] = None,
+    name: str = "chain",
+    description: str = "Sifaka chain for text generation and validation",
+) -> Chain:
     """
-    Create a simple chain with the given parameters.
-
-    ## Overview
-    This function creates a basic chain with a simple retry strategy, using the
-    provided model provider, rules, and optional critic. It configures standard
-    validation and prompt managers for consistent behavior.
-
-    ## Lifecycle
-    1. **Component Creation**: Create components
-       - Create validation manager
-       - Create prompt manager
-       - Create retry strategy
-       - Create result formatter
-    2. **Chain Assembly**: Assemble chain
-       - Configure orchestrator
-       - Set up components
-       - Initialize state
-    3. **Chain Usage**: Use chain
-       - Run chain
-       - Process results
-       - Handle errors
-
+    Create a chain with the specified components.
+    
+    This factory function creates a chain with the specified components,
+    automatically adapting them to the required interfaces if needed.
+    
     Args:
-        model (ModelProvider): The model provider to use
-        rules (List[Rule]): The rules to validate against
-        critic (Optional[CriticCore]): Optional critic to use
-        max_attempts (int): Maximum number of attempts
-
+        model: The model to use for generation
+        validators: The validators to use for validation
+        improver: Optional improver for output improvement
+        formatter: Optional formatter for result formatting
+        max_attempts: Maximum number of generation attempts
+        config: Chain configuration
+        name: Chain name
+        description: Chain description
+        
     Returns:
-        ChainOrchestrator[OutputType]: A configured chain orchestrator
-
-    Raises:
-        ValueError: When validation fails after max attempts
-        ChainError: When chain execution fails
-        ValidationError: When validation fails
-        CriticError: When critic refinement fails
-        ModelError: When model generation fails
-
-    Examples:
-        ```python
-        from sifaka.chain import create_simple_chain
-        from sifaka.models import create_openai_chat_provider
-        from sifaka.rules import create_length_rule, create_toxicity_rule
-
-        # Create model provider
-        model_provider = create_openai_chat_provider(
-            model_name="gpt-3.5-turbo",
-            api_key="your-api-key"
-        )
-
-        # Create rules
-        rules = [
-            create_length_rule(min_length=10, max_length=1000),
-            create_toxicity_rule(threshold=0.7)
-        ]
-
-        # Create simple chain
-        chain = create_simple_chain(
-            model=model_provider,
-            rules=rules,
-            max_attempts=3
-        )
-
-        # Run the chain
-        result = chain.run("Write a short story about a robot learning to paint.")
-
-        # Check the result
-        print(f"Output: {result.output}")
-        print(f"All rules passed: {all(r.passed for r in result.rule_results)}")
-        ```
+        A chain instance
     """
-    return ChainOrchestrator[OutputType](
-        model=model,
-        rules=rules,
-        critic=critic,
+    # Adapt model if needed
+    adapted_model = model if isinstance(model, Model) else ModelAdapter(model)
+    
+    # Adapt validators if needed
+    adapted_validators = []
+    if validators:
+        for validator in validators:
+            if isinstance(validator, Validator):
+                adapted_validators.append(validator)
+            else:
+                adapted_validators.append(ValidatorAdapter(validator))
+    
+    # Adapt improver if needed
+    adapted_improver = None
+    if improver:
+        if isinstance(improver, Improver):
+            adapted_improver = improver
+        else:
+            adapted_improver = ImproverAdapter(improver)
+    
+    # Adapt formatter if needed
+    adapted_formatter = None
+    if formatter:
+        if isinstance(formatter, Formatter):
+            adapted_formatter = formatter
+        else:
+            adapted_formatter = FormatterAdapter(formatter)
+    
+    # Create chain
+    return Chain(
+        model=adapted_model,
+        validators=adapted_validators,
+        improver=adapted_improver,
+        formatter=adapted_formatter,
         max_attempts=max_attempts,
-    )
-
-
-def create_backoff_chain(
-    model: ModelProvider,
-    rules: List[Rule],
-    critic: Optional[CriticCore] = None,
-    max_attempts: int = 3,
-    initial_backoff: float = 1.0,
-    backoff_factor: float = 2.0,
-    max_backoff: float = 60.0,
-) -> ChainOrchestrator[OutputType]:
-    """
-    Create a chain with exponential backoff retry strategy.
-
-    ## Overview
-    This function creates a chain with an exponential backoff retry strategy,
-    which increases wait time between retry attempts to handle rate limits and
-    other transient failures. It uses the provided model provider, rules, and
-    optional critic, with configurable backoff parameters.
-
-    ## Lifecycle
-    1. **Component Creation**: Create components
-       - Create validation manager
-       - Create prompt manager
-       - Create backoff retry strategy
-       - Create result formatter
-    2. **Chain Assembly**: Assemble chain
-       - Configure orchestrator
-       - Set up components
-       - Initialize state
-    3. **Chain Usage**: Use chain
-       - Run chain
-       - Process results
-       - Handle errors
-
-    Args:
-        model (ModelProvider): The model provider to use
-        rules (List[Rule]): The rules to validate against
-        critic (Optional[CriticCore]): Optional critic to use
-        max_attempts (int): Maximum number of attempts
-        initial_backoff (float): Initial backoff time in seconds
-        backoff_factor (float): Factor to multiply backoff by each attempt
-        max_backoff (float): Maximum backoff time in seconds
-
-    Returns:
-        ChainOrchestrator[OutputType]: A configured chain orchestrator
-
-    Raises:
-        ValueError: When validation fails after max attempts
-        ChainError: When chain execution fails
-        ValidationError: When validation fails
-        CriticError: When critic refinement fails
-        ModelError: When model generation fails
-
-    Examples:
-        ```python
-        from sifaka.chain import create_backoff_chain
-        from sifaka.models import create_openai_chat_provider
-        from sifaka.rules import create_length_rule, create_toxicity_rule
-
-        # Create model provider
-        model_provider = create_openai_chat_provider(
-            model_name="gpt-3.5-turbo",
-            api_key="your-api-key"
-        )
-
-        # Create rules
-        rules = [
-            create_length_rule(min_length=10, max_length=1000),
-            create_toxicity_rule(threshold=0.7)
-        ]
-
-        # Create chain with backoff
-        chain = create_backoff_chain(
-            model=model_provider,
-            rules=rules,
-            max_attempts=3,
-            initial_backoff=1.0,
-            backoff_factor=2.0,
-            max_backoff=60.0
-        )
-
-        # Run the chain
-        result = chain.run("Write a poem about autumn.")
-
-        # Check the result
-        print(f"Output: {result.output}")
-        print(f"All rules passed: {all(r.passed for r in result.rule_results)}")
-        ```
-    """
-    # Create components
-    validation_manager = ValidationManager[OutputType](rules)
-    prompt_manager = PromptManager()
-    retry_strategy = RetryStrategy(
-        max_attempts=max_attempts,
-    )
-    result_formatter = ResultFormatter[OutputType]()
-
-    # Create orchestrator
-    return ChainOrchestrator(
-        model=model,
-        rules=rules,
-        critic=critic,
-        max_attempts=max_attempts,
+        config=config,
+        name=name,
+        description=description,
     )

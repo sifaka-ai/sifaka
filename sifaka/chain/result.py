@@ -1,202 +1,166 @@
 """
 Chain Result Module
 
-This module provides the ChainResult class which represents the result of running a chain,
-including the generated output, validation results, and optional critique details.
-
-## Overview
-The ChainResult class is a standardized representation of chain execution results,
-with support for validation results, critique details, and execution statistics.
-It extends the BaseResult class from the core module to provide a consistent
-result structure across the Sifaka framework.
+This module provides the ChainResult class for representing the results of chain execution.
+It standardizes the format of chain results, including output, validation results, and metadata.
 
 ## Components
-1. **ChainResult**: Main result class that encapsulates chain execution results
-2. **RuleResult**: Individual rule validation results from the rules module
-3. **CritiqueDetails**: Optional details from critic refinement
+1. **ChainResult**: Represents the result of running a chain
 
 ## Usage Examples
 ```python
-from sifaka.chain import ChainResult
-from sifaka.rules import RuleResult
+from sifaka.chain.v2.result import ChainResult
+from sifaka.chain.v2.interfaces import ValidationResult
 
-# Create a chain result
+# Create validation results
+validation_results = [
+    ValidationResult(
+        passed=True,
+        message="Length validation passed",
+        score=1.0
+    ),
+    ValidationResult(
+        passed=False,
+        message="Toxicity validation failed",
+        score=0.3,
+        issues=["Contains toxic content"],
+        suggestions=["Remove toxic content"]
+    )
+]
+
+# Create chain result
 result = ChainResult(
-    output="Generated text output",
-    rule_results=[
-        RuleResult(
-            rule_name="length_rule",
-            passed=True,
-            details={"length": 100}
-        )
-    ],
-    critique_details={
-        "feedback": "Good text, but could be more concise",
-        "suggestions": ["Remove redundant phrases", "Use active voice"]
-    }
+    output="Generated text",
+    validation_results=validation_results,
+    prompt="Write a story",
+    execution_time=0.5,
+    attempt_count=2
 )
 
 # Access result properties
 print(f"Output: {result.output}")
-print(f"All rules passed: {result.all_passed}")
-if result.critique_details:
-    print(f"Critique feedback: {result.critique_details.get('feedback', '')}")
+print(f"All validations passed: {result.all_passed}")
+print(f"Validation score: {result.validation_score}")
+print(f"Execution time: {result.execution_time} seconds")
+print(f"Attempt count: {result.attempt_count}")
+
+# Get issues and suggestions
+for issue in result.issues:
+    print(f"Issue: {issue}")
+for suggestion in result.suggestions:
+    print(f"Suggestion: {suggestion}")
 ```
-
-## Error Handling
-- ValueError: Raised when validation fails
-- TypeError: Raised when type validation fails
-
-## Configuration
-- output: The generated output from the chain
-- rule_results: List of validation results from rules
-- critique_details: Optional dictionary of critique details
-- attempts: Number of generation attempts made
-- metadata: Additional metadata about the result
 """
 
-from typing import Any, Dict, Generic, List, Optional, TypeVar
+from typing import Any, Dict, List, Optional
+import time
+from pydantic import BaseModel, Field, computed_field
 
-from pydantic import Field, ConfigDict
-
-from sifaka.core.base import BaseResult, ComponentResultEnum
-from ..rules import RuleResult
-
-OutputType = TypeVar("OutputType")
+from .interfaces import ValidationResult
 
 
-class ChainResult(BaseResult, Generic[OutputType]):
-    """
-    Result from running a chain, including the output and validation details.
-
-    This class provides a standardized representation of chain execution results,
-    with support for validation results, critique details, and execution statistics.
-    It extends the BaseResult class to provide a consistent result structure across
-    the Sifaka framework.
-
-    ## Architecture
-    ChainResult follows a structured data model:
-    1. **Core Data**: Essential data
-       - Output: Generated output
-       - Rule Results: Validation results
-       - Critique Details: Optional feedback
-    2. **Metadata**: Additional information
-       - Attempts: Number of generation attempts
-       - Execution Time: Processing time statistics
-       - Status: Success or failure status
-
-    ## Lifecycle
-    1. **Creation**: Initialize with data
-       - Set output and validation results
-       - Set critique details if available
-       - Record execution statistics
-    2. **Usage**: Access data and status
-       - Read output and validation results
-       - Check validation status
-       - Get feedback and suggestions
-    3. **Analysis**: Examine execution details
-       - Check number of attempts
-       - Review execution time
-       - Analyze validation failures
-
-    ## Error Handling
-    - ValueError: Raised when validation fails
-    - TypeError: Raised when type validation fails
-
-    ## Examples
-    ```python
-    from sifaka.chain import ChainResult
-    from sifaka.rules import RuleResult
-
-    # Create a chain result
-    result = ChainResult(
-        output="Generated text output",
-        rule_results=[
-            RuleResult(
-                rule_name="length_rule",
-                passed=True,
-                details={"length": 100}
-            )
-        ],
-        critique_details={
-            "feedback": "Good text, but could be more concise",
-            "suggestions": ["Remove redundant phrases", "Use active voice"]
-        },
-        attempts=2,
-        metadata={"model": "gpt-3.5-turbo", "temperature": 0.7}
+class ChainResult(BaseModel):
+    """Result of running a chain."""
+    
+    output: str = Field(description="The generated output")
+    validation_results: List[ValidationResult] = Field(
+        default_factory=list, description="Results of validation"
     )
-
-    # Access result properties
-    print(f"Output: {result.output}")
-    print(f"All rules passed: {result.all_passed}")
-    if result.critique_details:
-        print(f"Critique feedback: {result.critique_details.get('feedback', '')}")
-    ```
-
-    Attributes:
-        output (OutputType): The generated output from the chain
-        rule_results (List[RuleResult]): List of validation results from rules
-        critique_details (Optional[Dict[str, Any]]): Optional dictionary of critique details
-        attempts (int): Number of generation attempts made
-        status (ComponentResultEnum): Status of the result (SUCCESS, FAILURE, etc.)
-        metadata (Dict[str, Any]): Additional metadata about the result
-        processing_time_ms (float): Processing time in milliseconds
-        timestamp (datetime): When the result was created
-    """
-
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True, validate_assignment=True, extra="forbid"
+    prompt: str = Field(description="The original prompt")
+    execution_time: float = Field(
+        default=0.0, ge=0.0, description="Execution time in seconds"
     )
-
-    output: OutputType = Field(description="The generated output from the chain")
-    rule_results: List[RuleResult] = Field(
-        default_factory=list, description="List of validation results from rules"
+    attempt_count: int = Field(
+        default=1, ge=1, description="Number of generation attempts"
     )
-    critique_details: Optional[Dict[str, Any]] = Field(
-        default=None, description="Optional dictionary of critique details"
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict, description="Additional metadata"
     )
-    attempts: int = Field(default=1, description="Number of generation attempts made", ge=1)
-    status: ComponentResultEnum = Field(
-        default=ComponentResultEnum.SUCCESS, description="Status of the result"
+    timestamp: float = Field(
+        default_factory=time.time, description="Result creation timestamp"
     )
-
-    @property
+    
+    @computed_field
     def all_passed(self) -> bool:
-        """Check if all rules passed validation."""
-        return all(r.passed for r in self.rule_results)
-
-    @property
-    def failed_rules(self) -> List[RuleResult]:
-        """Get list of failed rule results."""
-        return [r for r in self.rule_results if not r.passed]
-
-    def with_critique(self, critique_details: Dict[str, Any]) -> "ChainResult[OutputType]":
-        """Create a new result with updated critique details."""
-        return self.model_copy(update={"critique_details": critique_details})
-
-    def with_attempts(self, attempts: int) -> "ChainResult[OutputType]":
-        """Create a new result with updated attempts count."""
-        return self.model_copy(update={"attempts": attempts})
-
-    def get_formatted_feedback(self) -> str:
-        """Get formatted feedback from rule results and critique details."""
-        feedback = []
-
-        # Add rule feedback
-        if self.rule_results:
-            feedback.append("Rule validation results:")
-            for i, rule in enumerate(self.rule_results, 1):
-                status = "✓" if rule.passed else "✗"
-                feedback.append(f"  {i}. {status} {rule.rule_name}: {rule.message}")
-
-        # Add critique feedback
-        if self.critique_details:
-            feedback.append("\nCritique feedback:")
-            if "feedback" in self.critique_details:
-                feedback.append(f"  {self.critique_details['feedback']}")
-            if "suggestions" in self.critique_details:
-                feedback.append("\nSuggestions:")
-                for i, suggestion in enumerate(self.critique_details["suggestions"], 1):
-                    feedback.append(f"  {i}. {suggestion}")
-
-        return "\n".join(feedback)
+        """
+        Check if all validations passed.
+        
+        Returns:
+            True if all validations passed, False otherwise
+        """
+        if not self.validation_results:
+            return True
+        return all(r.passed for r in self.validation_results)
+    
+    @computed_field
+    def validation_score(self) -> float:
+        """
+        Get the average validation score.
+        
+        Returns:
+            The average validation score, or 1.0 if no validations
+        """
+        if not self.validation_results:
+            return 1.0
+        return sum(r.score for r in self.validation_results) / len(self.validation_results)
+    
+    @computed_field
+    def issues(self) -> List[str]:
+        """
+        Get all issues from validation results.
+        
+        Returns:
+            List of all issues
+        """
+        issues = []
+        for result in self.validation_results:
+            issues.extend(result.issues)
+        return issues
+    
+    @computed_field
+    def suggestions(self) -> List[str]:
+        """
+        Get all suggestions from validation results.
+        
+        Returns:
+            List of all suggestions
+        """
+        suggestions = []
+        for result in self.validation_results:
+            suggestions.extend(result.suggestions)
+        return suggestions
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Convert result to dictionary.
+        
+        Returns:
+            Dictionary representation of the result
+        """
+        return {
+            "output": self.output,
+            "validation_results": [r.model_dump() for r in self.validation_results],
+            "prompt": self.prompt,
+            "execution_time": self.execution_time,
+            "attempt_count": self.attempt_count,
+            "metadata": self.metadata,
+            "timestamp": self.timestamp,
+            "all_passed": self.all_passed,
+            "validation_score": self.validation_score,
+            "issues": self.issues,
+            "suggestions": self.suggestions,
+        }
+    
+    def with_metadata(self, **kwargs: Any) -> "ChainResult":
+        """
+        Create a new result with additional metadata.
+        
+        Args:
+            **kwargs: Metadata key-value pairs
+            
+        Returns:
+            New result with updated metadata
+        """
+        return self.model_copy(
+            update={"metadata": {**self.metadata, **kwargs}}
+        )

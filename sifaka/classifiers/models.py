@@ -61,6 +61,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
 
 from pydantic import BaseModel, ConfigDict, Field
+from sifaka.core.base import BaseResult
 
 # Type variables for generic models
 R = TypeVar("R")  # Result label type
@@ -192,18 +193,18 @@ class ClassifierConfig(BaseModel, Generic[T]):
         return ClassifierConfig(**data)
 
 
-@dataclass(frozen=True)
-class ClassificationResult(Generic[R]):
+class ClassificationResult(BaseResult, Generic[R]):
     """
-    Immutable result of a classification operation.
+    Result of a classification operation.
 
     This class represents the result of a classification operation, including
-    the predicted label, confidence score, and additional metadata. It is
-    designed to be immutable to ensure result integrity.
+    the predicted label, confidence score, and additional metadata.
+    It extends BaseResult to provide a consistent result structure
+    across the Sifaka framework.
 
     ## Architecture
-    The result follows an immutable pattern:
-    - Frozen dataclass for immutability
+    The result follows a structured pattern:
+    - Extends BaseResult for consistency
     - Generic type parameter for label type
     - Structured metadata for extensibility
 
@@ -214,8 +215,8 @@ class ClassificationResult(Generic[R]):
 
     ## Error Handling
     - Validates confidence range (0-1)
-    - Ensures immutability
     - Type checks critical parameters
+    - Inherits error handling from BaseResult
 
     ## Examples
     ```python
@@ -225,6 +226,8 @@ class ClassificationResult(Generic[R]):
     result = ClassificationResult(
         label="positive",
         confidence=0.85,
+        passed=True,
+        message="Classification successful",
         metadata={
             "scores": {"positive": 0.85, "negative": 0.10},
             "text_length": 120
@@ -234,6 +237,7 @@ class ClassificationResult(Generic[R]):
     # Access properties
     print(f"Label: {result.label}")
     print(f"Confidence: {result.confidence:.2f}")
+    print(f"Passed: {result.passed}")
 
     # Add metadata
     enhanced = result.with_metadata(
@@ -241,33 +245,32 @@ class ClassificationResult(Generic[R]):
         model_version="1.2.3"
     )
 
-    # Chain metadata additions
-    final = enhanced.with_metadata(
-        timestamp="2023-07-01T12:34:56"
-    ).with_metadata(
-        action_taken="content_removed"
-    )
+    # Add issues and suggestions
+    with_issues = enhanced.with_issues(["Low confidence score"])
+    with_suggestions = with_issues.with_suggestions(["Provide more training data"])
     ```
 
     Attributes:
         label (R): The predicted label/class
         confidence (float): Confidence score for the prediction (0-1)
-        metadata (Dict[str, Any]): Additional metadata about the classification
+        passed (bool): Whether the classification passed (inherited from BaseResult)
+        message (str): Human-readable message (inherited from BaseResult)
+        metadata (Dict[str, Any]): Additional metadata (inherited from BaseResult)
+        issues (List[str]): List of issues (inherited from BaseResult)
+        suggestions (List[str]): List of suggestions (inherited from BaseResult)
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)  # Immutable model
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     label: R = Field(description="The classification label")
     confidence: float = Field(ge=0.0, le=1.0, description="Confidence score between 0 and 1")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
     def with_metadata(self, **kwargs: Any) -> "ClassificationResult[R]":
         """
         Create a new result with additional metadata.
 
-        Creates a new ClassificationResult with the same label and confidence,
-        but with additional metadata merged with the existing metadata. The original
-        result remains unchanged due to immutability.
+        Creates a new ClassificationResult with the same label, confidence, and other
+        BaseResult properties, but with additional metadata merged with the existing metadata.
 
         Args:
             **kwargs (Any): Additional metadata to add to the result
@@ -280,6 +283,8 @@ class ClassificationResult(Generic[R]):
             result = ClassificationResult(
                 label="positive",
                 confidence=0.85,
+                passed=True,
+                message="Classification successful",
                 metadata={"scores": {"positive": 0.85}}
             )
 
@@ -298,7 +303,13 @@ class ClassificationResult(Generic[R]):
         # Create a new metadata dictionary with existing and new metadata
         new_metadata = {**self.metadata, **kwargs}
 
-        # Return a new instance with the same label and confidence but updated metadata
+        # Return a new instance with the same properties but updated metadata
         return ClassificationResult(
-            label=self.label, confidence=self.confidence, metadata=new_metadata
+            label=self.label,
+            confidence=self.confidence,
+            passed=self.passed,
+            message=self.message,
+            issues=self.issues,
+            suggestions=self.suggestions,
+            metadata=new_metadata,
         )

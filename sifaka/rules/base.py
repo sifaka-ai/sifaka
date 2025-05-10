@@ -185,21 +185,21 @@ class BaseValidator(Validatable[T], Generic[T]):
             validation_type: The type this validator can validate
         """
         self._validation_type = validation_type
-        self._state = StateManager()
+        self._state_manager = StateManager()
         self._initialize_state()
 
     def _initialize_state(self) -> None:
         """Initialize validator state."""
-        self._state.update("initialized", True)
-        self._state.update("cache", {})
-        self._state.set_metadata("validator_type", self.__class__.__name__)
-        self._state.set_metadata("validation_count", 0)
-        self._state.set_metadata("success_count", 0)
-        self._state.set_metadata("failure_count", 0)
-        self._state.set_metadata("total_processing_time_ms", 0.0)
-        self._state.set_metadata("error_count", 0)
-        self._state.set_metadata("last_error", None)
-        self._state.set_metadata("last_error_time", None)
+        self._state_manager.update("initialized", True)
+        self._state_manager.update("cache", {})
+        self._state_manager.set_metadata("validator_type", self.__class__.__name__)
+        self._state_manager.set_metadata("validation_count", 0)
+        self._state_manager.set_metadata("success_count", 0)
+        self._state_manager.set_metadata("failure_count", 0)
+        self._state_manager.set_metadata("total_processing_time_ms", 0.0)
+        self._state_manager.set_metadata("error_count", 0)
+        self._state_manager.set_metadata("last_error", None)
+        self._state_manager.set_metadata("last_error_time", None)
 
     def can_validate(self, input: T) -> bool:
         """
@@ -254,18 +254,20 @@ class BaseValidator(Validatable[T], Generic[T]):
         Args:
             result: The validation result
         """
-        validation_count = self._state.get_metadata("validation_count", 0)
-        self._state.set_metadata("validation_count", validation_count + 1)
+        validation_count = self._state_manager.get_metadata("validation_count", 0)
+        self._state_manager.set_metadata("validation_count", validation_count + 1)
 
         if result.passed:
-            success_count = self._state.get_metadata("success_count", 0)
-            self._state.set_metadata("success_count", success_count + 1)
+            success_count = self._state_manager.get_metadata("success_count", 0)
+            self._state_manager.set_metadata("success_count", success_count + 1)
         else:
-            failure_count = self._state.get_metadata("failure_count", 0)
-            self._state.set_metadata("failure_count", failure_count + 1)
+            failure_count = self._state_manager.get_metadata("failure_count", 0)
+            self._state_manager.set_metadata("failure_count", failure_count + 1)
 
-        total_time = self._state.get_metadata("total_processing_time_ms", 0.0)
-        self._state.set_metadata("total_processing_time_ms", total_time + result.processing_time_ms)
+        total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
+        self._state_manager.set_metadata(
+            "total_processing_time_ms", total_time + result.processing_time_ms
+        )
 
     def record_error(self, error: Exception) -> None:
         """
@@ -274,10 +276,10 @@ class BaseValidator(Validatable[T], Generic[T]):
         Args:
             error: The exception that occurred
         """
-        error_count = self._state.get_metadata("error_count", 0)
-        self._state.set_metadata("error_count", error_count + 1)
-        self._state.set_metadata("last_error", str(error))
-        self._state.set_metadata("last_error_time", datetime.now())
+        error_count = self._state_manager.get_metadata("error_count", 0)
+        self._state_manager.set_metadata("error_count", error_count + 1)
+        self._state_manager.set_metadata("last_error", str(error))
+        self._state_manager.set_metadata("last_error_time", datetime.now())
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -286,22 +288,22 @@ class BaseValidator(Validatable[T], Generic[T]):
         Returns:
             Dictionary of statistics
         """
-        total_count = self._state.get_metadata("validation_count", 0)
-        success_count = self._state.get_metadata("success_count", 0)
-        failure_count = self._state.get_metadata("failure_count", 0)
-        total_time = self._state.get_metadata("total_processing_time_ms", 0.0)
-        error_count = self._state.get_metadata("error_count", 0)
+        total_count = self._state_manager.get_metadata("validation_count", 0)
+        success_count = self._state_manager.get_metadata("success_count", 0)
+        failure_count = self._state_manager.get_metadata("failure_count", 0)
+        total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
+        error_count = self._state_manager.get_metadata("error_count", 0)
 
         return {
-            "validator_type": self._state.get_metadata("validator_type"),
+            "validator_type": self._state_manager.get_metadata("validator_type"),
             "validation_count": total_count,
             "success_count": success_count,
             "failure_count": failure_count,
             "success_rate": success_count / total_count if total_count > 0 else 0.0,
             "error_rate": error_count / total_count if total_count > 0 else 0.0,
             "average_processing_time_ms": total_time / total_count if total_count > 0 else 0.0,
-            "last_error": self._state.get_metadata("last_error"),
-            "last_error_time": self._state.get_metadata("last_error_time"),
+            "last_error": self._state_manager.get_metadata("last_error"),
+            "last_error_time": self._state_manager.get_metadata("last_error_time"),
         }
 
 
@@ -340,9 +342,9 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
         self._validator = validator or self._create_default_validator()
 
         # Initialize rule-specific state
-        self._state.set_metadata("rule_type", self.__class__.__name__)
-        self._state.set_metadata("rule_id", getattr(config, "rule_id", None) or name)
-        self._state.set_metadata(
+        self._state_manager.set_metadata("rule_type", self.__class__.__name__)
+        self._state_manager.set_metadata("rule_id", getattr(config, "rule_id", None) or name)
+        self._state_manager.set_metadata(
             "validator_type", getattr(self._validator, "__class__", {}).get("__name__", "Unknown")
         )
 
@@ -367,7 +369,7 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
             Validation result
         """
         start_time = time.time()
-        rule_id = self._state.get_metadata("rule_id")
+        rule_id = self._state_manager.get_metadata("rule_id")
 
         # Validate input
         if not self.validate_input(input):
