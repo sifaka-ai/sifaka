@@ -103,6 +103,9 @@ class ClassifierProtocol(Protocol[T, R]):
        - Implement classify() for single text classification
        - Implement batch_classify() for processing multiple texts
        - Provide name, description, and min_confidence properties
+       - Implement state management methods
+       - Implement initialization and warm-up methods
+       - Implement error handling and execution tracking
 
     2. **Verification**: Verify protocol compliance
        - Use isinstance() to check if an object implements the protocol
@@ -113,6 +116,14 @@ class ClassifierProtocol(Protocol[T, R]):
        - Check compliance with isinstance() at runtime
        - Pass to functions expecting a ClassifierProtocol
 
+    ## State Management
+
+    Implementations should manage state using these patterns:
+    - Use _state_manager for all mutable state
+    - Initialize state during construction
+    - Provide methods to access and modify state
+    - Track execution statistics in state
+
     ## Error Handling
 
     Implementations should handle these error cases:
@@ -120,6 +131,17 @@ class ClassifierProtocol(Protocol[T, R]):
     - Empty text inputs
     - Classification failures
     - Resource availability issues
+    - Initialization failures
+    - State management errors
+
+    ## Execution Tracking
+
+    Implementations should track execution using these patterns:
+    - Track execution count
+    - Track execution time
+    - Track success/failure counts
+    - Track cache hits/misses
+    - Provide statistics through get_statistics()
 
     ## Examples
 
@@ -138,7 +160,7 @@ class ClassifierProtocol(Protocol[T, R]):
     ```python
     from sifaka.classifiers.interfaces import ClassifierProtocol
     from sifaka.classifiers.models import ClassificationResult
-    from typing import List
+    from typing import List, Dict, Any
 
     class MinimalClassifier:
         @property
@@ -152,6 +174,31 @@ class ClassifierProtocol(Protocol[T, R]):
         @property
         def min_confidence(self) -> float:
             return 0.5
+
+        @property
+        def _state_manager(self) -> Any:
+            # In a real implementation, this would return a state manager
+            return self._state_manager_impl
+
+        def initialize(self) -> None:
+            # Initialize resources
+            pass
+
+        def warm_up(self) -> None:
+            # Warm up resources
+            self.initialize()
+
+        def get_statistics(self) -> Dict[str, Any]:
+            # Return execution statistics
+            return {
+                "execution_count": 0,
+                "success_count": 0,
+                "error_count": 0
+            }
+
+        def clear_cache(self) -> None:
+            # Clear cached data
+            pass
 
         def classify(self, text: str) -> ClassificationResult:
             # Simple implementation
@@ -188,3 +235,9 @@ class ClassifierProtocol(Protocol[T, R]):
     def description(self) -> str: ...
     @property
     def min_confidence(self) -> float: ...
+    @property
+    def _state_manager(self) -> Any: ...
+    def initialize(self) -> None: ...
+    def warm_up(self) -> None: ...
+    def get_statistics(self) -> Dict[str, Any]: ...
+    def clear_cache(self) -> None: ...

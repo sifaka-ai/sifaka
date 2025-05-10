@@ -33,17 +33,20 @@ validate, and improve text outputs based on rule violations.
    - Handles model-specific formatting
 """
 
-from dataclasses import dataclass
-from typing import Any, Final, Protocol, runtime_checkable, Optional, Dict, List, Tuple
+import json
+import time
+from typing import Any, Dict, List, Optional, Tuple
 
-from pydantic import PrivateAttr, ConfigDict
+from pydantic import PrivateAttr, ConfigDict, Field
 
-from ..base import BaseCritic
+from ...core.base import BaseComponent
+from ...utils.state import create_critic_state
+from ...core.base import BaseResult as CriticResult
 from ..config import PromptCriticConfig
 from ..interfaces.critic import TextCritic, TextImprover, TextValidator
 
 
-class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
+class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, TextCritic):
     """A critic that uses a language model to evaluate and improve text.
 
     This critic analyzes text for clarity, ambiguity, completeness, and effectiveness
@@ -59,13 +62,31 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
        - **PromptManager**: Manages prompt creation and formatting
        - **ResponseParser**: Parses and validates model responses
        - **MemoryManager**: Manages history of improvements and critiques
+
+    ## State Management
+    The class uses a standardized state management approach:
+    - Single _state_manager attribute for all mutable state
+    - State initialization during construction
+    - State access through state manager
+    - Clear separation of configuration and state
+    - State components:
+      - model: Language model provider
+      - prompt_manager: Prompt manager
+      - response_parser: Response parser
+      - memory_manager: Memory manager
+      - critique_service: Critique service
+      - initialized: Initialization status
+      - cache: Temporary data storage
     """
 
     # Pydantic v2 configuration
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    # State management using direct state
-    _state = PrivateAttr(default_factory=lambda: None)
+    # Configuration
+    config: PromptCriticConfig = Field(description="Critic configuration")
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
 
     def __init__(
         self,
@@ -74,6 +95,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         llm_provider: Any,
         prompt_factory: Optional[Any] = None,
         config: Optional[PromptCriticConfig] = None,
+        **kwargs: Any,
     ):
         """
         Initialize a prompt critic.
@@ -84,6 +106,7 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             llm_provider: The language model provider to use
             prompt_factory: Optional prompt factory to use
             config: Optional configuration for the critic
+            **kwargs: Additional configuration parameters
 
         Raises:
             ValueError: If configuration is invalid
@@ -94,43 +117,109 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             from ..config import DEFAULT_PROMPT_CONFIG
 
             config = DEFAULT_PROMPT_CONFIG.model_copy(
-                update={"name": name, "description": description}
+                update={"name": name, "description": description, **kwargs}
             )
 
-        super().__init__(config)
+        # Initialize base component
+        super().__init__(name=name, description=description, config=config)
 
-        # Initialize state
-        from ...utils.state import CriticState
+        try:
+            # Create components
+            from ..managers.prompt_factories import PromptCriticPromptManager
+            from ..managers.response import ResponseParser
+            from ..services.critique import CritiqueService
+            from ..managers.memory import MemoryManager
 
-        self._state = CriticState()
-        self._state.initialized = False
+            # Store components in state
+            self._state_manager.update("model", llm_provider)
+            self._state_manager.update(
+                "prompt_manager", prompt_factory or PromptCriticPromptManager(config)
+            )
+            self._state_manager.update("response_parser", ResponseParser())
+            self._state_manager.update("memory_manager", MemoryManager(buffer_size=10))
 
-        # Create components
-        from ..managers.prompt_factories import PromptCriticPromptManager
-        from ..managers.response import ResponseParser
-        from ..services.critique import CritiqueService
+            # Create services and store in state cache
+            cache = self._state_manager.get("cache", {})
+            cache["critique_service"] = CritiqueService(
+                llm_provider=llm_provider,
+                prompt_manager=self._state_manager.get("prompt_manager"),
+                response_parser=self._state_manager.get("response_parser"),
+                memory_manager=self._state_manager.get("memory_manager"),
+            )
+            self._state_manager.update("cache", cache)
 
-        # Import memory manager
-        from ..managers.memory import MemoryManager
+            # Mark as initialized
+            self._state_manager.update("initialized", True)
+            self._state_manager.set_metadata("component_type", self.__class__.__name__)
+            self._state_manager.set_metadata("initialization_time", time.time())
+        except Exception as e:
+            self.record_error(e)
+            raise ValueError(f"Failed to initialize PromptCritic: {str(e)}") from e
 
-        # Store components in state
-        self._state.model = llm_provider
-        self._state.prompt_manager = prompt_factory or PromptCriticPromptManager(config)
-        self._state.response_parser = ResponseParser()
-        self._state.memory_manager = MemoryManager(
-            buffer_size=10
-        )  # Same as ImprovementHistory max_history
+    def process(self, input: str) -> CriticResult:
+        """
+        Process the input text and return a result.
 
-        # Create services and store in state cache
-        self._state.cache["critique_service"] = CritiqueService(
-            llm_provider=llm_provider,
-            prompt_manager=self._state.prompt_manager,
-            response_parser=self._state.response_parser,
-            memory_manager=self._state.memory_manager,
-        )
+        This is the main method required by BaseComponent.
 
-        # Mark as initialized
-        self._state.initialized = True
+        Args:
+            input: The text to process
+
+        Returns:
+            CriticResult: The result of processing the text
+
+        Raises:
+            ValueError: If text is empty
+            RuntimeError: If critic is not properly initialized
+        """
+        start_time = time.time()
+
+        try:
+            # Validate input
+            if not isinstance(input, str) or not input.strip():
+                raise ValueError("Input must be a non-empty string")
+
+            # Ensure initialized
+            if not self._state_manager.get("initialized", False):
+                raise RuntimeError("PromptCritic not properly initialized")
+
+            # Get critique service from state
+            cache = self._state_manager.get("cache", {})
+            critique_service = cache.get("critique_service")
+            if not critique_service:
+                raise RuntimeError("Critique service not initialized")
+
+            # Delegate to critique service
+            critique_result = critique_service.critique(input)
+
+            # Create result
+            result = CriticResult(
+                passed=critique_result.get("score", 0) >= self.config.min_confidence,
+                message=critique_result.get("feedback", ""),
+                metadata={"operation": "process"},
+                score=critique_result.get("score", 0),
+                issues=critique_result.get("issues", []),
+                suggestions=critique_result.get("suggestions", []),
+                processing_time_ms=(time.time() - start_time) * 1000,
+            )
+
+            # Update statistics
+            self.update_statistics(result)
+
+            return result
+
+        except Exception as e:
+            self.record_error(e)
+            processing_time = (time.time() - start_time) * 1000
+            return CriticResult(
+                passed=False,
+                message=f"Error: {str(e)}",
+                metadata={"error_type": type(e).__name__},
+                score=0.0,
+                issues=[f"Processing error: {str(e)}"],
+                suggestions=["Retry with different input"],
+                processing_time_ms=processing_time,
+            )
 
     def improve(self, text: str, feedback: str = None) -> str:
         """Improve text based on feedback.
@@ -145,39 +234,62 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         Raises:
             ValueError: If text is empty
             TypeError: If model returns non-string output
+            RuntimeError: If critic is not properly initialized
         """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("PromptCritic not properly initialized")
+        start_time = time.time()
 
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
+        try:
+            # Ensure initialized
+            if not self._state_manager.get("initialized", False):
+                raise RuntimeError("PromptCritic not properly initialized")
 
-        if feedback is None:
-            feedback = "Please improve this text for clarity and effectiveness."
+            # Validate input
+            if not isinstance(text, str) or not text.strip():
+                raise ValueError("text must be a non-empty string")
 
-        # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
-        if not critique_service:
-            raise RuntimeError("Critique service not initialized")
+            # Set default feedback if none provided
+            if feedback is None:
+                feedback = "Please improve this text for clarity and effectiveness."
 
-        # Delegate to critique service
-        improved_text = critique_service.improve(text, feedback)
+            # Get critique service from state
+            cache = self._state_manager.get("cache", {})
+            critique_service = cache.get("critique_service")
+            if not critique_service:
+                raise RuntimeError("Critique service not initialized")
 
-        # Track improvement in memory manager
-        import json
+            # Delegate to critique service
+            improved_text = critique_service.improve(text, feedback)
 
-        memory_item = json.dumps(
-            {
-                "original_text": text,
-                "feedback": feedback,
-                "improved_text": improved_text,
-                "timestamp": __import__("time").time(),
-            }
-        )
-        self._state.memory_manager.add_to_memory(memory_item)
+            # Track improvement in memory manager
+            memory_manager = self._state_manager.get("memory_manager")
+            if memory_manager:
+                memory_item = json.dumps(
+                    {
+                        "original_text": text,
+                        "feedback": feedback,
+                        "improved_text": improved_text,
+                        "timestamp": time.time(),
+                    }
+                )
+                memory_manager.add_to_memory(memory_item)
 
-        return improved_text
+            # Update statistics
+            improvement_count = self._state_manager.get_metadata("improvement_count", 0)
+            self._state_manager.set_metadata("improvement_count", improvement_count + 1)
+            self._state_manager.set_metadata("last_improvement_time", time.time())
+
+            # Track performance
+            if self.config.track_performance:
+                total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
+                self._state_manager.set_metadata(
+                    "total_processing_time_ms", total_time + (time.time() - start_time) * 1000
+                )
+
+            return improved_text
+
+        except Exception as e:
+            self.record_error(e)
+            raise RuntimeError(f"Failed to improve text: {str(e)}") from e
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
         """Improve text based on specific feedback.
@@ -192,38 +304,60 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         Raises:
             ValueError: If text or feedback is empty
             TypeError: If model returns non-string output
+            RuntimeError: If critic is not properly initialized
         """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("PromptCritic not properly initialized")
+        start_time = time.time()
 
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
-        if not isinstance(feedback, str) or not feedback.strip():
-            raise ValueError("feedback must be a non-empty string")
+        try:
+            # Ensure initialized
+            if not self._state_manager.get("initialized", False):
+                raise RuntimeError("PromptCritic not properly initialized")
 
-        # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
-        if not critique_service:
-            raise RuntimeError("Critique service not initialized")
+            # Validate input
+            if not isinstance(text, str) or not text.strip():
+                raise ValueError("text must be a non-empty string")
+            if not isinstance(feedback, str) or not feedback.strip():
+                raise ValueError("feedback must be a non-empty string")
 
-        # Delegate to critique service
-        improved_text = critique_service.improve(text, feedback)
+            # Get critique service from state
+            cache = self._state_manager.get("cache", {})
+            critique_service = cache.get("critique_service")
+            if not critique_service:
+                raise RuntimeError("Critique service not initialized")
 
-        # Track improvement in memory manager
-        import json
+            # Delegate to critique service
+            improved_text = critique_service.improve(text, feedback)
 
-        memory_item = json.dumps(
-            {
-                "original_text": text,
-                "feedback": feedback,
-                "improved_text": improved_text,
-                "timestamp": __import__("time").time(),
-            }
-        )
-        self._state.memory_manager.add_to_memory(memory_item)
+            # Track improvement in memory manager
+            memory_manager = self._state_manager.get("memory_manager")
+            if memory_manager:
+                memory_item = json.dumps(
+                    {
+                        "original_text": text,
+                        "feedback": feedback,
+                        "improved_text": improved_text,
+                        "timestamp": time.time(),
+                    }
+                )
+                memory_manager.add_to_memory(memory_item)
 
-        return improved_text
+            # Update statistics
+            improvement_count = self._state_manager.get_metadata("improvement_count", 0)
+            self._state_manager.set_metadata("improvement_count", improvement_count + 1)
+            self._state_manager.set_metadata("last_improvement_time", time.time())
+
+            # Track performance
+            if self.config.track_performance:
+                total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
+                self._state_manager.set_metadata(
+                    "total_processing_time_ms", total_time + (time.time() - start_time) * 1000
+                )
+
+            return improved_text
+
+        except Exception as e:
+            self.record_error(e)
+            raise RuntimeError(f"Failed to improve text with feedback: {str(e)}") from e
 
     def improve_with_history(
         self, text: str, feedback: str = None
@@ -243,23 +377,41 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         Raises:
             ValueError: If text is empty
             TypeError: If model returns non-string output
+            RuntimeError: If critic is not properly initialized
         """
-        improved_text = self.improve(text, feedback)
+        start_time = time.time()
 
-        # Get memory items and parse them
-        import json
+        try:
+            # Improve the text
+            improved_text = self.improve(text, feedback)
 
-        memory_items = self._state.memory_manager.get_memory()
-        parsed_items = []
+            # Get memory items and parse them
+            memory_manager = self._state_manager.get("memory_manager")
+            if not memory_manager:
+                return improved_text, []
 
-        for item in memory_items:
-            try:
-                parsed_items.append(json.loads(item))
-            except json.JSONDecodeError:
-                # Skip items that can't be parsed
-                continue
+            memory_items = memory_manager.get_memory()
+            parsed_items = []
 
-        return improved_text, parsed_items
+            for item in memory_items:
+                try:
+                    parsed_items.append(json.loads(item))
+                except json.JSONDecodeError:
+                    # Skip items that can't be parsed
+                    continue
+
+            # Track performance
+            if self.config.track_performance:
+                total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
+                self._state_manager.set_metadata(
+                    "total_processing_time_ms", total_time + (time.time() - start_time) * 1000
+                )
+
+            return improved_text, parsed_items
+
+        except Exception as e:
+            self.record_error(e)
+            raise RuntimeError(f"Failed to improve text with history: {str(e)}") from e
 
     def close_feedback_loop(
         self, text: str, generator_response: str, feedback: str = None
@@ -283,34 +435,51 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         Raises:
             ValueError: If text or generator_response is empty
             TypeError: If model returns non-string output
+            RuntimeError: If critic is not properly initialized
         """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("PromptCritic not properly initialized")
+        start_time = time.time()
 
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
-        if not isinstance(generator_response, str) or not generator_response.strip():
-            raise ValueError("generator_response must be a non-empty string")
+        try:
+            # Ensure initialized
+            if not self._state_manager.get("initialized", False):
+                raise RuntimeError("PromptCritic not properly initialized")
 
-        # Generate feedback if not provided
-        if feedback is None:
-            critique = self.critique(generator_response)
-            feedback = critique["feedback"]
+            # Validate input
+            if not isinstance(text, str) or not text.strip():
+                raise ValueError("text must be a non-empty string")
+            if not isinstance(generator_response, str) or not generator_response.strip():
+                raise ValueError("generator_response must be a non-empty string")
 
-        # Improve the response
-        improved_text = self.improve(generator_response, feedback)
+            # Generate feedback if not provided
+            if feedback is None:
+                critique = self.critique(generator_response)
+                feedback = critique["feedback"]
 
-        # Create report
-        report = {
-            "original_input": text,
-            "generator_response": generator_response,
-            "critic_feedback": feedback,
-            "improved_response": improved_text,
-            "has_changes": improved_text != generator_response,
-        }
+            # Improve the response
+            improved_text = self.improve(generator_response, feedback)
 
-        return improved_text, report
+            # Create report
+            report = {
+                "original_input": text,
+                "generator_response": generator_response,
+                "critic_feedback": feedback,
+                "improved_response": improved_text,
+                "has_changes": improved_text != generator_response,
+                "processing_time_ms": (time.time() - start_time) * 1000,
+            }
+
+            # Track performance
+            if self.config.track_performance:
+                total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
+                self._state_manager.set_metadata(
+                    "total_processing_time_ms", total_time + (time.time() - start_time) * 1000
+                )
+
+            return improved_text, report
+
+        except Exception as e:
+            self.record_error(e)
+            raise RuntimeError(f"Failed to close feedback loop: {str(e)}") from e
 
     def validate(self, text: str) -> bool:
         """Check if text meets quality standards.
@@ -323,21 +492,51 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
 
         Raises:
             ValueError: If text is empty
+            RuntimeError: If critic is not properly initialized
         """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("PromptCritic not properly initialized")
+        start_time = time.time()
 
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
+        try:
+            # Ensure initialized
+            if not self._state_manager.get("initialized", False):
+                raise RuntimeError("PromptCritic not properly initialized")
 
-        # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
-        if not critique_service:
-            raise RuntimeError("Critique service not initialized")
+            # Validate input
+            if not isinstance(text, str) or not text.strip():
+                raise ValueError("text must be a non-empty string")
 
-        # Delegate to critique service
-        return critique_service.validate(text)
+            # Get critique service from state
+            cache = self._state_manager.get("cache", {})
+            critique_service = cache.get("critique_service")
+            if not critique_service:
+                raise RuntimeError("Critique service not initialized")
+
+            # Delegate to critique service
+            result = critique_service.validate(text)
+
+            # Update statistics
+            validation_count = self._state_manager.get_metadata("validation_count", 0)
+            self._state_manager.set_metadata("validation_count", validation_count + 1)
+
+            if result:
+                success_count = self._state_manager.get_metadata("success_count", 0)
+                self._state_manager.set_metadata("success_count", success_count + 1)
+            else:
+                failure_count = self._state_manager.get_metadata("failure_count", 0)
+                self._state_manager.set_metadata("failure_count", failure_count + 1)
+
+            # Track performance
+            if self.config.track_performance:
+                total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
+                self._state_manager.set_metadata(
+                    "total_processing_time_ms", total_time + (time.time() - start_time) * 1000
+                )
+
+            return result
+
+        except Exception as e:
+            self.record_error(e)
+            raise RuntimeError(f"Failed to validate text: {str(e)}") from e
 
     def critique(self, text: str) -> dict:
         """Analyze text and provide detailed feedback.
@@ -350,21 +549,44 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
 
         Raises:
             ValueError: If text is empty
+            RuntimeError: If critic is not properly initialized
         """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("PromptCritic not properly initialized")
+        start_time = time.time()
 
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
+        try:
+            # Ensure initialized
+            if not self._state_manager.get("initialized", False):
+                raise RuntimeError("PromptCritic not properly initialized")
 
-        # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
-        if not critique_service:
-            raise RuntimeError("Critique service not initialized")
+            # Validate input
+            if not isinstance(text, str) or not text.strip():
+                raise ValueError("text must be a non-empty string")
 
-        # Delegate to critique service
-        return critique_service.critique(text)
+            # Get critique service from state
+            cache = self._state_manager.get("cache", {})
+            critique_service = cache.get("critique_service")
+            if not critique_service:
+                raise RuntimeError("Critique service not initialized")
+
+            # Delegate to critique service
+            result = critique_service.critique(text)
+
+            # Update statistics
+            critique_count = self._state_manager.get_metadata("critique_count", 0)
+            self._state_manager.set_metadata("critique_count", critique_count + 1)
+
+            # Track performance
+            if self.config.track_performance:
+                total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
+                self._state_manager.set_metadata(
+                    "total_processing_time_ms", total_time + (time.time() - start_time) * 1000
+                )
+
+            return result
+
+        except Exception as e:
+            self.record_error(e)
+            raise RuntimeError(f"Failed to critique text: {str(e)}") from e
 
     async def aimprove(self, text: str, feedback: str = None) -> str:
         """Asynchronously improve text based on feedback.
@@ -379,45 +601,68 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         Raises:
             ValueError: If text is empty
             TypeError: If model returns non-string output
+            RuntimeError: If critic is not properly initialized
         """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("PromptCritic not properly initialized")
+        start_time = time.time()
 
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
+        try:
+            # Ensure initialized
+            if not self._state_manager.get("initialized", False):
+                raise RuntimeError("PromptCritic not properly initialized")
 
-        if feedback is None:
-            feedback = "Please improve this text for clarity and effectiveness."
+            # Validate input
+            if not isinstance(text, str) or not text.strip():
+                raise ValueError("text must be a non-empty string")
 
-        # Get critique service from state
-        critique_service = self._state.cache.get("critique_service")
-        if not critique_service:
-            raise RuntimeError("Critique service not initialized")
+            # Set default feedback if none provided
+            if feedback is None:
+                feedback = "Please improve this text for clarity and effectiveness."
 
-        # Check if service supports async
-        if hasattr(critique_service, "aimprove"):
-            improved_text = await critique_service.aimprove(text, feedback)
-        else:
-            # Fallback to sync method in async context
-            import asyncio
+            # Get critique service from state
+            cache = self._state_manager.get("cache", {})
+            critique_service = cache.get("critique_service")
+            if not critique_service:
+                raise RuntimeError("Critique service not initialized")
 
-            improved_text = await asyncio.to_thread(critique_service.improve, text, feedback)
+            # Check if service supports async
+            if hasattr(critique_service, "aimprove"):
+                improved_text = await critique_service.aimprove(text, feedback)
+            else:
+                # Fallback to sync method in async context
+                import asyncio
 
-        # Track improvement in memory manager
-        import json
+                improved_text = await asyncio.to_thread(critique_service.improve, text, feedback)
 
-        memory_item = json.dumps(
-            {
-                "original_text": text,
-                "feedback": feedback,
-                "improved_text": improved_text,
-                "timestamp": __import__("time").time(),
-            }
-        )
-        self._state.memory_manager.add_to_memory(memory_item)
+            # Track improvement in memory manager
+            memory_manager = self._state_manager.get("memory_manager")
+            if memory_manager:
+                memory_item = json.dumps(
+                    {
+                        "original_text": text,
+                        "feedback": feedback,
+                        "improved_text": improved_text,
+                        "timestamp": time.time(),
+                    }
+                )
+                memory_manager.add_to_memory(memory_item)
 
-        return improved_text
+            # Update statistics
+            improvement_count = self._state_manager.get_metadata("improvement_count", 0)
+            self._state_manager.set_metadata("improvement_count", improvement_count + 1)
+            self._state_manager.set_metadata("last_improvement_time", time.time())
+
+            # Track performance
+            if self.config.track_performance:
+                total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
+                self._state_manager.set_metadata(
+                    "total_processing_time_ms", total_time + (time.time() - start_time) * 1000
+                )
+
+            return improved_text
+
+        except Exception as e:
+            self.record_error(e)
+            raise RuntimeError(f"Failed to asynchronously improve text: {str(e)}") from e
 
     async def aclose_feedback_loop(
         self, text: str, generator_response: str, feedback: str = None
@@ -435,34 +680,292 @@ class PromptCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         Raises:
             ValueError: If text or generator_response is empty
             TypeError: If model returns non-string output
+            RuntimeError: If critic is not properly initialized
         """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("PromptCritic not properly initialized")
+        start_time = time.time()
 
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
-        if not isinstance(generator_response, str) or not generator_response.strip():
-            raise ValueError("generator_response must be a non-empty string")
+        try:
+            # Ensure initialized
+            if not self._state_manager.get("initialized", False):
+                raise RuntimeError("PromptCritic not properly initialized")
 
-        # Generate feedback if not provided
-        if feedback is None:
-            critique = await self.acritique(generator_response)
-            feedback = critique["feedback"]
+            # Validate input
+            if not isinstance(text, str) or not text.strip():
+                raise ValueError("text must be a non-empty string")
+            if not isinstance(generator_response, str) or not generator_response.strip():
+                raise ValueError("generator_response must be a non-empty string")
 
-        # Improve the response
-        improved_text = await self.aimprove(generator_response, feedback)
+            # Generate feedback if not provided
+            if feedback is None:
+                critique = await self.acritique(generator_response)
+                feedback = critique["feedback"]
 
-        # Create report
-        report = {
-            "original_input": text,
-            "generator_response": generator_response,
-            "critic_feedback": feedback,
-            "improved_response": improved_text,
-            "has_changes": improved_text != generator_response,
-        }
+            # Improve the response
+            improved_text = await self.aimprove(generator_response, feedback)
 
-        return improved_text, report
+            # Create report
+            report = {
+                "original_input": text,
+                "generator_response": generator_response,
+                "critic_feedback": feedback,
+                "improved_response": improved_text,
+                "has_changes": improved_text != generator_response,
+                "processing_time_ms": (time.time() - start_time) * 1000,
+            }
+
+            # Track performance
+            if self.config.track_performance:
+                total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
+                self._state_manager.set_metadata(
+                    "total_processing_time_ms", total_time + (time.time() - start_time) * 1000
+                )
+
+            return improved_text, report
+
+        except Exception as e:
+            self.record_error(e)
+            raise RuntimeError(f"Failed to asynchronously close feedback loop: {str(e)}") from e
+
+    async def avalidate(self, text: str) -> bool:
+        """Asynchronously check if text meets quality standards.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            bool: True if the text meets quality standards
+
+        Raises:
+            ValueError: If text is empty
+            RuntimeError: If critic is not properly initialized
+        """
+        start_time = time.time()
+
+        try:
+            # Ensure initialized
+            if not self._state_manager.get("initialized", False):
+                raise RuntimeError("PromptCritic not properly initialized")
+
+            # Validate input
+            if not isinstance(text, str) or not text.strip():
+                raise ValueError("text must be a non-empty string")
+
+            # Get critique service from state
+            cache = self._state_manager.get("cache", {})
+            critique_service = cache.get("critique_service")
+            if not critique_service:
+                raise RuntimeError("Critique service not initialized")
+
+            # Check if service supports async
+            if hasattr(critique_service, "avalidate"):
+                result = await critique_service.avalidate(text)
+            else:
+                # Fallback to sync method in async context
+                import asyncio
+
+                result = await asyncio.to_thread(critique_service.validate, text)
+
+            # Update statistics
+            validation_count = self._state_manager.get_metadata("validation_count", 0)
+            self._state_manager.set_metadata("validation_count", validation_count + 1)
+
+            if result:
+                success_count = self._state_manager.get_metadata("success_count", 0)
+                self._state_manager.set_metadata("success_count", success_count + 1)
+            else:
+                failure_count = self._state_manager.get_metadata("failure_count", 0)
+                self._state_manager.set_metadata("failure_count", failure_count + 1)
+
+            # Track performance
+            if self.config.track_performance:
+                total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
+                self._state_manager.set_metadata(
+                    "total_processing_time_ms", total_time + (time.time() - start_time) * 1000
+                )
+
+            return result
+
+        except Exception as e:
+            self.record_error(e)
+            raise RuntimeError(f"Failed to asynchronously validate text: {str(e)}") from e
+
+    async def acritique(self, text: str) -> dict:
+        """Asynchronously analyze text and provide detailed feedback.
+
+        Args:
+            text: The text to critique
+
+        Returns:
+            dict: A dictionary containing critique information
+
+        Raises:
+            ValueError: If text is empty
+            RuntimeError: If critic is not properly initialized
+        """
+        start_time = time.time()
+
+        try:
+            # Ensure initialized
+            if not self._state_manager.get("initialized", False):
+                raise RuntimeError("PromptCritic not properly initialized")
+
+            # Validate input
+            if not isinstance(text, str) or not text.strip():
+                raise ValueError("text must be a non-empty string")
+
+            # Get critique service from state
+            cache = self._state_manager.get("cache", {})
+            critique_service = cache.get("critique_service")
+            if not critique_service:
+                raise RuntimeError("Critique service not initialized")
+
+            # Check if service supports async
+            if hasattr(critique_service, "acritique"):
+                result = await critique_service.acritique(text)
+            else:
+                # Fallback to sync method in async context
+                import asyncio
+
+                result = await asyncio.to_thread(critique_service.critique, text)
+
+            # Update statistics
+            critique_count = self._state_manager.get_metadata("critique_count", 0)
+            self._state_manager.set_metadata("critique_count", critique_count + 1)
+
+            # Track performance
+            if self.config.track_performance:
+                total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
+                self._state_manager.set_metadata(
+                    "total_processing_time_ms", total_time + (time.time() - start_time) * 1000
+                )
+
+            return result
+
+        except Exception as e:
+            self.record_error(e)
+            raise RuntimeError(f"Failed to asynchronously critique text: {str(e)}") from e
+
+    def warm_up(self) -> None:
+        """
+        Prepare the critic for use.
+
+        This method ensures that the critic is properly initialized and ready to use.
+        It can be called before using the critic to ensure that all resources are
+        properly initialized.
+
+        Raises:
+            RuntimeError: If initialization fails
+        """
+        try:
+            # Check if already initialized
+            if self._state_manager.get("initialized", False):
+                return
+
+            # Initialize components if needed
+            if not self._state_manager.get("model"):
+                raise RuntimeError("Model provider not initialized")
+
+            # Create prompt manager if needed
+            if not self._state_manager.get("prompt_manager"):
+                from ..managers.prompt_factories import PromptCriticPromptManager
+
+                self._state_manager.update("prompt_manager", PromptCriticPromptManager(self.config))
+
+            # Create response parser if needed
+            if not self._state_manager.get("response_parser"):
+                from ..managers.response import ResponseParser
+
+                self._state_manager.update("response_parser", ResponseParser())
+
+            # Create memory manager if needed
+            if not self._state_manager.get("memory_manager"):
+                from ..managers.memory import MemoryManager
+
+                self._state_manager.update("memory_manager", MemoryManager(buffer_size=10))
+
+            # Create critique service if needed
+            cache = self._state_manager.get("cache", {})
+            if "critique_service" not in cache:
+                from ..services.critique import CritiqueService
+
+                cache["critique_service"] = CritiqueService(
+                    llm_provider=self._state_manager.get("model"),
+                    prompt_manager=self._state_manager.get("prompt_manager"),
+                    response_parser=self._state_manager.get("response_parser"),
+                    memory_manager=self._state_manager.get("memory_manager"),
+                )
+                self._state_manager.update("cache", cache)
+
+            # Mark as initialized
+            self._state_manager.update("initialized", True)
+            self._state_manager.set_metadata("warm_up_time", time.time())
+
+        except Exception as e:
+            self.record_error(e)
+            raise RuntimeError(f"Failed to warm up critic: {str(e)}") from e
+
+    def cleanup(self) -> None:
+        """
+        Clean up resources used by the critic.
+
+        This method releases any resources held by the critic, such as
+        connections to external services or cached data.
+
+        Raises:
+            RuntimeError: If cleanup fails
+        """
+        try:
+            # Clear cache
+            self._state_manager.update("cache", {})
+
+            # Release memory manager resources
+            memory_manager = self._state_manager.get("memory_manager")
+            if memory_manager and hasattr(memory_manager, "cleanup"):
+                memory_manager.cleanup()
+
+            # Release prompt manager resources
+            prompt_manager = self._state_manager.get("prompt_manager")
+            if prompt_manager and hasattr(prompt_manager, "cleanup"):
+                prompt_manager.cleanup()
+
+            # Release response parser resources
+            response_parser = self._state_manager.get("response_parser")
+            if response_parser and hasattr(response_parser, "cleanup"):
+                response_parser.cleanup()
+
+            # Mark as not initialized
+            self._state_manager.update("initialized", False)
+            self._state_manager.set_metadata("cleanup_time", time.time())
+
+        except Exception as e:
+            self.record_error(e)
+            raise RuntimeError(f"Failed to clean up critic: {str(e)}") from e
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get statistics about the critic's performance.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing statistics
+        """
+        # Get base statistics from parent class
+        stats = super().get_statistics()
+
+        # Add critic-specific statistics
+        stats.update(
+            {
+                "critique_count": self._state_manager.get_metadata("critique_count", 0),
+                "improvement_count": self._state_manager.get_metadata("improvement_count", 0),
+                "last_improvement_time": self._state_manager.get_metadata("last_improvement_time"),
+                "model_provider": (
+                    str(self._state_manager.get("model").__class__.__name__)
+                    if self._state_manager.get("model")
+                    else None
+                ),
+            }
+        )
+
+        return stats
 
 
 def create_prompt_critic(
@@ -474,8 +977,14 @@ def create_prompt_critic(
     max_tokens: Optional[int] = None,
     min_confidence: Optional[float] = None,
     max_attempts: Optional[int] = None,
+    cache_size: Optional[int] = None,
+    priority: Optional[int] = None,
+    cost: Optional[float] = None,
+    track_performance: Optional[bool] = None,
+    track_errors: Optional[bool] = None,
     prompt_factory: Optional[Any] = None,
     config: Optional[PromptCriticConfig] = None,
+    **kwargs: Any,
 ) -> PromptCritic:
     """
     Create a prompt critic with the given parameters.
@@ -489,8 +998,14 @@ def create_prompt_critic(
         max_tokens: The maximum number of tokens to generate
         min_confidence: The minimum confidence threshold
         max_attempts: The maximum number of attempts
+        cache_size: The size of the cache
+        priority: The priority of the critic
+        cost: The cost of the critic
+        track_performance: Whether to track performance
+        track_errors: Whether to track errors
         prompt_factory: Optional prompt factory to use
         config: Optional configuration for the critic
+        **kwargs: Additional configuration parameters
 
     Returns:
         A configured PromptCritic instance
@@ -499,36 +1014,53 @@ def create_prompt_critic(
         ValueError: If configuration is invalid
         TypeError: If llm_provider is not a valid provider
     """
-    # Create config if not provided
-    if config is None:
-        from ..config import DEFAULT_PROMPT_CONFIG
+    try:
+        # Create config if not provided
+        if config is None:
+            from ..config import DEFAULT_PROMPT_CONFIG
 
-        config = DEFAULT_PROMPT_CONFIG.model_copy()
+            config = DEFAULT_PROMPT_CONFIG.model_copy()
 
-        # Update config with provided values
-        updates = {}
-        if name is not None:
-            updates["name"] = name
-        if description is not None:
-            updates["description"] = description
-        if system_prompt is not None:
-            updates["system_prompt"] = system_prompt
-        if temperature is not None:
-            updates["temperature"] = temperature
-        if max_tokens is not None:
-            updates["max_tokens"] = max_tokens
-        if min_confidence is not None:
-            updates["min_confidence"] = min_confidence
-        if max_attempts is not None:
-            updates["max_attempts"] = max_attempts
+            # Update config with provided values
+            updates = {}
+            if name is not None:
+                updates["name"] = name
+            if description is not None:
+                updates["description"] = description
+            if system_prompt is not None:
+                updates["system_prompt"] = system_prompt
+            if temperature is not None:
+                updates["temperature"] = temperature
+            if max_tokens is not None:
+                updates["max_tokens"] = max_tokens
+            if min_confidence is not None:
+                updates["min_confidence"] = min_confidence
+            if max_attempts is not None:
+                updates["max_attempts"] = max_attempts
+            if cache_size is not None:
+                updates["cache_size"] = cache_size
+            if priority is not None:
+                updates["priority"] = priority
+            if cost is not None:
+                updates["cost"] = cost
+            if track_performance is not None:
+                updates["track_performance"] = track_performance
+            if track_errors is not None:
+                updates["track_errors"] = track_errors
 
-        config = config.model_copy(update=updates)
+            # Add any additional kwargs
+            updates.update(kwargs)
 
-    # Create and return the critic
-    return PromptCritic(
-        name=name,
-        description=description,
-        llm_provider=llm_provider,
-        prompt_factory=prompt_factory,
-        config=config,
-    )
+            config = config.model_copy(update=updates)
+
+        # Create and return the critic
+        return PromptCritic(
+            name=name,
+            description=description,
+            llm_provider=llm_provider,
+            prompt_factory=prompt_factory,
+            config=config,
+            **kwargs,
+        )
+    except Exception as e:
+        raise ValueError(f"Failed to create prompt critic: {str(e)}") from e

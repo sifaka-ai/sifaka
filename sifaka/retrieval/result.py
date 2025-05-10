@@ -3,10 +3,52 @@ Result models for retrieval components.
 
 This module provides result models for retrieval components in the Sifaka framework.
 These models define the structure of results returned by retrievers and related components.
+
+## Result Models
+
+1. **DocumentMetadata**: Metadata for a retrieved document
+2. **RetrievedDocument**: A retrieved document with content and metadata
+3. **RetrievalResult**: Result of a retrieval operation
+4. **StringRetrievalResult**: Result of a retrieval operation with string content
+
+## Usage Examples
+
+```python
+from sifaka.retrieval.result import StringRetrievalResult, RetrievedDocument, DocumentMetadata
+
+# Create document metadata
+metadata = DocumentMetadata(
+    document_id="doc_1",
+    source="example.txt",
+    created_at="2023-01-01",
+)
+
+# Create a retrieved document
+document = RetrievedDocument(
+    content="This is the document content.",
+    metadata=metadata,
+    score=0.95,
+)
+
+# Create a retrieval result
+result = StringRetrievalResult(
+    documents=[document],
+    query="example query",
+    processed_query="processed example query",
+    total_results=1,
+    execution_time_ms=10.5,
+)
+
+# Access result properties
+print(f"Query: {result.query}")
+print(f"Top document: {result.top_document.content}")
+print(f"Score: {result.top_document.score}")
+```
 """
 
 from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
-from pydantic import BaseModel, Field
+from datetime import datetime
+from pydantic import BaseModel, Field, ConfigDict
 
 T = TypeVar("T")
 
@@ -17,7 +59,32 @@ class DocumentMetadata(BaseModel):
 
     This class defines the metadata for a retrieved document,
     including its ID, source, and other attributes.
+
+    ## Attributes
+
+    - document_id: The ID of the document
+    - source: The source of the document (e.g., file path, URL)
+    - created_at: The creation timestamp of the document
+    - updated_at: The last update timestamp of the document
+    - additional_metadata: Additional metadata for the document
+
+    ## Usage
+
+    ```python
+    metadata = DocumentMetadata(
+        document_id="doc_1",
+        source="example.txt",
+        created_at="2023-01-01",
+    )
+    ```
     """
+
+    model_config = ConfigDict(
+        frozen=False,
+        validate_assignment=True,
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
 
     document_id: str = Field(
         description="The ID of the document",
@@ -39,6 +106,38 @@ class DocumentMetadata(BaseModel):
         description="Additional metadata for the document",
     )
 
+    def with_source(self, source: str) -> "DocumentMetadata":
+        """
+        Create a new metadata object with the specified source.
+
+        Args:
+            source: The source of the document
+
+        Returns:
+            A new DocumentMetadata object with the updated source
+        """
+        return self.model_copy(update={"source": source})
+
+    def with_timestamp(
+        self, created_at: Optional[str] = None, updated_at: Optional[str] = None
+    ) -> "DocumentMetadata":
+        """
+        Create a new metadata object with the specified timestamps.
+
+        Args:
+            created_at: The creation timestamp
+            updated_at: The update timestamp
+
+        Returns:
+            A new DocumentMetadata object with the updated timestamps
+        """
+        updates = {}
+        if created_at is not None:
+            updates["created_at"] = created_at
+        if updated_at is not None:
+            updates["updated_at"] = updated_at
+        return self.model_copy(update=updates)
+
 
 class RetrievedDocument(BaseModel, Generic[T]):
     """
@@ -46,7 +145,30 @@ class RetrievedDocument(BaseModel, Generic[T]):
 
     This class defines a retrieved document, including its content,
     metadata, and relevance score.
+
+    ## Attributes
+
+    - content: The content of the document
+    - metadata: Metadata for the document
+    - score: The relevance score of the document
+
+    ## Usage
+
+    ```python
+    document = RetrievedDocument(
+        content="This is the document content.",
+        metadata=DocumentMetadata(document_id="doc_1"),
+        score=0.95,
+    )
+    ```
     """
+
+    model_config = ConfigDict(
+        frozen=False,
+        validate_assignment=True,
+        extra="forbid",
+        arbitrary_types_allowed=True,
+    )
 
     content: T = Field(
         description="The content of the document",
@@ -58,7 +180,21 @@ class RetrievedDocument(BaseModel, Generic[T]):
     score: Optional[float] = Field(
         default=None,
         description="The relevance score of the document",
+        ge=0.0,
+        le=1.0,
     )
+
+    def with_score(self, score: float) -> "RetrievedDocument[T]":
+        """
+        Create a new document with the specified score.
+
+        Args:
+            score: The relevance score
+
+        Returns:
+            A new RetrievedDocument with the updated score
+        """
+        return self.model_copy(update={"score": score})
 
 
 class RetrievalResult(BaseModel, Generic[T]):
@@ -67,7 +203,41 @@ class RetrievalResult(BaseModel, Generic[T]):
 
     This class defines the result of a retrieval operation,
     including the retrieved documents and query information.
+
+    ## Attributes
+
+    - documents: The retrieved documents
+    - query: The query used for retrieval
+    - processed_query: The processed query (after preprocessing)
+    - total_results: The total number of results found
+    - execution_time_ms: The execution time in milliseconds
+    - additional_info: Additional information about the retrieval operation
+
+    ## Usage
+
+    ```python
+    result = RetrievalResult(
+        documents=[document1, document2],
+        query="example query",
+        processed_query="processed example query",
+        total_results=2,
+        execution_time_ms=10.5,
+    )
+
+    # Access top document
+    top_doc = result.top_document
+
+    # Get all contents
+    contents = result.get_contents()
+    ```
     """
+
+    model_config = ConfigDict(
+        frozen=False,
+        validate_assignment=True,
+        extra="forbid",
+        arbitrary_types_allowed=True,
+    )
 
     documents: List[RetrievedDocument[T]] = Field(
         default_factory=list,
@@ -83,14 +253,20 @@ class RetrievalResult(BaseModel, Generic[T]):
     total_results: int = Field(
         default=0,
         description="The total number of results found",
+        ge=0,
     )
     execution_time_ms: Optional[float] = Field(
         default=None,
         description="The execution time in milliseconds",
+        ge=0.0,
     )
     additional_info: Dict[str, Any] = Field(
         default_factory=dict,
         description="Additional information about the retrieval operation",
+    )
+    timestamp: datetime = Field(
+        default_factory=datetime.now,
+        description="The timestamp of the retrieval operation",
     )
 
     @property
@@ -118,6 +294,29 @@ class RetrievalResult(BaseModel, Generic[T]):
             return None
         return top_doc.content
 
+    @property
+    def has_results(self) -> bool:
+        """
+        Check if the result has any documents.
+
+        Returns:
+            True if there are documents, False otherwise
+        """
+        return len(self.documents) > 0
+
+    @property
+    def average_score(self) -> Optional[float]:
+        """
+        Get the average score of all documents.
+
+        Returns:
+            The average score, or None if no documents have scores
+        """
+        scores = [doc.score for doc in self.documents if doc.score is not None]
+        if not scores:
+            return None
+        return sum(scores) / len(scores)
+
     def get_contents(self) -> List[T]:
         """
         Get the contents of all retrieved documents.
@@ -126,6 +325,18 @@ class RetrievalResult(BaseModel, Generic[T]):
             A list of document contents
         """
         return [doc.content for doc in self.documents]
+
+    def get_documents_with_score_above(self, threshold: float) -> List[RetrievedDocument[T]]:
+        """
+        Get documents with a score above the threshold.
+
+        Args:
+            threshold: The score threshold
+
+        Returns:
+            A list of documents with scores above the threshold
+        """
+        return [doc for doc in self.documents if doc.score is not None and doc.score >= threshold]
 
     def get_formatted_results(self, include_scores: bool = True) -> str:
         """
@@ -149,6 +360,18 @@ class RetrievalResult(BaseModel, Generic[T]):
 
         return result.strip()
 
+    def with_additional_info(self, **kwargs: Any) -> "RetrievalResult[T]":
+        """
+        Create a new result with additional information.
+
+        Args:
+            **kwargs: Additional information to add
+
+        Returns:
+            A new RetrievalResult with the updated additional information
+        """
+        return self.model_copy(update={"additional_info": {**self.additional_info, **kwargs}})
+
 
 class StringRetrievalResult(RetrievalResult[str]):
     """
@@ -156,6 +379,21 @@ class StringRetrievalResult(RetrievalResult[str]):
 
     This class specializes RetrievalResult for string content,
     which is the most common case for text retrieval.
+
+    ## Usage
+
+    ```python
+    result = StringRetrievalResult(
+        documents=[document1, document2],
+        query="example query",
+        processed_query="processed example query",
+        total_results=2,
+        execution_time_ms=10.5,
+    )
+
+    # Get concatenated content
+    all_text = result.get_concatenated_content()
+    ```
     """
 
     def get_concatenated_content(self, separator: str = "\n\n") -> str:
@@ -169,3 +407,24 @@ class StringRetrievalResult(RetrievalResult[str]):
             The concatenated content of all retrieved documents
         """
         return separator.join(self.get_contents())
+
+    def get_content_with_metadata(self, include_scores: bool = True) -> List[Dict[str, Any]]:
+        """
+        Get the content of all documents with their metadata.
+
+        Args:
+            include_scores: Whether to include scores in the output
+
+        Returns:
+            A list of dictionaries with content and metadata
+        """
+        result = []
+        for doc in self.documents:
+            item = {
+                "content": doc.content,
+                "metadata": doc.metadata.model_dump(),
+            }
+            if include_scores and doc.score is not None:
+                item["score"] = doc.score
+            result.append(item)
+        return result

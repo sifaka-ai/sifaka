@@ -35,6 +35,15 @@ adapter = create_pydantic_adapter(
 - ValueError: Raised when configuration is invalid
 - TypeError: Raised when input types are incompatible
 - ImportError: Raised when required dependencies are missing
+- AdapterError: Raised for adapter-specific errors
+
+## State Management
+The module uses a standardized state management approach:
+- Single _state_manager attribute for all mutable state
+- State initialization during construction
+- State access through state object
+- Clear separation of configuration and state
+- Execution tracking for monitoring and debugging
 
 ## Configuration
 - max_refine: Maximum number of refinement attempts
@@ -42,16 +51,22 @@ adapter = create_pydantic_adapter(
 - config: Optional configuration dictionary or SifakaPydanticConfig instance
 """
 
+import time
 from typing import Any, Dict, List, Optional, Type, Union
 
 from pydantic import BaseModel
 
 from sifaka.critics.base import BaseCritic
-from sifaka.critics.prompt import create_prompt_critic
 from sifaka.models.base import ModelProvider
 from sifaka.rules.base import Rule
+from sifaka.adapters.base import AdapterError
+from sifaka.utils.errors import handle_error
+from sifaka.utils.logging import get_logger
 
 from .adapter import SifakaPydanticAdapter, SifakaPydanticConfig
+
+# Set up logging
+logger = get_logger(__name__)
 
 
 def create_pydantic_adapter(
@@ -59,6 +74,9 @@ def create_pydantic_adapter(
     output_model: Type[BaseModel],
     max_refine: int = 2,
     prioritize_by_cost: bool = False,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    initialize: bool = True,
     config: Optional[Union[Dict[str, Any], SifakaPydanticConfig]] = None,
     **kwargs: Any,
 ) -> SifakaPydanticAdapter:
@@ -69,11 +87,22 @@ def create_pydantic_adapter(
     This function creates a SifakaPydanticAdapter with the specified rules and
     configuration, providing a simple way to create adapters for common use cases.
 
+    ## Architecture
+    The factory function follows a standard pattern:
+    1. Validate inputs
+    2. Process configuration
+    3. Create adapter instance
+    4. Initialize if requested
+    5. Return configured instance
+
     Args:
         rules (List[Rule]): List of Sifaka rules to validate against
         output_model (Type[BaseModel]): The Pydantic model type for the output
         max_refine (int): Maximum number of refinement attempts
         prioritize_by_cost (bool): Whether to prioritize rules by cost
+        name (Optional[str]): Optional name for the adapter
+        description (Optional[str]): Optional description for the adapter
+        initialize (bool): Whether to initialize the adapter immediately
         config (Optional[Union[Dict[str, Any], SifakaPydanticConfig]]): Optional configuration
         **kwargs: Additional keyword arguments for the adapter
 
@@ -83,6 +112,7 @@ def create_pydantic_adapter(
     Raises:
         ValueError: If configuration is invalid
         TypeError: If input types are incompatible
+        AdapterError: If initialization fails
 
     ## Examples
     ```python
@@ -90,48 +120,86 @@ def create_pydantic_adapter(
     from sifaka.adapters.pydantic_ai import create_pydantic_adapter
     from sifaka.rules.formatting.length import create_length_rule
 
-    # Define a Pydantic model
+    # Basic usage
     class Response(BaseModel):
         content: str
 
-    # Create rules and adapter
     rules = [create_length_rule(min_chars=10, max_chars=100)]
     adapter = create_pydantic_adapter(
         rules=rules,
         output_model=Response,
         max_refine=2
     )
+
+    # With custom name and description
+    adapter = create_pydantic_adapter(
+        rules=rules,
+        output_model=Response,
+        name="content_validator",
+        description="Validates content length and format"
+    )
+
+    # Without immediate initialization
+    adapter = create_pydantic_adapter(
+        rules=rules,
+        output_model=Response,
+        initialize=False
+    )
     ```
     """
-    # Process configuration
-    adapter_config = None
-    if config is not None:
-        if isinstance(config, dict):
-            # Create config from dict
-            config_dict = config.copy()
-            # Add explicit parameters if not in dict
-            if "max_refine" not in config_dict and max_refine is not None:
-                config_dict["max_refine"] = max_refine
-            if "prioritize_by_cost" not in config_dict and prioritize_by_cost is not None:
-                config_dict["prioritize_by_cost"] = prioritize_by_cost
-            adapter_config = SifakaPydanticConfig(**config_dict)
+    try:
+        # Process configuration
+        adapter_config = None
+        if config is not None:
+            if isinstance(config, dict):
+                # Create config from dict
+                config_dict = config.copy()
+                # Add explicit parameters if not in dict
+                if "max_refine" not in config_dict and max_refine is not None:
+                    config_dict["max_refine"] = max_refine
+                if "prioritize_by_cost" not in config_dict and prioritize_by_cost is not None:
+                    config_dict["prioritize_by_cost"] = prioritize_by_cost
+                adapter_config = SifakaPydanticConfig(**config_dict)
+            else:
+                # Use provided config
+                adapter_config = config
         else:
-            # Use provided config
-            adapter_config = config
-    else:
-        # Create config from explicit parameters
-        adapter_config = SifakaPydanticConfig(
-            max_refine=max_refine,
-            prioritize_by_cost=prioritize_by_cost,
+            # Create config from explicit parameters
+            adapter_config = SifakaPydanticConfig(
+                max_refine=max_refine,
+                prioritize_by_cost=prioritize_by_cost,
+            )
+
+        # Create adapter instance
+        adapter = SifakaPydanticAdapter(
+            rules=rules,
+            output_model=output_model,
+            config=adapter_config,
+            **kwargs,
         )
 
-    # Create and return the adapter
-    return SifakaPydanticAdapter(
-        rules=rules,
-        output_model=output_model,
-        config=adapter_config,
-        **kwargs,
-    )
+        # Set name and description if provided
+        if name:
+            adapter._state_manager.set_metadata("name", name)
+        if description:
+            adapter._state_manager.set_metadata("description", description)
+
+        # Initialize if requested
+        if initialize:
+            adapter.warm_up()
+
+        logger.debug(f"Created PydanticAI adapter with {len(rules)} rules")
+        return adapter
+    except Exception as e:
+        # Handle errors
+        if isinstance(e, (ValueError, TypeError, AdapterError)):
+            raise
+
+        # Convert other errors to AdapterError
+        error_info = handle_error(e, "PydanticAdapterFactory")
+        raise AdapterError(
+            f"Failed to create PydanticAI adapter: {str(e)}", metadata=error_info
+        ) from e
 
 
 def create_pydantic_adapter_with_critic(
@@ -142,6 +210,9 @@ def create_pydantic_adapter_with_critic(
     system_prompt: Optional[str] = None,
     max_refine: int = 2,
     prioritize_by_cost: bool = False,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    initialize: bool = True,
     config: Optional[Union[Dict[str, Any], SifakaPydanticConfig]] = None,
     **kwargs: Any,
 ) -> SifakaPydanticAdapter:
@@ -153,6 +224,15 @@ def create_pydantic_adapter_with_critic(
     and configuration, providing a simple way to create adapters for use cases
     that require refinement.
 
+    ## Architecture
+    The factory function follows a standard pattern:
+    1. Validate inputs
+    2. Process configuration
+    3. Create or use provided critic
+    4. Create adapter instance
+    5. Initialize if requested
+    6. Return configured instance
+
     Args:
         rules (List[Rule]): List of Sifaka rules to validate against
         output_model (Type[BaseModel]): The Pydantic model type for the output
@@ -161,6 +241,9 @@ def create_pydantic_adapter_with_critic(
         system_prompt (Optional[str]): Optional system prompt for creating a critic
         max_refine (int): Maximum number of refinement attempts
         prioritize_by_cost (bool): Whether to prioritize rules by cost
+        name (Optional[str]): Optional name for the adapter
+        description (Optional[str]): Optional description for the adapter
+        initialize (bool): Whether to initialize the adapter immediately
         config (Optional[Union[Dict[str, Any], SifakaPydanticConfig]]): Optional configuration
         **kwargs: Additional keyword arguments for the adapter
 
@@ -171,6 +254,7 @@ def create_pydantic_adapter_with_critic(
         ValueError: If configuration is invalid
         TypeError: If input types are incompatible
         ImportError: If required dependencies are missing
+        AdapterError: If initialization fails
 
     ## Examples
     ```python
@@ -179,66 +263,110 @@ def create_pydantic_adapter_with_critic(
     from sifaka.rules.formatting.length import create_length_rule
     from sifaka.models.factories import create_openai_provider
 
-    # Define a Pydantic model
+    # Basic usage
     class Response(BaseModel):
         content: str
 
-    # Create model provider
     provider = create_openai_provider(model_name="gpt-4")
-
-    # Create rules and adapter
     rules = [create_length_rule(min_chars=10, max_chars=100)]
+
     adapter = create_pydantic_adapter_with_critic(
         rules=rules,
         output_model=Response,
         model_provider=provider,
-        system_prompt="You are an expert editor that improves text while maintaining its original meaning.",
         max_refine=2
+    )
+
+    # With custom name and description
+    adapter = create_pydantic_adapter_with_critic(
+        rules=rules,
+        output_model=Response,
+        model_provider=provider,
+        name="content_validator_with_critic",
+        description="Validates and improves content using a critic"
+    )
+
+    # With custom system prompt
+    adapter = create_pydantic_adapter_with_critic(
+        rules=rules,
+        output_model=Response,
+        model_provider=provider,
+        system_prompt="You are an expert editor that improves text while maintaining its original meaning."
     )
     ```
     """
-    # Process configuration
-    adapter_config = None
-    if config is not None:
-        if isinstance(config, dict):
-            # Create config from dict
-            config_dict = config.copy()
-            # Add explicit parameters if not in dict
-            if "max_refine" not in config_dict and max_refine is not None:
-                config_dict["max_refine"] = max_refine
-            if "prioritize_by_cost" not in config_dict and prioritize_by_cost is not None:
-                config_dict["prioritize_by_cost"] = prioritize_by_cost
-            adapter_config = SifakaPydanticConfig(**config_dict)
+    try:
+        # Process configuration
+        adapter_config = None
+        if config is not None:
+            if isinstance(config, dict):
+                # Create config from dict
+                config_dict = config.copy()
+                # Add explicit parameters if not in dict
+                if "max_refine" not in config_dict and max_refine is not None:
+                    config_dict["max_refine"] = max_refine
+                if "prioritize_by_cost" not in config_dict and prioritize_by_cost is not None:
+                    config_dict["prioritize_by_cost"] = prioritize_by_cost
+                adapter_config = SifakaPydanticConfig(**config_dict)
+            else:
+                # Use provided config
+                adapter_config = config
         else:
-            # Use provided config
-            adapter_config = config
-    else:
-        # Create config from explicit parameters
-        adapter_config = SifakaPydanticConfig(
-            max_refine=max_refine,
-            prioritize_by_cost=prioritize_by_cost,
+            # Create config from explicit parameters
+            adapter_config = SifakaPydanticConfig(
+                max_refine=max_refine,
+                prioritize_by_cost=prioritize_by_cost,
+            )
+
+        # Create critic if not provided
+        if critic is None and model_provider is not None:
+            # Default system prompt for improving structured outputs
+            default_system_prompt = (
+                "You are an expert editor that improves structured outputs while maintaining "
+                "their original meaning and format. Fix any issues in the output to make it "
+                "comply with the specified requirements."
+            )
+
+            # Import here to avoid circular imports
+            from sifaka.critics.prompt import create_prompt_critic
+
+            # Create a prompt critic
+            critic = create_prompt_critic(
+                llm_provider=model_provider,
+                system_prompt=system_prompt or default_system_prompt,
+            )
+
+            logger.debug(f"Created prompt critic for PydanticAI adapter")
+
+        # Create adapter instance
+        adapter = SifakaPydanticAdapter(
+            rules=rules,
+            output_model=output_model,
+            critic=critic,
+            config=adapter_config,
+            **kwargs,
         )
 
-    # Create critic if not provided
-    if critic is None and model_provider is not None:
-        # Default system prompt for improving structured outputs
-        default_system_prompt = (
-            "You are an expert editor that improves structured outputs while maintaining "
-            "their original meaning and format. Fix any issues in the output to make it "
-            "comply with the specified requirements."
-        )
+        # Set name and description if provided
+        if name:
+            adapter._state_manager.set_metadata("name", name)
+        if description:
+            adapter._state_manager.set_metadata("description", description)
 
-        # Create a prompt critic
-        critic = create_prompt_critic(
-            llm_provider=model_provider,
-            system_prompt=system_prompt or default_system_prompt,
-        )
+        # Initialize if requested
+        if initialize:
+            adapter.warm_up()
 
-    # Create and return the adapter
-    return SifakaPydanticAdapter(
-        rules=rules,
-        output_model=output_model,
-        critic=critic,
-        config=adapter_config,
-        **kwargs,
-    )
+        critic_info = f" and critic {critic.__class__.__name__}" if critic else ""
+        logger.debug(f"Created PydanticAI adapter with {len(rules)} rules{critic_info}")
+        return adapter
+    except Exception as e:
+        # Handle errors
+        if isinstance(e, (ValueError, TypeError, ImportError, AdapterError)):
+            raise
+
+        # Convert other errors to AdapterError
+        error_info = handle_error(e, "PydanticAdapterWithCriticFactory")
+        raise AdapterError(
+            f"Failed to create PydanticAI adapter with critic: {str(e)}", metadata=error_info
+        ) from e

@@ -5,13 +5,13 @@ This module provides the core chain implementation for Sifaka,
 enabling text generation, validation, and improvement.
 """
 
-from typing import Any, Dict, List, Optional, Type, TypeVar, Generic
+from typing import Any, Dict, Optional, TypeVar
 import time
 
-from pydantic import BaseModel, PrivateAttr
+from pydantic import PrivateAttr
 
-from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
-from sifaka.models.base import BaseModelProvider
+from sifaka.core.base import BaseComponent, BaseResult
+from sifaka.models.core import ModelProviderCore
 from sifaka.critics.core import CriticCore
 from sifaka.chain.managers.validation import ValidationManager
 from sifaka.chain.managers.prompt import PromptManager
@@ -39,11 +39,11 @@ class ChainCore(BaseComponent):
 
     def __init__(
         self,
-        model: BaseModelProvider[OutputType],
-        validation_manager: ValidationManager[OutputType],
+        model: ModelProviderCore,
+        validation_manager: ValidationManager,
         prompt_manager: PromptManager,
-        retry_strategy: RetryStrategy[OutputType],
-        result_formatter: ResultFormatter[OutputType],
+        retry_strategy: RetryStrategy,
+        result_formatter: ResultFormatter,
         critic: Optional[CriticCore] = None,
         name: str = "chain",
         description: str = "Core chain implementation for Sifaka",
@@ -81,7 +81,7 @@ class ChainCore(BaseComponent):
         self._state.set_metadata("component_type", "chain")
         self._state.set_metadata("creation_time", time.time())
 
-    def run(self, prompt: str) -> BaseResult[OutputType]:
+    def run(self, prompt: str) -> BaseResult:
         """
         Run the chain on the given prompt.
 

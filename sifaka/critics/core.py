@@ -85,6 +85,7 @@ from .managers.memory import MemoryManager
 from .managers.prompt import DefaultPromptManager, PromptManager
 from .managers.response import ResponseParser
 from .services.critique import CritiqueService
+from ..models.core import ModelProviderCore
 from ..utils.logging import get_logger
 from ..utils.state import StateManager, create_critic_state
 
@@ -137,9 +138,9 @@ class CriticCore(BaseCritic):
 
     ## State Management
     The class uses a standardized state management approach:
-    - Single _state attribute for all mutable state
+    - Single _state_manager attribute for all mutable state
     - State initialization during construction
-    - State access through state object
+    - State access through state manager
     - Clear separation of configuration and state
     - State components:
       - model: Language model provider
@@ -152,12 +153,12 @@ class CriticCore(BaseCritic):
     """
 
     # Use StateManager for state management
-    _state = PrivateAttr(default_factory=create_critic_state)
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
 
     def __init__(
         self,
         config: CriticConfig,
-        llm_provider: Any,
+        llm_provider: ModelProviderCore,
         prompt_manager: Optional[PromptManager] = None,
         response_parser: Optional[ResponseParser] = None,
         memory_manager: Optional[MemoryManager] = None,
@@ -169,7 +170,7 @@ class CriticCore(BaseCritic):
 
         Args:
             config: Configuration for the critic
-            llm_provider: Language model provider
+            llm_provider: Language model provider (ModelProviderCore)
             prompt_manager: Optional prompt manager
             response_parser: Optional response parser
             memory_manager: Optional memory manager
@@ -181,38 +182,38 @@ class CriticCore(BaseCritic):
         super().__init__(config)
 
         # Initialize state using StateManager
-        self._state.update("initialized", False)
-        self._state.update("model", llm_provider)
-        self._state.update("cache", {})
+        self._state_manager.update("initialized", False)
+        self._state_manager.update("model", llm_provider)
+        self._state_manager.update("cache", {})
 
         # Store components in state
         prompt_manager = prompt_manager or self._create_prompt_manager()
-        self._state.update("prompt_manager", prompt_manager)
-        self._state.update("response_parser", response_parser or ResponseParser())
+        self._state_manager.update("prompt_manager", prompt_manager)
+        self._state_manager.update("response_parser", response_parser or ResponseParser())
         if memory_manager:
-            self._state.update("memory_manager", memory_manager)
+            self._state_manager.update("memory_manager", memory_manager)
 
         # Create and store critique service
         critique_service = CritiqueService(
             llm_provider=llm_provider,
             prompt_manager=prompt_manager,
-            response_parser=self._state.get("response_parser"),
+            response_parser=self._state_manager.get("response_parser"),
             memory_manager=memory_manager,
         )
-        cache = self._state.get("cache", {})
+        cache = self._state_manager.get("cache", {})
         cache["critique_service"] = critique_service
-        self._state.update("cache", cache)
+        self._state_manager.update("cache", cache)
 
         # Set metadata
-        self._state.set_metadata("component_type", "critic")
-        self._state.set_metadata("name", config.name)
-        self._state.set_metadata("description", config.description)
-        self._state.set_metadata("validation_count", 0)
-        self._state.set_metadata("critique_count", 0)
-        self._state.set_metadata("improvement_count", 0)
+        self._state_manager.set_metadata("component_type", "critic")
+        self._state_manager.set_metadata("name", config.name)
+        self._state_manager.set_metadata("description", config.description)
+        self._state_manager.set_metadata("validation_count", 0)
+        self._state_manager.set_metadata("critique_count", 0)
+        self._state_manager.set_metadata("improvement_count", 0)
 
         # Mark as initialized
-        self._state.update("initialized", True)
+        self._state_manager.update("initialized", True)
 
     def validate(self, text: str) -> bool:
         """
@@ -244,11 +245,11 @@ class CriticCore(BaseCritic):
             ```
         """
         # Ensure initialized
-        if not self._state.get("initialized", False):
+        if not self._state_manager.get("initialized", False):
             raise RuntimeError("CriticCore not properly initialized")
 
         # Get critique service from state
-        cache = self._state.get("cache", {})
+        cache = self._state_manager.get("cache", {})
         critique_service = cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not properly initialized")
@@ -258,8 +259,8 @@ class CriticCore(BaseCritic):
             raise ValueError("Text must be a non-empty string")
 
         # Track validation count
-        validation_count = self._state.get_metadata("validation_count", 0)
-        self._state.set_metadata("validation_count", validation_count + 1)
+        validation_count = self._state_manager.get_metadata("validation_count", 0)
+        self._state_manager.set_metadata("validation_count", validation_count + 1)
 
         # Get critique
         critique = critique_service.critique(text)
@@ -267,11 +268,11 @@ class CriticCore(BaseCritic):
         # Record result in metadata
         is_valid = critique.score >= self.config.min_confidence
         if is_valid:
-            valid_count = self._state.get_metadata("valid_count", 0)
-            self._state.set_metadata("valid_count", valid_count + 1)
+            valid_count = self._state_manager.get_metadata("valid_count", 0)
+            self._state_manager.set_metadata("valid_count", valid_count + 1)
         else:
-            invalid_count = self._state.get_metadata("invalid_count", 0)
-            self._state.set_metadata("invalid_count", invalid_count + 1)
+            invalid_count = self._state_manager.get_metadata("invalid_count", 0)
+            self._state_manager.set_metadata("invalid_count", invalid_count + 1)
 
         # Return validation result
         return is_valid
@@ -310,11 +311,11 @@ class CriticCore(BaseCritic):
             ```
         """
         # Ensure initialized
-        if not self._state.get("initialized", False):
+        if not self._state_manager.get("initialized", False):
             raise RuntimeError("CriticCore not properly initialized")
 
         # Get critique service from state
-        cache = self._state.get("cache", {})
+        cache = self._state_manager.get("cache", {})
         critique_service = cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not properly initialized")
@@ -326,8 +327,8 @@ class CriticCore(BaseCritic):
             raise ValueError("Violations must be a non-empty list")
 
         # Track improvement count
-        improvement_count = self._state.get_metadata("improvement_count", 0)
-        self._state.set_metadata("improvement_count", improvement_count + 1)
+        improvement_count = self._state_manager.get_metadata("improvement_count", 0)
+        self._state_manager.set_metadata("improvement_count", improvement_count + 1)
 
         # Record start time
         import time
@@ -340,28 +341,28 @@ class CriticCore(BaseCritic):
             improved_text = critique_service.improve(text, violations)
 
             # Track attempt count
-            attempt_count = self._state.get_metadata("improvement_attempts", 0)
-            self._state.set_metadata("improvement_attempts", attempt_count + 1)
+            attempt_count = self._state_manager.get_metadata("improvement_attempts", 0)
+            self._state_manager.set_metadata("improvement_attempts", attempt_count + 1)
 
             # Validate improvement
             if improved_text and improved_text != text:
                 # Track successful improvements
-                success_count = self._state.get_metadata("successful_improvements", 0)
-                self._state.set_metadata("successful_improvements", success_count + 1)
+                success_count = self._state_manager.get_metadata("successful_improvements", 0)
+                self._state_manager.set_metadata("successful_improvements", success_count + 1)
 
                 # Record execution time
                 end_time = time.time()
                 exec_time = end_time - start_time
-                avg_time = self._state.get_metadata("avg_improvement_time", 0)
-                count = self._state.get_metadata("improvement_count", 1)
+                avg_time = self._state_manager.get_metadata("avg_improvement_time", 0)
+                count = self._state_manager.get_metadata("improvement_count", 1)
                 new_avg = ((avg_time * (count - 1)) + exec_time) / count
-                self._state.set_metadata("avg_improvement_time", new_avg)
+                self._state_manager.set_metadata("avg_improvement_time", new_avg)
 
                 return improved_text
 
         # Track failed improvements
-        fail_count = self._state.get_metadata("failed_improvements", 0)
-        self._state.set_metadata("failed_improvements", fail_count + 1)
+        fail_count = self._state_manager.get_metadata("failed_improvements", 0)
+        self._state_manager.set_metadata("failed_improvements", fail_count + 1)
 
         # Return original text if no improvement
         return text
@@ -403,11 +404,11 @@ class CriticCore(BaseCritic):
             ```
         """
         # Ensure initialized
-        if not self._state.get("initialized", False):
+        if not self._state_manager.get("initialized", False):
             raise RuntimeError("CriticCore not properly initialized")
 
         # Get critique service from state
-        cache = self._state.get("cache", {})
+        cache = self._state_manager.get("cache", {})
         critique_service = cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not properly initialized")
@@ -417,8 +418,8 @@ class CriticCore(BaseCritic):
             raise ValueError("Text must be a non-empty string")
 
         # Track critique count
-        critique_count = self._state.get_metadata("critique_count", 0)
-        self._state.set_metadata("critique_count", critique_count + 1)
+        critique_count = self._state_manager.get_metadata("critique_count", 0)
+        self._state_manager.set_metadata("critique_count", critique_count + 1)
 
         # Record start time
         import time
@@ -431,16 +432,16 @@ class CriticCore(BaseCritic):
         # Record execution time
         end_time = time.time()
         exec_time = end_time - start_time
-        avg_time = self._state.get_metadata("avg_critique_time", 0)
-        count = self._state.get_metadata("critique_count", 1)
+        avg_time = self._state_manager.get_metadata("avg_critique_time", 0)
+        count = self._state_manager.get_metadata("critique_count", 1)
         new_avg = ((avg_time * (count - 1)) + exec_time) / count
-        self._state.set_metadata("avg_critique_time", new_avg)
+        self._state_manager.set_metadata("avg_critique_time", new_avg)
 
         # Track score distribution
-        score_distribution = self._state.get_metadata("score_distribution", {})
+        score_distribution = self._state_manager.get_metadata("score_distribution", {})
         score_bucket = round(critique.score * 10) / 10  # Round to nearest 0.1
         score_distribution[str(score_bucket)] = score_distribution.get(str(score_bucket), 0) + 1
-        self._state.set_metadata("score_distribution", score_distribution)
+        self._state_manager.set_metadata("score_distribution", score_distribution)
 
         return critique
 
@@ -472,11 +473,11 @@ class CriticCore(BaseCritic):
             ```
         """
         # Ensure initialized
-        if not self._state.get("initialized", False):
+        if not self._state_manager.get("initialized", False):
             raise RuntimeError("CriticCore not properly initialized")
 
         # Get critique service from state
-        cache = self._state.get("cache", {})
+        cache = self._state_manager.get("cache", {})
         critique_service = cache.get("critique_service")
         if not critique_service:
             raise RuntimeError("Critique service not properly initialized")
@@ -488,8 +489,8 @@ class CriticCore(BaseCritic):
             raise ValueError("Feedback must be a non-empty string")
 
         # Track improvement count
-        improvement_count = self._state.get_metadata("feedback_improvement_count", 0)
-        self._state.set_metadata("feedback_improvement_count", improvement_count + 1)
+        improvement_count = self._state_manager.get_metadata("feedback_improvement_count", 0)
+        self._state_manager.set_metadata("feedback_improvement_count", improvement_count + 1)
 
         # Attempt improvements
         for attempt in range(self.config.max_attempts):
@@ -497,19 +498,23 @@ class CriticCore(BaseCritic):
             improved_text = critique_service.improve_with_feedback(text, feedback)
 
             # Track attempt
-            attempt_count = self._state.get_metadata("feedback_attempts", 0)
-            self._state.set_metadata("feedback_attempts", attempt_count + 1)
+            attempt_count = self._state_manager.get_metadata("feedback_attempts", 0)
+            self._state_manager.set_metadata("feedback_attempts", attempt_count + 1)
 
             # Validate improvement
             if improved_text and improved_text != text:
                 # Track successful improvements
-                success_count = self._state.get_metadata("successful_feedback_improvements", 0)
-                self._state.set_metadata("successful_feedback_improvements", success_count + 1)
+                success_count = self._state_manager.get_metadata(
+                    "successful_feedback_improvements", 0
+                )
+                self._state_manager.set_metadata(
+                    "successful_feedback_improvements", success_count + 1
+                )
                 return improved_text
 
         # Track failed improvements
-        fail_count = self._state.get_metadata("failed_feedback_improvements", 0)
-        self._state.set_metadata("failed_feedback_improvements", fail_count + 1)
+        fail_count = self._state_manager.get_metadata("failed_feedback_improvements", 0)
+        self._state_manager.set_metadata("failed_feedback_improvements", fail_count + 1)
 
         # Return original text if no improvement
         return text
@@ -522,25 +527,29 @@ class CriticCore(BaseCritic):
             Dictionary with usage statistics
         """
         return {
-            "validation_count": self._state.get_metadata("validation_count", 0),
-            "valid_count": self._state.get_metadata("valid_count", 0),
-            "invalid_count": self._state.get_metadata("invalid_count", 0),
-            "critique_count": self._state.get_metadata("critique_count", 0),
-            "avg_critique_time": self._state.get_metadata("avg_critique_time", 0),
-            "improvement_count": self._state.get_metadata("improvement_count", 0),
-            "improvement_attempts": self._state.get_metadata("improvement_attempts", 0),
-            "successful_improvements": self._state.get_metadata("successful_improvements", 0),
-            "failed_improvements": self._state.get_metadata("failed_improvements", 0),
-            "avg_improvement_time": self._state.get_metadata("avg_improvement_time", 0),
-            "feedback_improvement_count": self._state.get_metadata("feedback_improvement_count", 0),
-            "feedback_attempts": self._state.get_metadata("feedback_attempts", 0),
-            "successful_feedback_improvements": self._state.get_metadata(
+            "validation_count": self._state_manager.get_metadata("validation_count", 0),
+            "valid_count": self._state_manager.get_metadata("valid_count", 0),
+            "invalid_count": self._state_manager.get_metadata("invalid_count", 0),
+            "critique_count": self._state_manager.get_metadata("critique_count", 0),
+            "avg_critique_time": self._state_manager.get_metadata("avg_critique_time", 0),
+            "improvement_count": self._state_manager.get_metadata("improvement_count", 0),
+            "improvement_attempts": self._state_manager.get_metadata("improvement_attempts", 0),
+            "successful_improvements": self._state_manager.get_metadata(
+                "successful_improvements", 0
+            ),
+            "failed_improvements": self._state_manager.get_metadata("failed_improvements", 0),
+            "avg_improvement_time": self._state_manager.get_metadata("avg_improvement_time", 0),
+            "feedback_improvement_count": self._state_manager.get_metadata(
+                "feedback_improvement_count", 0
+            ),
+            "feedback_attempts": self._state_manager.get_metadata("feedback_attempts", 0),
+            "successful_feedback_improvements": self._state_manager.get_metadata(
                 "successful_feedback_improvements", 0
             ),
-            "failed_feedback_improvements": self._state.get_metadata(
+            "failed_feedback_improvements": self._state_manager.get_metadata(
                 "failed_feedback_improvements", 0
             ),
-            "score_distribution": self._state.get_metadata("score_distribution", {}),
+            "score_distribution": self._state_manager.get_metadata("score_distribution", {}),
         }
 
     def _create_prompt_manager(self) -> PromptManager:
@@ -587,7 +596,7 @@ class CriticCore(BaseCritic):
 def create_core_critic(
     name: str,
     description: str,
-    llm_provider: Any,
+    llm_provider: ModelProviderCore,
     system_prompt: Optional[str] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
@@ -667,7 +676,7 @@ def create_core_critic(
     Args:
         name: Name of the critic
         description: Description of the critic
-        llm_provider: Language model provider
+        llm_provider: Language model provider (ModelProviderCore)
         system_prompt: Optional system prompt for the critic
         temperature: Optional temperature for text generation
         max_tokens: Optional maximum tokens for text generation

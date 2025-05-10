@@ -28,16 +28,24 @@ Example:
     ```
 """
 
-from typing import Any, Dict, List, Optional, Union, cast
+import json
+import logging
+import time
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import Field, ConfigDict, PrivateAttr
 
-from ..base import BaseCritic
+from ...core.base import BaseComponent
+from ...utils.state import create_critic_state
+from ...core.base import BaseResult as CriticResult
 from ..config import SelfRefineCriticConfig
 from ..interfaces.critic import TextCritic, TextImprover, TextValidator
 
+# Configure logging
+logger = logging.getLogger(__name__)
 
-class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
+
+class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, TextCritic):
     """
     A critic that implements the Self-Refine approach for iterative self-improvement.
 
@@ -72,15 +80,22 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
     DEFAULT_NAME = "self_refine_critic"
     DEFAULT_DESCRIPTION = "Improves text through iterative self-critique and revision"
 
-    # State management using direct state
-    _state = PrivateAttr(default_factory=lambda: None)
+    # Pydantic v2 configuration
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    # Configuration
+    config: SelfRefineCriticConfig = Field(description="Critic configuration")
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
 
     def __init__(
         self,
-        name: str = DEFAULT_NAME,
-        description: str = DEFAULT_DESCRIPTION,
-        llm_provider: Any = None,
+        name: str,
+        description: str,
+        llm_provider: Any,
         config: Optional[SelfRefineCriticConfig] = None,
+        **kwargs: Any,
     ) -> None:
         """
         Initialize the self-refine critic.
@@ -90,59 +105,138 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             description: Description of the critic
             llm_provider: Language model provider to use
             config: Optional critic configuration
+            **kwargs: Additional configuration parameters
 
         Raises:
-            ValueError: If llm_provider is None
+            ValueError: If configuration is invalid
             TypeError: If llm_provider is not a valid provider
         """
-        # Validate required parameters
-        if llm_provider is None:
-            from pydantic import ValidationError
-
-            raise ValidationError.from_exception_data(
-                "Field required",
-                [{"loc": ("llm_provider",), "msg": "Field required", "type": "missing"}],
-            )
-
         # Create default config if not provided
         if config is None:
             from ..config import DEFAULT_SELF_REFINE_CONFIG
 
             config = DEFAULT_SELF_REFINE_CONFIG.model_copy(
-                update={"name": name, "description": description}
+                update={"name": name, "description": description, **kwargs}
             )
 
-        # Initialize base class
-        super().__init__(config)
+        # Initialize base component
+        super().__init__(name=name, description=description, config=config)
 
-        # Initialize state
-        from ...utils.state import CriticState
+        try:
+            # Import required components
+            from ..managers.prompt_factories import SelfRefineCriticPromptManager
+            from ..managers.response import ResponseParser
+            from ..managers.memory import MemoryManager
+            from ..services.critique import CritiqueService
 
-        self._state = CriticState()
+            # Store components in state
+            self._state_manager.update("model", llm_provider)
+            self._state_manager.update("prompt_manager", SelfRefineCriticPromptManager(config))
+            self._state_manager.update("response_parser", ResponseParser())
+            self._state_manager.update(
+                "memory_manager", MemoryManager(buffer_size=10)  # Default buffer size
+            )
 
-        # Store components in state
-        self._state.model = llm_provider
-        self._state.cache = {
-            "max_iterations": config.max_iterations,
-            "critique_prompt_template": config.critique_prompt_template or (
+            # Create service and store in state cache
+            cache = self._state_manager.get("cache", {})
+            cache["critique_service"] = CritiqueService(
+                llm_provider=llm_provider,
+                prompt_manager=self._state_manager.get("prompt_manager"),
+                response_parser=self._state_manager.get("response_parser"),
+                memory_manager=self._state_manager.get("memory_manager"),
+            )
+            cache["max_iterations"] = config.max_iterations
+            cache["critique_prompt_template"] = config.critique_prompt_template or (
                 "Please critique the following response to the task. "
                 "Focus on accuracy, clarity, and completeness.\n\n"
                 "Task:\n{task}\n\n"
                 "Response:\n{response}\n\n"
                 "Critique:"
-            ),
-            "revision_prompt_template": config.revision_prompt_template or (
+            )
+            cache["revision_prompt_template"] = config.revision_prompt_template or (
                 "Please revise the following response based on the critique.\n\n"
                 "Task:\n{task}\n\n"
                 "Response:\n{response}\n\n"
                 "Critique:\n{critique}\n\n"
                 "Revised response:"
-            ),
-            "system_prompt": config.system_prompt,
-            "temperature": config.temperature,
-            "max_tokens": config.max_tokens,
-        }
-        self._state.initialized = True
+            )
+            cache["system_prompt"] = config.system_prompt
+            cache["temperature"] = config.temperature
+            cache["max_tokens"] = config.max_tokens
+            self._state_manager.update("cache", cache)
+
+            # Mark as initialized
+            self._state_manager.update("initialized", True)
+            self._state_manager.set_metadata("component_type", self.__class__.__name__)
+            self._state_manager.set_metadata("initialization_time", time.time())
+        except Exception as e:
+            self.record_error(e)
+            raise ValueError(f"Failed to initialize SelfRefineCritic: {str(e)}") from e
+
+    def process(self, input: str) -> CriticResult:
+        """
+        Process the input text and return a result.
+
+        This is the main method required by BaseComponent.
+
+        Args:
+            input: The text to process
+
+        Returns:
+            CriticResult: The result of processing the text
+
+        Raises:
+            ValueError: If text is empty
+            RuntimeError: If critic is not properly initialized
+        """
+        start_time = time.time()
+
+        try:
+            # Validate input
+            if not isinstance(input, str) or not input.strip():
+                raise ValueError("Input must be a non-empty string")
+
+            # Ensure initialized
+            if not self._state_manager.get("initialized", False):
+                raise RuntimeError("SelfRefineCritic not properly initialized")
+
+            # Get critique service from state
+            cache = self._state_manager.get("cache", {})
+            critique_service = cache.get("critique_service")
+            if not critique_service:
+                raise RuntimeError("Critique service not initialized")
+
+            # Delegate to critique service
+            critique_result = critique_service.critique(input)
+
+            # Create result
+            result = CriticResult(
+                passed=critique_result.get("score", 0) >= self.config.min_confidence,
+                message=critique_result.get("feedback", ""),
+                metadata={"operation": "process"},
+                score=critique_result.get("score", 0),
+                issues=critique_result.get("issues", []),
+                suggestions=critique_result.get("suggestions", []),
+                processing_time_ms=(time.time() - start_time) * 1000,
+            )
+
+            # Update statistics
+            self.update_statistics(result)
+
+            return result
+
+        except Exception as e:
+            self.record_error(e)
+            processing_time = (time.time() - start_time) * 1000
+            return CriticResult(
+                passed=False,
+                message=f"Error: {str(e)}",
+                metadata={"error_type": type(e).__name__},
+                score=0.0,
+                issues=[f"Processing error: {str(e)}"],
+                suggestions=["Retry with different input"],
+                processing_time_ms=processing_time,
+            )
 
     def _check_input(self, text: str) -> None:
         """
@@ -158,7 +252,7 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        if not self._state.initialized:
+        if not self._state_manager.get("initialized", False):
             raise RuntimeError("SelfRefineCritic not properly initialized")
 
     def _get_task_from_metadata(self, metadata: Optional[Dict[str, Any]]) -> str:
@@ -178,11 +272,6 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             raise ValueError("metadata must contain a 'task' key")
         return metadata["task"]
 
-    @property
-    def config(self) -> SelfRefineCriticConfig:
-        """Get the self-refine critic configuration."""
-        return cast(SelfRefineCriticConfig, self._config)
-
     def validate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
         """
         Validate text against quality standards.
@@ -198,40 +287,80 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("SelfRefineCritic not properly initialized")
+        start_time = time.time()
 
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
+        try:
+            # Ensure initialized
+            if not self._state_manager.get("initialized", False):
+                raise RuntimeError("SelfRefineCritic not properly initialized")
 
-        # Get task from metadata
-        task = self._get_task_from_metadata(metadata)
+            # Validate input
+            if not isinstance(text, str) or not text.strip():
+                raise ValueError("text must be a non-empty string")
 
-        # Create critique prompt
-        prompt = self._state.cache.get("critique_prompt_template", "").format(
-            task=task,
-            response=text,
-        )
+            # Get critique service from state
+            cache = self._state_manager.get("cache", {})
+            critique_service = cache.get("critique_service")
+            if not critique_service:
+                raise RuntimeError("Critique service not initialized")
 
-        # Generate critique
-        critique_text = self._state.model.generate(
-            prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
-        ).strip()
+            # Track validation count
+            validation_count = self._state_manager.get_metadata("validation_count", 0)
+            self._state_manager.set_metadata("validation_count", validation_count + 1)
 
-        # Check if critique indicates no issues
-        no_issues_phrases = [
-            "no issues",
-            "looks good",
-            "well written",
-            "excellent",
-            "great job",
-            "perfect",
-        ]
-        return any(phrase in critique_text.lower() for phrase in no_issues_phrases)
+            # Get task from metadata
+            task = self._get_task_from_metadata(metadata)
+
+            # Create critique prompt
+            prompt = (
+                self._state_manager.get("cache", {})
+                .get("critique_prompt_template", "")
+                .format(
+                    task=task,
+                    response=text,
+                )
+            )
+
+            # Generate critique
+            model = self._state_manager.get("model")
+            critique_text = model.generate(
+                prompt,
+                system_prompt=self._state_manager.get("cache", {}).get("system_prompt", ""),
+                temperature=self._state_manager.get("cache", {}).get("temperature", 0.7),
+                max_tokens=self._state_manager.get("cache", {}).get("max_tokens", 1000),
+            ).strip()
+
+            # Check if critique indicates no issues
+            no_issues_phrases = [
+                "no issues",
+                "looks good",
+                "well written",
+                "excellent",
+                "great job",
+                "perfect",
+            ]
+            is_valid = any(phrase in critique_text.lower() for phrase in no_issues_phrases)
+
+            # Record result in metadata
+            if is_valid:
+                valid_count = self._state_manager.get_metadata("valid_count", 0)
+                self._state_manager.set_metadata("valid_count", valid_count + 1)
+            else:
+                invalid_count = self._state_manager.get_metadata("invalid_count", 0)
+                self._state_manager.set_metadata("invalid_count", invalid_count + 1)
+
+            # Track performance
+            if self.config.track_performance:
+                total_time = self._state_manager.get_metadata("total_validation_time_ms", 0.0)
+                self._state_manager.set_metadata(
+                    "total_validation_time_ms", total_time + (time.time() - start_time) * 1000
+                )
+
+            return is_valid
+
+        except Exception as e:
+            self.record_error(e)
+            raise RuntimeError(f"Failed to validate text: {str(e)}") from e
 
     def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -248,56 +377,95 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("SelfRefineCritic not properly initialized")
+        start_time = time.time()
 
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
+        try:
+            # Ensure initialized
+            if not self._state_manager.get("initialized", False):
+                raise RuntimeError("SelfRefineCritic not properly initialized")
 
-        # Get task from metadata
-        task = self._get_task_from_metadata(metadata)
+            # Validate input
+            if not isinstance(text, str) or not text.strip():
+                raise ValueError("text must be a non-empty string")
 
-        # Create critique prompt
-        prompt = self._state.cache.get("critique_prompt_template", "").format(
-            task=task,
-            response=text,
-        )
+            # Get critique service from state
+            cache = self._state_manager.get("cache", {})
+            critique_service = cache.get("critique_service")
+            if not critique_service:
+                raise RuntimeError("Critique service not initialized")
 
-        # Generate critique
-        critique_text = self._state.model.generate(
-            prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
-        ).strip()
+            # Track critique count
+            critique_count = self._state_manager.get_metadata("critique_count", 0)
+            self._state_manager.set_metadata("critique_count", critique_count + 1)
 
-        # Parse critique
-        issues = []
-        suggestions = []
+            # Get task from metadata
+            task = self._get_task_from_metadata(metadata)
 
-        # Extract issues and suggestions from critique
-        for line in critique_text.split("\n"):
-            line = line.strip()
-            if line.startswith("- ") or line.startswith("* "):
-                if (
-                    "should" in line.lower()
-                    or "could" in line.lower()
-                    or "recommend" in line.lower()
-                ):
-                    suggestions.append(line[2:])
-                else:
-                    issues.append(line[2:])
+            # Create critique prompt
+            prompt = (
+                self._state_manager.get("cache", {})
+                .get("critique_prompt_template", "")
+                .format(
+                    task=task,
+                    response=text,
+                )
+            )
 
-        # Calculate score based on issues
-        score = 1.0 if not issues else max(0.0, 1.0 - (len(issues) * 0.1))
+            # Generate critique
+            model = self._state_manager.get("model")
+            critique_text = model.generate(
+                prompt,
+                system_prompt=self._state_manager.get("cache", {}).get("system_prompt", ""),
+                temperature=self._state_manager.get("cache", {}).get("temperature", 0.7),
+                max_tokens=self._state_manager.get("cache", {}).get("max_tokens", 1000),
+            ).strip()
 
-        return {
-            "score": score,
-            "feedback": critique_text,
-            "issues": issues,
-            "suggestions": suggestions,
-        }
+            # Parse critique
+            issues = []
+            suggestions = []
+
+            # Extract issues and suggestions from critique
+            for line in critique_text.split("\n"):
+                line = line.strip()
+                if line.startswith("- ") or line.startswith("* "):
+                    if (
+                        "should" in line.lower()
+                        or "could" in line.lower()
+                        or "recommend" in line.lower()
+                    ):
+                        suggestions.append(line[2:])
+                    else:
+                        issues.append(line[2:])
+
+            # Calculate score based on issues
+            score = 1.0 if not issues else max(0.0, 1.0 - (len(issues) * 0.1))
+
+            # Create result
+            critique_result = {
+                "score": score,
+                "feedback": critique_text,
+                "issues": issues,
+                "suggestions": suggestions,
+            }
+
+            # Track score distribution
+            score_distribution = self._state_manager.get_metadata("score_distribution", {})
+            score_bucket = round(score * 10) / 10  # Round to nearest 0.1
+            score_distribution[str(score_bucket)] = score_distribution.get(str(score_bucket), 0) + 1
+            self._state_manager.set_metadata("score_distribution", score_distribution)
+
+            # Track performance
+            if self.config.track_performance:
+                total_time = self._state_manager.get_metadata("total_critique_time_ms", 0.0)
+                self._state_manager.set_metadata(
+                    "total_critique_time_ms", total_time + (time.time() - start_time) * 1000
+                )
+
+            return critique_result
+
+        except Exception as e:
+            self.record_error(e)
+            raise RuntimeError(f"Failed to critique text: {str(e)}") from e
 
     def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         """
@@ -314,71 +482,116 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("SelfRefineCritic not properly initialized")
+        start_time = time.time()
 
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
+        try:
+            # Ensure initialized
+            if not self._state_manager.get("initialized", False):
+                raise RuntimeError("SelfRefineCritic not properly initialized")
 
-        # Get task from metadata
-        task = self._get_task_from_metadata(metadata)
+            # Validate input
+            if not isinstance(text, str) or not text.strip():
+                raise ValueError("text must be a non-empty string")
 
-        # Get max iterations from config
-        max_iterations = self._state.cache.get("max_iterations", 3)
+            # Track improvement count
+            improvement_count = self._state_manager.get_metadata("improvement_count", 0)
+            self._state_manager.set_metadata("improvement_count", improvement_count + 1)
 
-        # Start with the original text
-        current_output = text
+            # Get task from metadata
+            task = self._get_task_from_metadata(metadata)
 
-        # Perform iterative refinement
-        for _ in range(max_iterations):
-            # Step 1: Critique the current output
-            critique_prompt = self._state.cache.get("critique_prompt_template", "").format(
-                task=task,
-                response=current_output,
-            )
+            # Get max iterations from config
+            max_iterations = self._state_manager.get("cache", {}).get("max_iterations", 3)
 
-            critique = self._state.model.generate(
-                critique_prompt,
-                system_prompt=self._state.cache.get("system_prompt", ""),
-                temperature=self._state.cache.get("temperature", 0.7),
-                max_tokens=self._state.cache.get("max_tokens", 1000),
-            ).strip()
+            # Start with the original text
+            current_output = text
 
-            # Heuristic stopping condition
-            no_issues_phrases = [
-                "no issues",
-                "looks good",
-                "well written",
-                "excellent",
-                "great job",
-                "perfect",
-            ]
-            if any(phrase in critique.lower() for phrase in no_issues_phrases):
-                return current_output
+            # Perform iterative refinement
+            for iteration in range(max_iterations):
+                # Step 1: Critique the current output
+                critique_prompt = (
+                    self._state_manager.get("cache", {})
+                    .get("critique_prompt_template", "")
+                    .format(
+                        task=task,
+                        response=current_output,
+                    )
+                )
 
-            # Step 2: Revise using the critique
-            revision_prompt = self._state.cache.get("revision_prompt_template", "").format(
-                task=task,
-                response=current_output,
-                critique=critique,
-            )
+                model = self._state_manager.get("model")
+                critique = model.generate(
+                    critique_prompt,
+                    system_prompt=self._state_manager.get("cache", {}).get("system_prompt", ""),
+                    temperature=self._state_manager.get("cache", {}).get("temperature", 0.7),
+                    max_tokens=self._state_manager.get("cache", {}).get("max_tokens", 1000),
+                ).strip()
 
-            revised_output = self._state.model.generate(
-                revision_prompt,
-                system_prompt=self._state.cache.get("system_prompt", ""),
-                temperature=self._state.cache.get("temperature", 0.7),
-                max_tokens=self._state.cache.get("max_tokens", 1000),
-            ).strip()
+                # Heuristic stopping condition
+                no_issues_phrases = [
+                    "no issues",
+                    "looks good",
+                    "well written",
+                    "excellent",
+                    "great job",
+                    "perfect",
+                ]
+                if any(phrase in critique.lower() for phrase in no_issues_phrases):
+                    # Track iterations
+                    self._state_manager.set_metadata("last_improvement_iterations", iteration + 1)
+                    break
 
-            # Check if there's no improvement
-            if revised_output == current_output:
-                return current_output
+                # Step 2: Revise using the critique
+                revision_prompt = (
+                    self._state_manager.get("cache", {})
+                    .get("revision_prompt_template", "")
+                    .format(
+                        task=task,
+                        response=current_output,
+                        critique=critique,
+                    )
+                )
 
-            # Update current output
-            current_output = revised_output
+                revised_output = model.generate(
+                    revision_prompt,
+                    system_prompt=self._state_manager.get("cache", {}).get("system_prompt", ""),
+                    temperature=self._state_manager.get("cache", {}).get("temperature", 0.7),
+                    max_tokens=self._state_manager.get("cache", {}).get("max_tokens", 1000),
+                ).strip()
 
-        return current_output
+                # Check if there's no improvement
+                if revised_output == current_output:
+                    # Track iterations
+                    self._state_manager.set_metadata("last_improvement_iterations", iteration + 1)
+                    break
+
+                # Update current output
+                current_output = revised_output
+
+            # Track memory usage
+            memory_manager = self._state_manager.get("memory_manager")
+            if memory_manager:
+                memory_item = json.dumps(
+                    {
+                        "original_text": text,
+                        "task": task,
+                        "improved_text": current_output,
+                        "timestamp": time.time(),
+                    }
+                )
+                memory_manager.add_to_memory(memory_item)
+
+            # Track performance
+            if self.config.track_performance:
+                total_time = self._state_manager.get_metadata("total_improvement_time_ms", 0.0)
+                self._state_manager.set_metadata(
+                    "total_improvement_time_ms", total_time + (time.time() - start_time) * 1000
+                )
+
+            return current_output
+
+        except Exception as e:
+            self.record_error(e)
+            raise RuntimeError(f"Failed to improve text: {str(e)}") from e
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
         """
@@ -395,54 +608,126 @@ class SelfRefineCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If text or feedback is empty
             RuntimeError: If critic is not properly initialized
         """
-        # Ensure initialized
-        if not self._state.initialized:
-            raise RuntimeError("SelfRefineCritic not properly initialized")
+        start_time = time.time()
 
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
+        try:
+            # Ensure initialized
+            if not self._state_manager.get("initialized", False):
+                raise RuntimeError("SelfRefineCritic not properly initialized")
 
-        if not isinstance(feedback, str) or not feedback.strip():
-            raise ValueError("feedback must be a non-empty string")
+            # Validate input
+            if not isinstance(text, str) or not text.strip():
+                raise ValueError("text must be a non-empty string")
 
-        # Create revision prompt with the provided feedback
-        revision_prompt = self._state.cache.get("revision_prompt_template", "").format(
-            task="Improve the following text",
-            response=text,
-            critique=feedback,
-        )
+            if not isinstance(feedback, str) or not feedback.strip():
+                raise ValueError("feedback must be a non-empty string")
 
-        # Generate improved response
-        improved_text = self._state.model.generate(
-            revision_prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
-        ).strip()
+            # Track feedback improvement count
+            feedback_count = self._state_manager.get_metadata("feedback_improvement_count", 0)
+            self._state_manager.set_metadata("feedback_improvement_count", feedback_count + 1)
 
-        return improved_text
+            # Create revision prompt with the provided feedback
+            revision_prompt = (
+                self._state_manager.get("cache", {})
+                .get("revision_prompt_template", "")
+                .format(
+                    task="Improve the following text",
+                    response=text,
+                    critique=feedback,
+                )
+            )
+
+            # Generate improved response
+            model = self._state_manager.get("model")
+            improved_text = model.generate(
+                revision_prompt,
+                system_prompt=self._state_manager.get("cache", {}).get("system_prompt", ""),
+                temperature=self._state_manager.get("cache", {}).get("temperature", 0.7),
+                max_tokens=self._state_manager.get("cache", {}).get("max_tokens", 1000),
+            ).strip()
+
+            # Track memory usage
+            memory_manager = self._state_manager.get("memory_manager")
+            if memory_manager:
+                memory_item = json.dumps(
+                    {
+                        "original_text": text,
+                        "feedback": feedback,
+                        "improved_text": improved_text,
+                        "timestamp": time.time(),
+                    }
+                )
+                memory_manager.add_to_memory(memory_item)
+
+            # Track performance
+            if self.config.track_performance:
+                total_time = self._state_manager.get_metadata(
+                    "total_feedback_improvement_time_ms", 0.0
+                )
+                self._state_manager.set_metadata(
+                    "total_feedback_improvement_time_ms",
+                    total_time + (time.time() - start_time) * 1000,
+                )
+
+            return improved_text
+
+        except Exception as e:
+            self.record_error(e)
+            raise RuntimeError(f"Failed to improve text with feedback: {str(e)}") from e
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get statistics about critic usage.
+
+        Returns:
+            Dictionary with usage statistics
+        """
+        return {
+            "validation_count": self._state_manager.get_metadata("validation_count", 0),
+            "valid_count": self._state_manager.get_metadata("valid_count", 0),
+            "invalid_count": self._state_manager.get_metadata("invalid_count", 0),
+            "critique_count": self._state_manager.get_metadata("critique_count", 0),
+            "improvement_count": self._state_manager.get_metadata("improvement_count", 0),
+            "feedback_improvement_count": self._state_manager.get_metadata(
+                "feedback_improvement_count", 0
+            ),
+            "last_improvement_iterations": self._state_manager.get_metadata(
+                "last_improvement_iterations", 0
+            ),
+            "score_distribution": self._state_manager.get_metadata("score_distribution", {}),
+            "total_validation_time_ms": self._state_manager.get_metadata(
+                "total_validation_time_ms", 0
+            ),
+            "total_critique_time_ms": self._state_manager.get_metadata("total_critique_time_ms", 0),
+            "total_improvement_time_ms": self._state_manager.get_metadata(
+                "total_improvement_time_ms", 0
+            ),
+            "total_feedback_improvement_time_ms": self._state_manager.get_metadata(
+                "total_feedback_improvement_time_ms", 0
+            ),
+        }
 
     # Async methods
     async def avalidate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
-        """Asynchronously validate text against quality standards."""
-        # For simplicity, we'll use the synchronous implementation for now
+        """Asynchronously validate text."""
+        # For now, use the synchronous implementation
         return self.validate(text, metadata)
 
     async def acritique(
         self, text: str, metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Asynchronously analyze text and provide detailed feedback."""
-        # For simplicity, we'll use the synchronous implementation for now
+        """Asynchronously critique text."""
+        # For now, use the synchronous implementation
         return self.critique(text, metadata)
 
     async def aimprove(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
-        """Asynchronously improve text through iterative self-critique and revision."""
-        # For simplicity, we'll use the synchronous implementation for now
+        """Asynchronously improve text."""
+        # For now, use the synchronous implementation
         return self.improve(text, metadata)
 
     async def aimprove_with_feedback(self, text: str, feedback: str) -> str:
         """Asynchronously improve text based on specific feedback."""
-        # For simplicity, we'll use the synchronous implementation for now
+        # For now, use the synchronous implementation
         return self.improve_with_feedback(text, feedback)
 
 
@@ -467,6 +752,9 @@ def create_self_refine_critic(
     """
     Create a self-refine critic with the given parameters.
 
+    This factory function creates and configures a SelfRefineCritic instance with
+    the specified parameters and components.
+
     Args:
         llm_provider: Language model provider to use
         name: Name of the critic
@@ -487,52 +775,67 @@ def create_self_refine_critic(
 
     Returns:
         SelfRefineCritic: Configured self-refine critic
+
+    Raises:
+        ValueError: If required parameters are missing or invalid
+        TypeError: If llm_provider is not a valid provider
     """
-    # Create config if not provided
-    if config is None:
-        from ..config import DEFAULT_SELF_REFINE_CONFIG
+    try:
+        # Create config if not provided
+        if config is None:
+            from ..config import DEFAULT_SELF_REFINE_CONFIG
 
-        config = DEFAULT_SELF_REFINE_CONFIG.model_copy()
+            # Start with default config
+            config = DEFAULT_SELF_REFINE_CONFIG.model_copy()
 
-        # Update config with provided values
-        updates = {}
-        if name is not None:
-            updates["name"] = name
-        if description is not None:
-            updates["description"] = description
-        if system_prompt is not None:
-            updates["system_prompt"] = system_prompt
-        if temperature is not None:
-            updates["temperature"] = temperature
-        if max_tokens is not None:
-            updates["max_tokens"] = max_tokens
-        if min_confidence is not None:
-            updates["min_confidence"] = min_confidence
-        if max_attempts is not None:
-            updates["max_attempts"] = max_attempts
-        if cache_size is not None:
-            updates["cache_size"] = cache_size
-        if priority is not None:
-            updates["priority"] = priority
-        if cost is not None:
-            updates["cost"] = cost
-        if max_iterations is not None:
-            updates["max_iterations"] = max_iterations
-        if critique_prompt_template is not None:
-            updates["critique_prompt_template"] = critique_prompt_template
-        if revision_prompt_template is not None:
-            updates["revision_prompt_template"] = revision_prompt_template
+            # Update with provided values
+            updates = {
+                "name": name,
+                "description": description,
+            }
 
-        config = config.model_copy(update=updates)
-    elif isinstance(config, dict):
-        from ..config import SelfRefineCriticConfig
+            # Add optional parameters if provided
+            if system_prompt is not None:
+                updates["system_prompt"] = system_prompt
+            if temperature is not None:
+                updates["temperature"] = temperature
+            if max_tokens is not None:
+                updates["max_tokens"] = max_tokens
+            if min_confidence is not None:
+                updates["min_confidence"] = min_confidence
+            if max_attempts is not None:
+                updates["max_attempts"] = max_attempts
+            if cache_size is not None:
+                updates["cache_size"] = cache_size
+            if priority is not None:
+                updates["priority"] = priority
+            if cost is not None:
+                updates["cost"] = cost
+            if max_iterations is not None:
+                updates["max_iterations"] = max_iterations
+            if critique_prompt_template is not None:
+                updates["critique_prompt_template"] = critique_prompt_template
+            if revision_prompt_template is not None:
+                updates["revision_prompt_template"] = revision_prompt_template
 
-        config = SelfRefineCriticConfig(**config)
+            # Add any additional kwargs
+            updates.update(kwargs)
 
-    # Create and return the critic
-    return SelfRefineCritic(
-        name=name,
-        description=description,
-        llm_provider=llm_provider,
-        config=config,
-    )
+            # Create updated config
+            config = config.model_copy(update=updates)
+        elif isinstance(config, dict):
+            from ..config import SelfRefineCriticConfig
+
+            config = SelfRefineCriticConfig(**config)
+
+        # Create and return the critic
+        return SelfRefineCritic(
+            name=name,
+            description=description,
+            llm_provider=llm_provider,
+            config=config,
+            **kwargs,
+        )
+    except Exception as e:
+        logger.error(f"Failed to create self-refine critic: {str(e)}")
+        raise ValueError(f"Failed to create self-refine critic: {str(e)}") from e

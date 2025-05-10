@@ -13,7 +13,8 @@ modularity and extensibility.
    - **QueryProcessor**: Interface for query processors
 """
 
-from .retriever import (
+# Import Retriever and AsyncRetriever from the main interfaces directory
+from sifaka.interfaces.retrieval import (
     Retriever,
     AsyncRetriever,
     DocumentStore,

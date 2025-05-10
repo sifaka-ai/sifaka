@@ -90,6 +90,7 @@ The module supports configuration through CriticConfig objects, which can specif
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum, auto
+import time
 from typing import (
     Any,
     Dict,
@@ -103,22 +104,13 @@ from typing import (
     runtime_checkable,
 )
 
-from typing_extensions import TypeGuard
-
 from sifaka.core.base import (
     BaseComponent,
-    BaseConfig,
     BaseResult,
-    ComponentResultEnum,
-    Validatable,
-    ValidationPattern,
 )
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-# Import the interfaces
-from .interfaces.critic import TextValidator, TextImprover, TextCritic, CritiqueResult
 
 # Import the Pydantic models
 from .config import CriticConfig, CriticMetadata
@@ -622,7 +614,7 @@ class TextCritic(Protocol[T, R]):
         ...
 
 
-class BaseCritic(BaseComponent[T, CriticResult], Generic[T]):
+class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
     """
     Abstract base class for critics.
 
@@ -730,7 +722,7 @@ class BaseCritic(BaseComponent[T, CriticResult], Generic[T]):
         ...
 
     @abstractmethod
-    def critique(self, text: T) -> CriticResult:
+    def critique(self, text: T) -> BaseResult:
         """
         Critique text.
 
@@ -738,11 +730,11 @@ class BaseCritic(BaseComponent[T, CriticResult], Generic[T]):
             text: The text to critique
 
         Returns:
-            CriticResult containing the critique details
+            BaseResult containing the critique details
         """
         ...
 
-    def process(self, text: T) -> CriticResult:
+    def process(self, text: T) -> BaseResult:
         """
         Process text through the critic pipeline.
 
@@ -750,13 +742,13 @@ class BaseCritic(BaseComponent[T, CriticResult], Generic[T]):
             text: The text to process
 
         Returns:
-            CriticResult containing the processing results
+            BaseResult containing the processing results
         """
         start_time = time.time()
 
         # Validate input
         if not self.validate_input(text):
-            return CriticResult(
+            return BaseResult(
                 passed=False,
                 message="Invalid input",
                 metadata={"error_type": "invalid_input"},
@@ -790,7 +782,7 @@ class BaseCritic(BaseComponent[T, CriticResult], Generic[T]):
         except Exception as e:
             self.record_error(e)
             logger.error(f"Error processing text: {e}")
-            return CriticResult(
+            return BaseResult(
                 passed=False,
                 message=f"Error: {str(e)}",
                 metadata={"error_type": type(e).__name__},
@@ -1007,7 +999,7 @@ def create_critic(
     return critic_class(name, description, config)
 
 
-class Critic(BaseCritic[str, str]):
+class Critic(BaseCritic[str]):
     """
     Concrete implementation of BaseCritic for string-based text processing.
 
@@ -1137,7 +1129,7 @@ class Critic(BaseCritic[str, str]):
 
         return improved
 
-    def critique(self, text: str) -> CriticResult:
+    def critique(self, text: str) -> BaseResult:
         """
         Critique text.
 
@@ -1148,7 +1140,7 @@ class Critic(BaseCritic[str, str]):
             CriticResult containing the critique details
         """
         if not self.is_valid_text(text):
-            return CriticResult(
+            return BaseResult(
                 passed=False,
                 message="Invalid text",
                 metadata={"error_type": "invalid_text"},
@@ -1193,7 +1185,7 @@ class Critic(BaseCritic[str, str]):
 
         feedback = "Good text quality" if score >= 0.8 else "Text needs improvement"
 
-        return CriticResult(
+        return BaseResult(
             passed=score >= 0.8,
             message=feedback,
             metadata={

@@ -47,12 +47,13 @@ Each adapter type has its own configuration options:
 """
 
 # Base adapter components
-from sifaka.adapters.base import Adaptable, BaseAdapter
+from sifaka.adapters.base import Adaptable, BaseAdapter, AdapterError, create_adapter
 
 # Classifier adapters
 from sifaka.adapters.classifier import (
     ClassifierAdapter,
     ClassifierRule,
+    create_classifier_adapter,
     create_classifier_rule,
 )
 
@@ -62,7 +63,10 @@ from sifaka.classifiers.base import ClassificationResult, ClassifierConfig
 # Try to import Guardrails adapters if available
 try:
     from sifaka.adapters.guardrails import (
+        GuardrailsAdapter,
         GuardrailsValidatorAdapter,
+        GuardrailsRule,
+        create_guardrails_adapter,
         create_guardrails_rule,
     )
 
@@ -87,9 +91,12 @@ __all__ = [
     # Base adapters
     "Adaptable",
     "BaseAdapter",
+    "AdapterError",
+    "create_adapter",
     # Classifier adapters
     "ClassifierAdapter",
     "ClassifierRule",
+    "create_classifier_adapter",
     "create_classifier_rule",
     # Classifier types
     "ClassificationResult",
@@ -100,8 +107,11 @@ __all__ = [
 if GUARDRAILS_AVAILABLE:
     __all__.extend(
         [
-            "GuardrailsValidatorAdapter",
-            "create_guardrails_rule",
+            "GuardrailsAdapter",  # New standardized adapter
+            "GuardrailsValidatorAdapter",  # Legacy adapter
+            "GuardrailsRule",
+            "create_guardrails_adapter",  # New standardized factory
+            "create_guardrails_rule",  # Legacy factory
         ]
     )
 

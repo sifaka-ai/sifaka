@@ -130,8 +130,10 @@ Each classifier type may also provide specialized factory functions for easier i
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Protocol, runtime_checkable
 
+from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
+
 from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
-from sifaka.utils.state import StateManager
+from sifaka.utils.state import StateManager, create_classifier_state
 from sifaka.utils.logging import get_logger
 
 from .models import ClassificationResult, ClassifierConfig
@@ -340,7 +342,7 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
     config: ClassifierConfig[T]
 
     # Add state manager as a private attribute
-    _state = PrivateAttr(default_factory=create_classifier_state)
+    _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
     def model_post_init(self, _: Any) -> None:
         """
@@ -358,11 +360,15 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
             _: Ignored parameter
         """
         # Initialize state with basic values
-        self._state.update("initialized", False)
-        self._state.update("cache", {})
-        self._state.set_metadata("component_type", "classifier")
-        self._state.set_metadata("name", self.name)
-        self._state.set_metadata("description", self.description)
+        self._state_manager.update("initialized", False)
+        self._state_manager.update("cache", {})
+        self._state_manager.update("execution_count", 0)
+        self._state_manager.update("success_count", 0)
+        self._state_manager.update("error_count", 0)
+        self._state_manager.update("total_execution_time_ms", 0)
+        self._state_manager.set_metadata("component_type", "classifier")
+        self._state_manager.set_metadata("name", self.name)
+        self._state_manager.set_metadata("description", self.description)
 
     @property
     def min_confidence(self) -> float:
@@ -557,6 +563,7 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
             - Checks cache for existing results if caching is enabled
             - Calls _classify_impl_uncached for cache misses
             - Stores results in cache if caching is enabled
+            - Tracks execution statistics
 
         Args:
             text: The text to classify
@@ -564,34 +571,80 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
         Returns:
             ClassificationResult with label and confidence
         """
-        # If caching is enabled, use the state API for caching
-        if self.config.cache_size > 0:
-            # Create a cache key from the text
-            cache_key = str(text)
+        # Track execution count
+        execution_count = self._state_manager.get("execution_count", 0)
+        self._state_manager.update("execution_count", execution_count + 1)
 
-            # Get the result cache from state
-            result_cache = self._state.get("result_cache", {})
+        # Track execution time
+        import time
 
-            # Check if we have a cached result
-            if cache_key in result_cache:
-                return result_cache[cache_key]
+        start_time = time.time()
 
-            # Get the result
-            result = self._classify_impl_uncached(text)
+        try:
+            # If caching is enabled, use the state API for caching
+            if self.config.cache_size > 0:
+                # Create a cache key from the text
+                cache_key = str(text)
 
-            # Cache the result
-            if len(result_cache) >= self.config.cache_size:
-                # Simple LRU: just clear the cache when it gets full
-                # A more sophisticated implementation would use an OrderedDict
-                result_cache.clear()
+                # Get the result cache from state
+                result_cache = self._state_manager.get("result_cache", {})
 
-            result_cache[cache_key] = result
-            self._state.update("result_cache", result_cache)
+                # Check if we have a cached result
+                if cache_key in result_cache:
+                    # Track cache hit
+                    cache_hits = self._state_manager.get("cache_hits", 0)
+                    self._state_manager.update("cache_hits", cache_hits + 1)
+                    return result_cache[cache_key]
 
-            return result
-        else:
-            # No caching, just call the implementation directly
-            return self._classify_impl_uncached(text)
+                # Get the result
+                result = self._classify_impl_uncached(text)
+
+                # Cache the result
+                if len(result_cache) >= self.config.cache_size:
+                    # Simple LRU: just clear the cache when it gets full
+                    # A more sophisticated implementation would use an OrderedDict
+                    result_cache.clear()
+
+                result_cache[cache_key] = result
+                self._state_manager.update("result_cache", result_cache)
+
+                # Track success
+                success_count = self._state_manager.get("success_count", 0)
+                self._state_manager.update("success_count", success_count + 1)
+
+                return result
+            else:
+                # No caching, just call the implementation directly
+                result = self._classify_impl_uncached(text)
+
+                # Track success
+                success_count = self._state_manager.get("success_count", 0)
+                self._state_manager.update("success_count", success_count + 1)
+
+                return result
+        except Exception as e:
+            # Track error
+            error_count = self._state_manager.get("error_count", 0)
+            self._state_manager.update("error_count", error_count + 1)
+
+            # Log error
+            logger.error(f"Classification error: {e}")
+
+            # Store error details
+            errors = self._state_manager.get("errors", [])
+            errors.append(
+                {"error": str(e), "error_type": type(e).__name__, "timestamp": time.time()}
+            )
+            self._state_manager.update("errors", errors)
+
+            # Re-raise the exception
+            raise
+        finally:
+            # Track execution time
+            end_time = time.time()
+            execution_time_ms = (end_time - start_time) * 1000
+            total_time = self._state_manager.get("total_execution_time_ms", 0)
+            self._state_manager.update("total_execution_time_ms", total_time + execution_time_ms)
 
     def classify(self, text: T) -> ClassificationResult[R]:
         """
@@ -758,23 +811,42 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
         """
         stats = {
             # Classification counts by label
-            "classifications": self._state.get("statistics", {}),
+            "classifications": self._state_manager.get("statistics", {}),
+            # Execution statistics
+            "execution_count": self._state_manager.get("execution_count", 0),
+            "success_count": self._state_manager.get("success_count", 0),
+            "error_count": self._state_manager.get("error_count", 0),
+            "total_execution_time_ms": self._state_manager.get("total_execution_time_ms", 0),
             # Number of errors encountered
-            "error_count": len(self._state.get("errors", [])),
+            "errors": len(self._state_manager.get("errors", [])),
             # Cache information
             "cache_enabled": self.config.cache_size > 0,
             "cache_size": self.config.cache_size,
             # State initialization status
-            "initialized": self._state.get("initialized", False),
+            "initialized": self._state_manager.get("initialized", False),
             # Config information
             "min_confidence": self.config.min_confidence,
             "labels": list(self.config.labels),
         }
 
         # Add cache hit ratio if caching is enabled
-        result_cache = self._state.get("result_cache", {})
+        result_cache = self._state_manager.get("result_cache", {})
+        cache_hits = self._state_manager.get("cache_hits", 0)
         if self.config.cache_size > 0:
             stats["cache_entries"] = len(result_cache)
+            stats["cache_hits"] = cache_hits
+            if stats["execution_count"] > 0:
+                stats["cache_hit_ratio"] = cache_hits / stats["execution_count"]
+            else:
+                stats["cache_hit_ratio"] = 0.0
+
+        # Calculate average execution time
+        if stats["execution_count"] > 0:
+            stats["avg_execution_time_ms"] = (
+                stats["total_execution_time_ms"] / stats["execution_count"]
+            )
+        else:
+            stats["avg_execution_time_ms"] = 0.0
 
         return stats
 
@@ -786,16 +858,37 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
         but preserves any initialized resources and state.
         """
         # Clear classification result cache
-        self._state.update("result_cache", {})
+        self._state_manager.update("result_cache", {})
 
         # Reset statistics
-        self._state.update("statistics", {})
+        self._state_manager.update("statistics", {})
+        self._state_manager.update("cache_hits", 0)
+        self._state_manager.update("execution_count", 0)
+        self._state_manager.update("success_count", 0)
+        self._state_manager.update("error_count", 0)
+        self._state_manager.update("total_execution_time_ms", 0)
 
         # Reset errors list
-        self._state.update("errors", [])
+        self._state_manager.update("errors", [])
 
         # Notify that cache has been cleared
         logger.debug(f"Cache cleared for {self.name} classifier")
+
+    def initialize(self) -> None:
+        """
+        Initialize the classifier.
+
+        This method is called during warm-up to initialize any resources
+        needed by the classifier. It should be overridden by subclasses
+        that need specific initialization logic.
+
+        The default implementation does nothing.
+
+        Raises:
+            RuntimeError: If initialization fails
+        """
+        # Default implementation does nothing
+        pass
 
     def warm_up(self) -> None:
         """
@@ -811,12 +904,47 @@ class BaseClassifier(ABC, BaseModel, Generic[T, R]):
             classifier.warm_up()  # Load models or other resources
             ```
         """
-        # Update state to indicate that warm-up was attempted
-        if not self._state.get("initialized", False):
-            # Set initialized to True to prevent repeated warm-ups
-            self._state.update("initialized", True)
-            self._state.set_metadata("warm_up_attempted", True)
-            self._state.set_metadata("warm_up_time", "0ms")  # Default value
+        # Track warm-up time
+        import time
+
+        start_time = time.time()
+
+        try:
+            # Update state to indicate that warm-up was attempted
+            if not self._state_manager.get("initialized", False):
+                # Perform initialization logic
+                self.initialize()
+
+                # Set initialized to True to prevent repeated warm-ups
+                self._state_manager.update("initialized", True)
+                self._state_manager.set_metadata("warm_up_attempted", True)
+
+                # Calculate warm-up time
+                end_time = time.time()
+                warm_up_time_ms = (end_time - start_time) * 1000
+                self._state_manager.set_metadata("warm_up_time", f"{warm_up_time_ms:.2f}ms")
+        except Exception as e:
+            # Log error
+            logger.error(f"Warm-up error: {e}")
+
+            # Store error details
+            errors = self._state_manager.get("errors", [])
+            errors.append(
+                {
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "context": "warm_up",
+                    "timestamp": time.time(),
+                }
+            )
+            self._state_manager.update("errors", errors)
+
+            # Set metadata to indicate failure
+            self._state_manager.set_metadata("warm_up_failed", True)
+            self._state_manager.set_metadata("warm_up_error", str(e))
+
+            # Re-raise the exception
+            raise
 
     @classmethod
     def create(

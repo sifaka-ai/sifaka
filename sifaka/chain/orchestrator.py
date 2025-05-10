@@ -76,16 +76,14 @@ print(f"All rules passed: {all(r.passed for r in result.rule_results)}")
 from typing import Generic, List, Optional, TypeVar
 
 from ..critics import CriticCore
-from ..generation import Generator
-from ..models.base import ModelProvider
-from ..rules import Rule
-from ..validation import Validator
+from ..models.core import ModelProviderCore
+from ..rules.base import Rule
 from .core import ChainCore
 from .formatters.result import ResultFormatter
 from .managers.prompt import PromptManager
 from .managers.validation import ValidationManager
 from .result import ChainResult
-from .strategies.retry import SimpleRetryStrategy
+from .strategies.retry import RetryStrategy
 
 OutputType = TypeVar("OutputType")
 
@@ -164,7 +162,7 @@ class ChainOrchestrator(Generic[OutputType]):
     ```
 
     Attributes:
-        model (ModelProvider): The model provider for text generation
+        model (ModelProviderCore): The model provider for text generation
         rules (List[Rule]): List of rules to validate outputs against
         critic (Optional[CriticCore]): Optional critic for improving outputs
         max_attempts (int): Maximum number of validation attempts
@@ -172,7 +170,7 @@ class ChainOrchestrator(Generic[OutputType]):
 
     def __init__(
         self,
-        model: ModelProvider,
+        model: ModelProviderCore,
         rules: List[Rule],
         critic: Optional[CriticCore] = None,
         max_attempts: int = 3,
@@ -196,7 +194,7 @@ class ChainOrchestrator(Generic[OutputType]):
            - Initialize state
 
         Args:
-            model (ModelProvider): The model provider to use
+            model (ModelProviderCore): The model provider to use
             rules (List[Rule]): The rules to validate outputs against
             critic (Optional[CriticCore]): Optional critic for improving outputs
             max_attempts (int): Maximum number of attempts
@@ -208,7 +206,7 @@ class ChainOrchestrator(Generic[OutputType]):
         # Create components
         validation_manager = ValidationManager[OutputType](rules)
         prompt_manager = PromptManager()
-        retry_strategy = SimpleRetryStrategy[OutputType](max_attempts=max_attempts)
+        retry_strategy = RetryStrategy(max_attempts=max_attempts)
         result_formatter = ResultFormatter[OutputType]()
 
         # Create core chain

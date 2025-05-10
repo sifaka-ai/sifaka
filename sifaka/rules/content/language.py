@@ -3,10 +3,26 @@ Language validation rules for Sifaka.
 
 This module provides rules for validating the language of text, ensuring
 that text is in the expected language(s).
+
+Usage Example:
+    ```python
+    from sifaka.rules.content.language import create_language_rule
+
+    # Create a language rule
+    rule = create_language_rule(
+        allowed_languages=["en", "fr"],
+        threshold=0.7
+    )
+
+    # Validate text
+    result = rule.validate("This is English text.")
+    print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+    ```
 """
 
 import importlib
-from typing import List, Optional, Any, Dict, Union
+import time
+from typing import List, Optional, Any, Dict
 
 from pydantic import Field, PrivateAttr
 
@@ -15,8 +31,10 @@ from sifaka.rules.base import (
     RuleConfig,
     RuleResult,
     BaseValidator,
-    create_rule,
 )
+from sifaka.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class LanguageValidator(BaseValidator[str]):
@@ -25,6 +43,26 @@ class LanguageValidator(BaseValidator[str]):
 
     This validator checks if text is in one of the allowed languages
     using the langdetect library.
+
+    Lifecycle:
+        1. Initialization: Set up with allowed languages and threshold
+        2. Validation: Detect language and check against allowed languages
+        3. Result: Return detailed validation results with metadata
+
+    Examples:
+        ```python
+        from sifaka.rules.content.language import LanguageValidator
+
+        # Create validator
+        validator = LanguageValidator(
+            allowed_languages=["en", "fr"],
+            threshold=0.7
+        )
+
+        # Validate text
+        result = validator.validate("This is English text.")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+        ```
 
     Attributes:
         allowed_languages: List of language codes that are allowed
@@ -47,8 +85,15 @@ class LanguageValidator(BaseValidator[str]):
     def __init__(
         self, allowed_languages: Optional[List[str]] = None, threshold: float = 0.7, **kwargs
     ):
-        """Initialize the validator."""
-        super().__init__(**kwargs)
+        """
+        Initialize the validator.
+
+        Args:
+            allowed_languages: List of language codes that are allowed
+            threshold: Confidence threshold for language detection
+            **kwargs: Additional keyword arguments
+        """
+        super().__init__(validation_type=str, **kwargs)
         if allowed_languages is not None:
             self.allowed_languages = allowed_languages
         self.threshold = threshold
@@ -58,18 +103,20 @@ class LanguageValidator(BaseValidator[str]):
             self._langdetect.DetectorFactory.seed = 0
         except ImportError:
             self._langdetect = None
+            logger.warning("langdetect package is not installed. Language validation will fail.")
 
-    def validate(self, text: str, **kwargs: Any) -> RuleResult:
+    def validate(self, text: str) -> RuleResult:
         """
         Validate that text is in one of the allowed languages.
 
         Args:
             text: The text to validate
-            **kwargs: Additional validation context
 
         Returns:
             Validation result
         """
+        start_time = time.time()
+
         # Handle empty text
         empty_result = self.handle_empty_text(text)
         if empty_result:
@@ -77,11 +124,20 @@ class LanguageValidator(BaseValidator[str]):
 
         # Check if langdetect is available
         if self._langdetect is None:
-            return RuleResult(
+            result = RuleResult(
                 passed=False,
                 message="langdetect package is required for language validation. Install with: pip install langdetect",
-                metadata={"reason": "missing_dependency"},
+                metadata={
+                    "reason": "missing_dependency",
+                    "validator_type": self.__class__.__name__,
+                },
+                score=0.0,
+                issues=["Missing dependency: langdetect"],
+                suggestions=["Install langdetect with: pip install langdetect"],
+                processing_time_ms=time.time() - start_time,
             )
+            self.update_statistics(result)
+            return result
 
         try:
             # Detect language
@@ -101,23 +157,39 @@ class LanguageValidator(BaseValidator[str]):
 
             # Check if language is allowed and confidence is high enough
             if best_lang in self.allowed_languages and best_prob >= self.threshold:
-                return RuleResult(
+                result = RuleResult(
                     passed=True,
                     message=f"Text is in an allowed language: {best_lang}",
                     metadata={
                         "language": best_lang,
                         "confidence": best_prob,
                         "allowed_languages": self.allowed_languages,
+                        "validator_type": self.__class__.__name__,
                     },
+                    score=best_prob,
+                    issues=[],
+                    suggestions=[],
+                    processing_time_ms=time.time() - start_time,
                 )
+                self.update_statistics(result)
+                return result
             else:
                 # Failed validation
+                issues = []
+                suggestions = []
+
                 if best_lang not in self.allowed_languages:
                     message = f"Text is in {best_lang}, which is not an allowed language"
+                    issues.append(message)
+                    suggestions.append(
+                        f"Translate text to one of the allowed languages: {', '.join(self.allowed_languages)}"
+                    )
                 else:
                     message = f"Language detection confidence ({best_prob:.2f}) is below threshold ({self.threshold})"
+                    issues.append(message)
+                    suggestions.append("Make the text more clearly in the target language")
 
-                return RuleResult(
+                result = RuleResult(
                     passed=False,
                     message=message,
                     metadata={
@@ -125,17 +197,37 @@ class LanguageValidator(BaseValidator[str]):
                         "confidence": best_prob,
                         "allowed_languages": self.allowed_languages,
                         "threshold": self.threshold,
+                        "validator_type": self.__class__.__name__,
                     },
+                    score=best_prob / self.threshold if self.threshold > 0 else 0.0,
+                    issues=issues,
+                    suggestions=suggestions,
+                    processing_time_ms=time.time() - start_time,
                 )
+                self.update_statistics(result)
+                return result
         except Exception as e:
-            return RuleResult(
+            self.record_error(e)
+            logger.error(f"Language detection failed: {e}")
+
+            result = RuleResult(
                 passed=False,
                 message=f"Language detection failed: {str(e)}",
-                metadata={"error": str(e)},
+                metadata={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "validator_type": self.__class__.__name__,
+                },
+                score=0.0,
+                issues=[f"Language detection error: {str(e)}"],
+                suggestions=["Check if the text is valid and try again"],
+                processing_time_ms=time.time() - start_time,
             )
+            self.update_statistics(result)
+            return result
 
 
-class LanguageRule(Rule[str, RuleResult, LanguageValidator, Any]):
+class LanguageRule(Rule[str]):
     """
     Rule that validates text language.
 
@@ -143,12 +235,64 @@ class LanguageRule(Rule[str, RuleResult, LanguageValidator, Any]):
     It uses the langdetect library to detect the language of the text
     and validates that it matches one of the allowed languages.
 
-    Attributes:
-        _name: The name of the rule
-        _description: Description of the rule
-        _config: Rule configuration
-        _validator: The validator used by this rule
+    Lifecycle:
+        1. Initialization: Set up with allowed languages and threshold
+        2. Validation: Delegate to validator to detect language and check against allowed languages
+        3. Result: Return standardized validation results with metadata
+
+    Examples:
+        ```python
+        from sifaka.rules.content.language import LanguageRule, LanguageValidator
+
+        # Create validator
+        validator = LanguageValidator(
+            allowed_languages=["en", "fr"],
+            threshold=0.7
+        )
+
+        # Create rule
+        rule = LanguageRule(
+            name="language_rule",
+            description="Validates text language",
+            validator=validator
+        )
+
+        # Validate text
+        result = rule.validate("This is English text.")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+        ```
     """
+
+    def __init__(
+        self,
+        name: str = "language_rule",
+        description: str = "Validates that text is in the allowed language(s)",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[LanguageValidator] = None,
+        **kwargs,
+    ):
+        """
+        Initialize the language rule.
+
+        Args:
+            name: The name of the rule
+            description: Description of the rule
+            config: Rule configuration
+            validator: Optional validator implementation
+            **kwargs: Additional keyword arguments for the rule
+        """
+        super().__init__(
+            name=name,
+            description=description,
+            config=config
+            or RuleConfig(
+                name=name, description=description, rule_id=kwargs.pop("rule_id", name), **kwargs
+            ),
+            validator=validator,
+        )
+
+        # Store the validator for reference
+        self._language_validator = validator or self._create_default_validator()
 
     def _create_default_validator(self) -> LanguageValidator:
         """
@@ -157,7 +301,7 @@ class LanguageRule(Rule[str, RuleResult, LanguageValidator, Any]):
         Returns:
             A LanguageValidator with default settings
         """
-        params = self._config.params
+        params = self.config.params
         return LanguageValidator(
             allowed_languages=params.get("allowed_languages", ["en"]),
             threshold=params.get("threshold", 0.7),
@@ -191,6 +335,12 @@ def create_language_validator(
         # Create a validator that only allows English
         validator = create_language_validator(allowed_languages=["en"])
 
+        # Create a validator that allows English or French
+        validator = create_language_validator(
+            allowed_languages=["en", "fr"],
+            threshold=0.6
+        )
+
         # Validate text
         result = validator.validate("This is English text.")
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
@@ -214,9 +364,10 @@ def create_language_rule(
     threshold: float = 0.7,
     name: str = "language_rule",
     description: str = "Validates that text is in the allowed language(s)",
+    rule_id: Optional[str] = None,
     config: Optional[RuleConfig] = None,
     **kwargs: Any,
-) -> Rule:
+) -> LanguageRule:
     """
     Create a rule that validates text language.
 
@@ -229,8 +380,15 @@ def create_language_rule(
         threshold: Confidence threshold for language detection
         name: Name of the rule
         description: Description of the rule
+        rule_id: Unique identifier for the rule
         config: Optional rule configuration
-        **kwargs: Additional parameters for the rule or validator
+        **kwargs: Additional keyword arguments including:
+            - severity: Severity level for rule violations
+            - category: Category of the rule
+            - tags: List of tags for categorizing the rule
+            - priority: Priority level for validation
+            - cache_size: Size of the validation cache
+            - cost: Computational cost of validation
 
     Returns:
         A rule that validates text language
@@ -246,7 +404,11 @@ def create_language_rule(
         rule = create_language_rule(
             allowed_languages=["en", "fr"],
             threshold=0.6,
-            name="english_or_french_rule"
+            name="english_or_french_rule",
+            rule_id="language_validator",
+            severity="warning",
+            category="content",
+            tags=["language", "content", "validation"]
         )
 
         # Validate text
@@ -261,24 +423,33 @@ def create_language_rule(
     if allowed_languages is None:
         allowed_languages = ["en"]
 
-    # Create rule configuration
-    rule_config = config or RuleConfig()
-    rule_config = rule_config.with_params(
-        allowed_languages=allowed_languages,
-        threshold=threshold,
-        **{k: v for k, v in kwargs.items() if k not in ["name", "description"]},
-    )
-
     # Create validator
     validator = create_language_validator(
         allowed_languages=allowed_languages,
         threshold=threshold,
     )
 
-    # Create rule
-    return create_rule(
-        rule_type=LanguageRule,
-        name=name,
+    # Create params dictionary for RuleConfig
+    params = {
+        "allowed_languages": allowed_languages,
+        "threshold": threshold,
+    }
+
+    # Determine rule name
+    rule_name = name or rule_id or "language_rule"
+
+    # Create RuleConfig
+    rule_config = config or RuleConfig(
+        name=rule_name,
+        description=description,
+        rule_id=rule_id or rule_name,
+        params=params,
+        **kwargs,
+    )
+
+    # Create and return the rule
+    return LanguageRule(
+        name=rule_name,
         description=description,
         config=rule_config,
         validator=validator,

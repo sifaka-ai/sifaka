@@ -56,7 +56,8 @@ class SimpleCritic(CriticProtocol[str, str, dict]):
 - feedback_type: Type of feedback provided by critics
 """
 
-from .chain import Chain, AsyncChain
+# Import Chain and AsyncChain from the main interfaces directory
+from sifaka.interfaces import Chain, AsyncChain
 from .critic import CriticProtocol
 from .formatter import ResultFormatterProtocol
 from .manager import PromptManagerProtocol, ValidationManagerProtocol

@@ -3,32 +3,35 @@ Whitespace validation rules for text.
 
 This module provides validators and rules for checking text whitespace constraints
 such as leading/trailing whitespace, spacing between words, and newline formatting.
+
+Usage Example:
+    ```python
+    from sifaka.rules.formatting.whitespace import create_whitespace_rule
+
+    # Create a whitespace rule
+    rule = create_whitespace_rule(
+        allow_leading_whitespace=False,
+        allow_trailing_whitespace=False,
+        allow_multiple_spaces=False,
+        normalize_whitespace=True
+    )
+
+    # Validate text
+    result = rule.validate("This is a test.")
+    print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+    ```
 """
 
 import re
-from typing import Dict, List, Optional, Tuple, Any
+import time
+from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
-# Import the original RuleResult for type hints
-from sifaka.rules.base import RuleResult as BaseRuleResult
+from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
+from sifaka.utils.logging import get_logger
 
-
-class RuleResult:
-    """Custom RuleResult class for whitespace validation."""
-
-    def __init__(self, passed: bool, rule_id: str, errors: List[str]):
-        """Initialize the rule result.
-
-        Args:
-            passed: Whether the validation passed
-            rule_id: The ID of the rule
-            errors: List of error messages
-        """
-        self.passed = passed
-        self.rule_id = rule_id
-        self.errors = errors
-        self.message = "Whitespace validation " + ("passed" if passed else "failed")
+logger = get_logger(__name__)
 
 
 class WhitespaceConfig(BaseModel):
@@ -88,74 +91,198 @@ class WhitespaceConfig(BaseModel):
         return v
 
 
-class WhitespaceValidator:
-    """Base class for text whitespace validators."""
+class WhitespaceValidator(BaseValidator[str]):
+    """
+    Base class for text whitespace validators.
+
+    This abstract class defines the interface for whitespace validators and provides
+    common functionality. Whitespace validators check text against whitespace constraints
+    such as leading/trailing whitespace, spacing between words, and newline formatting.
+
+    Lifecycle:
+        1. Initialization: Set up with whitespace constraints
+        2. Validation: Check text against whitespace constraints
+        3. Result: Return detailed validation results with metadata
+
+    Examples:
+        ```python
+        from sifaka.rules.formatting.whitespace import WhitespaceValidator, WhitespaceConfig
+
+        class CustomWhitespaceValidator(WhitespaceValidator):
+            def validate(self, text: str) -> RuleResult:
+                # Handle empty text
+                empty_result = self.handle_empty_text(text)
+                if empty_result:
+                    return empty_result
+
+                # Perform validation
+                errors = []
+                if text.startswith(" "):
+                    errors.append("Text starts with whitespace")
+
+                return RuleResult(
+                    passed=not errors,
+                    message=errors[0] if errors else "Whitespace validation successful",
+                    issues=errors
+                )
+
+        # Create and use the validator
+        config = WhitespaceConfig(allow_leading_whitespace=False)
+        validator = CustomWhitespaceValidator(config)
+        result = validator.validate("This is a test")
+        ```
+    """
 
     def __init__(self, config: WhitespaceConfig):
-        """Initialize validator with a configuration.
+        """
+        Initialize validator with a configuration.
 
         Args:
             config: Whitespace validation configuration
         """
+        super().__init__(validation_type=str)
         self.config = config
 
-    def validate(self, text: str) -> Tuple[bool, List[str]]:
-        """Validate text against whitespace constraints.
+    def validate(self, text: str) -> RuleResult:
+        """
+        Validate text against whitespace constraints.
 
         Args:
             text: The text to validate
 
         Returns:
-            Tuple containing:
-                - Boolean indicating if validation passed
-                - List of error messages if validation failed
+            Validation result
         """
+        # Handle empty text
+        empty_result = self.handle_empty_text(text)
+        if empty_result:
+            return empty_result
+
         raise NotImplementedError("Subclasses must implement validate method")
 
 
 class DefaultWhitespaceValidator(WhitespaceValidator):
-    """Default implementation of text whitespace validator."""
+    """
+    Default implementation of text whitespace validator.
 
-    def validate(self, text: str) -> Tuple[bool, List[str]]:
-        """Validate text against whitespace constraints.
+    This validator implements standard whitespace validation logic, checking for:
+    - Leading whitespace
+    - Trailing whitespace
+    - Multiple consecutive spaces
+    - Tab characters
+    - Newline characters and their count
+
+    It can also normalize whitespace during validation if configured to do so.
+
+    Lifecycle:
+        1. Initialization: Set up with whitespace constraints
+        2. Validation: Check text against whitespace constraints
+        3. Result: Return detailed validation results with metadata
+
+    Examples:
+        ```python
+        from sifaka.rules.formatting.whitespace import DefaultWhitespaceValidator, WhitespaceConfig
+
+        # Create configuration
+        config = WhitespaceConfig(
+            allow_leading_whitespace=False,
+            allow_trailing_whitespace=False,
+            allow_multiple_spaces=False,
+            normalize_whitespace=True
+        )
+
+        # Create validator
+        validator = DefaultWhitespaceValidator(config)
+
+        # Validate text
+        result = validator.validate("  This  is  a  test  ")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+        ```
+    """
+
+    def validate(self, text: str) -> RuleResult:
+        """
+        Validate text against whitespace constraints.
 
         Args:
             text: The text to validate
 
         Returns:
-            Tuple containing:
-                - Boolean indicating if validation passed
-                - List of error messages if validation failed
+            Validation result
         """
+        start_time = time.time()
+
+        # Handle empty text
+        empty_result = self.handle_empty_text(text)
+        if empty_result:
+            return empty_result
+
+        # Store original text for comparison
+        original_text = text
+
+        # Normalize whitespace if configured
         if self.config.normalize_whitespace:
             text = self._normalize_whitespace(text)
 
         errors = []
+        suggestions = []
 
         # Leading whitespace validation
         if not self.config.allow_leading_whitespace and text and text[0].isspace():
             errors.append("Text contains leading whitespace")
+            suggestions.append("Remove leading whitespace")
 
         # Trailing whitespace validation
         if not self.config.allow_trailing_whitespace and text and text[-1].isspace():
             errors.append("Text contains trailing whitespace")
+            suggestions.append("Remove trailing whitespace")
 
         # Multiple spaces validation
         if not self.config.allow_multiple_spaces and "  " in text:
             errors.append("Text contains multiple consecutive spaces")
+            suggestions.append("Replace multiple spaces with single spaces")
 
         # Tab character validation
         if not self.config.allow_tabs and "\t" in text:
             errors.append("Text contains tab characters")
+            suggestions.append("Replace tabs with spaces")
 
         # Newline validation
         if not self.config.allow_newlines and "\n" in text:
             errors.append("Text contains newline characters")
+            suggestions.append("Remove newline characters")
         elif self.config.max_newlines is not None:
             newline_errors = self._validate_max_newlines(text)
-            errors.extend(newline_errors)
+            if newline_errors:
+                errors.extend(newline_errors)
+                suggestions.append(f"Limit consecutive newlines to {self.config.max_newlines}")
 
-        return not errors, errors
+        # Create result
+        result = RuleResult(
+            passed=not errors,
+            message=errors[0] if errors else "Whitespace validation successful",
+            metadata={
+                "original_text": original_text,
+                "normalized_text": text if self.config.normalize_whitespace else original_text,
+                "validator_type": self.__class__.__name__,
+                "allow_leading_whitespace": self.config.allow_leading_whitespace,
+                "allow_trailing_whitespace": self.config.allow_trailing_whitespace,
+                "allow_multiple_spaces": self.config.allow_multiple_spaces,
+                "allow_tabs": self.config.allow_tabs,
+                "allow_newlines": self.config.allow_newlines,
+                "max_newlines": self.config.max_newlines,
+                "normalize_whitespace": self.config.normalize_whitespace,
+            },
+            score=1.0 if not errors else 0.0,
+            issues=errors,
+            suggestions=suggestions,
+            processing_time_ms=time.time() - start_time,
+        )
+
+        # Update statistics
+        self.update_statistics(result)
+
+        return result
 
     def _normalize_whitespace(self, text: str) -> str:
         """Normalize whitespace in text.
@@ -208,41 +335,160 @@ class DefaultWhitespaceValidator(WhitespaceValidator):
         return []
 
 
-class WhitespaceRule:
-    """Rule for validating text whitespace constraints."""
+class WhitespaceRule(Rule[str]):
+    """
+    Rule for validating text whitespace constraints.
 
-    def __init__(self, validator: WhitespaceValidator, config: Optional[Dict] = None, **kwargs):
-        """Initialize the whitespace rule.
+    This rule validates that text meets whitespace requirements such as
+    leading/trailing whitespace, spacing between words, and newline formatting.
+
+    Lifecycle:
+        1. Initialization: Set up with whitespace constraints
+        2. Validation: Check text against whitespace constraints
+        3. Result: Return standardized validation results with metadata
+
+    Examples:
+        ```python
+        from sifaka.rules.formatting.whitespace import WhitespaceRule, WhitespaceConfig, DefaultWhitespaceValidator
+
+        # Create configuration
+        config = WhitespaceConfig(
+            allow_leading_whitespace=False,
+            allow_trailing_whitespace=False,
+            allow_multiple_spaces=False,
+            normalize_whitespace=True
+        )
+
+        # Create validator
+        validator = DefaultWhitespaceValidator(config)
+
+        # Create rule
+        rule = WhitespaceRule(
+            name="whitespace_rule",
+            description="Validates text whitespace",
+            validator=validator
+        )
+
+        # Validate text
+        result = rule.validate("  This  is  a  test  ")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+        ```
+    """
+
+    def __init__(
+        self,
+        name: str = "whitespace_rule",
+        description: str = "Validates text whitespace",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[WhitespaceValidator] = None,
+        **kwargs,
+    ):
+        """
+        Initialize the whitespace rule.
 
         Args:
-            validator: The validator to use for whitespace validation
-            config: Additional configuration for the rule
+            name: The name of the rule
+            description: Description of the rule
+            config: Rule configuration
+            validator: Optional validator implementation
             **kwargs: Additional keyword arguments for the rule
         """
-        self.validator = validator
-        self.config = config
-        self.id = kwargs.get("id", "rule")
-        self.name = kwargs.get("name", "Whitespace Rule")
-        self.description = kwargs.get("description", "Validates whitespace constraints")
+        super().__init__(
+            name=name,
+            description=description,
+            config=config
+            or RuleConfig(
+                name=name, description=description, rule_id=kwargs.pop("rule_id", name), **kwargs
+            ),
+            validator=validator,
+        )
 
-    def validate(self, text: str) -> RuleResult:
-        """Evaluate text against whitespace constraints.
+        # Store the validator for reference
+        self._whitespace_validator = validator or self._create_default_validator()
 
-        Args:
-            text: The text to evaluate
+    def _create_default_validator(self) -> WhitespaceValidator:
+        """
+        Create a default validator from config.
 
         Returns:
-            RuleResult containing validation results
+            A configured WhitespaceValidator
         """
-        # Use the validator to validate the text
-        is_valid, errors = self.validator.validate(text)
-
-        # Create and return the result
-        return RuleResult(
-            passed=is_valid,
-            rule_id=self.id,
-            errors=errors,
+        # Extract whitespace specific params
+        params = self.config.params
+        config = WhitespaceConfig(
+            allow_leading_whitespace=params.get("allow_leading_whitespace", True),
+            allow_trailing_whitespace=params.get("allow_trailing_whitespace", True),
+            allow_multiple_spaces=params.get("allow_multiple_spaces", True),
+            allow_tabs=params.get("allow_tabs", True),
+            allow_newlines=params.get("allow_newlines", True),
+            max_newlines=params.get("max_newlines"),
+            normalize_whitespace=params.get("normalize_whitespace", False),
         )
+        return DefaultWhitespaceValidator(config)
+
+
+def create_whitespace_validator(
+    allow_leading_whitespace: bool = False,
+    allow_trailing_whitespace: bool = False,
+    allow_multiple_spaces: bool = False,
+    allow_tabs: bool = False,
+    allow_newlines: bool = True,
+    max_newlines: Optional[int] = None,
+    normalize_whitespace: bool = False,
+    **kwargs,
+) -> WhitespaceValidator:
+    """
+    Create a whitespace validator with the specified constraints.
+
+    This factory function creates a configured WhitespaceValidator instance.
+    It's useful when you need a validator without creating a full rule.
+
+    Args:
+        allow_leading_whitespace: Whether to allow leading whitespace
+        allow_trailing_whitespace: Whether to allow trailing whitespace
+        allow_multiple_spaces: Whether to allow multiple consecutive spaces
+        allow_tabs: Whether to allow tab characters
+        allow_newlines: Whether to allow newline characters
+        max_newlines: Maximum number of consecutive newlines allowed
+        normalize_whitespace: Whether to normalize whitespace during validation
+        **kwargs: Additional keyword arguments for the config
+
+    Returns:
+        Configured WhitespaceValidator
+
+    Examples:
+        ```python
+        from sifaka.rules.formatting.whitespace import create_whitespace_validator
+
+        # Create a basic validator
+        validator = create_whitespace_validator(
+            allow_leading_whitespace=False,
+            allow_trailing_whitespace=False
+        )
+
+        # Create a validator with more constraints
+        validator = create_whitespace_validator(
+            allow_leading_whitespace=False,
+            allow_trailing_whitespace=False,
+            allow_multiple_spaces=False,
+            normalize_whitespace=True
+        )
+        ```
+    """
+    # Create config
+    config = WhitespaceConfig(
+        allow_leading_whitespace=allow_leading_whitespace,
+        allow_trailing_whitespace=allow_trailing_whitespace,
+        allow_multiple_spaces=allow_multiple_spaces,
+        allow_tabs=allow_tabs,
+        allow_newlines=allow_newlines,
+        max_newlines=max_newlines,
+        normalize_whitespace=normalize_whitespace,
+        **kwargs,
+    )
+
+    # Create and return the validator
+    return DefaultWhitespaceValidator(config)
 
 
 def create_whitespace_rule(
@@ -253,27 +499,66 @@ def create_whitespace_rule(
     allow_newlines: bool = True,
     max_newlines: Optional[int] = None,
     normalize_whitespace: bool = False,
+    name: str = "whitespace_rule",
+    description: str = "Validates text whitespace",
     rule_id: Optional[str] = None,
     **kwargs,
 ) -> WhitespaceRule:
-    """Create a whitespace validation rule with the specified constraints.
+    """
+    Create a whitespace validation rule with the specified constraints.
+
+    This factory function creates a configured WhitespaceRule instance.
+    It uses create_whitespace_validator internally to create the validator.
 
     Args:
-        allow_leading_whitespace: Whether to allow whitespace at the beginning of text
-        allow_trailing_whitespace: Whether to allow whitespace at the end of text
+        allow_leading_whitespace: Whether to allow leading whitespace
+        allow_trailing_whitespace: Whether to allow trailing whitespace
         allow_multiple_spaces: Whether to allow multiple consecutive spaces
         allow_tabs: Whether to allow tab characters
         allow_newlines: Whether to allow newline characters
         max_newlines: Maximum number of consecutive newlines allowed
         normalize_whitespace: Whether to normalize whitespace during validation
-        rule_id: Identifier for the rule
-        **kwargs: Additional keyword arguments for the rule
+        name: The name of the rule
+        description: Description of the rule
+        rule_id: Unique identifier for the rule
+        **kwargs: Additional keyword arguments including:
+            - severity: Severity level for rule violations
+            - category: Category of the rule
+            - tags: List of tags for categorizing the rule
+            - priority: Priority level for validation
+            - cache_size: Size of the validation cache
+            - cost: Computational cost of validation
 
     Returns:
         Configured WhitespaceRule
+
+    Examples:
+        ```python
+        from sifaka.rules.formatting.whitespace import create_whitespace_rule
+
+        # Create a basic rule
+        rule = create_whitespace_rule(
+            allow_leading_whitespace=False,
+            allow_trailing_whitespace=False
+        )
+
+        # Create a rule with more constraints and metadata
+        rule = create_whitespace_rule(
+            allow_leading_whitespace=False,
+            allow_trailing_whitespace=False,
+            allow_multiple_spaces=False,
+            normalize_whitespace=True,
+            name="strict_whitespace_rule",
+            description="Validates text has no extra whitespace",
+            rule_id="whitespace_validator",
+            severity="warning",
+            category="formatting",
+            tags=["whitespace", "formatting", "style"]
+        )
+        ```
     """
-    # Create the whitespace configuration
-    config = WhitespaceConfig(
+    # Create validator using the validator factory
+    validator = create_whitespace_validator(
         allow_leading_whitespace=allow_leading_whitespace,
         allow_trailing_whitespace=allow_trailing_whitespace,
         allow_multiple_spaces=allow_multiple_spaces,
@@ -283,12 +568,33 @@ def create_whitespace_rule(
         normalize_whitespace=normalize_whitespace,
     )
 
-    # Create the validator
-    validator = DefaultWhitespaceValidator(config)
+    # Create params dictionary for RuleConfig
+    params = {
+        "allow_leading_whitespace": allow_leading_whitespace,
+        "allow_trailing_whitespace": allow_trailing_whitespace,
+        "allow_multiple_spaces": allow_multiple_spaces,
+        "allow_tabs": allow_tabs,
+        "allow_newlines": allow_newlines,
+        "max_newlines": max_newlines,
+        "normalize_whitespace": normalize_whitespace,
+    }
+
+    # Determine rule name
+    rule_name = name or rule_id or "whitespace_rule"
+
+    # Create RuleConfig
+    config = RuleConfig(
+        name=rule_name,
+        description=description,
+        rule_id=rule_id or rule_name,
+        params=params,
+        **kwargs,
+    )
 
     # Create and return the rule
     return WhitespaceRule(
+        name=rule_name,
+        description=description,
+        config=config,
         validator=validator,
-        id=rule_id or "whitespace",
-        **kwargs,
     )

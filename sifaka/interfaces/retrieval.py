@@ -18,6 +18,30 @@ These interfaces are defined using Python's Protocol class from typing,
 which enables structural subtyping. This means that classes don't need to
 explicitly inherit from these interfaces; they just need to implement the
 required methods and properties.
+
+## State Management
+
+The interfaces support standardized state management:
+- Single _state_manager attribute for all mutable state
+- State initialization during construction
+- State access through state manager methods
+- Clear separation of configuration and state
+
+## Error Handling
+
+The interfaces define error handling patterns:
+- ValueError for invalid inputs
+- RuntimeError for execution failures
+- TypeError for type mismatches
+- Detailed error tracking and reporting
+
+## Execution Tracking
+
+The interfaces support execution tracking:
+- Execution count tracking
+- Execution time tracking
+- Success/failure tracking
+- Performance statistics
 """
 
 from abc import abstractmethod
@@ -273,7 +297,10 @@ class Retriever(Identifiable, Configurable[ConfigType], Protocol[QueryType, Resu
     2. **Retrieval**: Retrieve information based on queries
     3. **Result Handling**: Process and return results
     4. **Configuration Management**: Manage retrieval configuration
-    5. **Cleanup**: Release resources when no longer needed
+    5. **State Management**: Manage retrieval state
+    6. **Error Handling**: Handle and track errors
+    7. **Execution Tracking**: Track execution statistics
+    8. **Cleanup**: Release resources when no longer needed
 
     ## Implementation Requirements
 
@@ -283,7 +310,90 @@ class Retriever(Identifiable, Configurable[ConfigType], Protocol[QueryType, Resu
     - Provide name and description properties
     - Provide a config property to access the retrieval configuration
     - Provide an update_config method to update the retrieval configuration
+    - Implement state management using _state_manager
+    - Implement error handling and tracking
+    - Implement execution tracking and statistics
     """
+
+    @property
+    @abstractmethod
+    def _state_manager(self) -> Any:
+        """
+        Get the state manager.
+
+        Returns:
+            The state manager
+        """
+        pass
+
+    @abstractmethod
+    def initialize(self) -> None:
+        """
+        Initialize the retriever.
+
+        This method should be called after the retriever is created to set up
+        any resources or state needed for operation.
+
+        Raises:
+            RuntimeError: If initialization fails
+        """
+        pass
+
+    @abstractmethod
+    def cleanup(self) -> None:
+        """
+        Clean up the retriever.
+
+        This method should be called when the retriever is no longer needed to
+        release any resources it holds.
+
+        Raises:
+            RuntimeError: If cleanup fails
+        """
+        pass
+
+    @abstractmethod
+    def get_state(self) -> Dict[str, Any]:
+        """
+        Get the current state.
+
+        Returns:
+            The current state
+        """
+        pass
+
+    @abstractmethod
+    def set_state(self, state: Dict[str, Any]) -> None:
+        """
+        Set the state.
+
+        Args:
+            state: The new state
+
+        Raises:
+            ValueError: If the state is invalid
+        """
+        pass
+
+    @abstractmethod
+    def reset_state(self) -> None:
+        """
+        Reset the state to its initial values.
+
+        Raises:
+            RuntimeError: If state reset fails
+        """
+        pass
+
+    @abstractmethod
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get execution statistics.
+
+        Returns:
+            A dictionary of execution statistics
+        """
+        pass
 
     @abstractmethod
     def retrieve(self, query: QueryType, **kwargs: Any) -> ResultType:
@@ -319,7 +429,10 @@ class AsyncRetriever(Protocol[QueryType, ResultType]):
     2. **Retrieval**: Retrieve information asynchronously based on queries
     3. **Result Handling**: Process and return results
     4. **Configuration Management**: Manage retrieval configuration
-    5. **Cleanup**: Release resources when no longer needed
+    5. **State Management**: Manage retrieval state
+    6. **Error Handling**: Handle and track errors
+    7. **Execution Tracking**: Track execution statistics
+    8. **Cleanup**: Release resources when no longer needed
 
     ## Implementation Requirements
 
@@ -329,6 +442,9 @@ class AsyncRetriever(Protocol[QueryType, ResultType]):
     - Provide name and description properties
     - Provide a config property to access the retrieval configuration
     - Provide an update_config method to update the retrieval configuration
+    - Implement state management using _state_manager
+    - Implement error handling and tracking
+    - Implement execution tracking and statistics
     """
 
     @property
@@ -350,6 +466,110 @@ class AsyncRetriever(Protocol[QueryType, ResultType]):
 
         Returns:
             The retriever description
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def config(self) -> Any:
+        """
+        Get the retriever configuration.
+
+        Returns:
+            The retriever configuration
+        """
+        pass
+
+    @abstractmethod
+    def update_config(self, config: Any) -> None:
+        """
+        Update the retriever configuration.
+
+        Args:
+            config: The new configuration
+
+        Raises:
+            ValueError: If the configuration is invalid
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def _state_manager(self) -> Any:
+        """
+        Get the state manager.
+
+        Returns:
+            The state manager
+        """
+        pass
+
+    @abstractmethod
+    async def initialize(self) -> None:
+        """
+        Initialize the retriever asynchronously.
+
+        This method should be called after the retriever is created to set up
+        any resources or state needed for operation.
+
+        Raises:
+            RuntimeError: If initialization fails
+        """
+        pass
+
+    @abstractmethod
+    async def cleanup(self) -> None:
+        """
+        Clean up the retriever asynchronously.
+
+        This method should be called when the retriever is no longer needed to
+        release any resources it holds.
+
+        Raises:
+            RuntimeError: If cleanup fails
+        """
+        pass
+
+    @abstractmethod
+    async def get_state(self) -> Dict[str, Any]:
+        """
+        Get the current state asynchronously.
+
+        Returns:
+            The current state
+        """
+        pass
+
+    @abstractmethod
+    async def set_state(self, state: Dict[str, Any]) -> None:
+        """
+        Set the state asynchronously.
+
+        Args:
+            state: The new state
+
+        Raises:
+            ValueError: If the state is invalid
+        """
+        pass
+
+    @abstractmethod
+    async def reset_state(self) -> None:
+        """
+        Reset the state to its initial values asynchronously.
+
+        Raises:
+            RuntimeError: If state reset fails
+        """
+        pass
+
+    @abstractmethod
+    async def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get execution statistics asynchronously.
+
+        Returns:
+            A dictionary of execution statistics
         """
         pass
 

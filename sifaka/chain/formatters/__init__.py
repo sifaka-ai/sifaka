@@ -19,7 +19,7 @@ understand.
 ## Usage Examples
 ```python
 from sifaka.chain.formatters import ResultFormatter
-from sifaka.validation import ValidationResult
+from sifaka.core.validation import ValidationResult
 
 # Create formatter
 formatter = ResultFormatter[str]()

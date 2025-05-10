@@ -13,10 +13,10 @@ except ImportError:
 
 from sifaka.chain import ChainCore, ChainResult
 from sifaka.critics import CriticCore, create_prompt_critic, create_reflexion_critic
-from sifaka.generation import Generator
-from sifaka.improvement import Improver, ImprovementResult
+from sifaka.core.generation import Generator
+from sifaka.core.improvement import Improver, ImprovementResult
 from sifaka.models import AnthropicProvider, OpenAIProvider
-from sifaka.validation import Validator, ValidationResult, ValidatorConfig
+from sifaka.core.validation import Validator, ValidationResult, ValidatorConfig
 
 from sifaka.rules.base import Rule
 from sifaka.rules.formatting.length import create_length_rule

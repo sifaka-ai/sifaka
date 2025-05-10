@@ -15,7 +15,7 @@ This module follows the standard Sifaka delegation pattern:
 ## Configuration Pattern
 
 This module follows the standard Sifaka configuration pattern:
-- All rule-specific configuration is stored in RuleConfig.params
+- Configuration is stored in dedicated config classes
 - Factory functions handle configuration extraction
 - Validator factory functions create standalone validators
 - Rule factory functions use validator factory functions internally
@@ -34,10 +34,12 @@ rule = create_style_rule(
 
 # Validate text
 result = rule.validate("This is a test.")
+print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 """
 
 import re
+import time
 from enum import Enum, auto
 from typing import List, Optional
 
@@ -48,8 +50,10 @@ from sifaka.rules.base import (
     RuleResult,
     RuleConfig,
     BaseValidator,
-    RuleResultHandler,
 )
+from sifaka.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 __all__ = [
@@ -372,7 +376,7 @@ class StyleValidator(BaseValidator[str]):
     from sifaka.rules.base import RuleResult
 
     class CustomStyleValidator(StyleValidator):
-        def validate(self, text: str, **kwargs) -> RuleResult:
+        def validate(self, text: str) -> RuleResult:
             # Handle empty text
             empty_result = self.handle_empty_text(text)
             if empty_result:
@@ -406,20 +410,21 @@ class StyleValidator(BaseValidator[str]):
     """
 
     def __init__(self, config: StyleConfig):
-        """Initialize validator with a configuration.
+        """
+        Initialize validator with a configuration.
 
         Args:
             config: Style validation configuration
         """
-        super().__init__()
+        super().__init__(validation_type=str)
         self.config = config
 
-    def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate text against style constraints.
+    def validate(self, text: str) -> RuleResult:
+        """
+        Validate text against style constraints.
 
         Args:
             text: The text to validate
-            **kwargs: Additional validation context
 
         Returns:
             Validation result
@@ -511,36 +516,85 @@ class DefaultStyleValidator(StyleValidator):
         )
         self._char_analyzer = _CharAnalyzer(disallowed=config.disallowed_chars or [])
 
-    def validate(self, text: str, **kwargs) -> RuleResult:  # noqa: D401
-        """Validate *text* style by delegating to analyzers."""
+    def validate(self, text: str) -> RuleResult:  # noqa: D401
+        """
+        Validate text style by delegating to analyzers.
 
-        empty = self.handle_empty_text(text)
-        if empty:
-            return empty
+        Args:
+            text: The text to validate
 
+        Returns:
+            Validation result
+        """
+        start_time = time.time()
+
+        # Handle empty text
+        empty_result = self.handle_empty_text(text)
+        if empty_result:
+            return empty_result
+
+        # Apply whitespace stripping if configured
         if self.config.strip_whitespace:
             text = text.strip()
 
+        # Collect errors and suggestions
         errors: List[str] = []
+        suggestions: List[str] = []
 
+        # Validate capitalization
         if cap_err := self._cap_analyzer.analyze(text):
             errors.append(cap_err)
+            if self.config.capitalization:
+                suggestions.append(
+                    f"Fix capitalization to match {self.config.capitalization.name} style"
+                )
 
+        # Validate ending
         if end_err := self._end_analyzer.analyze(text):
             errors.append(end_err)
+            if self.config.allowed_end_chars:
+                suggestions.append(
+                    f"End text with one of: {', '.join(self.config.allowed_end_chars)}"
+                )
+            else:
+                suggestions.append("End text with proper punctuation")
 
+        # Validate disallowed characters
         disallowed_found = self._char_analyzer.analyze(text)
         if disallowed_found:
             errors.extend([f"Disallowed character found: '{ch}'" for ch in disallowed_found])
+            if self.config.disallowed_chars:
+                suggestions.append(
+                    f"Remove disallowed characters: {', '.join(self.config.disallowed_chars)}"
+                )
 
-        return RuleResult(
+        # Create result
+        result = RuleResult(
             passed=not errors,
             message=errors[0] if errors else "Style validation successful",
-            metadata={"errors": errors},
+            metadata={
+                "errors": errors,
+                "validator_type": self.__class__.__name__,
+                "capitalization_style": (
+                    self.config.capitalization.name if self.config.capitalization else None
+                ),
+                "require_end_punctuation": self.config.require_end_punctuation,
+                "allowed_end_chars": self.config.allowed_end_chars,
+                "disallowed_chars": self.config.disallowed_chars,
+            },
+            score=1.0 if not errors else 0.0,
+            issues=errors,
+            suggestions=suggestions,
+            processing_time_ms=time.time() - start_time,
         )
 
+        # Update statistics
+        self.update_statistics(result)
 
-class StyleRule(Rule[str, RuleResult, StyleValidator, RuleResultHandler[RuleResult]]):
+        return result
+
+
+class StyleRule(Rule[str]):
     """
     Rule for validating text style constraints.
 
@@ -629,7 +683,8 @@ class StyleRule(Rule[str, RuleResult, StyleValidator, RuleResultHandler[RuleResu
         validator: Optional[StyleValidator] = None,
         **kwargs,
     ):
-        """Initialize the style rule.
+        """
+        Initialize the style rule.
 
         Args:
             name: The name of the rule
@@ -639,8 +694,17 @@ class StyleRule(Rule[str, RuleResult, StyleValidator, RuleResultHandler[RuleResu
             **kwargs: Additional keyword arguments for the rule
         """
         super().__init__(
-            name=name, description=description, config=config, validator=validator, **kwargs
+            name=name,
+            description=description,
+            config=config
+            or RuleConfig(
+                name=name, description=description, rule_id=kwargs.pop("rule_id", name), **kwargs
+            ),
+            validator=validator,
         )
+
+        # Store the validator for reference
+        self._style_validator = validator or self._create_default_validator()
 
     def _create_default_validator(self) -> StyleValidator:
         """Create a default validator from config."""
@@ -865,20 +929,21 @@ class FormattingValidator(BaseValidator[str]):
     """
 
     def __init__(self, config: FormattingConfig):
-        """Initialize validator with a configuration.
+        """
+        Initialize validator with a configuration.
 
         Args:
             config: Formatting validation configuration
         """
-        super().__init__()
+        super().__init__(validation_type=str)
         self.config = config
 
-    def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate text against formatting constraints.
+    def validate(self, text: str) -> RuleResult:
+        """
+        Validate text against formatting constraints.
 
         Args:
             text: The text to validate
-            **kwargs: Additional validation context
 
         Returns:
             Validation result
@@ -987,22 +1052,25 @@ class DefaultFormattingValidator(FormattingValidator):
     ```
     """
 
-    def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate text against formatting constraints.
+    def validate(self, text: str) -> RuleResult:
+        """
+        Validate text against formatting constraints.
 
         Args:
             text: The text to validate
-            **kwargs: Additional validation context
 
         Returns:
             Validation result
         """
+        start_time = time.time()
+
         # Handle empty text
         empty_result = self.handle_empty_text(text)
         if empty_result:
             return empty_result
 
         errors = []
+        suggestions = []
         original_text = text
 
         # Apply transformations if configured
@@ -1011,18 +1079,25 @@ class DefaultFormattingValidator(FormattingValidator):
 
         if self.config.normalize_whitespace:
             text = re.sub(r"\s+", " ", text)
+            if original_text != text:
+                suggestions.append("Normalize whitespace (remove extra spaces)")
 
         if self.config.remove_extra_lines:
             text = re.sub(r"\n{3,}", "\n\n", text)
+            if original_text != text:
+                suggestions.append("Remove extra blank lines")
 
         # Validate against style config if provided
         if self.config.style_config:
             style_validator = DefaultStyleValidator(self.config.style_config)
-            style_result = style_validator.validate(text, **kwargs)
+            style_result = style_validator.validate(text)
             if not style_result.passed:
                 errors.append(style_result.message)
+                if style_result.suggestions:
+                    suggestions.extend(style_result.suggestions)
 
-        return RuleResult(
+        # Create result
+        result = RuleResult(
             passed=not errors,
             message=errors[0] if errors else "Formatting validation successful",
             metadata={
@@ -1031,12 +1106,22 @@ class DefaultFormattingValidator(FormattingValidator):
                 "strip_whitespace": self.config.strip_whitespace,
                 "normalize_whitespace": self.config.normalize_whitespace,
                 "remove_extra_lines": self.config.remove_extra_lines,
-                "errors": errors,
+                "validator_type": self.__class__.__name__,
+                "has_style_validation": self.config.style_config is not None,
             },
+            score=1.0 if not errors else 0.0,
+            issues=errors,
+            suggestions=suggestions,
+            processing_time_ms=time.time() - start_time,
         )
 
+        # Update statistics
+        self.update_statistics(result)
 
-class FormattingRule(Rule[str, RuleResult, FormattingValidator, RuleResultHandler[RuleResult]]):
+        return result
+
+
+class FormattingRule(Rule[str]):
     """
     Rule for validating text formatting constraints.
 
@@ -1135,7 +1220,8 @@ class FormattingRule(Rule[str, RuleResult, FormattingValidator, RuleResultHandle
         validator: Optional[FormattingValidator] = None,
         **kwargs,
     ):
-        """Initialize the formatting rule.
+        """
+        Initialize the formatting rule.
 
         Args:
             name: The name of the rule
@@ -1145,11 +1231,25 @@ class FormattingRule(Rule[str, RuleResult, FormattingValidator, RuleResultHandle
             **kwargs: Additional keyword arguments for the rule
         """
         super().__init__(
-            name=name, description=description, config=config, validator=validator, **kwargs
+            name=name,
+            description=description,
+            config=config
+            or RuleConfig(
+                name=name, description=description, rule_id=kwargs.pop("rule_id", name), **kwargs
+            ),
+            validator=validator,
         )
 
+        # Store the validator for reference
+        self._formatting_validator = validator or self._create_default_validator()
+
     def _create_default_validator(self) -> FormattingValidator:
-        """Create a default validator from config."""
+        """
+        Create a default validator from config.
+
+        Returns:
+            A configured FormattingValidator
+        """
         # Extract formatting specific params
         params = self.config.params
         config = FormattingConfig(
@@ -1160,21 +1260,6 @@ class FormattingRule(Rule[str, RuleResult, FormattingValidator, RuleResultHandle
         )
         return DefaultFormattingValidator(config)
 
-    def validate(self, text: str, **kwargs) -> RuleResult:
-        """Evaluate text against formatting constraints.
-
-        Args:
-            text: The text to evaluate
-            **kwargs: Additional validation context
-
-        Returns:
-            RuleResult containing validation results
-        """
-        # Delegate to validator
-        result = self._validator.validate(text, **kwargs)
-        # Add rule_id to metadata
-        return result.with_metadata(rule_id=self._name)
-
 
 def create_formatting_validator(
     style_config: Optional[StyleConfig] = None,
@@ -1183,7 +1268,8 @@ def create_formatting_validator(
     remove_extra_lines: bool = False,
     **kwargs,
 ) -> FormattingValidator:
-    """Create a formatting validator with the specified constraints.
+    """
+    Create a formatting validator with the specified constraints.
 
     This factory function creates a configured FormattingValidator instance.
     It's useful when you need a validator without creating a full rule.
@@ -1197,21 +1283,34 @@ def create_formatting_validator(
 
     Returns:
         Configured FormattingValidator
-    """
-    # Extract RuleConfig parameters from kwargs
-    rule_config_params = {}
-    for param in ["priority", "cache_size", "cost", "params"]:
-        if param in kwargs:
-            rule_config_params[param] = kwargs.pop(param)
 
+    Examples:
+        ```python
+        from sifaka.rules.formatting.style import create_formatting_validator
+
+        # Create a basic validator
+        validator = create_formatting_validator(normalize_whitespace=True)
+
+        # Create a validator with style config
+        from sifaka.rules.formatting.style import StyleConfig, CapitalizationStyle
+        style_config = StyleConfig(capitalization=CapitalizationStyle.SENTENCE_CASE)
+        validator = create_formatting_validator(
+            style_config=style_config,
+            normalize_whitespace=True,
+            remove_extra_lines=True
+        )
+        ```
+    """
+    # Create the configuration
     config = FormattingConfig(
         style_config=style_config,
         strip_whitespace=strip_whitespace,
         normalize_whitespace=normalize_whitespace,
         remove_extra_lines=remove_extra_lines,
-        **rule_config_params,
+        **kwargs,
     )
 
+    # Create and return the validator
     return DefaultFormattingValidator(config)
 
 
@@ -1222,9 +1321,11 @@ def create_formatting_rule(
     strip_whitespace: bool = True,
     normalize_whitespace: bool = False,
     remove_extra_lines: bool = False,
+    rule_id: Optional[str] = None,
     **kwargs,
 ) -> FormattingRule:
-    """Create a formatting validation rule with the specified constraints.
+    """
+    Create a formatting validation rule with the specified constraints.
 
     This factory function creates a configured FormattingRule instance.
     It uses create_formatting_validator internally to create the validator.
@@ -1236,24 +1337,47 @@ def create_formatting_rule(
         strip_whitespace: Whether to strip whitespace before validation
         normalize_whitespace: Whether to normalize consecutive whitespace
         remove_extra_lines: Whether to remove extra blank lines
-        **kwargs: Additional keyword arguments for the rule
+        rule_id: Unique identifier for the rule
+        **kwargs: Additional keyword arguments including:
+            - severity: Severity level for rule violations
+            - category: Category of the rule
+            - tags: List of tags for categorizing the rule
+            - priority: Priority level for validation
+            - cache_size: Size of the validation cache
+            - cost: Computational cost of validation
 
     Returns:
         Configured FormattingRule
-    """
-    # Extract RuleConfig parameters from kwargs
-    rule_config_params = {}
-    for param in ["priority", "cache_size", "cost"]:
-        if param in kwargs:
-            rule_config_params[param] = kwargs.pop(param)
 
+    Examples:
+        ```python
+        from sifaka.rules.formatting.style import create_formatting_rule
+
+        # Create a basic rule
+        rule = create_formatting_rule(normalize_whitespace=True)
+
+        # Create a rule with style config
+        from sifaka.rules.formatting.style import StyleConfig, CapitalizationStyle
+        style_config = StyleConfig(capitalization=CapitalizationStyle.SENTENCE_CASE)
+        rule = create_formatting_rule(
+            name="text_formatting_rule",
+            description="Validates text formatting and capitalization",
+            style_config=style_config,
+            normalize_whitespace=True,
+            remove_extra_lines=True,
+            rule_id="formatting_validator",
+            severity="warning",
+            category="formatting",
+            tags=["formatting", "style", "whitespace"]
+        )
+        ```
+    """
     # Create validator using the validator factory
     validator = create_formatting_validator(
         style_config=style_config,
         strip_whitespace=strip_whitespace,
         normalize_whitespace=normalize_whitespace,
         remove_extra_lines=remove_extra_lines,
-        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
     )
 
     # Create params dictionary for RuleConfig
@@ -1264,12 +1388,21 @@ def create_formatting_rule(
     params["normalize_whitespace"] = normalize_whitespace
     params["remove_extra_lines"] = remove_extra_lines
 
-    # Create RuleConfig
-    config = RuleConfig(params=params, **rule_config_params)
+    # Determine rule name
+    rule_name = name or rule_id or "formatting_rule"
 
-    # Create rule
+    # Create RuleConfig
+    config = RuleConfig(
+        name=rule_name,
+        description=description,
+        rule_id=rule_id or rule_name,
+        params=params,
+        **kwargs,
+    )
+
+    # Create and return the rule
     return FormattingRule(
-        name=name,
+        name=rule_name,
         description=description,
         config=config,
         validator=validator,

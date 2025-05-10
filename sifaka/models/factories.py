@@ -5,9 +5,9 @@ This module provides factory functions for creating model providers,
 simplifying the creation of model providers with common configurations.
 """
 
-from typing import Any, Dict, Optional, Type, TypeVar
+from typing import Any, Optional, Type, TypeVar
 
-from sifaka.models.base import ModelProvider
+from sifaka.models.core import ModelProviderCore
 from sifaka.models.config import ModelConfig
 from sifaka.models.providers.openai import OpenAIProvider
 from sifaka.models.providers.anthropic import AnthropicProvider
@@ -15,7 +15,7 @@ from sifaka.models.providers.gemini import GeminiProvider
 from sifaka.models.providers.mock import MockProvider
 
 # Type variables
-T = TypeVar("T", bound=ModelProvider)
+T = TypeVar("T", bound=ModelProviderCore)
 
 
 def create_model_provider(

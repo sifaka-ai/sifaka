@@ -10,7 +10,7 @@ Latent Dirichlet Allocation (LDA) from scikit-learn.
 import importlib
 from typing import List, Optional, Any, Dict, ClassVar
 
-from pydantic import PrivateAttr
+from pydantic import PrivateAttr, ConfigDict
 from sifaka.classifiers.base import BaseClassifier
 from sifaka.classifiers.models import ClassificationResult
 from sifaka.classifiers.config import ClassifierConfig, standardize_classifier_config

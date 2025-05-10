@@ -66,10 +66,8 @@ result = backoff.run(
 - max_backoff: Maximum backoff time in seconds (BackoffRetryStrategy only)
 """
 
-from .retry import RetryStrategy, SimpleRetryStrategy, BackoffRetryStrategy
+from .retry import RetryStrategy
 
 __all__ = [
     "RetryStrategy",
-    "SimpleRetryStrategy",
-    "BackoffRetryStrategy",
 ]

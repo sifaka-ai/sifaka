@@ -14,7 +14,7 @@ This module follows the standard Sifaka delegation pattern:
 ## Configuration Pattern
 
 This module follows the standard Sifaka configuration pattern:
-- All rule-specific configuration is stored in RuleConfig.params
+- Configuration is stored in dedicated config classes
 - Factory functions handle configuration extraction
 - Validator factory functions create standalone validators
 - Rule factory functions use validator factory functions internally
@@ -32,10 +32,12 @@ rule = create_prohibited_content_rule(
 
 # Validate text
 result = rule.validate("This is a test.")
+print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 """
 
 from typing import Any, List, Optional
+import time
 
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -46,8 +48,10 @@ from sifaka.rules.base import (
     Rule,
     RuleConfig,
     RuleResult,
-    RuleResultHandler,
 )
+from sifaka.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 __all__ = [
@@ -390,42 +394,77 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
     """
 
     def __init__(self, config: ProhibitedContentConfig) -> None:
-        """Initialize with configuration.
+        """
+        Initialize with configuration.
 
         Args:
             config: The configuration for the validator
         """
-        super().__init__()
+        super().__init__(validation_type=str)
         self._config = config
         self._analyzer = ProhibitedContentAnalyzer(config)
 
     @property
     def config(self) -> ProhibitedContentConfig:
-        """Get the validator configuration."""
+        """
+        Get the validator configuration.
+
+        Returns:
+            The validator configuration
+        """
         return self._config
 
-    def validate(self, text: str, **_: Any) -> RuleResult:
-        """Validate the given text for prohibited content.
+    def validate(self, text: str) -> RuleResult:
+        """
+        Validate the given text for prohibited content.
 
         Args:
             text: The text to validate
-            **_: Additional validation context (unused)
 
         Returns:
             RuleResult: The result of the validation
         """
+        start_time = time.time()
+
         # Handle empty text
         empty_result = self.handle_empty_text(text)
         if empty_result:
             return empty_result
 
-        # Delegate to analyzer
-        return self._analyzer.analyze(text)
+        try:
+            # Delegate to analyzer
+            result = self._analyzer.analyze(text)
+
+            # Add processing time and validator type
+            result = result.with_metadata(
+                processing_time_ms=time.time() - start_time,
+                validator_type=self.__class__.__name__,
+            )
+
+            # Update statistics
+            self.update_statistics(result)
+
+            return result
+
+        except Exception as e:
+            self.record_error(e)
+            logger.error(f"Error validating text for prohibited content: {e}")
+
+            return RuleResult(
+                passed=False,
+                message=f"Error validating prohibited content: {str(e)}",
+                metadata={
+                    "error_type": type(e).__name__,
+                    "validator_type": self.__class__.__name__,
+                },
+                score=0.0,
+                issues=[f"Validation error: {str(e)}"],
+                suggestions=["Check the text for problematic content"],
+                processing_time_ms=time.time() - start_time,
+            )
 
 
-class ProhibitedContentRule(
-    Rule[str, RuleResult, DefaultProhibitedContentValidator, RuleResultHandler[RuleResult]]
-):
+class ProhibitedContentRule(Rule[str]):
     """
     Rule for validating prohibited content.
 
@@ -512,7 +551,8 @@ class ProhibitedContentRule(
         config: Optional[RuleConfig] = None,
         validator: Optional[DefaultProhibitedContentValidator] = None,
     ) -> None:
-        """Initialize with configuration.
+        """
+        Initialize with configuration.
 
         Args:
             name: The name of the rule
@@ -523,12 +563,24 @@ class ProhibitedContentRule(
         super().__init__(
             name=name,
             description=description,
-            config=config,
+            config=config
+            or RuleConfig(
+                name=name,
+                description=description,
+            ),
             validator=validator,
         )
 
+        # Store the validator for reference
+        self._prohibited_validator = validator or self._create_default_validator()
+
     def _create_default_validator(self) -> DefaultProhibitedContentValidator:
-        """Create a default validator from config."""
+        """
+        Create a default validator from config.
+
+        Returns:
+            A configured DefaultProhibitedContentValidator
+        """
         # Extract prohibited content specific params
         params = self.config.params
         config = ProhibitedContentConfig(
@@ -540,21 +592,6 @@ class ProhibitedContentRule(
             cost=self.config.cost,
         )
         return DefaultProhibitedContentValidator(config)
-
-    def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate the given text for prohibited content.
-
-        Args:
-            text: The text to validate
-            **kwargs: Additional validation context
-
-        Returns:
-            RuleResult: The result of the validation
-        """
-        # Delegate to validator
-        result = self._validator.validate(text, **kwargs)
-        # Add rule_id to metadata
-        return result.with_metadata(rule_id=self._name)
 
 
 def create_prohibited_content_validator(
@@ -663,6 +700,7 @@ def create_prohibited_content_rule(
     terms: Optional[List[str]] = None,
     threshold: Optional[float] = None,
     case_sensitive: Optional[bool] = None,
+    rule_id: Optional[str] = None,
     **kwargs: Any,
 ) -> ProhibitedContentRule:
     """
@@ -674,9 +712,9 @@ def create_prohibited_content_rule(
     ## Lifecycle
 
     1. **Parameter Processing**: Process input parameters
-       - Extract rule parameters (name, description)
+       - Extract rule parameters (name, description, rule_id)
        - Extract configuration parameters (terms, threshold, case_sensitive)
-       - Extract RuleConfig parameters (priority, cache_size, cost)
+       - Extract RuleConfig parameters (severity, category, tags, priority, cache_size, cost)
        - Handle optional parameters with None values
 
     2. **Validator Creation**: Create validator instance
@@ -729,15 +767,13 @@ def create_prohibited_content_rule(
     rule = create_prohibited_content_rule(
         terms=["term1", "term2"],
         threshold=0.8,
-        cache_size=200,
+        rule_id="prohibited_content_checker",
+        severity="warning",
+        category="content",
+        tags=["prohibited", "content", "safety"],
         priority=2,
         cost=0.5
     )
-
-    # Access configuration
-    print(f"Rule name: {rule._name}")
-    print(f"Cache size: {rule.config.cache_size}")
-    print(f"Priority: {rule.config.priority}")
     ```
 
     Args:
@@ -746,23 +782,23 @@ def create_prohibited_content_rule(
         terms: List of prohibited terms to check for
         threshold: Threshold for prohibited content detection
         case_sensitive: Whether to perform case-sensitive matching
-        **kwargs: Additional keyword arguments for the rule
+        rule_id: Unique identifier for the rule
+        **kwargs: Additional keyword arguments including:
+            - severity: Severity level for rule violations
+            - category: Category of the rule
+            - tags: List of tags for categorizing the rule
+            - priority: Priority level for validation
+            - cache_size: Size of the validation cache
+            - cost: Computational cost of validation
 
     Returns:
         ProhibitedContentRule: The created rule
     """
-    # Extract RuleConfig parameters from kwargs
-    rule_config_params = {}
-    for param in ["priority", "cache_size", "cost"]:
-        if param in kwargs:
-            rule_config_params[param] = kwargs.pop(param)
-
     # Create validator using the validator factory
     validator = create_prohibited_content_validator(
         terms=terms,
         threshold=threshold,
         case_sensitive=case_sensitive,
-        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
     )
 
     # Create params dictionary for RuleConfig
@@ -774,12 +810,21 @@ def create_prohibited_content_rule(
     if case_sensitive is not None:
         params["case_sensitive"] = case_sensitive
 
+    # Determine rule name
+    rule_name = name or rule_id or "prohibited_content_rule"
+
     # Create RuleConfig
-    config = RuleConfig(params=params, **rule_config_params)
+    config = RuleConfig(
+        name=rule_name,
+        description=description,
+        rule_id=rule_id or rule_name,
+        params=params,
+        **kwargs,
+    )
 
     # Create rule
     return ProhibitedContentRule(
-        name=name,
+        name=rule_name,
         description=description,
         config=config,
         validator=validator,

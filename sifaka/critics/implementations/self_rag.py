@@ -7,6 +7,31 @@ relevance and utility of the retrieved information.
 
 Based on Self-RAG: https://arxiv.org/abs/2310.11511
 
+## Component Lifecycle
+
+### Self-RAG Critic Lifecycle
+
+1. **Initialization Phase**
+   - Configuration validation
+   - Provider setup
+   - Retriever setup
+   - Factory initialization
+   - Resource allocation
+
+2. **Operation Phase**
+   - Text validation
+   - Retrieval decision
+   - Information retrieval
+   - Response generation
+   - Reflection generation
+   - Critique generation
+   - Text improvement
+
+3. **Cleanup Phase**
+   - Resource cleanup
+   - State reset
+   - Error recovery
+
 Example:
     ```python
     from sifaka.critics.implementations.self_rag import create_self_rag_critic
@@ -38,17 +63,21 @@ Example:
     ```
 """
 
+import json
+import time
 from typing import Any, Dict, List, Optional, Union, cast
 
 from pydantic import ConfigDict, Field, PrivateAttr
 
-from ..base import BaseCritic
+from ...core.base import BaseComponent
+from ...utils.state import create_critic_state
+from ...core.base import BaseResult as CriticResult
 from ..config import SelfRAGCriticConfig
 from ..interfaces.critic import TextCritic, TextImprover, TextValidator
 from ...retrieval import Retriever
 
 
-class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
+class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, TextCritic):
     """
     A critic that implements the Self-Reflective Retrieval-Augmented Generation approach.
 
@@ -67,31 +96,51 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
        - **PromptManager**: Creates prompts for different stages of the process
        - **ResponseParser**: Parses and validates model responses
        - **MemoryManager**: Manages history of retrievals and reflections
+
+    ## State Management
+    The class uses a standardized state management approach:
+    - Single _state_manager attribute for all mutable state
+    - State initialization during construction
+    - State access through state manager
+    - Clear separation of configuration and state
+    - State components:
+      - model: Language model provider
+      - retriever: Retrieval component
+      - initialized: Initialization status
+      - cache: Temporary data storage
     """
 
-    # Class constants
-    DEFAULT_NAME = "self_rag_critic"
-    DEFAULT_DESCRIPTION = "Improves text through self-reflective retrieval-augmented generation"
+    # Pydantic v2 configuration
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    # State management using direct state
-    _state = PrivateAttr(default_factory=lambda: None)
+    # Configuration
+    config: SelfRAGCriticConfig = Field(description="Critic configuration")
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_critic_state)
 
     def __init__(
         self,
-        config: SelfRAGCriticConfig,
+        name: str,
+        description: str,
         llm_provider: Any,
         retriever: Retriever,
+        config: Optional[SelfRAGCriticConfig] = None,
+        **kwargs: Any,
     ) -> None:
         """
         Initialize the Self-RAG critic.
 
         Args:
-            config: Configuration for the critic
+            name: The name of the critic
+            description: A description of the critic
             llm_provider: Language model provider to use
             retriever: Retriever to use for information retrieval
+            config: Optional configuration for the critic
+            **kwargs: Additional configuration parameters
 
         Raises:
-            ValueError: If llm_provider or retriever is None
+            ValueError: If configuration is invalid
             TypeError: If llm_provider or retriever is not a valid provider
         """
         # Validate required parameters
@@ -100,28 +149,42 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if retriever is None:
             raise ValueError("retriever cannot be None")
 
-        # Initialize base class
-        super().__init__(config)
+        # Create config if not provided
+        if config is None:
+            from ..config import DEFAULT_SELF_RAG_CONFIG
 
-        # Initialize state
-        from ...utils.state import CriticState
+            config = DEFAULT_SELF_RAG_CONFIG.model_copy(
+                update={"name": name, "description": description, **kwargs}
+            )
 
-        self._state = CriticState()
+        # Initialize base component
+        super().__init__(name=name, description=description, config=config)
 
-        # Store components in state
-        self._state.model = llm_provider
-        self._state.retriever = retriever
-        self._state.cache = {
-            "retrieval_threshold": config.retrieval_threshold,
-            "retrieval_prompt_template": config.retrieval_prompt_template,
-            "generation_prompt_template": config.generation_prompt_template,
-            "reflection_prompt_template": config.reflection_prompt_template,
-            "system_prompt": config.system_prompt,
-            "temperature": config.temperature,
-            "max_tokens": config.max_tokens,
-            "reflection_enabled": config.reflection_enabled,
-        }
-        self._state.initialized = True
+        try:
+            # Store components in state
+            self._state_manager.update("model", llm_provider)
+            self._state_manager.update("retriever", retriever)
+
+            # Store configuration in cache
+            cache = {
+                "retrieval_threshold": config.retrieval_threshold,
+                "retrieval_prompt_template": config.retrieval_prompt_template,
+                "generation_prompt_template": config.generation_prompt_template,
+                "reflection_prompt_template": config.reflection_prompt_template,
+                "system_prompt": config.system_prompt,
+                "temperature": config.temperature,
+                "max_tokens": config.max_tokens,
+                "reflection_enabled": config.reflection_enabled,
+            }
+            self._state_manager.update("cache", cache)
+
+            # Mark as initialized
+            self._state_manager.update("initialized", True)
+            self._state_manager.set_metadata("component_type", self.__class__.__name__)
+            self._state_manager.set_metadata("initialization_time", time.time())
+        except Exception as e:
+            self.record_error(e)
+            raise ValueError(f"Failed to initialize SelfRAGCritic: {str(e)}") from e
 
     def _check_input(self, text: str) -> None:
         """
@@ -137,7 +200,7 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        if not self._state.initialized:
+        if not self._state_manager.get("initialized", False):
             raise RuntimeError("SelfRAGCritic not properly initialized")
 
     def _get_task_from_metadata(self, metadata: Optional[Dict[str, Any]]) -> str:
@@ -156,6 +219,96 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         if metadata is None or "task" not in metadata:
             raise ValueError("metadata must contain a 'task' key")
         return metadata["task"]
+
+    def process(self, input: str) -> CriticResult:
+        """
+        Process the input text and return a result.
+
+        This is the main method required by BaseComponent.
+
+        Args:
+            input: The text to process
+
+        Returns:
+            CriticResult: The result of processing the text
+
+        Raises:
+            ValueError: If text is empty
+            RuntimeError: If critic is not properly initialized
+        """
+        start_time = time.time()
+
+        try:
+            # Validate input
+            if not isinstance(input, str) or not input.strip():
+                raise ValueError("Input must be a non-empty string")
+
+            # Ensure initialized
+            if not self._state_manager.get("initialized", False):
+                raise RuntimeError("SelfRAGCritic not properly initialized")
+
+            # Create a default task if none provided
+            task = "Provide information about the following text"
+
+            # Run the Self-RAG process
+            result = self.run(task, input)
+
+            # Extract reflection as feedback
+            reflection = result.get("reflection", "")
+
+            # Parse reflection for issues and suggestions
+            issues = []
+            suggestions = []
+
+            # Extract issues and suggestions from reflection
+            for line in reflection.split("\n"):
+                line = line.strip()
+                if line.startswith("- ") or line.startswith("* "):
+                    if (
+                        "should" in line.lower()
+                        or "could" in line.lower()
+                        or "recommend" in line.lower()
+                    ):
+                        suggestions.append(line[2:])
+                    else:
+                        issues.append(line[2:])
+
+            # Calculate score based on issues
+            score = 1.0 if not issues else 0.5
+
+            # Create result
+            critic_result = CriticResult(
+                passed=True,  # Self-RAG critics always pass
+                message=result.get("response", ""),
+                metadata={
+                    "operation": "process",
+                    "retrieval_query": result.get("retrieval_query", ""),
+                    "retrieved_context": result.get("retrieved_context", ""),
+                    "reflection": reflection,
+                },
+                score=score,
+                issues=issues,
+                suggestions=suggestions,
+                processing_time_ms=(time.time() - start_time) * 1000,
+            )
+
+            # Update statistics
+            self.update_statistics(critic_result)
+
+            return critic_result
+
+        except Exception as e:
+            self.record_error(e)
+            processing_time = (time.time() - start_time) * 1000
+            return CriticResult(
+                passed=False,
+                message=f"Error: {str(e)}",
+                metadata={"error_type": type(e).__name__},
+                score=0.0,
+                issues=[f"Processing error: {str(e)}"],
+                suggestions=["Retry with different input"],
+                processing_time_ms=processing_time,
+            )
 
     @property
     def config(self) -> SelfRAGCriticConfig:
@@ -281,7 +434,7 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             raise ValueError("feedback must be a non-empty string")
 
         # Use the feedback as context for generation
-        generation_template = self._state.cache.get("generation_prompt_template")
+        generation_template = self._state_manager.get("cache", {}).get("generation_prompt_template")
         if not generation_template:
             generation_template = (
                 "Please answer the following task using the provided context (if available).\n\n"
@@ -295,12 +448,16 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         )
 
         # Generate improved response
-        improved_text = self._state.model.generate(
-            generation_prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
-        ).strip()
+        improved_text = (
+            self._state_manager.get("model")
+            .generate(
+                generation_prompt,
+                system_prompt=self._state_manager.get("cache", {}).get("system_prompt", ""),
+                temperature=self._state_manager.get("cache", {}).get("temperature", 0.7),
+                max_tokens=self._state_manager.get("cache", {}).get("max_tokens", 1000),
+            )
+            .strip()
+        )
 
         return improved_text
 
@@ -322,14 +479,14 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             ValueError: If task is empty
             RuntimeError: If critic is not properly initialized
         """
-        if not self._state.initialized:
+        if not self._state_manager.get("initialized", False):
             raise RuntimeError("SelfRAGCritic not properly initialized")
 
         if not isinstance(task, str) or not task.strip():
             raise ValueError("task must be a non-empty string")
 
         # Step 1: Ask model to decide whether to retrieve and what to retrieve
-        retrieval_template = self._state.cache.get("retrieval_prompt_template")
+        retrieval_template = self._state_manager.get("cache", {}).get("retrieval_prompt_template")
         if not retrieval_template:
             retrieval_template = (
                 "For the following task, decide whether you need to retrieve information and what to retrieve.\n\n"
@@ -342,15 +499,19 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
             task=task, response=response or "No response yet."
         )
 
-        retrieval_decision = self._state.model.generate(
-            retrieval_prompt,
-            system_prompt=self._state.cache.get("system_prompt", ""),
-            temperature=self._state.cache.get("temperature", 0.7),
-            max_tokens=self._state.cache.get("max_tokens", 1000),
-        ).strip()
+        retrieval_decision = (
+            self._state_manager.get("model")
+            .generate(
+                retrieval_prompt,
+                system_prompt=self._state_manager.get("cache", {}).get("system_prompt", ""),
+                temperature=self._state_manager.get("cache", {}).get("temperature", 0.7),
+                max_tokens=self._state_manager.get("cache", {}).get("max_tokens", 1000),
+            )
+            .strip()
+        )
 
         # Step 2: Extract retrieval query and decide whether to retrieve
-        retrieval_threshold = self._state.cache.get("retrieval_threshold", 0.5)
+        retrieval_threshold = self._state_manager.get("cache", {}).get("retrieval_threshold", 0.5)
         should_retrieve = False
         retrieval_query = ""
 
@@ -367,13 +528,15 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         context = ""
         if should_retrieve and retrieval_query:
             # Retrieve information
-            results = self._state.retriever.retrieve(retrieval_query, top_k=3)
+            results = self._state_manager.get("retriever").retrieve(retrieval_query, top_k=3)
             if results:
                 context = "\n\n".join([result.content for result in results])
 
         # Generate response if not provided
         if response is None:
-            generation_template = self._state.cache.get("generation_prompt_template")
+            generation_template = self._state_manager.get("cache", {}).get(
+                "generation_prompt_template"
+            )
             if not generation_template:
                 generation_template = (
                     "Please answer the following task using the provided context (if available).\n\n"
@@ -385,17 +548,23 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
                 context=context or "No relevant information found.", task=task
             )
 
-            response = self._state.model.generate(
-                generation_prompt,
-                system_prompt=self._state.cache.get("system_prompt", ""),
-                temperature=self._state.cache.get("temperature", 0.7),
-                max_tokens=self._state.cache.get("max_tokens", 1000),
-            ).strip()
+            response = (
+                self._state_manager.get("model")
+                .generate(
+                    generation_prompt,
+                    system_prompt=self._state_manager.get("cache", {}).get("system_prompt", ""),
+                    temperature=self._state_manager.get("cache", {}).get("temperature", 0.7),
+                    max_tokens=self._state_manager.get("cache", {}).get("max_tokens", 1000),
+                )
+                .strip()
+            )
 
         # Step 4: Ask model to reflect on whether the answer is good and the retrieval helped
         reflection = ""
-        if self._state.cache.get("reflection_enabled", True):
-            reflection_template = self._state.cache.get("reflection_prompt_template")
+        if self._state_manager.get("cache", {}).get("reflection_enabled", True):
+            reflection_template = self._state_manager.get("cache", {}).get(
+                "reflection_prompt_template"
+            )
             if not reflection_template:
                 reflection_template = (
                     "Reflect on whether your answer used relevant information and addressed the task accurately.\n\n"
@@ -408,12 +577,16 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
                 task=task, context=context, response=response
             )
 
-            reflection = self._state.model.generate(
-                reflection_prompt,
-                system_prompt=self._state.cache.get("system_prompt", ""),
-                temperature=self._state.cache.get("temperature", 0.7),
-                max_tokens=self._state.cache.get("max_tokens", 1000),
-            ).strip()
+            reflection = (
+                self._state_manager.get("model")
+                .generate(
+                    reflection_prompt,
+                    system_prompt=self._state_manager.get("cache", {}).get("system_prompt", ""),
+                    temperature=self._state_manager.get("cache", {}).get("temperature", 0.7),
+                    max_tokens=self._state_manager.get("cache", {}).get("max_tokens", 1000),
+                )
+                .strip()
+            )
 
         return {
             "response": response,
@@ -435,12 +608,12 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
         self._check_input(text)
         task = self._get_task_from_metadata(metadata)
         result = await self.arun(task, text, metadata)
-        
+
         # Extract reflection as feedback
         reflection = result.get("reflection", "")
         issues = []
         suggestions = []
-        
+
         for line in reflection.split("\n"):
             line = line.strip()
             if line.startswith("- ") or line.startswith("* "):
@@ -452,9 +625,9 @@ class SelfRAGCritic(BaseCritic, TextValidator, TextImprover, TextCritic):
                     suggestions.append(line[2:])
                 else:
                     issues.append(line[2:])
-                    
+
         score = 1.0 if not issues else 0.5
-        
+
         return {
             "score": score,
             "feedback": reflection,
@@ -500,75 +673,91 @@ def create_self_rag_critic(
     """
     Create a Self-RAG critic with the given parameters.
 
+    This factory function creates a configured Self-RAG critic instance
+    that enables language models to decide when and what to retrieve,
+    and reflect on the relevance and utility of the retrieved information.
+
     Args:
-        llm_provider: Language model provider to use
-        retriever: Retriever to use for information retrieval
-        name: Name of the critic
-        description: Description of the critic
-        min_confidence: Minimum confidence threshold
-        max_attempts: Maximum number of improvement attempts
-        cache_size: Size of the cache
-        priority: Priority of the critic
-        cost: Cost of using the critic
-        system_prompt: System prompt for the model
-        temperature: Temperature for model generation
-        max_tokens: Maximum tokens for model generation
-        retrieval_threshold: Threshold for deciding whether to retrieve
-        retrieval_prompt_template: Template for retrieval prompts
-        generation_prompt_template: Template for generation prompts
-        reflection_prompt_template: Template for reflection prompts
+        llm_provider: The language model provider to use
+        retriever: The retriever to use for information retrieval
+        name: The name of the critic
+        description: A description of the critic
+        min_confidence: The minimum confidence threshold
+        max_attempts: The maximum number of attempts
+        cache_size: The size of the cache
+        priority: The priority of the critic
+        cost: The cost of the critic
+        system_prompt: The system prompt to use
+        temperature: The temperature to use for generation
+        max_tokens: The maximum number of tokens to generate
+        retrieval_threshold: The threshold for deciding whether to retrieve
+        retrieval_prompt_template: The template for retrieval prompts
+        generation_prompt_template: The template for generation prompts
+        reflection_prompt_template: The template for reflection prompts
         config: Optional critic configuration (overrides other parameters)
-        **kwargs: Additional keyword arguments
+        **kwargs: Additional configuration parameters
 
     Returns:
-        SelfRAGCritic: Configured Self-RAG critic
+        A configured SelfRAGCritic instance
+
+    Raises:
+        ValueError: If configuration is invalid
+        TypeError: If llm_provider or retriever is not a valid provider
     """
-    # Create config if not provided
-    if config is None:
-        from ..config import DEFAULT_SELF_RAG_CONFIG
+    try:
+        # Create config if not provided
+        if config is None:
+            from ..config import DEFAULT_SELF_RAG_CONFIG
 
-        config = DEFAULT_SELF_RAG_CONFIG.model_copy()
+            config = DEFAULT_SELF_RAG_CONFIG.model_copy()
 
-        # Update config with provided values
-        updates = {}
-        if name is not None:
-            updates["name"] = name
-        if description is not None:
-            updates["description"] = description
-        if system_prompt is not None:
-            updates["system_prompt"] = system_prompt
-        if temperature is not None:
-            updates["temperature"] = temperature
-        if max_tokens is not None:
-            updates["max_tokens"] = max_tokens
-        if min_confidence is not None:
-            updates["min_confidence"] = min_confidence
-        if max_attempts is not None:
-            updates["max_attempts"] = max_attempts
-        if cache_size is not None:
-            updates["cache_size"] = cache_size
-        if priority is not None:
-            updates["priority"] = priority
-        if cost is not None:
-            updates["cost"] = cost
-        if retrieval_threshold is not None:
-            updates["retrieval_threshold"] = retrieval_threshold
-        if retrieval_prompt_template is not None:
-            updates["retrieval_prompt_template"] = retrieval_prompt_template
-        if generation_prompt_template is not None:
-            updates["generation_prompt_template"] = generation_prompt_template
-        if reflection_prompt_template is not None:
-            updates["reflection_prompt_template"] = reflection_prompt_template
+            # Update config with provided values
+            updates = {}
+            if name is not None:
+                updates["name"] = name
+            if description is not None:
+                updates["description"] = description
+            if system_prompt is not None:
+                updates["system_prompt"] = system_prompt
+            if temperature is not None:
+                updates["temperature"] = temperature
+            if max_tokens is not None:
+                updates["max_tokens"] = max_tokens
+            if min_confidence is not None:
+                updates["min_confidence"] = min_confidence
+            if max_attempts is not None:
+                updates["max_attempts"] = max_attempts
+            if cache_size is not None:
+                updates["cache_size"] = cache_size
+            if priority is not None:
+                updates["priority"] = priority
+            if cost is not None:
+                updates["cost"] = cost
+            if retrieval_threshold is not None:
+                updates["retrieval_threshold"] = retrieval_threshold
+            if retrieval_prompt_template is not None:
+                updates["retrieval_prompt_template"] = retrieval_prompt_template
+            if generation_prompt_template is not None:
+                updates["generation_prompt_template"] = generation_prompt_template
+            if reflection_prompt_template is not None:
+                updates["reflection_prompt_template"] = reflection_prompt_template
 
-        config = config.model_copy(update=updates)
-    elif isinstance(config, dict):
-        from ..config import SelfRAGCriticConfig
+            # Add any additional kwargs
+            updates.update(kwargs)
 
-        config = SelfRAGCriticConfig(**config)
+            config = config.model_copy(update=updates)
+        elif isinstance(config, dict):
+            from ..config import SelfRAGCriticConfig
 
-    # Create and return the critic
-    return SelfRAGCritic(
-        config=config,
-        llm_provider=llm_provider,
-        retriever=retriever,
-    )
+            config = SelfRAGCriticConfig(**config)
+
+        # Create and return the critic
+        return SelfRAGCritic(
+            name=name,
+            description=description,
+            llm_provider=llm_provider,
+            retriever=retriever,
+            config=config,
+        )
+    except Exception as e:
+        raise ValueError(f"Failed to create Self-RAG critic: {str(e)}") from e

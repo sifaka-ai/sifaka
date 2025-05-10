@@ -27,9 +27,23 @@ managers handle the core operational aspects of the chain system.
    - Performance tracking
    - Caching
 
+3. **MemoryManager**: Manages memory operations
+   - Memory storage and retrieval
+   - Memory store management
+   - Caching of memory operations
+   - State management
+   - Performance tracking
+   - Error handling
+
 ## Usage Examples
 ```python
-from sifaka.chain.managers import BasePrompt, create_prompt_manager, create_validation_manager
+from sifaka.chain.managers import (
+    BasePrompt,
+    create_prompt_manager,
+    create_validation_manager,
+    create_memory_manager,
+    BaseMemory
+)
 from sifaka.rules import create_length_rule
 
 # Create prompt manager using factory function
@@ -78,6 +92,28 @@ if not result.passed:
 stats = validation_manager.get_statistics()
 print(f"Validation count: {stats['validation_count']}")
 print(f"Success rate: {stats['success_rate']:.2f}")
+
+# Create memory manager using factory function
+memory_manager = create_memory_manager(
+    name="story_memory",
+    description="Stores story generation history",
+    cache_enabled=True,
+    max_items=50
+)
+
+# Store a value in memory
+memory_manager.store("last_prompt", prompt)
+
+# Retrieve a value from memory
+memory_input = {"operation": "retrieve", "key": "last_prompt"}
+memory_result = memory_manager.process(memory_input)
+if memory_result.found:
+    print(f"Retrieved value: {memory_result.value}")
+
+# Get memory statistics
+memory_stats = memory_manager.get_statistics()
+print(f"Memory count: {memory_stats['memory_count']}")
+print(f"Cache size: {memory_stats['cache_size']}")
 ```
 
 ## Error Handling
@@ -102,6 +138,13 @@ print(f"Success rate: {stats['success_rate']:.2f}")
   - prioritize_by_cost: Whether to sort rules by cost
   - fail_fast: Whether to stop on first failure
   - cache_size: Size of the validation cache
+
+- MemoryManager:
+  - memories: List of memory stores
+  - name: Name of the manager
+  - description: Description of the manager
+  - cache_enabled: Whether to enable caching
+  - max_items: Maximum number of items to store in memory
 """
 
 from .prompt import (
@@ -117,6 +160,13 @@ from .validation import (
     ValidationResult,
     create_validation_manager,
 )
+from .memory import (
+    MemoryManager,
+    MemoryConfig,
+    MemoryResult,
+    BaseMemory,
+    create_memory_manager,
+)
 
 __all__ = [
     # Prompt management
@@ -130,4 +180,10 @@ __all__ = [
     "ValidationConfig",
     "ValidationResult",
     "create_validation_manager",
+    # Memory management
+    "MemoryManager",
+    "MemoryConfig",
+    "MemoryResult",
+    "BaseMemory",
+    "create_memory_manager",
 ]

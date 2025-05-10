@@ -86,7 +86,8 @@ from .orchestrator import ChainOrchestrator
 from .formatters.result import ResultFormatter
 from .managers.prompt import PromptManager
 from .managers.validation import ValidationManager
-from .strategies.retry import BackoffRetryStrategy, SimpleRetryStrategy
+from .strategies.retry import RetryStrategy
+from .core import ChainCore
 from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -271,25 +272,13 @@ def create_backoff_chain(
     # Create components
     validation_manager = ValidationManager[OutputType](rules)
     prompt_manager = PromptManager()
-    retry_strategy = BackoffRetryStrategy[OutputType](
+    retry_strategy = RetryStrategy(
         max_attempts=max_attempts,
-        initial_backoff=initial_backoff,
-        backoff_factor=backoff_factor,
-        max_backoff=max_backoff,
     )
     result_formatter = ResultFormatter[OutputType]()
 
-    # Create core chain
-    core = ChainCore[OutputType](
-        model=model,
-        validation_manager=validation_manager,
-        prompt_manager=prompt_manager,
-        retry_strategy=retry_strategy,
-        result_formatter=result_formatter,
-        critic=critic,
-    )
-
-    return ChainOrchestrator[OutputType](
+    # Create orchestrator
+    return ChainOrchestrator(
         model=model,
         rules=rules,
         critic=critic,

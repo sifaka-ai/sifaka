@@ -3,18 +3,60 @@ Google Gemini model provider implementation.
 
 This module provides the GeminiProvider class which implements the ModelProviderCore
 interface for Google Gemini models.
+
+## Overview
+The Gemini provider connects to Google's Generative AI API for text generation, offering access
+to models like Gemini Pro. It handles authentication, API communication, token counting,
+response processing, and execution tracking.
+
+## Components
+- **GeminiProvider**: Main provider class for Google Gemini models
+- **GeminiClient**: API client implementation for Google Gemini
+- **GeminiTokenCounter**: Token counter implementation for Gemini models
+
+## Usage Examples
+```python
+from sifaka.models.providers.gemini import GeminiProvider
+from sifaka.models.config import ModelConfig
+
+# Create a provider with default configuration
+provider = GeminiProvider(model_name="gemini-pro")
+
+# Create a provider with custom configuration
+config = ModelConfig(
+    temperature=0.8,
+    max_tokens=2000,
+    api_key="your-api-key"
+)
+provider = GeminiProvider(model_name="gemini-pro", config=config)
+
+# Generate text
+response = provider.generate("Explain quantum computing")
+
+# Count tokens
+token_count = provider.count_tokens("How many tokens is this?")
+```
+
+## Error Handling
+The provider implements comprehensive error handling:
+- API authentication errors
+- Rate limiting and quota errors
+- Network and timeout errors
+- Model-specific errors
+- Input validation errors
 """
 
+import os
 from typing import Optional, Dict, Any, ClassVar
 
-import google.generativeai as genai
 import tiktoken
-from pydantic import PrivateAttr
+import importlib.util
+import google.generativeai as genai
 
 from sifaka.models.base import APIClient, ModelConfig, TokenCounter
 from sifaka.models.core import ModelProviderCore
+from sifaka.utils.errors import handle_error
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import create_model_state
 
 logger = get_logger(__name__)
 
@@ -23,65 +65,131 @@ class GeminiClient(APIClient):
     """Gemini API client implementation."""
 
     def __init__(self, api_key: Optional[str] = None) -> None:
-        """Initialize the Gemini client."""
+        """
+        Initialize the Gemini client.
+
+        Args:
+            api_key: Optional API key for Google Gemini
+        """
+        # Check for API key in environment if not provided
+        if not api_key:
+            api_key = os.environ.get("GOOGLE_API_KEY")
+            logger.debug("Retrieved API key from environment")
+
+        # Validate API key
+        if not api_key:
+            logger.warning(
+                "No Google API key provided and GOOGLE_API_KEY environment variable not set"
+            )
+
+        # Configure the client
         genai.configure(api_key=api_key)
+        self.api_key = api_key
         self.model = None  # Lazy initialization
         logger.debug("Initialized Gemini client")
 
     def send_prompt(self, prompt: str, config: ModelConfig) -> str:
-        """Send a prompt to Gemini and return the response."""
+        """
+        Send a prompt to Gemini and return the response.
+
+        Args:
+            prompt: The prompt to send
+            config: Configuration for the request
+
+        Returns:
+            The generated text response
+
+        Raises:
+            ValueError: If API key is missing
+            RuntimeError: If the API call fails
+        """
+        # Get API key from config or client
+        api_key = config.api_key or self.api_key
+
+        # Check for missing API key
+        if not api_key:
+            raise ValueError(
+                "No API key provided. Please provide an API key either by setting the "
+                "GOOGLE_API_KEY environment variable or by passing it explicitly."
+            )
+
         try:
+            # Initialize model if needed
             if self.model is None:
+                model_name = config.params.get("model_name", "gemini-pro")
                 self.model = genai.GenerativeModel(
-                    model_name="gemini-pro",
+                    model_name=model_name,
                     generation_config={
                         "temperature": config.temperature,
                         "max_output_tokens": config.max_tokens,
+                        "top_p": config.params.get("top_p", 0.95),
+                        "top_k": config.params.get("top_k", 40),
                     },
                 )
 
+            # Generate text
             response = self.model.generate_content(prompt)
             return response.text
+
         except Exception as e:
-            logger.error(f"Gemini API error: {str(e)}")
-            raise
+            error_info = handle_error(e, "GeminiClient")
+            logger.error(f"Gemini API error: {error_info['error_message']}")
+            raise RuntimeError(f"Gemini API error: {str(e)}") from e
 
 
 class GeminiTokenCounter(TokenCounter):
     """Token counter using tiktoken for Gemini models."""
 
     def __init__(self, model: str = "gemini-pro") -> None:
-        """Initialize the token counter for a specific model."""
+        """
+        Initialize the token counter for a specific model.
+
+        Args:
+            model: The model to count tokens for
+        """
         try:
-            # Gemini uses similar tokenization to GPT-3.5
+            # Gemini uses similar tokenization to GPT-3.5/GPT-4
             self.encoding = tiktoken.get_encoding("cl100k_base")
             logger.debug(f"Initialized token counter for model {model}")
         except Exception as e:
-            logger.error(f"Error initializing token counter: {str(e)}")
-            raise
+            error_info = handle_error(e, "GeminiTokenCounter")
+            logger.error(f"Error initializing token counter: {error_info['error_message']}")
+            raise RuntimeError(f"Failed to initialize token counter: {str(e)}") from e
 
     def count_tokens(self, text: str) -> int:
-        """Count tokens in the text using the model's encoding."""
+        """
+        Count tokens in the text using the model's encoding.
+
+        Args:
+            text: The text to count tokens for
+
+        Returns:
+            The number of tokens in the text
+        """
         try:
             return len(self.encoding.encode(text))
         except Exception as e:
-            logger.error(f"Error counting tokens: {str(e)}")
-            raise
+            error_info = handle_error(e, "GeminiTokenCounter")
+            logger.error(f"Error counting tokens: {error_info['error_message']}")
+            raise RuntimeError(f"Failed to count tokens: {str(e)}") from e
 
 
 class GeminiProvider(ModelProviderCore):
     """
     Google Gemini model provider implementation.
 
-    This provider supports Gemini Pro models with configurable parameters
-    and built-in token counting.
+    This provider supports Gemini Pro models with configurable parameters,
+    built-in token counting, and execution tracking. It handles communication
+    with Google's Generative AI API, token counting, and response processing.
+
+    ## Architecture
+    GeminiProvider extends ModelProviderCore and follows Sifaka's component-based
+    architecture. It delegates API communication to GeminiClient and token counting
+    to GeminiTokenCounter.
     """
 
     # Class constants
     DEFAULT_MODEL: ClassVar[str] = "gemini-pro"
-
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_model_state)
 
     def __init__(
         self,
@@ -101,23 +209,16 @@ class GeminiProvider(ModelProviderCore):
         """
         # Verify Google Generative AI package is installed
         try:
-            # Just importing the package to verify it's installed
-            # We already imported it at the module level
-            pass
+            import importlib.util
+
+            if importlib.util.find_spec("google.generativeai") is None:
+                raise ImportError()
         except ImportError:
             raise ImportError(
                 "Google Generative AI package is required. Install with: pip install google-generativeai"
             )
 
-        # Initialize state
-        state = self._state_manager.get_state()
-        state.initialized = False
-        state.cache = {}
-
-        # Store components in state
-        state.cache["api_client"] = api_client
-        state.cache["token_counter"] = token_counter
-
+        # Initialize with ModelProviderCore
         super().__init__(
             model_name=model_name,
             config=config,
@@ -125,68 +226,66 @@ class GeminiProvider(ModelProviderCore):
             token_counter=token_counter,
         )
 
-    def _create_default_client(self) -> APIClient:
-        """
-        Create a default Gemini client.
-
-        Returns:
-            A default Gemini API client
-        """
-        # Get state
-        state = self._state_manager.get_state()
-
-        # Check if client is already in state cache
-        if "api_client" in state.cache and state.cache["api_client"]:
-            return state.cache["api_client"]
-
-        # Create new client
-        client = GeminiClient(api_key=self.config.api_key)
-
-        # Store in state cache
-        state.cache["api_client"] = client
-
-        return client
-
-    def _create_default_token_counter(self) -> TokenCounter:
-        """
-        Create a default token counter for the current model.
-
-        Returns:
-            A default token counter for Gemini models
-        """
-        # Get state
-        state = self._state_manager.get_state()
-
-        # Check if token counter is already in state cache
-        if "token_counter" in state.cache and state.cache["token_counter"]:
-            return state.cache["token_counter"]
-
-        # Create new token counter
-        token_counter = GeminiTokenCounter(model=self.model_name)
-
-        # Store in state cache
-        state.cache["token_counter"] = token_counter
-
-        return token_counter
-
     def invoke(self, prompt: str, **kwargs) -> str:
         """
-        Invoke the model with a prompt and return structured output.
+        Invoke the model with a prompt (delegates to generate).
 
-        This is a convenience method that delegates to generate.
+        This method is needed for compatibility with the critique service
+        which expects an 'invoke' method.
 
         Args:
-            prompt: The prompt to generate from
+            prompt: The prompt to send to the model
             **kwargs: Additional keyword arguments to pass to the model
 
         Returns:
-            The generated text
+            The generated text response
         """
-        # Get state
-        state = self._state_manager.get_state()
-
-        # Ensure initialized
-        if not state.initialized:
-            state.initialized = True
-
         return self.generate(prompt, **kwargs)
+
+    async def ainvoke(self, prompt: str, **kwargs) -> str:
+        """
+        Asynchronously invoke the model with a prompt.
+
+        This method delegates to agenerate if it exists, or falls back to
+        synchronous generate.
+
+        Args:
+            prompt: The prompt to send to the model
+            **kwargs: Additional keyword arguments to pass to the model
+
+        Returns:
+            The generated text response
+        """
+        if hasattr(self, "agenerate"):
+            return await self.agenerate(prompt, **kwargs)
+
+        # Fall back to synchronous generate
+        return self.generate(prompt, **kwargs)
+
+    def _create_default_client(self) -> APIClient:
+        """Create a default Gemini client."""
+        return GeminiClient(api_key=self.config.api_key)
+
+    def _create_default_token_counter(self) -> TokenCounter:
+        """Create a default token counter for the current model."""
+        return GeminiTokenCounter(model=self.model_name)
+
+    @property
+    def name(self) -> str:
+        """
+        Get the provider name.
+
+        Returns:
+            The provider name
+        """
+        return f"Gemini-{self.model_name}"
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get statistics about provider usage.
+
+        Returns:
+            Dictionary with usage statistics
+        """
+        # Get statistics from tracing manager
+        return self._tracing_manager.get_statistics()

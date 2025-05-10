@@ -97,7 +97,7 @@ functionality into smaller, focused components:
 """
 
 # Interfaces
-from .interfaces.chain import Chain, AsyncChain
+from sifaka.interfaces import Chain, AsyncChain
 from .interfaces.critic import CriticProtocol
 from .interfaces.formatter import ResultFormatterProtocol
 from .interfaces.manager import PromptManagerProtocol, ValidationManagerProtocol
@@ -111,7 +111,7 @@ from .factories import create_simple_chain, create_backoff_chain
 from .formatters.result import ResultFormatter
 from .managers.prompt import PromptManager
 from .managers.validation import ValidationManager
-from .strategies.retry import RetryStrategy, SimpleRetryStrategy, BackoffRetryStrategy
+from .strategies.retry import RetryStrategy
 
 # Utility functions
 from .utils import create_chain_result, create_error_result, try_chain_operation
@@ -137,8 +137,6 @@ __all__ = [
     "ValidationManager",
     # Strategies
     "RetryStrategy",
-    "SimpleRetryStrategy",
-    "BackoffRetryStrategy",
     # Formatters
     "ResultFormatter",
     # Utility functions

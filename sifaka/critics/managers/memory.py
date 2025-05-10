@@ -87,13 +87,9 @@ print(f"Memory size after clear: {memory_manager.memory_size}")
 """
 
 import time
-from collections import deque
-from typing import List, Optional, Dict, Any, Type
+from typing import List, Optional, Dict, Any
 
 from pydantic import PrivateAttr
-
-from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
-from sifaka.critics.base import BaseCritic, CriticConfig, CriticResult
 from sifaka.utils.state import StateManager
 from sifaka.utils.logging import get_logger
 

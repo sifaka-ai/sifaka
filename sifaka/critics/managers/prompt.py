@@ -176,12 +176,11 @@ prompt_manager = CustomPromptManager(config)
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, Any, Type
+from typing import List, Optional, Dict, Any
 import time
 from pydantic import PrivateAttr
 
-from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
-from sifaka.critics.base import BaseCritic, CriticConfig, CriticResult
+from sifaka.critics.base import CriticConfig
 from sifaka.utils.state import StateManager
 from sifaka.utils.logging import get_logger
 

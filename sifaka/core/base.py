@@ -23,6 +23,8 @@ import re
 import time
 from datetime import datetime
 
+from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
+
 from sifaka.utils.state import StateManager
 from sifaka.utils.logging import get_logger
 
@@ -72,7 +74,7 @@ class BaseConfig(BaseModel):
     )
 
 
-class BaseResult(BaseModel):
+class BaseResult(BaseModel, Generic[T]):
     """Base result for all components."""
 
     passed: bool
@@ -151,30 +153,59 @@ class BaseComponent(ABC, Generic[T, R]):
     config: BaseConfig
 
     # Add state manager as a private attribute
-    _state = PrivateAttr(default_factory=StateManager)
+    _state_manager = None
 
     def __init__(
         self, name: str, description: str, config: Optional[BaseConfig] = None, **kwargs: Any
     ) -> None:
         """Initialize the component."""
-        self.name = name
-        self.description = description
-        self.config = config or BaseConfig(name=name, description=description, **kwargs)
+        # Store name and description as instance variables
+        self._name = name
+        self._description = description
+        # Initialize state first
         self._initialize_state()
+        # Then set config (which might need state to be initialized)
+        self._config = config or BaseConfig(name=name, description=description, **kwargs)
 
     def _initialize_state(self) -> None:
         """Initialize component state."""
-        self._state.update("initialized", False)
-        self._state.update("cache", {})
-        self._state.set_metadata("component_type", self.__class__.__name__)
-        self._state.set_metadata("validation_count", 0)
-        self._state.set_metadata("success_count", 0)
-        self._state.set_metadata("failure_count", 0)
-        self._state.set_metadata("improvement_count", 0)
-        self._state.set_metadata("total_processing_time_ms", 0.0)
-        self._state.set_metadata("error_count", 0)
-        self._state.set_metadata("last_error", None)
-        self._state.set_metadata("last_error_time", None)
+        # Create state manager
+        from sifaka.utils.state import StateManager
+
+        self._state_manager = StateManager()
+
+        # Initialize state
+        self._state_manager.update("initialized", False)
+        self._state_manager.update("cache", {})
+        self._state_manager.set_metadata("component_type", self.__class__.__name__)
+        self._state_manager.set_metadata("validation_count", 0)
+        self._state_manager.set_metadata("success_count", 0)
+        self._state_manager.set_metadata("failure_count", 0)
+        self._state_manager.set_metadata("improvement_count", 0)
+        self._state_manager.set_metadata("total_processing_time_ms", 0.0)
+        self._state_manager.set_metadata("error_count", 0)
+        self._state_manager.set_metadata("last_error", None)
+        self._state_manager.set_metadata("last_error_time", None)
+
+    @property
+    def name(self) -> str:
+        """Get component name."""
+        return self._name
+
+    @property
+    def description(self) -> str:
+        """Get component description."""
+        return self._description
+
+    @property
+    def config(self) -> BaseConfig:
+        """Get component configuration."""
+        return self._config
+
+    @config.setter
+    def config(self, value: BaseConfig) -> None:
+        """Set component configuration."""
+        self._config = value
 
     @property
     def min_confidence(self) -> float:
@@ -226,71 +257,71 @@ class BaseComponent(ABC, Generic[T, R]):
 
     def get_statistics(self) -> Dict[str, Any]:
         """Get component statistics."""
-        total_count = self._state.get_metadata("validation_count", 0)
-        success_count = self._state.get_metadata("success_count", 0)
-        failure_count = self._state.get_metadata("failure_count", 0)
-        total_time = self._state.get_metadata("total_processing_time_ms", 0.0)
-        error_count = self._state.get_metadata("error_count", 0)
+        total_count = self._state_manager.get_metadata("validation_count", 0)
+        success_count = self._state_manager.get_metadata("success_count", 0)
+        failure_count = self._state_manager.get_metadata("failure_count", 0)
+        total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
+        error_count = self._state_manager.get_metadata("error_count", 0)
 
         return {
             "name": self.name,
             "validation_count": total_count,
             "success_count": success_count,
             "failure_count": failure_count,
-            "improvement_count": self._state.get_metadata("improvement_count", 0),
+            "improvement_count": self._state_manager.get_metadata("improvement_count", 0),
             "success_rate": success_count / total_count if total_count > 0 else 0.0,
             "error_rate": error_count / total_count if total_count > 0 else 0.0,
             "average_processing_time_ms": total_time / total_count if total_count > 0 else 0.0,
-            "cache_size": len(self._state.get("cache", {})),
-            "initialized": self._state.get("initialized", False),
-            "last_error": self._state.get_metadata("last_error"),
-            "last_error_time": self._state.get_metadata("last_error_time"),
+            "cache_size": len(self._state_manager.get("cache", {})),
+            "initialized": self._state_manager.get("initialized", False),
+            "last_error": self._state_manager.get_metadata("last_error"),
+            "last_error_time": self._state_manager.get_metadata("last_error_time"),
         }
 
     def clear_cache(self) -> None:
         """Clear component cache."""
-        self._state.update("cache", {})
+        self._state_manager.update("cache", {})
 
     def reset_statistics(self) -> None:
         """Reset component statistics."""
-        self._state.set_metadata("validation_count", 0)
-        self._state.set_metadata("success_count", 0)
-        self._state.set_metadata("failure_count", 0)
-        self._state.set_metadata("improvement_count", 0)
-        self._state.set_metadata("total_processing_time_ms", 0.0)
-        self._state.set_metadata("error_count", 0)
-        self._state.set_metadata("last_error", None)
-        self._state.set_metadata("last_error_time", None)
+        self._state_manager.set_metadata("validation_count", 0)
+        self._state_manager.set_metadata("success_count", 0)
+        self._state_manager.set_metadata("failure_count", 0)
+        self._state_manager.set_metadata("improvement_count", 0)
+        self._state_manager.set_metadata("total_processing_time_ms", 0.0)
+        self._state_manager.set_metadata("error_count", 0)
+        self._state_manager.set_metadata("last_error", None)
+        self._state_manager.set_metadata("last_error_time", None)
 
     def update_statistics(self, result: BaseResult) -> None:
         """Update component statistics based on result."""
-        validation_count = self._state.get_metadata("validation_count", 0)
-        self._state.set_metadata("validation_count", validation_count + 1)
+        validation_count = self._state_manager.get_metadata("validation_count", 0)
+        self._state_manager.set_metadata("validation_count", validation_count + 1)
 
         if result.passed:
-            success_count = self._state.get_metadata("success_count", 0)
-            self._state.set_metadata("success_count", success_count + 1)
+            success_count = self._state_manager.get_metadata("success_count", 0)
+            self._state_manager.set_metadata("success_count", success_count + 1)
         else:
-            failure_count = self._state.get_metadata("failure_count", 0)
-            self._state.set_metadata("failure_count", failure_count + 1)
+            failure_count = self._state_manager.get_metadata("failure_count", 0)
+            self._state_manager.set_metadata("failure_count", failure_count + 1)
 
         if result.suggestions:
-            improvement_count = self._state.get_metadata("improvement_count", 0)
-            self._state.set_metadata("improvement_count", improvement_count + 1)
+            improvement_count = self._state_manager.get_metadata("improvement_count", 0)
+            self._state_manager.set_metadata("improvement_count", improvement_count + 1)
 
         if self.config.track_performance:
-            total_time = self._state.get_metadata("total_processing_time_ms", 0.0)
-            self._state.set_metadata(
+            total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
+            self._state_manager.set_metadata(
                 "total_processing_time_ms", total_time + result.processing_time_ms
             )
 
     def record_error(self, error: Exception) -> None:
         """Record an error occurrence."""
         if self.config.track_errors:
-            error_count = self._state.get_metadata("error_count", 0)
-            self._state.set_metadata("error_count", error_count + 1)
-            self._state.set_metadata("last_error", str(error))
-            self._state.set_metadata("last_error_time", datetime.now())
+            error_count = self._state_manager.get_metadata("error_count", 0)
+            self._state_manager.set_metadata("error_count", error_count + 1)
+            self._state_manager.set_metadata("last_error", str(error))
+            self._state_manager.set_metadata("last_error_time", datetime.now())
 
     @abstractmethod
     def process(self, input: T) -> R:
@@ -299,13 +330,13 @@ class BaseComponent(ABC, Generic[T, R]):
 
     def warm_up(self) -> None:
         """Prepare the component for use."""
-        if not self._state.get("initialized", False):
-            self._state.update("initialized", True)
+        if not self._state_manager.get("initialized", False):
+            self._state_manager.update("initialized", True)
 
     def cleanup(self) -> None:
         """Clean up component resources."""
         self.clear_cache()
-        self._state.update("initialized", False)
+        self._state_manager.update("initialized", False)
 
     @classmethod
     def create(cls: Type[C], name: str, description: str, **kwargs: Any) -> C:

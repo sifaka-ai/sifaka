@@ -95,7 +95,7 @@ import time
 from pydantic import Field, ConfigDict
 
 from sifaka.core.base import BaseComponent, BaseConfig, BaseResult
-from sifaka.rules.base import BaseRule, RuleResult
+from sifaka.rules.base import Rule as BaseRule, RuleResult
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)

@@ -55,6 +55,15 @@ print(result.output)
 - ImportError: Raised when PydanticAI is not installed
 - ValueError: Raised when configuration is invalid
 - ModelRetry: Raised when validation fails and refinement is needed
+- AdapterError: Raised for adapter-specific errors
+
+## State Management
+The module uses a standardized state management approach:
+- Single _state_manager attribute for all mutable state
+- State initialization during construction
+- State access through state object
+- Clear separation of configuration and state
+- Execution tracking for monitoring and debugging
 
 ## Configuration
 - max_refine: Maximum number of refinement attempts

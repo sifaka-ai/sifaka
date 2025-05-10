@@ -4,58 +4,43 @@ Sentiment analysis content validation rules for Sifaka.
 This module provides rules for analyzing and validating text sentiment,
 including positive/negative sentiment detection and emotional content analysis.
 
-## Rule and Validator Relationship
+Usage Example:
+    ```python
+    from sifaka.rules.content.sentiment import create_sentiment_rule
 
-This module follows the standard Sifaka delegation pattern:
-- Rules delegate validation work to validators
-- Validators implement the actual validation logic
-- Factory functions provide a consistent way to create both
-- Empty text is handled consistently using BaseValidator.handle_empty_text
+    # Create a sentiment rule using the factory function
+    sentiment_rule = create_sentiment_rule(
+        threshold=0.7,
+        valid_labels=["positive", "neutral"]
+    )
 
-## Configuration Pattern
-
-This module follows the standard Sifaka configuration pattern:
-- All rule-specific configuration is stored in RuleConfig.params
-- Factory functions handle configuration extraction
-- Validator factory functions create standalone validators
-- Rule factory functions use validator factory functions internally
-
-## Standardized Utilities
-
-This module uses standardized utilities from the Sifaka framework:
-- Error handling with try_operation from sifaka.utils.errors
-- Result creation with create_rule_result from sifaka.utils.results
-- Configuration validation with validate_params from sifaka.utils.config
-- Empty text handling with handle_empty_text from sifaka.utils.text
-
-## Usage Example
-
-```python
-from sifaka.rules.content.sentiment import create_sentiment_rule
-
-# Create a sentiment rule using the factory function
-sentiment_rule = create_sentiment_rule(
-    threshold=0.7,
-    valid_labels=["positive", "neutral"]
-)
-
-# Validate text
-result = sentiment_rule.validate("This is a great test!")
-```
+    # Validate text
+    result = sentiment_rule.validate("This is a great test!")
+    print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+    ```
 """
 
+import time
 from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field, ConfigDict
 
-# No need to import SentimentClassifier since we're using our own implementation
 from sifaka.rules.base import (
     BaseValidator,
     Rule,
     RuleConfig,
     RuleResult,
-    RuleResultHandler,
 )
+from sifaka.utils.logging import get_logger
+from sifaka.utils.errors import try_operation
+from sifaka.utils.results import (
+    create_classification_result,
+    create_unknown_result,
+    create_rule_result,
+    create_error_result,
+)
+
+logger = get_logger(__name__)
 
 
 class SentimentConfig(BaseModel):
@@ -224,60 +209,148 @@ class SentimentAnalyzer:
 
 
 class SentimentValidator(BaseValidator[str]):
-    """Validator for sentiment detection."""
+    """
+    Validator for sentiment detection.
+
+    This validator analyzes text for sentiment, determining if it is positive,
+    negative, or neutral based on the configured threshold and valid labels.
+
+    Lifecycle:
+        1. Initialization: Set up with sentiment threshold and valid labels
+        2. Validation: Analyze text for sentiment
+        3. Result: Return detailed validation results with metadata
+
+    Examples:
+        ```python
+        from sifaka.rules.content.sentiment import SentimentValidator, SentimentConfig
+
+        # Create config
+        config = SentimentConfig(
+            threshold=0.7,
+            valid_labels=["positive", "neutral"]
+        )
+
+        # Create validator
+        validator = SentimentValidator(config)
+
+        # Validate text
+        result = validator.validate("This is a great test!")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+        ```
+    """
 
     def __init__(self, config: SentimentConfig) -> None:
-        """Initialize with configuration.
+        """
+        Initialize with configuration.
 
         Args:
             config: The configuration for the validator
         """
-        super().__init__()
+        super().__init__(validation_type=str)
         self._config = config
         self._analyzer = SentimentAnalyzer(config)
 
     @property
     def config(self) -> SentimentConfig:
-        """Get the validator configuration."""
+        """
+        Get the validator configuration.
+
+        Returns:
+            The sentiment configuration
+        """
         return self._config
 
-    def validate(self, text: str, **_: Any) -> RuleResult:
-        """Validate the given text for sentiment.
+    def validate(self, text: str) -> RuleResult:
+        """
+        Validate the given text for sentiment.
 
         Args:
             text: The text to validate
-            **_: Additional validation context (unused)
 
         Returns:
-            RuleResult: The result of the validation
+            Validation result
         """
-        from sifaka.utils.errors import try_operation
-        from sifaka.utils.results import create_error_result
+        start_time = time.time()
 
         # Handle empty text
         empty_result = self.handle_empty_text(text)
         if empty_result:
             return empty_result
 
-        # Use try_operation to handle potential errors
-        def _validate():
+        try:
             # Delegate to analyzer
-            return self._analyzer.analyze(text)
+            result = self._analyzer.analyze(text)
 
-        # Execute the validation with error handling
-        return try_operation(
-            _validate,
-            component_name="SentimentValidator",
-            default_value=create_error_result(
-                message="Error validating sentiment",
-                component_name="SentimentValidator",
-                error_type="ValidationError",
-            ),
+            # Add additional metadata
+            result = result.with_metadata(
+                validator_type=self.__class__.__name__, processing_time_ms=time.time() - start_time
+            )
+
+            # Update statistics
+            self.update_statistics(result)
+
+            return result
+
+        except Exception as e:
+            self.record_error(e)
+            logger.error(f"Sentiment validation failed: {e}")
+
+            error_message = f"Error validating sentiment: {str(e)}"
+            result = RuleResult(
+                passed=False,
+                message=error_message,
+                metadata={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "validator_type": self.__class__.__name__,
+                },
+                score=0.0,
+                issues=[error_message],
+                suggestions=["Check input format and try again"],
+                processing_time_ms=time.time() - start_time,
+            )
+
+            self.update_statistics(result)
+            return result
+
+
+class SentimentRule(Rule[str]):
+    """
+    Rule for validating sentiment.
+
+    This rule analyzes text for sentiment, determining if it is positive,
+    negative, or neutral based on the configured threshold and valid labels.
+
+    Lifecycle:
+        1. Initialization: Set up with sentiment threshold and valid labels
+        2. Validation: Delegate to validator to analyze text for sentiment
+        3. Result: Return standardized validation results with metadata
+
+    Examples:
+        ```python
+        from sifaka.rules.content.sentiment import SentimentRule, SentimentValidator, SentimentConfig
+
+        # Create config
+        config = SentimentConfig(
+            threshold=0.7,
+            valid_labels=["positive", "neutral"]
         )
 
+        # Create validator
+        validator = SentimentValidator(config)
 
-class SentimentRule(Rule[str, RuleResult, SentimentValidator, RuleResultHandler[RuleResult]]):
-    """Rule for validating sentiment."""
+        # Create rule
+        rule = SentimentRule(
+            name="sentiment_rule",
+            description="Validates text sentiment",
+            validator=validator
+        )
+
+        # Validate text
+        result = rule.validate("This is a great test!")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+        ```
+    """
 
     def __init__(
         self,
@@ -285,24 +358,38 @@ class SentimentRule(Rule[str, RuleResult, SentimentValidator, RuleResultHandler[
         description: str = "Validates text sentiment",
         config: Optional[RuleConfig] = None,
         validator: Optional[SentimentValidator] = None,
+        **kwargs,
     ) -> None:
-        """Initialize with configuration.
+        """
+        Initialize the sentiment rule.
 
         Args:
             name: The name of the rule
             description: Description of the rule
             config: Rule configuration
             validator: Optional validator implementation
+            **kwargs: Additional keyword arguments for the rule
         """
         super().__init__(
             name=name,
             description=description,
-            config=config,
+            config=config
+            or RuleConfig(
+                name=name, description=description, rule_id=kwargs.pop("rule_id", name), **kwargs
+            ),
             validator=validator,
         )
 
+        # Store the validator for reference
+        self._sentiment_validator = validator or self._create_default_validator()
+
     def _create_default_validator(self) -> SentimentValidator:
-        """Create a default validator from config."""
+        """
+        Create a default validator from config.
+
+        Returns:
+            A configured SentimentValidator
+        """
         # Extract sentiment specific params
         params = self.config.params
         config = SentimentConfig(
@@ -314,49 +401,17 @@ class SentimentRule(Rule[str, RuleResult, SentimentValidator, RuleResultHandler[
         )
         return SentimentValidator(config)
 
-    def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate the given text for sentiment.
-
-        Args:
-            text: The text to validate
-            **kwargs: Additional validation context
-
-        Returns:
-            RuleResult: The result of the validation
-        """
-        from sifaka.utils.errors import try_operation
-        from sifaka.utils.results import create_error_result, merge_metadata
-
-        # Use try_operation to handle potential errors
-        def _validate():
-            # Delegate to validator
-            result = self._validator.validate(text, **kwargs)
-
-            # Create new metadata with rule_id
-            new_metadata = merge_metadata(result.metadata, {"rule_id": self._name})
-
-            # Return result with updated metadata
-            return result.with_metadata(new_metadata)
-
-        # Execute the validation with error handling
-        return try_operation(
-            _validate,
-            component_name=self._name,
-            error_handler=lambda e: create_error_result(
-                message=f"Error validating sentiment: {str(e)}",
-                component_name=self._name,
-                error_type=type(e).__name__,
-                metadata={"rule_id": self._name},
-            ),
-        )
-
 
 def create_sentiment_validator(
     threshold: Optional[float] = None,
     valid_labels: Optional[List[str]] = None,
     **kwargs: Any,
 ) -> SentimentValidator:
-    """Create a sentiment validator.
+    """
+    Create a sentiment validator.
+
+    This factory function creates a configured SentimentValidator instance.
+    It's useful when you need a validator without creating a full rule.
 
     Args:
         threshold: Threshold for sentiment detection
@@ -364,12 +419,23 @@ def create_sentiment_validator(
         **kwargs: Additional keyword arguments for the config
 
     Returns:
-        SentimentValidator: The created validator
-    """
-    from sifaka.utils.config import validate_params
+        Configured SentimentValidator
 
-    # Use try_operation to handle potential errors
-    def _create_validator():
+    Examples:
+        ```python
+        from sifaka.rules.content.sentiment import create_sentiment_validator
+
+        # Create a basic validator
+        validator = create_sentiment_validator(threshold=0.7)
+
+        # Create a validator with custom valid labels
+        validator = create_sentiment_validator(
+            threshold=0.7,
+            valid_labels=["positive", "neutral"]
+        )
+        ```
+    """
+    try:
         # Create config with default or provided values
         config_params = {}
         if threshold is not None:
@@ -380,35 +446,15 @@ def create_sentiment_validator(
         # Add any remaining config parameters
         config_params.update(kwargs)
 
-        # Validate parameters
-        validated_params = validate_params(
-            config_params,
-            {
-                "threshold": (float, (0.0, 1.0), True),
-                "valid_labels": (list, None, True),
-                "cache_size": (int, (1, None), True),
-                "priority": (int, (0, None), True),
-                "cost": (float, (0.0, None), True),
-            },
-            allow_extra=True,
-        )
-
         # Create config
-        config = SentimentConfig(**validated_params)
+        config = SentimentConfig(**config_params)
 
-        # Create validator
+        # Create and return the validator
         return SentimentValidator(config)
 
-    # Execute the creation with error handling
-    try:
-        return _create_validator()
     except Exception as e:
-        from sifaka.utils.errors import ConfigurationError
-
-        raise ConfigurationError(
-            f"Error creating sentiment validator: {str(e)}",
-            metadata={"threshold": threshold, "valid_labels": valid_labels},
-        )
+        logger.error(f"Error creating sentiment validator: {e}")
+        raise ValueError(f"Error creating sentiment validator: {str(e)}")
 
 
 def create_sentiment_rule(
@@ -416,36 +462,57 @@ def create_sentiment_rule(
     description: str = "Validates text sentiment",
     threshold: Optional[float] = None,
     valid_labels: Optional[List[str]] = None,
+    rule_id: Optional[str] = None,
     **kwargs: Any,
 ) -> SentimentRule:
-    """Create a sentiment rule.
+    """
+    Create a sentiment rule.
+
+    This factory function creates a configured SentimentRule instance.
+    It uses create_sentiment_validator internally to create the validator.
 
     Args:
         name: The name of the rule
         description: Description of the rule
         threshold: Threshold for sentiment detection
         valid_labels: List of valid sentiment labels
-        **kwargs: Additional keyword arguments for the rule
+        rule_id: Unique identifier for the rule
+        **kwargs: Additional keyword arguments including:
+            - severity: Severity level for rule violations
+            - category: Category of the rule
+            - tags: List of tags for categorizing the rule
+            - priority: Priority level for validation
+            - cache_size: Size of the validation cache
+            - cost: Computational cost of validation
 
     Returns:
-        SentimentRule: The created rule
+        Configured SentimentRule
+
+    Examples:
+        ```python
+        from sifaka.rules.content.sentiment import create_sentiment_rule
+
+        # Create a basic rule
+        rule = create_sentiment_rule(threshold=0.7)
+
+        # Create a rule with custom valid labels and metadata
+        rule = create_sentiment_rule(
+            threshold=0.7,
+            valid_labels=["positive", "neutral"],
+            name="custom_sentiment_rule",
+            description="Validates text has positive or neutral sentiment",
+            rule_id="sentiment_validator",
+            severity="warning",
+            category="content",
+            tags=["sentiment", "content", "validation"]
+        )
+        ```
     """
-    from sifaka.utils.config import standardize_rule_config
-
     try:
-        # Extract RuleConfig parameters from kwargs
-        rule_config_params = {}
-        for param in ["priority", "cache_size", "cost"]:
-            if param in kwargs:
-                rule_config_params[param] = kwargs.pop(param)
-
         # Create validator using the validator factory
         validator = create_sentiment_validator(
             threshold=threshold,
             valid_labels=valid_labels,
-            **{
-                k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]
-            },
         )
 
         # Create params dictionary for RuleConfig
@@ -455,27 +522,29 @@ def create_sentiment_rule(
         if valid_labels is not None:
             params["valid_labels"] = valid_labels
 
-        # Create standardized RuleConfig
-        config = standardize_rule_config(params=params, **rule_config_params)
+        # Determine rule name
+        rule_name = name or rule_id or "sentiment_rule"
 
-        # Create rule
+        # Create RuleConfig
+        config = RuleConfig(
+            name=rule_name,
+            description=description,
+            rule_id=rule_id or rule_name,
+            params=params,
+            **kwargs,
+        )
+
+        # Create and return the rule
         return SentimentRule(
-            name=name,
+            name=rule_name,
             description=description,
             config=config,
             validator=validator,
         )
-    except Exception as e:
-        from sifaka.utils.errors import ConfigurationError
 
-        raise ConfigurationError(
-            f"Error creating sentiment rule: {str(e)}",
-            metadata={
-                "name": name,
-                "threshold": threshold,
-                "valid_labels": valid_labels,
-            },
-        )
+    except Exception as e:
+        logger.error(f"Error creating sentiment rule: {e}")
+        raise ValueError(f"Error creating sentiment rule: {str(e)}")
 
 
 __all__ = [

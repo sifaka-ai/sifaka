@@ -1,22 +1,11 @@
 """
 Validation module for Sifaka.
 
-This module provides components for validating outputs against rules. It includes:
-- ValidationResult: A generic container for validation results
-- Validator: A class that applies validation rules to outputs
-
-The validation process follows these steps:
-1. Initialize a Validator with a set of rules
-2. Pass an output to the validate() method
-3. Receive a ValidationResult containing:
-   - The original output
-   - Results for each rule
-   - Overall validation status
-4. Extract error messages if needed
+This module is deprecated. Please use sifaka.core.validation instead.
 
 Example:
     ```python
-    from sifaka.validation import Validator
+    from sifaka.core.validation import Validator, ValidationResult, ValidatorConfig
     from sifaka.rules import create_length_rule
 
     # Create rules
@@ -33,16 +22,11 @@ Example:
     ```
 """
 
-from .models import ValidationResult
-from .validator import Validator, ValidatorConfig
-
-# For backward compatibility
-from .validator import Validator as BaseValidator
+from sifaka.core.validation import ValidationResult, Validator, ValidatorConfig
 
 # Export public classes
 __all__ = [
     "ValidationResult",
     "Validator",
     "ValidatorConfig",
-    "BaseValidator",  # For backward compatibility
 ]
