@@ -1,704 +1,188 @@
 """
 Chain Core Module
 
-A brief description of the module's purpose and functionality.
-
-## Overview
-This module provides the ChainCore class which is the main interface for
-chains, delegating to specialized components. ChainCore is the central
-orchestration component that coordinates model providers, rules, critics,
-and other components to generate and validate text. It implements the core
-chain execution logic and manages the lifecycle of chain components.
-
-## Components
-1. **ChainCore**: Central orchestrator that delegates to specialized components
-2. **Generator**: Handles text generation using model providers
-3. **ValidationManager**: Manages validation against rules
-4. **PromptManager**: Handles prompt creation and modification
-5. **RetryStrategy**: Implements retry logic for validation failures
-6. **ResultFormatter**: Formats results and feedback
-7. **CriticCore**: Optional component for improving outputs
-
-## Usage Examples
-```python
-from sifaka.chain.core import ChainCore
-from sifaka.chain.managers.validation import ValidationManager
-from sifaka.chain.managers.prompt import PromptManager
-from sifaka.chain.strategies.retry import SimpleRetryStrategy
-from sifaka.chain.formatters.result import ResultFormatter
-from sifaka.models import create_openai_chat_provider
-from sifaka.rules import create_length_rule, create_toxicity_rule
-
-# Create model provider
-model_provider = create_openai_chat_provider(
-    model_name="gpt-3.5-turbo",
-    api_key="your-api-key"
-)
-
-# Create components
-validation_manager = ValidationManager(
-    rules=[
-        create_length_rule(min_length=10, max_length=1000),
-        create_toxicity_rule(threshold=0.7)
-    ]
-)
-prompt_manager = PromptManager()
-retry_strategy = SimpleRetryStrategy(max_attempts=3)
-result_formatter = ResultFormatter()
-
-# Create chain core
-chain_core = ChainCore(
-    model=model_provider,
-    validation_manager=validation_manager,
-    prompt_manager=prompt_manager,
-    retry_strategy=retry_strategy,
-    result_formatter=result_formatter
-)
-
-# Run the chain
-prompt = "Write a short story about a robot learning to paint."
-result = chain_core.run(prompt)
-
-# Check the result
-print(f"Output: {result.output}")
-print(f"All rules passed: {all(r.passed for r in result.rule_results)}")
-```
-
-## Error Handling
-- ChainError: Raised when chain execution fails
-- ValidationError: Raised when validation fails
-- CriticError: Raised when critic refinement fails
-- ModelError: Raised when model generation fails
-
-## Configuration
-- model: The model provider for text generation
-- validation_manager: Manager for rule validation
-- prompt_manager: Manager for prompt handling
-- retry_strategy: Strategy for retry logic
-- result_formatter: Formatter for results
-- critic: Optional critic for text improvement
+This module provides the core chain implementation for Sifaka,
+enabling text generation, validation, and improvement.
 """
 
-from typing import Any, Dict, Generic, Optional, TypeVar
+from typing import Any, Dict, List, Optional, Type, TypeVar, Generic
+import time
 
-from pydantic import BaseModel, ConfigDict, PrivateAttr
+from pydantic import BaseModel, PrivateAttr
 
-from ..critics import CriticCore
-from ..generation import Generator
-from ..core.interfaces import Component, Configurable, Identifiable
-from ..models.base import ModelProvider
-from .formatters.result import ResultFormatter
-from .interfaces.chain import Chain as ChainInterface
-from .interfaces.critic import CriticProtocol
-from .interfaces.formatter import ResultFormatterProtocol
-from .interfaces.manager import PromptManagerProtocol, ValidationManagerProtocol
-from .interfaces.strategy import RetryStrategyProtocol
-from .managers.prompt import PromptManager
-from .managers.validation import ValidationManager
-from .result import ChainResult
-from .strategies.retry import RetryStrategy
-from ..utils.logging import get_logger
-from ..utils.state import StateManager
+from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
+from sifaka.models.base import BaseModelProvider
+from sifaka.critics.core import CriticCore
+from sifaka.chain.managers.validation import ValidationManager
+from sifaka.chain.managers.prompt import PromptManager
+from sifaka.chain.strategies.retry import RetryStrategy
+from sifaka.chain.formatters.result import ResultFormatter
+from sifaka.utils.state import StateManager
+from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 OutputType = TypeVar("OutputType")
 
 
-class ChainCore(Generic[OutputType], BaseModel):
+class ChainCore(BaseComponent):
     """
-    Core chain implementation that delegates to specialized components.
+    Core chain implementation for Sifaka.
 
-    Detailed description of the class's purpose, functionality, and usage.
-
-    ## Architecture
-    ChainCore follows a component-based architecture:
-    1. **Core Components**: Essential components
-       - Model provider: Text generation
-       - Validation manager: Rule validation
-       - Prompt manager: Prompt handling
-       - Retry strategy: Retry logic
-       - Result formatter: Result formatting
-    2. **Optional Components**: Additional components
-       - Critic: Text improvement
-       - Custom validators
-       - Custom formatters
-
-    ## Lifecycle
-    1. **Initialization**: Set up components
-       - Store components
-       - Create generator
-       - Initialize state
-    2. **Execution**: Run chain
-       - Process prompt
-       - Generate output
-       - Validate output
-       - Improve if needed
-    3. **Cleanup**: Clean up resources
-       - Release resources
-       - Reset state
-       - Log completion
-
-    ## Error Handling
-    - ChainError: Raised when chain execution fails
-    - ValidationError: Raised when validation fails
-    - CriticError: Raised when critic refinement fails
-    - ModelError: Raised when model generation fails
-
-    ## Examples
-    ```python
-    from sifaka.chain.core import ChainCore
-    from sifaka.chain.managers.validation import ValidationManager
-    from sifaka.chain.managers.prompt import PromptManager
-    from sifaka.chain.strategies.retry import SimpleRetryStrategy
-    from sifaka.chain.formatters.result import ResultFormatter
-    from sifaka.models import create_openai_chat_provider
-    from sifaka.rules import create_length_rule
-
-    # Create model provider
-    model_provider = create_openai_chat_provider(
-        model_name="gpt-3.5-turbo",
-        api_key="your-api-key"
-    )
-
-    # Create components
-    validation_manager = ValidationManager(
-        rules=[create_length_rule(min_length=10, max_length=1000)]
-    )
-    prompt_manager = PromptManager()
-    retry_strategy = SimpleRetryStrategy(max_attempts=3)
-    result_formatter = ResultFormatter()
-
-    # Create chain core
-    chain_core = ChainCore(
-        model=model_provider,
-        validation_manager=validation_manager,
-        prompt_manager=prompt_manager,
-        retry_strategy=retry_strategy,
-        result_formatter=result_formatter
-    )
-
-    # Run the chain
-    prompt = "Write a short story about a robot learning to paint."
-    result = chain_core.run(prompt)
-
-    # Check the result
-    print(f"Output: {result.output}")
-    print(f"All rules passed: {all(r.passed for r in result.rule_results)}")
-    ```
-
-    Attributes:
-        model (ModelProvider): The model provider for text generation
-        validation_manager (ValidationManager): Manager for rule validation
-        prompt_manager (PromptManager): Manager for prompt handling
-        retry_strategy (RetryStrategy): Strategy for retry logic
-        result_formatter (ResultFormatter): Formatter for results
-        critic (Optional[CriticCore]): Optional critic for text improvement
+    This class provides a unified interface for text generation, validation,
+    and improvement, coordinating between model providers, validators,
+    and critics.
     """
-
-    # Pydantic configuration
-    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     # State management
     _state = PrivateAttr(default_factory=StateManager)
 
-    # Required component inputs
-    model: ModelProvider
-    validation_manager: ValidationManager[OutputType]
-    prompt_manager: PromptManager
-    retry_strategy: RetryStrategy[OutputType]
-    result_formatter: ResultFormatter[OutputType]
-    critic: Optional[CriticCore] = None
-    name: str = "chain"
-    description: str = "Chain implementation that delegates to specialized components"
-    config: Dict[str, Any] = {}
-
     def __init__(
         self,
-        model: ModelProvider,
+        model: BaseModelProvider[OutputType],
         validation_manager: ValidationManager[OutputType],
         prompt_manager: PromptManager,
         retry_strategy: RetryStrategy[OutputType],
         result_formatter: ResultFormatter[OutputType],
         critic: Optional[CriticCore] = None,
         name: str = "chain",
-        description: str = "Chain implementation that delegates to specialized components",
+        description: str = "Core chain implementation for Sifaka",
         config: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Initialize a ChainCore instance.
-
-        ## Overview
-        This method initializes a ChainCore instance with the required components.
-        It stores the components in the state object and creates a generator
-        using the model provider.
-
-        ## Lifecycle
-        1. **Component Storage**: Store all components in the state object
-           - Store model provider
-           - Store validation manager
-           - Store prompt manager
-           - Store retry strategy
-           - Store result formatter
-           - Store critic (if provided)
-        2. **Generator Creation**: Create a generator using the model provider
-           - Create a Generator instance with the model provider
-           - Store it in the state object
+        """Initialize the chain core.
 
         Args:
-            model: The model provider to use for text generation
-            validation_manager: The validation manager to use for validating outputs
-            prompt_manager: The prompt manager to use for creating and modifying prompts
-            retry_strategy: The retry strategy to use for handling validation failures
-            result_formatter: The result formatter to use for formatting results
-            critic: Optional critic to use for improving outputs
+            model: The model provider for text generation
+            validation_manager: Manager for rule validation
+            prompt_manager: Manager for prompt handling
+            retry_strategy: Strategy for retry logic
+            result_formatter: Formatter for results
+            critic: Optional critic for text improvement
             name: Name of the chain
             description: Description of the chain
-            config: Optional configuration dictionary
-
-        Raises:
-            ValueError: When required components are missing or invalid
-            ChainError: When initialization fails
+            config: Additional configuration
         """
-        # Initialize model with pydantic inputs
-        super().__init__(
-            model=model,
-            validation_manager=validation_manager,
-            prompt_manager=prompt_manager,
-            retry_strategy=retry_strategy,
-            result_formatter=result_formatter,
-            critic=critic,
-            name=name,
-            description=description,
-            config=config or {},
-        )
+        super().__init__()
 
-        # Initialize state
         self._state.update("model", model)
         self._state.update("validation_manager", validation_manager)
         self._state.update("prompt_manager", prompt_manager)
         self._state.update("retry_strategy", retry_strategy)
         self._state.update("result_formatter", result_formatter)
-        if critic:
-            self._state.update("critic", critic)
-
-        # Create generator and store in state
-        self._state.update("generator", Generator[OutputType](model))
+        self._state.update("critic", critic)
+        self._state.update("name", name)
+        self._state.update("description", description)
+        self._state.update("config", config or {})
+        self._state.update("initialized", True)
+        self._state.update("execution_count", 0)
+        self._state.update("result_cache", {})
 
         # Set metadata
         self._state.set_metadata("component_type", "chain")
-        self._state.set_metadata("name", name)
-        self._state.set_metadata("description", description)
-        self._state.set_metadata("initialized", True)
+        self._state.set_metadata("creation_time", time.time())
 
-    @property
-    def model(self) -> ModelProvider:
+    def run(self, prompt: str) -> BaseResult[OutputType]:
         """
-        Get the model provider.
-
-        ## Overview
-        This property returns the model provider used for text generation.
-
-        ## Lifecycle
-        1. **State Access**: Access state
-           - Get model from state
-           - Return model
-
-        Returns:
-            ModelProvider: The model provider
-
-        Raises:
-            ValueError: When model is not found in state
-        """
-        return self._state.get("model")
-
-    @property
-    def validation_manager(self) -> ValidationManager[OutputType]:
-        """
-        Get the validation manager.
-
-        ## Overview
-        This property returns the validation manager used for rule validation.
-
-        ## Lifecycle
-        1. **State Access**: Access state
-           - Get validation manager from state
-           - Return validation manager
-
-        Returns:
-            ValidationManager[OutputType]: The validation manager
-
-        Raises:
-            ValueError: When validation manager is not found in state
-        """
-        return self._state.get("validation_manager")
-
-    @property
-    def prompt_manager(self) -> PromptManager:
-        """
-        Get the prompt manager.
-
-        ## Overview
-        This property returns the prompt manager used for prompt handling.
-
-        ## Lifecycle
-        1. **State Access**: Access state
-           - Get prompt manager from state
-           - Return prompt manager
-
-        Returns:
-            PromptManager: The prompt manager
-
-        Raises:
-            ValueError: When prompt manager is not found in state
-        """
-        return self._state.get("prompt_manager")
-
-    @property
-    def retry_strategy(self) -> RetryStrategy[OutputType]:
-        """
-        Get the retry strategy.
-
-        ## Overview
-        This property returns the retry strategy used for handling validation failures.
-
-        ## Lifecycle
-        1. **State Access**: Access state
-           - Get retry strategy from state
-           - Return retry strategy
-
-        Returns:
-            RetryStrategy[OutputType]: The retry strategy
-
-        Raises:
-            ValueError: When retry strategy is not found in state
-        """
-        return self._state.get("retry_strategy")
-
-    @property
-    def result_formatter(self) -> ResultFormatter[OutputType]:
-        """
-        Get the result formatter.
-
-        ## Overview
-        This property returns the result formatter used for formatting results.
-
-        ## Lifecycle
-        1. **State Access**: Access state
-           - Get result formatter from state
-           - Return result formatter
-
-        Returns:
-            ResultFormatter[OutputType]: The result formatter
-
-        Raises:
-            ValueError: When result formatter is not found in state
-        """
-        return self._state.get("result_formatter")
-
-    @property
-    def critic(self) -> Optional[CriticCore]:
-        """
-        Get the critic.
-
-        ## Overview
-        This property returns the optional critic used for text improvement.
-
-        ## Lifecycle
-        1. **State Access**: Access state
-           - Get critic from state
-           - Return critic
-
-        Returns:
-            Optional[CriticCore]: The critic, if any
-
-        Raises:
-            ValueError: When critic is not found in state
-        """
-        return self._state.get("critic")
-
-    @property
-    def generator(self) -> Generator[OutputType]:
-        """
-        Get the generator.
-
-        ## Overview
-        This property returns the generator used for text generation.
-
-        ## Lifecycle
-        1. **State Access**: Access state
-           - Get generator from state
-           - Return generator
-
-        Returns:
-            Generator[OutputType]: The generator
-
-        Raises:
-            ValueError: When generator is not found in state
-        """
-        return self._state.get("generator")
-
-    @property
-    def name(self) -> str:
-        """
-        Get the name of the chain.
-
-        ## Overview
-        This property returns the name of the chain.
-
-        ## Lifecycle
-        1. **State Access**: Access state
-           - Get name from state
-           - Return name
-
-        Returns:
-            str: The name of the chain
-
-        Raises:
-            ValueError: When name is not found in state
-        """
-        return self._state.get_metadata("name")
-
-    @property
-    def description(self) -> str:
-        """
-        Get the description of the chain.
-
-        ## Overview
-        This property returns the description of the chain.
-
-        ## Lifecycle
-        1. **State Access**: Access state
-           - Get description from state
-           - Return description
-
-        Returns:
-            str: The description of the chain
-
-        Raises:
-            ValueError: When description is not found in state
-        """
-        return self._state.get_metadata("description")
-
-    @property
-    def config(self) -> Dict[str, Any]:
-        """
-        Get the configuration of the chain.
-
-        ## Overview
-        This property returns the configuration of the chain.
-
-        ## Lifecycle
-        1. **State Access**: Access state
-           - Get config from state
-           - Return config
-
-        Returns:
-            Dict[str, Any]: The configuration of the chain
-
-        Raises:
-            ValueError: When config is not found in state
-        """
-        return self._state.get("config", {})
-
-    def update_config(self, config: Dict[str, Any]) -> None:
-        """
-        Update the configuration of the chain.
-
-        ## Overview
-        This method updates the configuration of the chain.
-
-        ## Lifecycle
-        1. **State Update**: Update state
-           - Update config in state
-           - Validate config
-           - Apply config
+        Run the chain on the given prompt.
 
         Args:
-            config (Dict[str, Any]): The new configuration
-
-        Raises:
-            ValueError: When config is invalid
-            ChainError: When config update fails
-        """
-        self._state.update("config", config)
-
-    def initialize(self) -> None:
-        """
-        Initialize the chain.
-
-        ## Overview
-        This method initializes the chain, setting up all components and
-        preparing for execution.
-
-        ## Lifecycle
-        1. **Component Initialization**: Initialize components
-           - Initialize model provider
-           - Initialize validation manager
-           - Initialize prompt manager
-           - Initialize retry strategy
-           - Initialize result formatter
-           - Initialize critic (if provided)
-        2. **State Update**: Update state
-           - Set initialized flag
-           - Set initialization time
+            prompt: The prompt to process
 
         Returns:
-            None
+            Result containing the output and validation results
 
         Raises:
-            ChainError: When initialization fails
+            ChainError: If chain execution fails
+            ValidationError: If validation fails
+            CriticError: If critic refinement fails
+            ModelError: If model generation fails
         """
-        logger.info(f"Initializing chain: {self.name}")
+        # Track execution count
+        execution_count = self._state.get("execution_count", 0)
+        self._state.update("execution_count", execution_count + 1)
 
-        # Initialize all components
-        model = self._state.get("model")
-        if hasattr(model, "initialize") and callable(model.initialize):
-            model.initialize()
+        # Check cache
+        cache = self._state.get("result_cache", {})
+        if prompt in cache:
+            self._state.set_metadata("cache_hit", True)
+            return cache[prompt]
 
-        validation_manager = self._state.get("validation_manager")
-        if hasattr(validation_manager, "initialize") and callable(validation_manager.initialize):
-            validation_manager.initialize()
+        # Mark as cache miss
+        self._state.set_metadata("cache_hit", False)
 
-        prompt_manager = self._state.get("prompt_manager")
-        if hasattr(prompt_manager, "initialize") and callable(prompt_manager.initialize):
-            prompt_manager.initialize()
+        # Record start time
+        start_time = time.time()
 
-        retry_strategy = self._state.get("retry_strategy")
-        if hasattr(retry_strategy, "initialize") and callable(retry_strategy.initialize):
-            retry_strategy.initialize()
+        try:
+            # Get components from state
+            model = self._state.get("model")
+            validation_manager = self._state.get("validation_manager")
+            prompt_manager = self._state.get("prompt_manager")
+            retry_strategy = self._state.get("retry_strategy")
+            result_formatter = self._state.get("result_formatter")
+            critic = self._state.get("critic")
 
-        result_formatter = self._state.get("result_formatter")
-        if hasattr(result_formatter, "initialize") and callable(result_formatter.initialize):
-            result_formatter.initialize()
+            # Process prompt
+            formatted_prompt = prompt_manager.format_prompt(prompt)
 
-        critic = self._state.get("critic", None)
-        if critic and hasattr(critic, "initialize") and callable(critic.initialize):
-            critic.initialize()
+            # Generate output
+            output = model.invoke(formatted_prompt)
 
-        # Update state metadata
-        self._state.set_metadata("initialized", True)
-        self._state.set_metadata("initialization_time", "0ms")  # Would be real timing in production
+            # Validate output
+            validation_results = validation_manager.validate(output)
 
-        logger.info(f"Chain initialized: {self.name}")
+            # Improve output if needed
+            if critic and not all(r.passed for r in validation_results):
+                output = critic.improve(output, validation_results)
 
-    def cleanup(self) -> None:
+            # Format result
+            result = result_formatter.format_result(output, validation_results)
+
+            # Record execution time
+            end_time = time.time()
+            exec_time = end_time - start_time
+
+            # Update average execution time
+            avg_time = self._state.get_metadata("avg_execution_time", 0)
+            count = self._state.get("execution_count", 1)
+            new_avg = ((avg_time * (count - 1)) + exec_time) / count
+            self._state.set_metadata("avg_execution_time", new_avg)
+
+            # Update max execution time if needed
+            max_time = self._state.get_metadata("max_execution_time", 0)
+            if exec_time > max_time:
+                self._state.set_metadata("max_execution_time", exec_time)
+
+            # Cache result
+            cache[prompt] = result
+            self._state.update("result_cache", cache)
+
+            return result
+
+        except Exception as e:
+            # Track error
+            error_count = self._state.get_metadata("error_count", 0)
+            self._state.set_metadata("error_count", error_count + 1)
+            logger.error(f"Chain execution error: {str(e)}")
+            raise
+
+    def get_statistics(self) -> Dict[str, Any]:
         """
-        Clean up resources.
-
-        ## Overview
-        This method cleans up resources used by the chain, including
-        all components and state.
-
-        ## Lifecycle
-        1. **Component Cleanup**: Clean up components
-           - Clean up model provider
-           - Clean up validation manager
-           - Clean up prompt manager
-           - Clean up retry strategy
-           - Clean up result formatter
-           - Clean up critic (if provided)
-        2. **State Cleanup**: Clean up state
-           - Reset state
-           - Log cleanup
+        Get statistics about chain usage.
 
         Returns:
-            None
-
-        Raises:
-            ChainError: When cleanup fails
+            Dictionary with usage statistics
         """
-        logger.info(f"Cleaning up chain: {self.name}")
+        return {
+            "execution_count": self._state.get("execution_count", 0),
+            "cache_size": len(self._state.get("result_cache", {})),
+            "avg_execution_time": self._state.get_metadata("avg_execution_time", 0),
+            "max_execution_time": self._state.get_metadata("max_execution_time", 0),
+            "error_count": self._state.get_metadata("error_count", 0),
+            "model_name": self._state.get("model").name,
+        }
 
-        # Clean up all components
-        model = self._state.get("model")
-        if hasattr(model, "cleanup") and callable(model.cleanup):
-            model.cleanup()
-
-        validation_manager = self._state.get("validation_manager")
-        if hasattr(validation_manager, "cleanup") and callable(validation_manager.cleanup):
-            validation_manager.cleanup()
-
-        prompt_manager = self._state.get("prompt_manager")
-        if hasattr(prompt_manager, "cleanup") and callable(prompt_manager.cleanup):
-            prompt_manager.cleanup()
-
-        retry_strategy = self._state.get("retry_strategy")
-        if hasattr(retry_strategy, "cleanup") and callable(retry_strategy.cleanup):
-            retry_strategy.cleanup()
-
-        result_formatter = self._state.get("result_formatter")
-        if hasattr(result_formatter, "cleanup") and callable(result_formatter.cleanup):
-            result_formatter.cleanup()
-
-        critic = self._state.get("critic", None)
-        if critic and hasattr(critic, "cleanup") and callable(critic.cleanup):
-            critic.cleanup()
-
-        # Clean up state by resetting it
-        self._state.reset()
-        self._state.set_metadata("initialized", False)
-        self._state.set_metadata("cleanup_time", "0ms")  # Would be real timing in production
-
-        logger.info(f"Chain cleaned up: {self.name}")
-
-    def run(self, prompt: str) -> ChainResult[OutputType]:
-        """
-        Run the chain with the given prompt.
-
-        ## Overview
-        This method runs the chain with the given prompt, generating and
-        validating text according to the configured components.
-
-        ## Lifecycle
-        1. **Prompt Processing**: Process prompt
-           - Format prompt
-           - Generate output
-           - Validate output
-        2. **Improvement Loop**: Improve if needed
-           - Check validation
-           - Apply critic
-           - Retry if needed
-        3. **Result Creation**: Create result
-           - Format output
-           - Format feedback
-           - Return result
-
-        Args:
-            prompt (str): The prompt to process
-
-        Returns:
-            ChainResult[OutputType]: The result of running the chain
-
-        Raises:
-            ChainError: When chain execution fails
-            ValidationError: When validation fails
-            CriticError: When critic refinement fails
-            ModelError: When model generation fails
-
-        Examples:
-            ```python
-            # Run the chain
-            result = chain_core.run("Write a short story about a robot learning to paint.")
-
-            # Check the result
-            print(f"Output: {result.output}")
-            print(f"All rules passed: {all(r.passed for r in result.rule_results)}")
-            ```
-        """
-        # Process prompt
-        formatted_prompt = self.prompt_manager.format_prompt(prompt)
-        output = self.generator.generate(formatted_prompt)
-        validation_result = self.validation_manager.validate(output)
-
-        # Improve if needed
-        if not validation_result.passed and self.critic:
-            improved_output = self.critic.improve(output, validation_result)
-            validation_result = self.validation_manager.validate(improved_output)
-
-        # Create result
-        return self.result_formatter.format(
-            output=output,
-            validation_result=validation_result,
-            critique_details=self.critic.get_details() if self.critic else None,
-        )
+    def clear_cache(self) -> None:
+        """Clear the chain result cache."""
+        self._state.update("result_cache", {})
+        logger.debug("Chain cache cleared")

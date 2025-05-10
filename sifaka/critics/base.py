@@ -105,7 +105,14 @@ from typing import (
 
 from typing_extensions import TypeGuard
 
-from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
+from sifaka.core.base import (
+    BaseComponent,
+    BaseConfig,
+    BaseResult,
+    ComponentResultEnum,
+    Validatable,
+    ValidationPattern,
+)
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -302,7 +309,7 @@ class CriticOutput(Generic[T, R]):
     Examples:
         ```python
         output = CriticOutput(
-            result=CriticResult.SUCCESS,
+            result=CriticResultEnum.SUCCESS,
             improved_text="Improved text",
             metadata=CriticMetadata(
                 score=0.8,
@@ -745,32 +752,52 @@ class BaseCritic(BaseComponent[T, CriticResult], Generic[T]):
         Returns:
             CriticResult containing the processing results
         """
+        start_time = time.time()
+
         # Validate input
         if not self.validate_input(text):
             return CriticResult(
-                passed=False, message="Invalid input", metadata={"error_type": "invalid_input"}
+                passed=False,
+                message="Invalid input",
+                metadata={"error_type": "invalid_input"},
+                score=0.0,
+                issues=["Invalid input type"],
+                suggestions=["Provide valid input"],
+                processing_time_ms=time.time() - start_time,
             )
 
-        # Handle empty text
+        # Handle empty input
         empty_result = self.handle_empty_input(text)
         if empty_result:
-            return empty_result
+            return empty_result.with_metadata(processing_time_ms=time.time() - start_time)
 
         try:
             # Run critique
             result = self.critique(text)
+            self.update_statistics(result)
 
             # If improvement needed, try to improve
             if not result.passed and result.suggestions:
                 improved_text = self.improve(text, result.feedback)
-                result = result.with_metadata(improved_text=improved_text, improvement_applied=True)
+                result = result.with_metadata(
+                    improved_text=improved_text,
+                    improvement_applied=True,
+                    processing_time_ms=time.time() - start_time,
+                )
 
             return result
 
         except Exception as e:
+            self.record_error(e)
             logger.error(f"Error processing text: {e}")
             return CriticResult(
-                passed=False, message=f"Error: {str(e)}", metadata={"error_type": type(e).__name__}
+                passed=False,
+                message=f"Error: {str(e)}",
+                metadata={"error_type": type(e).__name__},
+                score=0.0,
+                issues=[f"Processing error: {str(e)}"],
+                suggestions=["Retry with different input"],
+                processing_time_ms=time.time() - start_time,
             )
 
     @classmethod
@@ -1040,12 +1067,14 @@ class Critic(BaseCritic[str, str]):
         if not self.is_valid_text(text):
             return False
 
-        # Basic validation rules
-        if len(text) < 10:
+        # Basic validation rules using shared validation methods
+        if not self.validate_text_length(text, min_length=10):
             return False
-        if not any(c.isupper() for c in text):
+        if not self.validate_text_contains(text, [".", "!", "?"]):
             return False
-        if not any(c.islower() for c in text):
+        if not self.validate_text_pattern(text, r"[A-Z]"):
+            return False
+        if not self.validate_text_pattern(text, r"[a-z]"):
             return False
 
         return True
@@ -1120,14 +1149,19 @@ class Critic(BaseCritic[str, str]):
         """
         if not self.is_valid_text(text):
             return CriticResult(
-                passed=False, message="Invalid text", metadata={"error_type": "invalid_text"}
+                passed=False,
+                message="Invalid text",
+                metadata={"error_type": "invalid_text"},
+                score=0.0,
+                issues=["Invalid text format"],
+                suggestions=["Provide valid text"],
             )
 
-        # Analyze text quality
+        # Analyze text quality using shared validation methods
         word_count = len(text.split())
-        has_punctuation = any(p in text for p in ".!?")
-        has_capitalization = any(c.isupper() for c in text)
-        has_lowercase = any(c.islower() for c in text)
+        has_punctuation = self.validate_text_contains(text, [".", "!", "?"])
+        has_capitalization = self.validate_text_pattern(text, r"[A-Z]")
+        has_lowercase = self.validate_text_pattern(text, r"[a-z]")
 
         # Calculate score based on metrics
         score = 0.0
@@ -1163,11 +1197,14 @@ class Critic(BaseCritic[str, str]):
             passed=score >= 0.8,
             message=feedback,
             metadata={
-                "score": score,
-                "feedback": feedback,
-                "issues": issues,
-                "suggestions": suggestions,
+                "word_count": word_count,
+                "has_punctuation": has_punctuation,
+                "has_capitalization": has_capitalization,
+                "has_lowercase": has_lowercase,
             },
+            score=score,
+            issues=issues,
+            suggestions=suggestions,
         )
 
 

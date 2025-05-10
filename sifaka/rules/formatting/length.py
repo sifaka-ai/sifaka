@@ -1,63 +1,17 @@
 """
-Length validation rules for text.
+Length-based formatting rules for Sifaka.
 
-This module provides validators and rules for checking text length constraints,
-including character count and word count validation. It follows the standard
-Sifaka validation pattern with separate validator and rule components.
-
-The module implements the delegation pattern where:
-- LengthRule delegates validation work to LengthValidator
-- LengthValidator handles the core validation logic
-- LengthRule manages configuration and result handling
-
-Key Components:
-- LengthConfig: Configuration for length constraints
-- LengthValidator: Base validator for length checks
-- DefaultLengthValidator: Default implementation of length validation
-- LengthRuleValidator: Validator adapter for LengthValidator
-- LengthRule: Rule that uses a validator to enforce length constraints
-
-Factory Functions:
-- create_length_validator(): Creates a standalone validator
-- create_length_rule(): Creates a rule with a validator
-
-Lifecycle:
-    1. Configuration: Set up length constraints (min/max chars, min/max words)
-    2. Validation: Apply constraints to input text
-    3. Result: Return standardized validation results with detailed metadata
-
-Usage Example:
-    ```python
-    from sifaka.rules.formatting.length import create_length_rule
-
-    # Create a length rule using the factory function
-    rule = create_length_rule(
-        min_chars=10,
-        max_chars=100,
-        min_words=2,
-        max_words=20,
-        rule_id="length_constraint"
-    )
-
-    # Validate text
-    result = rule.validate("This is a test.")
-    print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
-
-    # Access metadata
-    if not result.passed:
-        print(f"Character count: {result.metadata['char_count']}")
-        print(f"Word count: {result.metadata['word_count']}")
-        print(f"Errors: {result.metadata['errors']}")
-    ```
+This module provides rules for validating and enforcing text length constraints.
 """
 
-from typing import Dict, Optional, Any
+from typing import Any, Dict, Optional, Union
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict, PrivateAttr
+from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
+from sifaka.rules.base import BaseRule, RuleConfig, RuleResult
+from sifaka.utils.state import StateManager
+from sifaka.utils.logging import get_logger
 
-from sifaka.rules.base import Rule, RuleResult, BaseValidator, RuleConfig
-from sifaka.utils.state import RuleState, create_rule_state, StateManager
-
+logger = get_logger(__name__)
 
 __all__ = [
     # Config classes

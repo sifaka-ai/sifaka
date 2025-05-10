@@ -1,9 +1,7 @@
 """
 Base classes for Sifaka classifiers.
 
-This module provides the core interfaces and base implementations for text classification,
-including protocols, configuration classes, result types, and the base classifier class.
-Classifiers work alongside rules and critics to provide a complete validation and improvement system.
+This module provides the foundational components for text classification in Sifaka.
 
 ## Integration with Rules and Critics
 
@@ -130,27 +128,19 @@ Each classifier type may also provide specialized factory functions for easier i
 """
 
 from abc import ABC, abstractmethod
-from typing import (
-    Any,
-    Dict,
-    Generic,
-    List,
-    Type,
-    TypeVar,
-)
+from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Protocol, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
-
+from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
+from sifaka.utils.state import StateManager
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import create_classifier_state, StateManager
 
 from .models import ClassificationResult, ClassifierConfig
 
 logger = get_logger(__name__)
 
-T = TypeVar("T")  # Type of input text
-R = TypeVar("R")  # Type of classification result
-C = TypeVar("C", bound="BaseClassifier")  # Type for the classifier class
+T = TypeVar("T")  # Input type
+R = TypeVar("R")  # Result type
+C = TypeVar("C", bound="BaseClassifier")  # Classifier type
 
 
 # TextProcessor is now imported from interfaces/classifier.py

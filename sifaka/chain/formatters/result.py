@@ -1,332 +1,132 @@
 """
-Result Formatter Module
+Result formatter for Sifaka chains.
 
-## Overview
-This module provides the ResultFormatter class which handles formatting and
-processing of chain execution results. It supports formatting validation
-results, critique details, and feedback messages into standardized formats
-for consistent handling across the chain system.
-
-## Components
-1. **ResultFormatter**: Main result formatting class
-   - Result formatting
-   - Validation feedback
-   - Critique feedback
-   - Error message generation
-
-2. **Feedback Generation**: Specialized formatters
-   - Validation feedback formatting
-   - Critique feedback formatting
-   - Error message formatting
-
-## Usage Examples
-```python
-from sifaka.chain.formatters.result import ResultFormatter
-from sifaka.validation import ValidationResult
-from sifaka.chain.result import ChainResult
-
-# Create formatter
-formatter = ResultFormatter[str]()
-
-# Format validation result
-validation_result = ValidationResult(
-    output="Generated text",
-    rule_results=[
-        {"rule": "length", "passed": False, "message": "Text too short"}
-    ]
-)
-feedback = formatter.format_feedback_from_validation(validation_result)
-print("Validation feedback:", feedback)
-
-# Format critique details
-critique_details = {
-    "issues": ["Text lacks clarity", "Poor structure"],
-    "suggestions": ["Add more details", "Improve organization"]
-}
-feedback = formatter.format_feedback_from_critique(critique_details)
-print("Critique feedback:", feedback)
-
-# Format complete result
-result = formatter.format_result(
-    output="Generated text",
-    validation_result=validation_result,
-    critique_details=critique_details
-)
-print("Output:", result.output)
-print("All rules passed:", all(r.passed for r in result.rule_results))
-```
-
-## Error Handling
-- ValueError: Raised for invalid result types
-- TypeError: Raised for type validation failures
-- KeyError: Raised for missing required fields
-
-## Configuration
-- validation_result: ValidationResult object with output and rule results
-- critique_details: Optional dictionary with critique information
-- output: The generated output to include in results
+This module provides the result formatter for Sifaka chains,
+enabling consistent formatting of chain outputs and validation results.
 """
 
-from typing import Any, Dict, Generic, Optional, TypeVar
+from typing import Any, Dict, List, Optional, Type, TypeVar, Generic
+import time
 
-from ..interfaces.formatter import ResultFormatterProtocol
-from ...validation import ValidationResult
-from ..result import ChainResult
-from ...utils.logging import get_logger
+from pydantic import BaseModel, PrivateAttr
+
+from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
+from sifaka.utils.state import StateManager
+from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 OutputType = TypeVar("OutputType")
 
 
-class ResultFormatter(
-    ResultFormatterProtocol[ValidationResult[OutputType], ChainResult[OutputType]],
-    Generic[OutputType],
-):
+class ResultFormatter(BaseComponent):
     """
-    Formats and processes chain execution results.
+    Result formatter for Sifaka chains.
 
-    ## Overview
-    This class provides centralized formatting and processing of chain execution
-    results, including validation results, critique details, and feedback messages.
-    It implements the ResultFormatterProtocol interface.
-
-    ## Architecture
-    ResultFormatter follows a formatter pattern:
-    1. **Result Processing**: Processes raw results into standard format
-    2. **Feedback Generation**: Creates formatted feedback messages
-    3. **Output Formatting**: Produces consistent output structure
-
-    ## Lifecycle
-    1. **Result Handling**: Process execution results
-       - Format validation results
-       - Format critique details
-       - Combine into chain results
-
-    2. **Feedback Generation**: Create feedback messages
-       - Process validation feedback
-       - Process critique feedback
-       - Format error messages
-
-    ## Error Handling
-    - ValueError: Raised for invalid result types
-    - TypeError: Raised for type validation failures
-    - KeyError: Raised for missing required fields
-
-    ## Examples
-    ```python
-    from sifaka.chain.formatters.result import ResultFormatter
-
-    # Create formatter
-    formatter = ResultFormatter[str]()
-
-    # Format validation result
-    validation_result = ValidationResult(...)
-    feedback = formatter.format_feedback_from_validation(validation_result)
-
-    # Format complete result
-    result = formatter.format_result(
-        output="Generated text",
-        validation_result=validation_result,
-        critique_details={"feedback": "Good but needs improvement"}
-    )
-    ```
-
-    Type parameters:
-        OutputType: The type of output being formatted
+    This class provides consistent formatting of chain outputs and validation results,
+    with support for different output types and validation states.
     """
+
+    # State management
+    _state = PrivateAttr(default_factory=StateManager)
+
+    def __init__(
+        self,
+        name: str = "result_formatter",
+        description: str = "Result formatter for Sifaka chains",
+        config: Optional[Dict[str, Any]] = None,
+    ):
+        """Initialize the result formatter.
+
+        Args:
+            name: Name of the formatter
+            description: Description of the formatter
+            config: Additional configuration
+        """
+        super().__init__()
+
+        self._state.update("name", name)
+        self._state.update("description", description)
+        self._state.update("config", config or {})
+        self._state.update("initialized", True)
+        self._state.update("execution_count", 0)
+        self._state.update("result_cache", {})
+
+        # Set metadata
+        self._state.set_metadata("component_type", "result_formatter")
+        self._state.set_metadata("creation_time", time.time())
 
     def format_result(
-        self,
-        output: OutputType,
-        validation_result: ValidationResult[OutputType],
-        critique_details: Optional[Dict[str, Any]] = None,
-    ) -> ChainResult[OutputType]:
+        self, output: OutputType, validation_results: List[BaseResult]
+    ) -> BaseResult[OutputType]:
         """
-        Format a chain execution result.
-
-        ## Overview
-        This method combines the output, validation result, and optional critique
-        details into a standardized ChainResult object. It ensures consistent
-        result structure across the chain system.
-
-        ## Lifecycle
-        1. **Input Processing**: Process inputs
-           - Validate output
-           - Process validation result
-           - Handle critique details
-
-        2. **Result Creation**: Create chain result
-           - Combine components
-           - Apply standard format
-           - Include all details
+        Format the chain output and validation results.
 
         Args:
-            output: The generated output
-            validation_result: The validation result
-            critique_details: Optional critique details
+            output: The chain output to format
+            validation_results: List of validation results
 
         Returns:
-            The formatted chain result
+            Formatted result containing the output and validation state
+        """
+        # Track execution count
+        execution_count = self._state.get("execution_count", 0)
+        self._state.update("execution_count", execution_count + 1)
 
-        Raises:
-            ValueError: If the output or validation result is invalid
-            TypeError: If the input types are incorrect
+        # Record start time
+        start_time = time.time()
 
-        Examples:
-            ```python
-            formatter = ResultFormatter[str]()
-            result = formatter.format_result(
-                output="Generated text",
-                validation_result=validation_result,
-                critique_details={"feedback": "Good but needs improvement"}
+        try:
+            # Create result
+            result = BaseResult(
+                output=output,
+                validation_results=validation_results,
+                status=(
+                    ComponentResultEnum.SUCCESS
+                    if all(r.passed for r in validation_results)
+                    else ComponentResultEnum.FAILURE
+                ),
             )
-            ```
+
+            # Record execution time
+            end_time = time.time()
+            exec_time = end_time - start_time
+
+            # Update average execution time
+            avg_time = self._state.get_metadata("avg_execution_time", 0)
+            count = self._state.get("execution_count", 1)
+            new_avg = ((avg_time * (count - 1)) + exec_time) / count
+            self._state.set_metadata("avg_execution_time", new_avg)
+
+            # Update max execution time if needed
+            max_time = self._state.get_metadata("max_execution_time", 0)
+            if exec_time > max_time:
+                self._state.set_metadata("max_execution_time", exec_time)
+
+            return result
+
+        except Exception as e:
+            # Track error
+            error_count = self._state.get_metadata("error_count", 0)
+            self._state.set_metadata("error_count", error_count + 1)
+            logger.error(f"Result formatting error: {str(e)}")
+            raise
+
+    def get_statistics(self) -> Dict[str, Any]:
         """
-        return ChainResult(
-            output=output,
-            rule_results=validation_result.rule_results,
-            critique_details=critique_details,
-        )
-
-    def format_feedback_from_validation(
-        self, validation_result: ValidationResult[OutputType]
-    ) -> str:
-        """
-        Format feedback from a validation result.
-
-        ## Overview
-        This method generates human-readable feedback messages from a validation
-        result, highlighting any failed validations and their error messages.
-
-        ## Lifecycle
-        1. **Input Processing**: Process inputs
-           - Validate validation result
-           - Extract rule results
-
-        2. **Feedback Generation**: Create feedback
-           - Format error messages
-           - Combine into feedback string
-
-        Args:
-            validation_result: The validation result
+        Get statistics about result formatter usage.
 
         Returns:
-            The formatted feedback
-
-        Raises:
-            ValueError: If the validation result is invalid
-            TypeError: If the input type is incorrect
-
-        Examples:
-            ```python
-            formatter = ResultFormatter[str]()
-            feedback = formatter.format_feedback_from_validation(validation_result)
-            print("Validation feedback:", feedback)
-            ```
+            Dictionary with usage statistics
         """
-        feedback = "The following issues were found:\n"
-        for result in validation_result.rule_results:
-            if not result.passed:
-                feedback += f"- {result.message}\n"
-        return feedback
+        return {
+            "execution_count": self._state.get("execution_count", 0),
+            "avg_execution_time": self._state.get_metadata("avg_execution_time", 0),
+            "max_execution_time": self._state.get_metadata("max_execution_time", 0),
+            "error_count": self._state.get_metadata("error_count", 0),
+        }
 
-    def format_feedback_from_critique(self, critique_details: Dict[str, Any]) -> str:
-        """
-        Format feedback from critique details.
-
-        ## Overview
-        This method generates human-readable feedback messages from critique
-        details, including issues found and suggestions for improvement.
-
-        ## Lifecycle
-        1. **Input Processing**: Process inputs
-           - Validate critique details
-           - Extract feedback components
-
-        2. **Feedback Generation**: Create feedback
-           - Format issues
-           - Format suggestions
-           - Combine into feedback string
-
-        Args:
-            critique_details: The critique details
-
-        Returns:
-            The formatted feedback
-
-        Raises:
-            ValueError: If the critique details are invalid
-            TypeError: If the input type is incorrect
-
-        Examples:
-            ```python
-            formatter = ResultFormatter[str]()
-            critique_details = {
-                "issues": ["Text lacks clarity"],
-                "suggestions": ["Add more details"]
-            }
-            feedback = formatter.format_feedback_from_critique(critique_details)
-            print("Critique feedback:", feedback)
-            ```
-        """
-        if "feedback" in critique_details:
-            return critique_details["feedback"]
-
-        feedback = "The following issues were found:\n"
-
-        if "issues" in critique_details and critique_details["issues"]:
-            for issue in critique_details["issues"]:
-                feedback += f"- {issue}\n"
-
-        if "suggestions" in critique_details and critique_details["suggestions"]:
-            feedback += "\nSuggestions for improvement:\n"
-            for suggestion in critique_details["suggestions"]:
-                feedback += f"- {suggestion}\n"
-
-        return feedback
-
-    def format(self, result: ValidationResult[OutputType]) -> ChainResult[OutputType]:
-        """
-        Format a result.
-
-        ## Overview
-        This method formats a validation result into a standardized ChainResult
-        object, ensuring consistent result structure across the chain system.
-
-        ## Lifecycle
-        1. **Input Processing**: Process inputs
-           - Validate result type
-           - Extract result components
-
-        2. **Result Creation**: Create chain result
-           - Create result object
-           - Include all details
-           - Apply standard format
-
-        Args:
-            result: The result to format
-
-        Returns:
-            A formatted result
-
-        Raises:
-            ValueError: If the result is invalid
-            TypeError: If the input type is incorrect
-
-        Examples:
-            ```python
-            formatter = ResultFormatter[str]()
-            result = formatter.format(validation_result)
-            print("Output:", result.output)
-            print("All rules passed:", all(r.passed for r in result.rule_results))
-            ```
-        """
-        if not isinstance(result, ValidationResult):
-            raise ValueError(f"Expected ValidationResult, got {type(result)}")
-
-        return ChainResult(
-            output=result.output,
-            rule_results=result.rule_results,
-            critique_details=None,
-        )
+    def clear_cache(self) -> None:
+        """Clear the result formatter cache."""
+        self._state.update("result_cache", {})
+        logger.debug("Result formatter cache cleared")

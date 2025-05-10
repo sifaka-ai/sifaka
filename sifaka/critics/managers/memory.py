@@ -1,8 +1,7 @@
 """
-Memory manager for critics.
+Memory manager for Sifaka critics.
 
-This module provides the MemoryManager class which is responsible for
-managing memory for critics.
+This module provides a manager for handling critic memory and state management.
 
 ## Component Lifecycle
 
@@ -89,12 +88,14 @@ print(f"Memory size after clear: {memory_manager.memory_size}")
 
 import time
 from collections import deque
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Type
 
 from pydantic import PrivateAttr
 
-from ...utils.logging import get_logger
-from ...utils.state import StateManager
+from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
+from sifaka.critics.base import BaseCritic, CriticConfig, CriticResult
+from sifaka.utils.state import StateManager
+from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

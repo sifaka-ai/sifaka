@@ -95,7 +95,7 @@ from .config import ClassifierConfig
 from .interfaces.classifier import ClassifierProtocol, TextProcessor
 
 # Managers
-from .managers.state import StateManager
+from sifaka.utils.state import StateManager
 
 # Strategies
 from .strategies.caching import CachingStrategy

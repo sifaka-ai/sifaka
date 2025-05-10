@@ -80,72 +80,521 @@ if manager.validate_prompt(complex_prompt):
 - examples: Optional list of example outputs
 """
 
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional, TypeVar
+import time
 
-from ..interfaces.manager import PromptManagerProtocol
-from ...utils.logging import get_logger
+from pydantic import Field, ConfigDict
+
+from sifaka.core.base import BaseComponent, BaseConfig, BaseResult
+from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+T = TypeVar("T")  # Input type
+R = TypeVar("R")  # Result type
+OutputType = TypeVar("OutputType")
 
-class PromptManager(PromptManagerProtocol[str]):
+
+class PromptConfig(BaseConfig):
+    """Configuration for prompt manager."""
+
+    template_format: str = Field(
+        default="text", description="Format of prompt templates (text, json, etc.)"
+    )
+    add_timestamps: bool = Field(default=False, description="Whether to add timestamps to prompts")
+    max_history_items: int = Field(
+        default=5, description="Maximum number of history items to include"
+    )
+    max_examples: int = Field(default=3, description="Maximum number of examples to include")
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True, validate_assignment=True, extra="forbid"
+    )
+
+
+class BasePrompt(BaseComponent[Dict[str, Any], str]):
+    """Base class for all prompts."""
+
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        template: str,
+        config: Optional[PromptConfig] = None,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize the prompt."""
+        super().__init__(name, description, config or PromptConfig(**kwargs))
+        self._state.update("template", template)
+        self._state.update("initialized", True)
+
+    def generate(self, context: Dict[str, Any]) -> str:
+        """Generate a prompt from context."""
+        template = self._state.get("template")
+        try:
+            return template.format(**context)
+        except KeyError as e:
+            logger.error(f"Missing context key: {e}")
+            return template
+        except Exception as e:
+            logger.error(f"Error generating prompt: {e}")
+            return template
+
+
+class PromptResult(BaseResult):
+    """Result of prompt generation operation."""
+
+    prompt: str = Field(default="")
+    context: Dict[str, Any] = Field(default_factory=dict)
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True, validate_assignment=True, extra="forbid"
+    )
+
+
+class PromptManager(BaseComponent[Dict[str, Any], PromptResult]):
     """
-    Manages prompt creation and modification for chains.
+    Prompt manager for Sifaka chains.
 
-    ## Overview
-    This class provides centralized management of prompt creation, modification,
-    and validation. It supports various ways to enhance prompts with feedback,
-    history, context, and examples, implementing the PromptManagerProtocol interface.
+    This class provides template-based prompt generation and management,
+    coordinating between multiple prompts and tracking generation results.
 
     ## Architecture
-    PromptManager follows a builder pattern:
-    1. **Prompt Creation**: Creates base prompts from input
-    2. **Prompt Enhancement**: Adds additional context and guidance
-    3. **Prompt Validation**: Ensures prompt quality and format
+    The PromptManager follows a component-based architecture:
+    - Inherits from BaseComponent for consistent behavior
+    - Uses StateManager for state management
+    - Implements caching for performance
+    - Tracks statistics for monitoring
 
     ## Lifecycle
-    1. **Creation**: Create base prompts
-       - Process input values
-       - Apply basic formatting
-       - Validate structure
-
-    2. **Enhancement**: Add additional context
-       - Add feedback from previous attempts
-       - Include execution history
-       - Add contextual information
-       - Include example outputs
-
-    ## Error Handling
-    - ValueError: Raised for invalid input types or empty prompts
-    - TypeError: Raised for type validation failures
-    - RuntimeError: Raised for unexpected conditions
-
-    ## Examples
-    ```python
-    from sifaka.chain.managers.prompt import PromptManager
-
-    # Create manager
-    manager = PromptManager()
-
-    # Create basic prompt
-    prompt = manager.create_prompt(
-        "Write a story",
-        feedback="Make it longer",
-        context="Set in future",
-        examples=["Example story"]
-    )
-
-    # Add feedback
-    prompt = manager.create_prompt_with_feedback(
-        prompt,
-        "Add more dialogue"
-    )
-
-    # Validate prompt
-    if manager.validate_prompt(prompt):
-        print("Prompt is valid")
-    ```
+    1. Initialization: Set up with prompts and configuration
+    2. Prompt Generation: Generate prompts from context
+    3. Prompt Management: Add/remove prompts as needed
+    4. Statistics: Track prompt generation performance
     """
+
+    def __init__(
+        self,
+        prompts: List[BasePrompt],
+        name: str = "prompt_manager",
+        description: str = "Prompt manager for Sifaka chains",
+        template_format: str = "text",
+        add_timestamps: bool = False,
+        max_history_items: int = 5,
+        max_examples: int = 3,
+        config: Optional[PromptConfig] = None,
+        **kwargs: Any,
+    ):
+        """Initialize the prompt manager.
+
+        Args:
+            prompts: List of prompts to use for generation
+            name: Name of the manager
+            description: Description of the manager
+            template_format: Format of prompt templates
+            add_timestamps: Whether to add timestamps to prompts
+            max_history_items: Maximum number of history items to include
+            max_examples: Maximum number of examples to include
+            config: Additional configuration
+            **kwargs: Additional keyword arguments for configuration
+        """
+        # Create config if not provided
+        if config is None:
+            config = PromptConfig(
+                name=name,
+                description=description,
+                template_format=template_format,
+                add_timestamps=add_timestamps,
+                max_history_items=max_history_items,
+                max_examples=max_examples,
+                **kwargs,
+            )
+
+        # Initialize base component
+        super().__init__(name, description, config)
+
+        # Store prompts in state
+        self._state.update("prompts", prompts)
+        self._state.update("result_cache", {})
+        self._state.update("initialized", True)
+
+        # Set metadata
+        self._state.set_metadata("component_type", "prompt_manager")
+        self._state.set_metadata("creation_time", time.time())
+        self._state.set_metadata("prompt_count", len(prompts))
+
+    def process(self, input: Dict[str, Any]) -> PromptResult:
+        """
+        Process the input context and return a prompt result.
+
+        This is the implementation of the abstract method from BaseComponent.
+
+        Args:
+            input: The context to generate a prompt from
+
+        Returns:
+            PromptResult with generated prompt and context
+
+        Raises:
+            ValueError: If input is invalid
+        """
+        # For process method, we'll use the first prompt or create a simple one
+        prompts = self._state.get("prompts", [])
+        if not prompts:
+            return PromptResult(
+                passed=False,
+                message="No prompts available",
+                metadata={"error_type": "no_prompts"},
+                score=0.0,
+                issues=["No prompts available"],
+                suggestions=["Add prompts to the manager"],
+                prompt="",
+                context=input,
+            )
+
+        # Use the first prompt
+        prompt = prompts[0]
+        prompt_text = prompt.generate(input)
+
+        return PromptResult(
+            passed=True,
+            message="Prompt generated successfully",
+            metadata={"prompt_name": prompt.name},
+            score=1.0,
+            prompt=prompt_text,
+            context=input,
+        )
+
+    def generate(self, context: Dict[str, Any]) -> List[PromptResult]:
+        """
+        Generate prompts from context.
+
+        Args:
+            context: The context to generate prompts from
+
+        Returns:
+            List of PromptResult objects with generated prompts
+
+        Raises:
+            ValueError: If context is invalid
+        """
+        # Handle empty input
+        if not context:
+            return [
+                PromptResult(
+                    passed=False,
+                    message="Empty context",
+                    metadata={"error_type": "empty_context"},
+                    score=0.0,
+                    issues=["Context is empty"],
+                    suggestions=["Provide non-empty context"],
+                    prompt="",
+                    context={},
+                )
+            ]
+
+        # Record start time
+        start_time = time.time()
+
+        try:
+            # Check cache
+            cache_key = str(context)[:100]  # Use first 100 chars as key
+            cache = self._state.get("result_cache", {})
+
+            if cache_key in cache and self.config.cache_size > 0:
+                self._state.set_metadata("cache_hit", True)
+                return cache[cache_key]
+
+            # Mark as cache miss
+            self._state.set_metadata("cache_hit", False)
+
+            # Get prompts from state
+            prompts = self._state.get("prompts", [])
+            if not prompts:
+                return [
+                    PromptResult(
+                        passed=False,
+                        message="No prompts available",
+                        metadata={"error_type": "no_prompts"},
+                        score=0.0,
+                        issues=["No prompts available"],
+                        suggestions=["Add prompts to the manager"],
+                        prompt="",
+                        context=context,
+                    )
+                ]
+
+            # Generate prompts
+            results = []
+            for prompt in prompts:
+                try:
+                    prompt_text = prompt.generate(context)
+
+                    # Add timestamp if configured
+                    if self.config.add_timestamps:
+                        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+                        prompt_text = f"[{timestamp}] {prompt_text}"
+
+                    # Create result
+                    result = PromptResult(
+                        passed=True,
+                        message="Prompt generated successfully",
+                        metadata={
+                            "prompt_name": prompt.name,
+                            "template_format": self.config.template_format,
+                        },
+                        score=1.0,
+                        prompt=prompt_text,
+                        context=context,
+                        processing_time_ms=(time.time() - start_time) * 1000,
+                    )
+
+                    results.append(result)
+                except Exception as e:
+                    # Create error result
+                    error_result = PromptResult(
+                        passed=False,
+                        message=f"Prompt generation error: {str(e)}",
+                        metadata={
+                            "prompt_name": prompt.name,
+                            "error_type": str(type(e).__name__),
+                        },
+                        score=0.0,
+                        issues=[str(e)],
+                        suggestions=["Check context format and try again"],
+                        prompt="",
+                        context=context,
+                        processing_time_ms=(time.time() - start_time) * 1000,
+                    )
+                    results.append(error_result)
+
+                    # Record error
+                    self.record_error(e)
+
+            # Update statistics
+            for result in results:
+                self.update_statistics(result)
+
+            # Cache result if caching is enabled
+            if self.config.cache_size > 0:
+                # Manage cache size
+                if len(cache) >= self.config.cache_size:
+                    # Remove oldest entry (simple approach)
+                    if cache:
+                        oldest_key = next(iter(cache))
+                        del cache[oldest_key]
+
+                cache[cache_key] = results
+                self._state.update("result_cache", cache)
+
+            return results
+
+        except Exception as e:
+            # Record error
+            self.record_error(e)
+            logger.error(f"Prompt generation error: {str(e)}")
+
+            # Create error result
+            return [
+                PromptResult(
+                    passed=False,
+                    message=f"Prompt generation error: {str(e)}",
+                    metadata={"error_type": str(type(e).__name__)},
+                    score=0.0,
+                    issues=[str(e)],
+                    suggestions=["Check context format and try again"],
+                    prompt="",
+                    context=context,
+                    processing_time_ms=(time.time() - start_time) * 1000,
+                )
+            ]
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get statistics about prompt generation usage.
+
+        Returns:
+            Dictionary with usage statistics
+        """
+        # Get base statistics from parent class
+        stats = super().get_statistics()
+
+        # Add prompt-specific statistics
+        stats.update(
+            {
+                "cache_size": len(self._state.get("result_cache", {})),
+                "prompt_count": len(self._state.get("prompts", [])),
+                "template_format": self.config.template_format,
+                "add_timestamps": self.config.add_timestamps,
+                "max_history_items": self.config.max_history_items,
+                "max_examples": self.config.max_examples,
+                "cache_enabled": self.config.cache_size > 0,
+                "cache_limit": self.config.cache_size,
+            }
+        )
+
+        return stats
+
+    def clear_cache(self) -> None:
+        """Clear the prompt generation result cache."""
+        self._state.update("result_cache", {})
+        logger.debug(f"Prompt cache cleared for {self.name}")
+
+    def add_prompt(self, prompt: Any) -> None:
+        """
+        Add a prompt to the manager.
+
+        ## Overview
+        This method adds a new prompt to the manager's prompt list.
+        The prompt will be used in subsequent generations.
+
+        ## Lifecycle
+        1. **Input Processing**: Process inputs
+           - Validate prompt type
+           - Check prompt validity
+
+        2. **Prompt Addition**: Add prompt
+           - Add to prompt list
+           - Update state
+           - Clear cache
+
+        Args:
+            prompt: The prompt to add
+
+        Raises:
+            ValueError: If the prompt is invalid
+            TypeError: If the input type is incorrect
+
+        Examples:
+            ```python
+            manager = PromptManager(prompts=[])
+            new_prompt = BasePrompt(
+                name="story_prompt",
+                description="Generates story prompts",
+                template="Write a story about {topic}"
+            )
+            manager.add_prompt(new_prompt)
+            ```
+        """
+        # Validate prompt type
+        if not isinstance(prompt, BasePrompt):
+            raise ValueError(f"Expected BasePrompt instance, got {type(prompt)}")
+
+        # Check for duplicate prompt names
+        prompts = self._state.get("prompts", [])
+        if any(p.name == prompt.name for p in prompts):
+            logger.warning(f"Prompt with name '{prompt.name}' already exists, it will be replaced")
+            # Remove existing prompt with same name
+            self.remove_prompt(prompt.name)
+            # Get updated prompts list
+            prompts = self._state.get("prompts", [])
+
+        # Add prompt to the list
+        prompts.append(prompt)
+        self._state.update("prompts", prompts)
+
+        # Update metadata
+        self._state.set_metadata("prompt_count", len(prompts))
+
+        # Clear cache since generation results may change
+        self.clear_cache()
+
+        logger.debug(f"Added prompt '{prompt.name}' to prompt manager '{self.name}'")
+
+    def remove_prompt(self, prompt_name: str) -> None:
+        """
+        Remove a prompt by name.
+
+        ## Overview
+        This method removes a prompt from the manager's prompt list
+        based on its name. The prompt will no longer be used in subsequent
+        generations.
+
+        ## Lifecycle
+        1. **Input Processing**: Process inputs
+           - Validate prompt name
+           - Find prompt to remove
+
+        2. **Prompt Removal**: Remove prompt
+           - Remove from prompt list
+           - Update state
+           - Clear cache
+
+        Args:
+            prompt_name: The name of the prompt to remove
+
+        Raises:
+            ValueError: If the prompt name is invalid or prompt not found
+
+        Examples:
+            ```python
+            manager = PromptManager(prompts=[...])
+            manager.remove_prompt("story_prompt")
+            ```
+        """
+        # Validate input
+        if not prompt_name or not isinstance(prompt_name, str):
+            raise ValueError(f"Invalid prompt name: {prompt_name}")
+
+        # Find prompt by name
+        prompt_to_remove = None
+        prompts = self._state.get("prompts", [])
+        for prompt in prompts:
+            if prompt.name == prompt_name:
+                prompt_to_remove = prompt
+                break
+
+        if prompt_to_remove is None:
+            raise ValueError(f"Prompt not found: {prompt_name}")
+
+        # Remove prompt from list
+        prompts.remove(prompt_to_remove)
+        self._state.update("prompts", prompts)
+
+        # Update metadata
+        self._state.set_metadata("prompt_count", len(prompts))
+
+        # Clear cache since generation results may change
+        self.clear_cache()
+
+        logger.debug(f"Removed prompt '{prompt_name}' from prompt manager '{self.name}'")
+
+    def get_prompts(self) -> List[BasePrompt]:
+        """
+        Get all registered prompts.
+
+        ## Overview
+        This method returns a list of all prompts currently
+        registered with the manager.
+
+        ## Lifecycle
+        1. **Prompt Retrieval**: Get prompts
+           - Access prompt list
+           - Return prompts
+
+        Returns:
+            The list of registered prompts
+
+        Examples:
+            ```python
+            manager = PromptManager(prompts=[...])
+            prompts = manager.get_prompts()
+            print(f"Number of prompts: {len(prompts)}")
+            ```
+        """
+        return self._state.get("prompts", [])
+
+    def warm_up(self) -> None:
+        """Prepare the prompt manager for use."""
+        super().warm_up()
+
+        # Pre-validate prompts
+        prompts = self._state.get("prompts", [])
+        for prompt in prompts:
+            if hasattr(prompt, "warm_up"):
+                prompt.warm_up()
+
+        logger.debug(f"Prompt manager '{self.name}' warmed up with {len(prompts)} prompts")
 
     def create_prompt_with_feedback(self, original_prompt: str, feedback: str) -> str:
         """
@@ -348,7 +797,7 @@ class PromptManager(PromptManagerProtocol[str]):
 
         Examples:
             ```python
-            manager = PromptManager()
+            manager = PromptManager(prompts=[])
             prompt = manager.create_prompt(
                 "Write a story",
                 feedback="Make it longer",
@@ -372,11 +821,22 @@ class PromptManager(PromptManagerProtocol[str]):
         if feedback:
             prompt = self.create_prompt_with_feedback(prompt, feedback)
         if history:
+            # Limit history items if configured
+            if isinstance(history, list) and len(history) > self.config.max_history_items:
+                history = history[-self.config.max_history_items :]
             prompt = self.create_prompt_with_history(prompt, history)
         if context:
             prompt = self.create_prompt_with_context(prompt, context)
         if examples:
+            # Limit examples if configured
+            if isinstance(examples, list) and len(examples) > self.config.max_examples:
+                examples = examples[: self.config.max_examples]
             prompt = self.create_prompt_with_examples(prompt, examples)
+
+        # Add timestamp if configured
+        if self.config.add_timestamps:
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+            prompt = f"[{timestamp}] {prompt}"
 
         return prompt
 
@@ -411,7 +871,7 @@ class PromptManager(PromptManagerProtocol[str]):
 
         Examples:
             ```python
-            manager = PromptManager()
+            manager = PromptManager(prompts=[])
             formatted_prompt = manager.format_prompt(
                 "Write a story",
                 indent=2,
@@ -460,7 +920,7 @@ class PromptManager(PromptManagerProtocol[str]):
 
         Examples:
             ```python
-            manager = PromptManager()
+            manager = PromptManager(prompts=[])
             is_valid = manager.validate_prompt("Write a story")
             if is_valid:
                 print("Prompt is valid")
@@ -475,3 +935,50 @@ class PromptManager(PromptManagerProtocol[str]):
 
         # Additional validation can be added here
         return True
+
+
+def create_prompt_manager(
+    prompts: List[BasePrompt] = None,
+    name: str = "prompt_manager",
+    description: str = "Prompt manager for Sifaka chains",
+    template_format: str = "text",
+    add_timestamps: bool = False,
+    max_history_items: int = 5,
+    max_examples: int = 3,
+    cache_size: int = 100,
+    **kwargs: Any,
+) -> PromptManager:
+    """
+    Create a prompt manager.
+
+    Args:
+        prompts: List of prompts to use for generation
+        name: Name of the manager
+        description: Description of the manager
+        template_format: Format of prompt templates
+        add_timestamps: Whether to add timestamps to prompts
+        max_history_items: Maximum number of history items to include
+        max_examples: Maximum number of examples to include
+        cache_size: Size of the prompt cache
+        **kwargs: Additional configuration parameters
+
+    Returns:
+        Configured PromptManager instance
+    """
+    config = PromptConfig(
+        name=name,
+        description=description,
+        template_format=template_format,
+        add_timestamps=add_timestamps,
+        max_history_items=max_history_items,
+        max_examples=max_examples,
+        cache_size=cache_size,
+        **kwargs,
+    )
+
+    return PromptManager(
+        prompts=prompts or [],
+        name=name,
+        description=description,
+        config=config,
+    )

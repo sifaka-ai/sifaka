@@ -2,9 +2,9 @@
 # flake8: noqa
 # mypy: ignore-errors
 """
-Base Adapters
+Base classes for Sifaka adapters.
 
-Base classes and protocols for adapter-based rules in the Sifaka framework.
+This module provides the foundational components for adapter implementations.
 
 ## Overview
 This module provides the foundation for adapting various components to function as validation rules,
@@ -39,15 +39,20 @@ class CustomAdapter(BaseAdapter[str, CustomComponent]):
 - validation_type: The type of input this adapter validates
 """
 
-from typing import Any, Dict, Generic, Optional, Protocol, Type, TypeVar, cast, runtime_checkable
+from abc import ABC, abstractmethod
+from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Protocol, runtime_checkable
 
 from pydantic import BaseModel, PrivateAttr, ConfigDict
 from sifaka.rules.base import BaseValidator, ConfigurationError, RuleResult, ValidationError
-from sifaka.utils.state import AdapterState, StateManager, create_adapter_state
+from sifaka.utils.state import StateManager, create_adapter_state
+from sifaka.utils.logging import get_logger
 
+logger = get_logger(__name__)
 
+# Type variables
 T = TypeVar("T")  # Input type
-A = TypeVar("A", bound="Adaptable")  # Adaptee type
+R = TypeVar("R")  # Result type
+C = TypeVar("C", bound="BaseAdapter")  # Adapter type
 
 
 @runtime_checkable
@@ -120,7 +125,7 @@ class Adaptable(Protocol):
         ...
 
 
-class BaseAdapter(BaseModel, BaseValidator[T], Generic[T, A]):
+class BaseAdapter(BaseModel, BaseValidator[T], Generic[T, C]):
     """
     Base class for implementing adapters that convert components to validators.
 
@@ -158,7 +163,7 @@ class BaseAdapter(BaseModel, BaseValidator[T], Generic[T, A]):
     ```
 
     Attributes:
-        adaptee (A): The component being adapted
+        adaptee (C): The component being adapted
         validation_type (Type[T]): The type of input this adapter validates
     """
 
@@ -178,12 +183,12 @@ class BaseAdapter(BaseModel, BaseValidator[T], Generic[T, A]):
         """
         return T
 
-    def __init__(self, adaptee: A) -> None:
+    def __init__(self, adaptee: C) -> None:
         """
         Initialize the adapter with a component to adapt.
 
         Args:
-            adaptee (A): The component to adapt for validation
+            adaptee (C): The component to adapt for validation
 
         Raises:
             ConfigurationError: If the adaptee is invalid or incompatible
@@ -212,12 +217,12 @@ class BaseAdapter(BaseModel, BaseValidator[T], Generic[T, A]):
             )
 
     @property
-    def adaptee(self) -> A:
+    def adaptee(self) -> C:
         """
         Get the component being adapted.
 
         Returns:
-            A: The component instance being adapted
+            C: The component instance being adapted
         """
         return self._state_manager.get_state().adaptee
 
@@ -265,8 +270,8 @@ class BaseAdapter(BaseModel, BaseValidator[T], Generic[T, A]):
 
 
 def create_adapter(
-    adapter_type: Type[BaseAdapter[T, A]], adaptee: A, **kwargs: Any
-) -> BaseAdapter[T, A]:
+    adapter_type: Type[BaseAdapter[T, C]], adaptee: C, **kwargs: Any
+) -> BaseAdapter[T, C]:
     """
     Factory function to create an adapter with standardized configuration.
 
@@ -275,12 +280,12 @@ def create_adapter(
     consistent interface.
 
     Args:
-        adapter_type (Type[BaseAdapter[T, A]]): The class of the adapter to create
-        adaptee (A): The component to adapt
+        adapter_type (Type[BaseAdapter[T, C]]): The class of the adapter to create
+        adaptee (C): The component to adapt
         **kwargs: Additional keyword arguments for the adapter
 
     Returns:
-        BaseAdapter[T, A]: A configured adapter instance
+        BaseAdapter[T, C]: A configured adapter instance
 
     Raises:
         ConfigurationError: If adapter_type is not a subclass of BaseAdapter

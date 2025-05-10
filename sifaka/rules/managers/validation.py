@@ -1,16 +1,21 @@
 """
-Validation management for Sifaka rules.
+Validation manager for Sifaka rules.
 
-This module provides the ValidationManager class for managing rule validation.
-It handles rule execution, result processing, and validation flow control.
+This module provides a manager for handling rule validation and state management.
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional, Type
+
+from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
+from sifaka.rules.base import BaseRule, RuleConfig, RuleResult
+from sifaka.utils.state import StateManager
+from sifaka.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 
 from ..interfaces.rule import RuleProtocol
-from ..result import RuleResult
 from ...utils.state import StateManager
 
 

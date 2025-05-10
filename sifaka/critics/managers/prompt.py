@@ -1,10 +1,7 @@
 """
-Prompt manager for critics.
+Prompt manager for Sifaka critics.
 
-This module provides the PromptManager class which is responsible for
-creating and managing prompts for critics. It implements a template-based
-approach for generating prompts for different operations like validation,
-critique, improvement, and reflection.
+This module provides a manager for handling critic prompts and state management.
 
 ## Component Overview
 
@@ -179,13 +176,14 @@ prompt_manager = CustomPromptManager(config)
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Type
 import time
 from pydantic import PrivateAttr
 
-from ..config import CriticConfig
-from ...utils.logging import get_logger
-from ...utils.state import StateManager
+from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
+from sifaka.critics.base import BaseCritic, CriticConfig, CriticResult
+from sifaka.utils.state import StateManager
+from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
