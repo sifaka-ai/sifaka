@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from .result import ModelResult, GenerationResult
 from sifaka.utils.errors import ModelError, try_operation
-from sifaka.utils.error_patterns import handle_model_error, ErrorResult
+from sifaka.utils.error_patterns import create_model_error_result, ErrorResult
 
 # Type variable for return type
 T = TypeVar("T")
@@ -69,9 +69,9 @@ def create_error_result(
         Error result or generation result with error information
     """
     # Handle the error
-    error_result = handle_model_error(
+    error_result = create_model_error_result(
         error=error,
-        model_name=model_name,
+        component_name=model_name,
         log_level=log_level,
     )
 

@@ -2,6 +2,7 @@
 Interfaces for critics.
 
 This package provides protocol interfaces for critics in the Sifaka framework.
+These interfaces are imported from the main interfaces directory.
 
 ## Interface Hierarchy
 
@@ -13,7 +14,8 @@ This package provides protocol interfaces for critics in the Sifaka framework.
    - **PromptFactory**: Interface for prompt factories
 """
 
-from .critic import (
+# Import from the main interfaces directory
+from sifaka.interfaces.critic import (
     # Core critic interfaces
     Critic,
     AsyncCritic,

@@ -82,13 +82,11 @@ result = try_chain_operation(
   - default_result: Default result if operation fails
 """
 
-from typing import Any, Dict, List, Optional, TypeVar, Callable, cast, Union, Generic
-
-from pydantic import BaseModel
+from typing import Any, Dict, List, Optional, TypeVar, Callable
 
 from .result import ChainResult
-from sifaka.utils.errors import ChainError, try_operation
-from sifaka.utils.error_patterns import handle_chain_error, ErrorResult
+from sifaka.utils.errors import try_operation
+from sifaka.utils.error_patterns import create_chain_error_result, ErrorResult
 
 # Type variable for return type
 T = TypeVar("T")
@@ -153,6 +151,9 @@ def create_chain_result(
         critique_details=critique_details,
         attempts=attempts,
         metadata=metadata or {},
+        passed=True,  # Default to passed, will be updated based on rule_results
+        message="Chain execution completed",
+        status=None,  # Will be determined based on rule_results
     )
 
 
@@ -191,7 +192,7 @@ def create_error_result(
         )
         ```
     """
-    return handle_chain_error(error, chain_name, log_level)
+    return create_chain_error_result(error, chain_name, log_level)
 
 
 def try_chain_operation(

@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from .base import CriticResultEnum
 from sifaka.utils.errors import CriticError, try_operation
-from sifaka.utils.error_patterns import handle_critic_error, ErrorResult
+from sifaka.utils.error_patterns import create_critic_error_result, ErrorResult
 
 # Type variable for return type
 T = TypeVar("T")
@@ -88,9 +88,9 @@ def create_error_metadata(
         Critic metadata representing the error
     """
     # Handle the error
-    error_result = handle_critic_error(
+    error_result = create_critic_error_result(
         error=error,
-        critic_name=critic_name,
+        component_name=critic_name,
         log_level=log_level,
     )
 

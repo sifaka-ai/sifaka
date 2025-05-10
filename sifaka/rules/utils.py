@@ -45,7 +45,7 @@ from pydantic import BaseModel
 
 from .result import RuleResult
 from sifaka.utils.errors import RuleError, try_operation
-from sifaka.utils.error_patterns import handle_rule_error, ErrorResult
+from sifaka.utils.error_patterns import create_rule_error_result, ErrorResult
 from sifaka.utils.logging import get_logger
 
 # Get logger
@@ -178,9 +178,9 @@ def create_error_result(
 
     try:
         # Handle the error
-        error_result = handle_rule_error(
+        error_result = create_rule_error_result(
             error=error,
-            rule_name=rule_name,
+            component_name=rule_name,
             log_level=log_level,
         )
 

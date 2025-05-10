@@ -46,26 +46,21 @@ The module uses a standardized state management approach:
 """
 
 import time
-from abc import ABC, abstractmethod
 from typing import (
     Any,
     Dict,
     Generic,
-    List,
     Optional,
     Type,
     TypeVar,
-    Protocol,
-    runtime_checkable,
-    Union,
 )
 
-from pydantic import BaseModel, PrivateAttr, ConfigDict, Field
+from pydantic import BaseModel, PrivateAttr, ConfigDict
 from sifaka.rules.base import RuleResult
 from sifaka.utils.errors import ConfigurationError, ValidationError
-from sifaka.utils.state import StateManager, create_adapter_state, AdapterState
+from sifaka.utils.state import create_adapter_state
 from sifaka.utils.logging import get_logger
-from sifaka.utils.errors import SifakaError, try_operation, handle_error
+from sifaka.utils.errors import SifakaError, handle_error
 
 logger = get_logger(__name__)
 
@@ -97,74 +92,8 @@ class AdapterError(SifakaError):
         super().__init__(message, metadata)
 
 
-@runtime_checkable
-class Adaptable(Protocol):
-    """
-    Protocol for components that can be adapted to rules.
-
-    ## Overview
-    Any component that can be adapted to a Sifaka rule must implement
-    this protocol, which requires a name and description.
-
-    ## Architecture
-    The protocol defines a minimal interface that components must implement
-    to be compatible with Sifaka's adapter system.
-
-    ## Lifecycle
-    1. **Implementation**: Component implements the required properties
-       - Provide a name for identification
-       - Provide a description of functionality
-
-    2. **Adaptation**: Component is adapted using a compatible adapter
-       - Adapter receives component instance
-       - Adapter validates component compatibility
-
-    3. **Usage**: Adapted component is used as a Sifaka rule validator
-       - Adapter translates between component and rule interfaces
-       - Component's functionality is leveraged in validation
-
-    ## Error Handling
-    - TypeError: Raised if required properties are not implemented
-    - ValueError: Raised if property values are invalid
-
-    ## Examples
-    ```python
-    class MyComponent:
-        @property
-        def name(self) -> str:
-            return "my_component"
-
-        @property
-        def description(self) -> str:
-            return "A custom component"
-    ```
-    """
-
-    @property
-    def name(self) -> str:
-        """
-        Get the component name.
-
-        Returns:
-            str: A string name for the component
-
-        Raises:
-            NotImplementedError: If the property is not implemented
-        """
-        ...
-
-    @property
-    def description(self) -> str:
-        """
-        Get the component description.
-
-        Returns:
-            str: A string description of the component's purpose
-
-        Raises:
-            NotImplementedError: If the property is not implemented
-        """
-        ...
+# Import from the main interfaces directory
+from sifaka.interfaces.adapter import Adaptable
 
 
 class BaseAdapter(BaseModel, Generic[T, C]):

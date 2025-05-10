@@ -10,7 +10,8 @@ import time
 
 from pydantic import PrivateAttr
 
-from sifaka.core.base import BaseComponent, BaseResult
+from sifaka.core.base import BaseComponent
+from sifaka.chain.result import ChainResult
 from sifaka.models.core import ModelProviderCore
 from sifaka.critics.core import CriticCore
 from sifaka.chain.managers.validation import ValidationManager
@@ -35,7 +36,7 @@ class ChainCore(BaseComponent):
     """
 
     # State management
-    _state = PrivateAttr(default_factory=StateManager)
+    _state_manager = PrivateAttr(default_factory=StateManager)
 
     def __init__(
         self,
@@ -62,26 +63,26 @@ class ChainCore(BaseComponent):
             description: Description of the chain
             config: Additional configuration
         """
-        super().__init__()
+        super().__init__(name=name, description=description, config=config)
 
-        self._state.update("model", model)
-        self._state.update("validation_manager", validation_manager)
-        self._state.update("prompt_manager", prompt_manager)
-        self._state.update("retry_strategy", retry_strategy)
-        self._state.update("result_formatter", result_formatter)
-        self._state.update("critic", critic)
-        self._state.update("name", name)
-        self._state.update("description", description)
-        self._state.update("config", config or {})
-        self._state.update("initialized", True)
-        self._state.update("execution_count", 0)
-        self._state.update("result_cache", {})
+        self._state_manager.update("model", model)
+        self._state_manager.update("validation_manager", validation_manager)
+        self._state_manager.update("prompt_manager", prompt_manager)
+        self._state_manager.update("retry_strategy", retry_strategy)
+        self._state_manager.update("result_formatter", result_formatter)
+        self._state_manager.update("critic", critic)
+        self._state_manager.update("name", name)
+        self._state_manager.update("description", description)
+        self._state_manager.update("config", config or {})
+        self._state_manager.update("initialized", True)
+        self._state_manager.update("execution_count", 0)
+        self._state_manager.update("result_cache", {})
 
         # Set metadata
-        self._state.set_metadata("component_type", "chain")
-        self._state.set_metadata("creation_time", time.time())
+        self._state_manager.set_metadata("component_type", "chain")
+        self._state_manager.set_metadata("creation_time", time.time())
 
-    def run(self, prompt: str) -> BaseResult:
+    def run(self, prompt: str) -> ChainResult:
         """
         Run the chain on the given prompt.
 
@@ -98,29 +99,28 @@ class ChainCore(BaseComponent):
             ModelError: If model generation fails
         """
         # Track execution count
-        execution_count = self._state.get("execution_count", 0)
-        self._state.update("execution_count", execution_count + 1)
+        execution_count = self._state_manager.get("execution_count", 0)
+        self._state_manager.update("execution_count", execution_count + 1)
 
         # Check cache
-        cache = self._state.get("result_cache", {})
+        cache = self._state_manager.get("result_cache", {})
         if prompt in cache:
-            self._state.set_metadata("cache_hit", True)
+            self._state_manager.set_metadata("cache_hit", True)
             return cache[prompt]
 
         # Mark as cache miss
-        self._state.set_metadata("cache_hit", False)
+        self._state_manager.set_metadata("cache_hit", False)
 
         # Record start time
         start_time = time.time()
 
         try:
             # Get components from state
-            model = self._state.get("model")
-            validation_manager = self._state.get("validation_manager")
-            prompt_manager = self._state.get("prompt_manager")
-            retry_strategy = self._state.get("retry_strategy")
-            result_formatter = self._state.get("result_formatter")
-            critic = self._state.get("critic")
+            model = self._state_manager.get("model")
+            validation_manager = self._state_manager.get("validation_manager")
+            prompt_manager = self._state_manager.get("prompt_manager")
+            result_formatter = self._state_manager.get("result_formatter")
+            critic = self._state_manager.get("critic")
 
             # Process prompt
             formatted_prompt = prompt_manager.format_prompt(prompt)
@@ -143,26 +143,26 @@ class ChainCore(BaseComponent):
             exec_time = end_time - start_time
 
             # Update average execution time
-            avg_time = self._state.get_metadata("avg_execution_time", 0)
-            count = self._state.get("execution_count", 1)
+            avg_time = self._state_manager.get_metadata("avg_execution_time", 0)
+            count = self._state_manager.get("execution_count", 1)
             new_avg = ((avg_time * (count - 1)) + exec_time) / count
-            self._state.set_metadata("avg_execution_time", new_avg)
+            self._state_manager.set_metadata("avg_execution_time", new_avg)
 
             # Update max execution time if needed
-            max_time = self._state.get_metadata("max_execution_time", 0)
+            max_time = self._state_manager.get_metadata("max_execution_time", 0)
             if exec_time > max_time:
-                self._state.set_metadata("max_execution_time", exec_time)
+                self._state_manager.set_metadata("max_execution_time", exec_time)
 
             # Cache result
             cache[prompt] = result
-            self._state.update("result_cache", cache)
+            self._state_manager.update("result_cache", cache)
 
             return result
 
         except Exception as e:
             # Track error
-            error_count = self._state.get_metadata("error_count", 0)
-            self._state.set_metadata("error_count", error_count + 1)
+            error_count = self._state_manager.get_metadata("error_count", 0)
+            self._state_manager.set_metadata("error_count", error_count + 1)
             logger.error(f"Chain execution error: {str(e)}")
             raise
 
@@ -174,15 +174,15 @@ class ChainCore(BaseComponent):
             Dictionary with usage statistics
         """
         return {
-            "execution_count": self._state.get("execution_count", 0),
-            "cache_size": len(self._state.get("result_cache", {})),
-            "avg_execution_time": self._state.get_metadata("avg_execution_time", 0),
-            "max_execution_time": self._state.get_metadata("max_execution_time", 0),
-            "error_count": self._state.get_metadata("error_count", 0),
-            "model_name": self._state.get("model").name,
+            "execution_count": self._state_manager.get("execution_count", 0),
+            "cache_size": len(self._state_manager.get("result_cache", {})),
+            "avg_execution_time": self._state_manager.get_metadata("avg_execution_time", 0),
+            "max_execution_time": self._state_manager.get_metadata("max_execution_time", 0),
+            "error_count": self._state_manager.get_metadata("error_count", 0),
+            "model_name": self._state_manager.get("model").name,
         }
 
     def clear_cache(self) -> None:
         """Clear the chain result cache."""
-        self._state.update("result_cache", {})
+        self._state_manager.update("result_cache", {})
         logger.debug("Chain cache cleared")

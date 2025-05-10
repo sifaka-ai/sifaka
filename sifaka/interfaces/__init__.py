@@ -46,10 +46,24 @@ class MyCritic(Critic[str, str]):
 # Import interfaces from component-specific directories
 from .chain import Chain, AsyncChain
 from .retrieval import Retriever, AsyncRetriever
+from .classifier import ClassifierProtocol, TextProcessor
+from .critic import Critic, AsyncCritic, CritiqueResult
+from .adapter import Adaptable
 
 __all__ = [
+    # Chain interfaces
     "Chain",
     "AsyncChain",
+    # Retrieval interfaces
     "Retriever",
     "AsyncRetriever",
+    # Classifier interfaces
+    "ClassifierProtocol",
+    "TextProcessor",
+    # Critic interfaces
+    "Critic",
+    "AsyncCritic",
+    "CritiqueResult",
+    # Adapter interfaces
+    "Adaptable",
 ]
