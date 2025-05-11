@@ -43,8 +43,8 @@ import asyncio
 
 from .interfaces import Model, Validator, Improver, Formatter
 from .engine import Engine
-from ..utils.state import StateManager, create_chain_state
-from ..utils.common import update_statistics, record_error
+from ..utils.state import create_chain_state
+from ..utils.common import update_statistics
 from ..utils.logging import get_logger
 from .result import ChainResult
 from .config import ChainConfig
@@ -55,7 +55,24 @@ logger = get_logger(__name__)
 
 
 class Chain:
-    """Main user-facing class for running chains."""
+    """
+    Main user-facing class for running chains.
+
+    This class implements the Chain interface from sifaka.interfaces.chain.
+    It provides a standardized way to run chains with proper lifecycle management
+    and state tracking.
+
+    ## Lifecycle
+
+    1. **Initialization**: Set up chain resources and configuration
+    2. **Execution**: Run inputs through the flow
+    3. **Result Handling**: Process and return results
+    4. **Configuration Management**: Manage chain configuration
+    5. **State Management**: Manage chain state
+    6. **Error Handling**: Handle and track errors
+    7. **Execution Tracking**: Track execution statistics
+    8. **Cleanup**: Release resources when no longer needed
+    """
 
     def __init__(
         self,
@@ -98,21 +115,101 @@ class Chain:
             config=self._config,
         )
 
-        # Initialize state
-        self._state_manager.update("name", name)
-        self._state_manager.update("description", description)
-        self._state_manager.update("model", model)
-        self._state_manager.update("validators", validators or [])
-        self._state_manager.update("improver", improver)
-        self._state_manager.update("formatter", formatter)
-        self._state_manager.update("config", self._config)
-        self._state_manager.update("initialized", True)
-        self._state_manager.update("execution_count", 0)
-        self._state_manager.update("result_cache", {})
+        # Initialize the chain
+        self.initialize()
 
-        # Set metadata
-        self._state_manager.set_metadata("component_type", "chain")
-        self._state_manager.set_metadata("creation_time", time.time())
+    def initialize(self) -> None:
+        """
+        Initialize the chain.
+
+        This method initializes the chain state and prepares it for execution.
+        It should be called after the chain is created to set up any resources
+        or state needed for operation.
+
+        Raises:
+            RuntimeError: If initialization fails
+        """
+        try:
+            # Initialize state
+            self._state_manager.update("name", self._name)
+            self._state_manager.update("description", self._description)
+            self._state_manager.update("model", self._model)
+            self._state_manager.update("validators", self._validators)
+            self._state_manager.update("improver", self._improver)
+            self._state_manager.update("formatter", self._formatter)
+            self._state_manager.update("config", self._config)
+            self._state_manager.update("initialized", True)
+            self._state_manager.update("execution_count", 0)
+            self._state_manager.update("result_cache", {})
+
+            # Set metadata
+            self._state_manager.set_metadata("component_type", "chain")
+            self._state_manager.set_metadata("creation_time", time.time())
+
+            logger.debug(f"Chain '{self._name}' initialized")
+        except Exception as e:
+            logger.error(f"Chain initialization failed: {str(e)}")
+            raise RuntimeError(f"Chain initialization failed: {str(e)}")
+
+    def cleanup(self) -> None:
+        """
+        Clean up the chain.
+
+        This method cleans up any resources used by the chain.
+        It should be called when the chain is no longer needed.
+
+        Raises:
+            RuntimeError: If cleanup fails
+        """
+        try:
+            # Clean up resources
+            self._state_manager.update("initialized", False)
+            logger.debug(f"Chain '{self._name}' cleaned up")
+        except Exception as e:
+            logger.error(f"Chain cleanup failed: {str(e)}")
+            raise RuntimeError(f"Chain cleanup failed: {str(e)}")
+
+    def get_state(self) -> Dict[str, Any]:
+        """
+        Get the current state.
+
+        Returns:
+            The current state as a dictionary
+        """
+        return {
+            "name": self._state_manager.get("name"),
+            "description": self._state_manager.get("description"),
+            "initialized": self._state_manager.get("initialized", False),
+            "execution_count": self._state_manager.get("execution_count", 0),
+            "result_cache": self._state_manager.get("result_cache", {}),
+            "metadata": self._state_manager._state.metadata,
+        }
+
+    def set_state(self, state: Dict[str, Any]) -> None:
+        """
+        Set the state.
+
+        Args:
+            state: The new state
+
+        Raises:
+            ValueError: If the state is invalid
+        """
+        try:
+            # Update state
+            for key, value in state.items():
+                if key != "metadata":
+                    self._state_manager.update(key, value)
+
+            # Update metadata if provided
+            if "metadata" in state:
+                for key, value in state["metadata"].items():
+                    self._state_manager.set_metadata(key, value)
+
+            logger.debug(f"Chain '{self._name}' state updated")
+        except Exception as e:
+            logger.error(f"Chain state update failed: {str(e)}")
+            raise ValueError(f"Invalid state: {str(e)}")
 
     @property
     def name(self) -> str:
@@ -129,22 +226,41 @@ class Chain:
         """Get chain configuration."""
         return self._config
 
+    @property
+    def _state_manager(self) -> Any:
+        """
+        Get the state manager.
+
+        Returns:
+            The state manager
+        """
+        return self._state_manager
+
     def update_config(self, config: ChainConfig) -> None:
         """
         Update chain configuration.
 
         Args:
             config: New chain configuration
-        """
-        self._config = config
-        self._state_manager.update("config", config)
 
-    def run(self, prompt: str) -> ChainResult:
+        Raises:
+            ValueError: If the configuration is invalid
+        """
+        try:
+            self._config = config
+            self._state_manager.update("config", config)
+            logger.debug(f"Chain '{self._name}' configuration updated")
+        except Exception as e:
+            logger.error(f"Chain configuration update failed: {str(e)}")
+            raise ValueError(f"Invalid configuration: {str(e)}")
+
+    def run(self, prompt: str, **kwargs: Any) -> ChainResult:
         """
         Run the chain on the given prompt.
 
         Args:
             prompt: The prompt to process
+            **kwargs: Additional run parameters
 
         Returns:
             The chain result
@@ -153,24 +269,28 @@ class Chain:
             ChainError: If chain execution fails
             ValueError: If prompt is empty or not a string
         """
+        # Ensure the chain is initialized
+        if not self._state_manager.get("initialized", False):
+            self.initialize()
+
+        # Validate prompt
+        from sifaka.utils.text import is_empty_text
+
+        if not isinstance(prompt, str):
+            raise ValueError("Prompt must be a string")
+
+        if is_empty_text(prompt):
+            raise ValueError("Prompt must be a non-empty string")
+
+        # Track execution count
+        execution_count = self._state_manager.get("execution_count", 0)
+        self._state_manager.update("execution_count", execution_count + 1)
+
+        # Record start time
+        start_time = time.time()
+        self._state_manager.set_metadata("execution_start_time", start_time)
+
         try:
-            # Validate prompt
-            from sifaka.utils.text import is_empty_text
-
-            if not isinstance(prompt, str):
-                raise ValueError("Prompt must be a string")
-
-            if is_empty_text(prompt):
-                raise ValueError("Prompt must be a non-empty string")
-
-            # Track execution count
-            execution_count = self._state_manager.get("execution_count", 0)
-            self._state_manager.update("execution_count", execution_count + 1)
-
-            # Record start time
-            start_time = time.time()
-            self._state_manager.set_metadata("execution_start_time", start_time)
-
             # Run engine
             result = self._engine.run(
                 prompt=prompt,
@@ -178,6 +298,7 @@ class Chain:
                 validators=self._validators,
                 improver=self._improver,
                 formatter=self._formatter,
+                **kwargs,
             )
 
             # Record end time
@@ -202,12 +323,13 @@ class Chain:
                 raise e
             raise ChainError(f"Chain execution failed: {str(e)}")
 
-    async def run_async(self, prompt: str) -> ChainResult:
+    async def run_async(self, prompt: str, **kwargs: Any) -> ChainResult:
         """
         Run the chain asynchronously.
 
         Args:
             prompt: The prompt to process
+            **kwargs: Additional run parameters
 
         Returns:
             The chain result
@@ -216,6 +338,10 @@ class Chain:
             ChainError: If chain execution fails
             ValueError: If prompt is empty or not a string
         """
+        # Ensure the chain is initialized
+        if not self._state_manager.get("initialized", False):
+            self.initialize()
+
         # Validate prompt
         from sifaka.utils.text import is_empty_text
 
@@ -229,9 +355,26 @@ class Chain:
         if not self._config.async_enabled:
             raise ChainError("Async execution is not enabled in the configuration")
 
-        # Run in executor to avoid blocking
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self.run, prompt)
+        try:
+            # Check if engine has async methods
+            if hasattr(self._engine, "run_async"):
+                return await self._engine.run_async(
+                    prompt=prompt,
+                    model=self._model,
+                    validators=self._validators,
+                    improver=self._improver,
+                    formatter=self._formatter,
+                    **kwargs,
+                )
+
+            # Fall back to running synchronous method in executor
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(None, lambda: self.run(prompt, **kwargs))
+        except Exception as e:
+            # Raise as chain error
+            if isinstance(e, ChainError):
+                raise e
+            raise ChainError(f"Async chain execution failed: {str(e)}")
 
     def _update_statistics(
         self,
@@ -289,19 +432,23 @@ class Chain:
         logger.debug("Chain cache cleared")
 
     def reset_state(self) -> None:
-        """Reset chain state."""
-        self._state_manager.reset()
+        """
+        Reset the state to its initial values.
 
-        # Re-initialize state
-        self._state_manager.update("name", self._name)
-        self._state_manager.update("description", self._description)
-        self._state_manager.update("model", self._model)
-        self._state_manager.update("validators", self._validators)
-        self._state_manager.update("improver", self._improver)
-        self._state_manager.update("formatter", self._formatter)
-        self._state_manager.update("config", self._config)
-        self._state_manager.update("initialized", True)
-        self._state_manager.update("execution_count", 0)
-        self._state_manager.update("result_cache", {})
+        This method resets the chain state to its initial values.
+        It should be called when the chain needs to be reset to its initial state.
 
-        logger.debug("Chain state reset")
+        Raises:
+            RuntimeError: If state reset fails
+        """
+        try:
+            # Reset state manager
+            self._state_manager.reset()
+
+            # Re-initialize state
+            self.initialize()
+
+            logger.debug(f"Chain '{self._name}' state reset")
+        except Exception as e:
+            logger.error(f"Chain state reset failed: {str(e)}")
+            raise RuntimeError(f"Chain state reset failed: {str(e)}")

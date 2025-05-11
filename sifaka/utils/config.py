@@ -1,12 +1,17 @@
 """
-Configuration utilities for Sifaka.
+Configuration Utilities
 
 This module provides a unified configuration system for the Sifaka framework,
 including base configuration classes and standardization functions for different
 component types.
 
-## Configuration Classes
+## Overview
+The configuration utilities provide a consistent way to configure all components
+in the Sifaka framework. They ensure that configuration is handled consistently
+across different component types, with standardized parameter handling, validation,
+and serialization.
 
+## Components
 The module defines a hierarchy of configuration classes:
 
 1. **BaseConfig**: Base configuration class for all components
@@ -16,10 +21,10 @@ The module defines a hierarchy of configuration classes:
 5. **ChainConfig**: Configuration for chains
 6. **ClassifierConfig**: Configuration for classifiers
 7. **RetrieverConfig**: Configuration for retrievers
+8. **RetryConfig**: Configuration for retry strategies
+9. **ValidationConfig**: Configuration for validation
 
-## Configuration Standardization
-
-The module provides standardized configuration handling for different component types:
+The module also provides standardization functions for each component type:
 
 1. **standardize_rule_config**: Standardize rule configuration
 2. **standardize_critic_config**: Standardize critic configuration
@@ -31,15 +36,16 @@ The module provides standardized configuration handling for different component 
 8. **standardize_validation_config**: Standardize validation configuration
 
 ## Usage Pattern
-
 All standardization functions follow a consistent pattern:
 
 1. Accept configuration in multiple formats (dict, config object, or parameters)
 2. Merge parameters from different sources with consistent precedence
 3. Return a standardized configuration object
 
-## Usage Examples
+This pattern ensures that configuration is handled consistently across the framework,
+regardless of how it's provided by the caller.
 
+## Usage Examples
 ```python
 from sifaka.utils.config import (
     BaseConfig, ModelConfig, RuleConfig, CriticConfig,
@@ -87,6 +93,12 @@ updated_config = standardize_rule_config(
     params={"min_length": 20}
 )
 ```
+
+## Error Handling
+The configuration utilities use Pydantic for validation, which ensures that
+configuration values are valid and properly typed. If invalid configuration
+is provided, Pydantic will raise validation errors with detailed information
+about the validation failure.
 """
 
 from typing import Any, Dict, List, Optional, Type, TypeVar, Union, cast
@@ -107,14 +119,42 @@ class BaseConfig(BaseModel):
     in the Sifaka framework. It defines common fields and methods that are
     shared across all component types.
 
+    ## Architecture
+    BaseConfig uses Pydantic for validation and serialization, with:
+    - Type validation for all fields
+    - Default values for optional fields
+    - Field descriptions for documentation
+    - Immutable configuration (frozen=True)
+
+    ## Lifecycle
+    Configuration objects are typically created during component initialization and
+    remain immutable throughout the component's lifecycle. Components can access
+    configuration values through their config property.
+
+    ## Examples
+    ```python
+    # Create a basic configuration
+    config = BaseConfig(
+        name="my_component",
+        description="A custom component",
+        params={"threshold": 0.7}
+    )
+
+    # Access configuration values
+    print(f"Name: {config.name}")
+    print(f"Custom threshold: {config.params.get('threshold')}")
+
+    # Create a new configuration with updated parameters
+    updated_config = config.with_params(max_length=100, min_length=10)
+
+    # Create a new configuration with updated options
+    updated_config = config.with_options(name="new_name")
+    ```
+
     Attributes:
         name: Component name
         description: Component description
         params: Dictionary of additional parameters
-
-    Methods:
-        with_params: Create a new configuration with updated parameters
-        with_options: Create a new configuration with updated options
     """
 
     name: str = Field(default="", description="Component name")
@@ -127,11 +167,38 @@ class BaseConfig(BaseModel):
         """
         Create a new configuration with updated parameters.
 
+        This method creates a new configuration object with the same options as the
+        current configuration, but with updated parameters. The original configuration
+        remains unchanged due to the immutable nature of configuration objects.
+
         Args:
-            **kwargs: Parameters to update
+            **kwargs: Parameters to update in the params dictionary
 
         Returns:
             New configuration with updated parameters
+
+        Example:
+            ```python
+            # Create a configuration with parameters
+            config = BaseConfig(
+                name="my_component",
+                params={"threshold": 0.7}
+            )
+
+            # Create a new configuration with updated parameters
+            updated_config = config.with_params(
+                threshold=0.8,
+                max_length=100
+            )
+
+            # Original config is unchanged
+            assert config.params["threshold"] == 0.7
+            assert "max_length" not in config.params
+
+            # New config has updated parameters
+            assert updated_config.params["threshold"] == 0.8
+            assert updated_config.params["max_length"] == 100
+            ```
         """
         return self.model_copy(update={"params": {**self.params, **kwargs}})
 
@@ -139,11 +206,43 @@ class BaseConfig(BaseModel):
         """
         Create a new configuration with updated options.
 
+        This method creates a new configuration object with updated options.
+        Unlike with_params, which updates the params dictionary, this method
+        updates the configuration fields directly. The original configuration
+        remains unchanged due to the immutable nature of configuration objects.
+
         Args:
-            **kwargs: Options to update
+            **kwargs: Configuration options to update
 
         Returns:
             New configuration with updated options
+
+        Example:
+            ```python
+            # Create a configuration
+            config = BaseConfig(
+                name="my_component",
+                description="Original description",
+                params={"threshold": 0.7}
+            )
+
+            # Create a new configuration with updated options
+            updated_config = config.with_options(
+                name="new_name",
+                description="Updated description"
+            )
+
+            # Original config is unchanged
+            assert config.name == "my_component"
+            assert config.description == "Original description"
+
+            # New config has updated options
+            assert updated_config.name == "new_name"
+            assert updated_config.description == "Updated description"
+
+            # Params are preserved
+            assert updated_config.params == config.params
+            ```
         """
         return self.model_copy(update=kwargs)
 
@@ -185,7 +284,39 @@ class ModelConfig(BaseConfig):
 
 
 class RulePriority(str, Enum):
-    """Priority levels for rules."""
+    """
+    Priority levels for rules.
+
+    This enumeration defines the standard priority levels for rules in the Sifaka framework.
+    Rules with higher priority are typically executed before rules with lower priority.
+
+    ## Values
+    - LOW: Lowest priority level
+    - MEDIUM: Default priority level
+    - HIGH: High priority level
+    - CRITICAL: Highest priority level
+
+    ## Usage
+    ```python
+    from sifaka.utils.config import RulePriority, RuleConfig
+
+    # Create a rule configuration with HIGH priority
+    config = RuleConfig(
+        name="important_rule",
+        priority=RulePriority.HIGH
+    )
+
+    # Priority can also be specified as a string
+    config = RuleConfig(
+        name="important_rule",
+        priority="HIGH"
+    )
+
+    # Check priority level
+    if config.priority == RulePriority.HIGH:
+        print("This is a high-priority rule")
+    ```
+    """
 
     LOW = "LOW"
     MEDIUM = "MEDIUM"
@@ -411,6 +542,19 @@ def standardize_rule_config(
     handled across the framework. It accepts various input formats and
     returns a standardized RuleConfig object.
 
+    ## Workflow
+    1. Merges parameters from all sources (config, params, kwargs)
+    2. Handles different input formats (dict, RuleConfig, or None)
+    3. Creates a new RuleConfig with standardized parameters
+    4. Preserves existing configuration when updating
+
+    ## Parameter Precedence
+    Parameters are merged with the following precedence (highest to lowest):
+    1. Explicit kwargs (e.g., priority="HIGH")
+    2. Params dictionary
+    3. Params from existing config
+    4. Default values from RuleConfig
+
     Args:
         config: Optional configuration (either a dict or RuleConfig)
         params: Optional params dictionary to merge with config
@@ -437,6 +581,14 @@ def standardize_rule_config(
         # Create from dictionary
         dict_config = {"priority": "LOW", "params": {"min_length": 5}}
         config = standardize_rule_config(config=dict_config)
+
+        # Parameter precedence example
+        config = standardize_rule_config(
+            config={"priority": "LOW", "params": {"threshold": 0.5}},
+            params={"threshold": 0.7, "min_length": 10},
+            priority="HIGH"
+        )
+        # Result: priority="HIGH", params={"threshold": 0.7, "min_length": 10}
         ```
     """
     # Start with empty params dictionary

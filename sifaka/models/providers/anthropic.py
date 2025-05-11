@@ -51,8 +51,10 @@ from pydantic import BaseModel, Field
 
 from sifaka.models.base import APIClient, ModelConfig, TokenCounter
 from sifaka.models.core import ModelProviderCore
+from sifaka.utils.errors import safely_execute_model, ModelError
 from sifaka.utils.logging import get_logger
 from sifaka.utils.tracing import Tracer
+from sifaka.utils.patterns import compile_pattern, match_pattern, find_patterns, replace_pattern
 
 logger = get_logger(__name__)
 
@@ -492,21 +494,25 @@ Please provide your analysis in a structured format with clear sections for:
             if "Safety Assessment" in response_text:
                 safety_section = response_text.split("Safety Assessment")[1]
                 # Try to find a number between 0 and 1
-                import re
+                # Extract score using pattern matching
+                score_pattern = compile_pattern(r"(\d+\.\d+|\d+)/1|score:?\s*(\d+\.\d+|\d+)")
+                matches = find_patterns(safety_section.lower(), {"score": score_pattern})
 
-                score_matches = re.findall(
-                    r"(\d+\.\d+|\d+)/1|score:?\s*(\d+\.\d+|\d+)", safety_section.lower()
-                )
-                if score_matches:
-                    # Use the first match
-                    match = score_matches[0]
-                    score_str = match[0] if match[0] else match[1]
-                    try:
-                        safety_score = float(score_str)
-                        # Ensure it's between 0 and 1
-                        safety_score = min(max(safety_score, 0), 1)
-                    except ValueError:
-                        pass
+                if matches["score"]:
+                    # Extract the first match
+                    match_text = matches["score"][0]
+
+                    # Extract the number from the match
+                    number_pattern = compile_pattern(r"\d+\.\d+|\d+")
+                    number_matches = find_patterns(match_text, {"number": number_pattern})
+
+                    if number_matches["number"]:
+                        try:
+                            safety_score = float(number_matches["number"][0])
+                            # Ensure it's between 0 and 1
+                            safety_score = min(max(safety_score, 0), 1)
+                        except ValueError:
+                            pass
 
             # Create analysis dictionary
             analysis = {
@@ -705,14 +711,21 @@ class AnthropicProvider(ModelProviderCore):
         Returns:
             The generated text response
         """
+        import time
+
         start_time = time.time()
+
+        # Ensure the provider is initialized
+        if not self._state_manager.get("initialized", False):
+            self.warm_up()
 
         # Get statistics from state
         stats = self._state_manager.get("stats", {})
         stats["last_generation_time"] = start_time
         self._state_manager.update("stats", stats)
 
-        try:
+        # Define the operation to execute safely
+        def invoke_operation():
             result = self.generate(prompt, **kwargs)
 
             # Update statistics in state
@@ -725,14 +738,13 @@ class AnthropicProvider(ModelProviderCore):
 
             return result
 
-        except Exception as e:
-            # Update error count in state
-            stats = self._state_manager.get("stats", {})
-            stats["error_count"] = stats.get("error_count", 0) + 1
-            self._state_manager.update("stats", stats)
-
-            logger.error(f"Error invoking model: {e}")
-            raise
+        # Use the standardized safely_execute_model function
+        return safely_execute_model(
+            operation=invoke_operation,
+            component_name=self.name,
+            model_name=self._state_manager.get("model_name"),
+            additional_metadata={"method": "invoke"},
+        )
 
     async def ainvoke(self, prompt: str, **kwargs) -> str:
         """
@@ -748,14 +760,21 @@ class AnthropicProvider(ModelProviderCore):
         Returns:
             The generated text response
         """
+        import time
+
         start_time = time.time()
+
+        # Ensure the provider is initialized
+        if not self._state_manager.get("initialized", False):
+            self.warm_up()
 
         # Get statistics from state
         stats = self._state_manager.get("stats", {})
         stats["last_generation_time"] = start_time
         self._state_manager.update("stats", stats)
 
-        try:
+        # Define the operation to execute safely
+        async def ainvoke_operation():
             if hasattr(self, "agenerate"):
                 result = await self.agenerate(prompt, **kwargs)
             else:
@@ -772,14 +791,29 @@ class AnthropicProvider(ModelProviderCore):
 
             return result
 
+        # Execute the operation safely
+        try:
+            return await ainvoke_operation()
         except Exception as e:
             # Update error count in state
             stats = self._state_manager.get("stats", {})
             stats["error_count"] = stats.get("error_count", 0) + 1
             self._state_manager.update("stats", stats)
 
-            logger.error(f"Error asynchronously invoking model: {e}")
-            raise
+            # Create error metadata
+            error_metadata = {
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "component_name": self.name,
+                "model_name": self._state_manager.get("model_name"),
+                "method": "ainvoke",
+            }
+
+            # Log the error
+            logger.error(f"Error in ainvoke: {e}", extra=error_metadata)
+
+            # Raise a ModelError with the metadata
+            raise ModelError(f"Error invoking model: {e}", metadata=error_metadata) from e
 
     def _create_default_client(self) -> APIClient:
         """
@@ -871,6 +905,84 @@ class AnthropicProvider(ModelProviderCore):
         """
         return f"Anthropic-{self.model_name}"
 
+    def warm_up(self) -> None:
+        """
+        Warm up the provider by initializing resources.
+
+        This method ensures that the provider is properly initialized
+        and ready to use, including loading any necessary resources.
+        """
+        # Check if already initialized
+        if self._state_manager.get("initialized", False):
+            logger.debug(f"Provider {self.name} already initialized")
+            return
+
+        # Define the warm-up operation
+        def warm_up_operation():
+            # Ensure client is initialized
+            client = self._state_manager.get("client")
+            if client is None:
+                client = self._create_default_client()
+                self._state_manager.update("client", client)
+
+            # Ensure token counter is initialized
+            token_counter = self._state_manager.get("token_counter")
+            if token_counter is None:
+                token_counter = self._create_default_token_counter()
+                self._state_manager.update("token_counter", token_counter)
+
+            # Initialize cache if needed
+            if not self._state_manager.get("cache"):
+                self._state_manager.update("cache", {})
+
+            # Set metadata
+            self._state_manager.set_metadata("component_type", self.__class__.__name__)
+            self._state_manager.set_metadata("initialization_time", time.time())
+
+            # Mark as initialized
+            self._state_manager.update("initialized", True)
+            logger.info(f"Provider {self.name} initialized successfully")
+
+        # Use the standardized safely_execute_model function
+        safely_execute_model(
+            operation=warm_up_operation,
+            component_name=self.name,
+            model_name=self._state_manager.get("model_name"),
+            additional_metadata={"method": "warm_up"},
+        )
+
+    def cleanup(self) -> None:
+        """
+        Clean up resources used by the provider.
+
+        This method ensures that any resources used by the provider
+        are properly released when the provider is no longer needed.
+        """
+
+        # Define the cleanup operation
+        def cleanup_operation():
+            # Clear cache
+            self._state_manager.update("cache", {})
+
+            # Release any resources
+            client = self._state_manager.get("client")
+            if client and hasattr(client, "close"):
+                client.close()
+
+            # Mark as not initialized
+            self._state_manager.update("initialized", False)
+            self._state_manager.set_metadata("cleanup_time", time.time())
+
+            logger.info(f"Provider {self.name} cleaned up successfully")
+
+        # Use the standardized safely_execute_model function
+        safely_execute_model(
+            operation=cleanup_operation,
+            component_name=self.name,
+            model_name=self._state_manager.get("model_name"),
+            additional_metadata={"method": "cleanup"},
+        )
+
     def get_statistics(self) -> Dict[str, Any]:
         """
         Get provider usage statistics.
@@ -878,29 +990,36 @@ class AnthropicProvider(ModelProviderCore):
         Returns:
             Dictionary with usage statistics
         """
+        # Get statistics from state
+        stats = self._state_manager.get("stats", {})
+
         # Get client statistics if available
+        client = self._state_manager.get("client")
         client_stats = {}
-        if hasattr(self.client, "get_statistics") and callable(self.client.get_statistics):
-            client_stats = self.client.get_statistics()
+        if client and hasattr(client, "get_statistics") and callable(client.get_statistics):
+            client_stats = client.get_statistics()
 
         # Get token counter statistics if available
+        token_counter = self._state_manager.get("token_counter")
         counter_stats = {}
-        if hasattr(self.token_counter, "get_statistics") and callable(
-            self.token_counter.get_statistics
+        if (
+            token_counter
+            and hasattr(token_counter, "get_statistics")
+            and callable(token_counter.get_statistics)
         ):
-            counter_stats = self.token_counter.get_statistics()
+            counter_stats = token_counter.get_statistics()
 
         return {
             "model": self.model_name,
-            "generation_count": self._generation_count,
-            "token_count_calls": self._token_count_calls,
-            "reflection_count": self._reflection_count,
-            "error_count": self._error_count,
-            "total_processing_time": self._total_processing_time,
-            "last_generation_time": self._last_generation_time,
+            "generation_count": stats.get("generation_count", 0),
+            "token_count_calls": stats.get("token_count_calls", 0),
+            "reflection_count": stats.get("reflection_count", 0),
+            "error_count": stats.get("error_count", 0),
+            "total_processing_time": stats.get("total_processing_time", 0),
+            "last_generation_time": stats.get("last_generation_time"),
             "average_processing_time": (
-                self._total_processing_time / self._generation_count
-                if self._generation_count > 0
+                stats.get("total_processing_time", 0) / stats.get("generation_count", 1)
+                if stats.get("generation_count", 0) > 0
                 else 0
             ),
             "client": client_stats,

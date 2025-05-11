@@ -90,7 +90,23 @@ OutputType = TypeVar("OutputType")
 
 
 class PromptConfig(BaseConfig):
-    """Configuration for prompt manager."""
+    """
+    Configuration for prompt manager.
+
+    This class defines the configuration parameters for prompt managers,
+    including template format, history settings, and caching options.
+
+    ## Architecture
+    Extends BaseConfig to provide consistent configuration handling
+    across all Sifaka components.
+
+    Attributes:
+        template_format (str): Format of prompt templates
+        add_timestamps (bool): Whether to add timestamps to prompts
+        max_history_items (int): Maximum number of history items to include
+        max_examples (int): Maximum number of examples to include
+        cache_size (int): Size of the prompt cache
+    """
 
     template_format: str = Field(default="text", description="Format of prompt templates")
     add_timestamps: bool = Field(default=False, description="Whether to add timestamps to prompts")
@@ -106,7 +122,20 @@ class PromptConfig(BaseConfig):
 
 
 class PromptResult(BaseResult):
-    """Result of prompt generation."""
+    """
+    Result of prompt generation.
+
+    This class represents the result of a prompt generation operation,
+    including the generated prompt and the context used to generate it.
+
+    ## Architecture
+    Extends BaseResult to provide consistent result handling
+    across all Sifaka components.
+
+    Attributes:
+        prompt (str): The generated prompt
+        context (Dict[str, Any]): The context used to generate the prompt
+    """
 
     prompt: str = Field(default="")
     context: Dict[str, Any] = Field(default_factory=dict)
@@ -117,7 +146,25 @@ class PromptResult(BaseResult):
 
 
 class BasePrompt(BaseComponent[Dict[str, Any], str]):
-    """Base class for all prompts."""
+    """
+    Base class for all prompts.
+
+    This class provides the foundation for all prompt implementations,
+    with template-based prompt generation capabilities.
+
+    ## Architecture
+    Extends BaseComponent to provide consistent behavior across
+    all Sifaka components, with specialized prompt generation functionality.
+
+    ## Lifecycle
+    1. Initialization: Set up with template and configuration
+    2. Generation: Generate prompts from context
+    3. Processing: Process input to generate prompts
+
+    Attributes:
+        name (str): Name of the prompt
+        description (str): Description of the prompt
+    """
 
     def __init__(
         self,
@@ -133,7 +180,22 @@ class BasePrompt(BaseComponent[Dict[str, Any], str]):
         self._state_manager.update("initialized", True)
 
     def generate(self, context: Dict[str, Any]) -> str:
-        """Generate a prompt from context."""
+        """
+        Generate a prompt from context.
+
+        This method takes a context dictionary and applies it to the
+        prompt template to generate a formatted prompt.
+
+        Args:
+            context (Dict[str, Any]): Dictionary of context values to apply to the template
+
+        Returns:
+            str: The generated prompt
+
+        Raises:
+            KeyError: If a required context key is missing
+            Exception: If prompt generation fails for any other reason
+        """
         template = self._state_manager.get("template")
         try:
             return template.format(**context)
@@ -145,7 +207,17 @@ class BasePrompt(BaseComponent[Dict[str, Any], str]):
             return template
 
     def process(self, input: Dict[str, Any]) -> str:
-        """Process the input context and return a prompt."""
+        """
+        Process the input context and return a prompt.
+
+        This is the implementation of the abstract method from BaseComponent.
+
+        Args:
+            input (Dict[str, Any]): Dictionary of context values to apply to the template
+
+        Returns:
+            str: The generated prompt
+        """
         return self.generate(input)
 
 
@@ -366,30 +438,93 @@ class CriticPromptManager(ABC):
     This class defines the interface for prompt managers used by critics,
     providing methods for creating validation, critique, improvement,
     and reflection prompts.
+
+    ## Architecture
+    Uses Python's ABC (Abstract Base Class) to define an interface
+    that all critic prompt managers must implement.
+
+    ## Lifecycle
+    1. Initialization: Set up with configuration
+    2. Prompt Creation: Create specialized prompts for different critic operations
+    3. Usage: Used by critics to generate prompts for validation, critique, etc.
+
+    ## Error Handling
+    Implementations should handle:
+    - Invalid input validation
+    - Template formatting errors
+    - Configuration errors
     """
 
     @abstractmethod
     def create_validation_prompt(self, text: str) -> str:
-        """Create a prompt for text validation."""
+        """
+        Create a prompt for text validation.
+
+        Args:
+            text (str): The text to validate
+
+        Returns:
+            str: A formatted prompt for text validation
+
+        Raises:
+            ValueError: If text is invalid
+        """
         pass
 
     @abstractmethod
     def create_critique_prompt(self, text: str) -> str:
-        """Create a prompt for text critique."""
+        """
+        Create a prompt for text critique.
+
+        Args:
+            text (str): The text to critique
+
+        Returns:
+            str: A formatted prompt for text critique
+
+        Raises:
+            ValueError: If text is invalid
+        """
         pass
 
     @abstractmethod
     def create_improvement_prompt(
         self, text: str, feedback: str, reflections: Optional[List[str]] = None
     ) -> str:
-        """Create a prompt for text improvement."""
+        """
+        Create a prompt for text improvement.
+
+        Args:
+            text (str): The text to improve
+            feedback (str): Feedback to guide the improvement
+            reflections (Optional[List[str]], optional): Previous reflections. Defaults to None.
+
+        Returns:
+            str: A formatted prompt for text improvement
+
+        Raises:
+            ValueError: If text or feedback is invalid
+        """
         pass
 
     @abstractmethod
     def create_reflection_prompt(
         self, original_text: str, feedback: str, improved_text: str
     ) -> str:
-        """Create a prompt for reflection on text improvement."""
+        """
+        Create a prompt for reflection on text improvement.
+
+        Args:
+            original_text (str): The original text
+            feedback (str): The feedback provided
+            improved_text (str): The improved text
+
+        Returns:
+            str: A formatted prompt for reflection
+
+        Raises:
+            ValueError: If any input is invalid
+        """
         pass
 
 
@@ -400,6 +535,33 @@ class DefaultPromptManager(CriticPromptManager):
     This class provides concrete implementations of the methods defined
     in the CriticPromptManager interface, using standard templates for
     validation, critique, improvement, and reflection prompts.
+
+    ## Architecture
+    Implements the CriticPromptManager interface with standard templates
+    for different critic operations.
+
+    ## Lifecycle
+    1. Initialization: Set up with configuration
+    2. Prompt Creation: Create specialized prompts using standard templates
+    3. Usage: Used by critics to generate prompts for validation, critique, etc.
+
+    ## Error Handling
+    Handles:
+    - Invalid input validation
+    - Template formatting errors
+    - Configuration errors
+
+    ## Examples
+    ```python
+    # Create a default prompt manager
+    manager = DefaultPromptManager()
+
+    # Create a validation prompt
+    validation_prompt = manager.create_validation_prompt("Text to validate")
+
+    # Create a critique prompt
+    critique_prompt = manager.create_critique_prompt("Text to critique")
+    ```
     """
 
     def __init__(self, config: Any = None):
@@ -586,7 +748,40 @@ def create_prompt_manager(
     cache_size: int = 100,
     **kwargs: Any,
 ) -> PromptManager:
-    """Create a prompt manager."""
+    """
+    Create a prompt manager.
+
+    This factory function creates and configures a PromptManager
+    with the specified parameters, providing a convenient way to create
+    prompt managers with default or custom configurations.
+
+    Args:
+        prompts (List[BasePrompt], optional): List of prompts to manage. Defaults to None.
+        name (str, optional): Name of the manager. Defaults to "prompt_manager".
+        description (str, optional): Description of the manager. Defaults to "Prompt manager for Sifaka".
+        template_format (str, optional): Format of prompt templates. Defaults to "text".
+        add_timestamps (bool, optional): Whether to add timestamps to prompts. Defaults to False.
+        max_history_items (int, optional): Maximum number of history items to include. Defaults to 5.
+        max_examples (int, optional): Maximum number of examples to include. Defaults to 3.
+        cache_size (int, optional): Size of the prompt cache. Defaults to 100.
+        **kwargs (Any): Additional configuration parameters
+
+    Returns:
+        PromptManager: Configured PromptManager instance
+
+    Example:
+        ```python
+        # Create a prompt manager with default settings
+        prompt_manager = create_prompt_manager()
+
+        # Create a prompt manager with custom settings
+        custom_manager = create_prompt_manager(
+            name="custom_prompts",
+            template_format="markdown",
+            max_history_items=10
+        )
+        ```
+    """
     config = PromptConfig(
         name=name,
         description=description,

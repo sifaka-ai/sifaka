@@ -11,9 +11,8 @@ rule system, allowing for sophisticated content validation.
 ## Components
 1. **GuardrailsValidatable Protocol**: Defines the expected interface for Guardrails validators
 2. **GuardrailsAdapter**: Adapts Guardrails validators to work as Sifaka validators
-3. **GuardrailsValidatorAdapter**: Legacy adapter for backward compatibility
-4. **GuardrailsRule**: Rule that uses a Guardrails validator for validation
-5. **Factory Functions**: Simple creation patterns for Guardrails-based rules
+3. **GuardrailsRule**: Rule that uses a Guardrails validator for validation
+4. **Factory Functions**: Simple creation patterns for Guardrails-based rules
 
 ## Usage Examples
 ```python
@@ -332,153 +331,38 @@ class GuardrailsAdapter(BaseAdapter[str, GuardrailsValidator]):
         return stats
 
 
-class GuardrailsValidatorAdapter(BaseValidator[str], BaseComponent):
-    """
-    Adapter for using Guardrails validators as Sifaka validators.
-
-    This adapter converts Guardrails validators into a format compatible
-    with Sifaka's validation system, handling the conversion between
-    Guardrails' validation results and Sifaka's RuleResult format.
-    """
-
-    # State management
-    _state_manager = PrivateAttr(default_factory=StateManager)
-
-    def __init__(
-        self,
-        guardrails_validator: GuardrailsValidator,
-        name: str = "guardrails_validator",
-        description: str = "Adapter for Guardrails validator",
-        config: Optional[Dict[str, Any]] = None,
-    ):
-        """Initialize with a Guardrails validator."""
-        super().__init__()
-
-        if not GUARDRAILS_AVAILABLE:
-            raise ImportError(
-                "Guardrails is not installed. Please install it with 'pip install guardrails-ai'"
-            )
-
-        self._state_manager.update("validator", guardrails_validator)
-        self._state_manager.update("name", name)
-        self._state_manager.update("description", description)
-        self._state_manager.update("config", config or {})
-        self._state_manager.update("initialized", True)
-        self._state_manager.update("execution_count", 0)
-        self._state_manager.update("result_cache", {})
-
-        # Set metadata
-        self._state_manager.set_metadata("component_type", "validator")
-        self._state_manager.set_metadata("creation_time", time.time())
-
-    def _convert_guardrails_result(self, gr_result: ValidationResult) -> RuleResult:
-        """Convert a Guardrails validation result to a Sifaka rule result."""
-        if isinstance(gr_result, PassResult):
-            return RuleResult(
-                passed=True, message="Validation passed", details={"guardrails_result": gr_result}
-            )
-        else:
-            return RuleResult(
-                passed=False,
-                message=(
-                    str(gr_result.message) if hasattr(gr_result, "message") else "Validation failed"
-                ),
-                details={"guardrails_result": gr_result},
-            )
-
-    def validate(self, output: str, **kwargs) -> RuleResult:
-        """Validate text using the Guardrails validator."""
-        # Track execution count
-        execution_count = self._state_manager.get("execution_count", 0)
-        self._state_manager.update("execution_count", execution_count + 1)
-
-        # Check cache
-        cache = self._state_manager.get("result_cache", {})
-        if output in cache:
-            self._state_manager.set_metadata("cache_hit", True)
-            return cache[output]
-
-        # Mark as cache miss
-        self._state_manager.set_metadata("cache_hit", False)
-
-        # Record start time
-        start_time = time.time()
-
-        try:
-            # Get validator from state
-            validator = self._state_manager.get("validator")
-
-            # Handle empty text
-            if not output:
-                result = RuleResult(
-                    passed=False,
-                    message="Empty text is not allowed",
-                    details={"error": "empty_text"},
-                )
-            else:
-                # Run validation
-                gr_result = validator.validate(output, metadata=kwargs)
-                result = self._convert_guardrails_result(gr_result)
-
-            # Record execution time
-            end_time = time.time()
-            exec_time = end_time - start_time
-
-            # Update average execution time
-            avg_time = self._state_manager.get_metadata("avg_execution_time", 0)
-            count = self._state_manager.get("execution_count", 1)
-            new_avg = ((avg_time * (count - 1)) + exec_time) / count
-            self._state_manager.set_metadata("avg_execution_time", new_avg)
-
-            # Update max execution time if needed
-            max_time = self._state_manager.get_metadata("max_execution_time", 0)
-            if exec_time > max_time:
-                self._state_manager.set_metadata("max_execution_time", exec_time)
-
-            # Cache result
-            cache[output] = result
-            self._state_manager.update("result_cache", cache)
-
-            return result
-
-        except Exception as e:
-            # Track error
-            error_count = self._state_manager.get_metadata("error_count", 0)
-            self._state_manager.set_metadata("error_count", error_count + 1)
-            logger.error(f"Validation error: {str(e)}")
-            raise
-
-    @property
-    def validation_type(self) -> type:
-        """Get the type of values this validator can validate."""
-        return str
-
-    def get_statistics(self) -> Dict[str, Any]:
-        """Get statistics about validator usage."""
-        return {
-            "execution_count": self._state_manager.get("execution_count", 0),
-            "cache_size": len(self._state_manager.get("result_cache", {})),
-            "avg_execution_time": self._state_manager.get_metadata("avg_execution_time", 0),
-            "max_execution_time": self._state_manager.get_metadata("max_execution_time", 0),
-            "error_count": self._state_manager.get_metadata("error_count", 0),
-        }
-
-    def clear_cache(self) -> None:
-        """Clear the validator result cache."""
-        self._state_manager.update("result_cache", {})
-        logger.debug("Validator cache cleared")
-
-
 class GuardrailsRule(Rule, BaseComponent):
     """
     Rule that uses a Guardrails validator for validation.
 
     This rule wraps a Guardrails validator and provides a Sifaka-compatible
     interface for validation.
+
+    ## Overview
+    This rule enables the use of Guardrails validators within Sifaka's rule system,
+    allowing for sophisticated content validation using Guardrails' capabilities.
+
+    ## Architecture
+    The rule follows a standard pattern:
+    1. Wraps a Guardrails validator
+    2. Translates between Guardrails and Sifaka interfaces
+    3. Provides standardized validation results
+
+    ## Lifecycle
+    1. Initialization: Set up with validator and configuration
+    2. Validation: Convert validator's functionality to validation
+    3. Result Handling: Standardize validation results
+
+    ## State Management
+    The class uses a standardized state management approach:
+    - Single _state_manager attribute for all mutable state
+    - State initialization during construction
+    - State access through state object
+    - Clear separation of configuration and state
     """
 
-    # State management
-    _state_manager = PrivateAttr(default_factory=StateManager)
+    # State management using standardized state manager
+    _state_manager = PrivateAttr(default_factory=create_adapter_state)
 
     def __init__(
         self,
@@ -487,9 +371,22 @@ class GuardrailsRule(Rule, BaseComponent):
         name: Optional[str] = None,
         description: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
-        **kwargs,
+        **kwargs: Any,
     ):
-        """Initialize with a Guardrails validator."""
+        """
+        Initialize with a Guardrails validator.
+
+        Args:
+            guardrails_validator: The Guardrails validator to use
+            rule_id: Optional unique identifier for the rule
+            name: Optional human-readable name for the rule
+            description: Optional description of the rule's purpose
+            config: Optional additional configuration
+            **kwargs: Additional keyword arguments
+
+        Raises:
+            ImportError: If Guardrails is not installed
+        """
         super().__init__()
 
         if not GUARDRAILS_AVAILABLE:
@@ -497,94 +394,150 @@ class GuardrailsRule(Rule, BaseComponent):
                 "Guardrails is not installed. Please install it with 'pip install guardrails-ai'"
             )
 
-        self._state_manager.update("validator", guardrails_validator)
-        self._state_manager.update("rule_id", rule_id or "guardrails_rule")
-        self._state_manager.update("name", name or "Guardrails Rule")
-        self._state_manager.update("description", description or "Rule using Guardrails validator")
-        self._state_manager.update("config", config or {})
-        self._state_manager.update("initialized", True)
-        self._state_manager.update("execution_count", 0)
-        self._state_manager.update("result_cache", {})
+        # Initialize state
+        state = self._state_manager.get_state()
+        state.adaptee = guardrails_validator
+        state.initialized = True
+        state.execution_count = 0
+        state.error_count = 0
+        state.last_execution_time = None
+        state.avg_execution_time = 0
+        state.cache = {}
+        state.config_cache = {"config": config or {}}
 
         # Set metadata
         self._state_manager.set_metadata("component_type", "rule")
         self._state_manager.set_metadata("creation_time", time.time())
+        self._state_manager.set_metadata("rule_id", rule_id or "guardrails_rule")
+        self._state_manager.set_metadata("name", name or "Guardrails Rule")
+        self._state_manager.set_metadata(
+            "description", description or "Rule using Guardrails validator"
+        )
+        self._state_manager.set_metadata("validator_type", guardrails_validator.__class__.__name__)
+
+    def _convert_guardrails_result(self, gr_result: ValidationResult) -> RuleResult:
+        """
+        Convert a Guardrails validation result to a Sifaka rule result.
+
+        Args:
+            gr_result: The Guardrails validation result
+
+        Returns:
+            RuleResult: The converted Sifaka rule result
+        """
+        if isinstance(gr_result, PassResult):
+            return RuleResult(
+                passed=True,
+                message="Validation passed",
+                metadata={"guardrails_result": str(gr_result)},
+            )
+        else:
+            return RuleResult(
+                passed=False,
+                message=(
+                    str(gr_result.message) if hasattr(gr_result, "message") else "Validation failed"
+                ),
+                metadata={"guardrails_result": str(gr_result)},
+            )
 
     def validate(self, text: str, **kwargs) -> RuleResult:
-        """Validate text using the Guardrails validator."""
-        # Track execution count
-        execution_count = self._state_manager.get("execution_count", 0)
-        self._state_manager.update("execution_count", execution_count + 1)
+        """
+        Validate text using the Guardrails validator.
 
-        # Check cache
-        cache = self._state_manager.get("result_cache", {})
-        if text in cache:
-            self._state_manager.set_metadata("cache_hit", True)
-            return cache[text]
+        Args:
+            text: The text to validate
+            **kwargs: Additional validation parameters
 
-        # Mark as cache miss
-        self._state_manager.set_metadata("cache_hit", False)
+        Returns:
+            RuleResult: The validation result
 
-        # Record start time
+        Raises:
+            ValidationError: If validation fails due to an error
+        """
+        # Get state
+        state = self._state_manager.get_state()
+
+        # Track execution
+        state.execution_count += 1
         start_time = time.time()
 
         try:
-            # Get validator from state
-            validator = self._state_manager.get("validator")
+            # Check cache
+            cache_key = self._get_cache_key(text, kwargs)
+            if cache_key and cache_key in state.cache:
+                logger.debug(f"Cache hit for guardrails rule")
+                return state.cache[cache_key]
 
             # Handle empty text
             if not text:
                 result = RuleResult(
                     passed=False,
                     message="Empty text is not allowed",
-                    details={"error": "empty_text"},
+                    metadata={"error": "empty_text"},
                 )
             else:
                 # Run validation
-                gr_result = validator.validate(text, metadata=kwargs)
+                gr_result = state.adaptee.validate(text, metadata=kwargs)
                 result = self._convert_guardrails_result(gr_result)
 
-            # Record execution time
-            end_time = time.time()
-            exec_time = end_time - start_time
-
-            # Update average execution time
-            avg_time = self._state_manager.get_metadata("avg_execution_time", 0)
-            count = self._state_manager.get("execution_count", 1)
-            new_avg = ((avg_time * (count - 1)) + exec_time) / count
-            self._state_manager.set_metadata("avg_execution_time", new_avg)
-
-            # Update max execution time if needed
-            max_time = self._state_manager.get_metadata("max_execution_time", 0)
-            if exec_time > max_time:
-                self._state_manager.set_metadata("max_execution_time", exec_time)
-
-            # Cache result
-            cache[text] = result
-            self._state_manager.update("result_cache", cache)
+            # Cache result if enabled
+            if cache_key:
+                state.cache[cache_key] = result
 
             return result
-
         except Exception as e:
             # Track error
-            error_count = self._state_manager.get_metadata("error_count", 0)
-            self._state_manager.set_metadata("error_count", error_count + 1)
+            state.error_count += 1
             logger.error(f"Validation error: {str(e)}")
-            raise
+            raise ValidationError(f"Guardrails validation failed: {str(e)}")
+        finally:
+            # Update execution stats
+            execution_time = time.time() - start_time
+            state.last_execution_time = execution_time
+
+            # Update average execution time
+            if state.execution_count > 1:
+                state.avg_execution_time = (
+                    state.avg_execution_time * (state.execution_count - 1) + execution_time
+                ) / state.execution_count
+            else:
+                state.avg_execution_time = execution_time
+
+    def _get_cache_key(self, input_value: str, kwargs: Dict[str, Any]) -> Optional[str]:
+        """
+        Generate a cache key for the input value and kwargs.
+
+        Args:
+            input_value: The input text
+            kwargs: Additional parameters
+
+        Returns:
+            Optional[str]: Cache key or None if caching is disabled
+        """
+        # Simple string hash for text inputs
+        return f"{hash(input_value)}:{hash(str(kwargs))}"
 
     def get_statistics(self) -> Dict[str, Any]:
-        """Get statistics about rule usage."""
+        """
+        Get statistics about rule usage.
+
+        Returns:
+            Dict[str, Any]: Dictionary with usage statistics
+        """
+        state = self._state_manager.get_state()
         return {
-            "execution_count": self._state_manager.get("execution_count", 0),
-            "cache_size": len(self._state_manager.get("result_cache", {})),
-            "avg_execution_time": self._state_manager.get_metadata("avg_execution_time", 0),
-            "max_execution_time": self._state_manager.get_metadata("max_execution_time", 0),
-            "error_count": self._state_manager.get_metadata("error_count", 0),
+            "execution_count": state.execution_count,
+            "error_count": state.error_count,
+            "avg_execution_time": state.avg_execution_time,
+            "last_execution_time": state.last_execution_time,
+            "cache_size": len(state.cache),
+            "rule_id": self._state_manager.get_metadata("rule_id", "unknown"),
+            "validator_type": self._state_manager.get_metadata("validator_type", "unknown"),
         }
 
     def clear_cache(self) -> None:
         """Clear the rule result cache."""
-        self._state_manager.update("result_cache", {})
+        self._state_manager.get_state().cache = {}
         logger.debug("Rule cache cleared")
 
 

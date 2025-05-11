@@ -22,11 +22,11 @@ class SentimentClassifier(ClassifierImplementation):
         # Simple implementation that checks for positive/negative words
         positive_words = ["good", "great", "excellent", "happy"]
         negative_words = ["bad", "terrible", "awful", "sad"]
-        
+
         text_lower = text.lower()
         positive_count = sum(word in text_lower for word in positive_words)
         negative_count = sum(word in text_lower for word in negative_words)
-        
+
         if positive_count > negative_count:
             return ClassificationResult(
                 label="positive",
@@ -55,74 +55,52 @@ from typing import Any, Dict, List, Optional, Protocol, TypeVar, runtime_checkab
 @runtime_checkable
 class ClassifierImplementation(Protocol):
     """Interface for classifier implementations."""
-    
+
     @abstractmethod
     def classify(self, text: str) -> "ClassificationResult":
         """
         Classify the given text.
-        
+
         Args:
             text: The text to classify
-            
+
         Returns:
             The classification result
-            
+
         Raises:
             ImplementationError: If classification fails
         """
         pass
-    
+
     @abstractmethod
     async def classify_async(self, text: str) -> "ClassificationResult":
         """
         Classify the given text asynchronously.
-        
+
         Args:
             text: The text to classify
-            
+
         Returns:
             The classification result
-            
+
         Raises:
             ImplementationError: If classification fails
         """
         pass
 
 
+# Import the core Plugin interface
+from sifaka.core.interfaces import Plugin as CorePlugin
+
+
 @runtime_checkable
-class Plugin(Protocol):
-    """Interface for plugins."""
-    
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """Get the plugin name."""
-        pass
-    
-    @property
-    @abstractmethod
-    def version(self) -> str:
-        """Get the plugin version."""
-        pass
-    
-    @property
-    @abstractmethod
-    def component_type(self) -> str:
-        """Get the component type this plugin provides."""
-        pass
-    
-    @abstractmethod
-    def create_component(self, config: Dict[str, Any]) -> Any:
-        """
-        Create a component instance.
-        
-        Args:
-            config: The component configuration
-            
-        Returns:
-            The component instance
-            
-        Raises:
-            PluginError: If component creation fails
-        """
-        pass
+class Plugin(CorePlugin, Protocol):
+    """
+    Interface for classifier plugins.
+
+    This interface extends the core Plugin interface with classifier-specific
+    functionality. It ensures that classifier plugins can be discovered, registered,
+    and used consistently with other plugins in the Sifaka framework.
+    """
+
+    pass

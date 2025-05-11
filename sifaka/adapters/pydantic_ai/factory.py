@@ -148,6 +148,12 @@ def create_pydantic_adapter(
     ```
     """
     try:
+        # Validate inputs
+        if not rules:
+            raise ValueError("At least one rule must be provided")
+        if not output_model:
+            raise ValueError("Output model must be provided")
+
         # Process configuration
         adapter_config = None
         if config is not None:
@@ -296,6 +302,16 @@ def create_pydantic_adapter_with_critic(
     ```
     """
     try:
+        # Validate inputs
+        if not rules:
+            raise ValueError("At least one rule must be provided")
+        if not output_model:
+            raise ValueError("Output model must be provided")
+        if critic is None and model_provider is None:
+            logger.warning(
+                "Neither critic nor model_provider provided. No refinement will be possible."
+            )
+
         # Process configuration
         adapter_config = None
         if config is not None:

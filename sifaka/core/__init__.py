@@ -16,6 +16,11 @@ core patterns and contracts that ensure consistency across the framework.
    - Identifiable: Interface for components with identity
    - Loggable: Interface for components with logging capabilities
    - Traceable: Interface for components with tracing capabilities
+   - Plugin: Interface for plugins that extend component functionality
+
+2. Plugin System:
+   - PluginRegistry: Discovers and registers plugins
+   - PluginLoader: Dynamically loads plugins at runtime
 
 ## Usage Examples
 ```python
@@ -61,13 +66,24 @@ from .interfaces import (
     Identifiable,
     Loggable,
     Traceable,
+    Plugin,
+)
+
+from .plugins import (
+    PluginRegistry,
+    PluginLoader,
 )
 
 __all__ = [
+    # Core interfaces
     "Component",
     "Configurable",
     "Stateful",
     "Identifiable",
     "Loggable",
     "Traceable",
+    "Plugin",
+    # Plugin system
+    "PluginRegistry",
+    "PluginLoader",
 ]

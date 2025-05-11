@@ -1,12 +1,22 @@
 """
 Protocol Implementation Module
 
-This module provides utilities for working with protocols in Sifaka.
-It defines functions for checking protocol compliance, generating protocol
-implementation templates, and documenting protocol requirements.
+This module provides utilities for working with protocols in Sifaka, enabling runtime protocol compliance checking and implementation assistance.
+
+## Overview
+The protocol module provides tools for working with Python's Protocol type hints:
+- Checking if a class implements a protocol
+- Generating implementation templates for protocols
+- Documenting protocol requirements
+- Analyzing protocol methods and properties
+
+## Components
+- **ProtocolComplianceResult**: Result of protocol compliance checks
+- **check_protocol_compliance**: Function to check if a class implements a protocol
+- **generate_implementation_template**: Function to generate protocol implementation templates
+- **get_protocol_requirements**: Function to get protocol implementation requirements
 
 ## Usage Examples
-
 ```python
 from sifaka.core.protocol import check_protocol_compliance, generate_implementation_template
 from sifaka.interfaces import Chain
@@ -23,7 +33,17 @@ print(f"Missing methods: {compliance_result.missing_methods}")
 # Generate an implementation template
 template = generate_implementation_template(Chain)
 print(template)
+
+# Get protocol requirements
+requirements = get_protocol_requirements(Chain)
+print(f"Required methods: {list(requirements['methods'].keys())}")
 ```
+
+## Error Handling
+The module handles various error conditions:
+- Gracefully handles methods that can't be inspected
+- Provides detailed information about type mismatches
+- Logs warnings for potential issues
 """
 
 import inspect
@@ -51,7 +71,25 @@ C = TypeVar("C")
 
 @dataclass
 class ProtocolComplianceResult:
-    """Result of protocol compliance check."""
+    """
+    Result of protocol compliance check.
+
+    This class contains the results of checking if a class implements a protocol,
+    including whether the class is compliant, which methods and properties are
+    missing, and any type mismatches.
+
+    ## Architecture
+    The class uses Python's dataclass for simple data storage with type hints.
+    It provides a structured way to report protocol compliance issues.
+
+    Attributes:
+        protocol (Type[Protocol]): The protocol that was checked
+        target (Type[Any]): The target class that was checked
+        compliant (bool): Whether the target class implements the protocol
+        missing_methods (List[str]): Methods required by the protocol but missing from the target
+        missing_properties (List[str]): Properties required by the protocol but missing from the target
+        type_mismatches (Dict[str, Dict[str, Any]]): Type mismatches between protocol and target
+    """
 
     protocol: Type[Protocol]
     target: Type[Any]
@@ -67,15 +105,41 @@ def check_protocol_compliance(
     """
     Check if a class implements a protocol.
 
-    This function checks if a class implements a protocol by examining
-    its methods and properties.
+    This function performs a comprehensive check to determine if a class
+    implements a protocol by examining its methods and properties. It checks
+    for missing methods, missing properties, and type mismatches between
+    the protocol and the target class.
+
+    The function performs the following checks:
+    1. Identifies methods required by the protocol but missing from the target class
+    2. Identifies properties required by the protocol but missing from the target class
+    3. Checks for type mismatches in method parameters and return types
+    4. Determines overall compliance based on all checks
 
     Args:
-        target_class: The class to check
-        protocol_class: The protocol to check against
+        target_class (Type[C]): The class to check for protocol compliance
+        protocol_class (Type[T]): The protocol to check against
 
     Returns:
-        A ProtocolComplianceResult with compliance information
+        ProtocolComplianceResult: A result object containing compliance information,
+            including whether the class is compliant, missing methods and properties,
+            and any type mismatches
+
+    Example:
+        ```python
+        from sifaka.interfaces import Chain
+
+        class MyChain:
+            def run(self, prompt, **kwargs):
+                return "Result"
+
+        result = check_protocol_compliance(MyChain, Chain)
+        if result.compliant:
+            print("MyChain implements the Chain protocol")
+        else:
+            print(f"Missing methods: {result.missing_methods}")
+            print(f"Type mismatches: {result.type_mismatches}")
+        ```
     """
     # Get protocol methods and properties
     protocol_methods = _get_protocol_methods(protocol_class)
@@ -166,14 +230,41 @@ def generate_implementation_template(protocol_class: Type[T]) -> str:
     """
     Generate a template for implementing a protocol.
 
-    This function generates a Python code template for implementing
-    a protocol, including all required methods and properties.
+    This function generates a Python code template for implementing a protocol,
+    including all required methods and properties. The template includes:
+    - A class definition with the protocol name
+    - Property implementations with appropriate getters
+    - Method implementations with correct signatures and type annotations
+    - Docstrings for all methods and properties
+    - TODO comments indicating what needs to be implemented
+
+    The generated template serves as a starting point for implementing a protocol,
+    ensuring that all required methods and properties are included with the
+    correct signatures.
 
     Args:
-        protocol_class: The protocol to generate a template for
+        protocol_class (Type[T]): The protocol to generate a template for
 
     Returns:
-        A string containing the implementation template
+        str: A string containing the Python code for the implementation template
+
+    Example:
+        ```python
+        from sifaka.interfaces import Chain
+
+        # Generate an implementation template for the Chain protocol
+        template = generate_implementation_template(Chain)
+        print(template)
+
+        # Output:
+        # class ChainImplementation:
+        #     """Implementation of Chain protocol."""
+        #
+        #     def run(self, prompt: str, **kwargs) -> str:
+        #         """Run the chain with the given prompt."""
+        #         # TODO: Implement run method
+        #         raise NotImplementedError()
+        ```
     """
     # Get protocol methods and properties
     protocol_methods = _get_protocol_methods(protocol_class)
@@ -229,14 +320,54 @@ def get_protocol_requirements(protocol_class: Type[T]) -> Dict[str, Any]:
     """
     Get the requirements for implementing a protocol.
 
-    This function returns a dictionary containing the methods and properties
-    required to implement a protocol.
+    This function analyzes a protocol and returns a structured dictionary
+    containing detailed information about the methods and properties required
+    to implement the protocol. The returned dictionary includes method signatures,
+    parameter types, return types, and docstrings.
+
+    The requirements dictionary can be used to:
+    - Generate documentation for a protocol
+    - Create code generators for protocol implementations
+    - Validate existing implementations against protocol requirements
+    - Provide developer assistance for implementing protocols
 
     Args:
-        protocol_class: The protocol to get requirements for
+        protocol_class (Type[T]): The protocol to analyze for requirements
 
     Returns:
-        A dictionary containing protocol requirements
+        Dict[str, Any]: A dictionary containing protocol requirements with the following structure:
+            {
+                "name": str,              # Protocol name
+                "module": str,            # Protocol module
+                "methods": {              # Dictionary of methods
+                    "method_name": {      # Method information
+                        "signature": str,     # Method signature
+                        "docstring": str,     # Method docstring
+                        "parameters": dict,   # Parameter information
+                        "return_type": str    # Return type
+                    }
+                },
+                "properties": {           # Dictionary of properties
+                    "property_name": {}   # Property information
+                }
+            }
+
+    Example:
+        ```python
+        from sifaka.interfaces import Chain
+
+        # Get requirements for the Chain protocol
+        requirements = get_protocol_requirements(Chain)
+
+        # Print method requirements
+        for method_name, method_info in requirements["methods"].items():
+            print(f"Method: {method_name}")
+            print(f"  Signature: {method_info['signature']}")
+            print(f"  Return type: {method_info['return_type']}")
+            print(f"  Parameters:")
+            for param_name, param_info in method_info['parameters'].items():
+                print(f"    {param_name}: {param_info['annotation']}")
+        ```
     """
     # Get protocol methods and properties
     protocol_methods = _get_protocol_methods(protocol_class)
@@ -285,11 +416,21 @@ def _get_protocol_methods(protocol_class: Type[Protocol]) -> Dict[str, Dict[str,
     """
     Get the methods defined in a protocol.
 
+    This function inspects a protocol class and extracts information about
+    all its methods, including signatures and docstrings. It skips special
+    methods (those starting with '_') except for '__call__'.
+
     Args:
-        protocol_class: The protocol to get methods from
+        protocol_class (Type[Protocol]): The protocol to inspect for methods
 
     Returns:
-        A dictionary mapping method names to method information
+        Dict[str, Dict[str, Any]]: A dictionary mapping method names to method information,
+            where each method's information includes:
+            - signature: The method's signature
+            - docstring: The method's docstring
+
+    Raises:
+        None: Errors during inspection are caught and the method is skipped
     """
     methods = {}
 
@@ -324,11 +465,14 @@ def _get_protocol_properties(protocol_class: Type[Protocol]) -> Set[str]:
     """
     Get the properties defined in a protocol.
 
+    This function inspects a protocol class and extracts information about
+    all its properties. It skips special properties (those starting with '_').
+
     Args:
-        protocol_class: The protocol to get properties from
+        protocol_class (Type[Protocol]): The protocol to inspect for properties
 
     Returns:
-        A set of property names
+        Set[str]: A set of property names defined in the protocol
     """
     properties = set()
 
@@ -352,11 +496,21 @@ def _get_class_methods(cls: Type[Any]) -> Dict[str, Dict[str, Any]]:
     """
     Get the methods defined in a class.
 
+    This function inspects a class and extracts information about all its methods,
+    including signatures and docstrings. It skips special methods (those starting
+    with '_') except for '__call__'.
+
     Args:
-        cls: The class to get methods from
+        cls (Type[Any]): The class to inspect for methods
 
     Returns:
-        A dictionary mapping method names to method information
+        Dict[str, Dict[str, Any]]: A dictionary mapping method names to method information,
+            where each method's information includes:
+            - signature: The method's signature
+            - docstring: The method's docstring
+
+    Raises:
+        None: Errors during inspection are caught and the method is skipped
     """
     methods = {}
 
@@ -391,11 +545,14 @@ def _get_class_properties(cls: Type[Any]) -> Set[str]:
     """
     Get the properties defined in a class.
 
+    This function inspects a class and extracts information about all its properties.
+    It skips special properties (those starting with '_').
+
     Args:
-        cls: The class to get properties from
+        cls (Type[Any]): The class to inspect for properties
 
     Returns:
-        A set of property names
+        Set[str]: A set of property names defined in the class
     """
     properties = set()
 
@@ -419,12 +576,21 @@ def _is_compatible_type(actual_type: Any, expected_type: Any) -> bool:
     """
     Check if an actual type is compatible with an expected type.
 
+    This function determines if an actual type is compatible with an expected type.
+    Currently, it performs a simple equality check, but could be extended to handle
+    more sophisticated type compatibility rules such as subtyping, type variables,
+    and union types.
+
     Args:
-        actual_type: The actual type
-        expected_type: The expected type
+        actual_type (Any): The actual type to check
+        expected_type (Any): The expected type to check against
 
     Returns:
-        True if the types are compatible, False otherwise
+        bool: True if the actual type is compatible with the expected type, False otherwise
+
+    Note:
+        This is a simple implementation that only checks for exact type matches.
+        Future implementations could handle more complex type compatibility rules.
     """
     # TODO: Implement more sophisticated type compatibility checking
     return actual_type == expected_type
@@ -434,11 +600,22 @@ def _format_annotation(annotation: Any) -> str:
     """
     Format a type annotation for display.
 
+    This function converts a type annotation object into a string representation
+    suitable for display in documentation, error messages, or code generation.
+    It handles special cases like None, Any, and missing annotations.
+
     Args:
-        annotation: The type annotation
+        annotation (Any): The type annotation to format
 
     Returns:
-        A string representation of the annotation
+        str: A string representation of the type annotation
+
+    Examples:
+        - None -> "None"
+        - Any -> "Any"
+        - str -> "str"
+        - List[int] -> "List[int]"
+        - inspect.Signature.empty -> "Any"
     """
     if annotation is inspect.Signature.empty:
         return "Any"

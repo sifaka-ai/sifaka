@@ -22,8 +22,8 @@ from typing import (
 from typing_extensions import TypeGuard
 from pydantic import ConfigDict
 
-from sifaka.classifiers.base import BaseClassifier
-from sifaka.classifiers.models import ClassificationResult
+from sifaka.classifiers.classifier import Classifier
+from sifaka.classifiers.result import ClassificationResult
 from sifaka.classifiers.config import ClassifierConfig, standardize_classifier_config
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
@@ -97,7 +97,7 @@ class ReadabilityMetrics:
         self.difficult_words = difficult_words
 
 
-class ReadabilityClassifier(BaseClassifier[str, str]):
+class ReadabilityClassifier(Classifier):
     """
     A classifier that analyzes text readability using textstat.
 

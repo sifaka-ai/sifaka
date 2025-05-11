@@ -192,9 +192,16 @@ class HarmfulContentValidator(BaseValidator[str]):
             config: Rule configuration containing harmful content parameters
         """
         super().__init__(validation_type=str)
-        self._config = config
-        self._harmful_config = HarmfulContentConfig(**config.params)
-        self._analyzer = HarmfulContentAnalyzer(config=self._harmful_config)
+
+        # Store configuration in state
+        harmful_config = HarmfulContentConfig(**config.params)
+        self._state_manager.update("config", config)
+        self._state_manager.update("harmful_config", harmful_config)
+        self._state_manager.update("analyzer", HarmfulContentAnalyzer(config=harmful_config))
+
+        # Set metadata
+        self._state_manager.set_metadata("validator_type", self.__class__.__name__)
+        self._state_manager.set_metadata("creation_time", time.time())
 
     @property
     def config(self) -> RuleConfig:
@@ -204,7 +211,7 @@ class HarmfulContentValidator(BaseValidator[str]):
         Returns:
             The rule configuration
         """
-        return self._config
+        return self._state_manager.get("config")
 
     def validate(self, text: str) -> RuleResult:
         """
@@ -227,8 +234,11 @@ class HarmfulContentValidator(BaseValidator[str]):
             if not isinstance(text, str):
                 raise TypeError("Input must be a string")
 
+            # Get analyzer from state
+            analyzer = self._state_manager.get("analyzer")
+
             # Analyze text for harmful content
-            result = self._analyzer.analyze(text)
+            result = analyzer.analyze(text)
 
             # Add additional metadata
             result = result.with_metadata(
@@ -237,6 +247,19 @@ class HarmfulContentValidator(BaseValidator[str]):
 
             # Update statistics
             self.update_statistics(result)
+
+            # Update validation count in metadata
+            validation_count = self._state_manager.get_metadata("validation_count", 0)
+            self._state_manager.set_metadata("validation_count", validation_count + 1)
+
+            # Cache result if caching is enabled
+            if self.config.cache_size > 0:
+                cache = self._state_manager.get("cache", {})
+                if len(cache) >= self.config.cache_size:
+                    # Clear cache if it's full
+                    cache = {}
+                cache[text] = result
+                self._state_manager.update("cache", cache)
 
             return result
 
@@ -335,8 +358,13 @@ class HarmfulContentRule(Rule[str]):
             validator=validator,
         )
 
-        # Store the validator for reference
-        self._harmful_content_validator = validator or self._create_default_validator()
+        # Store validator in state
+        harmful_content_validator = validator or self._create_default_validator()
+        self._state_manager.update("harmful_content_validator", harmful_content_validator)
+
+        # Set additional metadata
+        self._state_manager.set_metadata("rule_type", "HarmfulContentRule")
+        self._state_manager.set_metadata("creation_time", time.time())
 
     def _create_default_validator(self) -> HarmfulContentValidator:
         """
@@ -345,6 +373,9 @@ class HarmfulContentRule(Rule[str]):
         Returns:
             A configured HarmfulContentValidator
         """
+        # Store config in state for reference
+        self._state_manager.update("validator_config", self.config)
+
         return HarmfulContentValidator(self.config)
 
 

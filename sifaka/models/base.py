@@ -78,15 +78,21 @@ from typing import (
     Generic,
     Optional,
     Protocol,
+    TYPE_CHECKING,
     TypeVar,
     runtime_checkable,
 )
 
+# Import the interfaces for runtime use
 from sifaka.interfaces import (
     APIClientProtocol as APIClient,
     TokenCounterProtocol as TokenCounter,
     ModelProviderProtocol as ModelProviderInterface,
 )
+
+# Also import for type checking to ensure proper IDE support
+if TYPE_CHECKING:
+    pass  # Already imported above
 from sifaka.utils.logging import get_logger
 from sifaka.utils.tracing import Tracer
 

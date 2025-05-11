@@ -53,6 +53,18 @@ from pydantic import Field
 from sifaka.utils.config import BaseConfig, ValidationConfig
 
 
+class ChainConfig(BaseConfig):
+    """Configuration for chains."""
+
+    max_attempts: int = Field(default=3, ge=1, description="Maximum number of generation attempts")
+    cache_enabled: bool = Field(default=True, description="Whether to enable result caching")
+    trace_enabled: bool = Field(default=False, description="Whether to enable execution tracing")
+    async_enabled: bool = Field(default=False, description="Whether to enable async execution")
+    timeout: float = Field(
+        default=60.0, ge=0.0, description="Timeout for chain operations in seconds"
+    )
+
+
 class EngineConfig(BaseConfig):
     """Configuration for the execution engine."""
 

@@ -4,13 +4,13 @@ Classifier Plugins Module
 This module provides the plugin system for the Sifaka classifiers system.
 It enables dynamic discovery and loading of plugins for extending the system.
 
-## Components
-1. **PluginRegistry**: Discovers and registers plugins
-2. **PluginLoader**: Dynamically loads plugins at runtime
+This module re-exports the core plugin system components with classifier-specific
+customizations to ensure consistent plugin behavior across all components.
 
 ## Usage Examples
 ```python
-from sifaka.classifiers.v2.plugins import PluginRegistry, PluginLoader
+from sifaka.classifiers.plugins import PluginRegistry, PluginLoader
+from sifaka.classifiers.interfaces import Plugin
 
 # Create plugin registry
 registry = PluginRegistry()
@@ -32,28 +32,28 @@ plugin = loader.load_plugin_from_module("my_plugin_module")
 ```
 """
 
-from typing import Any, Dict, List, Optional, Type
-import importlib
-import pkg_resources
+from typing import Dict, Optional, Type, cast
 
 from .interfaces import Plugin
-from ..utils.errors import PluginError
+from sifaka.core.plugins import PluginRegistry as CorePluginRegistry
+from sifaka.core.plugins import PluginLoader as CorePluginLoader
 from ..utils.logging import get_logger
 
 # Configure logger
 logger = get_logger(__name__)
 
 
-class PluginRegistry:
-    """Discovers and registers plugins."""
+class PluginRegistry(CorePluginRegistry):
+    """
+    Classifier-specific plugin registry.
 
-    def __init__(self):
-        """Initialize the plugin registry."""
-        self._plugins: Dict[str, Plugin] = {}
+    This class extends the core PluginRegistry with classifier-specific functionality.
+    It ensures that only classifier plugins can be registered.
+    """
 
     def register_plugin(self, name: str, plugin: Plugin) -> None:
         """
-        Register a plugin.
+        Register a classifier plugin.
 
         Args:
             name: Plugin name
@@ -62,187 +62,43 @@ class PluginRegistry:
         Raises:
             PluginError: If plugin registration fails
         """
-        if name in self._plugins:
-            raise PluginError(f"Plugin '{name}' already registered")
+        # Ensure the plugin is a classifier plugin
+        if not isinstance(plugin, Plugin):
+            from ..utils.errors import PluginError
 
-        self._plugins[name] = plugin
-        logger.debug(f"Registered plugin '{name}'")
+            raise PluginError(f"Plugin '{name}' is not a classifier plugin")
 
-    def unregister_plugin(self, name: str) -> None:
-        """
-        Unregister a plugin.
-
-        Args:
-            name: Plugin name
-
-        Raises:
-            PluginError: If plugin unregistration fails
-        """
-        if name not in self._plugins:
-            raise PluginError(f"Plugin '{name}' not registered")
-
-        del self._plugins[name]
-        logger.debug(f"Unregistered plugin '{name}'")
-
-    def get_plugin(self, name: str) -> Plugin:
-        """
-        Get a plugin by name.
-
-        Args:
-            name: Plugin name
-
-        Returns:
-            Plugin instance
-
-        Raises:
-            PluginError: If plugin not found
-        """
-        if name not in self._plugins:
-            raise PluginError(f"Plugin '{name}' not found")
-
-        return self._plugins[name]
-
-    def get_plugins(self) -> Dict[str, Plugin]:
-        """
-        Get all registered plugins.
-
-        Returns:
-            Dictionary of plugin names to plugin instances
-        """
-        return self._plugins.copy()
-
-    def get_plugins_by_type(self, component_type: str) -> Dict[str, Plugin]:
-        """
-        Get plugins by component type.
-
-        Args:
-            component_type: Component type to filter by
-
-        Returns:
-            Dictionary of plugin names to plugin instances
-        """
-        return {
-            name: plugin
-            for name, plugin in self._plugins.items()
-            if plugin.component_type == component_type
-        }
-
-    def clear(self) -> None:
-        """Clear all registered plugins."""
-        self._plugins.clear()
-        logger.debug("Cleared all plugins")
+        # Register the plugin with the core registry
+        super().register_plugin(name, plugin)
 
 
-class PluginLoader:
-    """Dynamically loads plugins at runtime."""
+class PluginLoader(CorePluginLoader):
+    """
+    Classifier-specific plugin loader.
+
+    This class extends the core PluginLoader with classifier-specific functionality.
+    It ensures that only classifier plugins can be loaded.
+    """
 
     def __init__(self, registry: Optional[PluginRegistry] = None):
         """
-        Initialize the plugin loader.
+        Initialize the classifier plugin loader.
 
         Args:
-            registry: Optional plugin registry to register plugins with
+            registry: Optional classifier plugin registry to register plugins with
         """
-        self._registry = registry or PluginRegistry()
+        # Create a classifier plugin registry if none is provided
+        classifier_registry = registry or PluginRegistry()
 
-    def load_plugins_from_entry_points(self, group: str) -> Dict[str, Plugin]:
-        """
-        Load plugins from entry points.
-
-        Args:
-            group: Entry point group to load plugins from
-
-        Returns:
-            Dictionary of plugin names to plugin instances
-
-        Raises:
-            PluginError: If plugin loading fails
-        """
-        plugins = {}
-
-        try:
-            for entry_point in pkg_resources.iter_entry_points(group):
-                try:
-                    plugin_class = entry_point.load()
-                    plugin = plugin_class()
-
-                    if not isinstance(plugin, Plugin):
-                        logger.warning(
-                            f"Entry point '{entry_point.name}' does not provide a Plugin instance"
-                        )
-                        continue
-
-                    plugins[entry_point.name] = plugin
-
-                    if self._registry:
-                        self._registry.register_plugin(entry_point.name, plugin)
-
-                    logger.debug(f"Loaded plugin '{entry_point.name}' from entry point")
-                except Exception as e:
-                    logger.error(
-                        f"Failed to load plugin from entry point '{entry_point.name}': {e}"
-                    )
-        except Exception as e:
-            raise PluginError(f"Failed to load plugins from entry points: {e}")
-
-        return plugins
-
-    def load_plugin_from_module(self, module_name: str, class_name: Optional[str] = None) -> Plugin:
-        """
-        Load a plugin from a module.
-
-        Args:
-            module_name: Module name to load plugin from
-            class_name: Optional class name to load (if not provided, uses module name)
-
-        Returns:
-            Plugin instance
-
-        Raises:
-            PluginError: If plugin loading fails
-        """
-        try:
-            module = importlib.import_module(module_name)
-
-            if class_name:
-                if not hasattr(module, class_name):
-                    raise PluginError(f"Module '{module_name}' has no attribute '{class_name}'")
-
-                plugin_class = getattr(module, class_name)
-                plugin = plugin_class()
-            else:
-                # Try to find a Plugin instance in the module
-                plugin = None
-                for attr_name in dir(module):
-                    attr = getattr(module, attr_name)
-                    if isinstance(attr, type) and issubclass(attr, Plugin) and attr != Plugin:
-                        plugin = attr()
-                        break
-
-                if not plugin:
-                    raise PluginError(f"No Plugin class found in module '{module_name}'")
-
-            if not isinstance(plugin, Plugin):
-                raise PluginError(
-                    f"Class '{class_name or plugin.__class__.__name__}' does not implement Plugin"
-                )
-
-            if self._registry:
-                self._registry.register_plugin(plugin.name, plugin)
-
-            logger.debug(f"Loaded plugin '{plugin.name}' from module '{module_name}'")
-
-            return plugin
-        except ImportError as e:
-            raise PluginError(f"Failed to import module '{module_name}': {e}")
-        except Exception as e:
-            raise PluginError(f"Failed to load plugin from module '{module_name}': {e}")
+        # Initialize the core plugin loader with the classifier registry
+        super().__init__(classifier_registry)
 
     def get_registry(self) -> PluginRegistry:
         """
-        Get the plugin registry.
+        Get the classifier plugin registry.
 
         Returns:
-            Plugin registry
+            Classifier plugin registry
         """
-        return self._registry
+        # Cast the core registry to a classifier registry
+        return cast(PluginRegistry, super().get_registry())

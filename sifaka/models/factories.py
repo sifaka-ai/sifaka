@@ -5,17 +5,21 @@ This module provides factory functions for creating model providers,
 simplifying the creation of model providers with common configurations.
 """
 
-from typing import Any, Optional, Type, TypeVar
+from typing import Any, Optional, Type, TypeVar, TYPE_CHECKING
 
-from sifaka.models.core import ModelProviderCore
+# Only import standardize_model_config at module level
 from sifaka.utils.config import standardize_model_config
-from sifaka.models.providers.openai import OpenAIProvider
-from sifaka.models.providers.anthropic import AnthropicProvider
-from sifaka.models.providers.gemini import GeminiProvider
-from sifaka.models.providers.mock import MockProvider
+
+# Import types only for type checking
+if TYPE_CHECKING:
+    from sifaka.models.core import ModelProviderCore
+    from sifaka.models.providers.openai import OpenAIProvider
+    from sifaka.models.providers.anthropic import AnthropicProvider
+    from sifaka.models.providers.gemini import GeminiProvider
+    from sifaka.models.providers.mock import MockProvider
 
 # Type variables
-T = TypeVar("T", bound=ModelProviderCore)
+T = TypeVar("T")
 
 
 def create_model_provider(
@@ -74,6 +78,7 @@ def create_model_provider(
         )
         ```
     """
+
     # Create configuration using standardization function
     config = standardize_model_config(
         temperature=temperature,
@@ -96,7 +101,7 @@ def create_openai_provider(
     temperature: float = 0.7,
     max_tokens: int = 1000,
     **kwargs: Any,
-) -> OpenAIProvider:
+) -> "OpenAIProvider":
     """
     Create an OpenAI provider with the given configuration.
 
@@ -126,6 +131,9 @@ def create_openai_provider(
         )
         ```
     """
+    # Import OpenAIProvider here to avoid circular imports
+    from sifaka.models.providers.openai import OpenAIProvider
+
     return create_model_provider(
         OpenAIProvider,
         model_name=model_name,
@@ -142,7 +150,7 @@ def create_anthropic_provider(
     temperature: float = 0.7,
     max_tokens: int = 1000,
     **kwargs: Any,
-) -> AnthropicProvider:
+) -> "AnthropicProvider":
     """
     Create an Anthropic provider with the given configuration.
 
@@ -172,6 +180,9 @@ def create_anthropic_provider(
         )
         ```
     """
+    # Import AnthropicProvider here to avoid circular imports
+    from sifaka.models.providers.anthropic import AnthropicProvider
+
     return create_model_provider(
         AnthropicProvider,
         model_name=model_name,
@@ -188,7 +199,7 @@ def create_gemini_provider(
     temperature: float = 0.7,
     max_tokens: int = 1000,
     **kwargs: Any,
-) -> GeminiProvider:
+) -> "GeminiProvider":
     """
     Create a Gemini provider with the given configuration.
 
@@ -218,6 +229,9 @@ def create_gemini_provider(
         )
         ```
     """
+    # Import GeminiProvider here to avoid circular imports
+    from sifaka.models.providers.gemini import GeminiProvider
+
     return create_model_provider(
         GeminiProvider,
         model_name=model_name,
@@ -231,7 +245,7 @@ def create_gemini_provider(
 def create_mock_provider(
     model_name: str = "mock-model",
     **kwargs: Any,
-) -> MockProvider:
+) -> "MockProvider":
     """
     Create a mock provider for testing.
 
@@ -256,6 +270,9 @@ def create_mock_provider(
         )
         ```
     """
+    # Import MockProvider here to avoid circular imports
+    from sifaka.models.providers.mock import MockProvider
+
     return create_model_provider(
         MockProvider,
         model_name=model_name,

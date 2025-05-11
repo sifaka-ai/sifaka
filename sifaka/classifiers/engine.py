@@ -39,8 +39,7 @@ from ..utils.state import StateManager
 from ..utils.logging import get_logger
 from .result import ClassificationResult
 from .config import ClassifierConfig
-from ..utils.errors import ClassifierError
-from ..utils.error_patterns import safely_execute_classifier as safely_execute
+from ..utils.errors import ClassifierError, safely_execute_component_operation as safely_execute
 from .adapters import ImplementationError
 
 # Configure logger

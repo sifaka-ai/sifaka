@@ -23,10 +23,12 @@ Usage Example:
 from typing import List, Optional, Any
 import time
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 
 from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
 from sifaka.utils.logging import get_logger
+from sifaka.utils.state import create_rule_state
+from sifaka.utils.errors import try_operation
 
 logger = get_logger(__name__)
 
@@ -84,6 +86,9 @@ class StructureValidator(BaseValidator[str]):
         ```
     """
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
+
     def __init__(self, config: Optional[StructureConfig] = None):
         """
         Initialize the validator.
@@ -92,7 +97,16 @@ class StructureValidator(BaseValidator[str]):
             config: Configuration for the validator
         """
         super().__init__(validation_type=str)
-        self._config = config or StructureConfig()
+
+        # Store configuration in state
+        self._state_manager.update("config", config or StructureConfig())
+
+        # Set metadata
+        self._state_manager.set_metadata("validator_type", self.__class__.__name__)
+        self._state_manager.set_metadata("creation_time", time.time())
+
+        # Initialize cache
+        self._state_manager.update("cache", {})
 
     @property
     def config(self) -> StructureConfig:
@@ -102,7 +116,7 @@ class StructureValidator(BaseValidator[str]):
         Returns:
             The validator configuration
         """
-        return self._config
+        return self._state_manager.get("config")
 
     def validate(self, text: str) -> RuleResult:
         """
@@ -116,58 +130,102 @@ class StructureValidator(BaseValidator[str]):
         """
         start_time = time.time()
 
+        # Check cache if enabled
+        cache_size = self.config.cache_size
+        if cache_size > 0:
+            cache = self._state_manager.get("cache", {})
+            if text in cache:
+                self._state_manager.set_metadata("cache_hit", True)
+                return cache[text]
+            self._state_manager.set_metadata("cache_hit", False)
+
         # Handle empty text
         empty_result = self.handle_empty_text(text)
         if empty_result:
             return empty_result
 
-        # Analyze sections
-        sections = self._analyze_sections(text)
-        section_count = len(sections)
+        # Define the validation operation
+        def validation_operation():
+            # Analyze sections
+            sections = self._analyze_sections(text)
+            section_count = len(sections)
 
-        issues = []
-        suggestions = []
+            issues = []
+            suggestions = []
 
-        # Check section count
-        if section_count < self.config.min_sections:
-            issue = f"Text has {section_count} sections, but at least {self.config.min_sections} are required"
-            issues.append(issue)
-            suggestions.append(
-                f"Add at least {self.config.min_sections - section_count} more sections"
+            # Check section count
+            if section_count < self.config.min_sections:
+                issue = f"Text has {section_count} sections, but at least {self.config.min_sections} are required"
+                issues.append(issue)
+                suggestions.append(
+                    f"Add at least {self.config.min_sections - section_count} more sections"
+                )
+
+            if self.config.max_sections and section_count > self.config.max_sections:
+                issue = f"Text has {section_count} sections, but at most {self.config.max_sections} are allowed"
+                issues.append(issue)
+                suggestions.append(
+                    f"Remove at least {section_count - self.config.max_sections} sections"
+                )
+
+            # Check required sections
+            missing_sections = [s for s in self.config.required_sections if s not in sections]
+            if missing_sections:
+                issue = f"Text is missing required sections: {', '.join(missing_sections)}"
+                issues.append(issue)
+                suggestions.append(f"Add the following sections: {', '.join(missing_sections)}")
+
+            # Create result
+            result = RuleResult(
+                passed=not issues,
+                message=issues[0] if issues else "Text structure is valid",
+                metadata={
+                    "section_count": section_count,
+                    "sections": sections,
+                    "missing_sections": missing_sections if missing_sections else [],
+                    "validator_type": self.__class__.__name__,
+                },
+                score=1.0 if not issues else 0.0,
+                issues=issues,
+                suggestions=suggestions,
+                processing_time_ms=time.time() - start_time,
             )
 
-        if self.config.max_sections and section_count > self.config.max_sections:
-            issue = f"Text has {section_count} sections, but at most {self.config.max_sections} are allowed"
-            issues.append(issue)
-            suggestions.append(
-                f"Remove at least {section_count - self.config.max_sections} sections"
-            )
+            return result
 
-        # Check required sections
-        missing_sections = [s for s in self.config.required_sections if s not in sections]
-        if missing_sections:
-            issue = f"Text is missing required sections: {', '.join(missing_sections)}"
-            issues.append(issue)
-            suggestions.append(f"Add the following sections: {', '.join(missing_sections)}")
-
-        # Create result
-        result = RuleResult(
-            passed=not issues,
-            message=issues[0] if issues else "Text structure is valid",
-            metadata={
-                "section_count": section_count,
-                "sections": sections,
-                "missing_sections": missing_sections if missing_sections else [],
-                "validator_type": self.__class__.__name__,
-            },
-            score=1.0 if not issues else 0.0,
-            issues=issues,
-            suggestions=suggestions,
-            processing_time_ms=time.time() - start_time,
+        # Use try_operation to handle potential errors
+        result = try_operation(
+            validation_operation,
+            component_name=self.__class__.__name__,
+            default_value=RuleResult(
+                passed=False,
+                message="Error validating text structure",
+                metadata={
+                    "error_type": "ValidationError",
+                    "validator_type": self.__class__.__name__,
+                },
+                score=0.0,
+                issues=["Error validating text structure"],
+                suggestions=["Check input format and try again"],
+                processing_time_ms=time.time() - start_time,
+            ),
         )
 
         # Update statistics
         self.update_statistics(result)
+
+        # Update validation count in metadata
+        validation_count = self._state_manager.get_metadata("validation_count", 0)
+        self._state_manager.set_metadata("validation_count", validation_count + 1)
+
+        # Cache result if caching is enabled
+        if cache_size > 0:
+            cache = self._state_manager.get("cache", {})
+            if len(cache) >= cache_size:
+                # Clear cache if it's full
+                cache = {}
+            cache[text] = result
+            self._state_manager.update("cache", cache)
 
         return result
 
@@ -238,19 +296,36 @@ class StructureRule(Rule[str]):
             validator: Validator to use for validation
         """
         super().__init__(name=name, description=description, config=config, validator=validator)
-        self._structure_validator = validator
+
+        # Store validator in state
+        self._state_manager.update("structure_validator", validator)
+
+        # Store validator config in state for reference
+        self._state_manager.update("validator_config", validator.config)
 
     def _create_default_validator(self) -> StructureValidator:
         """
         Create a default validator for this rule.
 
-        This method is not used since we create the validator in __init__,
-        but it's required by the abstract base class.
+        This method creates a default validator using parameters from the rule config.
+        It's used when a validator is not provided in the constructor.
 
-        Raises:
-            NotImplementedError: Always raised since this method should not be called
+        Returns:
+            A configured StructureValidator
         """
-        raise NotImplementedError("StructureRule requires a validator to be passed in __init__")
+        # Extract structure specific params
+        params = self.config.params
+        config = StructureConfig(
+            required_sections=params.get("required_sections", []),
+            min_sections=params.get("min_sections", 1),
+            max_sections=params.get("max_sections", None),
+            cache_size=self.config.cache_size,
+        )
+
+        # Store config in state for reference
+        self._state_manager.update("validator_config", config)
+
+        return StructureValidator(config=config)
 
 
 def create_structure_validator(
@@ -289,13 +364,28 @@ def create_structure_validator(
         )
         ```
     """
-    config = StructureConfig(
-        required_sections=required_sections or [],
-        min_sections=min_sections,
-        max_sections=max_sections,
-        **kwargs,
-    )
-    return StructureValidator(config=config)
+    try:
+        # Create config with default or provided values
+        config_params = {}
+        if required_sections is not None:
+            config_params["required_sections"] = required_sections
+        if min_sections is not None:
+            config_params["min_sections"] = min_sections
+        if max_sections is not None:
+            config_params["max_sections"] = max_sections
+
+        # Add any remaining config parameters
+        config_params.update(kwargs)
+
+        # Create config
+        config = StructureConfig(**config_params)
+
+        # Create and return the validator
+        return StructureValidator(config=config)
+
+    except Exception as e:
+        logger.error(f"Error creating structure validator: {e}")
+        raise ValueError(f"Error creating structure validator: {str(e)}")
 
 
 def create_structure_rule(
@@ -358,31 +448,50 @@ def create_structure_rule(
         )
         ```
     """
-    # Create validator
-    validator = create_structure_validator(
-        required_sections=required_sections,
-        min_sections=min_sections,
-        max_sections=max_sections,
-    )
+    try:
+        # Create validator using the validator factory
+        validator = create_structure_validator(
+            required_sections=required_sections,
+            min_sections=min_sections,
+            max_sections=max_sections,
+        )
 
-    # Determine rule name
-    rule_name = name or rule_id or "structure"
+        # Create params dictionary for RuleConfig
+        params = {}
+        if required_sections is not None:
+            params["required_sections"] = required_sections
+        if min_sections is not None:
+            params["min_sections"] = min_sections
+        if max_sections is not None:
+            params["max_sections"] = max_sections
 
-    # Create rule config
-    config = RuleConfig(
-        name=rule_name,
-        description=description,
-        rule_id=rule_id or rule_name,
-        **kwargs,
-    )
+        # Determine rule name
+        rule_name = name or rule_id or "structure"
 
-    # Create and return the rule
-    return StructureRule(
-        name=rule_name,
-        description=description,
-        config=config,
-        validator=validator,
-    )
+        # Create rule config
+        config_kwargs = {k: v for k, v in kwargs.items() if k not in ["params"]}
+        if "params" in kwargs:
+            params.update(kwargs["params"])
+
+        config = RuleConfig(
+            name=rule_name,
+            description=description,
+            rule_id=rule_id or rule_name,
+            params=params,
+            **config_kwargs,
+        )
+
+        # Create and return the rule
+        return StructureRule(
+            name=rule_name,
+            description=description,
+            config=config,
+            validator=validator,
+        )
+
+    except Exception as e:
+        logger.error(f"Error creating structure rule: {e}")
+        raise ValueError(f"Error creating structure rule: {str(e)}")
 
 
 __all__ = [

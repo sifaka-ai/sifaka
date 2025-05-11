@@ -79,8 +79,8 @@ The module implements:
 - Range validation for numeric fields
 """
 
-# Import models from models.py for backward compatibility
-from .models import (
+# Import configuration classes from utils/config.py
+from ..utils.config import (
     CriticConfig,
     CriticMetadata,
     PromptCriticConfig,
@@ -118,6 +118,10 @@ DEFAULT_PROMPT_CONFIG = PromptCriticConfig(
     min_confidence=0.7,
     max_attempts=3,
     cache_size=100,
+    eager_initialization=False,
+    memory_buffer_size=10,
+    track_performance=True,
+    track_errors=True,
 )
 
 DEFAULT_REFLEXION_CONFIG = ReflexionCriticConfig(

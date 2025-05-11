@@ -25,11 +25,12 @@ from typing import (
     Type,
     TypeVar,
     Protocol,
+    TYPE_CHECKING,
     runtime_checkable,
 )
 import time
 from datetime import datetime
-from pydantic import Field, ConfigDict
+from pydantic import Field, ConfigDict, PrivateAttr
 
 from sifaka.core.base import (
     BaseComponent,
@@ -37,10 +38,10 @@ from sifaka.core.base import (
     BaseResult,
     Validatable,
 )
-from sifaka.utils.errors import RuleError, try_component_operation
-from sifaka.utils.error_patterns import safely_execute_rule, create_rule_error_result
+from sifaka.utils.errors import try_component_operation
+from sifaka.utils.error_patterns import safely_execute_rule
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import StateManager
+from sifaka.utils.state import StateManager, create_rule_state
 from sifaka.utils.common import update_statistics, record_error
 
 logger = get_logger(__name__)
@@ -180,6 +181,9 @@ class BaseValidator(Validatable[T], Generic[T]):
         3. Result: Return standardized validation results
     """
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
+
     def __init__(self, validation_type: Type[T] = str):
         """
         Initialize the validator.
@@ -188,7 +192,6 @@ class BaseValidator(Validatable[T], Generic[T]):
             validation_type: The type this validator can validate
         """
         self._validation_type = validation_type
-        self._state_manager = StateManager()
         self._initialize_state()
 
     def _initialize_state(self) -> None:
@@ -239,6 +242,7 @@ class BaseValidator(Validatable[T], Generic[T]):
         Returns:
             Validation result for empty text, or None if text is not empty
         """
+        # Import at function level to avoid circular imports
         from sifaka.utils.text import handle_empty_text
 
         # Use the standardized function with passed=False for rules
@@ -317,6 +321,9 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
         2. Validation: Delegate to validator and process results
         3. Result: Return standardized validation results with metadata
     """
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
 
     def __init__(
         self,

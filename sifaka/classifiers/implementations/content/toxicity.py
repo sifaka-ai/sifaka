@@ -84,8 +84,8 @@ from typing import (
 from typing_extensions import TypeGuard
 from pydantic import ConfigDict
 
-from sifaka.classifiers.base import BaseClassifier
-from sifaka.classifiers.models import ClassificationResult
+from sifaka.classifiers.classifier import Classifier
+from sifaka.classifiers.result import ClassificationResult
 from sifaka.classifiers.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
@@ -99,7 +99,7 @@ logger = get_logger(__name__)
 T = TypeVar("T", bound="ToxicityClassifier")
 
 
-class ToxicityClassifier(BaseClassifier[str, str]):
+class ToxicityClassifier(Classifier):
     """
     A lightweight toxicity classifier using the Detoxify model.
 
@@ -179,22 +179,6 @@ class ToxicityClassifier(BaseClassifier[str, str]):
     DEFAULT_SEVERE_TOXIC_THRESHOLD: ClassVar[float] = 0.7
     DEFAULT_THREAT_THRESHOLD: ClassVar[float] = 0.7
     DEFAULT_GENERAL_THRESHOLD: ClassVar[float] = 0.5
-
-    # Properties for backward compatibility with tests
-    @property
-    def _initialized(self) -> bool:
-        """Get initialization status from state manager."""
-        return self._state_manager.get("initialized", False)
-
-    @property
-    def _model(self) -> Any:
-        """Get model from state manager."""
-        return self._state_manager.get("model")
-
-    @property
-    def _model_name(self) -> str:
-        """Get model name from config params."""
-        return self.config.params.get("model_name", "original")
 
     def __init__(
         self,
@@ -604,7 +588,9 @@ class ToxicityClassifier(BaseClassifier[str, str]):
             # State initialization status
             "initialized": self._state_manager.get("initialized", False),
             # Model information
-            "model_name": self._state_manager.get("cache", {}).get("model_name", self._model_name),
+            "model_name": self._state_manager.get("cache", {}).get(
+                "model_name", self.config.params.get("model_name", "original")
+            ),
         }
 
         # Add thresholds information

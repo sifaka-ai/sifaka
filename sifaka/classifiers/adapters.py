@@ -37,7 +37,7 @@ import asyncio
 from .interfaces import ClassifierImplementation
 from .result import ClassificationResult
 from ..utils.errors import ClassifierError
-from ..utils.error_patterns import safely_execute_classifier as safely_execute
+from ..utils.errors import safely_execute_component_operation as safely_execute
 
 
 # Define ImplementationError as a subclass of ClassifierError

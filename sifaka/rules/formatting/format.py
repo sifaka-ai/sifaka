@@ -41,10 +41,11 @@ import json
 import time
 from typing import Any, Dict, List, Literal, Optional, Protocol, Set, Tuple, runtime_checkable
 
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict, PrivateAttr
 
 from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
 from sifaka.utils.logging import get_logger
+from sifaka.utils.state import create_rule_state
 
 logger = get_logger(__name__)
 
@@ -265,6 +266,9 @@ class DefaultMarkdownValidator(BaseValidator[str]):
         ```
     """
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
+
     def __init__(self, config: MarkdownConfig) -> None:
         """
         Initialize with configuration.
@@ -273,10 +277,19 @@ class DefaultMarkdownValidator(BaseValidator[str]):
             config: Markdown validation configuration
         """
         super().__init__(validation_type=str)
-        self._config = config
-        self._analyzer = _MarkdownAnalyzer(
-            required_elements=config.required_elements, min_elements=config.min_elements
+
+        # Store configuration in state
+        self._state_manager.update("config", config)
+        self._state_manager.update(
+            "analyzer",
+            _MarkdownAnalyzer(
+                required_elements=config.required_elements, min_elements=config.min_elements
+            ),
         )
+
+        # Set metadata
+        self._state_manager.set_metadata("validator_type", self.__class__.__name__)
+        self._state_manager.set_metadata("creation_time", time.time())
 
     @property
     def config(self) -> MarkdownConfig:
@@ -286,7 +299,7 @@ class DefaultMarkdownValidator(BaseValidator[str]):
         Returns:
             The markdown configuration
         """
-        return self._config
+        return self._state_manager.get("config")
 
     def validate(self, text: str) -> RuleResult:
         """
@@ -309,7 +322,14 @@ class DefaultMarkdownValidator(BaseValidator[str]):
             if not isinstance(text, str):
                 raise ValueError("Input must be a string")
 
-            passed, found_elements = self._analyzer.analyze(text)
+            # Get analyzer from state
+            analyzer = self._state_manager.get("analyzer")
+
+            # Update validation count in metadata
+            validation_count = self._state_manager.get_metadata("validation_count", 0)
+            self._state_manager.set_metadata("validation_count", validation_count + 1)
+
+            passed, found_elements = analyzer.analyze(text)
 
             suggestions = []
             if not passed:
@@ -410,6 +430,9 @@ class DefaultJsonValidator(BaseValidator[str]):
         ```
     """
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
+
     def __init__(self, config: JsonConfig) -> None:
         """
         Initialize with configuration.
@@ -418,8 +441,16 @@ class DefaultJsonValidator(BaseValidator[str]):
             config: JSON validation configuration
         """
         super().__init__(validation_type=str)
-        self._config = config
-        self._analyzer = _JsonAnalyzer(strict=config.strict, allow_empty=config.allow_empty)
+
+        # Store configuration in state
+        self._state_manager.update("config", config)
+        self._state_manager.update(
+            "analyzer", _JsonAnalyzer(strict=config.strict, allow_empty=config.allow_empty)
+        )
+
+        # Set metadata
+        self._state_manager.set_metadata("validator_type", self.__class__.__name__)
+        self._state_manager.set_metadata("creation_time", time.time())
 
     @property
     def config(self) -> JsonConfig:
@@ -429,7 +460,7 @@ class DefaultJsonValidator(BaseValidator[str]):
         Returns:
             The JSON configuration
         """
-        return self._config
+        return self._state_manager.get("config")
 
     def validate(self, text: str) -> RuleResult:
         """
@@ -452,7 +483,14 @@ class DefaultJsonValidator(BaseValidator[str]):
             if not isinstance(text, str):
                 raise ValueError("Input must be a string")
 
-            result = self._analyzer.analyze(text)
+            # Get analyzer from state
+            analyzer = self._state_manager.get("analyzer")
+
+            # Update validation count in metadata
+            validation_count = self._state_manager.get_metadata("validation_count", 0)
+            self._state_manager.set_metadata("validation_count", validation_count + 1)
+
+            result = analyzer.analyze(text)
 
             # Add additional metadata
             result = result.with_metadata(
@@ -521,6 +559,9 @@ class DefaultPlainTextValidator(BaseValidator[str]):
         ```
     """
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
+
     def __init__(self, config: PlainTextConfig) -> None:
         """
         Initialize with configuration.
@@ -529,12 +570,21 @@ class DefaultPlainTextValidator(BaseValidator[str]):
             config: Plain text validation configuration
         """
         super().__init__(validation_type=str)
-        self._config = config
-        self._analyzer = _PlainTextAnalyzer(
-            min_length=config.min_length,
-            max_length=config.max_length,
-            allow_empty=config.allow_empty,
+
+        # Store configuration in state
+        self._state_manager.update("config", config)
+        self._state_manager.update(
+            "analyzer",
+            _PlainTextAnalyzer(
+                min_length=config.min_length,
+                max_length=config.max_length,
+                allow_empty=config.allow_empty,
+            ),
         )
+
+        # Set metadata
+        self._state_manager.set_metadata("validator_type", self.__class__.__name__)
+        self._state_manager.set_metadata("creation_time", time.time())
 
     @property
     def config(self) -> PlainTextConfig:
@@ -544,7 +594,7 @@ class DefaultPlainTextValidator(BaseValidator[str]):
         Returns:
             The plain text configuration
         """
-        return self._config
+        return self._state_manager.get("config")
 
     def validate(self, text: str) -> RuleResult:
         """
@@ -568,7 +618,14 @@ class DefaultPlainTextValidator(BaseValidator[str]):
             if not isinstance(text, str):
                 raise ValueError("Input must be a string")
 
-            result = self._analyzer.analyze(text)
+            # Get analyzer from state
+            analyzer = self._state_manager.get("analyzer")
+
+            # Update validation count in metadata
+            validation_count = self._state_manager.get_metadata("validation_count", 0)
+            self._state_manager.set_metadata("validation_count", validation_count + 1)
+
+            result = analyzer.analyze(text)
 
             # Add additional metadata
             result = result.with_metadata(
@@ -639,6 +696,9 @@ class FormatRule(Rule[str]):
         ```
     """
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
+
     def __init__(
         self,
         name: str = "format_rule",
@@ -680,8 +740,14 @@ class FormatRule(Rule[str]):
             validator=validator,
         )
 
-        # Store the validator for reference
-        self._format_validator = validator or self._create_default_validator()
+        # Store the validator in state
+        format_validator = validator or self._create_default_validator()
+        self._state_manager.update("format_validator", format_validator)
+
+        # Set additional metadata
+        self._state_manager.set_metadata("rule_type", "FormatRule")
+        self._state_manager.set_metadata("format_type", format_type)
+        self._state_manager.set_metadata("creation_time", time.time())
 
     @property
     def format_type(self) -> FormatType:

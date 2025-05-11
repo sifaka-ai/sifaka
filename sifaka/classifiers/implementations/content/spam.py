@@ -43,8 +43,8 @@ import pickle
 from typing import ClassVar, List, Optional, Dict, Any
 
 from pydantic import PrivateAttr
-from sifaka.classifiers.base import BaseClassifier
-from sifaka.classifiers.models import ClassificationResult
+from sifaka.classifiers.classifier import Classifier
+from sifaka.classifiers.result import ClassificationResult
 from sifaka.classifiers.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
@@ -52,7 +52,7 @@ from sifaka.utils.state import create_classifier_state
 logger = get_logger(__name__)
 
 
-class SpamClassifier(BaseClassifier[str, str]):
+class SpamClassifier(Classifier):
     """
     A spam classifier using Naive Bayes from scikit-learn.
 

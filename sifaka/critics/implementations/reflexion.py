@@ -74,88 +74,6 @@ from ..interfaces.critic import TextCritic, TextImprover, TextValidator
 logger = get_logger(__name__)
 
 
-# Note: This class is kept for backward compatibility with tests
-# In production code, use ReflexionCriticPromptManager from managers.prompt_factories instead
-class ReflexionPromptFactory:
-    """Factory for creating reflexion-specific prompts."""
-
-    def create_validation_prompt(self, text: str) -> str:
-        """Create a prompt for validating text."""
-        return f"""Please validate the following text:
-
-        TEXT TO VALIDATE:
-        {text}
-
-        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-        VALID: [true/false]
-        REASON: [reason for validation result]
-
-        VALIDATION:"""
-
-    def create_critique_prompt(self, text: str) -> str:
-        """Create a prompt for critiquing text."""
-        return f"""Please critique the following text:
-
-        TEXT TO CRITIQUE:
-        {text}
-
-        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-        SCORE: [number between 0 and 1]
-        FEEDBACK: [your general feedback]
-        ISSUES:
-        - [issue 1]
-        - [issue 2]
-        SUGGESTIONS:
-        - [suggestion 1]
-        - [suggestion 2]
-
-        CRITIQUE:"""
-
-    def create_improvement_prompt(
-        self, text: str, feedback: str, reflections: List[str] = None
-    ) -> str:
-        """Create a prompt for improving text with reflections."""
-        reflection_text = ""
-        if reflections and len(reflections) > 0:
-            reflection_text = "\n\nPREVIOUS REFLECTIONS:\n"
-            for i, reflection in enumerate(reflections):
-                reflection_text += f"{i+1}. {reflection}\n"
-
-        return f"""Please improve the following text:
-
-        TEXT TO IMPROVE:
-        {text}
-
-        FEEDBACK:
-        {feedback}{reflection_text}
-
-        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-        IMPROVED_TEXT: [improved text]
-
-        IMPROVEMENT:"""
-
-    def create_reflection_prompt(self, text: str, feedback: str, improved_text: str) -> str:
-        """Create a prompt for generating a reflection."""
-        return f"""Please reflect on the following text improvement process:
-
-        ORIGINAL TEXT:
-        {text}
-
-        FEEDBACK RECEIVED:
-        {feedback}
-
-        IMPROVED TEXT:
-        {improved_text}
-
-        Reflect on what went well, what went wrong, and what could be improved in future iterations.
-        Focus on specific patterns, mistakes, or strategies that could be applied to similar tasks.
-
-        FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
-        REFLECTION: [your reflection]
-
-        REFLECTION:"""
-
-
 class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, TextCritic):
     """A critic that uses reflection to improve text quality.
 
@@ -240,7 +158,7 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
         try:
             # Import required components
             from sifaka.core.managers.prompt import ReflexionCriticPromptManager
-            from ..managers.response import ResponseParser
+            from sifaka.core.managers.response import ResponseParser
             from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
             from ..services.critique import CritiqueService
 

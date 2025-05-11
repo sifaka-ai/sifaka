@@ -21,13 +21,15 @@ Usage Example:
     ```
 """
 
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 import time
-
-from pydantic import Field, ConfigDict, field_validator, BaseModel
+from pydantic import Field, ConfigDict, field_validator, BaseModel, PrivateAttr
 
 from sifaka.rules.base import Rule, RuleConfig, RuleResult, BaseValidator
+from sifaka.utils.errors import safely_execute_rule, RuleError
 from sifaka.utils.logging import get_logger
+from sifaka.utils.state import StateManager, create_rule_state
+from sifaka.utils.patterns import compile_pattern, match_pattern, find_patterns
 
 logger = get_logger(__name__)
 
@@ -208,6 +210,29 @@ class DefaultLengthValidator(LengthValidator):
         ```
     """
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
+
+    def __init__(self, config: LengthConfig):
+        """
+        Initialize validator with a configuration.
+
+        Args:
+            config: Length validation configuration
+        """
+        super().__init__(config)
+
+        # Initialize state
+        self._state_manager.update("config", config)
+        self._state_manager.update("initialized", True)
+        self._state_manager.update("validation_count", 0)
+        self._state_manager.update("error_count", 0)
+        self._state_manager.update("cache", {})
+
+        # Set metadata
+        self._state_manager.set_metadata("component_type", self.__class__.__name__)
+        self._state_manager.set_metadata("creation_time", time.time())
+
     def validate(self, text: str) -> RuleResult:
         """
         Validate text against length constraints.
@@ -220,64 +245,92 @@ class DefaultLengthValidator(LengthValidator):
         """
         start_time = time.time()
 
-        # Handle empty text
-        empty_result = self.handle_empty_text(text)
-        if empty_result:
-            return empty_result
+        # Update validation count
+        validation_count = self._state_manager.get("validation_count", 0)
+        self._state_manager.update("validation_count", validation_count + 1)
 
-        errors = []
-        suggestions = []
+        # Define the validation operation
+        def validation_operation():
+            # Handle empty text
+            empty_result = self.handle_empty_text(text)
+            if empty_result:
+                return empty_result
 
-        # Character length validation
-        char_count = len(text)
-        if self.config.min_chars is not None and char_count < self.config.min_chars:
-            error_msg = (
-                f"Text is too short: {char_count} characters (minimum {self.config.min_chars})"
+            errors = []
+            suggestions = []
+
+            # Get config from state
+            config = self._state_manager.get("config")
+
+            # Character length validation
+            char_count = len(text)
+            if config.min_chars is not None and char_count < config.min_chars:
+                error_msg = (
+                    f"Text is too short: {char_count} characters (minimum {config.min_chars})"
+                )
+                errors.append(error_msg)
+                suggestions.append(f"Add at least {config.min_chars - char_count} more characters")
+
+            if config.max_chars is not None and char_count > config.max_chars:
+                error_msg = (
+                    f"Text is too long: {char_count} characters (maximum {config.max_chars})"
+                )
+                errors.append(error_msg)
+                suggestions.append(f"Remove at least {char_count - config.max_chars} characters")
+
+            # Word count validation
+            word_count = len(text.split())
+            if config.min_words is not None and word_count < config.min_words:
+                error_msg = (
+                    f"Text has too few words: {word_count} words (minimum {config.min_words})"
+                )
+                errors.append(error_msg)
+                suggestions.append(f"Add at least {config.min_words - word_count} more words")
+
+            if config.max_words is not None and word_count > config.max_words:
+                error_msg = (
+                    f"Text has too many words: {word_count} words (maximum {config.max_words})"
+                )
+                errors.append(error_msg)
+                suggestions.append(f"Remove at least {word_count - config.max_words} words")
+
+            # Create result
+            result = RuleResult(
+                passed=not errors,
+                message=errors[0] if errors else "Text length validation successful",
+                metadata={
+                    "char_count": char_count,
+                    "word_count": word_count,
+                    "errors": errors,
+                    "validator_type": self.__class__.__name__,
+                    "validation_time": time.time(),
+                },
+                score=1.0 if not errors else 0.0,
+                issues=errors,
+                suggestions=suggestions,
+                processing_time_ms=time.time() - start_time,
             )
-            errors.append(error_msg)
-            suggestions.append(f"Add at least {self.config.min_chars - char_count} more characters")
 
-        if self.config.max_chars is not None and char_count > self.config.max_chars:
-            error_msg = (
-                f"Text is too long: {char_count} characters (maximum {self.config.max_chars})"
-            )
-            errors.append(error_msg)
-            suggestions.append(f"Remove at least {char_count - self.config.max_chars} characters")
+            return result
 
-        # Word count validation
-        word_count = len(text.split())
-        if self.config.min_words is not None and word_count < self.config.min_words:
-            error_msg = (
-                f"Text has too few words: {word_count} words (minimum {self.config.min_words})"
-            )
-            errors.append(error_msg)
-            suggestions.append(f"Add at least {self.config.min_words - word_count} more words")
-
-        if self.config.max_words is not None and word_count > self.config.max_words:
-            error_msg = (
-                f"Text has too many words: {word_count} words (maximum {self.config.max_words})"
-            )
-            errors.append(error_msg)
-            suggestions.append(f"Remove at least {word_count - self.config.max_words} words")
-
-        # Create result
-        result = RuleResult(
-            passed=not errors,
-            message=errors[0] if errors else "Text length validation successful",
-            metadata={
-                "char_count": char_count,
-                "word_count": word_count,
-                "errors": errors,
-                "validator_type": self.__class__.__name__,
-            },
-            score=1.0 if not errors else 0.0,
-            issues=errors,
-            suggestions=suggestions,
-            processing_time_ms=time.time() - start_time,
+        # Use the standardized safely_execute_rule function
+        result = safely_execute_rule(
+            operation=validation_operation,
+            component_name=self.__class__.__name__,
+            additional_metadata={"text_length": len(text)},
         )
 
-        # Update statistics
-        self.update_statistics(result)
+        # Update error count if validation failed
+        if not getattr(result, "passed", False):
+            error_count = self._state_manager.get("error_count", 0)
+            self._state_manager.update("error_count", error_count + 1)
+
+        # Update cache
+        cache = self._state_manager.get("cache", {})
+        if len(cache) < 100:  # Limit cache size
+            cache_key = hash(text)
+            cache[cache_key] = result
+            self._state_manager.update("cache", cache)
 
         return result
 
@@ -389,6 +442,9 @@ class LengthRule(Rule[str]):
         ```
     """
 
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
+
     def __init__(
         self,
         validator: LengthValidator,
@@ -423,6 +479,69 @@ class LengthRule(Rule[str]):
 
         # Store the validator for reference
         self._length_validator = validator
+
+        # Initialize additional state
+        self._state_manager.update("validator", validator)
+        self._state_manager.update("validator_adapter", validator_adapter)
+
+        # Set metadata
+        self._state_manager.set_metadata("rule_type", "length")
+        self._state_manager.set_metadata("validator_type", validator.__class__.__name__)
+
+    def warm_up(self) -> None:
+        """
+        Warm up the rule by initializing resources.
+
+        This method ensures that the rule is properly initialized
+        and ready to use, including loading any necessary resources.
+        """
+        # Check if already initialized
+        if self._state_manager.get("initialized", False):
+            logger.debug(f"Rule {self.name} already initialized")
+            return
+
+        # Define the warm-up operation
+        def warm_up_operation():
+            # Initialize cache if needed
+            if not self._state_manager.get("cache"):
+                self._state_manager.update("cache", {})
+
+            # Mark as initialized
+            self._state_manager.update("initialized", True)
+            logger.info(f"Rule {self.name} initialized successfully")
+
+        # Use the standardized safely_execute_rule function
+        safely_execute_rule(
+            operation=warm_up_operation,
+            component_name=self.name,
+            additional_metadata={"method": "warm_up"},
+        )
+
+    def cleanup(self) -> None:
+        """
+        Clean up resources used by the rule.
+
+        This method ensures that any resources used by the rule
+        are properly released when the rule is no longer needed.
+        """
+
+        # Define the cleanup operation
+        def cleanup_operation():
+            # Clear cache
+            self._state_manager.update("cache", {})
+
+            # Mark as not initialized
+            self._state_manager.update("initialized", False)
+            self._state_manager.set_metadata("cleanup_time", time.time())
+
+            logger.info(f"Rule {self.name} cleaned up successfully")
+
+        # Use the standardized safely_execute_rule function
+        safely_execute_rule(
+            operation=cleanup_operation,
+            component_name=self.name,
+            additional_metadata={"method": "cleanup"},
+        )
 
     def _create_default_validator(self) -> LengthRuleValidator:
         """
@@ -578,39 +697,63 @@ def create_length_rule(
     Raises:
         ValueError: If max_chars < min_chars or max_words < min_words
     """
-    # Create validator using the validator factory
-    validator = create_length_validator(
-        min_chars=min_chars,
-        max_chars=max_chars,
-        min_words=min_words,
-        max_words=max_words,
-    )
 
-    # Determine rule name
-    rule_name = name or rule_id or "length_rule"
-
-    # Create rule description if not provided
-    if description is None:
-        char_range = (
-            f"{min_chars}-{max_chars}" if min_chars is not None or max_chars is not None else "any"
+    # Define the factory operation
+    def factory_operation():
+        # Create validator using the validator factory
+        validator = create_length_validator(
+            min_chars=min_chars,
+            max_chars=max_chars,
+            min_words=min_words,
+            max_words=max_words,
         )
-        word_range = (
-            f"{min_words}-{max_words}" if min_words is not None or max_words is not None else "any"
+
+        # Determine rule name
+        rule_name = name or rule_id or "length_rule"
+
+        # Create rule description if not provided
+        if description is None:
+            char_range = (
+                f"{min_chars}-{max_chars}"
+                if min_chars is not None or max_chars is not None
+                else "any"
+            )
+            word_range = (
+                f"{min_words}-{max_words}"
+                if min_words is not None or max_words is not None
+                else "any"
+            )
+            description = f"Validates text length (chars: {char_range}, words: {word_range})"
+
+        # Create rule config
+        config = RuleConfig(
+            name=rule_name,
+            description=description,
+            rule_id=rule_id or rule_name,
+            **kwargs,
         )
-        description = f"Validates text length (chars: {char_range}, words: {word_range})"
 
-    # Create rule config
-    config = RuleConfig(
-        name=rule_name,
-        description=description,
-        rule_id=rule_id or rule_name,
-        **kwargs,
-    )
+        # Create and return the rule
+        rule = LengthRule(
+            validator=validator,
+            name=rule_name,
+            description=description,
+            config=config,
+        )
 
-    # Create and return the rule
-    return LengthRule(
-        validator=validator,
-        name=rule_name,
-        description=description,
-        config=config,
+        # Initialize the rule
+        rule.warm_up()
+
+        return rule
+
+    # Use the standardized safely_execute_rule function
+    return safely_execute_rule(
+        operation=factory_operation,
+        component_name="create_length_rule",
+        additional_metadata={
+            "min_chars": min_chars,
+            "max_chars": max_chars,
+            "min_words": min_words,
+            "max_words": max_words,
+        },
     )

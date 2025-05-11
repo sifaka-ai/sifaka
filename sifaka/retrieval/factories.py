@@ -4,12 +4,28 @@ Factory functions for creating retrieval components.
 This module provides factory functions for creating retrieval components
 in the Sifaka framework. These functions simplify the creation of retrievers
 and related components with common configurations.
+
+## Standardized Factory Pattern
+
+These factory functions follow the standardized pattern used across all Sifaka components:
+1. They create a configuration object with the provided parameters
+2. They create a component instance with the configuration
+3. They initialize the component
+4. They return the initialized component
+
+## Error Handling
+
+All factory functions use standardized error handling:
+1. They catch and handle exceptions
+2. They use the handle_error utility function
+3. They wrap exceptions in component-specific error types
 """
 
 from typing import Any, Dict, Optional
 
 from sifaka.utils.errors import RetrievalError, handle_error
 from sifaka.utils.logging import get_logger
+from sifaka.interfaces.factories import create_component
 
 from .config import RetrieverConfig
 from .implementations.simple import SimpleRetriever
@@ -30,7 +46,7 @@ def create_simple_retriever(
     Create a simple retriever.
 
     This function creates a SimpleRetriever with the specified documents
-    and configuration.
+    and configuration, following the standardized component creation pattern.
 
     Args:
         documents: Dictionary mapping document keys to content
@@ -55,17 +71,15 @@ def create_simple_retriever(
             **kwargs,
         )
 
-        # Create retriever
-        retriever = SimpleRetriever(
-            documents=documents,
-            corpus=corpus,
-            config=config,
+        # Create retriever using the standardized create_component function
+        retriever = create_component(
+            component_class=SimpleRetriever,
             name=name,
             description=description,
+            config=config,
+            documents=documents,
+            corpus=corpus,
         )
-
-        # Initialize the retriever
-        retriever.initialize()
 
         logger.debug(f"Created simple retriever with {len(retriever.documents)} documents")
         return retriever
@@ -92,7 +106,8 @@ def create_threshold_retriever(
     Create a retriever with a score threshold.
 
     This function creates a SimpleRetriever with a ScoreThresholdRankingStrategy
-    that filters out documents with scores below the threshold.
+    that filters out documents with scores below the threshold, following the
+    standardized component creation pattern.
 
     Args:
         documents: Dictionary mapping document keys to content
@@ -118,13 +133,14 @@ def create_threshold_retriever(
             **kwargs,
         )
 
-        # Create retriever
-        retriever = SimpleRetriever(
-            documents=documents,
-            corpus=corpus,
-            config=config,
+        # Create retriever using the standardized create_component function
+        retriever = create_component(
+            component_class=SimpleRetriever,
             name=name,
             description=description,
+            config=config,
+            documents=documents,
+            corpus=corpus,
         )
 
         # Replace the default ranking strategy with a threshold strategy
@@ -137,9 +153,6 @@ def create_threshold_retriever(
 
         # Update the ranking strategy in state
         retriever._state_manager.update("ranking_strategy", threshold_strategy)
-
-        # Initialize the retriever
-        retriever.initialize()
 
         logger.debug(
             f"Created threshold retriever with {len(retriever.documents)} documents "

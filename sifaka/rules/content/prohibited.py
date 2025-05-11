@@ -42,7 +42,7 @@ import time
 from pydantic import BaseModel, Field, ConfigDict
 
 from sifaka.classifiers.implementations.content.profanity import ProfanityClassifier
-from sifaka.classifiers.base import ClassifierConfig
+from sifaka.classifiers.implementations.content.profanity import ClassifierConfig
 from sifaka.rules.base import (
     BaseValidator,
     Rule,
@@ -401,8 +401,14 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
             config: The configuration for the validator
         """
         super().__init__(validation_type=str)
-        self._config = config
-        self._analyzer = ProhibitedContentAnalyzer(config)
+
+        # Store configuration in state
+        self._state_manager.update("config", config)
+        self._state_manager.update("analyzer", ProhibitedContentAnalyzer(config))
+
+        # Set metadata
+        self._state_manager.set_metadata("validator_type", self.__class__.__name__)
+        self._state_manager.set_metadata("creation_time", time.time())
 
     @property
     def config(self) -> ProhibitedContentConfig:
@@ -412,7 +418,7 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
         Returns:
             The validator configuration
         """
-        return self._config
+        return self._state_manager.get("config")
 
     def validate(self, text: str) -> RuleResult:
         """
@@ -432,8 +438,11 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
             return empty_result
 
         try:
+            # Get analyzer from state
+            analyzer = self._state_manager.get("analyzer")
+
             # Delegate to analyzer
-            result = self._analyzer.analyze(text)
+            result = analyzer.analyze(text)
 
             # Add processing time and validator type
             result = result.with_metadata(
@@ -443,6 +452,19 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
 
             # Update statistics
             self.update_statistics(result)
+
+            # Update validation count in metadata
+            validation_count = self._state_manager.get_metadata("validation_count", 0)
+            self._state_manager.set_metadata("validation_count", validation_count + 1)
+
+            # Cache result if caching is enabled
+            if self.config.cache_size > 0:
+                cache = self._state_manager.get("cache", {})
+                if len(cache) >= self.config.cache_size:
+                    # Clear cache if it's full
+                    cache = {}
+                cache[text] = result
+                self._state_manager.update("cache", cache)
 
             return result
 
@@ -571,8 +593,13 @@ class ProhibitedContentRule(Rule[str]):
             validator=validator,
         )
 
-        # Store the validator for reference
-        self._prohibited_validator = validator or self._create_default_validator()
+        # Store validator in state
+        prohibited_validator = validator or self._create_default_validator()
+        self._state_manager.update("prohibited_validator", prohibited_validator)
+
+        # Set additional metadata
+        self._state_manager.set_metadata("rule_type", "ProhibitedContentRule")
+        self._state_manager.set_metadata("creation_time", time.time())
 
     def _create_default_validator(self) -> DefaultProhibitedContentValidator:
         """
@@ -591,6 +618,10 @@ class ProhibitedContentRule(Rule[str]):
             priority=self.config.priority,
             cost=self.config.cost,
         )
+
+        # Store config in state for reference
+        self._state_manager.update("validator_config", config)
+
         return DefaultProhibitedContentValidator(config)
 
 

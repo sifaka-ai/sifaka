@@ -1,8 +1,23 @@
 """
-Error handling utilities for Sifaka.
+Error Handling Module
 
 This module provides standardized error handling utilities for the Sifaka framework,
 including exception classes, error handling functions, and logging utilities.
+
+## Overview
+The error handling system in Sifaka provides a structured approach to handling
+errors across the framework. It includes a comprehensive exception hierarchy,
+standardized error handling patterns, and component-specific error handlers.
+
+The system is designed to provide consistent error handling behavior, detailed
+error information, and appropriate logging across all components.
+
+## Components
+- **Exception Classes**: Structured hierarchy of exception classes
+- **Error Handling Functions**: Functions for standardized error handling
+- **Error Result Classes**: Models for representing errors in results
+- **Component-Specific Error Handlers**: Specialized handlers for different components
+- **Safe Execution Functions**: Functions for safely executing operations
 
 ## Exception Hierarchy
 
@@ -87,6 +102,16 @@ if isinstance(result, ErrorResult):
 else:
     print(f"Chain result: {result}")
 ```
+
+## Error Handling
+The error handling system itself is designed to be robust and fail gracefully.
+If an error occurs during error handling, it will be logged and a default
+error result will be returned.
+
+## Configuration
+Error handling behavior can be configured through log levels and additional
+metadata. Component-specific error handlers can be customized for different
+error handling requirements.
 """
 
 import traceback
@@ -109,6 +134,7 @@ __all__ = [
     "InputError",
     "StateError",
     "DependencyError",
+    "InitializationError",
     # Component-specific error classes
     "ChainError",
     "ImproverError",
@@ -163,26 +189,82 @@ class SifakaError(Exception):
     """Base class for all Sifaka exceptions.
 
     This class provides a standardized structure for Sifaka exceptions,
-    including a message and optional metadata.
+    including a message and optional metadata. All other exceptions in the
+    Sifaka framework should inherit from this class.
+
+    ## Architecture
+    SifakaError serves as the root of the Sifaka exception hierarchy. It extends
+    the standard Python Exception class and adds structured metadata support.
+    The message and metadata attributes provide a consistent way to include
+    detailed error information.
+
+    ## Lifecycle
+    1. **Creation**: Instantiated with a message and optional metadata
+    2. **Usage**: Raised to signal errors in Sifaka components
+    3. **Handling**: Caught and processed by error handling utilities
+
+    ## Examples
+    ```python
+    # Creating and raising a SifakaError
+    raise SifakaError("Operation failed", metadata={"operation": "process_data"})
+
+    # Catching and handling a SifakaError
+    try:
+        # Some operation
+        process_data(input_data)
+    except SifakaError as e:
+        print(f"Error: {e.message}")
+        print(f"Metadata: {e.metadata}")
+    ```
 
     Attributes:
-        message: Human-readable error message
-        metadata: Additional error context and details
+        message (str): Human-readable error message
+        metadata (Dict[str, Any]): Additional error context and details
     """
 
     def __init__(self, message: str, metadata: Optional[Dict[str, Any]] = None):
-        """Initialize a SifakaError.
+        """Initialize a SifakaError with a message and optional metadata.
+
+        This constructor initializes a SifakaError with a human-readable message
+        and optional metadata dictionary. The message is used as the exception
+        message, and the metadata provides additional context for error handling.
 
         Args:
-            message: Human-readable error message
-            metadata: Additional error context and details
+            message (str): Human-readable error message
+            metadata (Optional[Dict[str, Any]]): Additional error context and details
+
+        Example:
+            ```python
+            # Create a basic error
+            error = SifakaError("Validation failed")
+
+            # Create an error with metadata
+            error = SifakaError(
+                "Validation failed",
+                metadata={"field": "name", "value": "invalid value"}
+            )
+            ```
         """
         self.message = message
         self.metadata = metadata or {}
         super().__init__(message)
 
     def __str__(self) -> str:
-        """Get string representation of the error."""
+        """Get string representation of the error.
+
+        This method returns a string representation of the error, including
+        the message and metadata if available. This is used when the error
+        is printed or converted to a string.
+
+        Returns:
+            str: String representation of the error
+
+        Example:
+            ```python
+            error = SifakaError("Validation failed", metadata={"field": "name"})
+            print(error)  # Outputs: "Validation failed (metadata: {'field': 'name'})"
+            ```
+        """
         if self.metadata:
             return f"{self.message} (metadata: {self.metadata})"
         return self.message
@@ -268,6 +350,16 @@ class DependencyError(SifakaError):
     pass
 
 
+class InitializationError(SifakaError):
+    """Error raised when component initialization fails.
+
+    This error is raised when a component fails to initialize properly,
+    such as when required resources cannot be loaded or configured.
+    """
+
+    pass
+
+
 # Component-specific error classes
 
 
@@ -276,6 +368,33 @@ class ChainError(SifakaError):
 
     This error is raised when a chain component encounters an error,
     such as during orchestration, execution, or result processing.
+
+    ## Architecture
+    ChainError is a specialized SifakaError for chain-related errors.
+    It inherits all functionality from SifakaError and serves as the
+    base class for more specific chain-related errors.
+
+    ## Examples
+    ```python
+    # Raising a ChainError
+    raise ChainError(
+        "Chain execution failed",
+        metadata={"chain_id": "text_generation", "step": "model_call"}
+    )
+
+    # Catching chain-specific errors
+    try:
+        result = chain.run(prompt)
+    except ChainError as e:
+        print(f"Chain error: {e.message}")
+        print(f"Chain error metadata: {e.metadata}")
+    except SifakaError as e:
+        print(f"Other Sifaka error: {e.message}")
+    ```
+
+    Attributes:
+        message (str): Human-readable error message
+        metadata (Dict[str, Any]): Additional error context and details
     """
 
     pass
@@ -371,17 +490,27 @@ def handle_error(
     """Handle an error and return standardized error metadata.
 
     This function processes an error, logs it with the specified log level,
-    and returns standardized error metadata.
+    and returns standardized error metadata. It extracts information from
+    the error and formats it in a consistent way, making it easier to handle
+    errors across the codebase.
 
     Args:
-        error: The exception to handle
-        component_name: Name of the component where the error occurred
-        log_level: Log level to use (default: "error")
-        include_traceback: Whether to include traceback in metadata
-        additional_metadata: Additional metadata to include
+        error (Exception): The exception to handle
+        component_name (str): Name of the component where the error occurred
+        log_level (str): Log level to use (default: "error")
+        include_traceback (bool): Whether to include traceback in metadata
+        additional_metadata (Optional[Dict[str, Any]]): Additional metadata to include
 
     Returns:
-        Standardized error metadata dictionary
+        Dict[str, Any]: Standardized error metadata dictionary containing:
+            - error_type: The type of the error (class name)
+            - error_message: The error message
+            - component: The name of the component where the error occurred
+            - traceback: The error traceback (if include_traceback is True)
+            - Any additional metadata provided
+
+    Raises:
+        Exception: If an error occurs during error handling (rare)
 
     Examples:
         ```python
@@ -401,14 +530,22 @@ def handle_error(
             # Some operation
             result = process_data(input_data)
         except Exception as e:
-            error_metadata = handle_error(e, "DataProcessor", log_level="warning")
+            error_metadata = handle_error(
+                e,
+                "DataProcessor",
+                log_level="warning"
+            )
 
         # Handle an error without traceback
         try:
             # Some operation
             result = process_data(input_data)
         except Exception as e:
-            error_metadata = handle_error(e, "DataProcessor", include_traceback=False)
+            error_metadata = handle_error(
+                e,
+                "DataProcessor",
+                include_traceback=False
+            )
 
         # Handle an error with additional metadata
         try:
@@ -656,13 +793,17 @@ def log_error(
     """Log an error with standardized formatting.
 
     This function logs an error with standardized formatting, including
-    component name, error type, and error message.
+    component name, error type, and error message. It provides a consistent
+    way to log errors across the codebase.
 
     Args:
-        error: The exception to log
-        component_name: Name of the component where the error occurred
-        log_level: Log level to use
-        additional_message: Additional message to include in the log
+        error (Exception): The exception to log
+        component_name (str): Name of the component where the error occurred
+        log_level (str): Log level to use (default: "error")
+        additional_message (Optional[str]): Additional message to include in the log
+
+    Raises:
+        Exception: If an error occurs during logging (rare)
 
     Examples:
         ```python
@@ -711,13 +852,53 @@ class ErrorResult(BaseModel):
     """Result of an error handling operation.
 
     This model provides a standardized structure for error results,
-    including error type, message, and metadata.
+    including error type, message, component name, and metadata.
+    It is used to represent errors in a structured way that can be
+    returned from operations instead of raising exceptions.
+
+    ## Architecture
+    ErrorResult is a Pydantic model that represents errors in a structured format.
+    It is used by the safe execution functions to return errors as values rather
+    than raising exceptions, allowing for more flexible error handling patterns.
+
+    ## Examples
+    ```python
+    # Creating an ErrorResult
+    error = ErrorResult(
+        error_type="ValidationError",
+        error_message="Invalid input",
+        component_name="TextValidator",
+        metadata={"field": "text", "max_length": 100}
+    )
+
+    # Using ErrorResult in a function
+    def process_data(data):
+        if not validate(data):
+            return ErrorResult(
+                error_type="ValidationError",
+                error_message="Invalid data",
+                component_name="DataProcessor",
+                metadata={"data": data}
+            )
+        # Process data
+        return result
+
+    # Handling ErrorResult
+    result = process_data(input_data)
+    if isinstance(result, ErrorResult):
+        print(f"Error: {result.error_message}")
+        print(f"Component: {result.component_name}")
+        print(f"Error type: {result.error_type}")
+        print(f"Metadata: {result.metadata}")
+    else:
+        print(f"Result: {result}")
+    ```
 
     Attributes:
-        error_type: Type of the error
-        error_message: Human-readable error message
-        component_name: Name of the component where the error occurred
-        metadata: Additional error context and details
+        error_type (str): Type of the error (e.g., "ValidationError")
+        error_message (str): Human-readable error message
+        component_name (str): Name of the component where the error occurred
+        metadata (Dict[str, Any]): Additional error context and details
     """
 
     error_type: str

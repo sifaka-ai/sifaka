@@ -82,12 +82,12 @@ from pydantic import PrivateAttr
 from .base import BaseCritic
 from .config import CriticConfig, CriticMetadata
 from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
-from .managers.prompt import DefaultPromptManager, PromptManager
-from .managers.response import ResponseParser
+from sifaka.core.managers.prompt import DefaultPromptManager, PromptManager
+from sifaka.core.managers.response import ResponseParser
 from .services.critique import CritiqueService
 from ..models.core import ModelProviderCore
 from ..utils.logging import get_logger
-from ..utils.state import StateManager, create_critic_state
+from ..utils.state import create_critic_state
 
 logger = get_logger(__name__)
 

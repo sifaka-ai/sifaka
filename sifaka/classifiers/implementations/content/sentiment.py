@@ -87,8 +87,8 @@ from typing import (
 from typing_extensions import TypeGuard
 from pydantic import ConfigDict, PrivateAttr
 
-from sifaka.classifiers.base import BaseClassifier
-from sifaka.classifiers.models import ClassificationResult
+from sifaka.classifiers.classifier import Classifier
+from sifaka.classifiers.result import ClassificationResult
 from sifaka.classifiers.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
@@ -156,7 +156,7 @@ class SentimentAnalyzer(Protocol):
     def polarity_scores(self, text: str) -> Dict[str, float]: ...
 
 
-class SentimentClassifier(BaseClassifier[str, str]):
+class SentimentClassifier(Classifier):
     """
     A lightweight sentiment classifier using VADER.
 

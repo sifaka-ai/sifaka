@@ -47,6 +47,7 @@ The provider implements comprehensive error handling:
 """
 
 import os
+import time
 from typing import Any, Dict, Optional, ClassVar
 
 import tiktoken
@@ -54,7 +55,8 @@ import tiktoken
 from sifaka.models.base import APIClient, TokenCounter
 from sifaka.utils.config import ModelConfig
 from sifaka.models.core import ModelProviderCore
-from sifaka.utils.error_patterns import safely_execute_model
+from sifaka.utils.error_patterns import safely_execute_component_operation
+from sifaka.utils.errors import ModelError
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -137,11 +139,12 @@ class OpenAIClient(APIClient):
             response = openai.Completion.create(**params)
             return response.choices[0].text.strip()
 
-        # Use the standardized safely_execute_model function
-        return safely_execute_model(
+        # Use the standardized safely_execute_component_operation function
+        return safely_execute_component_operation(
             operation=generate_operation,
-            model_name=config.params.get("model_name", "gpt-4"),
             component_name="OpenAIClient",
+            component_type="APIClient",
+            additional_metadata={"model_name": config.params.get("model_name", "gpt-4")},
         )
 
 
@@ -172,11 +175,12 @@ class OpenAITokenCounter(TokenCounter):
             )
             return self.encoding
 
-        # Use the standardized safely_execute_model function
-        safely_execute_model(
+        # Use the standardized safely_execute_component_operation function
+        safely_execute_component_operation(
             operation=init_operation,
-            model_name=model,
             component_name="OpenAITokenCounter",
+            component_type="TokenCounter",
+            additional_metadata={"model_name": model},
         )
 
     def count_tokens(self, text: str) -> int:
@@ -194,11 +198,12 @@ class OpenAITokenCounter(TokenCounter):
         def count_operation():
             return len(self.encoding.encode(text))
 
-        # Use the standardized safely_execute_model function
-        return safely_execute_model(
+        # Use the standardized safely_execute_component_operation function
+        return safely_execute_component_operation(
             operation=count_operation,
-            model_name="tiktoken",
             component_name="OpenAITokenCounter",
+            component_type="TokenCounter",
+            additional_metadata={"model_name": "tiktoken"},
         )
 
 
@@ -252,15 +257,6 @@ class OpenAIProvider(ModelProviderCore):
             token_counter=token_counter,
         )
 
-        # Initialize provider-specific stats
-        stats = {
-            "generation_count": 0,
-            "token_count_calls": 0,
-            "error_count": 0,
-            "total_processing_time": 0,
-        }
-        self._state_manager.update("stats", stats)
-
     def invoke(self, prompt: str, **kwargs) -> str:
         """
         Invoke the model with a prompt (delegates to generate).
@@ -275,32 +271,38 @@ class OpenAIProvider(ModelProviderCore):
         Returns:
             The generated text response
         """
-        # Track generation count in state
-        import time
+        # Ensure component is initialized
+        if not self._state_manager.get("initialized", False):
+            self.warm_up()
 
-        start_time = time.time()
+        # Process input
+        start_time = __import__("time").time()
 
-        try:
-            result = self.generate(prompt, **kwargs)
+        # Define the operation
+        def operation():
+            # Actual processing logic
+            return self.generate(prompt, **kwargs)
 
-            # Update statistics in state
-            stats = self._state_manager.get("stats", {})
-            stats["generation_count"] = stats.get("generation_count", 0) + 1
-            stats["total_processing_time"] = (
-                stats.get("total_processing_time", 0) + (time.time() - start_time) * 1000
-            )
-            self._state_manager.update("stats", stats)
+        # Use standardized error handling
+        from sifaka.utils.error_patterns import safely_execute_component_operation
 
-            return result
+        result = safely_execute_component_operation(
+            operation=operation,
+            component_name=self.name,
+            component_type=self.__class__.__name__,
+            additional_metadata={"input_type": "prompt", "method": "invoke"},
+        )
 
-        except Exception:
-            # Update error count in state
-            stats = self._state_manager.get("stats", {})
-            stats["error_count"] = stats.get("error_count", 0) + 1
-            self._state_manager.update("stats", stats)
+        # Update statistics
+        processing_time = __import__("time").time() - start_time
+        stats = self._state_manager.get("stats", {})
+        stats["generation_count"] = stats.get("generation_count", 0) + 1
+        stats["total_processing_time"] = (
+            stats.get("total_processing_time", 0) + processing_time * 1000
+        )
+        self._state_manager.update("stats", stats)
 
-            # Re-raise the exception
-            raise
+        return result
 
     async def ainvoke(self, prompt: str, **kwargs) -> str:
         """
@@ -316,36 +318,69 @@ class OpenAIProvider(ModelProviderCore):
         Returns:
             The generated text response
         """
-        # Track generation count in state
-        import time
+        # Ensure component is initialized
+        if not self._state_manager.get("initialized", False):
+            self.warm_up()
 
-        start_time = time.time()
+        # Process input
+        start_time = __import__("time").time()
 
         try:
-            if hasattr(self, "agenerate"):
-                result = await self.agenerate(prompt, **kwargs)
-            else:
-                # Fall back to synchronous generate
-                result = self.generate(prompt, **kwargs)
+            # Define the async operation
+            async def async_operation():
+                if hasattr(self, "agenerate"):
+                    return await self.agenerate(prompt, **kwargs)
+                else:
+                    # Fall back to synchronous generate
+                    return self.generate(prompt, **kwargs)
 
-            # Update statistics in state
+            # Execute the async operation
+            result = await async_operation()
+
+            # Update statistics
+            processing_time = __import__("time").time() - start_time
             stats = self._state_manager.get("stats", {})
             stats["generation_count"] = stats.get("generation_count", 0) + 1
             stats["total_processing_time"] = (
-                stats.get("total_processing_time", 0) + (time.time() - start_time) * 1000
+                stats.get("total_processing_time", 0) + processing_time * 1000
             )
             self._state_manager.update("stats", stats)
 
             return result
 
-        except Exception:
-            # Update error count in state
-            stats = self._state_manager.get("stats", {})
-            stats["error_count"] = stats.get("error_count", 0) + 1
-            self._state_manager.update("stats", stats)
+        except Exception as e:
+            # Record the error using standardized error handling
+            self._record_error(e)
 
-            # Re-raise the exception
-            raise
+            # Raise a standardized error
+            from sifaka.utils.errors import ModelError
+
+            raise ModelError(
+                f"Error in async invocation: {str(e)}",
+                metadata={
+                    "component_name": self.name,
+                    "model_name": self._state_manager.get("model_name"),
+                    "method": "ainvoke",
+                    "error_type": type(e).__name__,
+                },
+            ) from e
+
+    def _record_error(self, error: Exception) -> None:
+        """Record an error in the state manager."""
+        # Update error count in state
+        stats = self._state_manager.get("stats", {})
+        stats["error_count"] = stats.get("error_count", 0) + 1
+        self._state_manager.update("stats", stats)
+
+        # Use common error recording utility
+        from sifaka.utils.common import record_error
+
+        record_error(
+            error=error,
+            component_name=self.name,
+            component_type=self.__class__.__name__,
+            state_manager=self._state_manager,
+        )
 
     def _create_default_client(self) -> APIClient:
         """Create a default OpenAI client."""
@@ -365,6 +400,63 @@ class OpenAIProvider(ModelProviderCore):
         """
         return f"OpenAI-{self._state_manager.get('model_name')}"
 
+    def _initialize_resources(self) -> None:
+        """
+        Initialize resources needed by the OpenAI provider.
+
+        This method is called by the warm_up method in the parent class.
+        """
+        # Call parent implementation first
+        super()._initialize_resources()
+
+        # Initialize OpenAI-specific resources
+        # Ensure client is initialized
+        client = self._state_manager.get("client")
+        if client is None:
+            client = self._create_default_client()
+            self._state_manager.update("client", client)
+
+        # Ensure token counter is initialized
+        token_counter = self._state_manager.get("token_counter")
+        if token_counter is None:
+            token_counter = self._create_default_token_counter()
+            self._state_manager.update("token_counter", token_counter)
+
+        # Initialize provider-specific stats if not already present
+        if not self._state_manager.get("stats"):
+            stats = {
+                "generation_count": 0,
+                "token_count_calls": 0,
+                "error_count": 0,
+                "total_processing_time": 0,
+            }
+            self._state_manager.update("stats", stats)
+
+    def _release_resources(self) -> None:
+        """
+        Release resources used by the OpenAI provider.
+
+        This method is called by the cleanup method in the parent class.
+        """
+        # Call parent implementation first
+        super()._release_resources()
+
+        # Release OpenAI-specific resources
+        client = self._state_manager.get("client")
+        if client and hasattr(client, "close"):
+            client.close()
+
+        # Clear provider-specific stats
+        self._state_manager.update(
+            "stats",
+            {
+                "generation_count": 0,
+                "token_count_calls": 0,
+                "error_count": 0,
+                "total_processing_time": 0,
+            },
+        )
+
     def get_statistics(self) -> Dict[str, Any]:
         """
         Get statistics about provider usage.
@@ -374,7 +466,7 @@ class OpenAIProvider(ModelProviderCore):
         """
         # Get statistics from tracing manager and state
         tracing_manager = self._state_manager.get("tracing_manager")
-        tracing_stats = tracing_manager.get_statistics()
+        tracing_stats = tracing_manager.get_statistics() if tracing_manager else {}
 
         # Combine with any other stats from state
         stats = self._state_manager.get("stats", {})

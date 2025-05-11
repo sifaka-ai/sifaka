@@ -125,37 +125,98 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
         super().__init__(name=name, description=description, config=config)
 
         try:
-            # Create components
-            from sifaka.core.managers.prompt_factories import PromptCriticPromptManager
-            from ..managers.response import ResponseParser
-            from ..services.critique import CritiqueService
-            from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
-
-            # Store components in state
+            # Initialize state
+            self._state_manager.update("initialized", False)
             self._state_manager.update("model", llm_provider)
-            self._state_manager.update(
-                "prompt_manager", prompt_factory or PromptCriticPromptManager(config)
-            )
-            self._state_manager.update("response_parser", ResponseParser())
-            self._state_manager.update("memory_manager", MemoryManager(buffer_size=10))
+            self._state_manager.update("prompt_factory", prompt_factory)
+            self._state_manager.update("cache", {})
 
-            # Create services and store in state cache
+            # Store prompt factory in state for lazy initialization
+            self._state_manager.update("prompt_factory", prompt_factory)
+
+            # Set metadata
+            self._state_manager.set_metadata("component_type", "critic")
+            self._state_manager.set_metadata("critic_type", self.__class__.__name__)
+            self._state_manager.set_metadata("name", name)
+            self._state_manager.set_metadata("description", description)
+            self._state_manager.set_metadata("creation_time", time.time())
+            self._state_manager.set_metadata("validation_count", 0)
+            self._state_manager.set_metadata("critique_count", 0)
+            self._state_manager.set_metadata("improvement_count", 0)
+
+            # Lazy initialization - components will be created when needed
+            if self.config.eager_initialization:
+                self._initialize_components()
+
+        except Exception as e:
+            # Use the standardized utility function
+            record_error(self._state_manager, e)
+            raise ValueError(f"Failed to initialize PromptCritic: {str(e)}") from e
+
+    def _initialize_components(self) -> None:
+        """
+        Initialize components needed for the critic.
+
+        This method lazily initializes the components when they are first needed.
+        It creates the prompt manager, response parser, memory manager, and critique service.
+
+        Raises:
+            RuntimeError: If initialization fails
+        """
+        try:
+            # Check if already initialized
+            if self._state_manager.get("initialized", False):
+                return
+
+            # Initialize components if needed
+            if not self._state_manager.get("model"):
+                raise RuntimeError("Model provider not initialized")
+
+            # Create prompt manager if needed
+            if not self._state_manager.get("prompt_manager"):
+                from sifaka.core.managers.prompt_factories import PromptCriticPromptManager
+
+                prompt_factory = self._state_manager.get("prompt_factory")
+                self._state_manager.update(
+                    "prompt_manager", prompt_factory or PromptCriticPromptManager(self.config)
+                )
+
+            # Create response parser if needed
+            if not self._state_manager.get("response_parser"):
+                from ..managers.response import ResponseParser
+
+                self._state_manager.update("response_parser", ResponseParser())
+
+            # Create memory manager if needed
+            if not self._state_manager.get("memory_manager"):
+                from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
+
+                self._state_manager.update(
+                    "memory_manager",
+                    MemoryManager(buffer_size=self.config.memory_buffer_size or 10),
+                )
+
+            # Create critique service if needed
             cache = self._state_manager.get("cache", {})
-            cache["critique_service"] = CritiqueService(
-                llm_provider=llm_provider,
-                prompt_manager=self._state_manager.get("prompt_manager"),
-                response_parser=self._state_manager.get("response_parser"),
-                memory_manager=self._state_manager.get("memory_manager"),
-            )
-            self._state_manager.update("cache", cache)
+            if "critique_service" not in cache:
+                from ..services.critique import CritiqueService
+
+                cache["critique_service"] = CritiqueService(
+                    llm_provider=self._state_manager.get("model"),
+                    prompt_manager=self._state_manager.get("prompt_manager"),
+                    response_parser=self._state_manager.get("response_parser"),
+                    memory_manager=self._state_manager.get("memory_manager"),
+                )
+                self._state_manager.update("cache", cache)
 
             # Mark as initialized
             self._state_manager.update("initialized", True)
-            self._state_manager.set_metadata("component_type", self.__class__.__name__)
             self._state_manager.set_metadata("initialization_time", time.time())
+
         except Exception as e:
-            self.record_error(e)
-            raise ValueError(f"Failed to initialize PromptCritic: {str(e)}") from e
+            # Use the standardized utility function
+            record_error(self._state_manager, e)
+            raise RuntimeError(f"Failed to initialize components: {str(e)}") from e
 
     def process(self, input: str) -> CriticResult:
         """
@@ -863,51 +924,15 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             RuntimeError: If initialization fails
         """
         try:
-            # Check if already initialized
-            if self._state_manager.get("initialized", False):
-                return
+            # Initialize components
+            self._initialize_components()
 
-            # Initialize components if needed
-            if not self._state_manager.get("model"):
-                raise RuntimeError("Model provider not initialized")
-
-            # Create prompt manager if needed
-            if not self._state_manager.get("prompt_manager"):
-                from sifaka.core.managers.prompt_factories import PromptCriticPromptManager
-
-                self._state_manager.update("prompt_manager", PromptCriticPromptManager(self.config))
-
-            # Create response parser if needed
-            if not self._state_manager.get("response_parser"):
-                from ..managers.response import ResponseParser
-
-                self._state_manager.update("response_parser", ResponseParser())
-
-            # Create memory manager if needed
-            if not self._state_manager.get("memory_manager"):
-                from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
-
-                self._state_manager.update("memory_manager", MemoryManager(buffer_size=10))
-
-            # Create critique service if needed
-            cache = self._state_manager.get("cache", {})
-            if "critique_service" not in cache:
-                from ..services.critique import CritiqueService
-
-                cache["critique_service"] = CritiqueService(
-                    llm_provider=self._state_manager.get("model"),
-                    prompt_manager=self._state_manager.get("prompt_manager"),
-                    response_parser=self._state_manager.get("response_parser"),
-                    memory_manager=self._state_manager.get("memory_manager"),
-                )
-                self._state_manager.update("cache", cache)
-
-            # Mark as initialized
-            self._state_manager.update("initialized", True)
+            # Set warm-up metadata
             self._state_manager.set_metadata("warm_up_time", time.time())
 
         except Exception as e:
-            self.record_error(e)
+            # Use the standardized utility function
+            record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to warm up critic: {str(e)}") from e
 
     def cleanup(self) -> None:
@@ -975,7 +1000,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
 
 
 def create_prompt_critic(
-    llm_provider: Any,
+    llm_provider: Any = None,
     name: str = "prompt_critic",
     description: str = "A critic that uses prompts to improve text",
     system_prompt: Optional[str] = None,
@@ -988,15 +1013,23 @@ def create_prompt_critic(
     cost: Optional[float] = None,
     track_performance: Optional[bool] = None,
     track_errors: Optional[bool] = None,
+    eager_initialization: Optional[bool] = None,
+    memory_buffer_size: Optional[int] = None,
     prompt_factory: Optional[Any] = None,
     config: Optional[PromptCriticConfig] = None,
+    session_id: Optional[str] = None,
+    request_id: Optional[str] = None,
     **kwargs: Any,
 ) -> PromptCritic:
     """
     Create a prompt critic with the given parameters.
 
+    This factory function creates a configured PromptCritic instance with standardized
+    state management and lifecycle handling. It uses the dependency injection system
+    to resolve dependencies if not explicitly provided.
+
     Args:
-        llm_provider: The language model provider to use
+        llm_provider: The language model provider to use (injected if not provided)
         name: The name of the critic
         description: A description of the critic
         system_prompt: The system prompt to use
@@ -1009,8 +1042,12 @@ def create_prompt_critic(
         cost: The cost of the critic
         track_performance: Whether to track performance
         track_errors: Whether to track errors
-        prompt_factory: Optional prompt factory to use
+        eager_initialization: Whether to initialize components eagerly
+        memory_buffer_size: Size of the memory buffer
+        prompt_factory: Optional prompt factory to use (injected if not provided)
         config: Optional configuration for the critic
+        session_id: Optional session ID for session-scoped dependencies
+        request_id: Optional request ID for request-scoped dependencies
         **kwargs: Additional configuration parameters
 
     Returns:
@@ -1019,16 +1056,54 @@ def create_prompt_critic(
     Raises:
         ValueError: If configuration is invalid
         TypeError: If llm_provider is not a valid provider
+        DependencyError: If required dependencies cannot be resolved
     """
     try:
+        # Resolve dependencies if not provided
+        if llm_provider is None:
+            from sifaka.core.dependency import DependencyProvider, DependencyError
+
+            # Get dependency provider
+            provider = DependencyProvider()
+
+            try:
+                # Try to get by name first
+                llm_provider = provider.get("model_provider", None, session_id, request_id)
+            except DependencyError:
+                try:
+                    # Try to get by type if not found by name
+                    from sifaka.interfaces.model import ModelProvider
+
+                    llm_provider = provider.get_by_type(ModelProvider, None, session_id, request_id)
+                except (DependencyError, ImportError):
+                    # This is a required dependency, so we need to raise an error
+                    raise ValueError("Model provider is required for prompt critic")
+
+        # Resolve prompt_factory if not provided
+        if prompt_factory is None:
+            from sifaka.core.dependency import DependencyProvider, DependencyError
+
+            # Get dependency provider
+            provider = DependencyProvider()
+
+            try:
+                # Try to get by name
+                prompt_factory = provider.get("prompt_factory", None, session_id, request_id)
+            except DependencyError:
+                # Prompt factory is optional, so we can continue without it
+                pass
+
         # Create config if not provided
         if config is None:
             from ..config import DEFAULT_PROMPT_CONFIG
 
+            # Start with default config
             config = DEFAULT_PROMPT_CONFIG.model_copy()
 
-            # Update config with provided values
+            # Create updates dictionary with all provided parameters
             updates = {}
+
+            # Add all provided parameters to updates
             if name is not None:
                 updates["name"] = name
             if description is not None:
@@ -1053,20 +1128,35 @@ def create_prompt_critic(
                 updates["track_performance"] = track_performance
             if track_errors is not None:
                 updates["track_errors"] = track_errors
+            if eager_initialization is not None:
+                updates["eager_initialization"] = eager_initialization
+            if memory_buffer_size is not None:
+                updates["memory_buffer_size"] = memory_buffer_size
 
-            # Add any additional kwargs
-            updates.update(kwargs)
+            # Add any additional kwargs to params
+            params = kwargs.pop("params", {})
+            for key, value in kwargs.items():
+                if key not in updates and key not in ["session_id", "request_id"]:
+                    params[key] = value
 
+            if params:
+                updates["params"] = params
+
+            # Update config with all parameters
             config = config.model_copy(update=updates)
 
-        # Create and return the critic
+        # Create and return the critic with standardized state management
         return PromptCritic(
             name=name,
             description=description,
             llm_provider=llm_provider,
             prompt_factory=prompt_factory,
             config=config,
-            **kwargs,
         )
     except Exception as e:
+        # Log the error and re-raise with a clear message
+        from ...utils.logging import get_logger
+
+        logger = get_logger(__name__)
+        logger.error(f"Failed to create prompt critic: {str(e)}")
         raise ValueError(f"Failed to create prompt critic: {str(e)}") from e

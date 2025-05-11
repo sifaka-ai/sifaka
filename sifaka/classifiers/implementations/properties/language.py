@@ -29,8 +29,8 @@ from typing import (
 from typing_extensions import TypeGuard
 from pydantic import PrivateAttr
 
-from sifaka.classifiers.base import BaseClassifier
-from sifaka.classifiers.models import ClassificationResult
+from sifaka.classifiers.classifier import Classifier
+from sifaka.classifiers.result import ClassificationResult
 from sifaka.classifiers.config import ClassifierConfig, standardize_classifier_config
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
@@ -58,7 +58,7 @@ class LanguageInfo:
     script: Optional[str] = None
 
 
-class LanguageClassifier(BaseClassifier):
+class LanguageClassifier(Classifier):
     """
     A lightweight language classifier using langdetect.
 

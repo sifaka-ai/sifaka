@@ -94,36 +94,22 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
             token_counter: Optional token counter to use
             tracer: Optional tracer to use
         """
+        import time
+
         # Initialize state
         self._state_manager.update("model_name", model_name)
         self._state_manager.update("config", config or self._create_default_config())
         self._state_manager.update("initialized", False)
         self._state_manager.update("cache", {})
 
-        # Create managers and store in state
-        token_counter_manager = self._create_token_counter_manager(token_counter)
-        client_manager = self._create_client_manager(api_client)
-        tracing_manager = TracingManager(model_name, self._state_manager.get("config"), tracer)
-
-        self._state_manager.update("token_counter_manager", token_counter_manager)
-        self._state_manager.update("client_manager", client_manager)
-        self._state_manager.update("tracing_manager", tracing_manager)
-
-        # Create services and store in state
-        generation_service = GenerationService(
-            model_name,
-            client_manager,
-            token_counter_manager,
-            tracing_manager,
-        )
-        self._state_manager.update("generation_service", generation_service)
+        # Store dependencies for later initialization
+        self._state_manager.update("_api_client", api_client)
+        self._state_manager.update("_token_counter", token_counter)
+        self._state_manager.update("_tracer", tracer)
 
         # Set metadata
         self._state_manager.set_metadata("component_type", self.__class__.__name__)
-        self._state_manager.set_metadata("creation_time", __import__("time").time())
-
-        # Mark as initialized
-        self._state_manager.update("initialized", True)
+        self._state_manager.set_metadata("creation_time", time.time())
 
         logger.info(f"Initialized {self.__class__.__name__} with model {model_name}")
 
@@ -163,6 +149,37 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
         Raises:
             TypeError: If text is not a string
         """
+        # Ensure component is initialized
+        if not self._state_manager.get("initialized", False):
+            self.warm_up()
+
+        # Process input
+        start_time = __import__("time").time()
+
+        # Define the operation
+        def operation():
+            # Actual processing logic
+            result = self._count_tokens_impl(text)
+            return result
+
+        # Use standardized error handling
+        from sifaka.utils.error_patterns import safely_execute_component_operation
+
+        token_count = safely_execute_component_operation(
+            operation=operation,
+            component_name=self.name,
+            component_type=self.__class__.__name__,
+            additional_metadata={"input_type": "text", "method": "count_tokens"},
+        )
+
+        # Update statistics
+        processing_time = __import__("time").time() - start_time
+        self._update_token_count_statistics(token_count, processing_time_ms=processing_time * 1000)
+
+        return token_count
+
+    def _count_tokens_impl(self, text: str) -> int:
+        """Implement token counting logic."""
         if not isinstance(text, str):
             raise TypeError("text must be a string")
 
@@ -180,15 +197,20 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
             },
         )
 
+        return token_count
+
+    def _update_token_count_statistics(self, token_count: int, processing_time_ms: float) -> None:
+        """Update statistics after token counting."""
         # Update statistics in state
         count_stats = self._state_manager.get("token_count_stats", {})
         count_stats["total_tokens_counted"] = (
             count_stats.get("total_tokens_counted", 0) + token_count
         )
         count_stats["count_operations"] = count_stats.get("count_operations", 0) + 1
+        count_stats["total_processing_time_ms"] = (
+            count_stats.get("total_processing_time_ms", 0) + processing_time_ms
+        )
         self._state_manager.update("token_count_stats", count_stats)
-
-        return token_count
 
     def generate(self, prompt: str, **kwargs) -> str:
         """
@@ -209,6 +231,37 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
             ValueError: If prompt is empty or API key is missing
             RuntimeError: If an error occurs during generation
         """
+        # Ensure component is initialized
+        if not self._state_manager.get("initialized", False):
+            self.warm_up()
+
+        # Process input
+        start_time = __import__("time").time()
+
+        # Define the operation
+        def operation():
+            # Actual processing logic
+            result = self._process_input(prompt, **kwargs)
+            return result
+
+        # Use standardized error handling
+        from sifaka.utils.error_patterns import safely_execute_component_operation
+
+        result = safely_execute_component_operation(
+            operation=operation,
+            component_name=self.name,
+            component_type=self.__class__.__name__,
+            additional_metadata={"input_type": "prompt", "method": "generate"},
+        )
+
+        # Update statistics
+        processing_time = __import__("time").time() - start_time
+        self._update_statistics(result, processing_time_ms=processing_time * 1000)
+
+        return result
+
+    def _process_input(self, prompt: str, **kwargs) -> str:
+        """Process the input prompt and generate text."""
         if not isinstance(prompt, str):
             raise TypeError("prompt must be a string")
         if not prompt.strip():
@@ -243,23 +296,8 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
         # Get generation service from state
         generation_service = self._state_manager.get("generation_service")
 
-        # Track generation count
-        generation_stats = self._state_manager.get("generation_stats", {})
-        generation_stats["generation_count"] = generation_stats.get("generation_count", 0) + 1
-        self._state_manager.update("generation_stats", generation_stats)
-
         # Generate text
-        start_time = __import__("time").time()
         result = generation_service.generate(prompt, config)
-        end_time = __import__("time").time()
-
-        # Update statistics
-        duration_ms = (end_time - start_time) * 1000
-        generation_stats = self._state_manager.get("generation_stats", {})
-        generation_stats["total_generation_time_ms"] = (
-            generation_stats.get("total_generation_time_ms", 0) + duration_ms
-        )
-        self._state_manager.update("generation_stats", generation_stats)
 
         # Update cache
         if len(cache) < 100:  # Limit cache size
@@ -267,6 +305,16 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
             self._state_manager.update("cache", cache)
 
         return result
+
+    def _update_statistics(self, _result: str, processing_time_ms: float) -> None:
+        """Update statistics after generation."""
+        # Track generation count
+        generation_stats = self._state_manager.get("generation_stats", {})
+        generation_stats["generation_count"] = generation_stats.get("generation_count", 0) + 1
+        generation_stats["total_generation_time_ms"] = (
+            generation_stats.get("total_generation_time_ms", 0) + processing_time_ms
+        )
+        self._state_manager.update("generation_stats", generation_stats)
 
     def _create_token_counter_manager(
         self, token_counter: Optional[TokenCounter]
@@ -331,3 +379,114 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
             A default token counter for the model
         """
         ...
+
+    def warm_up(self) -> None:
+        """
+        Prepare the component for use.
+
+        This method initializes all necessary resources for the model provider,
+        including API clients, token counters, and services.
+        """
+        try:
+            # Check if already initialized
+            if self._state_manager.get("initialized", False):
+                logger.debug(f"Component {self.name} already initialized")
+                return
+
+            # Initialize resources
+            self._initialize_resources()
+
+            # Mark as initialized
+            self._state_manager.update("initialized", True)
+            self._state_manager.set_metadata("warm_up_time", __import__("time").time())
+
+            logger.debug(f"Component {self.name} warmed up successfully")
+
+        except Exception as e:
+            self._record_error(e)
+            from sifaka.utils.errors import InitializationError
+
+            raise InitializationError(f"Failed to warm up component {self.name}: {str(e)}") from e
+
+    def _initialize_resources(self) -> None:
+        """Initialize all resources needed by the model provider."""
+        # Create managers and store in state
+        token_counter = self._state_manager.get("_token_counter")
+        token_counter_manager = self._create_token_counter_manager(token_counter)
+
+        api_client = self._state_manager.get("_api_client")
+        client_manager = self._create_client_manager(api_client)
+
+        tracer = self._state_manager.get("_tracer")
+        tracing_manager = TracingManager(
+            self._state_manager.get("model_name"), self._state_manager.get("config"), tracer
+        )
+
+        self._state_manager.update("token_counter_manager", token_counter_manager)
+        self._state_manager.update("client_manager", client_manager)
+        self._state_manager.update("tracing_manager", tracing_manager)
+
+        # Create services and store in state
+        generation_service = GenerationService(
+            self._state_manager.get("model_name"),
+            client_manager,
+            token_counter_manager,
+            tracing_manager,
+        )
+        self._state_manager.update("generation_service", generation_service)
+
+    def cleanup(self) -> None:
+        """Clean up component resources."""
+        try:
+            # Release resources
+            self._release_resources()
+
+            # Clear cache
+            self._state_manager.update("cache", {})
+
+            # Reset initialization flag
+            self._state_manager.update("initialized", False)
+
+            logger.debug(f"Component {self.name} cleaned up successfully")
+
+        except Exception as e:
+            # Log but don't raise
+            logger.error(f"Failed to clean up component {self.name}: {str(e)}")
+
+    def _release_resources(self) -> None:
+        """Release all resources used by the model provider."""
+        # Release client resources if possible
+        client_manager = self._state_manager.get("client_manager")
+        if client_manager and hasattr(client_manager, "close"):
+            client_manager.close()
+
+        # Release token counter resources if possible
+        token_counter_manager = self._state_manager.get("token_counter_manager")
+        if token_counter_manager and hasattr(token_counter_manager, "close"):
+            token_counter_manager.close()
+
+        # Release tracing resources if possible
+        tracing_manager = self._state_manager.get("tracing_manager")
+        if tracing_manager and hasattr(tracing_manager, "close"):
+            tracing_manager.close()
+
+    def _record_error(self, error: Exception) -> None:
+        """Record an error in the state manager."""
+        from sifaka.utils.common import record_error
+
+        record_error(
+            error=error,
+            component_name=self.name,
+            component_type=self.__class__.__name__,
+            state_manager=self._state_manager,
+        )
+
+    @property
+    def name(self) -> str:
+        """
+        Get the provider name.
+
+        Returns:
+            The provider name
+        """
+        return f"{self.__class__.__name__}-{self._state_manager.get('model_name')}"

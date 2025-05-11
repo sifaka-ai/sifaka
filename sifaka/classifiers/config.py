@@ -44,9 +44,23 @@ std_config = standardize_classifier_config(
 ```
 """
 
+from typing import List, Dict, Any
 from pydantic import Field
 
 from sifaka.utils.config import BaseConfig
+
+
+class ClassifierConfig(BaseConfig):
+    """Configuration for classifiers."""
+
+    name: str = Field(default="classifier", description="Name of the classifier")
+    description: str = Field(default="Text classifier", description="Description of the classifier")
+    min_confidence: float = Field(
+        default=0.5, ge=0.0, le=1.0, description="Minimum confidence threshold for classification"
+    )
+    labels: List[str] = Field(default_factory=list, description="Valid classification labels")
+    cache_size: int = Field(default=100, ge=0, description="Size of the classification cache")
+    params: Dict[str, Any] = Field(default_factory=dict, description="Additional parameters")
 
 
 class ImplementationConfig(BaseConfig):

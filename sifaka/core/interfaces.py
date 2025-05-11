@@ -16,6 +16,7 @@ modularity, and support extensibility across the framework.
    - Identifiable: Interface for components with identity
    - Loggable: Interface for components with logging capabilities
    - Traceable: Interface for components with tracing capabilities
+   - Plugin: Interface for plugins that extend component functionality
 
 ## Usage Examples
 ```python
@@ -393,5 +394,79 @@ class Traceable(Protocol):
 
         Raises:
             RuntimeError: If trace annotation fails
+        """
+        pass
+
+
+@runtime_checkable
+class Plugin(Protocol):
+    """
+    Interface for plugins that extend component functionality.
+
+    This interface defines the contract for plugins that can extend the functionality
+    of Sifaka components. It ensures that plugins can be discovered, registered, and
+    used consistently across all components.
+
+    ## Lifecycle
+
+    1. **Discovery**: Plugin is discovered through entry points or module loading
+    2. **Registration**: Plugin is registered with a plugin registry
+    3. **Component Creation**: Plugin creates component instances when requested
+
+    ## Implementation Requirements
+
+    Classes implementing this interface must:
+    - Provide a name property to identify the plugin
+    - Provide a version property for versioning
+    - Provide a component_type property to identify the type of component it provides
+    - Provide a create_component method to create component instances
+    """
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """
+        Get the plugin name.
+
+        Returns:
+            The plugin name
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def version(self) -> str:
+        """
+        Get the plugin version.
+
+        Returns:
+            The plugin version
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def component_type(self) -> str:
+        """
+        Get the component type this plugin provides.
+
+        Returns:
+            The component type
+        """
+        pass
+
+    @abstractmethod
+    def create_component(self, config: Dict[str, Any]) -> Any:
+        """
+        Create a component instance.
+
+        Args:
+            config: The component configuration
+
+        Returns:
+            The component instance
+
+        Raises:
+            PluginError: If component creation fails
         """
         pass

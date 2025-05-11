@@ -22,8 +22,8 @@ from typing import (
 
 from pydantic import ConfigDict, PrivateAttr
 
-from sifaka.classifiers.base import BaseClassifier
-from sifaka.classifiers.models import ClassificationResult
+from sifaka.classifiers.classifier import Classifier
+from sifaka.classifiers.result import ClassificationResult
 from sifaka.classifiers.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.config import extract_classifier_config_params
@@ -45,7 +45,7 @@ DEFAULT_BIAS_TYPES: List[str] = [
 ]
 
 
-class BiasDetector(BaseClassifier[str, str]):
+class BiasDetector(Classifier):
     """
     A bias detector using Support Vector Machines from scikit-learn.
 

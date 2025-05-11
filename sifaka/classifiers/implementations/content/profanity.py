@@ -80,8 +80,8 @@ from typing import (
 from typing_extensions import TypeGuard
 from pydantic import ConfigDict
 
-from sifaka.classifiers.base import BaseClassifier
-from sifaka.classifiers.models import ClassificationResult
+from sifaka.classifiers.classifier import Classifier
+from sifaka.classifiers.result import ClassificationResult
 from sifaka.classifiers.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
@@ -135,7 +135,7 @@ class CensorResult:
         return self.censored_word_count / max(self.total_word_count, 1)
 
 
-class ProfanityClassifier(BaseClassifier):
+class ProfanityClassifier(Classifier):
     """
     A lightweight profanity classifier using better_profanity.
 

@@ -1,8 +1,56 @@
 """
-Core base classes for Sifaka components.
+Core Base Classes
 
-This module provides shared base classes and utilities used by both critics and rules,
-implementing common patterns for state management, configuration, and error handling.
+This module provides the foundational base classes for all Sifaka components, implementing
+common patterns for state management, configuration, validation, and error handling.
+
+## Overview
+The core base classes define the common interfaces, behaviors, and patterns that are
+shared across all Sifaka components. They provide a consistent foundation for building
+specialized components like rules, critics, classifiers, and chains.
+
+## Components
+- **BaseComponent**: Abstract base class for all Sifaka components
+- **BaseConfig**: Configuration class for all components
+- **BaseResult**: Result class for all component operations
+- **Validatable**: Protocol for components that can validate inputs
+- **ComponentResultEnum**: Enumeration of possible component results
+
+## Usage Examples
+```python
+from sifaka.core.base import BaseComponent, BaseConfig, BaseResult
+
+# Create a custom component
+class MyComponent(BaseComponent[str, BaseResult]):
+    def _process_input(self, input: str) -> BaseResult:
+        # Process the input
+        return BaseResult(
+            passed=True,
+            message="Input processed successfully",
+            score=0.9,
+            suggestions=["Consider adding more details"]
+        )
+
+# Create a component instance
+component = MyComponent(
+    name="my_component",
+    description="A custom component",
+    config=BaseConfig(
+        min_confidence=0.7,
+        cache_size=100,
+        priority=1
+    )
+)
+
+# Process input
+result = component.process("Hello, world!")
+print(f"Passed: {result.passed}, Score: {result.score}")
+```
+
+## Error Handling
+The base classes provide standardized error handling through the `safely_execute_component_operation`
+utility, which ensures consistent error handling across all components. Components also track
+errors and statistics for monitoring and debugging.
 """
 
 import time
@@ -20,7 +68,6 @@ from typing import (
     runtime_checkable,
     Type,
     TypeVar,
-    Union,
 )
 
 from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
@@ -28,7 +75,6 @@ from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 from sifaka.utils.common import update_statistics, record_error
 from sifaka.utils.errors import InitializationError
 from sifaka.utils.logging import get_logger
-from sifaka.utils.patterns import ValidationPattern
 from sifaka.utils.state import StateManager
 
 logger = get_logger(__name__)
@@ -51,7 +97,54 @@ class ComponentResultEnum(str, Enum):
 
 
 class BaseConfig(BaseModel):
-    """Base configuration for all components."""
+    """
+    Base configuration for all components.
+
+    This class provides a standardized configuration model for all Sifaka components,
+    defining common configuration parameters that are shared across different component types.
+
+    ## Architecture
+    BaseConfig uses Pydantic for validation and serialization, with:
+    - Type validation for all fields
+    - Default values for optional fields
+    - Field descriptions for documentation
+    - Immutable configuration (frozen=True)
+
+    ## Lifecycle
+    Configuration objects are typically created during component initialization and
+    remain immutable throughout the component's lifecycle. Components can access
+    configuration values through their config property.
+
+    ## Examples
+    ```python
+    # Create a basic configuration
+    config = BaseConfig(
+        name="my_component",
+        description="A custom component",
+        min_confidence=0.8,
+        cache_size=200,
+        priority=2,
+        cost=1.5,
+        params={"threshold": 0.7}
+    )
+
+    # Access configuration values
+    print(f"Name: {config.name}")
+    print(f"Min confidence: {config.min_confidence}")
+    print(f"Custom threshold: {config.params.get('threshold')}")
+    ```
+
+    Attributes:
+        name: Component name
+        description: Component description
+        min_confidence: Minimum confidence threshold (0.0 to 1.0)
+        cache_size: Size of the component's result cache
+        priority: Priority level of the component (higher values = higher priority)
+        cost: Computational cost of the component
+        params: Dictionary of additional parameters
+        track_performance: Whether to track performance statistics
+        track_errors: Whether to track errors
+    """
 
     name: str = Field(description="Component name", min_length=1)
     description: str = Field(description="Component description", min_length=1)
@@ -69,7 +162,58 @@ class BaseConfig(BaseModel):
 
 
 class BaseResult(BaseModel, Generic[T]):
-    """Base result for all components."""
+    """
+    Base result for all components.
+
+    This class provides a standardized result model for all Sifaka components,
+    defining common result fields that are shared across different component types.
+
+    ## Architecture
+    BaseResult uses Pydantic for validation and serialization, with:
+    - Type validation for all fields
+    - Default values for optional fields
+    - Field descriptions for documentation
+    - Immutable results (frozen=True)
+    - Generic type parameter for input type
+
+    ## Lifecycle
+    Result objects are created by component processing methods and returned to callers.
+    They contain information about the processing outcome, including success/failure,
+    confidence scores, issues, and suggestions for improvement.
+
+    ## Examples
+    ```python
+    # Create a basic result
+    result = BaseResult(
+        passed=True,
+        message="Validation passed",
+        score=0.85,
+        issues=["Minor formatting issue"],
+        suggestions=["Consider adding more details"]
+    )
+
+    # Access result values
+    print(f"Passed: {result.passed}")
+    print(f"Score: {result.score}")
+    print(f"Issues: {', '.join(result.issues)}")
+
+    # Create a result with metadata
+    result_with_metadata = result.with_metadata(
+        model_name="gpt-4",
+        tokens_used=150
+    )
+    ```
+
+    Attributes:
+        passed: Whether the validation passed
+        message: Result message
+        metadata: Dictionary of additional metadata
+        score: Confidence score (0.0 to 1.0)
+        issues: List of identified issues
+        suggestions: List of improvement suggestions
+        processing_time_ms: Processing time in milliseconds
+        timestamp: Result timestamp
+    """
 
     passed: bool
     message: str
@@ -136,7 +280,61 @@ class Validatable(Protocol[T]):
 
 
 class BaseComponent(ABC, Generic[T, R]):
-    """Base class for all Sifaka components."""
+    """
+    Base class for all Sifaka components.
+
+    This abstract base class provides the foundation for all Sifaka components,
+    implementing common functionality for state management, configuration,
+    validation, error handling, and lifecycle management.
+
+    ## Architecture
+    BaseComponent uses a standardized architecture with:
+    - State management through the _state_manager from utils/state.py
+    - Configuration through BaseConfig
+    - Result handling through BaseResult
+    - Standardized error handling and statistics tracking
+
+    ## Lifecycle
+    Components follow a consistent lifecycle:
+    1. **Initialization**: Component is created with name, description, and config
+    2. **Warm-up**: Resources are initialized through warm_up() method
+    3. **Processing**: Input is processed through process() method
+    4. **Cleanup**: Resources are released through cleanup() method
+
+    ## Error Handling
+    Components use standardized error handling through:
+    - Validation methods for input validation
+    - Error recording through record_error()
+    - Statistics tracking for monitoring
+
+    ## Examples
+    ```python
+    # Create a custom component
+    class MyComponent(BaseComponent[str, BaseResult]):
+        def _process_input(self, input: str) -> BaseResult:
+            # Process the input
+            return BaseResult(
+                passed=True,
+                message="Input processed successfully",
+                score=0.9
+            )
+
+    # Create a component instance
+    component = MyComponent(
+        name="my_component",
+        description="A custom component"
+    )
+
+    # Warm up the component
+    component.warm_up()
+
+    # Process input
+    result = component.process("Hello, world!")
+
+    # Clean up resources
+    component.cleanup()
+    ```
+    """
 
     model_config = ConfigDict(
         arbitrary_types_allowed=True, validate_assignment=True, extra="forbid"
@@ -147,7 +345,7 @@ class BaseComponent(ABC, Generic[T, R]):
     config: BaseConfig
 
     # Add state manager as a private attribute
-    _state_manager = None
+    _state_manager = PrivateAttr(default_factory=StateManager)
 
     def __init__(
         self, name: str, description: str, config: Optional[BaseConfig] = None, **kwargs: Any
@@ -163,11 +361,6 @@ class BaseComponent(ABC, Generic[T, R]):
 
     def _initialize_state(self) -> None:
         """Initialize component state."""
-        # Create state manager
-        from sifaka.utils.state import StateManager
-
-        self._state_manager = StateManager()
-
         # Initialize state
         self._state_manager.update("initialized", False)
         self._state_manager.update("cache", {})
@@ -342,18 +535,42 @@ class BaseComponent(ABC, Generic[T, R]):
         """
         Process the input and return a result.
 
-        This method processes the input and returns a result. Subclasses must
-        implement this method to provide component-specific processing logic.
+        This method processes the input and returns a result. It handles input validation,
+        caching, error handling, and statistics tracking. The actual processing logic is
+        delegated to the _process_input method, which subclasses must implement.
+
+        ## Workflow
+        1. Ensures the component is initialized (calls warm_up if needed)
+        2. Validates the input
+        3. Checks the cache for existing results
+        4. Processes the input through _process_input
+        5. Handles errors through standardized error handling
+        6. Updates statistics
+        7. Returns the result
 
         Args:
-            input: The input to process
+            input: The input to process (type depends on component implementation)
 
         Returns:
-            The processing result
+            The processing result (type depends on component implementation)
 
         Raises:
-            ValueError: If input is invalid
+            ValueError: If input is invalid or empty
             RuntimeError: If processing fails
+            InitializationError: If component initialization fails
+
+        Example:
+            ```python
+            # Process input with a component
+            result = component.process("Hello, world!")
+
+            # Check if processing was successful
+            if result.passed:
+                print(f"Processing succeeded with score {result.score}")
+            else:
+                print(f"Processing failed: {result.message}")
+                print(f"Issues: {', '.join(result.issues)}")
+            ```
         """
         # Ensure component is initialized
         if not self._state_manager.get("initialized", False):
@@ -389,14 +606,38 @@ class BaseComponent(ABC, Generic[T, R]):
         Process the input and return a result.
 
         This method is called by the process method to perform the actual
-        processing logic. Subclasses should override this method instead
-        of the process method to ensure consistent error handling.
+        processing logic. Subclasses must override this method to implement
+        component-specific processing logic. The process method handles common
+        concerns like initialization, error handling, and statistics tracking.
+
+        ## Implementation Guidelines
+        When implementing this method in subclasses:
+        1. Focus on the core processing logic specific to the component
+        2. Assume input has already been validated
+        3. Don't worry about error handling (handled by process method)
+        4. Return a properly formatted result object
 
         Args:
-            input: The input to process
+            input: The input to process (type depends on component implementation)
 
         Returns:
-            The processing result
+            The processing result (type depends on component implementation)
+
+        Example:
+            ```python
+            def _process_input(self, input: str) -> BaseResult:
+                # Implement component-specific logic
+                score = self._calculate_score(input)
+                issues = self._identify_issues(input)
+
+                return BaseResult(
+                    passed=score >= self.min_confidence,
+                    message="Input processed successfully" if score >= self.min_confidence else "Input failed validation",
+                    score=score,
+                    issues=issues,
+                    suggestions=self._generate_suggestions(issues)
+                )
+            ```
         """
         raise NotImplementedError("Subclasses must implement _process_input")
 
@@ -404,11 +645,34 @@ class BaseComponent(ABC, Generic[T, R]):
         """
         Prepare the component for use.
 
-        This method prepares the component for use, performing any
-        necessary warm-up operations. It's safe to call multiple times.
+        This method prepares the component for use, performing any necessary
+        initialization operations like loading resources, connecting to services,
+        or preparing caches. It's safe to call multiple times, as it checks if
+        the component is already initialized.
+
+        ## Workflow
+        1. Checks if the component is already initialized
+        2. Calls _initialize_resources() for component-specific initialization
+        3. Updates the initialization state
+        4. Records initialization time
+
+        ## Error Handling
+        If initialization fails, an InitializationError is raised with details
+        about the failure. The error is also recorded in the component's state
+        for later inspection.
 
         Raises:
-            InitializationError: If warm-up fails
+            InitializationError: If initialization fails for any reason
+
+        Example:
+            ```python
+            # Initialize a component
+            try:
+                component.warm_up()
+                print("Component initialized successfully")
+            except InitializationError as e:
+                print(f"Initialization failed: {e}")
+            ```
         """
         try:
             # Check if already initialized
@@ -436,7 +700,32 @@ class BaseComponent(ABC, Generic[T, R]):
 
         This method is called during warm-up to initialize any resources
         needed by the component. Subclasses should override this method
-        to perform component-specific initialization.
+        to perform component-specific initialization such as loading models,
+        connecting to services, or preparing caches.
+
+        ## Implementation Guidelines
+        When implementing this method in subclasses:
+        1. Initialize all resources needed for component operation
+        2. Handle resource-specific errors and convert to InitializationError
+        3. Log initialization steps for debugging
+        4. Set component-specific state in the _state_manager
+
+        Example:
+            ```python
+            def _initialize_resources(self) -> None:
+                # Load model
+                try:
+                    model_path = self.config.params.get("model_path", "default_model.pkl")
+                    self._state_manager.update("model", load_model(model_path))
+                    logger.debug(f"Loaded model from {model_path}")
+                except Exception as e:
+                    raise InitializationError(f"Failed to load model: {str(e)}") from e
+
+                # Initialize cache
+                cache_size = self.config.cache_size
+                self._state_manager.update("cache", LRUCache(max_size=cache_size))
+                logger.debug(f"Initialized cache with size {cache_size}")
+            ```
         """
         pass
 
@@ -444,9 +733,32 @@ class BaseComponent(ABC, Generic[T, R]):
         """
         Clean up component resources.
 
-        This method cleans up component resources, releasing any
-        resources that were acquired during initialization or use.
-        It's safe to call multiple times.
+        This method cleans up component resources, releasing any resources
+        that were acquired during initialization or use. It's safe to call
+        multiple times and handles errors gracefully to ensure resources
+        are released even if cleanup encounters problems.
+
+        ## Workflow
+        1. Calls _release_resources() for component-specific cleanup
+        2. Clears the component's cache
+        3. Resets the initialization state
+
+        ## Error Handling
+        If cleanup encounters errors, they are logged but not raised, ensuring
+        that cleanup operations can continue even if some steps fail. This
+        prevents resource leaks in error scenarios.
+
+        Example:
+            ```python
+            # Use a component and clean up afterward
+            try:
+                component.warm_up()
+                result = component.process("Hello, world!")
+                # Process the result...
+            finally:
+                # Always clean up, even if processing fails
+                component.cleanup()
+            ```
         """
         try:
             # Release resources (can be overridden by subclasses)
@@ -471,11 +783,71 @@ class BaseComponent(ABC, Generic[T, R]):
 
         This method is called during cleanup to release any resources
         acquired during initialization or use. Subclasses should override
-        this method to perform component-specific cleanup.
+        this method to perform component-specific cleanup such as closing
+        connections, releasing memory, or shutting down services.
+
+        ## Implementation Guidelines
+        When implementing this method in subclasses:
+        1. Release all resources acquired during initialization
+        2. Handle errors gracefully (log but don't raise)
+        3. Ensure resources are released even if errors occur
+        4. Clear component-specific state from the _state_manager
+
+        Example:
+            ```python
+            def _release_resources(self) -> None:
+                # Close database connection
+                try:
+                    if db_conn := self._state_manager.get("db_connection"):
+                        db_conn.close()
+                        logger.debug("Closed database connection")
+                except Exception as e:
+                    logger.error(f"Error closing database connection: {str(e)}")
+
+                # Release model resources
+                try:
+                    if model := self._state_manager.get("model"):
+                        model.unload()
+                        logger.debug("Unloaded model")
+                except Exception as e:
+                    logger.error(f"Error unloading model: {str(e)}")
+
+                # Clear component-specific state
+                self._state_manager.remove("model")
+                self._state_manager.remove("db_connection")
+            ```
         """
         pass
 
     @classmethod
     def create(cls: Type[C], name: str, description: str, **kwargs: Any) -> C:
-        """Create a new component instance."""
+        """
+        Create a new component instance.
+
+        This factory method provides a convenient way to create component instances
+        with standardized configuration. It handles the creation of the BaseConfig
+        object and passes it to the component constructor.
+
+        Args:
+            name: Component name
+            description: Component description
+            **kwargs: Additional configuration parameters
+
+        Returns:
+            A new instance of the component class
+
+        Example:
+            ```python
+            # Create a component using the factory method
+            component = MyComponent.create(
+                name="my_component",
+                description="A custom component",
+                min_confidence=0.8,
+                cache_size=200,
+                priority=2,
+                cost=1.5,
+                params={"threshold": 0.7}
+            )
+            ```
+        """
         return cls(name=name, description=description, config=BaseConfig(**kwargs))

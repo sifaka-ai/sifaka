@@ -30,8 +30,8 @@ from typing import (
 from typing_extensions import TypeGuard
 from pydantic import ConfigDict
 
-from sifaka.classifiers.base import BaseClassifier
-from sifaka.classifiers.models import ClassificationResult
+from sifaka.classifiers.classifier import Classifier
+from sifaka.classifiers.result import ClassificationResult
 from sifaka.classifiers.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
@@ -70,7 +70,7 @@ class EntityResult:
         return self.entity_count / max(len(self.text.split()), 1)  # Avoid division by zero
 
 
-class NERClassifier(BaseClassifier[str, List[Dict[str, Any]]]):
+class NERClassifier(Classifier):
     """
     A Named Entity Recognition (NER) classifier using spaCy.
 

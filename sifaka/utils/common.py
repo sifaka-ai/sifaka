@@ -5,15 +5,29 @@ This module provides common utility functions used across different components
 in the Sifaka framework. It centralizes frequently used patterns to reduce
 code duplication and ensure consistency.
 
-## Categories of Utilities
+## Overview
+The common utilities module provides standardized implementations of frequently
+used patterns across the Sifaka framework. These utilities help ensure consistent
+behavior, reduce code duplication, and simplify component implementation.
 
-1. **State Access Patterns**: Common patterns for accessing and updating state
-2. **Error Handling Patterns**: Common patterns for handling errors
-3. **Result Creation Patterns**: Common patterns for creating results
-4. **Validation Patterns**: Common patterns for validating inputs
+## Components
+The module is organized into several categories of utilities:
+
+1. **State Access Patterns**: Functions for accessing and updating component state
+   - initialize_component_state: Initialize standard component state
+   - get_cached_result: Retrieve cached results with tracking
+   - update_cache: Update cache with size management
+   - update_statistics: Track component performance metrics
+   - clear_component_statistics: Reset component statistics
+
+2. **Error Handling Patterns**: Functions for standardized error handling
+   - record_error: Record errors in component state
+   - safely_execute: Execute operations with standardized error handling
+
+3. **Result Creation Patterns**: Functions for creating standardized results
+   - create_standard_result: Create results with consistent structure
 
 ## Usage Examples
-
 ```python
 from sifaka.utils.common import (
     get_cached_result, update_cache, update_statistics,
@@ -39,6 +53,20 @@ result = create_standard_result(
     success=True
 )
 ```
+
+## Error Handling
+The utilities provide standardized error handling patterns that ensure:
+- Consistent error recording in component state
+- Proper error logging with appropriate context
+- Optional default values for graceful failure
+- Traceback capture for debugging
+
+## Configuration
+The utilities support various configuration options:
+- Cache size management
+- Error logging levels
+- Statistics tracking options
+- Result formatting options
 """
 
 from typing import Any, Dict, Optional, TypeVar, Callable
@@ -63,11 +91,41 @@ def initialize_component_state(
     """
     Initialize standard component state.
 
+    This function initializes a state manager with standard state fields and metadata
+    that are common across all components in the Sifaka framework. It sets up state
+    for tracking initialization status, caching, statistics, and errors.
+
+    ## Architecture
+    This function follows a standardized pattern for component state initialization,
+    ensuring that all components have a consistent state structure. This makes it
+    easier to implement components and ensures that utilities that operate on
+    component state can rely on a consistent structure.
+
     Args:
         state_manager: The state manager to initialize
         component_type: Type of the component (e.g., "Classifier", "Chain")
         name: Name of the component
         description: Optional description of the component
+
+    Example:
+        ```python
+        from sifaka.utils.state import StateManager
+        from sifaka.utils.common import initialize_component_state
+
+        # Create and initialize state manager
+        state_manager = StateManager()
+        initialize_component_state(
+            state_manager,
+            component_type="Classifier",
+            name="toxicity_classifier",
+            description="Classifies text for toxicity"
+        )
+
+        # State is now initialized with standard fields
+        print(state_manager.get("initialized"))  # False
+        print(state_manager.get("cache"))  # {}
+        print(state_manager.get_metadata("component_type"))  # "Classifier"
+        ```
     """
     state_manager.update("initialized", False)
     state_manager.update("cache", {})
@@ -262,16 +320,57 @@ def safely_execute(
     """
     Execute an operation with standardized error handling.
 
+    This function provides a standardized way to execute operations with proper
+    error handling, logging, and state tracking. It catches exceptions, logs them
+    with appropriate context, records them in component state if a state manager
+    is provided, and either returns a default value or re-raises the exception.
+
+    ## Architecture
+    This function implements a standardized error handling pattern that ensures
+    consistent behavior across the framework. It separates the error handling
+    logic from the business logic, making components cleaner and more focused.
+
+    ## Error Handling
+    The function handles errors by:
+    1. Catching any exceptions that occur during operation execution
+    2. Logging the error with the specified log level and component context
+    3. Recording the error in component state if a state manager is provided
+    4. Either returning a default value or re-raising the exception
+
     Args:
         operation: The operation to execute
         component_name: Name of the component executing the operation
         state_manager: Optional state manager to record errors
         component_type: Type of the component (e.g., "Chain", "Model")
         default_value: Value to return if operation fails
-        log_level: Log level to use for errors
+        log_level: Log level to use for errors ("error", "warning", "info", "debug")
 
     Returns:
         Result of the operation or default value if it fails
+
+    Raises:
+        Exception: Re-raises the original exception if no default value is provided
+
+    Example:
+        ```python
+        from sifaka.utils.common import safely_execute
+
+        # Execute with default value
+        result = safely_execute(
+            lambda: process_data(input_data),
+            component_name="DataProcessor",
+            default_value={"success": False, "error": "Processing failed"}
+        )
+
+        # Execute with state tracking
+        result = safely_execute(
+            lambda: process_data(input_data),
+            component_name="DataProcessor",
+            state_manager=self._state_manager,
+            component_type="Processor",
+            log_level="warning"
+        )
+        ```
     """
     try:
         return operation()
@@ -311,6 +410,16 @@ def create_standard_result(
     """
     Create a standardized result dictionary.
 
+    This function creates a standardized result dictionary with a consistent structure
+    that can be used across all components in the Sifaka framework. It ensures that
+    results have a consistent format, making it easier to process and interpret results
+    from different components.
+
+    ## Architecture
+    This function implements a standardized result creation pattern that ensures
+    consistent result structure across the framework. The standard result format
+    includes the output, success status, optional message, and metadata.
+
     Args:
         output: The output of the operation
         metadata: Additional metadata for the result
@@ -319,7 +428,41 @@ def create_standard_result(
         processing_time_ms: Processing time in milliseconds
 
     Returns:
-        A standardized result dictionary
+        A standardized result dictionary with the following structure:
+        ```
+        {
+            "output": Any,              # The operation output
+            "success": bool,            # Whether the operation succeeded
+            "message": str,             # Optional message (if provided)
+            "processing_time_ms": float, # Processing time (if provided)
+            "metadata": {               # Additional metadata
+                "processing_time_ms": float, # Processing time (if provided)
+                # Additional metadata fields
+            }
+        }
+        ```
+
+    Example:
+        ```python
+        from sifaka.utils.common import create_standard_result
+
+        # Create a successful result
+        result = create_standard_result(
+            output="Generated text",
+            metadata={"model": "gpt-4", "temperature": 0.7},
+            success=True,
+            message="Text generated successfully",
+            processing_time_ms=150.5
+        )
+
+        # Create a failure result
+        result = create_standard_result(
+            output=None,
+            metadata={"error_type": "ValidationError"},
+            success=False,
+            message="Failed to generate text: Invalid input"
+        )
+        ```
     """
     result = {
         "output": output,

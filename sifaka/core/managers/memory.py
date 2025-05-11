@@ -1,12 +1,68 @@
 """
-Memory managers for Sifaka.
+Memory Management Module
 
-This module provides two memory manager implementations:
+A module providing memory management capabilities for Sifaka components.
+
+## Overview
+This module provides memory management implementations that can be used
+across different components of the Sifaka library. It offers two main
+memory manager implementations:
+
 1. KeyValueMemoryManager: For key-value based memory storage and retrieval
 2. BufferMemoryManager: For simple circular buffer storage of string items
 
 Both implementations use StateManager for consistent state management
 and provide statistics tracking.
+
+## Components
+- BaseMemory: Protocol defining the memory interface
+- MemoryConfig: Configuration for memory managers
+- MemoryResult: Result of memory operations
+- KeyValueMemoryManager: Key-value based memory manager
+- BufferMemoryManager: Circular buffer memory manager
+- Factory functions for creating memory managers
+
+## Usage Examples
+```python
+from sifaka.core.managers.memory import create_key_value_memory_manager, create_buffer_memory_manager
+
+# Create a key-value memory manager
+kv_memory = create_key_value_memory_manager(
+    name="my_memory",
+    cache_enabled=True,
+    max_items=100
+)
+
+# Store a value
+kv_memory.store("key1", "value1")
+
+# Retrieve a value
+results = kv_memory.retrieve("key1")
+
+# Create a buffer memory manager
+buffer_memory = create_buffer_memory_manager(buffer_size=10)
+
+# Add items to buffer
+buffer_memory.add_to_memory("Item 1")
+buffer_memory.add_to_memory("Item 2")
+
+# Retrieve items
+items = buffer_memory.get_memory()
+```
+
+## Error Handling
+The memory managers handle various error conditions:
+- Invalid input validation
+- Memory storage/retrieval failures
+- Configuration errors
+- Resource management errors
+
+## Configuration
+Memory managers can be configured with:
+- Cache settings (enabled/disabled, size)
+- Buffer size
+- Memory limits
+- Custom memory implementations
 """
 
 from typing import Any, Dict, List, Optional, TypeVar, Protocol
@@ -29,7 +85,20 @@ V = TypeVar("V")  # Value type
 
 
 class MemoryConfig(BaseConfig):
-    """Configuration for key-value memory manager."""
+    """
+    Configuration for key-value memory manager.
+
+    This class defines the configuration parameters for memory managers,
+    including cache settings and memory limits.
+
+    ## Architecture
+    Extends BaseConfig to provide consistent configuration handling
+    across all Sifaka components.
+
+    Attributes:
+        cache_enabled (bool): Whether to enable caching
+        max_items (int): Maximum number of items to store in memory
+    """
 
     cache_enabled: bool = Field(default=True, description="Whether to enable caching")
     max_items: int = Field(default=100, description="Maximum number of items to store in memory")
@@ -40,7 +109,21 @@ class MemoryConfig(BaseConfig):
 
 
 class MemoryResult(BaseResult):
-    """Result of memory operation."""
+    """
+    Result of memory operation.
+
+    This class represents the result of a memory operation, including
+    the key, value, and whether the operation was successful.
+
+    ## Architecture
+    Extends BaseResult to provide consistent result handling
+    across all Sifaka components.
+
+    Attributes:
+        key (str): The key used in the memory operation
+        value (Any): The value retrieved or stored
+        found (bool): Whether the key was found in memory
+    """
 
     key: str = Field(default="")
     value: Any = Field(default=None)
@@ -52,16 +135,50 @@ class MemoryResult(BaseResult):
 
 
 class BaseMemory(Protocol[V]):
-    """Protocol for memory implementations."""
+    """
+    Protocol for memory implementations.
+
+    This protocol defines the interface that all memory implementations
+    must follow, providing store and retrieve operations.
+
+    ## Architecture
+    Uses Python's Protocol type to define a structural interface
+    that memory implementations must satisfy.
+
+    Attributes:
+        name (str): The name of the memory implementation
+    """
 
     name: str
 
     def store(self, key: str, value: V) -> None:
-        """Store a value in memory."""
+        """
+        Store a value in memory.
+
+        Args:
+            key (str): The key to store the value under
+            value (V): The value to store
+
+        Raises:
+            ValueError: If the key or value is invalid
+            RuntimeError: If storage fails
+        """
         ...
 
     def retrieve(self, key: str) -> MemoryResult:
-        """Retrieve a value from memory."""
+        """
+        Retrieve a value from memory.
+
+        Args:
+            key (str): The key to retrieve the value for
+
+        Returns:
+            MemoryResult: The result of the retrieval operation
+
+        Raises:
+            ValueError: If the key is invalid
+            RuntimeError: If retrieval fails
+        """
         ...
 
 
@@ -497,16 +614,33 @@ def create_key_value_memory_manager(
     """
     Create a key-value memory manager.
 
+    This factory function creates and configures a KeyValueMemoryManager
+    with the specified parameters, providing a convenient way to create
+    memory managers with default or custom configurations.
+
     Args:
-        memories: List of memories to use for storage
-        name: Name of the manager
-        description: Description of the manager
-        cache_enabled: Whether to enable caching
-        max_items: Maximum number of items to store in memory
-        **kwargs: Additional configuration parameters
+        memories (List[BaseMemory], optional): List of memories to use for storage
+        name (str, optional): Name of the manager. Defaults to "memory_manager".
+        description (str, optional): Description of the manager. Defaults to "Memory manager for Sifaka".
+        cache_enabled (bool, optional): Whether to enable caching. Defaults to True.
+        max_items (int, optional): Maximum number of items to store in memory. Defaults to 100.
+        **kwargs (Any): Additional configuration parameters
 
     Returns:
-        Configured KeyValueMemoryManager instance
+        KeyValueMemoryManager: Configured KeyValueMemoryManager instance
+
+    Example:
+        ```python
+        # Create a memory manager with default settings
+        memory_manager = create_key_value_memory_manager()
+
+        # Create a memory manager with custom settings
+        custom_manager = create_key_value_memory_manager(
+            name="custom_memory",
+            cache_enabled=False,
+            max_items=50
+        )
+        ```
     """
     config = MemoryConfig(
         name=name,
@@ -766,10 +900,26 @@ def create_buffer_memory_manager(
     """
     Create a buffer memory manager.
 
+    This factory function creates and configures a BufferMemoryManager
+    with the specified buffer size, providing a convenient way to create
+    buffer memory managers with default or custom configurations.
+
     Args:
-        buffer_size: The maximum number of items to store in memory
+        buffer_size (int, optional): The maximum number of items to store in memory. Defaults to 5.
 
     Returns:
-        Configured BufferMemoryManager instance
+        BufferMemoryManager: Configured BufferMemoryManager instance
+
+    Example:
+        ```python
+        # Create a buffer memory manager with default settings
+        buffer_memory = create_buffer_memory_manager()
+
+        # Create a buffer memory manager with custom buffer size
+        large_buffer = create_buffer_memory_manager(buffer_size=20)
+        ```
+
+    Raises:
+        ValueError: If buffer_size is less than 1
     """
     return BufferMemoryManager(buffer_size=buffer_size)

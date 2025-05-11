@@ -12,8 +12,8 @@ from typing import Dict, List, Optional, Any, ClassVar
 
 from pydantic import ConfigDict
 
-from sifaka.classifiers.base import BaseClassifier
-from sifaka.classifiers.models import ClassificationResult
+from sifaka.classifiers.classifier import Classifier
+from sifaka.classifiers.result import ClassificationResult
 from sifaka.classifiers.config import ClassifierConfig, standardize_classifier_config
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
@@ -35,7 +35,7 @@ DEFAULT_GENRES: List[str] = [
 ]
 
 
-class GenreClassifier(BaseClassifier[str, str]):
+class GenreClassifier(Classifier):
     """
     A genre classifier using RandomForest from scikit-learn.
 

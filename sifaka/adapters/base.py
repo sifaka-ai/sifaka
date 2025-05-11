@@ -264,8 +264,7 @@ class BaseAdapter(BaseModel, Generic[T, C]):
         """
         from sifaka.utils.text import handle_empty_text
 
-        # For backward compatibility, adapters continue to return passed=True for empty text
-        # This ensures consistent behavior with the rest of the codebase
+        # Empty text is considered valid for adapters
         return handle_empty_text(text, passed=True, component_type="adapter")
 
     def validate(self, input_value: T, **kwargs) -> RuleResult:

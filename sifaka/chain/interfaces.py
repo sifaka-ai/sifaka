@@ -262,34 +262,18 @@ class Formatter(ChainComponent, Protocol):
         return await loop.run_in_executor(None, lambda: self.format(output, validation_results))
 
 
+# Import the core Plugin interface
+from sifaka.core.interfaces import Plugin as CorePlugin
+
+
 @runtime_checkable
-class Plugin(ChainComponent, Protocol):
-    """Interface for plugins."""
+class Plugin(ChainComponent, CorePlugin, Protocol):
+    """
+    Interface for chain plugins.
 
-    @property
-    @abstractmethod
-    def version(self) -> str:
-        """Get the plugin version."""
-        ...
+    This interface extends the core Plugin interface with chain-specific
+    functionality. It ensures that chain plugins can be discovered, registered,
+    and used consistently with other plugins in the Sifaka framework.
+    """
 
-    @property
-    @abstractmethod
-    def component_type(self) -> str:
-        """Get the component type this plugin provides."""
-        ...
-
-    @abstractmethod
-    def create_component(self, config: Dict[str, Any]) -> Any:
-        """
-        Create a component instance.
-
-        Args:
-            config: The component configuration
-
-        Returns:
-            The component instance
-
-        Raises:
-            PluginError: If component creation fails
-        """
-        ...
+    pass

@@ -226,8 +226,8 @@ class SifakaPydanticAdapter(BaseModel):
     # Pydantic configuration
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    # State management using StateManager
-    _state_manager: StateManager = PrivateAttr(default_factory=create_adapter_state)
+    # State management using standardized state manager
+    _state_manager = PrivateAttr(default_factory=create_adapter_state)
 
     # Required fields
     rules: List[Rule]
@@ -271,12 +271,14 @@ class SifakaPydanticAdapter(BaseModel):
 
             # Initialize state
             state = self._state_manager.get_state()
+            state.adaptee = None  # This adapter doesn't have a single adaptee
             state.initialized = True
             state.execution_count = 0
             state.error_count = 0
             state.last_execution_time = None
             state.avg_execution_time = 0
             state.cache = {}
+            state.config_cache = {"rules": rules, "output_model": output_model, "critic": critic}
 
             # Create validator config
             validator_config = ValidatorConfig(

@@ -160,6 +160,8 @@ class PromptCriticConfig(CriticConfig):
     - System prompt configuration
     - Text generation parameters (temperature, max_tokens)
     - Confidence and attempt thresholds
+    - Initialization and memory management settings
+    - Performance tracking options
     - Type-safe parameter management
 
     ## Usage Examples
@@ -183,7 +185,10 @@ class PromptCriticConfig(CriticConfig):
         temperature=0.5,
         max_tokens=2000,
         min_confidence=0.8,
-        max_attempts=5
+        max_attempts=5,
+        eager_initialization=True,
+        memory_buffer_size=20,
+        track_performance=True
     )
     ```
 
@@ -193,6 +198,7 @@ class PromptCriticConfig(CriticConfig):
     - Token count validation (positive)
     - Confidence range validation (0.0 to 1.0)
     - Attempt count validation (positive)
+    - Memory buffer size validation (positive)
     - Required field validation
 
     Attributes:
@@ -201,6 +207,10 @@ class PromptCriticConfig(CriticConfig):
         max_tokens: Maximum number of tokens for text generation
         min_confidence: Minimum confidence score for critique
         max_attempts: Maximum number of attempts for critique
+        eager_initialization: Whether to initialize components eagerly
+        memory_buffer_size: Size of the memory buffer
+        track_performance: Whether to track performance metrics
+        track_errors: Whether to track error statistics
     """
 
     system_prompt: str = Field(
@@ -227,6 +237,23 @@ class PromptCriticConfig(CriticConfig):
         default=3,
         ge=1,
         description="Maximum number of attempts for critique",
+    )
+    eager_initialization: bool = Field(
+        default=False,
+        description="Whether to initialize components eagerly",
+    )
+    memory_buffer_size: int = Field(
+        default=10,
+        ge=1,
+        description="Size of the memory buffer",
+    )
+    track_performance: bool = Field(
+        default=True,
+        description="Whether to track performance metrics",
+    )
+    track_errors: bool = Field(
+        default=True,
+        description="Whether to track error statistics",
     )
 
 

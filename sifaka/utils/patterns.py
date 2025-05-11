@@ -582,7 +582,31 @@ URL_PATTERN = compile_pattern(r"https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+")
 
 
 class ValidationPattern:
-    """Common validation patterns."""
+    """
+    Common validation patterns for data validation.
+
+    This class provides a collection of pre-compiled regex patterns for common
+    validation tasks such as validating email addresses, URLs, phone numbers,
+    dates, times, and IP addresses.
+
+    ## Architecture
+    The patterns are compiled once at module load time and stored as class
+    attributes for efficient reuse across the application.
+
+    ## Usage Examples
+    ```python
+    from sifaka.utils.patterns import ValidationPattern
+
+    # Validate an email address
+    is_valid_email = ValidationPattern.EMAIL.match("user@example.com")
+
+    # Validate a URL
+    is_valid_url = ValidationPattern.URL.match("https://example.com")
+
+    # Validate a phone number
+    is_valid_phone = ValidationPattern.PHONE.match("+12345678901")
+    ```
+    """
 
     EMAIL = compile_pattern(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
     URL = compile_pattern(

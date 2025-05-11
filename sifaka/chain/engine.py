@@ -34,22 +34,16 @@ print(f"All validations passed: {result.all_passed}")
 ```
 """
 
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 import time
+from pydantic import BaseModel, PrivateAttr
 
 from .interfaces import Model, Validator, Improver, Formatter, ValidationResult
 from ..utils.state import StateManager
 from ..utils.logging import get_logger
 from .result import ChainResult
 from .config import EngineConfig
-from ..utils.errors import (
-    ChainError,
-    ModelError,
-    ValidationError,
-    ImproverError,
-    FormatterError,
-)
-from ..utils.error_patterns import safely_execute_chain as safely_execute
+from ..utils.errors import ChainError, safely_execute_chain
 from .managers.cache import CacheManager
 from .managers.retry import RetryManager
 
@@ -57,8 +51,18 @@ from .managers.retry import RetryManager
 logger = get_logger(__name__)
 
 
-class Engine:
+class Engine(BaseModel):
     """Core execution engine for the Sifaka chain system."""
+
+    # State management using StateManager
+    _state_manager: StateManager = PrivateAttr()
+
+    # Configuration
+    config: EngineConfig = EngineConfig()
+
+    # Managers
+    _cache_manager: CacheManager = PrivateAttr()
+    _retry_manager: RetryManager = PrivateAttr()
 
     def __init__(
         self,
@@ -72,28 +76,32 @@ class Engine:
             state_manager: State manager for state management
             config: Engine configuration
         """
+        # Initialize Pydantic model
+        super().__init__(config=config or EngineConfig())
+
+        # Set state manager
         self._state_manager = state_manager
-        self._config = config or EngineConfig()
 
         # Create managers
         self._cache_manager = CacheManager(
             state_manager=state_manager,
-            cache_enabled=self._config.params.get("cache_enabled", True),
-            cache_size=self._config.params.get("cache_size", 100),
+            cache_enabled=self.config.params.get("cache_enabled", True),
+            cache_size=self.config.params.get("cache_size", 100),
         )
 
         self._retry_manager = RetryManager(
             state_manager=state_manager,
-            max_attempts=self._config.max_attempts,
+            max_attempts=self.config.max_attempts,
         )
 
         # Initialize state
-        self._state_manager.update("config", self._config)
+        self._state_manager.update("config", self.config)
         self._state_manager.update("initialized", True)
         self._state_manager.update("execution_count", 0)
+        self._state_manager.update("cache", {})
 
         # Set metadata
-        self._state_manager.set_metadata("component_type", "engine")
+        self._state_manager.set_metadata("component_type", self.__class__.__name__)
         self._state_manager.set_metadata("creation_time", time.time())
 
     def run(
@@ -124,46 +132,78 @@ class Engine:
             ImproverError: If improver refinement fails
             FormatterError: If formatter formatting fails
         """
-        # Track execution count
-        execution_count = self._state_manager.get("execution_count", 0)
-        self._state_manager.update("execution_count", execution_count + 1)
 
-        # Check cache
-        if self._cache_manager.has_cached_result(prompt):
-            return self._cache_manager.get_cached_result(prompt)
+        # Define the run operation
+        def run_operation():
+            # Track execution count
+            execution_count = self._state_manager.get("execution_count", 0)
+            self._state_manager.update("execution_count", execution_count + 1)
 
-        # Record start time
-        start_time = time.time()
-        self._state_manager.set_metadata("execution_start_time", start_time)
+            # Check cache
+            if self._cache_manager.has_cached_result(prompt):
+                return self._cache_manager.get_cached_result(prompt)
 
+            # Record start time
+            start_time = time.time()
+            self._state_manager.set_metadata("execution_start_time", start_time)
+
+            try:
+                # Store components in state
+                self._state_manager.update("model", model)
+                self._state_manager.update("validators", validators)
+                self._state_manager.update("improver", improver)
+                self._state_manager.update("formatter", formatter)
+                self._state_manager.update("prompt", prompt)
+
+                # Initialize execution state
+                self._state_manager.update("attempt", 0)
+                self._state_manager.update("output", "")
+                self._state_manager.update("validation_results", [])
+                self._state_manager.update("all_passed", False)
+
+                # Execute with retries
+                result = self._retry_manager.execute_with_retries(
+                    generate_func=lambda: self._generate_output(prompt),
+                    validate_func=lambda output: self._validate_output(output),
+                    improve_func=lambda output, results: self._improve_output(output, results),
+                    prompt=prompt,
+                    create_result_func=self._create_result,
+                )
+
+                # Cache result
+                self._cache_manager.cache_result(prompt, result)
+
+                return result
+
+            finally:
+                # Record execution time
+                end_time = time.time()
+                execution_time = end_time - start_time
+                self._state_manager.set_metadata("last_execution_time", execution_time)
+
+                # Update average execution time
+                avg_time = self._state_manager.get_metadata("avg_execution_time", 0)
+                count = execution_count + 1
+                new_avg = (avg_time * (count - 1) + execution_time) / count
+                self._state_manager.set_metadata("avg_execution_time", new_avg)
+
+                # Update max execution time
+                max_time = self._state_manager.get_metadata("max_execution_time", 0)
+                if execution_time > max_time:
+                    self._state_manager.set_metadata("max_execution_time", execution_time)
+
+        # Use the standardized safely_execute_chain function
         try:
-            # Store components in state
-            self._state_manager.update("model", model)
-            self._state_manager.update("validators", validators)
-            self._state_manager.update("improver", improver)
-            self._state_manager.update("formatter", formatter)
-            self._state_manager.update("prompt", prompt)
-
-            # Initialize execution state
-            self._state_manager.update("attempt", 0)
-            self._state_manager.update("output", "")
-            self._state_manager.update("validation_results", [])
-            self._state_manager.update("all_passed", False)
-
-            # Execute with retries
-            result = self._retry_manager.execute_with_retries(
-                generate_func=lambda: self._generate_output(prompt),
-                validate_func=lambda output: self._validate_output(output),
-                improve_func=lambda output, results: self._improve_output(output, results),
-                prompt=prompt,
-                create_result_func=self._create_result,
+            return safely_execute_chain(
+                operation=run_operation,
+                component_name=self.__class__.__name__,
+                additional_metadata={
+                    "prompt_length": len(prompt),
+                    "validator_count": len(validators),
+                    "has_improver": improver is not None,
+                    "has_formatter": formatter is not None,
+                },
             )
-
-            # Cache result
-            self._cache_manager.cache_result(prompt, result)
-
-            return result
-
         except Exception as e:
             # Track error
             error_count = self._state_manager.get_metadata("error_count", 0)
@@ -176,23 +216,6 @@ class Engine:
 
             # Raise as chain error
             raise ChainError(f"Engine execution failed: {str(e)}")
-
-        finally:
-            # Record execution time
-            end_time = time.time()
-            execution_time = end_time - start_time
-            self._state_manager.set_metadata("last_execution_time", execution_time)
-
-            # Update average execution time
-            avg_time = self._state_manager.get_metadata("avg_execution_time", 0)
-            count = execution_count + 1
-            new_avg = (avg_time * (count - 1) + execution_time) / count
-            self._state_manager.set_metadata("avg_execution_time", new_avg)
-
-            # Update max execution time
-            max_time = self._state_manager.get_metadata("max_execution_time", 0)
-            if execution_time > max_time:
-                self._state_manager.set_metadata("max_execution_time", execution_time)
 
     def _generate_output(self, prompt: str) -> str:
         """
@@ -212,11 +235,10 @@ class Engine:
         def generate_operation():
             return model.generate(prompt)
 
-        return safely_execute(
+        return safely_execute_chain(
             operation=generate_operation,
             component_name="model",
-            component_type="Model",
-            error_class=ModelError,
+            additional_metadata={"method": "generate", "prompt_length": len(prompt)},
         )
 
     def _validate_output(self, output: str) -> List[ValidationResult]:
@@ -240,17 +262,20 @@ class Engine:
             def validate_operation():
                 return validator.validate(output)
 
-            result = safely_execute(
+            result = safely_execute_chain(
                 operation=validate_operation,
                 component_name=f"validator_{i}",
-                component_type="Validator",
-                error_class=ValidationError,
+                additional_metadata={
+                    "method": "validate",
+                    "validator_type": validator.__class__.__name__,
+                    "output_length": len(output),
+                },
             )
 
             results.append(result)
 
             # If fail_fast is enabled and validation failed, stop
-            if self._config.params.get("fail_fast", False) and not result.passed:
+            if self.config.params.get("fail_fast", False) and not result.passed:
                 break
 
         return results
@@ -277,11 +302,15 @@ class Engine:
         def improve_operation():
             return improver.improve(output, validation_results)
 
-        return safely_execute(
+        return safely_execute_chain(
             operation=improve_operation,
             component_name="improver",
-            component_type="Improver",
-            error_class=ImproverError,
+            additional_metadata={
+                "method": "improve",
+                "improver_type": improver.__class__.__name__,
+                "output_length": len(output),
+                "validation_results_count": len(validation_results),
+            },
         )
 
     def _create_result(
@@ -328,11 +357,15 @@ class Engine:
                 return formatter.format(output, validation_results)
 
             try:
-                formatted_result = safely_execute(
+                formatted_result = safely_execute_chain(
                     operation=format_operation,
                     component_name="formatter",
-                    component_type="Formatter",
-                    error_class=FormatterError,
+                    additional_metadata={
+                        "method": "format",
+                        "formatter_type": formatter.__class__.__name__,
+                        "output_length": len(output),
+                        "validation_results_count": len(validation_results),
+                    },
                 )
 
                 # If formatter returns a ChainResult, use it

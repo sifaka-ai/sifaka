@@ -33,9 +33,9 @@ import time
 
 from ...utils.state import StateManager
 from ...utils.logging import get_logger
+from ...utils.errors import ChainError
 from ..interfaces import ValidationResult
 from ..result import ChainResult
-from ..errors import ChainError
 
 # Configure logger
 logger = get_logger(__name__)

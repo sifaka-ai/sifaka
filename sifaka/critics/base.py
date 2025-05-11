@@ -100,6 +100,7 @@ from typing import (
     Protocol,
     Type,
     TypeVar,
+    TYPE_CHECKING,
     overload,
     runtime_checkable,
 )
@@ -108,14 +109,22 @@ from sifaka.core.base import (
     BaseComponent,
     BaseResult,
 )
-from sifaka.utils.errors import CriticError, try_component_operation
-from sifaka.utils.error_patterns import safely_execute_critic, create_critic_error_result
+from sifaka.utils.errors import (
+    CriticError,
+    try_component_operation,
+    safely_execute_component_operation as safely_execute_critic,
+    create_error_result as create_critic_error_result,
+)
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 # Import the Pydantic models
 from .config import CriticConfig, CriticMetadata
+
+# Also import for type checking to ensure proper IDE support
+if TYPE_CHECKING:
+    pass  # Already imported above
 
 # Default configuration values
 DEFAULT_MIN_CONFIDENCE = 0.7
