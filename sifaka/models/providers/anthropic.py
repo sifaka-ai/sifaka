@@ -156,15 +156,11 @@ class AnthropicProvider(ModelProviderProtocol):
 
         self._state_manager = StateManager()
 
-        # Store dependencies for lazy initialization
-        self._model_name = model_name
-        self._config = config or ModelConfig()
-        self._api_client = api_client
-        self._token_counter = token_counter
-
-        # Initialize state
+        # Initialize state with all dependencies
         self._state_manager.update("model_name", model_name)
-        self._state_manager.update("config", self._config)
+        self._state_manager.update("config", config or ModelConfig())
+        self._state_manager.update("api_client", api_client)
+        self._state_manager.update("token_counter", token_counter)
         self._state_manager.update("initialized", False)
         self._state_manager.update(
             "stats",
@@ -332,26 +328,36 @@ class AnthropicProvider(ModelProviderProtocol):
         from sifaka.models.managers.anthropic_client import AnthropicClientManager
         from sifaka.models.managers.anthropic_token_counter import AnthropicTokenCounterManager
 
-        # Create managers if they don't exist
-        if not hasattr(self, "_client_manager"):
-            self._client_manager = AnthropicClientManager(
-                model_name=self._model_name,
-                config=self._config,
-                api_client=self._api_client,
-            )
+        # Get dependencies from state
+        model_name = self._state_manager.get("model_name")
+        config = self._state_manager.get("config")
+        api_client = self._state_manager.get("api_client")
+        token_counter = self._state_manager.get("token_counter")
 
-        if not hasattr(self, "_token_counter_manager"):
-            self._token_counter_manager = AnthropicTokenCounterManager(
-                model_name=self._model_name,
-                token_counter=self._token_counter,
+        # Create managers if they don't exist in state
+        if not self._state_manager.get("client_manager"):
+            client_manager = AnthropicClientManager(
+                model_name=model_name,
+                config=config,
+                api_client=api_client,
             )
+            self._state_manager.update("client_manager", client_manager)
+
+        if not self._state_manager.get("token_counter_manager"):
+            token_counter_manager = AnthropicTokenCounterManager(
+                model_name=model_name,
+                token_counter=token_counter,
+            )
+            self._state_manager.update("token_counter_manager", token_counter_manager)
 
         # Initialize client
-        client = self._client_manager.get_client()
+        client_manager = self._state_manager.get("client_manager")
+        client = client_manager.get_client()
         self._state_manager.update("client", client)
 
         # Initialize token counter
-        token_counter = self._token_counter_manager.get_token_counter()
+        token_counter_manager = self._state_manager.get("token_counter_manager")
+        token_counter = token_counter_manager.get_token_counter()
         self._state_manager.update("token_counter", token_counter)
 
         # Mark as initialized
@@ -455,8 +461,13 @@ class AnthropicProvider(ModelProviderProtocol):
         # Get client from state
         client = self._state_manager.get("client")
         if client is None:
-            client = self._client_manager.get_client()
-            self._state_manager.update("client", client)
+            client_manager = self._state_manager.get("client_manager")
+            if client_manager is None:
+                self.warm_up()
+                client = self._state_manager.get("client")
+            else:
+                client = client_manager.get_client()
+                self._state_manager.update("client", client)
 
         # Get config from state
         config = self._state_manager.get("config")

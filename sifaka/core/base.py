@@ -12,13 +12,13 @@ specialized components like rules, critics, classifiers, and chains.
 ## Components
 - **BaseComponent**: Abstract base class for all Sifaka components
 - **BaseConfig**: Configuration class for all components
-- **BaseResult**: Result class for all component operations
 - **Validatable**: Protocol for components that can validate inputs
 - **ComponentResultEnum**: Enumeration of possible component results
 
 ## Usage Examples
 ```python
-from sifaka.core.base import BaseComponent, BaseConfig, BaseResult
+from sifaka.core.base import BaseComponent, BaseConfig
+from sifaka.utils.result_types import BaseResult
 
 # Create a custom component
 class MyComponent(BaseComponent[str, BaseResult]):
@@ -76,6 +76,7 @@ from sifaka.utils.common import update_statistics, record_error
 from sifaka.utils.errors import InitializationError
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import StateManager
+from sifaka.utils.result_types import BaseResult
 
 logger = get_logger(__name__)
 
@@ -159,111 +160,6 @@ class BaseConfig(BaseModel):
     model_config = ConfigDict(
         arbitrary_types_allowed=True, validate_assignment=True, extra="forbid"
     )
-
-
-class BaseResult(BaseModel, Generic[T]):
-    """
-    Base result for all components.
-
-    This class provides a standardized result model for all Sifaka components,
-    defining common result fields that are shared across different component types.
-
-    ## Architecture
-    BaseResult uses Pydantic for validation and serialization, with:
-    - Type validation for all fields
-    - Default values for optional fields
-    - Field descriptions for documentation
-    - Immutable results (frozen=True)
-    - Generic type parameter for input type
-
-    ## Lifecycle
-    Result objects are created by component processing methods and returned to callers.
-    They contain information about the processing outcome, including success/failure,
-    confidence scores, issues, and suggestions for improvement.
-
-    ## Examples
-    ```python
-    # Create a basic result
-    result = BaseResult(
-        passed=True,
-        message="Validation passed",
-        score=0.85,
-        issues=["Minor formatting issue"],
-        suggestions=["Consider adding more details"]
-    )
-
-    # Access result values
-    print(f"Passed: {result.passed}")
-    print(f"Score: {result.score}")
-    print(f"Issues: {', '.join(result.issues)}")
-
-    # Create a result with metadata
-    result_with_metadata = result.with_metadata(
-        model_name="gpt-4",
-        tokens_used=150
-    )
-    ```
-
-    Attributes:
-        passed: Whether the validation passed
-        message: Result message
-        metadata: Dictionary of additional metadata
-        score: Confidence score (0.0 to 1.0)
-        issues: List of identified issues
-        suggestions: List of improvement suggestions
-        processing_time_ms: Processing time in milliseconds
-        timestamp: Result timestamp
-    """
-
-    passed: bool
-    message: str
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    score: float = Field(default=0.0, ge=0.0, le=1.0)
-    issues: List[str] = Field(default_factory=list)
-    suggestions: List[str] = Field(default_factory=list)
-    processing_time_ms: float = Field(default=0.0, ge=0.0)
-    timestamp: datetime = Field(default_factory=datetime.now)
-
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True, validate_assignment=True, extra="forbid"
-    )
-
-    def with_metadata(self, **kwargs: Any) -> "BaseResult":
-        """Create a new result with additional metadata."""
-        return self.model_copy(update={"metadata": {**self.metadata, **kwargs}})
-
-    def with_issues(self, issues: List[str]) -> "BaseResult":
-        """Create a new result with updated issues."""
-        return self.model_copy(update={"issues": issues})
-
-    def with_suggestions(self, suggestions: List[str]) -> "BaseResult":
-        """Create a new result with updated suggestions."""
-        return self.model_copy(update={"suggestions": suggestions})
-
-    def with_score(self, score: float) -> "BaseResult":
-        """Create a new result with updated score."""
-        return self.model_copy(update={"score": score})
-
-    def normalize_score(self, min_score: float = 0.0, max_score: float = 1.0) -> "BaseResult":
-        """Normalize the score to a given range."""
-        if max_score <= min_score:
-            raise ValueError("max_score must be greater than min_score")
-
-        normalized = (self.score - min_score) / (max_score - min_score)
-        return self.with_score(max(0.0, min(1.0, normalized)))
-
-    def combine(self, other: "BaseResult") -> "BaseResult":
-        """Combine this result with another result."""
-        return BaseResult(
-            passed=self.passed and other.passed,
-            message=f"{self.message} | {other.message}",
-            metadata={**self.metadata, **other.metadata},
-            score=(self.score + other.score) / 2,
-            issues=[*self.issues, *other.issues],
-            suggestions=[*self.suggestions, *other.suggestions],
-            processing_time_ms=self.processing_time_ms + other.processing_time_ms,
-            timestamp=max(self.timestamp, other.timestamp),
-        )
 
 
 @runtime_checkable
@@ -407,6 +303,7 @@ class BaseComponent(ABC, Generic[T, R]):
 
     def handle_empty_input(self, input: str) -> Optional[BaseResult]:
         """Handle empty input validation."""
+        # Import here to avoid circular imports
         from sifaka.utils.text import is_empty_text, handle_empty_text
 
         # Use the standardized function with passed=False for core components

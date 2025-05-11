@@ -110,7 +110,7 @@ from typing_extensions import TypeGuard
 from pydantic import ConfigDict
 
 from sifaka.classifiers.classifier import Classifier
-from sifaka.core.results import ClassificationResult
+from sifaka.utils.result_types import ClassificationResult
 from sifaka.utils.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
@@ -431,7 +431,7 @@ class ToxicityClassifier(Classifier):
         # Default case: content is non-toxic but with lower confidence
         return "non_toxic", confidence
 
-    def _classify_impl_uncached(self, text: str) -> ClassificationResult[Any, str]:
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
         """
         Implement toxicity classification logic without caching.
 
@@ -477,10 +477,12 @@ class ToxicityClassifier(Classifier):
             label, confidence = self._get_toxicity_label(scores)
 
             # Create the result
-            result = ClassificationResult[str](
+            result = ClassificationResult(
                 label=label,
                 confidence=confidence,
                 metadata={"all_scores": scores},
+                passed=True,
+                message=f"Text classified as {label} with confidence {confidence:.2f}",
             )
 
             # Track statistics in state
@@ -497,7 +499,7 @@ class ToxicityClassifier(Classifier):
             # Use the standardized utility function
             record_error(self._state_manager, e)
 
-            return ClassificationResult[str](
+            return ClassificationResult(
                 label="unknown",
                 confidence=0.0,
                 metadata={
@@ -505,9 +507,11 @@ class ToxicityClassifier(Classifier):
                     "error_type": type(e).__name__,
                     "reason": "classification_error",
                 },
+                passed=False,
+                message=f"Classification failed: {str(e)}",
             )
 
-    def batch_classify(self, texts: List[str]) -> List[ClassificationResult[Any, str]]:
+    def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
         """
         Classify multiple texts efficiently.
 
@@ -573,10 +577,12 @@ class ToxicityClassifier(Classifier):
                 label, confidence = self._get_toxicity_label(scores)
 
                 non_empty_results.append(
-                    ClassificationResult[str](
+                    ClassificationResult(
                         label=label,
                         confidence=confidence,
                         metadata={"all_scores": scores},
+                        passed=True,
+                        message=f"Text classified as {label} with confidence {confidence:.2f}",
                     )
                 )
 
@@ -601,7 +607,7 @@ class ToxicityClassifier(Classifier):
 
             # Create error results for non-empty texts
             error_results = [
-                ClassificationResult[str](
+                ClassificationResult(
                     label="unknown",
                     confidence=0.0,
                     metadata={
@@ -609,6 +615,8 @@ class ToxicityClassifier(Classifier):
                         "error_type": type(e).__name__,
                         "reason": "batch_classification_error",
                     },
+                    passed=False,
+                    message=f"Classification failed: {str(e)}",
                 )
                 for _ in non_empty_texts
             ]

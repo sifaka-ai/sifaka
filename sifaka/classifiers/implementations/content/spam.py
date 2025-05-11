@@ -592,9 +592,9 @@ class SpamClassifier(Classifier):
             "max_features": self.config.params.get("max_features", 1000),
         }
 
-        # Add cache hit ratio if caching is enabled
-        if hasattr(self, "_result_cache"):
-            stats["cache_entries"] = len(self._result_cache)
+        # Add cache entries count if caching is enabled
+        if self.config.cache_enabled:
+            stats["cache_entries"] = len(self._state_manager.get("result_cache", {}))
 
         return stats
 
@@ -602,7 +602,7 @@ class SpamClassifier(Classifier):
         """
         Clear any cached data in the classifier.
 
-        This method clears both the result cache and resets statistics in the state
+        This method clears the result cache and resets statistics in the state
         but preserves the model and initialization status. This is useful for
         freeing up memory or resetting usage statistics while keeping the trained
         model intact.
@@ -613,9 +613,8 @@ class SpamClassifier(Classifier):
         - Clears error logs
         - Preserves the trained model and pipeline
         """
-        # Clear classification result cache
-        if hasattr(self, "_result_cache"):
-            self._result_cache.clear()
+        # Clear result cache using standardized state management
+        self._state_manager.update("result_cache", {})
 
         # Reset statistics
         self._state_manager.update("statistics", {})

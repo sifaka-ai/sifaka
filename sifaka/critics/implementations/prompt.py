@@ -289,6 +289,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
 
             # Create prompt manager if needed
             if not self._state_manager.get("prompt_manager"):
+                # Import here to avoid circular dependencies
                 from sifaka.core.managers.prompt_factories import PromptCriticPromptManager
 
                 prompt_factory = self._state_manager.get("prompt_factory")
@@ -298,12 +299,14 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
 
             # Create response parser if needed
             if not self._state_manager.get("response_parser"):
+                # Import here to avoid circular dependencies
                 from ..managers.response import ResponseParser
 
                 self._state_manager.update("response_parser", ResponseParser())
 
             # Create memory manager if needed
             if not self._state_manager.get("memory_manager"):
+                # Import here to avoid circular dependencies
                 from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
 
                 self._state_manager.update(
@@ -314,6 +317,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             # Create critique service if needed
             cache = self._state_manager.get("cache", {})
             if "critique_service" not in cache:
+                # Import here to avoid circular dependencies
                 from ..services.critique import CritiqueService
 
                 cache["critique_service"] = CritiqueService(

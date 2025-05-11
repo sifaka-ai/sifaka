@@ -91,14 +91,17 @@ critiquing, validating, and improving text.
 """
 
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 from pydantic import BaseModel, PrivateAttr
 
-from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
-from sifaka.core.managers.prompt import CriticPromptManager as PromptManager
-from ..managers.response import ResponseParser
+# Import types for type checking only
+if TYPE_CHECKING:
+    from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
+    from sifaka.core.managers.prompt import CriticPromptManager as PromptManager
+    from ..managers.response import ResponseParser
+
 from ...utils.logging import get_logger
-from ...utils.error_patterns import safely_execute_critic
+from ...utils.errors import safely_execute_component_operation as safely_execute_critic
 from ...utils.state import StateManager, create_critic_state
 
 logger = get_logger(__name__)
@@ -183,9 +186,9 @@ class CritiqueService(BaseModel):
     def __init__(
         self,
         llm_provider: Any,
-        prompt_manager: PromptManager,
-        response_parser: ResponseParser,
-        memory_manager: Optional[MemoryManager] = None,
+        prompt_manager: Any,  # Type as Any to avoid circular imports
+        response_parser: Any,  # Type as Any to avoid circular imports
+        memory_manager: Optional[Any] = None,  # Type as Any to avoid circular imports
     ):
         """
         Initialize a CritiqueService instance.

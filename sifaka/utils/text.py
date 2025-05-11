@@ -59,18 +59,7 @@ def classify(text: str) -> ClassificationResult[str]:
 
 from typing import Dict, Optional, Any
 
-from sifaka.core.base import BaseResult
-
-
-class ClassificationResult(BaseResult):
-    """
-    Base result for classification operations.
-
-    This is a simplified version that can be used in utils without importing from classifiers.
-    """
-
-    label: Any
-    confidence: float = 0.0
+from sifaka.utils.result_types import BaseResult, ClassificationResult
 
 
 def is_empty_text(text: str) -> bool:
@@ -112,6 +101,7 @@ def handle_empty_text(
     passed: bool = True,
     message: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
+    component_type: str = "component",
 ) -> Optional[BaseResult]:
     """
     Standardized handling for empty text validation.
@@ -134,6 +124,7 @@ def handle_empty_text(
         passed: Whether empty text should pass validation (default: True)
         message: Custom message for the result (default: based on passed value)
         metadata: Additional metadata to include in the result
+        component_type: Type of component calling this function (for logging)
 
     Returns:
         BaseResult if text is empty, None otherwise
@@ -160,7 +151,7 @@ def handle_empty_text(
         message = "Empty text validation skipped" if passed else "Empty text provided"
 
     # Set default metadata
-    final_metadata = {"reason": "empty_input"}
+    final_metadata = {"reason": "empty_input", "component_type": component_type}
     if metadata:
         final_metadata.update(metadata)
 

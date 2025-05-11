@@ -652,11 +652,11 @@ class ProfanityClassifier(Classifier):
         """
         Clear any cached data in the classifier.
 
-        This method clears both the result cache and any cached data in the state.
+        This method clears the result cache and resets statistics in the state
+        while preserving the profanity checker.
         """
-        # Clear classification result cache
-        if hasattr(self, "_result_cache"):
-            self._result_cache.clear()
+        # Clear result cache using standardized state management
+        self._state_manager.update("result_cache", {})
 
         # Reset state cache but keep the checker
         checker = self._state_manager.get("cache", {}).get("checker")
