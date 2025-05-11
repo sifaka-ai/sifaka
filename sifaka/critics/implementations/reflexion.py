@@ -511,8 +511,10 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
 
             # Track performance
             if self.config.track_performance:
-                total_time = self._state.get_metadata("total_feedback_improvement_time_ms", 0.0)
-                self._state.set_metadata(
+                total_time = self._state_manager.get_metadata(
+                    "total_feedback_improvement_time_ms", 0.0
+                )
+                self._state_manager.set_metadata(
                     "total_feedback_improvement_time_ms",
                     total_time + (time.time() - start_time) * 1000,
                 )
@@ -540,7 +542,7 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
 
         try:
             # Ensure initialized
-            if not self._state.get("initialized", False):
+            if not self._state_manager.get("initialized", False):
                 raise RuntimeError("ReflexionCritic not properly initialized")
 
             # Validate input
@@ -548,14 +550,14 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
                 raise ValueError("text must be a non-empty string")
 
             # Get critique service from state
-            cache = self._state.get("cache", {})
+            cache = self._state_manager.get("cache", {})
             critique_service = cache.get("critique_service")
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
             # Track critique count
-            critique_count = self._state.get_metadata("critique_count", 0)
-            self._state.set_metadata("critique_count", critique_count + 1)
+            critique_count = self._state_manager.get_metadata("critique_count", 0)
+            self._state_manager.set_metadata("critique_count", critique_count + 1)
 
             # Delegate to critique service
             critique_result = critique_service.critique(text)
@@ -572,15 +574,15 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             )
 
             # Track score distribution
-            score_distribution = self._state.get_metadata("score_distribution", {})
+            score_distribution = self._state_manager.get_metadata("score_distribution", {})
             score_bucket = round(result.score * 10) / 10  # Round to nearest 0.1
             score_distribution[str(score_bucket)] = score_distribution.get(str(score_bucket), 0) + 1
-            self._state.set_metadata("score_distribution", score_distribution)
+            self._state_manager.set_metadata("score_distribution", score_distribution)
 
             # Track performance
             if self.config.track_performance:
-                total_time = self._state.get_metadata("total_critique_time_ms", 0.0)
-                self._state.set_metadata(
+                total_time = self._state_manager.get_metadata("total_critique_time_ms", 0.0)
+                self._state_manager.set_metadata(
                     "total_critique_time_ms", total_time + (time.time() - start_time) * 1000
                 )
 
@@ -607,16 +609,20 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             Dictionary with usage statistics
         """
         return {
-            "validation_count": self._state.get_metadata("validation_count", 0),
-            "valid_count": self._state.get_metadata("valid_count", 0),
-            "invalid_count": self._state.get_metadata("invalid_count", 0),
-            "critique_count": self._state.get_metadata("critique_count", 0),
-            "improvement_count": self._state.get_metadata("improvement_count", 0),
-            "score_distribution": self._state.get_metadata("score_distribution", {}),
-            "total_validation_time_ms": self._state.get_metadata("total_validation_time_ms", 0),
-            "total_critique_time_ms": self._state.get_metadata("total_critique_time_ms", 0),
-            "total_improvement_time_ms": self._state.get_metadata("total_improvement_time_ms", 0),
-            "total_feedback_improvement_time_ms": self._state.get_metadata(
+            "validation_count": self._state_manager.get_metadata("validation_count", 0),
+            "valid_count": self._state_manager.get_metadata("valid_count", 0),
+            "invalid_count": self._state_manager.get_metadata("invalid_count", 0),
+            "critique_count": self._state_manager.get_metadata("critique_count", 0),
+            "improvement_count": self._state_manager.get_metadata("improvement_count", 0),
+            "score_distribution": self._state_manager.get_metadata("score_distribution", {}),
+            "total_validation_time_ms": self._state_manager.get_metadata(
+                "total_validation_time_ms", 0
+            ),
+            "total_critique_time_ms": self._state_manager.get_metadata("total_critique_time_ms", 0),
+            "total_improvement_time_ms": self._state_manager.get_metadata(
+                "total_improvement_time_ms", 0
+            ),
+            "total_feedback_improvement_time_ms": self._state_manager.get_metadata(
                 "total_feedback_improvement_time_ms", 0
             ),
         }

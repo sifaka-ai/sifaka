@@ -92,8 +92,8 @@ critiquing, validating, and improving text.
 
 from typing import Any, Dict, List, Optional, Union
 
-from ..managers.memory import MemoryManager
-from ..managers.prompt import PromptManager
+from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
+from sifaka.core.managers.prompt import CriticPromptManager as PromptManager
 from ..managers.response import ResponseParser
 from ...utils.logging import get_logger
 
@@ -378,9 +378,7 @@ class CritiqueService:
 
         return feedback.strip()
 
-    def _generate_reflection(
-        self, original_text: str, feedback: str, improved_text: str
-    ) -> None:
+    def _generate_reflection(self, original_text: str, feedback: str, improved_text: str) -> None:
         """
         Generate a reflection on the improvement.
 

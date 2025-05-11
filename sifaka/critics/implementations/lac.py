@@ -950,7 +950,7 @@ class ValueCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover,
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-        if not self._state_manager.initialized:
+        if not self._state_manager.get("initialized", False):
             raise RuntimeError("ValueCritic not properly initialized")
 
     def _get_task_from_metadata(self, metadata: Optional[Dict[str, Any]]) -> str:
@@ -988,25 +988,27 @@ class ValueCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover,
         self._check_input(response)
 
         # Create value prompt
-        prompt = self._state_manager.cache.get("value_prompt_template", "").format(
+        cache = self._state_manager.get("cache", {})
+        prompt = cache.get("value_prompt_template", "").format(
             task=task,
             response=response,
         )
 
         # Generate value
-        value_text = self._state_manager.model.generate(
+        model = self._state_manager.get("model")
+        value_text = model.generate(
             prompt,
-            system_prompt=self._state_manager.cache.get("system_prompt", ""),
-            temperature=self._state_manager.cache.get("temperature", 0.3),
-            max_tokens=self._state_manager.cache.get("max_tokens", 100),
+            system_prompt=cache.get("system_prompt", ""),
+            temperature=cache.get("temperature", 0.3),
+            max_tokens=cache.get("max_tokens", 100),
         ).strip()
 
         # Parse value
         try:
             value = float(value_text)
             # Clamp value to range
-            min_score = self._state_manager.cache.get("min_score", 0.0)
-            max_score = self._state_manager.cache.get("max_score", 1.0)
+            min_score = cache.get("min_score", 0.0)
+            max_score = cache.get("max_score", 1.0)
             value = max(min_score, min(max_score, value))
         except ValueError:
             # Default value if parsing fails

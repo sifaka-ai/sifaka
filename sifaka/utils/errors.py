@@ -35,12 +35,15 @@ The module provides standardized error handling patterns:
 1. **try_operation**: Execute an operation with standardized error handling
 2. **handle_error**: Process an error and return standardized metadata
 3. **log_error**: Log an error with standardized formatting
+4. **safely_execute_component_operation**: Safely execute a component operation with standardized error handling
+5. **Component-specific error handlers**: Specialized error handlers for different component types
 
 ## Usage Examples
 
 ```python
 from sifaka.utils.errors import (
-    SifakaError, ValidationError, try_operation, handle_error
+    SifakaError, ValidationError, try_operation, handle_error,
+    safely_execute_chain, ErrorResult
 )
 
 # Using exception classes
@@ -64,11 +67,31 @@ result = try_operation(
     default_value=None,
     log_level="error"
 )
+
+# Using component-specific error handlers
+try:
+    # Chain operation
+    result = chain.run(prompt)
+except Exception as e:
+    # Handle chain error
+    error_result = handle_chain_error(e, component_name="MyChain")
+    print(f"Chain error: {error_result.error_message}")
+
+# Using safely_execute_component_operation
+result = safely_execute_chain(
+    lambda: chain.run(prompt),
+    component_name="MyChain"
+)
+if isinstance(result, ErrorResult):
+    print(f"Chain error: {result.error_message}")
+else:
+    print(f"Chain result: {result}")
 ```
 """
 
 import traceback
-from typing import Any, Callable, Dict, Optional, Type, TypeVar
+from typing import Any, Callable, Dict, Optional, Type, TypeVar, Union, cast
+from pydantic import BaseModel
 
 from .logging import get_logger
 
@@ -100,8 +123,36 @@ __all__ = [
     "handle_error",
     "try_operation",
     "log_error",
-    # New standardized error handling functions
+    # Error result classes
+    "ErrorResult",
+    # Component-specific error handlers
+    "handle_component_error",
+    "create_error_handler",
+    "handle_chain_error",
+    "handle_model_error",
+    "handle_rule_error",
+    "handle_critic_error",
+    "handle_classifier_error",
+    "handle_retrieval_error",
+    # Error result creation functions
+    "create_error_result",
+    "create_error_result_factory",
+    "create_chain_error_result",
+    "create_model_error_result",
+    "create_rule_error_result",
+    "create_critic_error_result",
+    "create_classifier_error_result",
+    "create_retrieval_error_result",
+    # Safe execution functions
     "try_component_operation",
+    "safely_execute_component_operation",
+    "create_safe_execution_factory",
+    "safely_execute_chain",
+    "safely_execute_model",
+    "safely_execute_rule",
+    "safely_execute_critic",
+    "safely_execute_classifier",
+    "safely_execute_retrieval",
 ]
 
 # Type variable for return type
@@ -654,3 +705,350 @@ def log_error(
 
     # Log the error
     getattr(logger, log_level)(log_message, exc_info=True)
+
+
+class ErrorResult(BaseModel):
+    """Result of an error handling operation.
+
+    This model provides a standardized structure for error results,
+    including error type, message, and metadata.
+
+    Attributes:
+        error_type: Type of the error
+        error_message: Human-readable error message
+        component_name: Name of the component where the error occurred
+        metadata: Additional error context and details
+    """
+
+    error_type: str
+    error_message: str
+    component_name: str
+    metadata: Dict[str, Any] = {}
+
+
+# Generic component error handling
+
+
+def handle_component_error(
+    error: Exception,
+    component_name: str,
+    component_type: str,
+    error_class: Type[SifakaError],
+    log_level: str = "error",
+    include_traceback: bool = True,
+    additional_metadata: Optional[Dict[str, Any]] = None,
+) -> ErrorResult:
+    """Generic error handler for any component type.
+
+    This function handles errors for any component type, converting
+    generic exceptions to specific SifakaError types and returning
+    standardized error results.
+
+    Args:
+        error: The exception to handle
+        component_name: Name of the component where the error occurred
+        component_type: Type of the component (e.g., "Chain", "Model")
+        error_class: SifakaError subclass to use for conversion
+        log_level: Log level to use (default: "error")
+        include_traceback: Whether to include traceback in metadata
+        additional_metadata: Additional metadata to include
+
+    Returns:
+        Standardized error result
+    """
+    # Convert to specific error type if not already a SifakaError
+    if not isinstance(error, SifakaError):
+        error = error_class(
+            f"{component_type} error in {component_name}: {str(error)}",
+            metadata=additional_metadata,
+        )
+
+    # Handle the error
+    error_metadata = handle_error(
+        error,
+        component_name=f"{component_type}:{component_name}",
+        log_level=log_level,
+        include_traceback=include_traceback,
+        additional_metadata=additional_metadata,
+    )
+
+    # Return error result
+    return ErrorResult(
+        error_type=error_metadata["error_type"],
+        error_message=error_metadata["error_message"],
+        component_name=component_name,
+        metadata=error_metadata,
+    )
+
+
+# Error handler factory
+
+
+def create_error_handler(
+    component_type: str, error_class: Type[SifakaError]
+) -> Callable[[Exception, str, str, bool, Optional[Dict[str, Any]]], ErrorResult]:
+    """Create an error handler for a specific component type.
+
+    This factory function creates an error handler for a specific component type,
+    using the generic handle_component_error function with the appropriate
+    component type and error class.
+
+    Args:
+        component_type: Type of the component (e.g., "Chain", "Model")
+        error_class: SifakaError subclass to use for conversion
+
+    Returns:
+        An error handler function for the specified component type
+    """
+
+    def handler(
+        error: Exception,
+        component_name: str,
+        log_level: str = "error",
+        include_traceback: bool = True,
+        additional_metadata: Optional[Dict[str, Any]] = None,
+    ) -> ErrorResult:
+        return handle_component_error(
+            error=error,
+            component_name=component_name,
+            component_type=component_type,
+            error_class=error_class,
+            log_level=log_level,
+            include_traceback=include_traceback,
+            additional_metadata=additional_metadata,
+        )
+
+    # Set function name and docstring
+    handler.__name__ = f"handle_{component_type.lower()}_error"
+    handler.__doc__ = f"""Handle a {component_type.lower()} error and return a standardized error result.
+
+    Args:
+        error: The exception to handle
+        component_name: Name of the {component_type.lower()} where the error occurred
+        log_level: Log level to use (default: "error")
+        include_traceback: Whether to include traceback in metadata
+        additional_metadata: Additional metadata to include
+
+    Returns:
+        Standardized error result
+    """
+
+    return handler
+
+
+# Create specific error handlers using the factory
+handle_chain_error = create_error_handler("Chain", ChainError)
+handle_model_error = create_error_handler("Model", ModelError)
+handle_rule_error = create_error_handler("Rule", RuleError)
+handle_critic_error = create_error_handler("Critic", CriticError)
+handle_classifier_error = create_error_handler("Classifier", ClassifierError)
+handle_retrieval_error = create_error_handler("Retrieval", RetrievalError)
+
+
+# Generic error result creation function
+def create_error_result(
+    error: Exception,
+    component_name: str,
+    component_type: str,
+    error_class: Type[SifakaError],
+    log_level: str = "error",
+    include_traceback: bool = True,
+    additional_metadata: Optional[Dict[str, Any]] = None,
+) -> ErrorResult:
+    """Create a standardized error result for any component type.
+
+    This function creates a standardized error result for any component type,
+    using the appropriate error handler based on the component type.
+
+    Args:
+        error: The exception that occurred
+        component_name: Name of the component where the error occurred
+        component_type: Type of the component (e.g., "Chain", "Model")
+        error_class: SifakaError subclass to use for conversion
+        log_level: Log level to use (default: "error")
+        include_traceback: Whether to include traceback in metadata
+        additional_metadata: Additional metadata to include
+
+    Returns:
+        Standardized error result
+    """
+    return handle_component_error(
+        error=error,
+        component_name=component_name,
+        component_type=component_type,
+        error_class=error_class,
+        log_level=log_level,
+        include_traceback=include_traceback,
+        additional_metadata=additional_metadata,
+    )
+
+
+# Factory function for creating component-specific error result functions
+def create_error_result_factory(component_type: str, error_class: Type[SifakaError]) -> Callable:
+    """Create an error result factory for a specific component type.
+
+    This factory function creates an error result function for a specific component type,
+    using the generic create_error_result function with the appropriate component type and error class.
+
+    Args:
+        component_type: Type of the component (e.g., "Chain", "Model")
+        error_class: SifakaError subclass to use for conversion
+
+    Returns:
+        An error result function for the specified component type
+    """
+
+    def factory(
+        error: Exception,
+        component_name: str,
+        log_level: str = "error",
+        include_traceback: bool = True,
+        additional_metadata: Optional[Dict[str, Any]] = None,
+    ) -> ErrorResult:
+        """Create a standardized error result for a specific component type."""
+        return create_error_result(
+            error=error,
+            component_name=component_name,
+            component_type=component_type,
+            error_class=error_class,
+            log_level=log_level,
+            include_traceback=include_traceback,
+            additional_metadata=additional_metadata,
+        )
+
+    return factory
+
+
+# Create component-specific error result functions
+create_chain_error_result = create_error_result_factory("Chain", ChainError)
+create_model_error_result = create_error_result_factory("Model", ModelError)
+create_rule_error_result = create_error_result_factory("Rule", RuleError)
+create_critic_error_result = create_error_result_factory("Critic", CriticError)
+create_classifier_error_result = create_error_result_factory("Classifier", ClassifierError)
+create_retrieval_error_result = create_error_result_factory("Retrieval", RetrievalError)
+
+
+# Function to safely execute component operations with standardized error handling
+def safely_execute_component_operation(
+    operation: Callable[[], T],
+    component_name: str,
+    component_type: str,
+    error_class: Type[SifakaError],
+    default_result: Optional[Union[T, ErrorResult]] = None,
+    log_level: str = "error",
+    include_traceback: bool = True,
+    additional_metadata: Optional[Dict[str, Any]] = None,
+) -> Union[T, ErrorResult]:
+    """
+    Safely execute a component operation with standardized error handling.
+
+    This function executes an operation and handles any errors that occur,
+    providing standardized error handling and logging. It returns either
+    the operation result or an ErrorResult object.
+
+    Args:
+        operation: The operation to execute
+        component_name: Name of the component executing the operation
+        component_type: Type of the component (e.g., "Chain", "Model")
+        error_class: SifakaError subclass to use for wrapping generic exceptions
+        default_result: Value or ErrorResult to return if operation fails
+        log_level: Log level to use for errors
+        include_traceback: Whether to include traceback in error metadata
+        additional_metadata: Additional metadata to include in error
+
+    Returns:
+        Either the operation result or an ErrorResult object
+
+    Examples:
+        ```python
+        from sifaka.utils.errors import safely_execute_component_operation, ChainError
+
+        # Execute a chain operation safely
+        result = safely_execute_component_operation(
+            lambda: chain.run(prompt),
+            component_name="MyChain",
+            component_type="Chain",
+            error_class=ChainError
+        )
+
+        # Check if result is an error
+        if isinstance(result, ErrorResult):
+            print(f"Chain error: {result.error_message}")
+        else:
+            print(f"Chain result: {result}")
+        ```
+    """
+    try:
+        # Try to execute the operation
+        return try_component_operation(
+            operation=operation,
+            component_name=component_name,
+            component_type=component_type,
+            error_class=error_class,
+            log_level=log_level,
+            include_traceback=include_traceback,
+            additional_metadata=additional_metadata,
+        )
+    except Exception as e:
+        # If operation fails, create an error result
+        if default_result is not None:
+            return default_result
+
+        return create_error_result(
+            error=e,
+            component_name=component_name,
+            component_type=component_type,
+            error_class=error_class,
+            log_level=log_level,
+            include_traceback=include_traceback,
+            additional_metadata=additional_metadata,
+        )
+
+
+# Factory function for creating component-specific safe execution functions
+def create_safe_execution_factory(component_type: str, error_class: Type[SifakaError]) -> Callable:
+    """
+    Create a safe execution factory for a specific component type.
+
+    This factory function creates a safe execution function for a specific component type,
+    using the generic safely_execute_component_operation function with the appropriate
+    component type and error class.
+
+    Args:
+        component_type: Type of the component (e.g., "Chain", "Model")
+        error_class: SifakaError subclass to use for conversion
+
+    Returns:
+        A safe execution function for the specified component type
+    """
+
+    def factory(
+        operation: Callable[[], T],
+        component_name: str,
+        default_result: Optional[Union[T, ErrorResult]] = None,
+        log_level: str = "error",
+        include_traceback: bool = True,
+        additional_metadata: Optional[Dict[str, Any]] = None,
+    ) -> Union[T, ErrorResult]:
+        """Safely execute an operation for a specific component type."""
+        return safely_execute_component_operation(
+            operation=operation,
+            component_name=component_name,
+            component_type=component_type,
+            error_class=error_class,
+            default_result=default_result,
+            log_level=log_level,
+            include_traceback=include_traceback,
+            additional_metadata=additional_metadata,
+        )
+
+    return factory
+
+
+# Create component-specific safe execution functions
+safely_execute_chain = create_safe_execution_factory("Chain", ChainError)
+safely_execute_model = create_safe_execution_factory("Model", ModelError)
+safely_execute_rule = create_safe_execution_factory("Rule", RuleError)
+safely_execute_critic = create_safe_execution_factory("Critic", CriticError)
+safely_execute_classifier = create_safe_execution_factory("Classifier", ClassifierError)
+safely_execute_retrieval = create_safe_execution_factory("Retrieval", RetrievalError)

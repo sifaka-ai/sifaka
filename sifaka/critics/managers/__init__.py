@@ -16,12 +16,14 @@ This package provides specialized managers for different aspects of critics:
    - Validates response formats
    - Extracts structured data
    - Handles different response types
+   - Note: This is now imported from sifaka.core.managers.response
 
 3. **MemoryManager**
    - Manages memory for critics
    - Implements circular buffer
    - Handles memory retrieval
    - Supports memory clearing
+   - Note: This is now imported from sifaka.core.managers.memory
 
 ## Component Lifecycle
 
@@ -92,13 +94,14 @@ from sifaka.critics.managers import (
     MemoryManager,
     PromptManager,
     ResponseParser,
+    create_response_parser,
     DefaultPromptManager
 )
 
 # Create managers
 memory_manager = MemoryManager(buffer_size=5)
 prompt_manager = DefaultPromptManager()
-response_parser = ResponseParser()
+response_parser = create_response_parser()  # Use factory function
 
 # Use managers together
 text = "Sample text to process"
@@ -120,7 +123,7 @@ from sifaka.core.managers.prompt import (
     PromptCriticPromptManager,
     ReflexionCriticPromptManager,
 )
-from .response import ResponseParser
+from sifaka.core.managers.response import ResponseParser, create_response_parser
 
 __all__ = [
     "MemoryManager",
@@ -129,4 +132,5 @@ __all__ = [
     "PromptCriticPromptManager",
     "ReflexionCriticPromptManager",
     "ResponseParser",
+    "create_response_parser",
 ]

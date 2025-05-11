@@ -155,7 +155,7 @@ class ConstitutionalCritic(
 
         try:
             # Import required components
-            from ..managers.prompt_factories import ConstitutionalCriticPromptManager
+            from sifaka.core.managers.prompt_factories import ConstitutionalCriticPromptManager
             from ..managers.response import ResponseParser
             from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
             from ..services.critique import CritiqueService

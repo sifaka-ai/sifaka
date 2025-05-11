@@ -71,6 +71,40 @@ model = create_model_provider(
 
 from typing import Any, Dict, List, Optional, Type, TypeVar, Union, cast
 
+__all__ = [
+    # Core factory functions
+    "create_chain",
+    "create_critic",
+    "create_rule",
+    "create_classifier",
+    "create_retriever",
+    "create_adapter",
+    "create_model_provider",
+    # Rule factory functions
+    "create_length_rule",
+    "create_prohibited_content_rule",
+    "create_toxicity_rule",
+    "create_bias_rule",
+    "create_harmful_content_rule",
+    "create_sentiment_rule",
+    "create_structure_rule",
+    "create_markdown_rule",
+    "create_json_rule",
+    "create_plain_text_rule",
+    "create_format_rule",
+    # Critic factory functions
+    "create_prompt_critic",
+    "create_reflexion_critic",
+    "create_constitutional_critic",
+    "create_self_refine_critic",
+    "create_self_rag_critic",
+    "create_lac_critic",
+    # Model provider factory functions
+    "create_openai_provider",
+    "create_anthropic_provider",
+    "create_gemini_provider",
+]
+
 # Import component-specific factory functions
 from sifaka.chain.factories import create_simple_chain, create_backoff_chain
 from sifaka.critics.implementations import (
@@ -82,6 +116,21 @@ from sifaka.critics.implementations import (
     create_lac_critic,
 )
 from sifaka.rules.factories import create_rule as create_rule_base
+from sifaka.rules.content.prohibited import create_prohibited_content_rule
+from sifaka.rules.content.safety import (
+    create_toxicity_rule,
+    create_bias_rule,
+    create_harmful_content_rule,
+)
+from sifaka.rules.content.sentiment import create_sentiment_rule
+from sifaka.rules.formatting.length import create_length_rule
+from sifaka.rules.formatting.structure import create_structure_rule
+from sifaka.rules.formatting.format import (
+    create_markdown_rule,
+    create_json_rule,
+    create_plain_text_rule,
+    create_format_rule,
+)
 from sifaka.classifiers.factories import (
     create_toxicity_classifier,
     create_sentiment_classifier,
@@ -250,7 +299,7 @@ def create_rule(
     simplifying the creation of rules with common configurations.
 
     Args:
-        rule_type: The type of rule to create
+        rule_type: The type of rule to create (e.g., "length", "prohibited_content", "toxicity")
         name: Optional name for the rule
         description: Optional description for the rule
         **kwargs: Additional keyword arguments for the rule
@@ -265,13 +314,81 @@ def create_rule(
     name = name or f"{rule_type}_rule"
     description = description or f"{rule_type.capitalize()} rule"
 
-    # Create rule using the base factory function
-    return create_rule_base(
-        rule_type=rule_type,
-        name=name,
-        description=description,
-        **kwargs,
-    )
+    # Create rule based on type
+    if rule_type == "length":
+        return create_length_rule(
+            name=name,
+            description=description,
+            **kwargs,
+        )
+    elif rule_type == "prohibited_content":
+        return create_prohibited_content_rule(
+            name=name,
+            description=description,
+            **kwargs,
+        )
+    elif rule_type == "toxicity":
+        return create_toxicity_rule(
+            name=name,
+            description=description,
+            **kwargs,
+        )
+    elif rule_type == "bias":
+        return create_bias_rule(
+            name=name,
+            description=description,
+            **kwargs,
+        )
+    elif rule_type == "harmful_content":
+        return create_harmful_content_rule(
+            name=name,
+            description=description,
+            **kwargs,
+        )
+    elif rule_type == "sentiment":
+        return create_sentiment_rule(
+            name=name,
+            description=description,
+            **kwargs,
+        )
+    elif rule_type == "structure":
+        return create_structure_rule(
+            name=name,
+            description=description,
+            **kwargs,
+        )
+    elif rule_type == "markdown":
+        return create_markdown_rule(
+            name=name,
+            description=description,
+            **kwargs,
+        )
+    elif rule_type == "json":
+        return create_json_rule(
+            name=name,
+            description=description,
+            **kwargs,
+        )
+    elif rule_type == "plain_text":
+        return create_plain_text_rule(
+            name=name,
+            description=description,
+            **kwargs,
+        )
+    elif rule_type == "format":
+        return create_format_rule(
+            name=name,
+            description=description,
+            **kwargs,
+        )
+    else:
+        # For custom or unrecognized rule types, use the base factory function
+        return create_rule_base(
+            rule_type=rule_type,
+            name=name,
+            description=description,
+            **kwargs,
+        )
 
 
 def create_classifier(

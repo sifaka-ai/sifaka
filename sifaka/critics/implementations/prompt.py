@@ -126,7 +126,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
 
         try:
             # Create components
-            from sifaka.core.managers.prompt import PromptCriticPromptManager
+            from sifaka.core.managers.prompt_factories import PromptCriticPromptManager
             from ..managers.response import ResponseParser
             from ..services.critique import CritiqueService
             from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
@@ -873,7 +873,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
 
             # Create prompt manager if needed
             if not self._state_manager.get("prompt_manager"):
-                from ..managers.prompt_factories import PromptCriticPromptManager
+                from sifaka.core.managers.prompt_factories import PromptCriticPromptManager
 
                 self._state_manager.update("prompt_manager", PromptCriticPromptManager(self.config))
 

@@ -66,7 +66,7 @@ from .result import ChainResult
 from .interfaces import Model, Validator, Improver, Formatter, Plugin
 
 # Factory functions
-from .factories import create_chain
+from sifaka.core.factories import create_chain
 
 # State management
 from ..utils.state import StateManager, create_chain_state
@@ -82,8 +82,6 @@ __all__ = [
     "Improver",
     "Formatter",
     "Plugin",
-    # Factory functions
-    "create_chain",
     # State management
     "StateManager",
     "create_chain_state",

@@ -5,6 +5,7 @@ This module provides shared base classes and utilities used by both critics and 
 implementing common patterns for state management, configuration, and error handling.
 """
 
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 from enum import Enum, auto
@@ -25,6 +26,7 @@ from typing import (
 from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 
 from sifaka.utils.common import update_statistics, record_error
+from sifaka.utils.errors import InitializationError
 from sifaka.utils.logging import get_logger
 from sifaka.utils.patterns import ValidationPattern
 from sifaka.utils.state import StateManager
@@ -337,18 +339,141 @@ class BaseComponent(ABC, Generic[T, R]):
 
     @abstractmethod
     def process(self, input: T) -> R:
-        """Process the input and return a result."""
-        ...
+        """
+        Process the input and return a result.
+
+        This method processes the input and returns a result. Subclasses must
+        implement this method to provide component-specific processing logic.
+
+        Args:
+            input: The input to process
+
+        Returns:
+            The processing result
+
+        Raises:
+            ValueError: If input is invalid
+            RuntimeError: If processing fails
+        """
+        # Ensure component is initialized
+        if not self._state_manager.get("initialized", False):
+            self.warm_up()
+
+        # Process input
+        start_time = time.time()
+
+        # Define the operation
+        def operation():
+            # Actual processing logic (to be implemented by subclasses)
+            result = self._process_input(input)
+            return result
+
+        # Use standardized error handling
+        from sifaka.utils.errors import safely_execute_component_operation
+
+        result = safely_execute_component_operation(
+            operation=operation,
+            component_name=self.name,
+            component_type=self.__class__.__name__,
+            additional_metadata={"input_type": type(input).__name__},
+        )
+
+        # Update statistics
+        processing_time = time.time() - start_time
+        self.update_statistics(result, processing_time_ms=processing_time * 1000)
+
+        return result
+
+    def _process_input(self, input: T) -> R:
+        """
+        Process the input and return a result.
+
+        This method is called by the process method to perform the actual
+        processing logic. Subclasses should override this method instead
+        of the process method to ensure consistent error handling.
+
+        Args:
+            input: The input to process
+
+        Returns:
+            The processing result
+        """
+        raise NotImplementedError("Subclasses must implement _process_input")
 
     def warm_up(self) -> None:
-        """Prepare the component for use."""
-        if not self._state_manager.get("initialized", False):
+        """
+        Prepare the component for use.
+
+        This method prepares the component for use, performing any
+        necessary warm-up operations. It's safe to call multiple times.
+
+        Raises:
+            InitializationError: If warm-up fails
+        """
+        try:
+            # Check if already initialized
+            if self._state_manager.get("initialized", False):
+                logger.debug(f"Component {self.name} already initialized")
+                return
+
+            # Initialize resources (can be overridden by subclasses)
+            self._initialize_resources()
+
+            # Mark as initialized
             self._state_manager.update("initialized", True)
+            self._state_manager.set_metadata("warm_up_time", time.time())
+
+            logger.debug(f"Component {self.name} warmed up successfully")
+
+        except Exception as e:
+            self.record_error(e)
+            logger.error(f"Failed to warm up component {self.name}: {str(e)}")
+            raise InitializationError(f"Failed to warm up component {self.name}: {str(e)}") from e
+
+    def _initialize_resources(self) -> None:
+        """
+        Initialize component resources.
+
+        This method is called during warm-up to initialize any resources
+        needed by the component. Subclasses should override this method
+        to perform component-specific initialization.
+        """
+        pass
 
     def cleanup(self) -> None:
-        """Clean up component resources."""
-        self.clear_cache()
-        self._state_manager.update("initialized", False)
+        """
+        Clean up component resources.
+
+        This method cleans up component resources, releasing any
+        resources that were acquired during initialization or use.
+        It's safe to call multiple times.
+        """
+        try:
+            # Release resources (can be overridden by subclasses)
+            self._release_resources()
+
+            # Clear cache
+            if hasattr(self, "clear_cache") and callable(getattr(self, "clear_cache")):
+                self.clear_cache()
+
+            # Reset initialization flag
+            self._state_manager.update("initialized", False)
+
+            logger.debug(f"Component {self.name} cleaned up successfully")
+
+        except Exception as e:
+            # Log but don't raise
+            logger.error(f"Failed to clean up component {self.name}: {str(e)}")
+
+    def _release_resources(self) -> None:
+        """
+        Release component resources.
+
+        This method is called during cleanup to release any resources
+        acquired during initialization or use. Subclasses should override
+        this method to perform component-specific cleanup.
+        """
+        pass
 
     @classmethod
     def create(cls: Type[C], name: str, description: str, **kwargs: Any) -> C:
