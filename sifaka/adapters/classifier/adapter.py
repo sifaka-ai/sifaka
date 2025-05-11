@@ -74,11 +74,10 @@ from pydantic import BaseModel, Field, validate_call
 from sifaka.rules.base import (
     Rule,
     RuleConfig,
-    RuleResult,
 )
+from sifaka.core.results import RuleResult, ClassificationResult
 from sifaka.utils.errors import ConfigurationError, ValidationError
 from sifaka.adapters.base import BaseAdapter, AdapterError
-from sifaka.classifiers.result import ClassificationResult
 from sifaka.utils.errors import handle_error
 from sifaka.utils.logging import get_logger
 

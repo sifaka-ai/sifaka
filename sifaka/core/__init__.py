@@ -22,6 +22,14 @@ core patterns and contracts that ensure consistency across the framework.
    - PluginRegistry: Discovers and registers plugins
    - PluginLoader: Dynamically loads plugins at runtime
 
+3. Result Classes:
+   - BaseResult: Base class for all results
+   - RuleResult: Results from rules and validators
+   - ClassificationResult: Results from classifiers
+   - ChainResult: Results from chains
+   - CriticResult: Results from critics
+   - ValidationResult: Results from validation operations
+
 ## Usage Examples
 ```python
 from sifaka.core import Component, Configurable
@@ -74,6 +82,22 @@ from .plugins import (
     PluginLoader,
 )
 
+from .results import (
+    BaseResult,
+    RuleResult,
+    ClassificationResult,
+    ChainResult,
+    CriticResult,
+    ValidationResult,
+    create_base_result,
+    create_rule_result,
+    create_classification_result,
+    create_critic_result,
+    create_chain_result,
+    create_error_result,
+    merge_metadata,
+)
+
 __all__ = [
     # Core interfaces
     "Component",
@@ -86,4 +110,19 @@ __all__ = [
     # Plugin system
     "PluginRegistry",
     "PluginLoader",
+    # Result classes
+    "BaseResult",
+    "RuleResult",
+    "ClassificationResult",
+    "ChainResult",
+    "CriticResult",
+    "ValidationResult",
+    # Result factory functions
+    "create_base_result",
+    "create_rule_result",
+    "create_classification_result",
+    "create_critic_result",
+    "create_chain_result",
+    "create_error_result",
+    "merge_metadata",
 ]

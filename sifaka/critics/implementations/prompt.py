@@ -93,7 +93,7 @@ from ...utils.state import create_critic_state
 from ...utils.common import record_error
 from ...core.base import BaseResult as CriticResult
 from ...utils.config import PromptCriticConfig
-from ..interfaces.critic import TextCritic, TextImprover, TextValidator
+from ...interfaces.critic import TextCritic, TextImprover, TextValidator
 
 
 class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, TextCritic):

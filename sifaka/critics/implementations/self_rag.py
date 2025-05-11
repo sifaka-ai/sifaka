@@ -114,7 +114,7 @@ from ...core.base import BaseComponent
 from ...utils.state import create_critic_state
 from ...core.base import BaseResult as CriticResult
 from sifaka.utils.config import SelfRAGCriticConfig
-from ..interfaces.critic import TextCritic, TextImprover, TextValidator
+from sifaka.interfaces import TextCritic, TextImprover, TextValidator
 from ...retrieval import Retriever
 
 

@@ -58,7 +58,7 @@ print(f"Confidence: {result.confidence:.2f}")
 # Core components
 from .classifier import Classifier
 from .engine import Engine
-from .result import ClassificationResult
+from ..core.results import ClassificationResult
 
 # Interfaces
 from .interfaces import ClassifierImplementation, Plugin

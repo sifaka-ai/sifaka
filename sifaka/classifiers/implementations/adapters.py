@@ -27,7 +27,7 @@ import asyncio
 from typing import Any, Dict, List, Optional
 
 from ..interfaces import ClassifierImplementation
-from ..result import ClassificationResult
+from ...core.results import ClassificationResult
 from sifaka.classifiers.errors import ImplementationError, safely_execute
 
 # Import existing implementations

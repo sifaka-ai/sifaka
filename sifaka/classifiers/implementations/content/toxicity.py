@@ -110,7 +110,7 @@ from typing_extensions import TypeGuard
 from pydantic import ConfigDict
 
 from sifaka.classifiers.classifier import Classifier
-from sifaka.classifiers.result import ClassificationResult
+from sifaka.core.results import ClassificationResult
 from sifaka.utils.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
@@ -431,7 +431,7 @@ class ToxicityClassifier(Classifier):
         # Default case: content is non-toxic but with lower confidence
         return "non_toxic", confidence
 
-    def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult[Any, str]:
         """
         Implement toxicity classification logic without caching.
 
@@ -507,7 +507,7 @@ class ToxicityClassifier(Classifier):
                 },
             )
 
-    def batch_classify(self, texts: List[str]) -> List[ClassificationResult[str]]:
+    def batch_classify(self, texts: List[str]) -> List[ClassificationResult[Any, str]]:
         """
         Classify multiple texts efficiently.
 

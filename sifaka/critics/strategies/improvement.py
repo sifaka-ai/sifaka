@@ -34,10 +34,9 @@ Each strategy defines a specific lifecycle for its operations:
    - Error recovery
 """
 
-from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Protocol, Union, runtime_checkable
+from typing import Any, Dict, List, Protocol, Union, runtime_checkable
 
-from ..interfaces.critic import LLMProvider
+from ...interfaces.critic import LLMProvider
 
 
 @runtime_checkable

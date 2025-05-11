@@ -49,18 +49,22 @@ The provider implements comprehensive error handling:
 
 import time
 import importlib.util
-from typing import Any, Dict, Optional, ClassVar
+from typing import Any, Dict, Optional, ClassVar, TYPE_CHECKING
 
+# Import interfaces directly to avoid circular dependencies
 from sifaka.interfaces.client import APIClientProtocol as APIClient
 from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
 from sifaka.interfaces.model import ModelProviderProtocol
-from sifaka.models.managers.anthropic_client import AnthropicClientManager
-from sifaka.models.managers.anthropic_token_counter import AnthropicTokenCounterManager
+
+# Import utilities
 from sifaka.utils.config import ModelConfig
 from sifaka.utils.errors import safely_execute_component_operation
 from sifaka.utils.errors import ModelError
 from sifaka.utils.common import record_error
 from sifaka.utils.logging import get_logger
+
+# Lazy import managers to avoid circular dependencies
+# These will be imported at runtime when needed
 
 logger = get_logger(__name__)
 
@@ -152,20 +156,15 @@ class AnthropicProvider(ModelProviderProtocol):
 
         self._state_manager = StateManager()
 
-        # Create managers
-        self._client_manager = AnthropicClientManager(
-            model_name=model_name,
-            config=config or ModelConfig(),
-            api_client=api_client,
-        )
-        self._token_counter_manager = AnthropicTokenCounterManager(
-            model_name=model_name,
-            token_counter=token_counter,
-        )
+        # Store dependencies for lazy initialization
+        self._model_name = model_name
+        self._config = config or ModelConfig()
+        self._api_client = api_client
+        self._token_counter = token_counter
 
         # Initialize state
         self._state_manager.update("model_name", model_name)
-        self._state_manager.update("config", config or ModelConfig())
+        self._state_manager.update("config", self._config)
         self._state_manager.update("initialized", False)
         self._state_manager.update(
             "stats",
@@ -314,10 +313,11 @@ class AnthropicProvider(ModelProviderProtocol):
         if the provider hasn't been initialized yet.
 
         The warm-up process includes:
-        1. Getting the API client from the client manager
-        2. Getting the token counter from the token counter manager
-        3. Storing both in the state manager
-        4. Marking the provider as initialized
+        1. Creating the client manager and token counter manager if they don't exist
+        2. Getting the API client from the client manager
+        3. Getting the token counter from the token counter manager
+        4. Storing both in the state manager
+        5. Marking the provider as initialized
 
         Raises:
             ImportError: If the Anthropic package is not installed
@@ -327,6 +327,24 @@ class AnthropicProvider(ModelProviderProtocol):
         if self._state_manager.get("initialized", False):
             logger.debug(f"Provider {self.name} already initialized")
             return
+
+        # Lazy import managers to avoid circular dependencies
+        from sifaka.models.managers.anthropic_client import AnthropicClientManager
+        from sifaka.models.managers.anthropic_token_counter import AnthropicTokenCounterManager
+
+        # Create managers if they don't exist
+        if not hasattr(self, "_client_manager"):
+            self._client_manager = AnthropicClientManager(
+                model_name=self._model_name,
+                config=self._config,
+                api_client=self._api_client,
+            )
+
+        if not hasattr(self, "_token_counter_manager"):
+            self._token_counter_manager = AnthropicTokenCounterManager(
+                model_name=self._model_name,
+                token_counter=self._token_counter,
+            )
 
         # Initialize client
         client = self._client_manager.get_client()

@@ -113,7 +113,7 @@ from typing_extensions import TypeGuard
 from pydantic import ConfigDict, PrivateAttr
 
 from sifaka.classifiers.classifier import Classifier
-from sifaka.classifiers.result import ClassificationResult
+from sifaka.core.results import ClassificationResult
 from sifaka.utils.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
@@ -476,7 +476,7 @@ class SentimentClassifier(Classifier):
 
         return label, confidence
 
-    def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult[Any, str]:
         """
         Implement sentiment classification logic without caching.
 

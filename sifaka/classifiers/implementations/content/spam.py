@@ -92,7 +92,7 @@ from typing import ClassVar, List, Optional, Dict, Any
 
 from pydantic import PrivateAttr
 from sifaka.classifiers.classifier import Classifier
-from sifaka.classifiers.result import ClassificationResult
+from sifaka.core.results import ClassificationResult
 from sifaka.utils.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
@@ -418,7 +418,7 @@ class SpamClassifier(Classifier):
 
         return self
 
-    def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult[Any, str]:
         """
         Implement spam classification logic without caching.
 
@@ -484,7 +484,7 @@ class SpamClassifier(Classifier):
                 metadata={"error": str(e), "reason": "classification_error"},
             )
 
-    def batch_classify(self, texts: List[str]) -> List[ClassificationResult[str]]:
+    def batch_classify(self, texts: List[str]) -> List[ClassificationResult[Any, str]]:
         """
         Classify multiple texts efficiently.
 

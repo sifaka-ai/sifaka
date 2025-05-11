@@ -26,18 +26,33 @@ Usage Example:
 """
 
 import time
-from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Protocol, runtime_checkable
+from typing import (
+    Any,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Type,
+    TypeVar,
+    Protocol,
+    runtime_checkable,
+    TYPE_CHECKING,
+)
 from pydantic import PrivateAttr
 
-from sifaka.utils.errors import try_component_operation
-from sifaka.utils.error_patterns import safely_execute_rule
+from sifaka.utils.errors import safely_execute_rule
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import StateManager, create_rule_state
+from sifaka.utils.state import create_rule_state
 from sifaka.utils.common import update_statistics, record_error
 from sifaka.utils.text import handle_empty_text
-from sifaka.core.base import Validatable
 
-from .result import RuleResult
+# Use string type annotations for forward references
+if TYPE_CHECKING:
+    from sifaka.core.base import Validatable
+    from sifaka.utils.errors import try_component_operation
+    from sifaka.utils.state import StateManager
+
+from ..core.results import RuleResult
 
 logger = get_logger(__name__)
 
@@ -63,7 +78,7 @@ class RuleValidator(Protocol[T]):
         ...
 
 
-class BaseValidator(Validatable[T], Generic[T]):
+class BaseValidator(Generic[T]):
     """
     Base class for validators.
 

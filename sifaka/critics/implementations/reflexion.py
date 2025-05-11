@@ -100,7 +100,7 @@ from ...utils.state import create_critic_state
 from ...utils.logging import get_logger
 from ...core.base import BaseResult as CriticResult
 from ...utils.config import ReflexionCriticConfig
-from ..interfaces.critic import TextCritic, TextImprover, TextValidator
+from sifaka.interfaces import TextCritic, TextImprover, TextValidator
 
 # Configure logging
 logger = get_logger(__name__)

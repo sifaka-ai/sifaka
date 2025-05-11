@@ -90,16 +90,142 @@ Result creation can be configured with:
 - Processing time tracking
 """
 
-from typing import Any, Dict, List, Optional, TypeVar, Union, cast
+from typing import Any, Dict, List, Optional, TypeVar, Union, cast, Generic
 
-from sifaka.rules.base import RuleResult
-from sifaka.classifiers.result import ClassificationResult
-from sifaka.critics.models import CriticMetadata
+from sifaka.core.results import RuleResult, ClassificationResult, ChainResult
+from sifaka.utils.base_results import BaseResult, CriticMetadata, create_base_result
 from sifaka.utils.common import create_standard_result
 
 
 # Type variables for generic types
 R = TypeVar("R")
+
+
+def create_generic_result(
+    component_type: str,
+    passed: bool,
+    message: str,
+    metadata: Optional[Dict[str, Any]] = None,
+    score: float = 0.0,
+    issues: Optional[List[str]] = None,
+    suggestions: Optional[List[str]] = None,
+    processing_time_ms: Optional[float] = None,
+    **kwargs: Any,
+) -> BaseResult:
+    """
+    Create a standardized result for any component.
+
+    This function creates a standardized result for any component type,
+    providing a unified interface for result creation across the Sifaka framework.
+
+    Args:
+        component_type: Type of component (chain, classifier, critic, etc.)
+        passed: Whether the validation passed
+        message: Human-readable result message
+        metadata: Additional result metadata
+        score: Confidence score (0.0 to 1.0)
+        issues: List of identified issues
+        suggestions: List of improvement suggestions
+        processing_time_ms: Processing time in milliseconds
+        **kwargs: Additional component-specific parameters
+
+    Returns:
+        Standardized result for the specified component type
+
+    Examples:
+        ```python
+        from sifaka.utils.results import create_generic_result
+
+        # Create a chain result
+        result = create_generic_result(
+            component_type="chain",
+            passed=True,
+            message="Chain execution completed successfully",
+            score=0.85,
+            output="Generated text",
+            prompt="Original prompt",
+            execution_time=1.5,
+        )
+
+        # Create a classifier result
+        result = create_generic_result(
+            component_type="classifier",
+            passed=True,
+            message="Classification completed",
+            score=0.75,
+            label="positive",
+            confidence=0.85,
+        )
+
+        # Create a critic result
+        result = create_generic_result(
+            component_type="critic",
+            passed=True,
+            message="Critique completed",
+            score=0.9,
+            feedback="Good content, but could be more concise",
+            issues=["Too verbose", "Redundant information"],
+        )
+
+        # Create a generic result
+        result = create_generic_result(
+            component_type="custom",
+            passed=True,
+            message="Custom operation completed",
+            score=0.8,
+            metadata={"custom_field": "value"},
+        )
+        ```
+    """
+    if component_type == "chain":
+        return ChainResult(
+            passed=passed,
+            message=message,
+            metadata=metadata or {},
+            score=score,
+            issues=issues or [],
+            suggestions=suggestions or [],
+            processing_time_ms=processing_time_ms or 0.0,
+            output=kwargs.get("output", ""),
+            prompt=kwargs.get("prompt", ""),
+            validation_results=kwargs.get("validation_results", []),
+            execution_time=kwargs.get("execution_time", 0.0),
+            attempt_count=kwargs.get("attempt_count", 1),
+        )
+    elif component_type == "classifier":
+        return ClassificationResult(
+            passed=passed,
+            message=message,
+            metadata=metadata or {},
+            score=score,
+            issues=issues or [],
+            suggestions=suggestions or [],
+            processing_time_ms=processing_time_ms or 0.0,
+            label=kwargs.get("label", None),
+            confidence=kwargs.get("confidence", 1.0),
+        )
+    elif component_type == "critic":
+        return CriticMetadata(
+            passed=passed,
+            message=message,
+            metadata=metadata or {},
+            score=score,
+            issues=issues or [],
+            suggestions=suggestions or [],
+            processing_time_ms=processing_time_ms or 0.0,
+            feedback=kwargs.get("feedback", ""),
+        )
+    else:
+        # Default to base result
+        return create_base_result(
+            passed=passed,
+            message=message,
+            metadata=metadata,
+            score=score,
+            issues=issues,
+            suggestions=suggestions,
+            processing_time_ms=processing_time_ms,
+        )
 
 
 def create_rule_result(
@@ -172,7 +298,7 @@ def create_classification_result(
     threshold: Optional[float] = None,
     model_name: Optional[str] = None,
     processing_time: Optional[float] = None,
-) -> ClassificationResult[R]:
+) -> ClassificationResult[Any, R]:
     """
     Create a standardized classification result.
 
@@ -223,7 +349,7 @@ def create_classification_result(
     )
 
     # Create result using the standard result data
-    return ClassificationResult[R](
+    return ClassificationResult[Any, R](
         label=label, confidence=confidence, metadata=standard_result["metadata"]
     )
 
@@ -394,7 +520,7 @@ def create_unknown_result(
     component_name: Optional[str] = None,
     reason: str = "unknown",
     metadata: Optional[Dict[str, Any]] = None,
-) -> ClassificationResult[str]:
+) -> ClassificationResult[Any, str]:
     """
     Create a standardized unknown classification result.
 
@@ -476,7 +602,7 @@ def create_unknown_result(
     )
 
     # Create result using the standard result data
-    return ClassificationResult[str](
+    return ClassificationResult[Any, str](
         label="unknown", confidence=0.0, metadata=standard_result["metadata"]
     )
 

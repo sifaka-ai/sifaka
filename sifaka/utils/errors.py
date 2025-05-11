@@ -114,6 +114,7 @@ metadata. Component-specific error handlers can be customized for different
 error handling requirements.
 """
 
+import time
 import traceback
 from typing import Any, Callable, Dict, Optional, Type, TypeVar, Union, cast
 from pydantic import BaseModel
@@ -180,6 +181,10 @@ __all__ = [
     "safely_execute_critic",
     "safely_execute_classifier",
     "safely_execute_retrieval",
+    # Functions from error_patterns.py (consolidated)
+    "safely_execute_component",
+    "create_critic_error_result",
+    "create_rule_error_result",
 ]
 
 # Type variable for return type
@@ -1275,3 +1280,165 @@ safely_execute_rule = create_safe_execution_factory("Rule", RuleError)
 safely_execute_critic = create_safe_execution_factory("Critic", CriticError)
 safely_execute_classifier = create_safe_execution_factory("Classifier", ClassifierError)
 safely_execute_retrieval = create_safe_execution_factory("Retrieval", RetrievalError)
+
+
+# Functions consolidated from error_patterns.py
+
+
+def safely_execute_component(
+    operation: Callable[[], T],
+    component_name: Optional[str] = None,
+    component_type: str = "component",
+    error_class: Type[Exception] = Exception,
+    log_level: str = "error",
+    include_traceback: bool = True,
+    additional_metadata: Optional[Dict[str, Any]] = None,
+    **kwargs: Any,
+) -> T:
+    """
+    Safely execute a component operation with standardized error handling.
+
+    This function executes a component operation and handles any errors that occur,
+    providing standardized error handling and logging.
+
+    Args:
+        operation: The operation to execute
+        component_name: Name of the component executing the operation
+        component_type: Type of the component executing the operation
+        error_class: Error class to use for exceptions
+        log_level: Log level to use for errors
+        include_traceback: Whether to include traceback in error metadata
+        additional_metadata: Additional metadata to include in error
+        **kwargs: Additional error metadata
+
+    Returns:
+        Result of the operation
+
+    Raises:
+        error_class: If the operation fails
+    """
+    try:
+        # Record start time
+        start_time = time.time()
+
+        # Execute operation
+        result = operation()
+
+        # Record execution time
+        execution_time = time.time() - start_time
+        logger.debug(
+            f"{component_type.capitalize()} operation completed in {execution_time:.4f}s",
+            extra={
+                "execution_time": execution_time,
+                "component": component_name,
+                "component_type": component_type,
+            },
+        )
+
+        return result
+    except Exception as e:
+        # Handle error
+        error_metadata = handle_error(
+            e,
+            component_name or component_type,
+            log_level=log_level,
+            include_traceback=include_traceback,
+            additional_metadata={
+                "component_type": component_type,
+                **(additional_metadata or {}),
+                **kwargs,
+            },
+        )
+
+        # Raise error with appropriate class
+        if isinstance(e, error_class):
+            raise
+        else:
+            raise error_class(
+                f"{component_type.capitalize()} operation failed: {str(e)}",
+                **kwargs,
+            ) from e
+
+
+def create_critic_error_result(
+    error: Exception,
+    component_name: str,
+    log_level: str = "error",
+    include_traceback: bool = True,
+    additional_metadata: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Create a standardized error result for a critic operation.
+
+    This function creates a standardized error result for a critic operation,
+    including error details, metadata, and logging.
+
+    Args:
+        error: The exception that occurred
+        component_name: Name of the critic where the error occurred
+        log_level: Log level to use for errors
+        include_traceback: Whether to include traceback in error metadata
+        additional_metadata: Additional metadata to include in error
+
+    Returns:
+        Standardized error result dictionary
+    """
+    # Handle error
+    error_metadata = handle_error(
+        error,
+        component_name,
+        log_level=log_level,
+        include_traceback=include_traceback,
+        additional_metadata=additional_metadata,
+    )
+
+    # Create error result
+    return {
+        "success": False,
+        "error": str(error),
+        "error_type": type(error).__name__,
+        "component": component_name,
+        "metadata": error_metadata,
+    }
+
+
+def create_rule_error_result(
+    error: Exception,
+    component_name: str,
+    log_level: str = "error",
+    include_traceback: bool = True,
+    additional_metadata: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Create a standardized error result for a rule operation.
+
+    This function creates a standardized error result for a rule operation,
+    including error details, metadata, and logging.
+
+    Args:
+        error: The exception that occurred
+        component_name: Name of the rule where the error occurred
+        log_level: Log level to use for errors
+        include_traceback: Whether to include traceback in error metadata
+        additional_metadata: Additional metadata to include in error
+
+    Returns:
+        Standardized error result dictionary
+    """
+    # Handle error
+    error_metadata = handle_error(
+        error,
+        component_name,
+        log_level=log_level,
+        include_traceback=include_traceback,
+        additional_metadata=additional_metadata,
+    )
+
+    # Create error result
+    return {
+        "success": False,
+        "error": str(error),
+        "error_type": type(error).__name__,
+        "component": component_name,
+        "metadata": error_metadata,
+    }

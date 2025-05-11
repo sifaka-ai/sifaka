@@ -385,46 +385,66 @@ from sifaka.core.managers.memory import MemoryManager
 1. **sifaka.models.core** (15 dependencies)
    - Highest impact on overall architecture
    - Many other components depend on it
-   - Status: 🔴 Not Started
+   - Status: ✅ Fixed
 
 2. **sifaka.core.factories** (14 dependencies)
    - Central to component creation
    - Affects all other components
-   - Status: 🔴 Not Started
+   - Status: ✅ Fixed
 
 3. **Model Providers** (OpenAI & Anthropic: 11 dependencies each)
    - Critical for system functionality
    - Used by many components
-   - Status: 🔴 Not Started
+   - Status: ✅ Fixed
 
 4. **sifaka.__init__** (8 dependencies)
    - Entry point for the library
    - Affects public API
-   - Status: 🔴 Not Started
+   - Status: ✅ Fixed
 
 5. **sifaka.rules.validators** (9 dependencies)
    - Core validation functionality
    - Used by multiple components
-   - Status: 🔴 Not Started
+   - Status: ✅ Fixed
 
 6. **Other High-Dependency Modules** (8-9 dependencies each)
    - Fix after addressing higher-priority modules
-   - Status: 🔴 Not Started
+   - Status: ✅ Fixed
+
+7. **Chain Components** (6-7 dependencies each)
+   - Core chain functionality
+   - Used by many components
+   - Status: ✅ Fixed
+
+8. **Retrieval Components** (6-7 dependencies each)
+   - Core retrieval functionality
+   - Used by many components
+   - Status: ✅ Fixed
+
+9. **Classifier Components** (6 dependencies each)
+   - Core classifier functionality
+   - Used by many components
+   - Status: ✅ Fixed
 
 ### Progress Tracking
 
 | Module | Dependencies | Status | Notes |
 |--------|--------------|--------|-------|
-| sifaka.models.core | 15 | � Fixed | Fixed circular import with models.base |
-| sifaka.core.factories | 14 | � Fixed | Fixed circular import with interfaces.model |
-| sifaka.models.providers.openai | 11 | 🔴 Not Started | Critical provider |
-| sifaka.models.providers.anthropic | 11 | 🔴 Not Started | Critical provider |
-| sifaka.rules.validators | 9 | 🔴 Not Started | Core validation |
-| sifaka.classifiers.implementations.content.toxicity | 9 | 🔴 Not Started | Complex classifier |
-| sifaka.__init__ | 8 | 🔴 Not Started | Public API |
-| sifaka.critics.core | 8 | 🔴 Not Started | Core critic functionality |
-| sifaka.models.factories | 8 | 🔴 Not Started | Model creation |
-| sifaka.adapters.pydantic_ai.adapter | 8 | 🔴 Not Started | External integration |
+| sifaka.models.core | 15 | ✅ Fixed | Fixed circular import with models.base |
+| sifaka.core.factories | 14 | ✅ Fixed | Fixed circular import with interfaces.model |
+| sifaka.models.providers.openai | 11 | ✅ Fixed | Implemented lazy loading and TYPE_CHECKING |
+| sifaka.models.providers.anthropic | 11 | ✅ Fixed | Implemented lazy loading and TYPE_CHECKING |
+| sifaka.rules.validators | 9 | ✅ Fixed | Implemented lazy loading and string type annotations |
+| sifaka.classifiers.implementations.content.toxicity | 9 | ✅ Fixed | Fixed through interface consolidation |
+| sifaka.__init__ | 8 | ✅ Fixed | Implemented lazy loading with __getattr__ |
+| sifaka.critics.core | 8 | ✅ Fixed | Implemented lazy loading and string type annotations |
+| sifaka.models.factories | 8 | ✅ Fixed | Implemented string type annotations |
+| sifaka.adapters.pydantic_ai.adapter | 8 | ✅ Fixed | Fixed through interface consolidation |
+| sifaka.chain.chain | 7 | ✅ Fixed | Fixed through interface consolidation and lazy imports |
+| sifaka.chain.engine | 7 | ✅ Fixed | Fixed through interface consolidation and dependency injection |
+| sifaka.retrieval.core | 7 | ✅ Fixed | Fixed through interface consolidation and lazy imports |
+| sifaka.classifiers.classifier | 6 | ✅ Fixed | Fixed through interface consolidation |
+| sifaka.classifiers.engine | 6 | ✅ Fixed | Fixed through interface consolidation and dependency injection |
 
 ### Success Metrics
 
@@ -458,16 +478,49 @@ from sifaka.core.managers.memory import MemoryManager
        modules_to_test = [
            # Core modules
            "sifaka.core.base",
+           "sifaka.core.dependency",
            "sifaka.core.factories",
            # Interface modules
            "sifaka.interfaces.model",
            "sifaka.interfaces.chain",
+           "sifaka.interfaces.retrieval",
+           "sifaka.interfaces.classifier",
+           "sifaka.interfaces.critic",
+           "sifaka.interfaces.adapter",
+           "sifaka.interfaces.rule",
            # Model modules
+           "sifaka.models.base",
            "sifaka.models.core",
            "sifaka.models.factories",
            "sifaka.models.providers.openai",
            "sifaka.models.providers.anthropic",
-           # Add other modules as needed
+           # Chain modules
+           "sifaka.chain.chain",
+           "sifaka.chain.factories",
+           "sifaka.chain.engine",
+           "sifaka.chain.managers.memory",
+           # Retrieval modules
+           "sifaka.retrieval.core",
+           "sifaka.retrieval.factories",
+           # Classifier modules
+           "sifaka.classifiers.classifier",
+           "sifaka.classifiers.factories",
+           "sifaka.classifiers.engine",
+           # Critic modules
+           "sifaka.critics.base",
+           "sifaka.critics.core",
+           "sifaka.critics.implementations.prompt",
+           # Adapter modules
+           "sifaka.adapters.base",
+           "sifaka.adapters.pydantic_ai.adapter",
+           # Rule modules
+           "sifaka.rules.base",
+           "sifaka.rules.factories",
+           "sifaka.rules.validators",
+           # Utility modules
+           "sifaka.utils.config",
+           "sifaka.utils.state",
+           "sifaka.utils.errors"
        ]
 
        failures = []
@@ -550,15 +603,15 @@ from sifaka.core.managers.memory import MemoryManager
 ### Manual Verification
 
 1. **Code Review Checklist**
-   - [ ] No direct imports between components
-   - [ ] All interfaces consolidated in interfaces package
-   - [ ] Factory functions use lazy loading
-   - [ ] No self-referential imports
-   - [ ] Consistent state management with _state_manager
-   - [ ] No component-specific config modules
+   - [x] No direct imports between components
+   - [x] All interfaces consolidated in interfaces package
+   - [x] Factory functions use lazy loading
+   - [x] No self-referential imports
+   - [x] Consistent state management with _state_manager
+   - [x] No component-specific config modules
 
 2. **Integration Testing**
-   - [ ] Run all existing tests to ensure functionality is preserved
-   - [ ] Test each component in isolation
-   - [ ] Test components together to ensure they still work correctly
-   - [ ] Verify that all public APIs still function as expected
+   - [x] Run all existing tests to ensure functionality is preserved
+   - [x] Test each component in isolation
+   - [x] Test components together to ensure they still work correctly
+   - [x] Verify that all public APIs still function as expected

@@ -45,7 +45,7 @@ The interfaces support execution tracking:
 """
 
 from abc import abstractmethod
-from typing import Any, Dict, Generic, List, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Any, Dict, List, Protocol, TypeVar, runtime_checkable
 
 from sifaka.core.interfaces import Configurable, Identifiable
 
@@ -88,12 +88,12 @@ class Validatable(Protocol[ResultType]):
         pass
 
     @abstractmethod
-    def get_errors(self) -> List[ResultType]:
+    def get_errors(self) -> List[str]:
         """
         Get validation errors.
 
         Returns:
-            A list of validation errors
+            List of validation error messages
         """
         pass
 

@@ -35,7 +35,7 @@ from typing import Any, Dict, List, Optional
 import asyncio
 
 from .interfaces import ClassifierImplementation
-from .result import ClassificationResult
+from ..core.results import ClassificationResult
 from ..utils.errors import ClassifierError
 from ..utils.errors import safely_execute_component_operation as safely_execute
 

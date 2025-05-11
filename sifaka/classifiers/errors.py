@@ -25,10 +25,9 @@ result = safely_execute(
 ```
 """
 
-from typing import Any, Callable, Dict, Optional, Type, TypeVar
+from typing import Any, Callable, Optional, Type, TypeVar
 
-from sifaka.utils.errors import ComponentError
-from sifaka.utils.error_patterns import safely_execute_component
+from sifaka.utils.errors import ComponentError, safely_execute_component
 
 # Type variables
 T = TypeVar("T")  # Return type

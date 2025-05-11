@@ -19,7 +19,7 @@ that don't meet validation criteria.
 ```python
 from sifaka.chain.managers.retry import RetryManager
 from sifaka.utils.state import StateManager
-from sifaka.chain.result import ChainResult
+from sifaka.core.results import ChainResult
 
 # Create retry manager
 retry_manager = RetryManager(
@@ -78,7 +78,7 @@ from ...utils.state import StateManager
 from ...utils.logging import get_logger
 from ...utils.errors import ChainError
 from ..interfaces import ValidationResult
-from ..result import ChainResult
+from ...core.results import ChainResult
 
 # Configure logger
 logger = get_logger(__name__)

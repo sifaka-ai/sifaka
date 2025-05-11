@@ -10,9 +10,7 @@ from typing import Any, Dict, List, Optional, TypeVar, Callable, cast
 from pydantic import BaseModel
 
 from .base import CriticResultEnum
-from sifaka.utils.errors import CriticError, try_operation
-from sifaka.utils.error_patterns import create_critic_error_result
-from sifaka.utils.errors import ErrorResult
+from sifaka.utils.errors import CriticError, try_operation, create_critic_error_result, ErrorResult
 
 # Type variable for return type
 T = TypeVar("T")

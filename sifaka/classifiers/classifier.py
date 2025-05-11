@@ -83,7 +83,7 @@ from .engine import Engine
 from ..utils.state import StateManager, create_classifier_state
 from ..utils.common import update_statistics, record_error
 from ..utils.logging import get_logger
-from .result import ClassificationResult
+from ..core.results import ClassificationResult
 from ..utils.config import ClassifierConfig
 from ..utils.errors import ClassifierError
 

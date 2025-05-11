@@ -609,6 +609,7 @@ def create_key_value_memory_manager(
     description: str = "Memory manager for Sifaka",
     cache_enabled: bool = True,
     max_items: int = 100,
+    component_type: str = None,
     **kwargs: Any,
 ) -> KeyValueMemoryManager:
     """
@@ -624,6 +625,8 @@ def create_key_value_memory_manager(
         description (str, optional): Description of the manager. Defaults to "Memory manager for Sifaka".
         cache_enabled (bool, optional): Whether to enable caching. Defaults to True.
         max_items (int, optional): Maximum number of items to store in memory. Defaults to 100.
+        component_type (str, optional): Type of component using this memory manager.
+            If "chain", uses chain-specific defaults.
         **kwargs (Any): Additional configuration parameters
 
     Returns:
@@ -640,8 +643,19 @@ def create_key_value_memory_manager(
             cache_enabled=False,
             max_items=50
         )
+
+        # Create a chain-specific memory manager
+        chain_manager = create_key_value_memory_manager(
+            component_type="chain",
+            max_items=200
+        )
         ```
     """
+    # Set component-specific defaults
+    if component_type == "chain":
+        name = name or "chain_memory_manager"
+        description = description or "Memory manager for Sifaka chains"
+
     config = MemoryConfig(
         name=name,
         description=description,
@@ -896,6 +910,10 @@ class BufferMemoryManager:
 
 def create_buffer_memory_manager(
     buffer_size: int = 5,
+    name: str = None,
+    description: str = None,
+    component_type: str = None,
+    **kwargs: Any,
 ) -> BufferMemoryManager:
     """
     Create a buffer memory manager.
@@ -906,6 +924,11 @@ def create_buffer_memory_manager(
 
     Args:
         buffer_size (int, optional): The maximum number of items to store in memory. Defaults to 5.
+        name (str, optional): Name of the manager. Used for metadata.
+        description (str, optional): Description of the manager. Used for metadata.
+        component_type (str, optional): Type of component using this memory manager.
+            If "chain", uses chain-specific defaults (buffer_size=10).
+        **kwargs (Any): Additional configuration parameters (for future extensibility)
 
     Returns:
         BufferMemoryManager: Configured BufferMemoryManager instance
@@ -917,9 +940,29 @@ def create_buffer_memory_manager(
 
         # Create a buffer memory manager with custom buffer size
         large_buffer = create_buffer_memory_manager(buffer_size=20)
+
+        # Create a chain-specific buffer memory manager
+        chain_buffer = create_buffer_memory_manager(
+            component_type="chain",
+            name="chain_buffer",
+            description="Buffer for chain memory"
+        )
         ```
 
     Raises:
         ValueError: If buffer_size is less than 1
     """
-    return BufferMemoryManager(buffer_size=buffer_size)
+    # Set component-specific defaults
+    if component_type == "chain":
+        buffer_size = buffer_size or 10
+
+    # Create the buffer memory manager
+    buffer_manager = BufferMemoryManager(buffer_size=buffer_size)
+
+    # Set name and description in state manager if provided
+    if name:
+        buffer_manager._state_manager.set_metadata("name", name)
+    if description:
+        buffer_manager._state_manager.set_metadata("description", description)
+
+    return buffer_manager

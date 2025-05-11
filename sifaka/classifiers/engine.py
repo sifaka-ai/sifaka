@@ -80,7 +80,7 @@ import time
 from .interfaces import ClassifierImplementation
 from ..utils.state import StateManager
 from ..utils.logging import get_logger
-from .result import ClassificationResult
+from ..core.results import ClassificationResult
 from ..utils.config import ClassifierConfig
 from ..utils.errors import ClassifierError, safely_execute_component_operation as safely_execute
 from .adapters import ImplementationError

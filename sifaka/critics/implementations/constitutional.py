@@ -84,7 +84,7 @@ Based on Constitutional AI: https://arxiv.org/abs/2212.08073
 
 import json
 import time
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import PrivateAttr, ConfigDict, Field
 
@@ -94,7 +94,7 @@ from ...utils.common import record_error
 from ...utils.logging import get_logger
 from ...core.base import BaseResult as CriticResult
 from ...utils.config import ConstitutionalCriticConfig
-from ..interfaces.critic import TextCritic, TextImprover, TextValidator
+from ...interfaces.critic import TextCritic, TextImprover, TextValidator
 
 # Configure logging
 logger = get_logger(__name__)

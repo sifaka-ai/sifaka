@@ -8,13 +8,13 @@ These models define the structure of results returned by retrievers and related 
 
 1. **DocumentMetadata**: Metadata for a retrieved document
 2. **RetrievedDocument**: A retrieved document with content and metadata
-3. **RetrievalResult**: Result of a retrieval operation
-4. **StringRetrievalResult**: Result of a retrieval operation with string content
+3. **StringRetrievalResult**: Result of a retrieval operation with string content
 
 ## Usage Examples
 
 ```python
 from sifaka.retrieval.result import StringRetrievalResult, RetrievedDocument, DocumentMetadata
+from sifaka.core.results import RetrievalResult
 
 # Create document metadata
 metadata = DocumentMetadata(
@@ -49,7 +49,7 @@ print(f"Score: {result.top_document.score}")
 from typing import Any, Dict, Generic, List, Optional, TypeVar
 from pydantic import BaseModel, Field, ConfigDict
 
-from sifaka.core.base import BaseResult
+from sifaka.core.results import RetrievalResult
 
 T = TypeVar("T")
 
@@ -197,175 +197,10 @@ class RetrievedDocument(BaseModel, Generic[T]):
         """
         return self.model_copy(update={"score": score})
 
-
-class RetrievalResult(BaseResult):
-    """
-    Result of a retrieval operation.
-
-    This class defines the result of a retrieval operation,
-    including the retrieved documents and query information.
-    It extends BaseResult to provide a consistent result structure
-    across the Sifaka framework.
-
-    ## Attributes
-
-    - documents: The retrieved documents
-    - query: The query used for retrieval
-    - processed_query: The processed query (after preprocessing)
-    - total_results: The total number of results found
-    - execution_time_ms: The execution time in milliseconds
-    - additional_info: Additional information about the retrieval operation
-
-    ## Usage
-
-    ```python
-    result = RetrievalResult(
-        documents=[document1, document2],
-        query="example query",
-        processed_query="processed example query",
-        total_results=2,
-        execution_time_ms=10.5,
-        passed=True,
-        message="Successfully retrieved documents",
-    )
-
-    # Access top document
-    top_doc = result.top_document
-
-    # Get all contents
-    contents = result.get_contents()
-    ```
-    """
-
-    model_config = ConfigDict(
-        frozen=False,
-        validate_assignment=True,
-        extra="forbid",
-        arbitrary_types_allowed=True,
-    )
-
-    documents: List[RetrievedDocument[T]] = Field(
-        default_factory=list,
-        description="The retrieved documents",
-    )
-    query: str = Field(
-        description="The query used for retrieval",
-    )
-    processed_query: Optional[str] = Field(
-        default=None,
-        description="The processed query (after preprocessing)",
-    )
-    total_results: int = Field(
-        default=0,
-        description="The total number of results found",
-        ge=0,
-    )
-
-    @property
-    def top_document(self) -> Optional[RetrievedDocument[T]]:
-        """
-        Get the top document from the results.
-
-        Returns:
-            The top document, or None if no documents were retrieved
-        """
-        if not self.documents:
-            return None
-        return self.documents[0]
-
-    @property
-    def top_content(self) -> Optional[T]:
-        """
-        Get the content of the top document.
-
-        Returns:
-            The content of the top document, or None if no documents were retrieved
-        """
-        top_doc = self.top_document
-        if top_doc is None:
-            return None
-        return top_doc.content
-
-    @property
-    def has_results(self) -> bool:
-        """
-        Check if the result has any documents.
-
-        Returns:
-            True if there are documents, False otherwise
-        """
-        return len(self.documents) > 0
-
-    @property
-    def average_score(self) -> Optional[float]:
-        """
-        Get the average score of all documents.
-
-        Returns:
-            The average score, or None if no documents have scores
-        """
-        scores = [doc.score for doc in self.documents if doc.score is not None]
-        if not scores:
-            return None
-        return sum(scores) / len(scores)
-
-    def get_contents(self) -> List[T]:
-        """
-        Get the contents of all retrieved documents.
-
-        Returns:
-            A list of document contents
-        """
-        return [doc.content for doc in self.documents]
-
-    def get_documents_with_score_above(self, threshold: float) -> List[RetrievedDocument[T]]:
-        """
-        Get documents with a score above the threshold.
-
-        Args:
-            threshold: The score threshold
-
-        Returns:
-            A list of documents with scores above the threshold
-        """
-        return [doc for doc in self.documents if doc.score is not None and doc.score >= threshold]
-
-    def get_formatted_results(self, include_scores: bool = True) -> str:
-        """
-        Get a formatted string representation of the results.
-
-        Args:
-            include_scores: Whether to include relevance scores in the output
-
-        Returns:
-            A formatted string representation of the results
-        """
-        if not self.documents:
-            return "No results found for query: " + self.query
-
-        result = f"Results for query: {self.query}\n\n"
-        for i, doc in enumerate(self.documents, 1):
-            result += f"Document {i}"
-            if include_scores and doc.score is not None:
-                result += f" (Score: {doc.score:.4f})"
-            result += f":\n{doc.content}\n\n"
-
-        return result.strip()
-
-    def with_additional_info(self, **kwargs: Any) -> "RetrievalResult[T]":
-        """
-        Create a new result with additional information.
-
-        Args:
-            **kwargs: Additional information to add
-
-        Returns:
-            A new RetrievalResult with the updated additional information
-        """
-        return self.model_copy(update={"additional_info": {**self.additional_info, **kwargs}})
+    # RetrievalResult is now imported from sifaka.core.results
 
 
-class StringRetrievalResult(RetrievalResult):
+class StringRetrievalResult(RetrievalResult[str]):
     """
     Result of a retrieval operation with string content.
 

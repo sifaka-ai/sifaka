@@ -137,10 +137,8 @@ about the validation failure.
 
 from typing import Any, Dict, List, Optional, Type, TypeVar, Union, cast, Generic
 from enum import Enum
-from datetime import datetime
 
 from pydantic import BaseModel, Field, ConfigDict
-from sifaka.core.base import BaseResult
 
 # Type variables for generic configuration handling
 T = TypeVar("T", bound=BaseModel)
@@ -571,6 +569,76 @@ class RuleConfig(BaseConfig):
         ge=0,
         description="Size of the rule's result cache",
     )
+
+
+class CriticMetadata(BaseModel):
+    """
+    Metadata for critics.
+
+    This class provides a standardized way to store metadata about critics,
+    including their capabilities, requirements, and performance characteristics.
+
+    ## Architecture
+    CriticMetadata uses Pydantic for validation and serialization, with:
+    - Type validation for all fields
+    - Default values for optional fields
+    - Field descriptions for documentation
+    - Immutable configuration (frozen=True)
+
+    ## Lifecycle
+    Metadata objects are typically created during critic initialization and
+    remain immutable throughout the critic's lifecycle. Components can access
+    metadata values through their metadata property.
+
+    ## Examples
+    ```python
+    # Create basic metadata
+    metadata = CriticMetadata(
+        capabilities=["grammar", "style", "coherence"],
+        requirements=["text_input"],
+        average_latency=0.5
+    )
+
+    # Access metadata values
+    print(f"Capabilities: {metadata.capabilities}")
+    print(f"Average latency: {metadata.average_latency}s")
+    ```
+
+    Attributes:
+        capabilities: List of critic capabilities
+        requirements: List of critic requirements
+        average_latency: Average latency in seconds
+        success_rate: Historical success rate
+        improvement_rate: Historical improvement rate
+    """
+
+    capabilities: List[str] = Field(
+        default_factory=list,
+        description="List of critic capabilities",
+    )
+    requirements: List[str] = Field(
+        default_factory=list,
+        description="List of critic requirements",
+    )
+    average_latency: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Average latency in seconds",
+    )
+    success_rate: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Historical success rate",
+    )
+    improvement_rate: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Historical improvement rate",
+    )
+
+    model_config = ConfigDict(frozen=True)
 
 
 class CriticConfig(BaseConfig):
@@ -1189,79 +1257,6 @@ DEFAULT_LAC_CONFIG = LACCriticConfig(
     system_prompt="You are an expert editor focused on correcting errors.",
     max_lac_iterations=3,
 )
-
-
-class CriticMetadata(BaseResult):
-    """
-    Metadata for critic results.
-
-    This class provides a standardized structure for critic metadata,
-    including scores, feedback, issues, and suggestions.
-    It extends BaseResult to provide a consistent result structure
-    across the Sifaka framework.
-
-    ## Overview
-    The class provides:
-    - Score tracking (0.0 to 1.0)
-    - Human-readable feedback
-    - Issue identification
-    - Improvement suggestions
-    - Additional metadata storage
-
-    ## Usage Examples
-    ```python
-    from sifaka.utils.config import CriticMetadata
-
-    # Create basic metadata
-    metadata = CriticMetadata(
-        score=0.85,
-        feedback="Good text quality",
-        passed=True,
-        message="Critique completed successfully",
-        issues=["Could be more concise"],
-        suggestions=["Remove redundant phrases"]
-    )
-
-    # Create metadata with additional data
-    metadata = CriticMetadata(
-        score=0.75,
-        feedback="Text needs improvement",
-        passed=False,
-        message="Text needs improvement",
-        issues=["Too verbose", "Unclear structure"],
-        suggestions=["Simplify language", "Add clear sections"],
-        metadata={
-            "processing_time": 1.5,
-            "confidence": 0.9
-        }
-    )
-    ```
-
-    ## Error Handling
-    The class implements:
-    - Score range validation (0.0 to 1.0)
-    - Required field validation
-    - Type checking for all fields
-    - Default value handling
-
-    Attributes:
-        score: Score for the critique (0.0 to 1.0)
-        feedback: Human-readable feedback
-        issues: List of identified issues (inherited from BaseResult)
-        suggestions: List of improvement suggestions (inherited from BaseResult)
-        metadata: Additional metadata (inherited from BaseResult)
-        passed: Whether the critique passed (inherited from BaseResult)
-        message: Human-readable message (inherited from BaseResult)
-    """
-
-    score: float = Field(
-        ge=0.0,
-        le=1.0,
-        description="Score for the critique (0.0 to 1.0)",
-    )
-    feedback: str = Field(
-        description="Human-readable feedback",
-    )
 
 
 class ChainConfig(BaseConfig):

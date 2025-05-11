@@ -42,7 +42,7 @@ Usage Example:
 import time
 from typing import Callable, TypeVar, Dict, Optional, Any, Literal
 
-from .result import RuleResult, create_error_result
+from ..core.results import RuleResult, create_error_result
 from sifaka.utils.errors import try_operation
 from sifaka.utils.logging import get_logger
 

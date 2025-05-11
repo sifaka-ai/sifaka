@@ -59,14 +59,15 @@ class MyClassifier(ClassifierProtocol[str, str]):
 - TypeError: Raised for type mismatches
 """
 
-from typing import Any, Dict, Generic, List, Protocol, TypeVar, runtime_checkable
-
-# Import ClassificationResult from classifiers.result
-from sifaka.classifiers.result import ClassificationResult
+from typing import Any, Dict, List, Protocol, TypeVar, runtime_checkable, TYPE_CHECKING
 
 # Type variables for generic protocols
 T = TypeVar("T")  # Input type
 R = TypeVar("R")  # Result label type
+
+# Forward reference for ClassificationResult to avoid circular imports
+if TYPE_CHECKING:
+    from sifaka.classifiers.result import ClassificationResult
 
 
 @runtime_checkable
@@ -161,8 +162,8 @@ class ClassifierProtocol(Protocol[T, R]):
     - Provide statistics through get_statistics()
     """
 
-    def classify(self, text: T) -> ClassificationResult[R]: ...
-    def batch_classify(self, texts: List[T]) -> List[ClassificationResult[R]]: ...
+    def classify(self, text: T) -> "ClassificationResult[R]": ...
+    def batch_classify(self, texts: List[T]) -> List["ClassificationResult[R]"]: ...
     @property
     def name(self) -> str: ...
     @property

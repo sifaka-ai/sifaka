@@ -57,8 +57,8 @@ from sifaka.adapters.classifier import (
     create_classifier_rule,
 )
 
-# Export types from sifaka.classifiers for convenience
-from sifaka.classifiers.result import ClassificationResult
+# Export types from sifaka.core.results for convenience
+from sifaka.core.results import ClassificationResult
 from sifaka.utils.config import ClassifierConfig
 
 # Try to import Guardrails adapters if available

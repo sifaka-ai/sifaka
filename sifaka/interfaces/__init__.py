@@ -61,7 +61,26 @@ from .chain import (
 )
 from .retrieval import Retriever, AsyncRetriever, DocumentStore, IndexManager, QueryProcessor
 from .classifier import ClassifierProtocol, TextProcessor
-from .critic import Critic, AsyncCritic, CritiqueResult
+from .critic import (
+    Critic,
+    AsyncCritic,
+    CritiqueResult,
+    TextValidator,
+    AsyncTextValidator,
+    SyncTextValidator,
+    TextImprover,
+    AsyncTextImprover,
+    SyncTextImprover,
+    TextCritic,
+    AsyncTextCritic,
+    SyncTextCritic,
+    LLMProvider,
+    AsyncLLMProvider,
+    SyncLLMProvider,
+    PromptFactory,
+    AsyncPromptFactory,
+    SyncPromptFactory,
+)
 from .adapter import Adaptable
 from .model import ModelProviderProtocol, AsyncModelProviderProtocol
 from .client import APIClientProtocol
@@ -96,6 +115,21 @@ __all__ = [
     "Critic",
     "AsyncCritic",
     "CritiqueResult",
+    "TextValidator",
+    "AsyncTextValidator",
+    "SyncTextValidator",
+    "TextImprover",
+    "AsyncTextImprover",
+    "SyncTextImprover",
+    "TextCritic",
+    "AsyncTextCritic",
+    "SyncTextCritic",
+    "LLMProvider",
+    "AsyncLLMProvider",
+    "SyncLLMProvider",
+    "PromptFactory",
+    "AsyncPromptFactory",
+    "SyncPromptFactory",
     # Adapter interfaces
     "Adaptable",
     # Model interfaces

@@ -73,10 +73,11 @@ Usage Example:
                 print(f"- {rule_name}: {rule_result.message}")
 """
 
-from .base import Rule, RuleConfig, RuleResult, FunctionRule
+from .base import Rule, RuleConfig, FunctionRule
+from ..core.results import RuleResult
 from sifaka.utils.config import RulePriority
 from .factories import create_rule, create_validation_manager
-from .interfaces import (
+from sifaka.interfaces import (
     Rule as RuleInterface,
     AsyncRule,
     RuleProtocol,

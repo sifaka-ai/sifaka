@@ -111,7 +111,7 @@ from typing import (
 from pydantic import ConfigDict, PrivateAttr
 
 from sifaka.classifiers.classifier import Classifier
-from sifaka.classifiers.result import ClassificationResult
+from sifaka.core.results import ClassificationResult
 from sifaka.utils.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.config import extract_classifier_config_params

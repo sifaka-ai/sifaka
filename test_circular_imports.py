@@ -42,7 +42,7 @@ def main():
         "sifaka.chain.chain",
         "sifaka.chain.factories",
         "sifaka.chain.engine",
-        "sifaka.chain.managers.memory",
+        "sifaka.chain.managers",
         # Retrieval modules
         "sifaka.retrieval.core",
         "sifaka.retrieval.factories",

@@ -60,13 +60,13 @@ print(f"All validations passed: {result.all_passed}")
 # Core components
 from .chain import Chain
 from .engine import Engine
-from .result import ChainResult
+from ..core.results import ChainResult
 
 # Interfaces
 from .interfaces import Model, Validator, Improver, Formatter, Plugin
 
-# Factory functions
-from sifaka.core.factories import create_chain
+# Factory functions are imported lazily to avoid circular dependencies
+# Use sifaka.core.factories.create_chain instead of importing it here
 
 # State management
 from ..utils.state import StateManager, create_chain_state

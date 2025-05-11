@@ -75,19 +75,22 @@ The module implements:
 - Component initialization validation
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 
 from pydantic import PrivateAttr
 
 from .base import BaseCritic
 from sifaka.utils.config import CriticConfig, CriticMetadata
-from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
-from sifaka.core.managers.prompt import DefaultPromptManager, PromptManager
-from sifaka.core.managers.response import ResponseParser
-from .services.critique import CritiqueService
-from ..models.core import ModelProviderCore
-from ..utils.logging import get_logger
-from ..utils.state import create_critic_state
+from sifaka.utils.logging import get_logger
+from sifaka.utils.state import create_critic_state
+
+# Use TYPE_CHECKING for imports needed only for type checking
+if TYPE_CHECKING:
+    from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
+    from sifaka.core.managers.prompt import DefaultPromptManager, PromptManager
+    from sifaka.core.managers.response import ResponseParser
+    from sifaka.models.core import ModelProviderCore
+    from .services.critique import CritiqueService
 
 logger = get_logger(__name__)
 
@@ -158,10 +161,10 @@ class CriticCore(BaseCritic):
     def __init__(
         self,
         config: CriticConfig,
-        llm_provider: ModelProviderCore,
-        prompt_manager: Optional[PromptManager] = None,
-        response_parser: Optional[ResponseParser] = None,
-        memory_manager: Optional[MemoryManager] = None,
+        llm_provider: "ModelProviderCore",
+        prompt_manager: Optional["PromptManager"] = None,
+        response_parser: Optional["ResponseParser"] = None,
+        memory_manager: Optional["MemoryManager"] = None,
     ):
         """Initialize a CriticCore instance.
 
@@ -186,12 +189,18 @@ class CriticCore(BaseCritic):
         self._state_manager.update("model", llm_provider)
         self._state_manager.update("cache", {})
 
+        # Import here to avoid circular dependencies
+        from sifaka.core.managers.response import ResponseParser
+
         # Store components in state
         prompt_manager = prompt_manager or self._create_prompt_manager()
         self._state_manager.update("prompt_manager", prompt_manager)
         self._state_manager.update("response_parser", response_parser or ResponseParser())
         if memory_manager:
             self._state_manager.update("memory_manager", memory_manager)
+
+        # Import and create critique service
+        from .services.critique import CritiqueService
 
         # Create and store critique service
         critique_service = CritiqueService(
@@ -577,7 +586,7 @@ class CriticCore(BaseCritic):
             "score_distribution": self._state_manager.get_metadata("score_distribution", {}),
         }
 
-    def _create_prompt_manager(self) -> PromptManager:
+    def _create_prompt_manager(self) -> "PromptManager":
         """Create a prompt manager for the critic.
 
         This method creates and configures a prompt manager for the critic.
@@ -615,13 +624,16 @@ class CriticCore(BaseCritic):
         Raises:
             RuntimeError: If prompt manager creation fails
         """
+        # Import here to avoid circular dependencies
+        from sifaka.core.managers.prompt import DefaultPromptManager
+
         return DefaultPromptManager()
 
 
 def create_core_critic(
     name: str,
     description: str,
-    llm_provider: ModelProviderCore,
+    llm_provider: "ModelProviderCore",
     system_prompt: Optional[str] = None,
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
@@ -630,12 +642,12 @@ def create_core_critic(
     cache_size: Optional[int] = None,
     priority: Optional[int] = None,
     cost: Optional[float] = None,
-    prompt_manager: Optional[PromptManager] = None,
-    response_parser: Optional[ResponseParser] = None,
-    memory_manager: Optional[MemoryManager] = None,
+    prompt_manager: Optional["PromptManager"] = None,
+    response_parser: Optional["ResponseParser"] = None,
+    memory_manager: Optional["MemoryManager"] = None,
     config: Optional[Union[Dict[str, Any], CriticConfig]] = None,
     **kwargs: Any,
-) -> CriticCore:
+) -> "CriticCore":
     """Factory function for creating CriticCore instances.
 
     This function creates and configures a CriticCore instance with the specified

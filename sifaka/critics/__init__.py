@@ -52,8 +52,8 @@ from .implementations import (
     create_self_rag_critic,
 )
 
-# Import interfaces
-from .interfaces import (
+# Import interfaces from main interfaces directory
+from sifaka.interfaces import (
     TextValidator,
     TextImprover,
     TextCritic,

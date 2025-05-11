@@ -84,7 +84,7 @@ from ...core.base import BaseComponent
 from ...utils.state import create_critic_state
 from ...core.base import BaseResult as CriticResult
 from sifaka.utils.config import FeedbackCriticConfig, ValueCriticConfig, LACCriticConfig
-from ..interfaces.critic import TextCritic, TextImprover, TextValidator
+from ...interfaces.critic import TextCritic, TextImprover, TextValidator
 
 # Default prompt templates
 DEFAULT_SYSTEM_PROMPT = (

@@ -90,7 +90,7 @@ from sifaka.core.base import (
     BaseConfig,
     BaseResult,
 )
-from sifaka.utils.error_patterns import safely_execute_rule
+from sifaka.utils.errors import safely_execute_rule
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_rule_state
 
@@ -147,58 +147,7 @@ class RuleConfig(BaseConfig):
     )
 
 
-class RuleResult(BaseResult):
-    """
-    Result from rule validation.
-
-    This class extends BaseResult to add rule-specific result information.
-
-    Attributes:
-        severity: Severity level of the result (error, warning, info)
-        category: Category of the rule that produced this result
-        tags: List of tags associated with the rule
-        rule_id: Identifier of the rule that produced this result
-        validation_time: When the validation was performed
-    """
-
-    model_config = ConfigDict(frozen=False, extra="forbid")
-
-    severity: str = Field(
-        default="error",
-        description="Severity level of the result",
-    )
-    category: str = Field(
-        default="general",
-        description="Category of the rule that produced this result",
-    )
-    tags: List[str] = Field(
-        default_factory=list,
-        description="List of tags associated with the rule",
-    )
-    rule_id: Optional[str] = Field(
-        default=None,
-        description="Identifier of the rule that produced this result",
-    )
-    validation_time: datetime = Field(
-        default_factory=datetime.now,
-        description="When the validation was performed",
-    )
-
-    def with_rule_id(self, rule_id: str) -> "RuleResult":
-        """Create a new result with the rule ID set."""
-        return self.model_copy(update={"rule_id": rule_id})
-
-    def with_severity(self, severity: str) -> "RuleResult":
-        """Create a new result with updated severity."""
-        return self.model_copy(update={"severity": severity})
-
-    def with_category(self, category: str) -> "RuleResult":
-        """Create a new result with updated category."""
-        return self.model_copy(update={"category": category})
-
-    def with_tags(self, tags: List[str]) -> "RuleResult":
-        """Create a new result with updated tags."""
-        return self.model_copy(update={"tags": tags})
+from ..core.results import RuleResult
 
 
 class Rule(BaseComponent[T, RuleResult], Generic[T]):

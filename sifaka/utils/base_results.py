@@ -117,6 +117,79 @@ class BaseRuleResult(BaseResult):
         return self.model_copy(update={"tags": tags})
 
 
+class CriticMetadata(BaseResult):
+    """
+    Metadata for critic results.
+
+    This class provides a standardized structure for critic metadata,
+    including scores, feedback, issues, and suggestions.
+    It extends BaseResult to provide a consistent result structure
+    across the Sifaka framework.
+
+    ## Overview
+    The class provides:
+    - Score tracking (0.0 to 1.0)
+    - Human-readable feedback
+    - Issue identification
+    - Improvement suggestions
+    - Additional metadata storage
+
+    ## Usage Examples
+    ```python
+    from sifaka.utils.base_results import CriticMetadata
+
+    # Create basic metadata
+    metadata = CriticMetadata(
+        score=0.85,
+        feedback="Good text quality",
+        passed=True,
+        message="Critique completed successfully",
+        issues=["Could be more concise"],
+        suggestions=["Remove redundant phrases"]
+    )
+
+    # Create metadata with additional data
+    metadata = CriticMetadata(
+        score=0.75,
+        feedback="Text needs improvement",
+        passed=False,
+        message="Text needs improvement",
+        issues=["Too verbose", "Unclear structure"],
+        suggestions=["Simplify language", "Add clear sections"],
+        metadata={
+            "processing_time": 1.5,
+            "confidence": 0.9
+        }
+    )
+    ```
+
+    ## Error Handling
+    The class implements:
+    - Score range validation (0.0 to 1.0)
+    - Required field validation
+    - Type checking for all fields
+    - Default value handling
+
+    Attributes:
+        score: Score for the critique (0.0 to 1.0)
+        feedback: Human-readable feedback
+        issues: List of identified issues (inherited from BaseResult)
+        suggestions: List of improvement suggestions (inherited from BaseResult)
+        metadata: Additional metadata (inherited from BaseResult)
+        passed: Whether the critique passed (inherited from BaseResult)
+        message: Human-readable message (inherited from BaseResult)
+    """
+
+    score: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Score for the critique (0.0 to 1.0)",
+    )
+    feedback: str = Field(
+        description="Human-readable feedback",
+    )
+
+
 def create_base_result(
     passed: bool,
     message: str,
@@ -196,6 +269,44 @@ def create_base_rule_result(
         tags=tags or [],
         rule_id=rule_id,
         score=score,
+        issues=issues or [],
+        suggestions=suggestions or [],
+        processing_time_ms=processing_time_ms or 0.0,
+    )
+
+
+def create_critic_metadata(
+    score: float,
+    feedback: str,
+    passed: bool,
+    message: str,
+    metadata: Optional[Dict[str, Any]] = None,
+    issues: Optional[List[str]] = None,
+    suggestions: Optional[List[str]] = None,
+    processing_time_ms: Optional[float] = None,
+) -> CriticMetadata:
+    """
+    Create a standardized critic metadata result.
+
+    Args:
+        score: Score for the critique (0.0 to 1.0)
+        feedback: Human-readable feedback
+        passed: Whether the critique passed
+        message: Human-readable message
+        metadata: Additional metadata
+        issues: List of identified issues
+        suggestions: List of improvement suggestions
+        processing_time_ms: Processing time in milliseconds
+
+    Returns:
+        Standardized CriticMetadata
+    """
+    return CriticMetadata(
+        score=score,
+        feedback=feedback,
+        passed=passed,
+        message=message,
+        metadata=metadata or {},
         issues=issues or [],
         suggestions=suggestions or [],
         processing_time_ms=processing_time_ms or 0.0,

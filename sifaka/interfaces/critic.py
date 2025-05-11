@@ -14,6 +14,31 @@ modularity and extensibility.
    - **LLMProvider**: Interface for language model providers
    - **PromptFactory**: Interface for prompt factories
 
+2. **Text Validation Protocols**
+   - `SyncTextValidator`: Synchronous text validation
+   - `AsyncTextValidator`: Asynchronous text validation
+   - `TextValidator`: Combined synchronous protocol
+
+3. **Text Improvement Protocols**
+   - `SyncTextImprover`: Synchronous text improvement
+   - `AsyncTextImprover`: Asynchronous text improvement
+   - `TextImprover`: Combined synchronous protocol
+
+4. **Text Critiquing Protocols**
+   - `SyncTextCritic`: Synchronous text critiquing
+   - `AsyncTextCritic`: Asynchronous text critiquing
+   - `TextCritic`: Combined synchronous protocol
+
+5. **Language Model Protocols**
+   - `SyncLLMProvider`: Synchronous language model provider
+   - `AsyncLLMProvider`: Asynchronous language model provider
+   - `LLMProvider`: Combined synchronous protocol
+
+6. **Prompt Factory Protocols**
+   - `SyncPromptFactory`: Synchronous prompt factory
+   - `AsyncPromptFactory`: Asynchronous prompt factory
+   - `PromptFactory`: Combined synchronous protocol
+
 ## Usage Examples
 
 ```python
@@ -206,6 +231,193 @@ class CritiqueResult(TypedDict):
     feedback: str
     issues: List[str]
     suggestions: List[str]
+
+
+@runtime_checkable
+class SyncTextCritic(Protocol):
+    """Protocol for synchronous text critiquing.
+
+    This protocol defines the interface for synchronous text critiquing operations.
+    Implementations must provide a method to critique text and provide feedback.
+    """
+
+    def critique(self, text: str) -> CritiqueResult:
+        """
+        Critique text and provide feedback.
+
+        Args:
+            text: The text to critique
+
+        Returns:
+            CritiqueResult: A dictionary containing critique information
+
+        Raises:
+            ValueError: If text is empty or invalid
+            RuntimeError: If critique fails
+        """
+        ...
+
+
+@runtime_checkable
+class AsyncTextCritic(Protocol):
+    """Protocol for asynchronous text critiquing.
+
+    This protocol defines the interface for asynchronous text critiquing operations.
+    Implementations must provide an async method to critique text and provide feedback.
+    """
+
+    async def critique(self, text: str) -> CritiqueResult:
+        """
+        Asynchronously critique text and provide feedback.
+
+        Args:
+            text: The text to critique
+
+        Returns:
+            CritiqueResult: A dictionary containing critique information
+
+        Raises:
+            ValueError: If text is empty or invalid
+            RuntimeError: If critique fails
+        """
+        ...
+
+
+@runtime_checkable
+class TextCritic(SyncTextCritic, Protocol):
+    """Protocol for text critiquing (sync version).
+
+    This protocol combines the synchronous text critiquing interface with
+    additional functionality for text critiquing operations.
+    """
+
+    ...
+
+
+@runtime_checkable
+class SyncLLMProvider(Protocol):
+    """Protocol for synchronous language model providers.
+
+    This protocol defines the interface for synchronous language model providers.
+    Implementations must provide a method to generate text from prompts.
+    """
+
+    def generate(self, prompt: str, **kwargs: Any) -> str:
+        """
+        Generate text from a prompt.
+
+        Args:
+            prompt: The prompt to generate from
+            **kwargs: Additional arguments for the model
+
+        Returns:
+            str: The generated text
+
+        Raises:
+            ValueError: If prompt is empty or invalid
+            RuntimeError: If generation fails
+        """
+        ...
+
+
+@runtime_checkable
+class AsyncLLMProvider(Protocol):
+    """Protocol for asynchronous language model providers.
+
+    This protocol defines the interface for asynchronous language model providers.
+    Implementations must provide an async method to generate text from prompts.
+    """
+
+    async def generate(self, prompt: str, **kwargs: Any) -> str:
+        """
+        Asynchronously generate text from a prompt.
+
+        Args:
+            prompt: The prompt to generate from
+            **kwargs: Additional arguments for the model
+
+        Returns:
+            str: The generated text
+
+        Raises:
+            ValueError: If prompt is empty or invalid
+            RuntimeError: If generation fails
+        """
+        ...
+
+
+@runtime_checkable
+class LLMProvider(SyncLLMProvider, Protocol):
+    """Protocol for language model providers (sync version).
+
+    This protocol combines the synchronous language model provider interface with
+    additional functionality for text generation operations.
+    """
+
+    ...
+
+
+@runtime_checkable
+class SyncPromptFactory(Protocol):
+    """Protocol for synchronous prompt factories.
+
+    This protocol defines the interface for synchronous prompt factories.
+    Implementations must provide a method to create prompts for language models.
+    """
+
+    def create_prompt(self, text: str, **kwargs: Any) -> str:
+        """
+        Create a prompt for a language model.
+
+        Args:
+            text: The text to include in the prompt
+            **kwargs: Additional arguments for prompt creation
+
+        Returns:
+            str: The formatted prompt
+
+        Raises:
+            ValueError: If text is empty or invalid
+            RuntimeError: If prompt creation fails
+        """
+        ...
+
+
+@runtime_checkable
+class AsyncPromptFactory(Protocol):
+    """Protocol for asynchronous prompt factories.
+
+    This protocol defines the interface for asynchronous prompt factories.
+    Implementations must provide an async method to create prompts for language models.
+    """
+
+    async def create_prompt(self, text: str, **kwargs: Any) -> str:
+        """
+        Asynchronously create a prompt for a language model.
+
+        Args:
+            text: The text to include in the prompt
+            **kwargs: Additional arguments for prompt creation
+
+        Returns:
+            str: The formatted prompt
+
+        Raises:
+            ValueError: If text is empty or invalid
+            RuntimeError: If prompt creation fails
+        """
+        ...
+
+
+@runtime_checkable
+class PromptFactory(SyncPromptFactory, Protocol):
+    """Protocol for prompt factories (sync version).
+
+    This protocol combines the synchronous prompt factory interface with
+    additional functionality for prompt creation operations.
+    """
+
+    ...
 
 
 @runtime_checkable
