@@ -1,8 +1,47 @@
 """
-Core model provider implementation.
+Core Model Provider Implementation
 
 This module provides the ModelProviderCore class which is the main interface
-for model providers, delegating to specialized components.
+for model providers, delegating to specialized components for better separation of concerns.
+
+## Overview
+The ModelProviderCore class implements a component-based architecture for model providers,
+delegating functionality to specialized managers and services. It serves as the foundation
+for all model provider implementations in Sifaka, providing a consistent interface while
+allowing for provider-specific customization.
+
+## Components
+- **ModelProviderCore**: Main provider class that delegates to specialized components
+- **ClientManager**: Manages API client creation and lifecycle
+- **TokenCounterManager**: Manages token counting functionality
+- **TracingManager**: Manages tracing and logging
+- **GenerationService**: Handles text generation and error handling
+
+## Usage Examples
+```python
+# Create a custom provider that extends ModelProviderCore
+class MyProvider(ModelProviderCore):
+    def _create_default_client(self) -> APIClient:
+        return MyAPIClient(api_key=self.config.api_key)
+
+    def _create_default_token_counter(self) -> TokenCounter:
+        return MyTokenCounter(model=self.model_name)
+
+# Use the provider
+provider = MyProvider(model_name="my-model")
+response = provider.generate("Hello, world!")
+```
+
+## Error Handling
+The module implements standardized error handling patterns:
+- Input validation with clear error messages
+- Structured error recording and propagation
+- Consistent error types for different failure modes
+- Detailed error metadata for debugging
+
+## Configuration
+The module uses the standardized configuration approach from utils/config.py,
+with provider-specific extensions as needed.
 """
 
 from abc import abstractmethod
@@ -45,14 +84,47 @@ class ModelProviderCore(ModelProvider[C], ModelProviderProtocol, Generic[C]):
 
     This class implements the ModelProvider interface but delegates most of its
     functionality to specialized components for better separation of concerns.
+    It provides a standardized approach to state management, error handling,
+    and component lifecycle management.
 
-    Type Parameters:
-        C: The configuration type, must be a subclass of ModelConfig
+    ## Architecture
+    The ModelProviderCore follows a component-based architecture:
+    - Delegates API communication to ClientManager
+    - Delegates token counting to TokenCounterManager
+    - Delegates tracing to TracingManager
+    - Delegates text generation to GenerationService
 
-    Lifecycle:
-    1. Initialization: Set up the provider with a model name, configuration, and component managers
-    2. Usage: Generate text and count tokens, delegating to the appropriate services
-    3. Cleanup: Release any resources when no longer needed
+    This separation of concerns makes the code more maintainable and testable,
+    allowing each component to focus on a specific responsibility.
+
+    ## Lifecycle
+    1. **Initialization**: Set up the provider with a model name, configuration, and component managers
+       - Create state manager and initialize state
+       - Store dependencies for later initialization
+       - Set metadata for tracing and debugging
+
+    2. **Warm-up**: Prepare the component for use (lazy initialization)
+       - Create managers (client, token counter, tracing)
+       - Create services (generation)
+       - Mark as initialized
+
+    3. **Usage**: Generate text and count tokens
+       - Delegate to appropriate services
+       - Handle errors consistently
+       - Update statistics
+
+    4. **Cleanup**: Release resources when no longer needed
+       - Release client resources
+       - Release token counter resources
+       - Release tracing resources
+       - Clear cache and reset initialization flag
+
+    ## Error Handling
+    The class implements standardized error handling patterns:
+    - Input validation with clear error messages
+    - Structured error recording and propagation
+    - Consistent error types for different failure modes
+    - Detailed error metadata for debugging
 
     ## State Management
     The class uses a standardized state management approach:
@@ -70,6 +142,9 @@ class ModelProviderCore(ModelProvider[C], ModelProviderProtocol, Generic[C]):
       - initialized: Initialization status
       - cache: Temporary data storage
 
+    Type Parameters:
+        C: The configuration type, must be a subclass of ModelConfig
+
     Examples:
         ```python
         # Create a custom provider that extends ModelProviderCore
@@ -83,6 +158,20 @@ class ModelProviderCore(ModelProvider[C], ModelProviderProtocol, Generic[C]):
         # Use the provider
         provider = MyProvider(model_name="my-model")
         response = provider.generate("Hello, world!")
+
+        # With custom configuration
+        from sifaka.utils.config import ModelConfig
+        config = ModelConfig(temperature=0.7, max_tokens=2000)
+        provider = MyProvider(model_name="my-model", config=config)
+
+        # Error handling
+        try:
+            response = provider.generate("Tell me about quantum computing")
+        except ValueError as e:
+            print(f"Input validation error: {e}")
+        except RuntimeError as e:
+            print(f"Generation error: {e}")
+            # Implement fallback strategy
         ```
     """
 
@@ -100,12 +189,40 @@ class ModelProviderCore(ModelProvider[C], ModelProviderProtocol, Generic[C]):
         """
         Initialize a ModelProviderCore instance.
 
+        This method initializes the state manager and stores dependencies for later
+        initialization. It follows a lazy initialization pattern, where actual
+        resource creation is deferred until the warm_up method is called.
+
         Args:
             model_name: The name of the model to use
             config: Optional model configuration
             api_client: Optional API client to use
             token_counter: Optional token counter to use
             tracer: Optional tracer to use
+
+        Raises:
+            ValueError: If model_name is empty
+            TypeError: If dependencies don't implement required protocols
+
+        Example:
+            ```python
+            # Basic initialization
+            provider = ModelProviderCore(model_name="gpt-4")
+
+            # With custom configuration
+            from sifaka.utils.config import ModelConfig
+            config = ModelConfig(temperature=0.7, max_tokens=2000)
+            provider = ModelProviderCore(model_name="gpt-4", config=config)
+
+            # With custom dependencies
+            provider = ModelProviderCore(
+                model_name="gpt-4",
+                config=config,
+                api_client=custom_client,
+                token_counter=custom_counter,
+                tracer=custom_tracer
+            )
+            ```
         """
         import time
 
@@ -151,7 +268,8 @@ class ModelProviderCore(ModelProvider[C], ModelProviderProtocol, Generic[C]):
         Count tokens in the given text.
 
         This method delegates to the token counter manager to perform
-        the actual token counting.
+        the actual token counting. It handles input validation,
+        error handling, and statistics tracking.
 
         Args:
             text: The text to count tokens for
@@ -161,6 +279,23 @@ class ModelProviderCore(ModelProvider[C], ModelProviderProtocol, Generic[C]):
 
         Raises:
             TypeError: If text is not a string
+            RuntimeError: If token counting fails
+
+        Example:
+            ```python
+            # Basic token counting
+            provider = OpenAIProvider(model_name="gpt-4")
+            count = provider.count_tokens("How many tokens is this?")
+            print(f"Token count: {count}")
+
+            # Using for optimization
+            prompt = "This is a long prompt..."
+            count = provider.count_tokens(prompt)
+            if count > 1000:
+                # Truncate or summarize if too long
+                prompt = prompt[:500] + "..."
+                print(f"Truncated prompt to reduce tokens")
+            ```
         """
         # Ensure component is initialized
         if not self._state_manager.get("initialized", False):
@@ -230,11 +365,16 @@ class ModelProviderCore(ModelProvider[C], ModelProviderProtocol, Generic[C]):
         Generate text using the model.
 
         This method delegates to the generation service to perform
-        the actual text generation.
+        the actual text generation. It handles input validation,
+        configuration overrides, error handling, and statistics tracking.
 
         Args:
             prompt: The prompt to generate from
             **kwargs: Optional overrides for model configuration
+                - temperature: Control randomness (0-1)
+                - max_tokens: Maximum tokens to generate
+                - api_key: Override API key
+                - trace_enabled: Override tracing setting
 
         Returns:
             The generated text
@@ -243,6 +383,29 @@ class ModelProviderCore(ModelProvider[C], ModelProviderProtocol, Generic[C]):
             TypeError: If prompt is not a string
             ValueError: If prompt is empty or API key is missing
             RuntimeError: If an error occurs during generation
+
+        Example:
+            ```python
+            # Basic generation
+            provider = OpenAIProvider(model_name="gpt-4")
+            response = provider.generate("Explain quantum computing in simple terms.")
+
+            # With parameter overrides
+            response = provider.generate(
+                "Write a creative story.",
+                temperature=0.9,
+                max_tokens=2000
+            )
+
+            # Error handling
+            try:
+                response = provider.generate("Explain quantum computing")
+            except ValueError as e:
+                print(f"Input error: {e}")
+            except RuntimeError as e:
+                print(f"Generation failed: {e}")
+                # Implement fallback strategy
+            ```
         """
         # Ensure component is initialized
         if not self._state_manager.get("initialized", False):
@@ -323,6 +486,10 @@ class ModelProviderCore(ModelProvider[C], ModelProviderProtocol, Generic[C]):
         """
         Update statistics after generation.
 
+        This method updates the generation statistics in the state manager,
+        tracking metrics like generation count and total processing time.
+        These statistics can be used for monitoring and optimization.
+
         Args:
             result: The generated text (used for potential future metrics like token count)
             processing_time_ms: The processing time in milliseconds
@@ -346,13 +513,25 @@ class ModelProviderCore(ModelProvider[C], ModelProviderProtocol, Generic[C]):
         Create a token counter manager.
 
         This method creates a specialized TokenCounterManager instance
-        that uses the provider's token counter creation method.
+        that uses the provider's token counter creation method. It uses
+        a closure to bind the provider's _create_default_token_counter
+        method to the manager.
 
         Args:
             token_counter: Optional token counter to use
 
         Returns:
-            A token counter manager
+            A token counter manager configured for this provider
+
+        Example:
+            ```python
+            # Internal usage
+            token_counter = None  # No explicit counter provided
+            manager = self._create_token_counter_manager(token_counter)
+
+            # The manager will use the provider's token counter creation method
+            counter = manager.get_token_counter()  # Uses _create_default_token_counter
+            ```
         """
 
         class ConcreteTokenCounterManager(TokenCounterManager):
@@ -366,13 +545,25 @@ class ModelProviderCore(ModelProvider[C], ModelProviderProtocol, Generic[C]):
         Create a client manager.
 
         This method creates a specialized ClientManager instance
-        that uses the provider's client creation method.
+        that uses the provider's client creation method. It uses
+        a closure to bind the provider's _create_default_client
+        method to the manager.
 
         Args:
             api_client: Optional API client to use
 
         Returns:
-            A client manager
+            A client manager configured for this provider
+
+        Example:
+            ```python
+            # Internal usage
+            api_client = None  # No explicit client provided
+            manager = self._create_client_manager(api_client)
+
+            # The manager will use the provider's client creation method
+            client = manager.get_client()  # Uses _create_default_client
+            ```
         """
 
         class ConcreteClientManager(ClientManager):
@@ -388,8 +579,26 @@ class ModelProviderCore(ModelProvider[C], ModelProviderProtocol, Generic[C]):
         """
         Create a default API client if none was provided.
 
+        This abstract method must be implemented by subclasses to provide
+        model-specific API client creation. It is called by the client manager
+        when no explicit client is provided.
+
         Returns:
             A default API client for the model
+
+        Raises:
+            RuntimeError: If a default client cannot be created
+
+        Example:
+            ```python
+            # Implementation in a concrete subclass
+            def _create_default_client(self) -> APIClient:
+                from sifaka.models.clients.openai import OpenAIClient
+                return OpenAIClient(
+                    api_key=self.config.api_key,
+                    model=self.model_name
+                )
+            ```
         """
         ...
 
@@ -398,8 +607,23 @@ class ModelProviderCore(ModelProvider[C], ModelProviderProtocol, Generic[C]):
         """
         Create a default token counter if none was provided.
 
+        This abstract method must be implemented by subclasses to provide
+        model-specific token counter creation. It is called by the token counter
+        manager when no explicit token counter is provided.
+
         Returns:
             A default token counter for the model
+
+        Raises:
+            RuntimeError: If a default token counter cannot be created
+
+        Example:
+            ```python
+            # Implementation in a concrete subclass
+            def _create_default_token_counter(self) -> TokenCounter:
+                from sifaka.models.counters.openai import OpenAITokenCounter
+                return OpenAITokenCounter(model=self.model_name)
+            ```
         """
         ...
 
@@ -408,7 +632,25 @@ class ModelProviderCore(ModelProvider[C], ModelProviderProtocol, Generic[C]):
         Prepare the component for use.
 
         This method initializes all necessary resources for the model provider,
-        including API clients, token counters, and services.
+        including API clients, token counters, and services. It follows a lazy
+        initialization pattern, where resources are only created when needed.
+
+        The warm_up method is automatically called by other methods when needed,
+        so it's not necessary to call it explicitly in most cases.
+
+        Raises:
+            InitializationError: If initialization fails
+
+        Example:
+            ```python
+            # Explicit warm-up
+            provider = OpenAIProvider(model_name="gpt-4")
+            provider.warm_up()  # Initialize resources
+
+            # Implicit warm-up (happens automatically)
+            provider = OpenAIProvider(model_name="gpt-4")
+            response = provider.generate("Hello")  # Calls warm_up internally
+            ```
         """
         try:
             # Check if already initialized
@@ -459,7 +701,26 @@ class ModelProviderCore(ModelProvider[C], ModelProviderProtocol, Generic[C]):
         self._state_manager.update("generation_service", generation_service)
 
     def cleanup(self) -> None:
-        """Clean up component resources."""
+        """
+        Clean up component resources.
+
+        This method releases all resources used by the model provider,
+        including API clients, token counters, and tracing resources.
+        It also clears the cache and resets the initialization flag.
+
+        The method is designed to be safe to call multiple times and
+        will not raise exceptions even if cleanup fails.
+
+        Example:
+            ```python
+            # Create and use a provider
+            provider = OpenAIProvider(model_name="gpt-4")
+            response = provider.generate("Hello")
+
+            # Clean up when done
+            provider.cleanup()
+            ```
+        """
         try:
             # Release resources
             self._release_resources()
@@ -509,7 +770,17 @@ class ModelProviderCore(ModelProvider[C], ModelProviderProtocol, Generic[C]):
         """
         Get the provider name.
 
+        This property returns a human-readable name for the provider,
+        combining the class name and model name. It is used for logging,
+        error messages, and debugging.
+
         Returns:
-            The provider name
+            The provider name as a string in the format "ClassName-model_name"
+
+        Example:
+            ```python
+            provider = OpenAIProvider(model_name="gpt-4")
+            print(provider.name)  # Outputs: "OpenAIProvider-gpt-4"
+            ```
         """
         return f"{self.__class__.__name__}-{self._state_manager.get('model_name')}"

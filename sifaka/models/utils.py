@@ -10,8 +10,61 @@ from typing import Any, Dict, List, Optional, TypeVar, Callable, cast, Union
 from pydantic import BaseModel
 
 from .result import ModelResult, GenerationResult
-from sifaka.utils.errors import ModelError, try_operation
-from sifaka.utils.error_patterns import create_model_error_result, ErrorResult
+from sifaka.utils.errors import ModelError, try_operation, ErrorResult
+
+
+# Define create_model_error_result function
+def create_model_error_result(
+    error: Exception,
+    component_name: str,
+    log_level: str = "error",
+    include_traceback: bool = True,
+    additional_metadata: Optional[Dict[str, Any]] = None,
+) -> ErrorResult:
+    """
+    Create a standardized error result for a model operation.
+
+    Args:
+        error: The exception that occurred
+        component_name: Name of the model where the error occurred
+        log_level: Log level to use (default: "error")
+        include_traceback: Whether to include traceback in error metadata
+        additional_metadata: Additional metadata to include in error
+
+    Returns:
+        Standardized error result
+    """
+    # Get error type and message
+    error_type = type(error).__name__
+    error_message = str(error)
+
+    # Create metadata
+    metadata = {
+        "component": component_name,
+        "error_type": error_type,
+        **(additional_metadata or {}),
+    }
+
+    # Include traceback if requested
+    if include_traceback:
+        import traceback
+
+        metadata["traceback"] = traceback.format_exc()
+
+    # Log the error
+    import logging
+
+    logger = logging.getLogger(__name__)
+    log_func = getattr(logger, log_level, logger.error)
+    log_func(f"Model error in {component_name}: {error_message}")
+
+    # Create error result
+    return ErrorResult(
+        error_type=error_type,
+        error_message=error_message,
+        metadata=metadata,
+    )
+
 
 # Type variable for return type
 T = TypeVar("T")
@@ -146,5 +199,6 @@ def try_generate(
 __all__ = [
     "create_generation_result",
     "create_error_result",
+    "create_model_error_result",
     "try_generate",
 ]

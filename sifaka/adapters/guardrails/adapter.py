@@ -86,9 +86,8 @@ from sifaka.rules.base import (
     RuleResult,
     Rule,
     RuleConfig,
-    ConfigurationError,
-    ValidationError,
 )
+from sifaka.utils.errors import ConfigurationError, ValidationError
 from sifaka.adapters.base import BaseAdapter, AdapterError
 from sifaka.utils.state import StateManager, create_adapter_state
 from sifaka.utils.errors import handle_error

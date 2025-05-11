@@ -57,12 +57,20 @@ def classify(text: str) -> ClassificationResult[str]:
 ```
 """
 
-from typing import Dict, Optional, Any, Literal, Union, TypeVar, Generic, overload
+from typing import Dict, Optional, Any
 
-from sifaka.rules.base import RuleResult
-from sifaka.classifiers.base import ClassificationResult
+from sifaka.core.base import BaseResult
 
-R = TypeVar("R")
+
+class ClassificationResult(BaseResult):
+    """
+    Base result for classification operations.
+
+    This is a simplified version that can be used in utils without importing from classifiers.
+    """
+
+    label: Any
+    confidence: float = 0.0
 
 
 def is_empty_text(text: str) -> bool:
@@ -104,10 +112,7 @@ def handle_empty_text(
     passed: bool = True,
     message: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
-    component_type: Literal[
-        "rule", "adapter", "classifier", "chain", "critic", "retrieval", "component"
-    ] = "rule",
-) -> Optional[RuleResult]:
+) -> Optional[BaseResult]:
     """
     Standardized handling for empty text validation.
 
@@ -129,15 +134,14 @@ def handle_empty_text(
         passed: Whether empty text should pass validation (default: True)
         message: Custom message for the result (default: based on passed value)
         metadata: Additional metadata to include in the result
-        component_type: The type of component calling this function
 
     Returns:
-        RuleResult if text is empty, None otherwise
+        BaseResult if text is empty, None otherwise
 
     Examples:
         ```python
         # In a validator's validate method
-        def validate(self, text: str, **kwargs) -> RuleResult:
+        def validate(self, text: str, **kwargs) -> BaseResult:
             # Handle empty text first
             from sifaka.utils.text import handle_empty_text
             empty_result = handle_empty_text(text)
@@ -164,7 +168,7 @@ def handle_empty_text(
     if "input_length" not in final_metadata:
         final_metadata["input_length"] = len(text)
 
-    return RuleResult(
+    return BaseResult(
         passed=passed,
         message=message,
         metadata=final_metadata,
@@ -173,10 +177,10 @@ def handle_empty_text(
 
 def handle_empty_text_for_classifier(
     text: str,
-    label: str = "unknown",
+    label: Any = "unknown",
     confidence: float = 0.0,
     metadata: Optional[Dict[str, Any]] = None,
-) -> Optional[ClassificationResult[R]]:
+) -> Optional[ClassificationResult]:
     """
     Standardized handling for empty text in classifiers.
 
@@ -196,7 +200,7 @@ def handle_empty_text_for_classifier(
     Examples:
         ```python
         # In a classifier's classify method
-        def _classify_impl_uncached(self, text: str) -> ClassificationResult[str]:
+        def _classify_impl_uncached(self, text: str) -> ClassificationResult:
             # Handle empty text first
             from sifaka.utils.text import handle_empty_text_for_classifier
             empty_result = handle_empty_text_for_classifier(text)
@@ -219,7 +223,9 @@ def handle_empty_text_for_classifier(
     if "input_length" not in final_metadata:
         final_metadata["input_length"] = len(text)
 
-    return ClassificationResult[R](
+    return ClassificationResult(
+        passed=False,
+        message="Empty text",
         label=label,
         confidence=confidence,
         metadata=final_metadata,

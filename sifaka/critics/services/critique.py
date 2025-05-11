@@ -98,9 +98,8 @@ from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
 from sifaka.core.managers.prompt import CriticPromptManager as PromptManager
 from ..managers.response import ResponseParser
 from ...utils.logging import get_logger
-from ...utils.errors import safely_execute_critic, CriticError
+from ...utils.error_patterns import safely_execute_critic
 from ...utils.state import StateManager, create_critic_state
-from ...utils.patterns import compile_pattern, match_pattern, find_patterns
 
 logger = get_logger(__name__)
 
@@ -252,8 +251,6 @@ class CritiqueService(BaseModel):
             ValueError: If text is empty
             RuntimeError: If validation fails
         """
-        start_time = time.time()
-
         # Update validation count
         validation_count = self._state_manager.get("validation_count", 0)
         self._state_manager.update("validation_count", validation_count + 1)

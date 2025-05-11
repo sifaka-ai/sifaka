@@ -73,17 +73,17 @@ Usage Example:
                 print(f"- {rule_name}: {rule_result.message}")
 """
 
-from .base import Rule
-from .config import RuleConfig, RulePriority
-from .result import RuleResult
+from .base import Rule, RuleConfig, RuleResult, FunctionRule
+from .config import RulePriority
 from .factories import create_rule, create_validation_manager
-from sifaka.interfaces import (
+from .interfaces import (
     Rule as RuleInterface,
     AsyncRule,
     RuleProtocol,
     RuleResultHandler,
     Validatable,
 )
+from .validators import BaseValidator, FunctionValidator, RuleValidator
 from .managers.validation import ValidationManager
 from .utils import try_validate
 from sifaka.utils.results import create_rule_result, create_error_result
@@ -103,6 +103,11 @@ __all__ = [
     "RuleConfig",
     "RuleResult",
     "RulePriority",
+    "FunctionRule",
+    # Validator classes
+    "BaseValidator",
+    "FunctionValidator",
+    "RuleValidator",
     # Interfaces
     "RuleProtocol",
     "RuleInterface",

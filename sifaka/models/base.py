@@ -36,12 +36,12 @@ The model system implements several error handling patterns:
 
 ```python
 from sifaka.models import create_model_provider, ModelConfig
-from sifaka.models.providers.anthropic import AnthropicProvider
+from sifaka.interfaces.model import ModelProviderProtocol
 
 # Basic usage with factory function
 provider = create_model_provider(
-    AnthropicProvider,
-    model_name="claude-3-opus",
+    ProviderClass,  # Any class implementing ModelProviderProtocol
+    model_name="model-name",
     api_key="your-api-key",
     temperature=0.8
 )
@@ -49,7 +49,7 @@ response = provider.generate("Explain quantum computing in simple terms.")
 
 # Direct instantiation with custom configuration
 config = ModelConfig().with_temperature(0.9).with_max_tokens(2000)
-provider = AnthropicProvider(model_name="claude-3-opus", config=config)
+provider = ProviderClass(model_name="model-name", config=config)
 
 # Error handling pattern
 try:
@@ -62,8 +62,8 @@ except RuntimeError as e:
     print(f"Generation failed: {e}")
     # Implement fallback strategy
     fallback_provider = create_model_provider(
-        AnthropicProvider,
-        model_name="claude-3-haiku"
+        FallbackProviderClass,
+        model_name="fallback-model"
     )
     response = fallback_provider.generate("Explain quantum computing briefly")
 ```
@@ -90,11 +90,12 @@ from sifaka.utils.tracing import Tracer
 
 logger = get_logger(__name__)
 
-# Type variables for generic type definitions
-T = TypeVar("T", bound="ModelProvider")
-C = TypeVar("C", bound="ModelConfig")  # Config type
-
+# Import configuration
 from sifaka.utils.config import ModelConfig
+
+# Type variables for generic type definitions
+T = TypeVar("T")  # Generic type for ModelProvider
+C = TypeVar("C", bound=ModelConfig)  # Config type
 
 
 # Import the LanguageModelProtocol from interfaces
@@ -167,17 +168,19 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
     ## Examples
 
     ```python
-    from sifaka.models.base import ModelProvider, ModelConfig
-    from sifaka.interfaces import APIClientProtocol, TokenCounterProtocol
+    from sifaka.interfaces.model import ModelProviderProtocol
+    from sifaka.interfaces.client import APIClientProtocol
+    from sifaka.interfaces.counter import TokenCounterProtocol
+    from sifaka.utils.config import ModelConfig
 
     # Basic usage
-    provider = OpenAIProvider(model_name="gpt-4")
+    provider = ProviderClass(model_name="model-name")
     response = provider.generate("Explain quantum computing")
     token_count = provider.count_tokens("How many tokens is this?")
 
     # With custom configuration
     config = ModelConfig().with_temperature(0.9).with_max_tokens(2000)
-    provider = AnthropicProvider(model_name="claude-3-opus", config=config)
+    provider = ProviderClass(model_name="model-name", config=config)
 
     # With explicit dependencies
     class CustomClient:
@@ -194,8 +197,8 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
     assert isinstance(CustomClient(), APIClientProtocol)
     assert isinstance(CustomTokenCounter(), TokenCounterProtocol)
 
-    provider = AnthropicProvider(
-        model_name="claude-3-opus",
+    provider = ProviderClass(
+        model_name="model-name",
         config=config,
         api_client=CustomClient(),
         token_counter=CustomTokenCounter()
@@ -211,7 +214,7 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         # Handle API and generation errors
         print(f"Generation failed: {e}")
         # Implement fallback strategy
-        fallback_provider = OpenAIProvider(model_name="gpt-3.5-turbo")
+        fallback_provider = FallbackProviderClass(model_name="fallback-model")
         response = fallback_provider.generate("Explain quantum computing briefly")
     ```
     """
@@ -255,50 +258,55 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         Basic initialization with just a model name:
 
         ```python
-        from sifaka.models.providers.openai import OpenAIProvider
+        from sifaka.interfaces.model import ModelProviderProtocol
 
         # Create a provider with just a model name
         # Default configuration and dependencies will be created when needed
-        provider = OpenAIProvider(model_name="gpt-4")
+        provider = ProviderClass(model_name="model-name")
         ```
 
         Initialization with custom configuration:
 
         ```python
-        from sifaka.models.base import ModelConfig
-        from sifaka.models.providers.anthropic import AnthropicProvider
+        from sifaka.utils.config import ModelConfig
+        from sifaka.interfaces.model import ModelProviderProtocol
 
         # Create a custom configuration
         config = ModelConfig().with_temperature(0.9).with_max_tokens(2000)
 
         # Create a provider with the custom configuration
-        provider = AnthropicProvider(model_name="claude-3-opus", config=config)
+        provider = ProviderClass(model_name="model-name", config=config)
         ```
 
         Initialization with custom dependencies:
 
         ```python
-        from sifaka.models.base import APIClient, TokenCounter
-        from sifaka.models.providers.openai import OpenAIProvider
+        from sifaka.interfaces.client import APIClientProtocol
+        from sifaka.interfaces.counter import TokenCounterProtocol
+        from sifaka.interfaces.model import ModelProviderProtocol
         from sifaka.utils.tracing import Tracer
 
         # Create custom dependencies
-        class CustomAPIClient(APIClient):
+        class CustomAPIClient:
             def send_prompt(self, prompt, config):
                 # Custom implementation
                 return "Response"
 
-        class CustomTokenCounter(TokenCounter):
+        class CustomTokenCounter:
             def count_tokens(self, text):
                 # Custom implementation
                 return len(text.split())
+
+        # Verify protocol compliance
+        assert isinstance(CustomAPIClient(), APIClientProtocol)
+        assert isinstance(CustomTokenCounter(), TokenCounterProtocol)
 
         # Create a tracer
         tracer = Tracer()
 
         # Create a provider with custom dependencies
-        provider = OpenAIProvider(
-            model_name="gpt-4",
+        provider = ProviderClass(
+            model_name="model-name",
             api_client=CustomAPIClient(),
             token_counter=CustomTokenCounter(),
             tracer=tracer
@@ -310,22 +318,22 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         ```python
         try:
             # This will raise ValueError if model_name is empty
-            provider = OpenAIProvider(model_name="")
+            provider = ProviderClass(model_name="")
         except ValueError as e:
             print(f"Initialization error: {e}")
             # Use a default model name instead
-            provider = OpenAIProvider(model_name="gpt-3.5-turbo")
+            provider = ProviderClass(model_name="default-model")
 
         try:
             # This will raise TypeError if api_client doesn't implement APIClient
-            provider = OpenAIProvider(
-                model_name="gpt-4",
+            provider = ProviderClass(
+                model_name="model-name",
                 api_client="not an APIClient"  # Wrong type
             )
         except TypeError as e:
             print(f"Initialization error: {e}")
             # Create without custom dependencies
-            provider = OpenAIProvider(model_name="gpt-4")
+            provider = ProviderClass(model_name="model-name")
         ```
 
         Args:
@@ -476,9 +484,9 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         Provider-specific implementation:
 
         ```python
-        class AnthropicProvider(ModelProvider[AnthropicConfig]):
-            def _create_default_config(self) -> AnthropicConfig:
-                return AnthropicConfig(
+        class CustomProvider(ModelProvider[CustomConfig]):
+            def _create_default_config(self) -> CustomConfig:
+                return CustomConfig(
                     temperature=0.7,
                     max_tokens=1000,
                     system_prompt="You are a helpful assistant."
@@ -809,8 +817,8 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
                 else:
                     # Fallback to simpler model
                     fallback_provider = create_model_provider(
-                        AnthropicProvider,
-                        model_name="claude-3-haiku"
+                        ModelProvider,  # Use a generic provider type for the example
+                        model_name="simpler-model"
                     )
                     response = fallback_provider.generate("Explain quantum computing briefly")
             ```
@@ -911,21 +919,20 @@ def create_model_provider(
 
     Examples:
         ```python
-        from sifaka.models.providers.anthropic import AnthropicProvider
-        from sifaka.models.providers.openai import OpenAIProvider
+        from sifaka.interfaces.model import ModelProviderProtocol
 
-        # Create an Anthropic provider
+        # Create a provider with a specific provider class
         provider = create_model_provider(
-            AnthropicProvider,
-            model_name="claude-3-opus",
+            ProviderClass,  # Any class implementing ModelProviderProtocol
+            model_name="model-name",
             api_key="your-api-key",
             temperature=0.8
         )
 
-        # Create an OpenAI provider
+        # Create another provider
         provider = create_model_provider(
-            OpenAIProvider,
-            model_name="gpt-4",
+            AnotherProviderClass,
+            model_name="another-model",
             api_key="your-api-key",
             max_tokens=2000
         )
@@ -933,7 +940,7 @@ def create_model_provider(
         # Error handling when creating providers
         try:
             provider = create_model_provider(
-                AnthropicProvider,
+                ProviderClass,
                 model_name="invalid-model",
                 api_key="your-api-key"
             )
@@ -941,15 +948,15 @@ def create_model_provider(
             print(f"Provider creation failed: {e}")
             # Use fallback provider
             provider = create_model_provider(
-                OpenAIProvider,
-                model_name="gpt-3.5-turbo",
-                api_key="your-openai-key"
+                FallbackProviderClass,
+                model_name="fallback-model",
+                api_key="your-fallback-key"
             )
 
         # With additional provider-specific options
         provider = create_model_provider(
-            AnthropicProvider,
-            model_name="claude-3-opus",
+            ProviderClass,
+            model_name="model-name",
             api_key="your-api-key",
             system_prompt="You are a helpful assistant"
         )

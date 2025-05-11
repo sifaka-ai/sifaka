@@ -11,201 +11,24 @@ API communication, token counting, response processing, and execution tracking.
 
 ## Components
 - **OpenAIProvider**: Main provider class for OpenAI models
-- **OpenAIClient**: API client implementation for OpenAI
-- **OpenAITokenCounter**: Token counter implementation for OpenAI models
-
-## Usage Examples
-```python
-from sifaka.models.providers.openai import OpenAIProvider
-from sifaka.utils.config import ModelConfig
-
-# Create a provider with default configuration
-provider = OpenAIProvider(model_name="gpt-4")
-
-# Create a provider with custom configuration
-config = ModelConfig(
-    temperature=0.8,
-    max_tokens=2000,
-    api_key="your-api-key"
-)
-provider = OpenAIProvider(model_name="gpt-4", config=config)
-
-# Generate text
-response = provider.generate("Explain quantum computing")
-
-# Count tokens
-token_count = provider.count_tokens("How many tokens is this?")
-```
-
-## Error Handling
-The provider implements comprehensive error handling:
-- API authentication errors
-- Rate limiting and quota errors
-- Network and timeout errors
-- Model-specific errors
-- Input validation errors
 """
 
-import os
-from typing import Any, Dict, Optional, ClassVar, TYPE_CHECKING
+import time
+import importlib.util
+from typing import Any, Dict, Optional, ClassVar
 
-import tiktoken
-
-# Import interfaces directly to avoid circular dependencies
 from sifaka.interfaces.client import APIClientProtocol as APIClient
 from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
 from sifaka.interfaces.model import ModelProviderProtocol
-
+from sifaka.models.managers.openai_client import OpenAIClientManager
+from sifaka.models.managers.openai_token_counter import OpenAITokenCounterManager
 from sifaka.utils.config import ModelConfig
-from sifaka.utils.error_patterns import safely_execute_component_operation
+from sifaka.utils.errors import safely_execute_component_operation
+from sifaka.utils.errors import ModelError
+from sifaka.utils.common import record_error
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-class OpenAIClient(APIClient):
-    """OpenAI API client implementation."""
-
-    def __init__(self, api_key: Optional[str] = None) -> None:
-        """
-        Initialize the OpenAI client.
-
-        Args:
-            api_key: Optional API key for OpenAI
-        """
-        # Check for API key in environment if not provided
-        if not api_key:
-            api_key = os.environ.get("OPENAI_API_KEY")
-            logger.debug("Retrieved API key from environment")
-
-        # Validate API key
-        if not api_key:
-            logger.warning(
-                "No OpenAI API key provided and OPENAI_API_KEY environment variable not set"
-            )
-        elif not api_key.startswith("sk-"):
-            logger.warning(
-                f"API key format appears incorrect. Expected to start with 'sk-', got: {api_key[:5]}..."
-            )
-
-        self.api_key = api_key
-        logger.debug("Initialized OpenAI client")
-
-    def send_prompt(self, prompt: str, config: ModelConfig) -> str:
-        """
-        Send a prompt to OpenAI and return the response.
-
-        Args:
-            prompt: The prompt to send
-            config: Configuration for the request
-
-        Returns:
-            The generated text response
-
-        Raises:
-            ValueError: If API key is missing
-            RuntimeError: If the API call fails
-        """
-        # Get API key from config or client
-        api_key = config.api_key or self.api_key
-
-        # Check for missing API key
-        if not api_key:
-            raise ValueError(
-                "No API key provided. Please provide an API key either by setting the "
-                "OPENAI_API_KEY environment variable or by passing it explicitly."
-            )
-
-        # Define the generation operation
-        def generate_operation():
-            # Import OpenAI here to avoid dependency issues
-            import openai
-
-            # Configure client
-            openai.api_key = api_key
-
-            # Prepare generation parameters
-            params = {
-                "model": config.params.get("model_name", "gpt-4"),
-                "prompt": prompt,
-                "max_tokens": config.max_tokens,
-                "temperature": config.temperature,
-                "top_p": config.params.get("top_p", 1.0),
-                "frequency_penalty": config.params.get("frequency_penalty", 0.0),
-                "presence_penalty": config.params.get("presence_penalty", 0.0),
-                "stop": config.params.get("stop", None),
-            }
-
-            # Generate text
-            response = openai.Completion.create(**params)
-            return response.choices[0].text.strip()
-
-        # Use the standardized safely_execute_component_operation function
-        return safely_execute_component_operation(
-            operation=generate_operation,
-            component_name="OpenAIClient",
-            component_type="APIClient",
-            additional_metadata={"model_name": config.params.get("model_name", "gpt-4")},
-        )
-
-
-class OpenAITokenCounter(TokenCounter):
-    """Token counter using tiktoken for OpenAI models."""
-
-    def __init__(self, model: str = "gpt-4") -> None:
-        """
-        Initialize the token counter for a specific model.
-
-        Args:
-            model: The model to count tokens for
-        """
-
-        # Define the initialization operation
-        def init_operation():
-            # Get the appropriate encoding for the model
-            if "gpt-4" in model:
-                encoding_name = "cl100k_base"
-            elif "gpt-3.5" in model:
-                encoding_name = "cl100k_base"
-            else:
-                encoding_name = "p50k_base"  # Default for older models
-
-            self.encoding = tiktoken.get_encoding(encoding_name)
-            logger.debug(
-                f"Initialized token counter for model {model} with encoding {encoding_name}"
-            )
-            return self.encoding
-
-        # Use the standardized safely_execute_component_operation function
-        safely_execute_component_operation(
-            operation=init_operation,
-            component_name="OpenAITokenCounter",
-            component_type="TokenCounter",
-            additional_metadata={"model_name": model},
-        )
-
-    def count_tokens(self, text: str) -> int:
-        """
-        Count tokens in the text using the model's encoding.
-
-        Args:
-            text: The text to count tokens for
-
-        Returns:
-            The number of tokens in the text
-        """
-
-        # Define the token counting operation
-        def count_operation():
-            return len(self.encoding.encode(text))
-
-        # Use the standardized safely_execute_component_operation function
-        return safely_execute_component_operation(
-            operation=count_operation,
-            component_name="OpenAITokenCounter",
-            component_type="TokenCounter",
-            additional_metadata={"model_name": "tiktoken"},
-        )
 
 
 class OpenAIProvider(ModelProviderProtocol):
@@ -215,11 +38,6 @@ class OpenAIProvider(ModelProviderProtocol):
     This provider supports OpenAI models with configurable parameters,
     built-in token counting, and execution tracking. It handles communication
     with OpenAI's API, token counting, and response processing.
-
-    ## Architecture
-    OpenAIProvider extends ModelProviderCore and follows Sifaka's component-based
-    architecture. It delegates API communication to OpenAIClient and token counting
-    to OpenAITokenCounter.
     """
 
     # Class constants
@@ -243,27 +61,46 @@ class OpenAIProvider(ModelProviderProtocol):
         """
         # Verify OpenAI package is installed
         try:
-            import importlib.util
-
             if importlib.util.find_spec("openai") is None:
                 raise ImportError()
         except ImportError:
             raise ImportError("OpenAI package is required. Install with: pip install openai")
 
-        # Initialize with ModelProviderCore
-        super().__init__(
+        # Initialize state manager
+        from sifaka.utils.state import StateManager
+
+        self._state_manager = StateManager()
+
+        # Create managers
+        self._client_manager = OpenAIClientManager(
             model_name=model_name,
-            config=config,
+            config=config or ModelConfig(),
             api_client=api_client,
+        )
+        self._token_counter_manager = OpenAITokenCounterManager(
+            model_name=model_name,
             token_counter=token_counter,
         )
+
+        # Initialize state
+        self._state_manager.update("model_name", model_name)
+        self._state_manager.update("config", config or ModelConfig())
+        self._state_manager.update("initialized", False)
+        self._state_manager.update(
+            "stats",
+            {
+                "generation_count": 0,
+                "token_count_calls": 0,
+                "error_count": 0,
+                "total_processing_time": 0,
+            },
+        )
+
+        logger.info(f"Created OpenAIProvider with model {model_name}")
 
     def invoke(self, prompt: str, **kwargs) -> str:
         """
         Invoke the model with a prompt (delegates to generate).
-
-        This method is needed for compatibility with the critique service
-        which expects an 'invoke' method.
 
         Args:
             prompt: The prompt to send to the model
@@ -277,8 +114,6 @@ class OpenAIProvider(ModelProviderProtocol):
             self.warm_up()
 
         # Process input
-        import time
-
         start_time = time.time()
 
         # Define the operation
@@ -286,9 +121,7 @@ class OpenAIProvider(ModelProviderProtocol):
             # Actual processing logic
             return self.generate(prompt, **kwargs)
 
-        # Use standardized error handling - import at function level to avoid circular dependencies
-        from sifaka.utils.error_patterns import safely_execute_component_operation
-
+        # Use standardized error handling
         result = safely_execute_component_operation(
             operation=operation,
             component_name=self.name,
@@ -326,8 +159,6 @@ class OpenAIProvider(ModelProviderProtocol):
             self.warm_up()
 
         # Process input
-        import time
-
         start_time = time.time()
 
         try:
@@ -358,8 +189,6 @@ class OpenAIProvider(ModelProviderProtocol):
             self._record_error(e)
 
             # Raise a standardized error
-            from sifaka.utils.errors import ModelError
-
             raise ModelError(
                 f"Error in async invocation: {str(e)}",
                 metadata={
@@ -378,22 +207,12 @@ class OpenAIProvider(ModelProviderProtocol):
         self._state_manager.update("stats", stats)
 
         # Use common error recording utility
-        from sifaka.utils.common import record_error
-
         record_error(
             error=error,
             component_name=self.name,
             component_type=self.__class__.__name__,
             state_manager=self._state_manager,
         )
-
-    def _create_default_client(self) -> APIClient:
-        """Create a default OpenAI client."""
-        return OpenAIClient(api_key=self._state_manager.get("config").api_key)
-
-    def _create_default_token_counter(self) -> TokenCounter:
-        """Create a default token counter for the current model."""
-        return OpenAITokenCounter(model=self._state_manager.get("model_name"))
 
     @property
     def name(self) -> str:
@@ -405,46 +224,35 @@ class OpenAIProvider(ModelProviderProtocol):
         """
         return f"OpenAI-{self._state_manager.get('model_name')}"
 
-    def _initialize_resources(self) -> None:
+    def warm_up(self) -> None:
         """
         Initialize resources needed by the OpenAI provider.
-
-        This method is called by the warm_up method in the parent class.
         """
-        # Call parent implementation first
-        super()._initialize_resources()
+        # Ensure component is not already initialized
+        if self._state_manager.get("initialized", False):
+            logger.debug(f"Provider {self.name} already initialized")
+            return
 
-        # Initialize OpenAI-specific resources
-        # Ensure client is initialized
-        client = self._state_manager.get("client")
-        if client is None:
-            client = self._create_default_client()
-            self._state_manager.update("client", client)
+        # Initialize client
+        client = self._client_manager.get_client()
+        self._state_manager.update("client", client)
 
-        # Ensure token counter is initialized
-        token_counter = self._state_manager.get("token_counter")
-        if token_counter is None:
-            token_counter = self._create_default_token_counter()
-            self._state_manager.update("token_counter", token_counter)
+        # Initialize token counter
+        token_counter = self._token_counter_manager.get_token_counter()
+        self._state_manager.update("token_counter", token_counter)
 
-        # Initialize provider-specific stats if not already present
-        if not self._state_manager.get("stats"):
-            stats = {
-                "generation_count": 0,
-                "token_count_calls": 0,
-                "error_count": 0,
-                "total_processing_time": 0,
-            }
-            self._state_manager.update("stats", stats)
+        # Mark as initialized
+        self._state_manager.update("initialized", True)
+        logger.info(f"Provider {self.name} initialized successfully")
 
-    def _release_resources(self) -> None:
+    def cleanup(self) -> None:
         """
         Release resources used by the OpenAI provider.
-
-        This method is called by the cleanup method in the parent class.
         """
-        # Call parent implementation first
-        super()._release_resources()
+        # Check if already cleaned up
+        if not self._state_manager.get("initialized", False):
+            logger.debug(f"Provider {self.name} not initialized, nothing to clean up")
+            return
 
         # Release OpenAI-specific resources
         client = self._state_manager.get("client")
@@ -461,6 +269,72 @@ class OpenAIProvider(ModelProviderProtocol):
                 "total_processing_time": 0,
             },
         )
+
+        # Mark as not initialized
+        self._state_manager.update("initialized", False)
+        logger.info(f"Provider {self.name} cleaned up successfully")
+
+    def generate(self, prompt: str, **kwargs) -> str:
+        """
+        Generate text from a prompt.
+
+        Args:
+            prompt: The prompt to send to the model
+            **kwargs: Additional keyword arguments to pass to the model
+
+        Returns:
+            The generated text response
+        """
+        # Ensure component is initialized
+        if not self._state_manager.get("initialized", False):
+            self.warm_up()
+
+        # Get client from state
+        client = self._state_manager.get("client")
+        if client is None:
+            client = self._client_manager.get_client()
+            self._state_manager.update("client", client)
+
+        # Get config from state
+        config = self._state_manager.get("config")
+
+        # Update config with kwargs
+        for key, value in kwargs.items():
+            if hasattr(config, key):
+                setattr(config, key, value)
+            elif hasattr(config, "params"):
+                config.params[key] = value
+
+        # Send prompt to client
+        return client.send_prompt(prompt, config)
+
+    def count_tokens(self, text: str) -> int:
+        """
+        Count tokens in the text.
+
+        Args:
+            text: The text to count tokens for
+
+        Returns:
+            The number of tokens in the text
+        """
+        # Ensure component is initialized
+        if not self._state_manager.get("initialized", False):
+            self.warm_up()
+
+        # Get token counter from state
+        token_counter = self._state_manager.get("token_counter")
+        if token_counter is None:
+            token_counter = self._token_counter_manager.get_token_counter()
+            self._state_manager.update("token_counter", token_counter)
+
+        # Update statistics
+        stats = self._state_manager.get("stats", {})
+        stats["token_count_calls"] = stats.get("token_count_calls", 0) + 1
+        self._state_manager.update("stats", stats)
+
+        # Count tokens
+        return token_counter.count_tokens(text)
 
     def get_statistics(self) -> Dict[str, Any]:
         """

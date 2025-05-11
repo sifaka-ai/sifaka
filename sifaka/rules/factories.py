@@ -27,13 +27,12 @@ Usage Example:
     ```
 """
 
-import time
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, List, Optional, Type
 
-from .base import Rule, BaseValidator
+from .base import Rule
+from .validators import BaseValidator
 from .config import RuleConfig
 from .managers.validation import ValidationManager, ValidationConfig
-from .result import RuleResult
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)

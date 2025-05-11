@@ -14,8 +14,8 @@ These interfaces are imported from the main interfaces directory.
    - **PromptFactory**: Interface for prompt factories
 """
 
-# Import from the main interfaces directory
-from sifaka.interfaces.critic import (
+# Import from the local critic.py file
+from .critic import (
     # Core critic interfaces
     Critic,
     AsyncCritic,

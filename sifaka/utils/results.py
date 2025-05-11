@@ -93,7 +93,7 @@ Result creation can be configured with:
 from typing import Any, Dict, List, Optional, TypeVar, Union, cast
 
 from sifaka.rules.base import RuleResult
-from sifaka.classifiers.base import ClassificationResult
+from sifaka.classifiers.result import ClassificationResult
 from sifaka.critics.models import CriticMetadata
 from sifaka.utils.common import create_standard_result
 

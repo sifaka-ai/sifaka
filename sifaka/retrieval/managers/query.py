@@ -31,7 +31,7 @@ from sifaka.utils.logging import get_logger
 from sifaka.utils.patterns import PUNCTUATION_PATTERN, replace_pattern
 
 from ..config import QueryProcessingConfig
-from ..interfaces.retriever import QueryProcessor
+from sifaka.interfaces.retrieval import QueryProcessor
 
 logger = get_logger(__name__)
 

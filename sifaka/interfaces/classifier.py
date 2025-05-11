@@ -61,8 +61,8 @@ class MyClassifier(ClassifierProtocol[str, str]):
 
 from typing import Any, Dict, Generic, List, Protocol, TypeVar, runtime_checkable
 
-# Import ClassificationResult from classifiers.models
-from sifaka.classifiers.models import ClassificationResult
+# Import ClassificationResult from classifiers.result
+from sifaka.classifiers.result import ClassificationResult
 
 # Type variables for generic protocols
 T = TypeVar("T")  # Input type

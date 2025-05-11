@@ -40,12 +40,11 @@ Usage Example:
 """
 
 import time
-from typing import Callable, TypeVar
+from typing import Callable, TypeVar, Dict, Optional, Any, Literal
 
-from .result import RuleResult
+from .result import RuleResult, create_error_result
 from sifaka.utils.errors import try_operation
 from sifaka.utils.logging import get_logger
-from sifaka.utils.results import create_error_result
 
 # Get logger
 logger = get_logger(__name__)
@@ -57,6 +56,105 @@ T = TypeVar("T")
 # The create_rule_result and create_error_result functions have been moved to sifaka.utils.results
 # Import them from there instead:
 # from sifaka.utils.results import create_rule_result, create_error_result
+
+
+def is_empty_text(text: str) -> bool:
+    """
+    Check if text is empty or contains only whitespace.
+
+    Args:
+        text: The text to check
+
+    Returns:
+        True if the text is empty or contains only whitespace, False otherwise
+
+    Examples:
+        ```python
+        from sifaka.rules.utils import is_empty_text
+
+        # Check empty string
+        is_empty_text("")  # Returns True
+
+        # Check whitespace-only string
+        is_empty_text("   \t\n")  # Returns True
+
+        # Check non-empty string
+        is_empty_text("Hello, world!")  # Returns False
+        ```
+    """
+    return not text or not text.strip()
+
+
+def handle_empty_text(
+    text: str,
+    passed: bool = True,
+    message: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    component_type: Literal[
+        "rule", "adapter", "classifier", "chain", "critic", "retrieval", "component"
+    ] = "rule",
+) -> Optional[RuleResult]:
+    """
+    Standardized handling for empty text validation.
+
+    This function provides consistent handling of empty text across different
+    components in the Sifaka framework. It should be used by all validators,
+    rules, adapters, chain components, critics, and retrieval components to ensure
+    consistent behavior.
+
+    Usage guidelines:
+    - For rules: use with passed=False
+    - For adapters: use with passed=True
+    - For core components: use with passed=False
+    - For chain components: use with passed=False
+    - For critics components: use with passed=False
+    - For retrieval components: use with passed=False
+
+    Args:
+        text: The text to check
+        passed: Whether empty text should pass validation (default: True)
+        message: Custom message for the result (default: based on passed value)
+        metadata: Additional metadata to include in the result
+        component_type: The type of component calling this function
+
+    Returns:
+        RuleResult if text is empty, None otherwise
+
+    Examples:
+        ```python
+        # In a validator's validate method
+        def validate(self, text: str, **kwargs) -> RuleResult:
+            # Handle empty text first
+            from sifaka.rules.utils import handle_empty_text
+            empty_result = handle_empty_text(text)
+            if empty_result:
+                return empty_result
+
+            # Proceed with normal validation
+            # ...
+        ```
+    """
+    if not is_empty_text(text):
+        return None
+
+    # Set default message based on passed value
+    if message is None:
+        message = "Empty text validation skipped" if passed else "Empty text provided"
+
+    # Set default metadata
+    final_metadata = {"reason": "empty_input"}
+    if metadata:
+        final_metadata.update(metadata)
+
+    # Add input length to metadata
+    if "input_length" not in final_metadata:
+        final_metadata["input_length"] = len(text)
+
+    return RuleResult(
+        passed=passed,
+        message=message,
+        metadata=final_metadata,
+    )
 
 
 def try_validate(
@@ -145,4 +243,6 @@ def try_validate(
 
 __all__ = [
     "try_validate",
+    "is_empty_text",
+    "handle_empty_text",
 ]

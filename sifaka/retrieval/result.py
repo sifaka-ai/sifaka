@@ -46,8 +46,7 @@ print(f"Score: {result.top_document.score}")
 ```
 """
 
-from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
-from datetime import datetime
+from typing import Any, Dict, Generic, List, Optional, TypeVar
 from pydantic import BaseModel, Field, ConfigDict
 
 from sifaka.core.base import BaseResult
@@ -199,7 +198,7 @@ class RetrievedDocument(BaseModel, Generic[T]):
         return self.model_copy(update={"score": score})
 
 
-class RetrievalResult(BaseResult, Generic[T]):
+class RetrievalResult(BaseResult):
     """
     Result of a retrieval operation.
 
@@ -366,7 +365,7 @@ class RetrievalResult(BaseResult, Generic[T]):
         return self.model_copy(update={"additional_info": {**self.additional_info, **kwargs}})
 
 
-class StringRetrievalResult(RetrievalResult[str]):
+class StringRetrievalResult(RetrievalResult):
     """
     Result of a retrieval operation with string content.
 

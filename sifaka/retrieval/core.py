@@ -44,14 +44,56 @@ import time
 from typing import Any, Dict, List, Optional
 
 from sifaka.core.base import BaseComponent
-from sifaka.utils.errors import RetrievalError, InputError, handle_error, try_component_operation
-from sifaka.utils.error_patterns import safely_execute_retrieval, create_retrieval_error_result
+from sifaka.utils.errors import RetrievalError, InputError, handle_error
 from sifaka.utils.logging import get_logger
 from sifaka.utils.common import record_error
 
+
+# Define safely_execute_retrieval function
+def safely_execute_retrieval(
+    operation: callable,
+    retriever_name: str,
+    component_name: str,
+    additional_metadata: Optional[Dict[str, Any]] = None,
+) -> Any:
+    """
+    Safely execute a retrieval operation with standardized error handling.
+
+    Args:
+        operation: The operation to execute
+        retriever_name: Name of the retriever
+        component_name: Type of the component
+        additional_metadata: Additional metadata to include in error
+
+    Returns:
+        Result of the operation or error result
+    """
+    try:
+        return operation()
+    except Exception as e:
+        # Handle error
+        error_info = handle_error(
+            e,
+            retriever_name,
+            "error",
+            additional_metadata={
+                "component_name": component_name,
+                "component_type": "retriever",
+                **(additional_metadata or {}),
+            },
+        )
+
+        # Return error result
+        return {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "metadata": error_info,
+        }
+
+
 from .config import RetrieverConfig
-from .result import RetrievalResult, RetrievedDocument, DocumentMetadata, StringRetrievalResult
-from sifaka.interfaces.retrieval import Retriever, QueryProcessor
+from .result import RetrievedDocument, DocumentMetadata, StringRetrievalResult
+from sifaka.interfaces.retrieval import QueryProcessor
 from .managers.query import QueryManager
 
 logger = get_logger(__name__)

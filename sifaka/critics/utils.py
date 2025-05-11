@@ -11,7 +11,8 @@ from pydantic import BaseModel
 
 from .base import CriticResultEnum
 from sifaka.utils.errors import CriticError, try_operation
-from sifaka.utils.error_patterns import create_critic_error_result, ErrorResult
+from sifaka.utils.error_patterns import create_critic_error_result
+from sifaka.utils.errors import ErrorResult
 
 # Type variable for return type
 T = TypeVar("T")

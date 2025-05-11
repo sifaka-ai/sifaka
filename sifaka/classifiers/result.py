@@ -42,15 +42,23 @@ enhanced_result = result.with_metadata(
 ```
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypeVar, Generic
 import time
 from pydantic import BaseModel, Field, computed_field
 
+# Type variable for label type
+T = TypeVar("T")
 
-class ClassificationResult(BaseModel):
-    """Result of a classification operation."""
 
-    label: str = Field(description="The classification label")
+class ClassificationResult(BaseModel, Generic[T]):
+    """
+    Result of a classification operation.
+
+    This class is generic over the label type T, which allows for type-safe
+    classification results with different label types.
+    """
+
+    label: T = Field(description="The classification label")
     confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Confidence score (0-1)")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
     issues: List[str] = Field(default_factory=list, description="List of issues found")
@@ -59,7 +67,7 @@ class ClassificationResult(BaseModel):
     )
     timestamp: float = Field(default_factory=time.time, description="Result creation timestamp")
 
-    def with_metadata(self, **kwargs: Any) -> "ClassificationResult":
+    def with_metadata(self, **kwargs: Any) -> "ClassificationResult[T]":
         """
         Create a new result with additional metadata.
 
@@ -71,7 +79,7 @@ class ClassificationResult(BaseModel):
         """
         return self.model_copy(update={"metadata": {**self.metadata, **kwargs}})
 
-    def with_issues(self, issues: List[str]) -> "ClassificationResult":
+    def with_issues(self, issues: List[str]) -> "ClassificationResult[T]":
         """
         Create a new result with additional issues.
 
@@ -83,7 +91,7 @@ class ClassificationResult(BaseModel):
         """
         return self.model_copy(update={"issues": self.issues + issues})
 
-    def with_suggestions(self, suggestions: List[str]) -> "ClassificationResult":
+    def with_suggestions(self, suggestions: List[str]) -> "ClassificationResult[T]":
         """
         Create a new result with additional suggestions.
 

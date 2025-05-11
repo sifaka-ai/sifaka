@@ -135,6 +135,7 @@ __all__ = [
     "StateError",
     "DependencyError",
     "InitializationError",
+    "ComponentError",
     # Component-specific error classes
     "ChainError",
     "ImproverError",
@@ -358,6 +359,47 @@ class InitializationError(SifakaError):
     """
 
     pass
+
+
+class ComponentError(SifakaError):
+    """Base class for component-specific errors.
+
+    This class provides a standardized structure for component-specific errors,
+    including component name, component type, and error type. It serves as the
+    base class for all component-specific error classes.
+
+    Attributes:
+        message (str): Human-readable error message
+        component_name (Optional[str]): Name of the component that raised the error
+        component_type (str): Type of the component that raised the error
+        error_type (str): Type of error
+        metadata (Dict[str, Any]): Additional error context and details
+    """
+
+    def __init__(
+        self,
+        message: str,
+        component_name: Optional[str] = None,
+        component_type: str = "component",
+        error_type: str = "component_error",
+        **kwargs: Any,
+    ):
+        """Initialize a ComponentError with a message and component information.
+
+        Args:
+            message (str): Human-readable error message
+            component_name (Optional[str]): Name of the component that raised the error
+            component_type (str): Type of the component that raised the error
+            error_type (str): Type of error
+            **kwargs: Additional error metadata
+        """
+        metadata = {
+            "component_name": component_name,
+            "component_type": component_type,
+            "error_type": error_type,
+            **kwargs,
+        }
+        super().__init__(message, metadata=metadata)
 
 
 # Component-specific error classes

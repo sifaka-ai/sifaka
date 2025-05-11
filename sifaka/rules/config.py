@@ -31,8 +31,50 @@ Usage Example:
 """
 
 from typing import Any
+from enum import Enum
 
 from sifaka.utils.config import RuleConfig
+
+
+class RulePriority(str, Enum):
+    """
+    Priority levels for rules.
+
+    This enumeration defines the standard priority levels for rules in the Sifaka framework.
+    Rules with higher priority are typically executed before rules with lower priority.
+
+    ## Values
+    - LOW: Lowest priority level
+    - MEDIUM: Default priority level
+    - HIGH: High priority level
+    - CRITICAL: Highest priority level
+
+    ## Usage
+    ```python
+    from sifaka.rules.config import RulePriority, RuleConfig
+
+    # Create a rule configuration with HIGH priority
+    config = RuleConfig(
+        name="important_rule",
+        priority=RulePriority.HIGH
+    )
+
+    # Priority can also be specified as a string
+    config = RuleConfig(
+        name="important_rule",
+        priority="HIGH"
+    )
+
+    # Check priority level
+    if config.priority == RulePriority.HIGH:
+        print("This is a high-priority rule")
+    ```
+    """
+
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
 
 
 def get_param(config: RuleConfig, key: str, default: Any = None) -> Any:
@@ -54,3 +96,10 @@ def get_param(config: RuleConfig, key: str, default: Any = None) -> Any:
         ```
     """
     return config.params.get(key, default)
+
+
+__all__ = [
+    "RuleConfig",
+    "RulePriority",
+    "get_param",
+]

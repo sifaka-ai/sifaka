@@ -29,50 +29,55 @@ Total potential improvement: 55-80 points across all categories.
 
 ### Phase 2: Component Restructuring (No Backward Compatibility) - IN PROGRESS
 
-1. **Restructure the Models Component** - IN PROGRESS
+1. **Restructure the Models Component** - COMPLETED
    - ✅ Created clean hierarchy: interfaces → base → core → providers
    - ✅ Updated models/base.py to use interfaces from interfaces/model.py
    - ✅ Updated models/core.py to use interfaces from interfaces/model.py
    - ✅ Updated models/providers/openai.py to use interfaces directly
    - ✅ Updated models/providers/anthropic.py to use interfaces directly
-   - ⏳ Need to fix remaining self-referential imports within modules
+   - ✅ Fixed circular dependency between models/base.py and models/providers/anthropic.py
+   - ✅ Fixed self-referential imports in models/base.py
+   - ✅ Updated models/factories.py to use lazy loading and avoid circular dependencies
+   - ✅ Fixed function-level imports in models/providers/openai.py
+   - ✅ Fixed function-level imports in models/providers/anthropic.py
+   - ✅ Fixed self-referential imports in models/providers/openai.py by:
+     - Moving OpenAIClient to models/managers/openai_client.py
+     - Moving OpenAITokenCounter to models/managers/openai_token_counter.py
+     - Creating a new OpenAIProvider with proper manager usage
+     - Updating models/factories.py to use the new OpenAIProvider
+   - ✅ Fixed self-referential imports in models/providers/anthropic.py by:
+     - Moving AnthropicClient to models/managers/anthropic_client.py
+     - Moving AnthropicTokenCounter to models/managers/anthropic_token_counter.py
+     - Completely removing AnthropicReflector functionality (redundant with critics component)
+     - Updating the AnthropicProvider to use proper manager pattern
+     - Adding documentation explaining that text analysis should use critics instead
 
-2. **Restructure the Rules Component** - NOT STARTED
+2. **Architectural Improvements** - PARTIALLY COMPLETED
+   - ✅ Removed redundant text analysis functionality from model providers
+   - ✅ Improved separation of concerns by ensuring text analysis is handled by critics component
+   - ⏳ Need to continue improving architectural consistency across components
+
+3. **Restructure the Rules Component** - NOT STARTED
    - ⏳ Need to create a clean hierarchy: interfaces → base → implementations
    - ⏳ Need to move utility functions from `rules/base.py` to appropriate utility modules
    - ⏳ Need to ensure rule implementations only import from base and interfaces
 
-3. **Restructure the Configuration System** - NOT STARTED
+4. **Restructure the Configuration System** - NOT STARTED
    - ⏳ Need to consolidate all configuration classes in `utils/config.py`
    - ⏳ Need to remove component-specific config modules that create circular dependencies
    - ⏳ Need to use composition instead of inheritance for configuration classes
 
-## Remaining Circular Dependencies in Models Component
+## Next Steps
 
-1. **Self-referential Imports**:
-   - models/providers/openai.py -> models/providers/openai.py
-   - models/providers/anthropic.py -> models/providers/anthropic.py
-   - models/base.py -> models/base.py
+1. **Restructure the Configuration System**:
+   - Consolidate all configuration classes in `utils/config.py`
+   - Remove component-specific config modules (models/config.py, chain/config.py, classifiers/config.py)
+   - Use composition instead of inheritance for configuration classes
 
-2. **Cross-component Circular Dependencies**:
-   - models/base.py -> models/providers/anthropic.py -> models/base.py
-
-## Next Steps for Models Component
-
-1. **Fix Self-referential Imports**:
-   - Identify and remove self-imports in models/providers/openai.py
-   - Identify and remove self-imports in models/providers/anthropic.py
-   - Identify and remove self-imports in models/base.py
-
-2. **Fix Cross-component Circular Dependencies**:
-   - Ensure models/base.py doesn't import from models/providers/anthropic.py
-   - Ensure models/providers/anthropic.py doesn't import from models/base.py
-   - Use interfaces and dependency injection to break circular dependencies
-
-3. **Implement Factory Functions**:
-   - Create a dedicated models/factories.py module
-   - Move all model provider creation logic to factory functions
-   - Use lazy loading in factory functions to avoid circular dependencies
+2. **Restructure the Rules Component**:
+   - Move interface definitions from rules/base.py to interfaces/rule.py
+   - Fix circular dependency between rules/base.py and rules/formatting/length.py
+   - Fix circular dependency between rules/base.py and utils/text.py
 
 ## Next Steps for Rules Component
 

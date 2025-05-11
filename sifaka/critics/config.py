@@ -79,19 +79,75 @@ The module implements:
 - Range validation for numeric fields
 """
 
-# Import configuration classes from utils/config.py
-from ..utils.config import (
-    CriticConfig,
-    CriticMetadata,
-    PromptCriticConfig,
-    ReflexionCriticConfig,
-    ConstitutionalCriticConfig,
-    SelfRefineCriticConfig,
-    SelfRAGCriticConfig,
-    FeedbackCriticConfig,
-    ValueCriticConfig,
-    LACCriticConfig,
-)
+# Import base configuration class from utils/config.py
+from ..utils.config import CriticConfig
+
+# Import CriticMetadata from models.py
+from .models import CriticMetadata
+
+
+# Define specialized critic configuration classes
+class PromptCriticConfig(CriticConfig):
+    """Configuration for prompt-based critics."""
+
+    system_prompt: str
+    temperature: float = 0.7
+    max_tokens: int = 1000
+    eager_initialization: bool = False
+    memory_buffer_size: int = 10
+    track_performance: bool = True
+    track_errors: bool = True
+
+
+class ReflexionCriticConfig(PromptCriticConfig):
+    """Configuration for reflexion critics."""
+
+    memory_buffer_size: int = 5
+    reflection_depth: int = 1
+
+
+class ConstitutionalCriticConfig(PromptCriticConfig):
+    """Configuration for constitutional critics."""
+
+    principles: list[str] = []
+
+
+class SelfRefineCriticConfig(PromptCriticConfig):
+    """Configuration for self-refine critics."""
+
+    max_iterations: int = 3
+    improvement_threshold: float = 0.1
+
+
+class SelfRAGCriticConfig(PromptCriticConfig):
+    """Configuration for self-RAG critics."""
+
+    retrieval_top_k: int = 3
+    reflection_enabled: bool = True
+
+
+class FeedbackCriticConfig(PromptCriticConfig):
+    """Configuration for feedback critics."""
+
+    feedback_dimensions: list[str] = ["clarity", "coherence", "relevance", "accuracy"]
+
+
+class ValueCriticConfig(PromptCriticConfig):
+    """Configuration for value critics."""
+
+    value_dimensions: list[str] = ["clarity", "coherence", "relevance", "accuracy"]
+    min_score: float = 0.0
+    max_score: float = 1.0
+
+
+class LACCriticConfig(PromptCriticConfig):
+    """Configuration for LAC critics."""
+
+    feedback_dimensions: list[str] = ["clarity", "coherence", "relevance", "accuracy"]
+    value_dimensions: list[str] = ["clarity", "coherence", "relevance", "accuracy"]
+    min_score: float = 0.0
+    max_score: float = 1.0
+
 
 # Default system prompts
 DEFAULT_SYSTEM_PROMPT = (
