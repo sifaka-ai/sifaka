@@ -47,10 +47,10 @@
        - ✅ Updated utils/state.py with standardized docstrings
        - ✅ Updated remaining utility modules (utils/errors.py, utils/error_patterns.py, models/utils.py, retrieval/core.py)
      - ✅ Standardize docstrings in chain components
-     - ⬜ Standardize docstrings in remaining components
-       - ⬜ Standardize docstrings in model components
-       - ⬜ Standardize docstrings in critic components
-       - ⬜ Standardize docstrings in rule components
+     - 🔄 Standardize docstrings in remaining components
+       - ✅ Standardize docstrings in model components
+       - ✅ Standardize docstrings in critic components
+       - 🔄 Standardize docstrings in rule components (5/8 completed)
        - ⬜ Standardize docstrings in classifier components
        - ⬜ Standardize docstrings in retrieval components
        - ⬜ Standardize docstrings in adapter components

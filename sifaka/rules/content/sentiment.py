@@ -4,20 +4,42 @@ Sentiment analysis content validation rules for Sifaka.
 This module provides rules for analyzing and validating text sentiment,
 including positive/negative sentiment detection and emotional content analysis.
 
-Usage Example:
-    ```python
-    from sifaka.rules.content.sentiment import create_sentiment_rule
+## Overview
+The sentiment validation rules help ensure that text meets specific sentiment
+requirements, such as being positive, neutral, or having a certain confidence
+level. This is useful for content moderation, ensuring appropriate tone in
+responses, and analyzing emotional content.
 
-    # Create a sentiment rule using the factory function
-    sentiment_rule = create_sentiment_rule(
-        threshold=0.7,
-        valid_labels=["positive", "neutral"]
-    )
+## Components
+- **SentimentConfig**: Configuration for sentiment validation
+- **SimpleSentimentClassifier**: Basic sentiment classifier implementation
+- **SentimentAnalyzer**: Analyzer for sentiment detection
+- **SentimentValidator**: Validator for sentiment requirements
+- **SentimentRule**: Rule for validating text sentiment
+- **Factory Functions**: create_sentiment_validator, create_sentiment_rule
 
-    # Validate text
-    result = sentiment_rule.validate("This is a great test!")
-    print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
-    ```
+## Usage Examples
+```python
+from sifaka.rules.content.sentiment import create_sentiment_rule
+
+# Create a sentiment rule using the factory function
+sentiment_rule = create_sentiment_rule(
+    threshold=0.7,
+    valid_labels=["positive", "neutral"]
+)
+
+# Validate text
+result = sentiment_rule.validate("This is a great test!")
+print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+print(f"Sentiment: {result.metadata['sentiment']}")
+print(f"Confidence: {result.metadata['confidence']}")
+```
+
+## Error Handling
+- Empty text handling through BaseValidator.handle_empty_text
+- Classification errors handled through try_operation
+- Detailed validation results with metadata for debugging
+- Caching for performance optimization
 """
 
 import time
@@ -45,7 +67,46 @@ logger = get_logger(__name__)
 
 
 class SentimentConfig(BaseModel):
-    """Configuration for sentiment validation."""
+    """
+    Configuration for sentiment validation.
+
+    This class defines the configuration options for sentiment validation,
+    including threshold, valid labels, and caching parameters.
+
+    ## Architecture
+    The class uses Pydantic for validation and immutability, with field
+    constraints to ensure valid parameter ranges.
+
+    ## Lifecycle
+    1. **Creation**: Instantiate with default or custom values
+       - Create directly with parameters
+       - Create from dictionary with model_validate
+
+    2. **Validation**: Values are validated by Pydantic
+       - Type checking for all fields
+       - Range validation for threshold (0.0-1.0)
+       - Immutability enforced by frozen=True
+
+    3. **Usage**: Pass to validators and rules
+       - Used by SentimentAnalyzer
+       - Used by SentimentValidator
+       - Used by SentimentRule._create_default_validator
+
+    ## Examples
+    ```python
+    from sifaka.rules.content.sentiment import SentimentConfig
+
+    # Create with default values
+    config = SentimentConfig()
+
+    # Create with custom values
+    config = SentimentConfig(
+        threshold=0.7,
+        valid_labels=["positive", "neutral"],
+        cache_size=200
+    )
+    ```
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -77,16 +138,54 @@ class SentimentConfig(BaseModel):
 
 
 class SimpleSentimentClassifier:
-    """Simple sentiment classifier for testing."""
+    """
+    Simple sentiment classifier for testing.
+
+    This class provides a basic sentiment classification implementation
+    for demonstration and testing purposes. It analyzes text for positive,
+    negative, or neutral sentiment based on keyword matching.
+
+    ## Architecture
+    The classifier uses a simple keyword-based approach with error handling
+    through the try_operation utility to ensure robust behavior.
+
+    ## Lifecycle
+    1. **Classification**: Analyze text for sentiment
+       - Check for empty text
+       - Count positive and negative keywords
+       - Determine sentiment based on keyword counts
+       - Return classification result with confidence
+
+    ## Error Handling
+    - Empty text handling through handle_empty_text_for_classifier
+    - Error handling through try_operation
+    - Default to unknown result on classification errors
+
+    ## Examples
+    ```python
+    from sifaka.rules.content.sentiment import SimpleSentimentClassifier
+
+    # Create classifier
+    classifier = SimpleSentimentClassifier()
+
+    # Classify text
+    result = classifier.classify("This is a great test!")
+    print(f"Label: {result.label}, Confidence: {result.confidence}")
+    ```
+    """
 
     def classify(self, text: str):
-        """Classify text sentiment.
+        """
+        Classify text sentiment.
+
+        This method analyzes the input text and determines its sentiment
+        (positive, negative, or neutral) based on keyword matching.
 
         Args:
             text: The text to classify
 
         Returns:
-            ClassificationResult with sentiment label
+            ClassificationResult with sentiment label, confidence, and metadata
         """
         from sifaka.utils.errors import try_operation
         from sifaka.utils.results import create_classification_result, create_unknown_result

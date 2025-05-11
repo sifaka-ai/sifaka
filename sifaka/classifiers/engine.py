@@ -4,8 +4,25 @@ Classifier Engine Module
 This module provides the core classification engine for the Sifaka classifiers system.
 It coordinates the flow between components, handles caching, and manages state.
 
+## Overview
+The Engine class is the central component of the classification system, responsible
+for coordinating the classification process, managing caching, tracking statistics,
+and handling errors. It serves as an intermediary between the user-facing Classifier
+class and the implementation-specific classification logic.
+
 ## Components
 1. **Engine**: Core classification engine that coordinates the flow
+2. **StateManager**: Manages engine state and statistics
+3. **ClassifierConfig**: Configuration for the engine
+4. **ClassifierImplementation**: Interface for classifier implementations
+
+## Architecture
+The engine follows a layered architecture:
+1. **Interface Layer**: Public methods for classification
+2. **Caching Layer**: Optional caching of classification results
+3. **Execution Layer**: Delegation to classifier implementations
+4. **State Management Layer**: Tracking of statistics and state
+5. **Error Handling Layer**: Standardized error handling and reporting
 
 ## Usage Examples
 ```python
@@ -28,7 +45,33 @@ result = engine.classify(
 # Access result
 print(f"Label: {result.label}")
 print(f"Confidence: {result.confidence:.2f}")
+
+# Classify text asynchronously
+import asyncio
+
+async def classify_async():
+    result = await engine.classify_async(
+        text="This is a friendly message.",
+        implementation=implementation
+    )
+    return result
+
+result = asyncio.run(classify_async())
 ```
+
+## Error Handling
+The Engine class provides robust error handling:
+- ClassifierError: Raised when classification fails
+- ImplementationError: Raised when implementation fails
+- Automatic error tracking and statistics
+- Detailed error messages and context
+
+## Configuration
+The Engine class supports configuration through the ClassifierConfig class:
+- cache_enabled: Whether to enable result caching
+- cache_size: Maximum number of cached results
+- min_confidence: Minimum confidence threshold
+- async_enabled: Whether to enable asynchronous classification
 """
 
 from typing import Any, Dict, List, Optional
@@ -47,7 +90,47 @@ logger = get_logger(__name__)
 
 
 class Engine:
-    """Core classification engine for the Sifaka classifiers system."""
+    """
+    Core classification engine for the Sifaka classifiers system.
+
+    This class provides the central coordination logic for the classification process,
+    managing the flow between components, handling caching, tracking statistics,
+    and standardizing error handling.
+
+    ## Architecture
+    The Engine class follows a component-based architecture:
+    - Uses StateManager for state tracking and statistics
+    - Implements caching with configurable cache size
+    - Delegates to classifier implementations for actual classification
+    - Provides both synchronous and asynchronous interfaces
+    - Handles errors with standardized error classes
+
+    ## Lifecycle
+    1. **Initialization**: Set up engine with state manager and configuration
+    2. **Classification**: Process text through classifier implementations
+    3. **Caching**: Optionally cache results for improved performance
+    4. **Statistics**: Track execution statistics and performance metrics
+    5. **Error Handling**: Handle and track errors with detailed context
+
+    ## Examples
+    ```python
+    # Create engine with configuration
+    engine = Engine(
+        state_manager=StateManager(),
+        config=ClassifierConfig(
+            cache_enabled=True,
+            cache_size=100,
+            min_confidence=0.7
+        )
+    )
+
+    # Classify text
+    result = engine.classify(
+        text="This is a friendly message.",
+        implementation=implementation
+    )
+    ```
+    """
 
     def __init__(
         self,
@@ -57,9 +140,13 @@ class Engine:
         """
         Initialize the engine.
 
+        This method sets up the engine with the provided state manager and configuration.
+        It initializes the internal state, including execution counters, result cache,
+        and metadata.
+
         Args:
-            state_manager: State manager for state management
-            config: Engine configuration
+            state_manager: State manager for tracking state and statistics
+            config: Engine configuration with settings for caching, confidence thresholds, etc.
         """
         self._state_manager = state_manager
         self._config = config or ClassifierConfig()
@@ -82,16 +169,27 @@ class Engine:
         """
         Classify the given text.
 
+        This method processes the input text through the provided classifier implementation
+        and returns a standardized classification result. It handles caching, state tracking,
+        error handling, and statistics updates.
+
         Args:
-            text: The text to classify
-            implementation: The classifier implementation to use
+            text: The text to classify, which can be any string content
+                 that the implementation can process
+            implementation: The classifier implementation to use for classification,
+                           which must implement the ClassifierImplementation interface
 
         Returns:
-            The classification result
+            The classification result containing:
+            - label: The classification label (e.g., "positive", "toxic")
+            - confidence: A confidence score between 0.0 and 1.0
+            - metadata: Optional additional information about the classification
+            - issues: Any issues encountered during classification
+            - suggestions: Suggestions for improving the input
 
         Raises:
-            ClassifierError: If classification fails
-            ImplementationError: If implementation fails
+            ClassifierError: If classification fails due to engine errors
+            ImplementationError: If the implementation fails to classify the text
         """
         # Track execution count
         execution_count = self._state_manager.get("execution_count", 0)
@@ -171,15 +269,23 @@ class Engine:
         """
         Classify text using the implementation.
 
+        This internal method delegates the actual classification work to the
+        implementation and handles post-processing of the result, including
+        confidence threshold checking and statistics tracking.
+
         Args:
-            text: The text to classify
-            implementation: The classifier implementation to use
+            text: The text to classify, which can be any string content
+                 that the implementation can process
+            implementation: The classifier implementation to use for classification,
+                           which must implement the ClassifierImplementation interface
 
         Returns:
-            The classification result
+            The classification result from the implementation, potentially
+            enhanced with additional issues and suggestions
 
         Raises:
-            ImplementationError: If implementation fails
+            ImplementationError: If the implementation fails to classify the text
+                                or returns an invalid result
         """
 
         def classify_operation():
@@ -219,16 +325,29 @@ class Engine:
         """
         Classify the given text asynchronously.
 
+        This method provides the same functionality as classify() but operates
+        asynchronously, allowing for non-blocking classification operations.
+        It is particularly useful for implementations that use external APIs
+        or perform I/O operations.
+
         Args:
-            text: The text to classify
-            implementation: The classifier implementation to use
+            text: The text to classify, which can be any string content
+                 that the implementation can process
+            implementation: The classifier implementation to use for classification,
+                           which must implement the ClassifierImplementation interface
 
         Returns:
-            The classification result
+            The classification result containing:
+            - label: The classification label (e.g., "positive", "toxic")
+            - confidence: A confidence score between 0.0 and 1.0
+            - metadata: Optional additional information about the classification
+            - issues: Any issues encountered during classification
+            - suggestions: Suggestions for improving the input
 
         Raises:
-            ClassifierError: If classification fails
-            ImplementationError: If implementation fails
+            ClassifierError: If classification fails due to engine errors or
+                            if async execution is not enabled in the configuration
+            ImplementationError: If the implementation fails to classify the text
         """
         # Check if async is enabled
         if not self._config.async_enabled:

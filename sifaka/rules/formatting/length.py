@@ -3,22 +3,44 @@ Length-based formatting rules for Sifaka.
 
 This module provides rules for validating and enforcing text length constraints.
 
-Usage Example:
-    ```python
-    from sifaka.rules.formatting.length import create_length_rule
+## Overview
+The length validation rules help ensure that text meets specific length requirements
+in terms of character count and word count. This is useful for enforcing content
+guidelines, preventing excessively long or short responses, and maintaining
+consistent formatting across documents.
 
-    # Create a length rule
-    rule = create_length_rule(
-        min_chars=10,
-        max_chars=100,
-        min_words=2,
-        max_words=20
-    )
+## Components
+- **LengthConfig**: Configuration for length validation
+- **LengthValidator**: Base class for length validators
+- **DefaultLengthValidator**: Default implementation of length validator
+- **LengthRuleValidator**: Adapter for LengthValidator to Rule system
+- **LengthRule**: Rule for validating text length
+- **Factory Functions**: create_length_validator, create_length_rule
 
-    # Validate text
-    result = rule.validate("This is a test")
-    print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
-    ```
+## Usage Examples
+```python
+from sifaka.rules.formatting.length import create_length_rule
+
+# Create a length rule
+rule = create_length_rule(
+    min_chars=10,
+    max_chars=100,
+    min_words=2,
+    max_words=20
+)
+
+# Validate text
+result = rule.validate("This is a test")
+print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+print(f"Character count: {result.metadata['char_count']}")
+print(f"Word count: {result.metadata['word_count']}")
+```
+
+## Error Handling
+- Empty text handling through BaseValidator.handle_empty_text
+- Validation errors with detailed messages and suggestions
+- Safely executed operations with standardized error handling
+- Caching for performance optimization
 """
 
 from typing import Optional, Dict, Any

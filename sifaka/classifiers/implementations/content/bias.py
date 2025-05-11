@@ -3,6 +3,94 @@ Bias detection classifiers for Sifaka.
 
 This module provides classifiers that detect various types of bias in text,
 including gender bias, racial bias, and other forms of discriminatory language.
+
+## Overview
+The BiasDetector is a specialized classifier that leverages machine learning models
+to detect various forms of bias in text, including gender bias, racial bias, and other
+forms of stereotyping. It provides a standardized interface for bias detection with
+configurable thresholds and detailed metadata.
+
+## Architecture
+BiasDetector follows the standard Sifaka classifier architecture:
+1. **Public API**: classify() and batch_classify() methods (inherited)
+2. **Caching Layer**: _classify_impl() handles caching (inherited)
+3. **Core Logic**: _classify_impl_uncached() implements bias detection
+4. **State Management**: Uses StateManager for internal state
+5. **Thresholds**: Configurable threshold for bias detection
+6. **Model Loading**: On-demand loading of the bias detection model
+
+## Lifecycle
+1. **Initialization**: Set up configuration and parameters
+   - Initialize with name, description, and config
+   - Extract thresholds from config.params
+   - Set up default values
+
+2. **Warm-up**: Load model resources
+   - Load model when needed
+   - Initialize only once
+   - Handle initialization errors gracefully
+
+3. **Classification**: Process input text
+   - Validate input text
+   - Apply bias detection
+   - Convert scores to standardized format
+   - Handle empty text and edge cases
+
+4. **Result Creation**: Return standardized results
+   - Map scores to bias labels
+   - Convert scores to confidence values
+   - Include detailed scores in metadata
+
+## Usage Examples
+```python
+from sifaka.classifiers.implementations.content.bias import BiasDetector
+
+# Create a bias detector with default settings
+detector = BiasDetector()
+
+# Classify text
+result = detector.classify("Men are better at math than women.")
+print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
+
+# Create a detector with custom threshold
+custom_detector = BiasDetector(
+    config=ClassifierConfig(
+        min_confidence=0.3,  # More sensitive bias detection
+        cache_size=100       # Enable caching
+    )
+)
+
+# Batch classify multiple texts
+texts = [
+    "Men are better at math than women.",
+    "People of all genders can excel at mathematics.",
+    "This product is excellent."
+]
+results = custom_detector.batch_classify(texts)
+for text, result in zip(texts, results):
+    print(f"Text: {text}")
+    print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
+
+# Access detailed bias information
+result = detector.classify("Women are too emotional to be leaders.")
+print(f"Bias type: {result.label}")
+print(f"Confidence: {result.confidence:.2f}")
+print(f"Features: {result.metadata.get('features', {})}")
+```
+
+## Error Handling
+The classifier provides robust error handling:
+- ImportError: When required model packages are not installed
+- RuntimeError: When model initialization fails
+- Graceful handling of empty or invalid inputs
+- Fallback to "neutral" with low confidence for edge cases
+
+## Configuration
+Key configuration options include:
+- min_confidence: Threshold for bias detection (default: 0.7)
+- model_path: Path to a pre-trained model file
+- max_features: Maximum number of features for the vectorizer
+- cache_size: Size of the classification cache (0 to disable)
 """
 
 import os
@@ -62,6 +150,76 @@ class BiasDetector(Classifier):
 
     It also includes a "neutral" category for unbiased text.
 
+    ## Architecture
+    BiasDetector follows a component-based architecture:
+    - Extends the base Classifier class for consistent interface
+    - Uses scikit-learn's SVM models for bias detection
+    - Implements configurable thresholds for bias categories
+    - Provides detailed bias information in result metadata
+    - Uses StateManager for efficient state tracking and caching
+    - Supports both synchronous and batch classification
+    - Includes model training, saving, and loading capabilities
+
+    ## Lifecycle
+    1. **Initialization**: Set up configuration and parameters
+       - Initialize with name, description, and config
+       - Extract thresholds from config.params
+       - Set up default values and constants
+
+    2. **Warm-up**: Load model resources
+       - Load scikit-learn dependencies when needed (lazy initialization)
+       - Initialize only once and cache for reuse
+       - Handle initialization errors gracefully with clear messages
+
+    3. **Classification**: Process input text
+       - Validate input text and handle edge cases
+       - Apply bias detection algorithms
+       - Convert scores to standardized format
+       - Apply thresholds to determine bias categories
+       - Extract and include bias-specific features
+
+    4. **Result Creation**: Return standardized results
+       - Map bias scores to appropriate labels
+       - Convert scores to confidence values
+       - Include detailed bias information in metadata for transparency
+       - Track statistics for monitoring and debugging
+
+    ## Examples
+    ```python
+    from sifaka.classifiers.implementations.content.bias import BiasDetector
+    from sifaka.classifiers.config import ClassifierConfig
+
+    # Create a bias detector with default settings
+    detector = BiasDetector()
+
+    # Classify text
+    result = detector.classify("Men are better at math than women.")
+    print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
+
+    # Train a custom bias detector
+    texts = ["Men are better at math", "Women are too emotional", "This is neutral"]
+    labels = ["gender", "gender", "neutral"]
+    custom_detector = BiasDetector()
+    custom_detector.fit(texts, labels)
+
+    # Save the trained model
+    custom_detector._save_model("bias_model.pkl")
+
+    # Load a pre-trained model
+    loaded_detector = BiasDetector(
+        config=ClassifierConfig(
+            params={"model_path": "bias_model.pkl"}
+        )
+    )
+    ```
+
+    ## Configuration Options
+    - min_confidence: Threshold for bias detection (default: 0.7)
+    - model_path: Path to a pre-trained model file
+    - max_features: Maximum number of features for the vectorizer
+    - random_state: Random seed for reproducibility
+    - bias_keywords: Dictionary of bias types and associated keywords
+
     Requires scikit-learn to be installed:
     pip install scikit-learn
     """
@@ -117,7 +275,21 @@ class BiasDetector(Classifier):
         config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> None:
-        """Initialize the bias detector."""
+        """
+        Initialize the bias detector.
+
+        This method sets up the classifier with the provided name, description,
+        and configuration. If no configuration is provided, it creates a default
+        configuration with sensible defaults for bias detection.
+
+        Args:
+            name: The name of the classifier for identification and logging
+            description: Human-readable description of the classifier's purpose
+            config: Optional classifier configuration with settings like thresholds,
+                   cache size, and labels
+            **kwargs: Additional configuration parameters that will be extracted
+                     and added to the config.params dictionary
+        """
         # Create default config if not provided
         if config is None:
             params = kwargs.pop("params", {})
@@ -138,7 +310,21 @@ class BiasDetector(Classifier):
         super().__init__(name=name, description=description, config=config)
 
     def _load_dependencies(self) -> Dict[str, Any]:
-        """Load scikit-learn dependencies."""
+        """
+        Load scikit-learn dependencies.
+
+        This method dynamically imports the necessary scikit-learn modules
+        required for bias detection. It handles import errors gracefully
+        with clear installation instructions.
+
+        Returns:
+            Dictionary mapping module names to imported module objects
+
+        Raises:
+            ImportError: If scikit-learn is not installed, with instructions
+                        on how to install it
+            RuntimeError: If module loading fails for other reasons
+        """
         try:
             # Import necessary scikit-learn modules
             sklearn_modules = {
@@ -159,7 +345,24 @@ class BiasDetector(Classifier):
             raise RuntimeError(f"Failed to load scikit-learn modules: {e}")
 
     def warm_up(self) -> None:
-        """Initialize the model if needed."""
+        """
+        Initialize the model if needed.
+
+        This method loads the necessary dependencies and initializes the
+        bias detection model. It either loads a pre-trained model from disk
+        if a model_path is provided, or creates a new model with default
+        parameters. The method ensures initialization happens only once.
+
+        The initialization process includes:
+        1. Loading scikit-learn dependencies
+        2. Creating or loading vectorizers and models
+        3. Setting up the classification pipeline
+        4. Marking the model as initialized
+
+        Raises:
+            ImportError: If required packages are not installed
+            RuntimeError: If model initialization fails
+        """
         # Check if already initialized
         if self._state_manager.get("initialized", False):
             return
@@ -211,7 +414,20 @@ class BiasDetector(Classifier):
         self._state_manager.update("initialized", True)
 
     def _extract_bias_features(self, text: str) -> Dict[str, float]:
-        """Extract bias-related features from text."""
+        """
+        Extract bias-related features from text.
+
+        This method analyzes the input text for bias-related keywords and
+        calculates feature scores for each bias category. It uses the
+        bias_keywords dictionary from the configuration to identify
+        relevant keywords for each bias type.
+
+        Args:
+            text: The text to analyze for bias features
+
+        Returns:
+            Dictionary mapping bias feature names to their normalized scores
+        """
         features = {}
         # Get bias keywords from params or use default empty dict
         bias_keywords = self.config.params.get("bias_keywords", {})
@@ -221,7 +437,21 @@ class BiasDetector(Classifier):
         return features
 
     def _save_model(self, path: str) -> None:
-        """Save the trained model to disk."""
+        """
+        Save the trained model to disk.
+
+        This method serializes the trained model components (vectorizer,
+        classifier, pipeline) and configuration parameters to a pickle file
+        at the specified path. This allows the model to be reloaded later
+        without retraining.
+
+        Args:
+            path: File path where the model should be saved
+
+        Raises:
+            RuntimeError: If the model has not been initialized
+            IOError: If the file cannot be written
+        """
         # Check if initialized
         if not self._state_manager.get("initialized", False):
             raise RuntimeError("Model not initialized")
@@ -239,7 +469,21 @@ class BiasDetector(Classifier):
             )
 
     def _load_model(self, path: str) -> None:
-        """Load a trained model from disk."""
+        """
+        Load a trained model from disk.
+
+        This method deserializes a previously saved model from the specified
+        path and initializes the classifier with the loaded components. It
+        loads the vectorizer, classifier model, pipeline, and configuration
+        parameters.
+
+        Args:
+            path: File path from which to load the model
+
+        Raises:
+            IOError: If the file cannot be read
+            RuntimeError: If the loaded data is invalid or incompatible
+        """
         with open(path, "rb") as f:
             data = pickle.load(f)
             self._state_manager.update("vectorizer", data["vectorizer"])
@@ -264,7 +508,24 @@ class BiasDetector(Classifier):
             self._state_manager.update("initialized", True)
 
     def fit(self, texts: List[str], labels: List[str]) -> "BiasDetector":
-        """Train the bias detector."""
+        """
+        Train the bias detector on labeled examples.
+
+        This method trains the bias detector using the provided texts and
+        their corresponding bias labels. It creates and trains a TF-IDF
+        vectorizer and SVM classifier pipeline on the training data.
+
+        Args:
+            texts: List of text examples for training
+            labels: List of corresponding bias labels for each text
+
+        Returns:
+            Self, to allow method chaining
+
+        Raises:
+            ValueError: If empty training data is provided
+            RuntimeError: If training fails
+        """
         if not texts or not labels:
             raise ValueError("Empty training data")
 
@@ -315,7 +576,21 @@ class BiasDetector(Classifier):
         return self
 
     def _extract_explanations(self) -> None:
-        """Extract feature coefficients for explanations."""
+        """
+        Extract feature coefficients for explanations.
+
+        This method extracts the feature coefficients from the trained SVM model
+        to provide explanations for bias classifications. It identifies the most
+        important positive and negative features for each bias category and
+        stores them in the state manager for later use in result metadata.
+
+        The explanations help users understand why a particular text was
+        classified as having a specific type of bias by showing which words
+        or phrases contributed most to the classification decision.
+
+        Raises:
+            RuntimeError: If feature extraction fails
+        """
         try:
             model = self._state_manager.get("model")
             if not hasattr(model, "base_estimator"):
@@ -381,7 +656,23 @@ class BiasDetector(Classifier):
             self._state_manager.update("errors", errors)
 
     def _classify_impl(self, text: str) -> ClassificationResult:
-        """Implement classification logic."""
+        """
+        Implement classification logic.
+
+        This method contains the core bias detection logic. It ensures the
+        model is initialized, applies the classification pipeline to the
+        input text, and creates a standardized result with confidence scores
+        and detailed metadata.
+
+        Args:
+            text: The text to classify for bias
+
+        Returns:
+            ClassificationResult with bias label, confidence score, and metadata
+
+        Raises:
+            RuntimeError: If the model is not initialized
+        """
         # Check if initialized
         if not self._state_manager.get("initialized", False):
             self.warm_up()
@@ -422,11 +713,22 @@ class BiasDetector(Classifier):
         """
         Classify multiple texts in batch.
 
+        This method efficiently classifies multiple texts in a single batch
+        operation, which is more efficient than calling classify() multiple
+        times. It applies the classification pipeline to all texts at once,
+        then processes the results individually to create standardized
+        ClassificationResult objects.
+
         Args:
-            texts: List of texts to classify
+            texts: List of texts to classify for bias
 
         Returns:
-            List of ClassificationResults
+            List of ClassificationResults, one for each input text, with
+            bias labels, confidence scores, and detailed metadata
+
+        Raises:
+            RuntimeError: If the model is not initialized
+            ValueError: If an empty list is provided
         """
         # Check if initialized
         if not self._state_manager.get("initialized", False):
@@ -490,12 +792,21 @@ class BiasDetector(Classifier):
         """
         Get detailed explanation about why a text was classified with a particular bias.
 
+        This method provides a detailed explanation of why a specific text was
+        classified as having a particular type of bias. It extracts and analyzes
+        the features that contributed most to the classification decision and
+        returns them in a structured format for user understanding.
+
         Args:
-            bias_type: The bias type to explain
-            text: The text that was classified
+            bias_type: The bias type to explain (e.g., "gender", "racial")
+            text: The text that was classified and needs explanation
 
         Returns:
-            Dictionary with explanation details
+            Dictionary with explanation details including:
+            - top_features: Words or phrases that contributed most to the classification
+            - feature_scores: Numerical scores for each feature
+            - bias_keywords: Keywords associated with this bias type
+            - overall_score: Overall bias score for this category
         """
         if bias_type not in self.config.labels:
             raise ValueError(f"Invalid bias type: {bias_type}. Must be one of {self.config.labels}")

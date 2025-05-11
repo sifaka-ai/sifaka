@@ -5,16 +5,22 @@ This module provides a profanity classifier that uses the better_profanity packa
 to detect profane and inappropriate language in text. It categorizes text as either
 'clean', 'profane', or 'unknown' based on the presence of profane words.
 
-## Architecture
+## Overview
+The ProfanityClassifier is a specialized classifier that leverages the better_profanity
+package to detect profane and inappropriate language in text. It provides a fast,
+dictionary-based approach to profanity detection with support for custom word lists,
+censoring options, and detailed metadata about detected profanity.
 
+## Architecture
 ProfanityClassifier follows the standard Sifaka classifier architecture:
 1. **Public API**: classify() and batch_classify() methods (inherited)
 2. **Caching Layer**: _classify_impl() handles caching (inherited)
 3. **Core Logic**: _classify_impl_uncached() implements profanity detection
 4. **State Management**: Uses StateManager for internal state
+5. **Customization**: Configurable profanity word lists and censoring options
+6. **Extensibility**: Support for custom profanity checker implementations
 
 ## Lifecycle
-
 1. **Initialization**: Set up configuration and parameters
    - Initialize with name, description, and config
    - Extract custom words and censor character from config.params
@@ -37,7 +43,6 @@ ProfanityClassifier follows the standard Sifaka classifier architecture:
    - Include profanity statistics in metadata
 
 ## Usage Examples
-
 ```python
 from sifaka.classifiers.implementations.content.profanity import create_profanity_classifier
 
@@ -59,7 +64,27 @@ custom_classifier = create_profanity_classifier(
 result = custom_classifier.classify("This is an inappropriate message.")
 print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
 print(f"Censored text: {result.metadata['censored_text']}")
+print(f"Profanity ratio: {result.metadata['profanity_ratio']:.2f}")
+
+# Add custom words to an existing classifier
+classifier.add_custom_words({"unacceptable", "objectionable"})
+result = classifier.classify("This content is unacceptable.")
+print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
 ```
+
+## Error Handling
+The classifier provides robust error handling:
+- ImportError: When better_profanity is not installed
+- RuntimeError: When checker initialization fails
+- Graceful handling of empty or invalid inputs
+- Fallback to "unknown" with zero confidence for edge cases
+
+## Configuration
+Key configuration options include:
+- custom_words: List of additional words to consider profane
+- censor_char: Character to use for censoring profane words
+- min_confidence: Minimum confidence threshold for profanity detection
+- cache_size: Size of the classification cache (0 to disable)
 """
 
 import importlib
@@ -94,7 +119,61 @@ P = TypeVar("P", bound="ProfanityClassifier")
 
 @runtime_checkable
 class ProfanityChecker(Protocol):
-    """Protocol for profanity checking engines."""
+    """
+    Protocol for profanity checking engines.
+
+    This protocol defines the interface that any profanity checker must implement
+    to be compatible with the ProfanityClassifier. It requires methods for checking
+    profanity, censoring text, and managing profane word lists and censoring options.
+
+    ## Architecture
+    The protocol follows a standard interface pattern:
+    - Uses Python's typing.Protocol for structural subtyping
+    - Is runtime checkable for dynamic type verification
+    - Defines required methods with clear input/output contracts
+    - Enables pluggable profanity checking implementations
+
+    ## Implementation Requirements
+    1. contains_profanity(): Check if text contains profane words
+    2. censor(): Replace profane words with censoring characters
+    3. profane_words property: Get/set the list of profane words
+    4. censor_char property: Get/set the character used for censoring
+
+    ## Examples
+    ```python
+    from sifaka.classifiers.implementations.content.profanity import ProfanityChecker
+
+    class CustomProfanityChecker:
+        def __init__(self):
+            self._profane_words = {"bad", "inappropriate"}
+            self._censor_char = "*"
+
+        def contains_profanity(self, text: str) -> bool:
+            return any(word in text.lower().split() for word in self._profane_words)
+
+        def censor(self, text: str) -> str:
+            for word in self._profane_words:
+                if word in text.lower().split():
+                    text = text.replace(word, self._censor_char * len(word))
+            return text
+
+        @property
+        def profane_words(self) -> Set[str]:
+            return self._profane_words
+
+        @profane_words.setter
+        def profane_words(self, words: Set[str]) -> None:
+            self._profane_words = words
+
+        @property
+        def censor_char(self) -> str:
+            return self._censor_char
+
+        @censor_char.setter
+        def censor_char(self, char: str) -> None:
+            self._censor_char = char
+    ```
+    """
 
     @abstractmethod
     def contains_profanity(self, text: str) -> bool: ...
@@ -115,7 +194,23 @@ class ProfanityChecker(Protocol):
 
 
 class CensorResult:
-    """Result of text censoring operation."""
+    """
+    Result of text censoring operation.
+
+    This class encapsulates the results of a text censoring operation,
+    including the original text, censored text, and statistics about
+    the censoring process such as the number of censored words and
+    the total word count.
+
+    ## Attributes
+    - original_text: The original uncensored text
+    - censored_text: The text with profane words censored
+    - censored_word_count: Number of words that were censored
+    - total_word_count: Total number of words in the text
+
+    ## Methods
+    - profanity_ratio: Calculate the ratio of profane words to total words
+    """
 
     def __init__(
         self,
@@ -131,7 +226,16 @@ class CensorResult:
 
     @property
     def profanity_ratio(self) -> float:
-        """Calculate ratio of profane words to total words."""
+        """
+        Calculate ratio of profane words to total words.
+
+        This property calculates the proportion of words in the text that
+        were identified as profane and censored. It returns a value between
+        0.0 (no profanity) and 1.0 (all words are profane).
+
+        Returns:
+            Float between 0.0 and 1.0 representing the profanity ratio
+        """
         return self.censored_word_count / max(self.total_word_count, 1)
 
 
@@ -214,12 +318,19 @@ class ProfanityClassifier(Classifier):
         """
         Initialize the profanity classifier.
 
+        This method sets up the classifier with the provided name, description,
+        and configuration. If no configuration is provided, it creates a default
+        configuration with sensible defaults for profanity detection.
+
         Args:
-            name: The name of the classifier
-            description: Description of the classifier
-            checker: Custom profanity checker implementation
-            config: Optional classifier configuration
-            **kwargs: Additional configuration parameters
+            name: The name of the classifier for identification and logging
+            description: Human-readable description of the classifier's purpose
+            checker: Custom profanity checker implementation that follows the
+                    ProfanityChecker protocol
+            config: Optional classifier configuration with settings like custom words,
+                   censor character, cache size, and labels
+            **kwargs: Additional configuration parameters that will be extracted
+                     and added to the config.params dictionary
         """
         # Create config if not provided
         if config is None:
@@ -243,7 +354,24 @@ class ProfanityClassifier(Classifier):
                 self._state_manager.update("cache", {"checker": checker})
 
     def _validate_checker(self, checker: Any) -> TypeGuard[ProfanityChecker]:
-        """Validate that a checker implements the required protocol."""
+        """
+        Validate that a checker implements the required protocol.
+
+        This method checks if the provided checker implements the ProfanityChecker
+        protocol, which requires methods for checking profanity, censoring text,
+        and managing profane word lists and censoring options.
+
+        Args:
+            checker: The checker object to validate, which should implement
+                    the ProfanityChecker protocol
+
+        Returns:
+            True if the checker is valid and implements the required protocol
+
+        Raises:
+            ValueError: If the checker doesn't implement the ProfanityChecker protocol
+                       or is missing required methods
+        """
         if not isinstance(checker, ProfanityChecker):
             raise ValueError(
                 f"Checker must implement ProfanityChecker protocol, got {type(checker)}"
@@ -251,7 +379,25 @@ class ProfanityClassifier(Classifier):
         return True
 
     def _load_profanity(self) -> ProfanityChecker:
-        """Load the profanity checker."""
+        """
+        Load the profanity checker.
+
+        This method dynamically imports the better_profanity package and initializes
+        the profanity checker. It handles import errors gracefully with clear
+        installation instructions and provides detailed error messages for troubleshooting.
+
+        The method also configures the checker with custom words and censoring options
+        from the configuration parameters.
+
+        Returns:
+            Initialized profanity checker that implements the ProfanityChecker protocol
+
+        Raises:
+            ImportError: If better-profanity is not installed, with instructions
+                        on how to install it
+            RuntimeError: If checker initialization fails due to loading errors
+                         or other runtime problems
+        """
         try:
             # Check if checker is already in state
             if self._state_manager.get("cache", {}).get("checker"):
@@ -292,19 +438,49 @@ class ProfanityClassifier(Classifier):
 
     @property
     def custom_words(self) -> Set[str]:
-        """Get the custom profanity words."""
+        """
+        Get the custom profanity words.
+
+        This property retrieves the custom profanity words from the configuration
+        parameters. These are additional words that the classifier considers profane
+        beyond the default set provided by the better_profanity package.
+
+        Returns:
+            Set of custom profanity words from the configuration
+        """
         # Always use config.params for consistency
         custom_words = self.config.params.get("custom_words", [])
         return set(custom_words) if isinstance(custom_words, list) else set()
 
     @property
     def censor_char(self) -> str:
-        """Get the censoring character."""
+        """
+        Get the censoring character.
+
+        This property retrieves the character used for censoring profane words
+        from the configuration parameters. This character replaces the letters
+        in profane words when censoring is applied.
+
+        Returns:
+            Character used for censoring profane words (default: "*")
+        """
         # Always use config.params for consistency
         return self.config.params.get("censor_char", "*")
 
     def add_custom_words(self, words: Set[str]) -> None:
-        """Add custom words to the profanity list."""
+        """
+        Add custom words to the profanity list.
+
+        This method adds additional words to the list of profane words that
+        the classifier will detect. It ensures the profanity checker is initialized
+        before adding the words.
+
+        Args:
+            words: Set of words to add to the profanity list
+
+        Raises:
+            RuntimeError: If the profanity checker is not initialized
+        """
         self.warm_up()
 
         checker = self._state_manager.get("cache", {}).get("checker")
@@ -312,7 +488,19 @@ class ProfanityClassifier(Classifier):
             checker.add_censor_words(words)
 
     def warm_up(self) -> None:
-        """Initialize the profanity checker if needed."""
+        """
+        Initialize the profanity checker if needed.
+
+        This method loads the profanity checker if it hasn't been loaded yet.
+        It is called automatically when needed but can also be called
+        explicitly to pre-initialize resources for faster first-time classification.
+
+        The method ensures that initialization happens only once and handles
+        errors gracefully with detailed error messages.
+
+        Raises:
+            RuntimeError: If checker initialization fails
+        """
         if not self._state_manager.get("initialized", False):
             # Load profanity checker
             checker = self._load_profanity()

@@ -4,20 +4,37 @@ Structure validation rules for Sifaka.
 This module provides rules for validating text structure, including
 section organization, heading hierarchy, and document structure.
 
-Usage Example:
-    ```python
-    from sifaka.rules.formatting.structure import create_structure_rule
+## Overview
+The structure validation rules help ensure that text follows a specific
+organizational structure with required sections and section count constraints.
+This is particularly useful for validating documents that need to follow
+a specific format or template.
 
-    # Create a structure rule
-    structure_rule = create_structure_rule(
-        required_sections=["introduction", "body", "conclusion"],
-        min_sections=3
-    )
+## Components
+- **StructureConfig**: Configuration for structure validation
+- **StructureValidator**: Validator for text structure
+- **StructureRule**: Rule for validating text structure
+- **Factory Functions**: create_structure_validator, create_structure_rule
 
-    # Validate text
-    result = structure_rule.validate("This is a test.")
-    print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
-    ```
+## Usage Examples
+```python
+from sifaka.rules.formatting.structure import create_structure_rule
+
+# Create a structure rule
+structure_rule = create_structure_rule(
+    required_sections=["introduction", "body", "conclusion"],
+    min_sections=3
+)
+
+# Validate text
+result = structure_rule.validate("# Introduction\\nContent\\n# Body\\nMore content\\n# Conclusion\\nFinal content")
+print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+```
+
+## Error Handling
+- Empty text handling through BaseValidator.handle_empty_text
+- Section extraction with error handling
+- Detailed validation results with issues and suggestions
 """
 
 from typing import List, Optional, Any
@@ -34,7 +51,46 @@ logger = get_logger(__name__)
 
 
 class StructureConfig(BaseModel):
-    """Configuration for structure validation."""
+    """
+    Configuration for structure validation.
+
+    This class defines the configuration options for text structure validation,
+    including required sections, section count constraints, and caching settings.
+
+    ## Architecture
+    The class uses Pydantic for validation and immutability, with field validators
+    to ensure proper configuration values.
+
+    ## Lifecycle
+    1. **Creation**: Instantiate with default or custom values
+       - Create directly with parameters
+       - Create from dictionary with model_validate
+
+    2. **Validation**: Values are validated by Pydantic
+       - Type checking for all fields
+       - Range validation for min_sections and max_sections
+       - Immutability enforced by frozen=True
+
+    3. **Usage**: Pass to validators and rules
+       - Used by StructureValidator
+       - Used by StructureRule._create_default_validator
+
+    ## Examples
+    ```python
+    from sifaka.rules.formatting.structure import StructureConfig
+
+    # Create with default values
+    config = StructureConfig()
+
+    # Create with custom values
+    config = StructureConfig(
+        required_sections=["introduction", "body", "conclusion"],
+        min_sections=3,
+        max_sections=10,
+        cache_size=200
+    )
+    ```
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -66,12 +122,37 @@ class StructureValidator(BaseValidator[str]):
     This validator checks if text meets structure requirements including
     section organization, heading hierarchy, and document structure.
 
-    Lifecycle:
-        1. Initialization: Set up with structure constraints
-        2. Validation: Check text against structure requirements
-        3. Result: Return detailed validation results with metadata
+    ## Architecture
+    The StructureValidator follows a component-based architecture:
+    - Inherits from BaseValidator for common validation functionality
+    - Uses StateManager for state management via _state_manager
+    - Implements section analysis logic
+    - Uses StructureConfig for configuration
+    - Implements caching for performance optimization
+    - Provides detailed validation results with metadata
 
-    Examples:
+    ## Lifecycle
+    1. **Initialization**: Set up with structure constraints
+       - Initialize with StructureConfig containing structure parameters
+       - Store configuration in state manager
+       - Set metadata for tracking and debugging
+       - Initialize validation cache
+
+    2. **Validation**: Check text against structure requirements
+       - Handle empty text through BaseValidator.handle_empty_text
+       - Check cache for previously validated text
+       - Analyze sections using _analyze_sections
+       - Validate section count against min_sections and max_sections
+       - Validate required sections
+       - Return detailed RuleResult with validation results
+       - Cache results if caching is enabled
+
+    3. **Error Handling**: Manage validation errors
+       - Use try_operation for error handling
+       - Provide detailed error information in result
+       - Update validation statistics
+
+    ## Examples
         ```python
         from sifaka.rules.formatting.structure import create_structure_validator
 
@@ -83,6 +164,13 @@ class StructureValidator(BaseValidator[str]):
 
         # Validate text
         result = validator.validate("# Introduction\\nContent\\n# Body\\nMore content\\n# Conclusion\\nFinal content")
+        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+
+        # Access validation details
+        if not result.passed:
+            print(f"Issues: {result.issues}")
+            print(f"Suggestions: {result.suggestions}")
+            print(f"Missing sections: {result.metadata.get('missing_sections', [])}")
         ```
     """
 
@@ -258,12 +346,34 @@ class StructureRule(Rule[str]):
     This rule validates that text meets structure requirements including
     section organization, heading hierarchy, and document structure.
 
-    Lifecycle:
-        1. Initialization: Set up with structure constraints
-        2. Validation: Check text against structure requirements
-        3. Result: Return standardized validation results with metadata
+    ## Architecture
+    The StructureRule follows a component-based architecture:
+    - Inherits from Rule for common rule functionality
+    - Uses StateManager for state management via _state_manager
+    - Delegates validation to StructureValidator
+    - Uses RuleConfig for configuration
+    - Creates a default validator if none is provided
+    - Provides standardized validation results with metadata
 
-    Examples:
+    ## Lifecycle
+    1. **Initialization**: Set up with structure constraints
+       - Initialize with name, description, config, and optional validator
+       - Create default validator if none is provided
+       - Store validator in state manager
+       - Store validator config in state for reference
+
+    2. **Validation**: Check text against structure requirements
+       - Inherited from Rule base class
+       - Delegate to StructureValidator for structure validation
+       - Add rule_id to metadata for traceability
+       - Return standardized RuleResult with validation results
+
+    3. **Default Validator Creation**: Create validator from config
+       - Extract structure parameters from rule config
+       - Create StructureValidator with appropriate configuration
+       - Store validator config in state for reference
+
+    ## Examples
         ```python
         from sifaka.rules.formatting.structure import create_structure_rule
 
@@ -276,6 +386,12 @@ class StructureRule(Rule[str]):
         # Validate text
         result = rule.validate("# Introduction\\nContent\\n# Body\\nMore content\\n# Conclusion\\nFinal content")
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+
+        # Access validation details
+        if not result.passed:
+            print(f"Issues: {result.issues}")
+            print(f"Suggestions: {result.suggestions}")
+            print(f"Missing sections: {result.metadata.get('missing_sections', [])}")
         ```
     """
 

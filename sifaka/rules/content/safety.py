@@ -4,28 +4,50 @@ Safety-related content validation rules for Sifaka.
 This module provides rules for validating text against various safety concerns,
 including toxicity, bias, and harmful content.
 
-Usage Example:
-    ```python
-    from sifaka.rules.content.safety import create_toxicity_rule, create_bias_rule, create_harmful_content_rule
+## Overview
+The safety validation rules help ensure that text meets specific safety
+requirements by detecting and flagging potentially harmful, toxic, or biased
+content. This is essential for content moderation, ensuring appropriate
+responses, and maintaining ethical AI outputs.
 
-    # Create a toxicity rule
-    toxicity_rule = create_toxicity_rule(threshold=0.4)
+## Components
+- **HarmfulContentConfig**: Configuration for harmful content validation
+- **HarmfulContentAnalyzer**: Analyzer for harmful content detection
+- **HarmfulContentValidator**: Validator for harmful content requirements
+- **HarmfulContentRule**: Rule for validating text for harmful content
+- **Factory Functions**:
+  - create_toxicity_rule, create_toxicity_validator
+  - create_bias_rule, create_bias_validator
+  - create_harmful_content_rule, create_harmful_content_validator
 
-    # Create a bias rule
-    bias_rule = create_bias_rule(threshold=0.3)
+## Usage Examples
+```python
+from sifaka.rules.content.safety import create_toxicity_rule, create_bias_rule, create_harmful_content_rule
 
-    # Create a harmful content rule
-    harmful_rule = create_harmful_content_rule(
-        categories={
-            "violence": ["violent", "threatening"],
-            "misinformation": ["false", "misleading"]
-        }
-    )
+# Create a toxicity rule
+toxicity_rule = create_toxicity_rule(threshold=0.4)
 
-    # Validate text
-    result = toxicity_rule.validate("This is a test.")
-    print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
-    ```
+# Create a bias rule
+bias_rule = create_bias_rule(threshold=0.3)
+
+# Create a harmful content rule
+harmful_rule = create_harmful_content_rule(
+    categories={
+        "violence": ["violent", "threatening"],
+        "misinformation": ["false", "misleading"]
+    }
+)
+
+# Validate text
+result = toxicity_rule.validate("This is a test.")
+print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+```
+
+## Error Handling
+- Empty text handling through BaseValidator.handle_empty_text
+- Category validation with detailed error messages
+- Detailed validation results with metadata for debugging
+- Fallback mechanisms for missing components (e.g., BiasDetector)
 """
 
 import time
@@ -103,7 +125,50 @@ DEFAULT_HARMFUL_CATEGORIES: Dict[str, List[str]] = {
 
 
 class HarmfulContentConfig(BaseModel):
-    """Configuration for harmful content validation."""
+    """
+    Configuration for harmful content validation.
+
+    This class defines the configuration options for harmful content validation,
+    including categories of harmful content, detection threshold, and validation behavior.
+
+    ## Architecture
+    The class uses Pydantic for validation and immutability, with field validators
+    to ensure categories are properly structured.
+
+    ## Lifecycle
+    1. **Creation**: Instantiate with default or custom values
+       - Create directly with parameters
+       - Create from dictionary with model_validate
+
+    2. **Validation**: Values are validated by Pydantic
+       - Type checking for all fields
+       - Range validation for threshold (0.0-1.0)
+       - Category validation to ensure non-empty categories
+       - Immutability enforced by frozen=True
+
+    3. **Usage**: Pass to validators and rules
+       - Used by HarmfulContentAnalyzer
+       - Used by HarmfulContentValidator
+       - Used by HarmfulContentRule
+
+    ## Examples
+    ```python
+    from sifaka.rules.content.safety import HarmfulContentConfig
+
+    # Create with default values
+    config = HarmfulContentConfig()
+
+    # Create with custom values
+    config = HarmfulContentConfig(
+        categories={
+            "violence": ["violent", "threatening"],
+            "misinformation": ["false", "misleading"]
+        },
+        threshold=0.3,
+        fail_if_any=True
+    )
+    ```
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -135,10 +200,56 @@ class HarmfulContentConfig(BaseModel):
 
 
 class HarmfulContentAnalyzer(CategoryAnalyzer):
-    """Analyzer for harmful content detection."""
+    """
+    Analyzer for harmful content detection.
+
+    This class is responsible for analyzing text for harmful content across various
+    categories such as violence, hate speech, misinformation, and harassment.
+
+    ## Architecture
+    The class extends CategoryAnalyzer to leverage common category-based analysis
+    functionality while specializing for harmful content detection.
+
+    ## Lifecycle
+    1. **Initialization**: Set up with harmful content configuration
+       - Initialize with HarmfulContentConfig
+       - Configure category analysis parameters
+
+    2. **Analysis**: Analyze text for harmful content
+       - Inherited from CategoryAnalyzer
+       - Check text against configured harmful content categories
+       - Return RuleResult with validation results
+
+    ## Examples
+    ```python
+    from sifaka.rules.content.safety import HarmfulContentAnalyzer, HarmfulContentConfig
+
+    # Create configuration
+    config = HarmfulContentConfig(
+        categories={
+            "violence": ["violent", "threatening"],
+            "misinformation": ["false", "misleading"]
+        },
+        threshold=0.3,
+        fail_if_any=True
+    )
+
+    # Create analyzer
+    analyzer = HarmfulContentAnalyzer(config)
+
+    # Analyze text
+    result = analyzer.analyze("This is a test.")
+    print(f"Passed: {result.passed}")
+    ```
+    """
 
     def __init__(self, config: HarmfulContentConfig) -> None:
-        """Initialize the analyzer."""
+        """
+        Initialize the analyzer.
+
+        Args:
+            config: Configuration for harmful content detection
+        """
         super().__init__(
             categories=config.categories,
             threshold=config.threshold,
@@ -154,12 +265,37 @@ class HarmfulContentValidator(BaseValidator[str]):
     This validator analyzes text for harmful content across various categories
     such as violence, hate speech, misinformation, and harassment.
 
-    Lifecycle:
-        1. Initialization: Set up with harmful content categories and threshold
-        2. Validation: Analyze text for harmful content
-        3. Result: Return detailed validation results with metadata
+    ## Architecture
+    The HarmfulContentValidator follows a component-based architecture:
+    - Inherits from BaseValidator for common validation functionality
+    - Uses StateManager for state management via _state_manager
+    - Delegates analysis to HarmfulContentAnalyzer
+    - Uses RuleConfig for configuration
+    - Implements caching for performance optimization
+    - Provides detailed validation results with metadata
 
-    Examples:
+    ## Lifecycle
+    1. **Initialization**: Set up with harmful content categories and threshold
+       - Initialize with RuleConfig containing harmful content parameters
+       - Create HarmfulContentConfig from params
+       - Create HarmfulContentAnalyzer with config
+       - Store components in state manager
+       - Set metadata for tracking and debugging
+
+    2. **Validation**: Analyze text for harmful content
+       - Handle empty text through BaseValidator.handle_empty_text
+       - Delegate to HarmfulContentAnalyzer for content analysis
+       - Add processing time and validator type to metadata
+       - Update validation statistics
+       - Cache results if caching is enabled
+
+    3. **Error Handling**: Manage validation errors
+       - Type checking for input text
+       - Try-except block for validation errors
+       - Detailed error reporting in result metadata
+       - Error logging for debugging
+
+    ## Examples
         ```python
         from sifaka.rules.content.safety import HarmfulContentValidator, HarmfulContentConfig
         from sifaka.rules.base import RuleConfig
@@ -293,12 +429,34 @@ class HarmfulContentRule(Rule[str]):
     This rule analyzes text for harmful content across various categories
     such as violence, hate speech, misinformation, and harassment.
 
-    Lifecycle:
-        1. Initialization: Set up with harmful content categories and threshold
-        2. Validation: Delegate to validator to analyze text for harmful content
-        3. Result: Return standardized validation results with metadata
+    ## Architecture
+    The HarmfulContentRule follows a component-based architecture:
+    - Inherits from Rule for common rule functionality
+    - Uses StateManager for state management via _state_manager
+    - Delegates validation to HarmfulContentValidator
+    - Uses RuleConfig for configuration
+    - Creates a default validator if none is provided
+    - Provides standardized validation results with metadata
 
-    Examples:
+    ## Lifecycle
+    1. **Initialization**: Set up with harmful content categories and threshold
+       - Initialize with name, description, config, and optional validator
+       - Create default validator if none is provided
+       - Store validator in state manager
+       - Set metadata for tracking and debugging
+
+    2. **Validation**: Delegate to validator to analyze text for harmful content
+       - Inherited from Rule base class
+       - Delegate to HarmfulContentValidator for content validation
+       - Add rule_id to metadata for traceability
+       - Return standardized RuleResult with validation results
+
+    3. **Default Validator Creation**: Create validator from config
+       - Extract parameters from rule config
+       - Create HarmfulContentValidator with appropriate configuration
+       - Store validator config in state for reference
+
+    ## Examples
         ```python
         from sifaka.rules.content.safety import HarmfulContentRule, HarmfulContentValidator, HarmfulContentConfig
         from sifaka.rules.base import RuleConfig

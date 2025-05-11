@@ -2,10 +2,25 @@
 Classifier Module
 
 This module provides the main Classifier class for the Sifaka classifiers system.
-It serves as the primary user-facing interface for classification.
+It serves as the primary user-facing interface for text classification operations.
+
+## Overview
+The Classifier class is the main entry point for classification operations in Sifaka.
+It provides a clean, consistent interface for classifying text, managing state, and
+handling errors. The class delegates the actual classification work to implementation
+classes while providing standardized result handling, caching, and statistics tracking.
 
 ## Components
 1. **Classifier**: Main user-facing class for classification
+2. **Engine**: Core classification engine (imported from engine.py)
+3. **StateManager**: Manages classifier state (imported from utils/state.py)
+
+## Architecture
+The classifier component follows a layered architecture:
+1. **User Interface Layer**: Classifier class with public methods
+2. **Engine Layer**: Engine class that coordinates the classification flow
+3. **Implementation Layer**: ClassifierImplementation interface implementations
+4. **State Management Layer**: StateManager for tracking state and statistics
 
 ## Usage Examples
 ```python
@@ -35,7 +50,28 @@ results = classifier.classify_batch([
 ])
 for i, result in enumerate(results):
     print(f"Text {i+1}: {result.label} ({result.confidence:.2f})")
+
+# Get classifier statistics
+stats = classifier.get_statistics()
+print(f"Execution count: {stats['execution_count']}")
+print(f"Average execution time: {stats['avg_execution_time']:.2f}s")
+
+# Clear cache
+classifier.clear_cache()
 ```
+
+## Error Handling
+The Classifier class provides robust error handling:
+- ClassifierError: Raised when classification fails
+- Automatic error tracking and statistics
+- Fallback results for batch operations
+
+## Configuration
+The Classifier class supports configuration through the ClassifierConfig class:
+- cache_enabled: Whether to enable result caching
+- cache_size: Maximum number of cached results
+- min_confidence: Minimum confidence threshold
+- async_enabled: Whether to enable asynchronous classification
 """
 
 from typing import Any, Dict, List, Optional
@@ -56,7 +92,44 @@ logger = get_logger(__name__)
 
 
 class Classifier:
-    """Main user-facing class for classification."""
+    """
+    Main user-facing class for classification.
+
+    This class provides a standardized interface for text classification operations.
+    It wraps classifier implementations with consistent state management, caching,
+    error handling, and statistics tracking.
+
+    ## Architecture
+    The Classifier class follows a facade pattern:
+    - Provides a simple, unified interface for classification
+    - Delegates to an Engine instance for core classification logic
+    - Uses StateManager for state tracking and statistics
+    - Wraps implementation-specific errors in standardized ClassifierError
+
+    ## Lifecycle
+    1. **Initialization**: Set up classifier with implementation and configuration
+    2. **Classification**: Process text through the implementation
+    3. **Result Handling**: Return standardized ClassificationResult
+    4. **State Management**: Track statistics and cache results
+    5. **Error Handling**: Handle and track errors
+
+    ## Examples
+    ```python
+    # Create classifier with implementation
+    classifier = Classifier(
+        implementation=ToxicityClassifier(),
+        name="toxicity_classifier",
+        description="Detects toxic content in text"
+    )
+
+    # Classify text
+    result = classifier.classify("This is a friendly message.")
+
+    # Check result
+    if result.confidence > 0.8:
+        print(f"High confidence classification: {result.label}")
+    ```
+    """
 
     def __init__(
         self,
@@ -103,22 +176,40 @@ class Classifier:
 
     @property
     def name(self) -> str:
-        """Get classifier name."""
+        """
+        Get classifier name.
+
+        Returns:
+            The name of the classifier
+        """
         return self._name
 
     @property
     def description(self) -> str:
-        """Get classifier description."""
+        """
+        Get classifier description.
+
+        Returns:
+            The description of the classifier
+        """
         return self._description
 
     @property
     def config(self) -> ClassifierConfig:
-        """Get classifier configuration."""
+        """
+        Get classifier configuration.
+
+        Returns:
+            The current configuration of the classifier
+        """
         return self._config
 
     def update_config(self, config: ClassifierConfig) -> None:
         """
         Update classifier configuration.
+
+        This method updates the classifier's configuration and ensures the state
+        manager is updated with the new configuration.
 
         Args:
             config: New classifier configuration
@@ -130,14 +221,19 @@ class Classifier:
         """
         Classify the given text.
 
+        This method processes the input text through the classifier implementation
+        and returns a standardized classification result. It handles state tracking,
+        error handling, and statistics updates.
+
         Args:
             text: The text to classify
 
         Returns:
-            The classification result
+            The classification result with label, confidence, and metadata
 
         Raises:
-            ClassifierError: If classification fails
+            ClassifierError: If classification fails due to implementation errors,
+                             configuration issues, or other exceptions
         """
         try:
             # Track execution count
@@ -180,14 +276,19 @@ class Classifier:
         """
         Classify multiple texts.
 
+        This method processes multiple input texts through the classifier implementation
+        and returns a list of standardized classification results. It handles errors for
+        individual texts without failing the entire batch operation.
+
         Args:
             texts: The texts to classify
 
         Returns:
-            List of classification results
+            List of classification results, one for each input text
 
         Raises:
-            ClassifierError: If classification fails
+            ClassifierError: If the entire batch operation fails
+                             (individual text failures are handled gracefully)
         """
         results = []
         for text in texts:
@@ -314,6 +415,11 @@ class Classifier:
         """
         Update classifier statistics.
 
+        This internal method updates the classifier's execution statistics,
+        including success/failure counts, execution times, and error tracking.
+        It uses the standardized utility function from utils.common and adds
+        classifier-specific statistics.
+
         Args:
             execution_time: Execution time in seconds
             success: Whether execution was successful
@@ -338,8 +444,24 @@ class Classifier:
         """
         Get classifier statistics.
 
+        This method returns a comprehensive dictionary of classifier statistics,
+        including execution counts, success/failure rates, timing information,
+        error details, and label distribution statistics.
+
         Returns:
-            Dictionary with classifier statistics
+            Dictionary with classifier statistics including:
+            - name: Classifier name
+            - execution_count: Total number of classification operations
+            - success_count: Number of successful classifications
+            - failure_count: Number of failed classifications
+            - error_count: Number of errors encountered
+            - avg_execution_time: Average execution time in seconds
+            - max_execution_time: Maximum execution time in seconds
+            - last_execution_time: Most recent execution time in seconds
+            - last_error: Most recent error message
+            - last_error_time: Timestamp of most recent error
+            - cache_size: Current size of the result cache
+            - label_stats: Distribution of classification labels
         """
         return {
             "name": self._name,
@@ -357,12 +479,27 @@ class Classifier:
         }
 
     def clear_cache(self) -> None:
-        """Clear the classifier result cache."""
+        """
+        Clear the classifier result cache.
+
+        This method removes all cached classification results, which can be
+        useful when changing configuration or when memory usage needs to be reduced.
+        """
         self._state_manager.update("result_cache", {})
         logger.debug("Classifier cache cleared")
 
     def reset_state(self) -> None:
-        """Reset classifier state."""
+        """
+        Reset classifier state.
+
+        This method resets all state information, including execution counts,
+        statistics, and the result cache. It then re-initializes the state with
+        the current classifier configuration.
+
+        This is useful when you want to start fresh with the same classifier
+        configuration, for example when running a new batch of classifications
+        that should not be influenced by previous runs.
+        """
         self._state_manager.reset()
 
         # Re-initialize state

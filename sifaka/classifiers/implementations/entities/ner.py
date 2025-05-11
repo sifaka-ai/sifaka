@@ -1,16 +1,99 @@
 """
 Named Entity Recognition (NER) classifier using spaCy.
 
-This classifier identifies and categorizes named entities in text such as
-people, organizations, locations, dates, etc.
+This module provides a classifier for identifying and categorizing named entities
+in text such as people, organizations, locations, dates, etc. It leverages spaCy's
+NLP capabilities to extract entities with high accuracy and provides detailed
+information about each entity found.
+
+## Overview
+The NERClassifier is a specialized classifier that identifies named entities in text
+and categorizes them into predefined types. It supports both standard entity types
+(person, organization, location, etc.) and custom entity types through configuration.
+The classifier provides detailed information about each entity, including its text,
+type, and position in the original text.
 
 ## Architecture
-
 NERClassifier follows the standard Sifaka classifier architecture:
 1. **Public API**: classify() and batch_classify() methods (inherited)
 2. **Caching Layer**: _classify_impl() handles caching (inherited)
 3. **Core Logic**: _classify_impl_uncached() implements entity recognition
 4. **State Management**: Uses StateManager for internal state
+5. **Engine Abstraction**: NEREngine protocol for pluggable implementations
+6. **Lazy Loading**: On-demand loading of spaCy models
+
+## Lifecycle
+1. **Initialization**: Set up configuration and parameters
+   - Initialize with name, description, and config
+   - Extract parameters from config.params
+   - Set up default values for entity types
+
+2. **Warm-up**: Load spaCy dependencies
+   - Import necessary modules on demand
+   - Load the specified spaCy model
+   - Create a wrapper that implements the NEREngine protocol
+   - Handle initialization errors gracefully
+
+3. **Entity Extraction**: Process input text
+   - Validate input text
+   - Apply the NER engine to extract entities
+   - Filter entities by configured entity types
+   - Group entities by type for better organization
+   - Calculate entity density and confidence scores
+
+4. **Result Creation**: Return standardized results
+   - Determine the dominant entity type
+   - Include detailed entity information in metadata
+   - Track statistics for monitoring and debugging
+
+## Usage Examples
+```python
+from sifaka.classifiers.implementations.entities.ner import create_ner_classifier
+
+# Create a NER classifier with default settings
+classifier = create_ner_classifier()
+
+# Classify text
+result = classifier.classify("Apple Inc. was founded by Steve Jobs in California.")
+print(f"Dominant entity type: {result.label}, Confidence: {result.confidence:.2f}")
+print(f"Entity count: {result.metadata['entity_count']}")
+
+# Access all entities
+for entity in result.metadata['entities']:
+    print(f"Entity: {entity['text']}, Type: {entity['type']}")
+
+# Create a classifier with custom settings
+custom_classifier = create_ner_classifier(
+    model_name="en_core_web_md",  # Use a larger model for better accuracy
+    entity_types=["PERSON", "ORG", "GPE"],  # Only extract these entity types
+    min_confidence=0.7  # Higher threshold for confidence
+)
+
+# Batch classify multiple texts
+texts = [
+    "Microsoft was founded by Bill Gates.",
+    "Paris is the capital of France.",
+    "The Eiffel Tower was built in 1889."
+]
+results = custom_classifier.batch_classify(texts)
+for text, result in zip(texts, results):
+    print(f"Text: {text}")
+    print(f"Dominant entity: {result.label}, Count: {result.metadata['entity_count']}")
+```
+
+## Error Handling
+The classifier provides robust error handling:
+- ImportError: When spaCy is not installed
+- RuntimeError: When model initialization fails
+- ValueError: When input text is empty or invalid
+- Graceful handling of entity extraction errors with fallback to "unknown" label
+
+## Configuration
+Key configuration options include:
+- model_name: Name of the spaCy model to use (default: "en_core_web_sm")
+- entity_types: List of entity types to recognize (default: person, organization, location, etc.)
+- min_confidence: Threshold for entity confidence (default: 0.5)
+- cache_size: Size of the classification cache (0 to disable)
 """
 
 import importlib
@@ -42,7 +125,66 @@ logger = get_logger(__name__)
 
 @runtime_checkable
 class NEREngine(Protocol):
-    """Protocol for NER engines."""
+    """
+    Protocol for Named Entity Recognition (NER) engines.
+
+    This protocol defines the interface that any NER engine must implement
+    to be compatible with the NERClassifier. It requires methods for processing
+    text and extracting entities from the processed document.
+
+    ## Architecture
+    The protocol follows a standard interface pattern:
+    - Uses Python's typing.Protocol for structural subtyping
+    - Is runtime checkable for dynamic type verification
+    - Defines two required methods with clear input/output contracts
+    - Enables pluggable NER implementations (e.g., spaCy, NLTK, custom)
+
+    ## Implementation Requirements
+    1. Implement process() method that accepts a string and returns a document object
+    2. Implement get_entities() method that extracts entities from the document
+    3. The get_entities() method should return a list of tuples with:
+       - Entity text (str)
+       - Entity type/label (str)
+       - Start position in the original text (int)
+       - End position in the original text (int)
+
+    ## Examples
+    ```python
+    from sifaka.classifiers.implementations.entities.ner import NEREngine
+
+    class CustomNEREngine:
+        def process(self, text: str) -> Any:
+            # Simple implementation based on keywords
+            return {"text": text, "processed": True}
+
+        def get_entities(self, doc: Any) -> List[Tuple[str, str, int, int]]:
+            # Extract entities from the document
+            entities = []
+            text = doc["text"]
+
+            # Look for company names
+            companies = ["Apple", "Microsoft", "Google", "Amazon"]
+            for company in companies:
+                if company in text:
+                    start = text.find(company)
+                    end = start + len(company)
+                    entities.append((company, "ORGANIZATION", start, end))
+
+            # Look for person names
+            persons = ["Steve Jobs", "Bill Gates", "Elon Musk"]
+            for person in persons:
+                if person in text:
+                    start = text.find(person)
+                    end = start + len(person)
+                    entities.append((person, "PERSON", start, end))
+
+            return entities
+
+    # Verify protocol compliance
+    engine = CustomNEREngine()
+    assert isinstance(engine, NEREngine)
+    ```
+    """
 
     @abstractmethod
     def process(self, text: str) -> Any: ...
@@ -52,7 +194,45 @@ class NEREngine(Protocol):
 
 
 class EntityResult:
-    """Result of entity extraction operation."""
+    """
+    Result of entity extraction operation.
+
+    This class encapsulates the results of an entity extraction operation,
+    including the original text, extracted entities, and entity statistics.
+    It provides a standardized way to represent entity extraction results
+    throughout the classifier system.
+
+    ## Architecture
+    The class follows a simple value object pattern:
+    - Stores the original text for reference
+    - Contains a list of extracted entities with their details
+    - Tracks the count of entities for statistics
+    - Provides a calculated entity density metric
+
+    ## Examples
+    ```python
+    # Create an entity result
+    result = EntityResult(
+        text="Apple Inc. was founded by Steve Jobs in California.",
+        entities=[
+            {"text": "Apple Inc.", "type": "ORGANIZATION", "start": 0, "end": 10},
+            {"text": "Steve Jobs", "type": "PERSON", "start": 25, "end": 35},
+            {"text": "California", "type": "LOCATION", "start": 39, "end": 49}
+        ],
+        entity_count=3
+    )
+
+    # Access entity information
+    print(f"Text: {result.text}")
+    print(f"Entity count: {result.entity_count}")
+    print(f"Entity density: {result.entity_density:.2f}")
+
+    # Process entities
+    for entity in result.entities:
+        print(f"Entity: {entity['text']}, Type: {entity['type']}")
+        print(f"Position: {entity['start']}-{entity['end']}")
+    ```
+    """
 
     def __init__(
         self,
@@ -60,13 +240,31 @@ class EntityResult:
         entities: List[Dict[str, Any]],
         entity_count: int,
     ):
+        """
+        Initialize an entity extraction result.
+
+        Args:
+            text: The original text that was analyzed
+            entities: List of extracted entities with their details
+            entity_count: Number of entities found
+        """
         self.text = text
         self.entities = entities
         self.entity_count = entity_count
 
     @property
     def entity_density(self) -> float:
-        """Calculate ratio of entities to text length."""
+        """
+        Calculate ratio of entities to text length.
+
+        This property computes the density of entities in the text,
+        which can be used as a measure of how entity-rich the text is.
+        The calculation divides the entity count by the number of words
+        in the text.
+
+        Returns:
+            Float representing entity density (entities per word)
+        """
         return self.entity_count / max(len(self.text.split()), 1)  # Avoid division by zero
 
 
@@ -75,7 +273,79 @@ class NERClassifier(Classifier):
     A Named Entity Recognition (NER) classifier using spaCy.
 
     This classifier identifies and categorizes named entities in text such as
-    people, organizations, locations, dates, etc.
+    people, organizations, locations, dates, etc. It leverages spaCy's NLP
+    capabilities to extract entities with high accuracy and provides detailed
+    information about each entity found.
+
+    ## Architecture
+    NERClassifier follows a component-based architecture:
+    - Extends the base Classifier class for consistent interface
+    - Uses the NEREngine protocol for pluggable implementations
+    - Implements lazy loading of dependencies for efficiency
+    - Provides detailed entity extraction results
+    - Uses StateManager for efficient state tracking and caching
+    - Supports both synchronous and batch classification
+    - Implements configurable entity type filtering
+
+    ## Lifecycle
+    1. **Initialization**: Set up configuration and parameters
+       - Initialize with name, description, and config
+       - Extract parameters from config.params
+       - Set up default values for entity types
+       - Initialize state with engine if provided
+
+    2. **Warm-up**: Load spaCy dependencies
+       - Import necessary modules on demand
+       - Load the specified spaCy model
+       - Create a wrapper that implements the NEREngine protocol
+       - Handle initialization errors with clear messages
+       - Store the engine in state cache
+
+    3. **Entity Extraction**: Process input text
+       - Validate input text and handle edge cases
+       - Apply the NER engine to extract entities
+       - Filter entities by configured entity types
+       - Group entities by type for better organization
+       - Calculate entity density and confidence scores
+
+    4. **Result Creation**: Return standardized results
+       - Determine the dominant entity type
+       - Include detailed entity information in metadata
+       - Track statistics for monitoring and debugging
+       - Handle errors gracefully with fallback results
+
+    ## Examples
+    ```python
+    from sifaka.classifiers.implementations.entities.ner import NERClassifier
+
+    # Create a NER classifier
+    classifier = NERClassifier(
+        name="my_ner_classifier",
+        description="Custom NER classifier for entity extraction"
+    )
+
+    # Classify a text
+    result = classifier.classify("Apple Inc. was founded by Steve Jobs in California.")
+    print(f"Dominant entity type: {result.label}, Confidence: {result.confidence:.2f}")
+    print(f"Entity count: {result.metadata['entity_count']}")
+
+    # Access all entities
+    for entity in result.metadata['entities']:
+        print(f"Entity: {entity['text']}, Type: {entity['type']}")
+        print(f"Position: {entity['start']}-{entity['end']}")
+
+    # Access entities by type
+    for entity_type, entities in result.metadata['entities_by_type'].items():
+        print(f"Type: {entity_type}, Count: {len(entities)}")
+        for entity in entities:
+            print(f"  - {entity['text']}")
+    ```
+
+    ## Configuration Options
+    - model_name: Name of the spaCy model to use (default: "en_core_web_sm")
+    - entity_types: List of entity types to recognize (default: person, organization, location, etc.)
+    - min_confidence: Threshold for entity confidence (default: 0.5)
+    - cache_size: Size of the classification cache (0 to disable)
 
     Requires the 'ner' extra to be installed:
     pip install sifaka[ner]
@@ -467,18 +737,81 @@ def create_ner_classifier(
     """
     Factory function to create a NER classifier.
 
+    This function provides a simpler interface for creating a NER classifier
+    with the specified parameters, handling the creation of the ClassifierConfig
+    object and setting up the classifier with the appropriate parameters.
+
+    ## Architecture
+    The factory function follows a standardized pattern:
+    1. Extract and prepare parameters for configuration
+    2. Create a configuration dictionary with standardized structure
+    3. Pass the configuration to the classifier constructor
+    4. Return the fully configured classifier instance
+
+    ## Examples
+    ```python
+    from sifaka.classifiers.implementations.entities.ner import create_ner_classifier
+
+    # Create with default settings
+    classifier = create_ner_classifier()
+
+    # Create with custom model and entity types
+    custom_classifier = create_ner_classifier(
+        model_name="en_core_web_md",  # Use a larger model for better accuracy
+        entity_types=["PERSON", "ORG", "GPE"],  # Only extract these entity types
+        min_confidence=0.7  # Higher threshold for confidence
+    )
+
+    # Create with custom name and description
+    named_classifier = create_ner_classifier(
+        name="custom_ner_classifier",
+        description="Custom NER classifier for entity extraction",
+        cache_size=100  # Enable caching
+    )
+    ```
+
     Args:
-        name: Name of the classifier
-        description: Description of the classifier
-        model_name: Name of the spaCy model to use
+        name: Name of the classifier for identification and logging
+        description: Human-readable description of the classifier's purpose
+        model_name: Name of the spaCy model to use for entity recognition
         entity_types: Optional list of entity types to recognize (filter)
-        min_confidence: Minimum confidence for entity classification
-        cache_size: Size of the classification cache (0 to disable)
-        cost: Computational cost of this classifier
-        **kwargs: Additional configuration parameters
+        min_confidence: Minimum confidence threshold for entity classification
+        cache_size: Size of the classification cache (0 to disable caching)
+        cost: Computational cost metric for resource allocation decisions
+        **kwargs: Additional configuration parameters to pass to the classifier
 
     Returns:
-        Configured NERClassifier instance
+        Configured NERClassifier instance ready for immediate use
+
+    Examples:
+        ```python
+        # Create a NER classifier with default settings
+        classifier = create_ner_classifier()
+
+        # Classify text
+        result = classifier.classify("Apple Inc. was founded by Steve Jobs in California.")
+        print(f"Dominant entity type: {result.label}, Confidence: {result.confidence:.2f}")
+        print(f"Entity count: {result.metadata['entity_count']}")
+
+        # Create a classifier with custom settings
+        custom_classifier = create_ner_classifier(
+            model_name="en_core_web_md",
+            entity_types=["PERSON", "ORG", "GPE"],
+            min_confidence=0.7,
+            cache_size=100
+        )
+
+        # Batch classify multiple texts
+        texts = [
+            "Microsoft was founded by Bill Gates.",
+            "Paris is the capital of France.",
+            "The Eiffel Tower was built in 1889."
+        ]
+        results = custom_classifier.batch_classify(texts)
+        for text, result in zip(texts, results):
+            print(f"Text: {text}")
+            print(f"Dominant entity: {result.label}, Count: {result.metadata['entity_count']}")
+        ```
     """
     # Set up default params
     default_params = {

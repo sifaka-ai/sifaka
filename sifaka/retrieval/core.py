@@ -5,24 +5,52 @@ This module provides the core implementation of the retrieval functionality
 in the Sifaka framework. It includes the RetrieverCore class, which serves
 as the foundation for all retriever implementations.
 
-## Component Lifecycle
+## Overview
 
-1. **Initialization**
-   - Configure retrieval sources
-   - Set up indexing
-   - Initialize resources
+The retrieval core provides a standardized foundation for implementing retrievers
+in the Sifaka framework. It handles common tasks like query processing, result
+formatting, and error handling, allowing specific retriever implementations to
+focus on their unique retrieval logic.
 
-2. **Operation**
-   - Process queries
-   - Retrieve relevant information
-   - Format results
+## Components
 
-3. **Cleanup**
-   - Release resources
-   - Close connections
-   - Clean up temporary data
+- **RetrieverCore**: Base class for all retriever implementations
+- **safely_execute_retrieval**: Utility function for safe retrieval execution
+- **create_result**: Utility function for creating standardized retrieval results
+
+## Usage Examples
+
+```python
+from sifaka.retrieval.core import RetrieverCore
+from sifaka.retrieval.config import RetrieverConfig
+
+class MyRetriever(RetrieverCore):
+    def __init__(self, config=None, name="MyRetriever", description="Custom retriever"):
+        super().__init__(config=config, name=name, description=description)
+        # Initialize custom resources
+
+    def retrieve(self, query, **kwargs):
+        # Call parent method to handle state tracking
+        super().retrieve(query, **kwargs)
+
+        # Process the query
+        processed_query = self.process_query(query)
+
+        # Implement custom retrieval logic
+        documents = self._retrieve_documents(processed_query)
+
+        # Create and return a standardized result
+        return self.create_result(
+            query=query,
+            processed_query=processed_query,
+            documents=documents,
+            execution_time_ms=100.0,
+        )
+```
 
 ## Error Handling
+
+The retrieval core provides standardized error handling through:
 
 1. **Query Processing Errors**
    - Invalid query format
@@ -34,10 +62,14 @@ as the foundation for all retriever implementations.
    - Index corruption
    - Timeout errors
 
-3. **Result Processing Errors**
-   - Format conversion errors
-   - Result truncation issues
-   - Metadata extraction failures
+## Configuration
+
+The retrieval core uses the RetrieverConfig class for configuration:
+
+1. **Retriever Type**: The type of retriever to use
+2. **Ranking**: Configuration for ranking strategies
+3. **Index**: Configuration for index management
+4. **Query Processing**: Configuration for query processing
 """
 
 import time
@@ -108,7 +140,16 @@ class RetrieverCore(BaseComponent):
     implementations and handles common tasks like query processing, result
     formatting, and error handling.
 
-    ## Lifecycle Management
+    ## Architecture
+
+    The RetrieverCore follows a layered architecture:
+    - Configuration layer: Manages retrieval settings
+    - Query processing layer: Processes and expands queries
+    - Retrieval layer: Finds relevant information
+    - Result formatting layer: Formats and returns results
+    - Error handling layer: Handles and reports errors
+
+    ## Lifecycle
 
     1. **Initialization**
        - Configure retrieval sources
@@ -127,20 +168,37 @@ class RetrieverCore(BaseComponent):
 
     ## Error Handling
 
-    1. **Query Processing Errors**
-       - Invalid query format
-       - Empty queries
-       - Malformed queries
+    The RetrieverCore handles errors at multiple levels:
+    - Input validation errors: Validates query format and parameters
+    - Processing errors: Handles errors during query processing
+    - Retrieval errors: Handles errors during information retrieval
+    - Result formatting errors: Handles errors during result formatting
 
-    2. **Retrieval Errors**
-       - Source unavailable
-       - Index corruption
-       - Timeout errors
+    ## Examples
 
-    3. **Result Processing Errors**
-       - Format conversion errors
-       - Result truncation issues
-       - Metadata extraction failures
+    ```python
+    from sifaka.retrieval.core import RetrieverCore
+    from sifaka.retrieval.config import RetrieverConfig
+
+    # Create a basic retriever
+    config = RetrieverConfig(retriever_type="simple")
+    retriever = RetrieverCore(config=config)
+
+    # Initialize the retriever
+    retriever.initialize()
+
+    # Retrieve information
+    result = retriever.retrieve("How does quantum computing work?")
+    print(result.get_formatted_results())
+
+    # Clean up resources
+    retriever.cleanup()
+    ```
+
+    Attributes:
+        name (str): The name of the retriever
+        description (str): A description of the retriever
+        config (RetrieverConfig): The retriever configuration
     """
 
     # State management is handled by BaseComponent

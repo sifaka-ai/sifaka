@@ -2,7 +2,92 @@
 Topic classifier using scikit-learn's LDA.
 
 This module provides a classifier for extracting topics from text using
-Latent Dirichlet Allocation (LDA) from scikit-learn.
+Latent Dirichlet Allocation (LDA) from scikit-learn. The classifier can
+identify dominant topics in text and provide detailed topic distributions
+with representative words for each topic.
+
+## Overview
+The TopicClassifier is a specialized classifier that extracts latent topics
+from text documents using unsupervised learning. It leverages scikit-learn's
+implementation of Latent Dirichlet Allocation (LDA) to identify patterns in
+text and group them into coherent topics. The classifier can be trained on
+a corpus of documents and then used to classify new text into the discovered
+topics.
+
+## Architecture
+TopicClassifier follows the standard Sifaka classifier architecture:
+1. **Public API**: classify() and batch_classify() methods
+2. **Caching Layer**: _classify_impl() handles caching
+3. **Core Logic**: LDA model for topic extraction
+4. **State Management**: Uses StateManager for internal state
+5. **Training**: fit() method for model training
+6. **Warm-up**: Lazy initialization of dependencies
+
+## Lifecycle
+1. **Initialization**: Set up configuration and parameters
+   - Initialize with name, description, and config
+   - Extract parameters from config.params
+   - Set up default values for topics and features
+
+2. **Warm-up**: Load scikit-learn dependencies
+   - Import necessary modules on demand
+   - Initialize vectorizer and LDA model
+   - Handle initialization errors gracefully
+
+3. **Training**: Fit the model on a corpus
+   - Vectorize the corpus using TF-IDF
+   - Train the LDA model on the vectorized corpus
+   - Extract representative words for each topic
+   - Update labels with meaningful topic names
+
+4. **Classification**: Process input text
+   - Vectorize the input text
+   - Apply the trained LDA model
+   - Extract topic distributions
+   - Identify the dominant topic
+   - Return detailed topic information
+
+## Usage Examples
+```python
+from sifaka.classifiers.implementations.properties.topic import create_topic_classifier
+
+# Create a topic classifier
+classifier = create_topic_classifier(num_topics=5)
+
+# Train the classifier on a corpus
+corpus = [
+    "This is a document about technology and computers.",
+    "This is a document about sports and athletics.",
+    "This is a document about politics and government.",
+    "This is a document about health and medicine.",
+    "This is a document about entertainment and movies."
+]
+classifier.fit(corpus)
+
+# Classify a new document
+result = classifier.classify("This document discusses artificial intelligence and machine learning.")
+print(f"Topic: {result.label}, Confidence: {result.confidence:.2f}")
+
+# Access topic details
+for topic, details in result.metadata['all_topics'].items():
+    print(f"{topic}: {details['probability']:.2f}")
+    print(f"Words: {', '.join(details['words'])}")
+```
+
+## Error Handling
+The classifier provides robust error handling:
+- ImportError: When scikit-learn is not installed
+- RuntimeError: When model initialization fails
+- ValueError: When input text is empty or invalid
+- Graceful handling of edge cases during classification
+
+## Configuration
+Key configuration options include:
+- num_topics: Number of topics to extract (default: 5)
+- min_confidence: Threshold for topic confidence (default: 0.1)
+- max_features: Maximum number of features for vectorization (default: 1000)
+- random_state: Random seed for reproducible results (default: 42)
+- top_words_per_topic: Number of words to extract per topic (default: 10)
 """
 
 # import os
@@ -25,7 +110,81 @@ class TopicClassifier(Classifier):
     A topic classifier using Latent Dirichlet Allocation from scikit-learn.
 
     This classifier extracts topics from text using LDA and returns the
-    dominant topic with confidence scores for each topic.
+    dominant topic with confidence scores for each topic. It can be trained
+    on a corpus of documents to discover latent topics and then classify
+    new text into these topics.
+
+    ## Architecture
+    TopicClassifier follows a component-based architecture:
+    - Extends the base Classifier class for consistent interface
+    - Uses scikit-learn's LDA for topic modeling
+    - Implements TF-IDF vectorization for text preprocessing
+    - Provides detailed topic distributions and word representations
+    - Uses StateManager for efficient state tracking and caching
+    - Supports both individual and batch classification
+    - Implements lazy loading of dependencies for efficiency
+
+    ## Lifecycle
+    1. **Initialization**: Set up configuration and parameters
+       - Initialize with name, description, and config
+       - Extract parameters from config.params
+       - Set up default values for topics and features
+       - Initialize state cache for model storage
+
+    2. **Warm-up**: Load scikit-learn dependencies
+       - Import necessary modules on demand
+       - Initialize vectorizer and LDA model
+       - Handle initialization errors with clear messages
+       - Mark initialization status in state
+
+    3. **Training**: Fit the model on a corpus
+       - Vectorize the corpus using TF-IDF
+       - Train the LDA model on the vectorized corpus
+       - Extract representative words for each topic
+       - Update labels with meaningful topic names
+       - Store topic words in state cache
+
+    4. **Classification**: Process input text
+       - Vectorize the input text
+       - Apply the trained LDA model
+       - Extract topic distributions
+       - Identify the dominant topic
+       - Return detailed topic information with confidence scores
+
+    ## Examples
+    ```python
+    from sifaka.classifiers.implementations.properties.topic import TopicClassifier
+
+    # Create a topic classifier
+    classifier = TopicClassifier(
+        name="my_topic_classifier",
+        description="Custom topic classifier for document analysis"
+    )
+
+    # Train the classifier on a corpus
+    corpus = [
+        "This is a document about technology and computers.",
+        "This is a document about sports and athletics.",
+        "This is a document about politics and government."
+    ]
+    classifier.fit(corpus)
+
+    # Classify a new document
+    result = classifier.classify("This document discusses artificial intelligence.")
+    print(f"Topic: {result.label}, Confidence: {result.confidence:.2f}")
+
+    # Access topic details
+    for topic, details in result.metadata['all_topics'].items():
+        print(f"{topic}: {details['probability']:.2f}")
+        print(f"Words: {', '.join(details['words'])}")
+    ```
+
+    ## Configuration Options
+    - num_topics: Number of topics to extract (default: 5)
+    - min_confidence: Threshold for topic confidence (default: 0.1)
+    - max_features: Maximum number of features for vectorization (default: 1000)
+    - random_state: Random seed for reproducible results (default: 42)
+    - top_words_per_topic: Number of words to extract per topic (default: 10)
 
     Requires scikit-learn to be installed:
     pip install scikit-learn
@@ -437,30 +596,61 @@ def create_topic_classifier(
     **kwargs: Any,
 ) -> TopicClassifier:
     """
-    Create a topic classifier.
+    Factory function to create a topic classifier.
 
-    This factory function creates a TopicClassifier with the specified
-    configuration options.
+    This function provides a simpler interface for creating a topic classifier
+    with the specified parameters, handling the creation of the ClassifierConfig
+    object and setting up the classifier with the appropriate parameters.
+
+    ## Architecture
+    The factory function follows a standardized pattern:
+    1. Extract and prepare parameters for configuration
+    2. Create a configuration dictionary with standardized structure
+    3. Pass the configuration to the classifier constructor
+    4. Return the fully configured classifier instance
+
+    ## Examples
+    ```python
+    from sifaka.classifiers.implementations.properties.topic import create_topic_classifier
+
+    # Create with default settings
+    classifier = create_topic_classifier()
+
+    # Create with custom topic settings
+    custom_classifier = create_topic_classifier(
+        num_topics=10,           # Extract 10 topics instead of default 5
+        max_features=2000,       # Use more features for better topic modeling
+        top_words_per_topic=15,  # Extract more words per topic
+        random_state=42          # Set random seed for reproducible results
+    )
+
+    # Create with custom name and description
+    named_classifier = create_topic_classifier(
+        name="custom_topic_classifier",
+        description="Custom topic classifier for document analysis",
+        min_confidence=0.2       # Higher threshold for topic confidence
+    )
+    ```
 
     Args:
-        name: Name of the classifier
-        description: Description of the classifier
-        num_topics: Number of topics to extract
-        min_confidence: Minimum confidence threshold
-        max_features: Maximum number of features for the vectorizer
-        random_state: Random state for reproducibility
-        top_words_per_topic: Number of words to extract per topic
-        cache_size: Size of the cache for memoization
-        cost: Cost of running the classifier
-        config: Optional classifier configuration
-        **kwargs: Additional configuration parameters
+        name: Name of the classifier for identification and logging
+        description: Human-readable description of the classifier's purpose
+        num_topics: Number of topics to extract from the text corpus
+        min_confidence: Minimum confidence threshold for topic assignment
+        max_features: Maximum number of features for the TF-IDF vectorizer
+        random_state: Random seed for reproducible topic modeling results
+        top_words_per_topic: Number of representative words to extract per topic
+        cache_size: Size of the classification cache (0 to disable caching)
+        cost: Computational cost metric for resource allocation decisions
+        config: Optional classifier configuration (dict or ClassifierConfig)
+        **kwargs: Additional configuration parameters to pass to the classifier
 
     Returns:
-        A TopicClassifier instance
+        Configured TopicClassifier instance ready for training and use
 
     Examples:
         ```python
-        from sifaka.classifiers.topic import create_topic_classifier
+        from sifaka.classifiers.implementations.properties.topic import create_topic_classifier
 
         # Create a topic classifier with default settings
         classifier = create_topic_classifier()

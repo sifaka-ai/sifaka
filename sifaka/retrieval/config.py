@@ -3,6 +3,53 @@ Configuration for retrieval components.
 
 This module provides configuration classes for retrieval components in the Sifaka framework.
 These classes define the configuration options for retrievers and related components.
+
+## Configuration Classes
+
+1. **RetrieverConfig**: Main configuration for retrievers
+   - **RankingConfig**: Configuration for ranking strategies
+   - **IndexConfig**: Configuration for index management
+   - **QueryProcessingConfig**: Configuration for query processing
+
+## Usage Examples
+
+```python
+from sifaka.retrieval.config import RetrieverConfig
+
+# Create a basic retriever configuration
+config = RetrieverConfig(retriever_type="simple")
+
+# Customize the configuration using fluent interface
+config = (
+    RetrieverConfig()
+    .with_ranking_strategy("semantic")
+    .with_top_k(5)
+    .with_score_threshold(0.7)
+    .with_index_type("disk")
+    .with_index_path("/path/to/index")
+    .with_preprocessing_steps(["lowercase", "remove_stopwords", "stemming"])
+    .with_expansion_method("wordnet")
+)
+
+# Access configuration properties
+print(f"Retriever type: {config.retriever_type}")
+print(f"Ranking strategy: {config.ranking.strategy}")
+print(f"Top K results: {config.ranking.top_k}")
+```
+
+## Configuration Structure
+
+The configuration classes follow a hierarchical structure:
+
+- **RetrieverConfig**
+  - retriever_type: Type of retriever to use
+  - ranking: RankingConfig instance
+  - index: IndexConfig instance
+  - query_processing: QueryProcessingConfig instance
+  - additional_params: Additional parameters
+
+Each configuration class provides sensible defaults and can be customized
+as needed for specific retrieval requirements.
 """
 
 from typing import Any, Dict, List, Optional, Union
@@ -84,7 +131,42 @@ class RetrieverConfig(BaseModel):
     Configuration for retrievers.
 
     This class defines the configuration options for retrievers
-    in the Sifaka framework.
+    in the Sifaka framework. It provides a comprehensive set of
+    configuration options for customizing retriever behavior.
+
+    ## Configuration Properties
+
+    - **retriever_type**: Type of retriever to use (e.g., 'simple', 'vector', 'hybrid')
+    - **ranking**: Configuration for ranking strategies
+    - **index**: Configuration for index management
+    - **query_processing**: Configuration for query processing
+    - **additional_params**: Additional parameters for the retriever
+
+    ## Fluent Interface
+
+    This class provides a fluent interface for configuration:
+
+    ```python
+    config = (
+        RetrieverConfig()
+        .with_ranking_strategy("semantic")
+        .with_top_k(5)
+        .with_score_threshold(0.7)
+    )
+    ```
+
+    ## Usage with Retrievers
+
+    ```python
+    from sifaka.retrieval.core import RetrieverCore
+    from sifaka.retrieval.config import RetrieverConfig
+
+    # Create a configuration
+    config = RetrieverConfig(retriever_type="vector")
+
+    # Create a retriever with the configuration
+    retriever = RetrieverCore(config=config)
+    ```
     """
 
     retriever_type: str = Field(

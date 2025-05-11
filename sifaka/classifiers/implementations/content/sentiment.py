@@ -5,16 +5,22 @@ This module provides a sentiment classifier that uses the VADER (Valence Aware D
 and sEntiment Reasoner) lexicon-based sentiment analysis tool. It categorizes text into
 positive, neutral, negative, or unknown sentiment categories with confidence scores.
 
-## Architecture
+## Overview
+The SentimentClassifier is a specialized classifier that leverages VADER, a lexicon and
+rule-based sentiment analysis tool specifically attuned to sentiments expressed in social
+media and conversational text. It provides fast, accurate sentiment analysis without
+requiring training data or external API calls.
 
+## Architecture
 SentimentClassifier follows the standard Sifaka classifier architecture:
 1. **Public API**: classify() and batch_classify() methods (inherited)
 2. **Caching Layer**: _classify_impl() handles caching (inherited)
 3. **Core Logic**: _classify_impl_uncached() implements sentiment analysis
 4. **State Management**: Uses StateManager for internal state
+5. **Thresholds**: Configurable thresholds for positive/negative sentiment
+6. **Analyzer Loading**: On-demand loading of the VADER analyzer
 
 ## Lifecycle
-
 1. **Initialization**: Set up configuration and parameters
    - Initialize with name, description, and config
    - Extract thresholds from config.params
@@ -37,7 +43,6 @@ SentimentClassifier follows the standard Sifaka classifier architecture:
    - Include detailed scores in metadata
 
 ## Usage Examples
-
 ```python
 from sifaka.classifiers.implementations.content.sentiment import create_sentiment_classifier
 
@@ -66,7 +71,27 @@ for text, result in zip(texts, results):
     print(f"Text: {text}")
     print(f"Sentiment: {result.label}, Confidence: {result.confidence:.2f}")
     print(f"Compound score: {result.metadata['compound_score']:.2f}")
+
+# Access all sentiment scores
+result = classifier.classify("The product is good but the service was terrible.")
+print(f"Compound score: {result.metadata['compound_score']:.2f}")
+print(f"Positive score: {result.metadata['pos_score']:.2f}")
+print(f"Negative score: {result.metadata['neg_score']:.2f}")
+print(f"Neutral score: {result.metadata['neu_score']:.2f}")
 ```
+
+## Error Handling
+The classifier provides robust error handling:
+- ImportError: When VADER is not installed
+- RuntimeError: When analyzer initialization fails
+- Graceful handling of empty or invalid inputs
+- Fallback to "unknown" with zero confidence for edge cases
+
+## Configuration
+Key configuration options include:
+- positive_threshold: Threshold for positive sentiment detection (default: 0.05)
+- negative_threshold: Threshold for negative sentiment detection (default: -0.05)
+- cache_size: Size of the classification cache (0 to disable)
 """
 
 import importlib
@@ -109,17 +134,23 @@ class SentimentAnalyzer(Protocol):
     to be compatible with the SentimentClassifier. It requires a polarity_scores
     method that returns a dictionary of sentiment scores.
 
-    ## Implementation Requirements
+    ## Architecture
+    The protocol follows a standard interface pattern:
+    - Uses Python's typing.Protocol for structural subtyping
+    - Is runtime checkable for dynamic type verification
+    - Defines a single required method with clear input/output contract
+    - Enables pluggable sentiment analysis implementations
 
+    ## Implementation Requirements
     1. Implement polarity_scores() method that accepts a string and returns a dict
     2. The returned dict should contain at least a 'compound' score
     3. Scores should be in the range [-1, 1] where:
        - Positive values indicate positive sentiment
        - Negative values indicate negative sentiment
        - Values near zero indicate neutral sentiment
+    4. Additional scores like 'pos', 'neg', and 'neu' are recommended
 
     ## Examples
-
     ```python
     from sifaka.classifiers.implementations.content.sentiment import SentimentAnalyzer
 
@@ -149,6 +180,10 @@ class SentimentAnalyzer(Protocol):
     # Verify protocol compliance
     analyzer = CustomAnalyzer()
     assert isinstance(analyzer, SentimentAnalyzer)
+
+    # Use with SentimentClassifier
+    classifier = SentimentClassifier(analyzer=analyzer)
+    result = classifier.classify("This is great!")
     ```
     """
 
@@ -165,38 +200,39 @@ class SentimentClassifier(Classifier):
     It analyzes text and returns sentiment scores along with a classification label.
 
     ## Architecture
-
-    SentimentClassifier follows the standard Sifaka classifier architecture:
-    1. **Public API**: classify() and batch_classify() methods (inherited)
-    2. **Caching Layer**: _classify_impl() handles caching (inherited)
-    3. **Core Logic**: _classify_impl_uncached() implements sentiment analysis
-    4. **State Management**: Uses StateManager for internal state
+    SentimentClassifier follows a component-based architecture:
+    - Extends the base Classifier class for consistent interface
+    - Uses VADER for sentiment analysis
+    - Implements configurable thresholds for sentiment categories
+    - Provides detailed sentiment scores in result metadata
+    - Uses StateManager for efficient state tracking and caching
+    - Supports both synchronous and batch classification
 
     ## Lifecycle
-
     1. **Initialization**: Set up configuration and parameters
        - Initialize with name, description, and config
        - Extract thresholds from config.params
-       - Set up default values
+       - Set up default values and constants
 
     2. **Warm-up**: Load VADER resources
-       - Load VADER analyzer when needed
-       - Initialize only once
-       - Handle initialization errors gracefully
+       - Load VADER analyzer when needed (lazy initialization)
+       - Initialize only once and cache for reuse
+       - Handle initialization errors gracefully with clear messages
 
     3. **Classification**: Process input text
-       - Validate input text
+       - Validate input text and handle edge cases
        - Apply VADER sentiment analysis
        - Convert scores to standardized format
-       - Handle empty text and edge cases
+       - Apply thresholds to determine sentiment categories
+       - Handle empty text with special case handling
 
     4. **Result Creation**: Return standardized results
-       - Map compound scores to sentiment labels
+       - Map compound scores to appropriate sentiment labels
        - Convert scores to confidence values
-       - Include detailed scores in metadata
+       - Include detailed scores in metadata for transparency
+       - Track statistics for monitoring and debugging
 
     ## Examples
-
     ```python
     from sifaka.classifiers.implementations.content.sentiment import create_sentiment_classifier
 
@@ -212,7 +248,19 @@ class SentimentClassifier(Classifier):
     print(f"Positive score: {result.metadata['pos_score']:.2f}")
     print(f"Negative score: {result.metadata['neg_score']:.2f}")
     print(f"Neutral score: {result.metadata['neu_score']:.2f}")
+
+    # Batch classify multiple texts
+    texts = ["This is great!", "I hate this", "Maybe it's okay"]
+    results = classifier.batch_classify(texts)
+    for i, result in enumerate(results):
+        print(f"Text {i+1}: {result.label} ({result.confidence:.2f})")
     ```
+
+    ## Configuration Options
+    - positive_threshold: Threshold for positive sentiment (default: 0.05)
+    - negative_threshold: Threshold for negative sentiment (default: -0.05)
+    - cache_size: Size of the classification cache (0 to disable)
+    - analyzer: Custom sentiment analyzer implementation
 
     Requires the 'sentiment' extra to be installed:
     pip install sifaka[sentiment]
@@ -242,12 +290,19 @@ class SentimentClassifier(Classifier):
         """
         Initialize the sentiment classifier.
 
+        This method sets up the classifier with the provided name, description,
+        and configuration. If no configuration is provided, it creates a default
+        configuration with sensible defaults for sentiment analysis.
+
         Args:
-            name: The name of the classifier
-            description: Description of the classifier
-            analyzer: Custom sentiment analyzer implementation
-            config: Optional classifier configuration
-            **kwargs: Additional configuration parameters
+            name: The name of the classifier for identification and logging
+            description: Human-readable description of the classifier's purpose
+            analyzer: Custom sentiment analyzer implementation that follows the
+                     SentimentAnalyzer protocol
+            config: Optional classifier configuration with settings like thresholds,
+                   cache size, and labels
+            **kwargs: Additional configuration parameters that will be extracted
+                     and added to the config.params dictionary
         """
         # Create config if not provided
         if config is None:
@@ -293,14 +348,20 @@ class SentimentClassifier(Classifier):
         """
         Validate that an analyzer implements the required protocol.
 
+        This method checks if the provided analyzer implements the SentimentAnalyzer
+        protocol, which requires a polarity_scores() method that returns sentiment scores.
+        It uses the validate_component helper method from the base class.
+
         Args:
-            analyzer: The analyzer to validate
+            analyzer: The analyzer object to validate, which should implement
+                     the SentimentAnalyzer protocol
 
         Returns:
-            True if the analyzer is valid
+            True if the analyzer is valid and implements the required protocol
 
         Raises:
             ValueError: If the analyzer doesn't implement the SentimentAnalyzer protocol
+                       or is missing required methods
         """
         return self.validate_component(analyzer, SentimentAnalyzer, "Analyzer")
 
@@ -308,12 +369,19 @@ class SentimentClassifier(Classifier):
         """
         Load the VADER sentiment analyzer.
 
+        This method dynamically imports the VADER package and initializes
+        the sentiment analyzer. It handles import errors gracefully with
+        clear installation instructions and provides detailed error messages
+        for troubleshooting.
+
         Returns:
-            Initialized VADER analyzer
+            Initialized VADER analyzer that implements the SentimentAnalyzer protocol
 
         Raises:
-            ImportError: If the VADER package is not installed
-            RuntimeError: If VADER initialization fails
+            ImportError: If the VADER package is not installed, with instructions
+                        on how to install it
+            RuntimeError: If VADER initialization fails due to loading errors
+                         or other runtime problems
         """
         try:
             # Check if analyzer is already in state
@@ -344,7 +412,13 @@ class SentimentClassifier(Classifier):
 
         This method loads the VADER analyzer if it hasn't been loaded yet.
         It is called automatically when needed but can also be called
-        explicitly to pre-initialize resources.
+        explicitly to pre-initialize resources for faster first-time classification.
+
+        The method ensures that initialization happens only once and handles
+        errors gracefully with detailed error messages.
+
+        Raises:
+            RuntimeError: If analyzer initialization fails
         """
         if not self._state_manager.get("initialized", False):
             try:
@@ -367,11 +441,22 @@ class SentimentClassifier(Classifier):
         """
         Get sentiment label and confidence based on compound score.
 
+        This method analyzes the compound sentiment score from VADER and determines
+        the most appropriate sentiment label and confidence level based on configured
+        thresholds. It maps the compound score to a standardized label and converts
+        the score to a confidence value.
+
         Args:
-            compound_score: The compound sentiment score from VADER (-1 to 1)
+            compound_score: The compound sentiment score from VADER (-1 to 1),
+                           where positive values indicate positive sentiment,
+                           negative values indicate negative sentiment, and
+                           values near zero indicate neutral sentiment
 
         Returns:
-            Tuple of (sentiment_label, confidence)
+            Tuple of (sentiment_label, confidence) where:
+            - sentiment_label is one of "positive", "negative", "neutral", or "unknown"
+            - confidence is a value between 0.0 and 1.0 representing the confidence
+              in the sentiment classification
         """
         # Get thresholds from state
         cache = self._state_manager.get("cache", {})
@@ -396,13 +481,23 @@ class SentimentClassifier(Classifier):
         Implement sentiment classification logic without caching.
 
         This method contains the core sentiment analysis logic using VADER.
-        It is called by the caching layer when a cache miss occurs.
+        It is called by the caching layer when a cache miss occurs. The method
+        handles the entire classification process, from text validation to
+        result creation, including error handling and statistics tracking.
 
         Args:
-            text: The text to classify
+            text: The text to classify, which can be any string content
+                 that the VADER analyzer can process
 
         Returns:
-            ClassificationResult with sentiment scores
+            ClassificationResult with sentiment scores, containing:
+            - label: The sentiment label (positive, neutral, negative, or unknown)
+            - confidence: A confidence score between 0.0 and 1.0
+            - metadata: Detailed sentiment scores including compound_score,
+                       pos_score, neg_score, and neu_score
+
+        Raises:
+            RuntimeError: If the sentiment analyzer is not initialized
         """
         # Ensure resources are initialized
         if not self._state_manager.get("initialized", False):
@@ -487,9 +582,18 @@ class SentimentClassifier(Classifier):
 
         This method provides access to statistics collected during classifier operation,
         including classification counts by label, error counts, cache information, and thresholds.
+        It aggregates data from the state manager to provide a comprehensive view of the
+        classifier's performance and usage patterns.
 
         Returns:
-            Dictionary containing statistics
+            Dictionary containing statistics including:
+            - classifications: Counts of classifications by sentiment label
+            - error_count: Number of errors encountered
+            - cache_enabled: Whether caching is enabled
+            - cache_size: Maximum cache size
+            - positive_threshold: Current positive sentiment threshold
+            - negative_threshold: Current negative sentiment threshold
+            - initialized: Whether the analyzer has been initialized
         """
         stats = {
             # Classification counts by label

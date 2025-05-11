@@ -5,16 +5,22 @@ This module provides a toxicity classifier that uses the Detoxify model to detec
 toxic content in text. It categorizes text into various toxicity categories including
 toxic, severe_toxic, obscene, threat, insult, identity_hate, or non_toxic.
 
-## Architecture
+## Overview
+The ToxicityClassifier is a specialized classifier that leverages the Detoxify model,
+which is based on transformer architectures fine-tuned on toxicity datasets. It provides
+a fast, local alternative to API-based toxicity detection and can identify various forms
+of toxic content with high accuracy.
 
+## Architecture
 ToxicityClassifier follows the standard Sifaka classifier architecture:
 1. **Public API**: classify() and batch_classify() methods (inherited)
 2. **Caching Layer**: _classify_impl() handles caching (inherited)
 3. **Core Logic**: _classify_impl_uncached() implements toxicity detection
 4. **State Management**: Uses StateManager for internal state
+5. **Thresholds**: Configurable thresholds for different toxicity categories
+6. **Model Loading**: On-demand loading of the Detoxify model
 
 ## Lifecycle
-
 1. **Initialization**: Set up configuration and parameters
    - Initialize with name, description, and config
    - Extract thresholds from config.params
@@ -37,7 +43,6 @@ ToxicityClassifier follows the standard Sifaka classifier architecture:
    - Include detailed scores in metadata
 
 ## Usage Examples
-
 ```python
 from sifaka.classifiers.implementations.content.toxicity import create_toxicity_classifier
 
@@ -66,7 +71,27 @@ results = custom_classifier.batch_classify(texts)
 for text, result in zip(texts, results):
     print(f"Text: {text}")
     print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
+
+# Access detailed toxicity scores
+result = classifier.classify("This message contains some bad words.")
+for category, score in result.metadata["all_scores"].items():
+    print(f"{category}: {score:.4f}")
 ```
+
+## Error Handling
+The classifier provides robust error handling:
+- ImportError: When Detoxify is not installed
+- RuntimeError: When model initialization fails
+- Graceful handling of empty or invalid inputs
+- Fallback to "non_toxic" with low confidence for edge cases
+
+## Configuration
+Key configuration options include:
+- general_threshold: Threshold for general toxicity detection (default: 0.5)
+- severe_toxic_threshold: Threshold for severe toxicity (default: 0.7)
+- threat_threshold: Threshold for threats (default: 0.7)
+- model_name: Detoxify model variant to use (default: "original")
+- cache_size: Size of the classification cache (0 to disable)
 """
 
 import importlib
@@ -109,38 +134,39 @@ class ToxicityClassifier(Classifier):
     obscenity, threats, insults, and identity-based hate.
 
     ## Architecture
-
-    ToxicityClassifier follows the standard Sifaka classifier architecture:
-    1. **Public API**: classify() and batch_classify() methods (inherited)
-    2. **Caching Layer**: _classify_impl() handles caching (inherited)
-    3. **Core Logic**: _classify_impl_uncached() implements toxicity detection
-    4. **State Management**: Uses StateManager for internal state
+    ToxicityClassifier follows a component-based architecture:
+    - Extends the base Classifier class for consistent interface
+    - Uses Detoxify model for toxicity detection
+    - Implements configurable thresholds for different toxicity types
+    - Provides detailed toxicity scores in result metadata
+    - Uses StateManager for efficient state tracking and caching
+    - Supports both synchronous and batch classification
 
     ## Lifecycle
-
     1. **Initialization**: Set up configuration and parameters
        - Initialize with name, description, and config
        - Extract thresholds from config.params
-       - Set up default values
+       - Set up default values and constants
 
     2. **Warm-up**: Load Detoxify resources
-       - Load Detoxify model when needed
-       - Initialize only once
-       - Handle initialization errors gracefully
+       - Load Detoxify model when needed (lazy initialization)
+       - Initialize only once and cache for reuse
+       - Handle initialization errors gracefully with clear messages
 
     3. **Classification**: Process input text
-       - Validate input text
+       - Validate input text and handle edge cases
        - Apply Detoxify toxicity detection
        - Convert scores to standardized format
-       - Handle empty text and edge cases
+       - Apply thresholds to determine toxicity categories
+       - Handle empty text with special case handling
 
     4. **Result Creation**: Return standardized results
-       - Map toxicity scores to labels
+       - Map toxicity scores to appropriate labels
        - Convert scores to confidence values
-       - Include detailed scores in metadata
+       - Include detailed scores in metadata for transparency
+       - Track statistics for monitoring and debugging
 
     ## Examples
-
     ```python
     from sifaka.classifiers.implementations.content.toxicity import create_toxicity_classifier
 
@@ -154,7 +180,20 @@ class ToxicityClassifier(Classifier):
     # Access detailed scores
     for category, score in result.metadata["all_scores"].items():
         print(f"{category}: {score:.4f}")
+
+    # Batch classify multiple texts
+    texts = ["Hello world", "You are stupid", "I hate everyone"]
+    results = classifier.batch_classify(texts)
+    for i, result in enumerate(results):
+        print(f"Text {i+1}: {result.label} ({result.confidence:.2f})")
     ```
+
+    ## Configuration Options
+    - general_threshold: Threshold for general toxicity (default: 0.5)
+    - severe_toxic_threshold: Threshold for severe toxicity (default: 0.7)
+    - threat_threshold: Threshold for threats (default: 0.7)
+    - model_name: Detoxify model variant (default: "original")
+    - cache_size: Size of the classification cache (0 to disable)
 
     Requires the 'toxicity' extra to be installed:
     pip install sifaka[toxicity]
@@ -190,11 +229,17 @@ class ToxicityClassifier(Classifier):
         """
         Initialize the toxicity classifier.
 
+        This method sets up the classifier with the provided name, description,
+        and configuration. If no configuration is provided, it creates a default
+        configuration with sensible defaults for toxicity detection.
+
         Args:
-            name: The name of the classifier
-            description: Description of the classifier
-            config: Optional classifier configuration
-            **kwargs: Additional configuration parameters
+            name: The name of the classifier for identification and logging
+            description: Human-readable description of the classifier's purpose
+            config: Optional classifier configuration with settings like thresholds,
+                   cache size, and labels
+            **kwargs: Additional configuration parameters that will be extracted
+                     and added to the config.params dictionary
         """
         # Set up default configuration if none provided
         if config is None:
@@ -227,14 +272,20 @@ class ToxicityClassifier(Classifier):
         """
         Validate that a model implements the required protocol.
 
+        This method checks if the provided model implements the ToxicityModel
+        protocol, which requires a predict() method that returns toxicity scores.
+        It uses the validate_component helper method from the base class.
+
         Args:
-            model: The model to validate
+            model: The model object to validate, which should implement
+                  the ToxicityModel protocol
 
         Returns:
-            True if the model is valid
+            True if the model is valid and implements the required protocol
 
         Raises:
             ValueError: If the model doesn't implement the ToxicityModel protocol
+                       or is missing required methods
         """
         return self.validate_component(model, ToxicityModel, "Model")
 
@@ -242,12 +293,19 @@ class ToxicityClassifier(Classifier):
         """
         Load the Detoxify package and model.
 
+        This method dynamically imports the Detoxify package and initializes
+        the toxicity detection model. It handles import errors gracefully with
+        clear installation instructions and provides detailed error messages
+        for troubleshooting.
+
         Returns:
-            Initialized Detoxify model
+            Initialized Detoxify model that implements the ToxicityModel protocol
 
         Raises:
-            ImportError: If the Detoxify package is not installed
-            RuntimeError: If Detoxify initialization fails
+            ImportError: If the Detoxify package is not installed, with instructions
+                        on how to install it
+            RuntimeError: If Detoxify initialization fails due to model loading errors,
+                         GPU issues, or other runtime problems
         """
         try:
             detoxify_module = importlib.import_module("detoxify")
@@ -744,20 +802,46 @@ def create_toxicity_classifier(
     with the specified parameters, handling the creation of the ClassifierConfig
     object and setting up the classifier with the appropriate parameters.
 
+    ## Architecture
+    The factory function follows a standardized pattern:
+    1. Extract and prepare parameters for configuration
+    2. Create a configuration dictionary with standardized structure
+    3. Pass the configuration to the classifier's create method
+    4. Return the fully configured classifier instance
+
+    ## Examples
+    ```python
+    # Create with default settings
+    classifier = create_toxicity_classifier()
+
+    # Create with custom thresholds
+    sensitive_classifier = create_toxicity_classifier(
+        general_threshold=0.3,  # More sensitive to toxicity
+        cache_size=100          # Enable caching
+    )
+
+    # Create with custom model variant
+    unbiased_classifier = create_toxicity_classifier(
+        model_name="unbiased",
+        name="unbiased_toxicity_classifier",
+        description="Uses the unbiased Detoxify model variant"
+    )
+    ```
+
     Args:
         model_name: Name of the Detoxify model to use ('original', 'unbiased', etc.)
-        name: Name of the classifier
-        description: Description of the classifier
-        general_threshold: General toxicity threshold (0-1)
-        severe_toxic_threshold: Severe toxicity threshold (0-1)
-        threat_threshold: Threat threshold (0-1)
-        cache_size: Size of the classification cache (0 to disable)
-        min_confidence: Minimum confidence for classification
-        cost: Computational cost of this classifier
-        **kwargs: Additional configuration parameters
+        name: Name of the classifier for identification and logging
+        description: Human-readable description of the classifier's purpose
+        general_threshold: General toxicity threshold (0-1) for standard toxicity categories
+        severe_toxic_threshold: Severe toxicity threshold (0-1) for high-priority detection
+        threat_threshold: Threat threshold (0-1) for detecting threatening content
+        cache_size: Size of the classification cache (0 to disable caching)
+        min_confidence: Minimum confidence threshold for classification results
+        cost: Computational cost metric for resource allocation decisions
+        **kwargs: Additional configuration parameters to pass to the classifier
 
     Returns:
-        Configured ToxicityClassifier instance
+        Configured ToxicityClassifier instance ready for immediate use
 
     Examples:
         ```python
