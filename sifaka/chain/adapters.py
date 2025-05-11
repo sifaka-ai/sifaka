@@ -59,6 +59,31 @@ class ModelAdapter(Model):
 
     This adapter implements the Model interface for existing model providers,
     using the standardized state management pattern.
+
+    ## Architecture
+    The ModelAdapter follows the adapter pattern to wrap existing model providers:
+    - Implements the Model interface from chain.interfaces
+    - Uses standardized state management with _state_manager
+    - Delegates to the wrapped model provider
+    - Handles different model provider interfaces (invoke, generate, run, process)
+    - Provides consistent error handling and statistics tracking
+
+    ## Lifecycle
+    1. **Initialization**: Adapter is created with a model provider
+    2. **State Setup**: State manager is initialized with adapter state
+    3. **Operation**: Adapter delegates to the model provider
+    4. **Cleanup**: Resources are released when no longer needed
+
+    ## Error Handling
+    - ModelError: Raised when model generation fails
+    - Tracks error statistics in state manager
+    - Provides detailed error messages with component information
+
+    Attributes:
+        _model (Any): The wrapped model provider
+        _name (str): The name of the adapter
+        _description (str): The description of the adapter
+        _state_manager (StateManager): The state manager for the adapter
     """
 
     def __init__(self, model: Any, name: str = None, description: str = None):
@@ -258,6 +283,32 @@ class ValidatorAdapter(Validator):
 
     This adapter implements the Validator interface for existing rules,
     using the standardized state management pattern.
+
+    ## Architecture
+    The ValidatorAdapter follows the adapter pattern to wrap existing rules:
+    - Implements the Validator interface from chain.interfaces
+    - Uses standardized state management with _state_manager
+    - Delegates to the wrapped rule
+    - Handles different rule interfaces (validate, process, run)
+    - Converts rule results to ValidationResult objects
+    - Provides consistent error handling and statistics tracking
+
+    ## Lifecycle
+    1. **Initialization**: Adapter is created with a rule
+    2. **State Setup**: State manager is initialized with adapter state
+    3. **Operation**: Adapter delegates to the rule
+    4. **Cleanup**: Resources are released when no longer needed
+
+    ## Error Handling
+    - ValidationError: Raised when validation fails
+    - Tracks error statistics in state manager
+    - Provides detailed error messages with component information
+
+    Attributes:
+        _validator (Any): The wrapped rule
+        _name (str): The name of the adapter
+        _description (str): The description of the adapter
+        _state_manager (StateManager): The state manager for the adapter
     """
 
     def __init__(self, validator: Any, name: str = None, description: str = None):
@@ -523,6 +574,31 @@ class ImproverAdapter(Improver):
 
     This adapter implements the Improver interface for existing critics,
     using the standardized state management pattern.
+
+    ## Architecture
+    The ImproverAdapter follows the adapter pattern to wrap existing critics:
+    - Implements the Improver interface from chain.interfaces
+    - Uses standardized state management with _state_manager
+    - Delegates to the wrapped critic
+    - Handles different critic interfaces (improve, refine, process, run)
+    - Provides consistent error handling and statistics tracking
+
+    ## Lifecycle
+    1. **Initialization**: Adapter is created with a critic
+    2. **State Setup**: State manager is initialized with adapter state
+    3. **Operation**: Adapter delegates to the critic
+    4. **Cleanup**: Resources are released when no longer needed
+
+    ## Error Handling
+    - ImproverError: Raised when improvement fails
+    - Tracks error statistics in state manager
+    - Provides detailed error messages with component information
+
+    Attributes:
+        _improver (Any): The wrapped critic
+        _name (str): The name of the adapter
+        _description (str): The description of the adapter
+        _state_manager (StateManager): The state manager for the adapter
     """
 
     def __init__(self, improver: Any, name: str = None, description: str = None):
@@ -738,6 +814,32 @@ class FormatterAdapter(Formatter):
 
     This adapter implements the Formatter interface for existing formatters,
     using the standardized state management pattern.
+
+    ## Architecture
+    The FormatterAdapter follows the adapter pattern to wrap existing formatters:
+    - Implements the Formatter interface from chain.interfaces
+    - Uses standardized state management with _state_manager
+    - Delegates to the wrapped formatter
+    - Handles different formatter interfaces (format, process, run)
+    - Provides a default implementation when no formatter is provided
+    - Provides consistent error handling and statistics tracking
+
+    ## Lifecycle
+    1. **Initialization**: Adapter is created with a formatter (or None)
+    2. **State Setup**: State manager is initialized with adapter state
+    3. **Operation**: Adapter delegates to the formatter or uses default
+    4. **Cleanup**: Resources are released when no longer needed
+
+    ## Error Handling
+    - FormatterError: Raised when formatting fails
+    - Tracks error statistics in state manager
+    - Provides detailed error messages with component information
+
+    Attributes:
+        _formatter (Any): The wrapped formatter (or None)
+        _name (str): The name of the adapter
+        _description (str): The description of the adapter
+        _state_manager (StateManager): The state manager for the adapter
     """
 
     def __init__(self, formatter: Any, name: str = None, description: str = None):

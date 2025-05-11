@@ -49,6 +49,26 @@ class PluginRegistry(CorePluginRegistry):
 
     This class extends the core PluginRegistry with chain-specific functionality.
     It ensures that only chain plugins can be registered.
+
+    ## Architecture
+    The PluginRegistry follows the registry pattern to manage plugins:
+    - Extends the core PluginRegistry with chain-specific validation
+    - Ensures that only chain plugins can be registered
+    - Maintains a registry of available plugins
+    - Provides methods for plugin registration and retrieval
+
+    ## Lifecycle
+    1. **Initialization**: Registry is created
+    2. **Registration**: Plugins are registered with the registry
+    3. **Retrieval**: Plugins are retrieved from the registry
+    4. **Unregistration**: Plugins can be unregistered when no longer needed
+
+    ## Error Handling
+    - PluginError: Raised when plugin registration or retrieval fails
+    - Validates plugin types before registration
+
+    Attributes:
+        _plugins (Dict[str, Plugin]): Dictionary of registered plugins
     """
 
     def register_plugin(self, name: str, plugin: Plugin) -> None:
@@ -78,6 +98,27 @@ class PluginLoader(CorePluginLoader):
 
     This class extends the core PluginLoader with chain-specific functionality.
     It ensures that only chain plugins can be loaded.
+
+    ## Architecture
+    The PluginLoader follows the loader pattern to dynamically load plugins:
+    - Extends the core PluginLoader with chain-specific functionality
+    - Uses a chain-specific PluginRegistry for plugin registration
+    - Loads plugins from entry points and modules
+    - Validates that loaded plugins are chain plugins
+
+    ## Lifecycle
+    1. **Initialization**: Loader is created with a registry
+    2. **Discovery**: Plugins are discovered from entry points or modules
+    3. **Loading**: Plugins are loaded and validated
+    4. **Registration**: Loaded plugins are registered with the registry
+
+    ## Error Handling
+    - PluginError: Raised when plugin loading fails
+    - ImportError: Raised when plugin modules cannot be imported
+    - Validates plugin types after loading
+
+    Attributes:
+        _registry (PluginRegistry): The registry to register plugins with
     """
 
     def __init__(self, registry: Optional[PluginRegistry] = None):

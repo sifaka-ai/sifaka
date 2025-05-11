@@ -42,7 +42,7 @@
    - 🔄 Add comprehensive docstrings explaining component relationships
      - ✅ Created docstring standardization templates in docs/docstring_standardization.md
      - ✅ Created docstring standardization tracking document in docs/docstring_standardization_tracking.md
-     - ⬜ Standardize docstrings in core components
+     - ✅ Standardize docstrings in core components
      - 🔄 Standardize docstrings in utility modules
        - ✅ Updated utils/state.py with standardized docstrings
        - ⬜ Update remaining utility modules
@@ -58,9 +58,9 @@
    - ⬜ Add validation tests for configuration
    - ⬜ Add error handling tests
 
-6. ⬜ **Fix v2 References**:
-   - ⬜ Update remaining references to v2 in documentation and code examples
-   - ⬜ Update README files to reflect new architecture
+6. ✅ **Fix v2 References**:
+   - ✅ Update remaining references to v2 in documentation and code examples
+   - ✅ Update README files to reflect new architecture
 
 7. ⬜ **Component Simplification** (based on SIMPLIFICATION_PLAN.md):
    - ✅ **Chain Component**:

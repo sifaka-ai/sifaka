@@ -5,10 +5,12 @@ This module provides the ClientManager class which is responsible for
 managing API clients for model providers.
 """
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Generic, Optional, TypeVar
 
-from sifaka.models.base import APIClient, ModelConfig
+# Import interfaces directly to avoid circular dependencies
+from sifaka.interfaces.client import APIClientProtocol as APIClient
+from sifaka.utils.config import ModelConfig
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)

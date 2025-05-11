@@ -9,13 +9,13 @@ It coordinates the flow between components, handles caching, and manages state.
 
 ## Usage Examples
 ```python
-from sifaka.classifiers.v2.engine import Engine
-from sifaka.classifiers.v2.config import ClassifierConfig
-from sifaka.classifiers.v2.state import StateTracker
+from sifaka.classifiers.engine import Engine
+from sifaka.classifiers.config import ClassifierConfig
+from sifaka.utils.state import StateManager
 
 # Create engine
 engine = Engine(
-    state_tracker=StateTracker(),
+    state_manager=StateManager(),
     config=ClassifierConfig(cache_enabled=True, cache_size=100)
 )
 

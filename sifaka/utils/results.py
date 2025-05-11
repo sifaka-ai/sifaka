@@ -1,30 +1,34 @@
 """
-Result creation utilities for Sifaka.
+Result Creation Module
 
+A module providing standardized result creation utilities for the Sifaka framework.
+
+## Overview
 This module provides standardized result creation utilities for the Sifaka framework,
-including functions for creating rule results, classification results, and critic results.
+enabling consistent result formatting across different components. It includes
+functions for creating rule results, classification results, critic results,
+error results, and unknown results.
+
+## Components
+- create_rule_result: Create a standardized rule result
+- create_classification_result: Create a standardized classification result
+- create_critic_result: Create a standardized critic result
+- create_error_result: Create a standardized error result
+- create_unknown_result: Create a standardized unknown classification result
+- merge_metadata: Merge multiple metadata dictionaries
 
 ## Result Types
-
 The module provides standardized result creation for different result types:
 
 1. **RuleResult**: Results from rules and validators
 2. **ClassificationResult**: Results from classifiers
 3. **CriticMetadata**: Results from critics
 
-## Result Creation
-
-The module provides standardized result creation functions:
-
-1. **create_rule_result**: Create a standardized rule result
-2. **create_classification_result**: Create a standardized classification result
-3. **create_critic_result**: Create a standardized critic result
-
 ## Usage Examples
-
 ```python
 from sifaka.utils.results import (
-    create_rule_result, create_classification_result, create_critic_result
+    create_rule_result, create_classification_result, create_critic_result,
+    create_error_result, create_unknown_result, merge_metadata
 )
 
 # Create a rule result
@@ -50,7 +54,40 @@ result = create_critic_result(
     component_name="ContentCritic",
     issues=["Too verbose", "Redundant information"]
 )
+
+# Create an error result
+result = create_error_result(
+    message="Failed to process input",
+    component_name="TextProcessor",
+    error_type="ValidationError"
+)
+
+# Create an unknown result
+result = create_unknown_result(
+    component_name="LanguageClassifier",
+    reason="insufficient_text"
+)
+
+# Merge metadata
+base_metadata = {"component": "TextProcessor", "version": "1.0"}
+result_metadata = {"status": "success", "processing_time": 0.5}
+merged = merge_metadata(base_metadata, result_metadata)
 ```
+
+## Error Handling
+The module provides standardized error result creation with:
+- Consistent error metadata structure
+- Component identification
+- Error type classification
+- Severity levels
+
+## Configuration
+Result creation can be configured with:
+- Custom metadata
+- Component identification
+- Error type classification
+- Severity levels
+- Processing time tracking
 """
 
 from typing import Any, Dict, List, Optional, TypeVar, Union, cast

@@ -12,6 +12,7 @@ It provides computed properties for easy access to validation status, scores, is
 ## Components
 1. **ChainResult**: Represents the result of running a chain, with methods for accessing
    validation information and converting to different formats.
+2. **ValidationResult**: Referenced from interfaces module, represents individual validation results.
 
 ## Usage Examples
 ```python
@@ -64,6 +65,12 @@ enhanced_result = result.with_metadata(model_name="gpt-4", temperature=0.7)
 The ChainResult class is designed to be robust and handle edge cases gracefully:
 - Empty validation results are handled appropriately in computed properties
 - The class provides immutable operations through methods like `with_metadata()`
+
+## Configuration
+The ChainResult class does not require specific configuration but works with the
+following components:
+- ValidationResult objects from the interfaces module
+- Pydantic's BaseModel for data validation and serialization
 """
 
 from typing import Any, Dict, List
@@ -82,10 +89,22 @@ class ChainResult(BaseModel):
     It provides computed properties for easy access to validation status, scores, issues,
     and suggestions.
 
+    ## Architecture
+    The ChainResult class is designed as an immutable Pydantic model with fields for
+    storing chain execution results and computed properties for derived information.
+    It follows a value object pattern, where new instances are created rather than
+    modifying existing ones.
+
     ## Lifecycle
     1. Creation: Instantiated with output and optional validation results
     2. Usage: Accessed to retrieve output, validation status, and metadata
     3. Extension: Enhanced with additional metadata using `with_metadata()`
+
+    ## Error Handling
+    The ChainResult class handles edge cases gracefully:
+    - Empty validation results are handled appropriately in computed properties
+    - Invalid inputs are validated through Pydantic's validation system
+    - Immutable operations prevent accidental state modification
 
     ## Examples
     ```python
@@ -103,6 +122,15 @@ class ChainResult(BaseModel):
         print(f"Validation score: {result.validation_score}")
         print(f"Issues: {result.issues}")
     ```
+
+    Attributes:
+        output (str): The generated output text
+        validation_results (List[ValidationResult]): Results of validation
+        prompt (str): The original prompt
+        execution_time (float): Execution time in seconds
+        attempt_count (int): Number of generation attempts
+        metadata (Dict[str, Any]): Additional metadata
+        timestamp (float): Result creation timestamp
     """
 
     output: str = Field(description="The generated output")

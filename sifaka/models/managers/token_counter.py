@@ -5,10 +5,11 @@ This module provides the TokenCounterManager class which is responsible for
 managing token counters for model providers.
 """
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Generic, Optional, TypeVar
 
-from sifaka.models.base import TokenCounter
+# Import interfaces directly to avoid circular dependencies
+from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)

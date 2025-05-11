@@ -49,8 +49,12 @@ import tiktoken
 from anthropic import Anthropic
 from pydantic import BaseModel, Field
 
-from sifaka.models.base import APIClient, ModelConfig, TokenCounter
-from sifaka.models.core import ModelProviderCore
+# Import interfaces directly to avoid circular dependencies
+from sifaka.interfaces.client import APIClientProtocol as APIClient
+from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
+from sifaka.interfaces.model import ModelProviderProtocol
+from sifaka.utils.config import ModelConfig
+
 from sifaka.utils.errors import safely_execute_model, ModelError
 from sifaka.utils.logging import get_logger
 from sifaka.utils.tracing import Tracer
@@ -586,7 +590,7 @@ Please provide your analysis in a structured format with clear sections for:
         }
 
 
-class AnthropicProvider(ModelProviderCore):
+class AnthropicProvider(ModelProviderProtocol):
     """
     Anthropic model provider implementation.
 

@@ -4,13 +4,29 @@ Chain Factories Module
 This module provides factory functions for creating chains and components.
 These factories simplify the creation of chains with sensible defaults.
 
-## Factory Functions
-1. **create_chain**: Creates a chain with the specified components
-2. **create_simple_chain**: Creates a simple chain with the specified components
-3. **create_backoff_chain**: Creates a chain with backoff retry strategy
-4. **create_model_adapter**: Creates a model adapter for existing model providers
-5. **create_validator_adapter**: Creates a validator adapter for existing rules
-6. **create_improver_adapter**: Creates an improver adapter for existing critics
+## Overview
+The factory functions in this module follow the factory pattern to create
+chain components with standardized configuration and behavior. They handle
+the complexity of component creation, dependency resolution, and configuration,
+providing a simple interface for creating chains with different behaviors.
+
+## Components
+1. **Factory Functions**: Create chains and components with standardized configuration
+   - create_chain: Creates a chain with the specified components
+   - create_simple_chain: Creates a simple chain with the specified components
+   - create_backoff_chain: Creates a chain with backoff retry strategy
+
+2. **Adapter Creation**: Automatically adapts components to required interfaces
+   - Adapts model providers to the Model interface
+   - Adapts rules to the Validator interface
+   - Adapts critics to the Improver interface
+   - Adapts formatters to the Formatter interface
+
+3. **Dependency Resolution**: Resolves dependencies using the dependency injection system
+   - Resolves model providers
+   - Resolves rules
+   - Resolves critics
+   - Resolves formatters
 
 ## Usage Examples
 ```python
@@ -40,6 +56,18 @@ result = chain.run("Write a short story")
 print(f"Output: {result.output}")
 print(f"All validations passed: {result.all_passed}")
 ```
+
+## Error Handling
+- ValueError: Raised when factory parameters are invalid
+- RuntimeError: Raised when chain creation fails
+- DependencyError: Raised when required dependencies cannot be resolved
+
+## Configuration
+Factory functions accept various configuration options:
+- Component instances (model, validators, improver, formatter)
+- Chain parameters (max_attempts, name, description)
+- Engine configuration (retry_delay, backoff_factor, max_retry_delay)
+- Dependency resolution parameters (session_id, request_id)
 """
 
 from typing import Any, List, Optional

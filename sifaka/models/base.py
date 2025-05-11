@@ -1,8 +1,8 @@
 """
-Base protocols and types for model providers.
+Base implementations for model providers.
 
-This module provides the core interfaces and base implementations for model providers,
-including protocols for API clients, token counters, and language models.
+This module provides the core base implementations for model providers,
+building on the interfaces defined in sifaka.interfaces.model.
 
 ## Architecture Overview
 
@@ -77,22 +77,14 @@ from typing import (
     Dict,
     Generic,
     Optional,
-    Protocol,
-    TYPE_CHECKING,
     TypeVar,
-    runtime_checkable,
 )
 
 # Import the interfaces for runtime use
-from sifaka.interfaces import (
-    APIClientProtocol as APIClient,
-    TokenCounterProtocol as TokenCounter,
-    ModelProviderProtocol as ModelProviderInterface,
-)
+from sifaka.interfaces.model import ModelProviderProtocol as ModelProviderInterface
+from sifaka.interfaces.client import APIClientProtocol as APIClient
+from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
 
-# Also import for type checking to ensure proper IDE support
-if TYPE_CHECKING:
-    pass  # Already imported above
 from sifaka.utils.logging import get_logger
 from sifaka.utils.tracing import Tracer
 
@@ -100,145 +92,17 @@ logger = get_logger(__name__)
 
 # Type variables for generic type definitions
 T = TypeVar("T", bound="ModelProvider")
-R = TypeVar("R")  # Return type for model operations
 C = TypeVar("C", bound="ModelConfig")  # Config type
-
 
 from sifaka.utils.config import ModelConfig
 
 
-# Re-export the APIClient protocol from interfaces.models
-# The implementation details are now in the interfaces module
+# Import the LanguageModelProtocol from interfaces
+from sifaka.interfaces.model import LanguageModelProtocol
 
-
-# Re-export the TokenCounter protocol from interfaces.models
-# The implementation details are now in the interfaces module
-
-
-@runtime_checkable
-class LanguageModel(Protocol[R]):
-    """
-    Protocol for language model interfaces.
-
-    Classes implementing this protocol provide a high-level interface
-    for generating text using language models.
-
-    Type Parameters:
-        R: The return type of the generate method
-
-    ## Lifecycle
-
-    1. **Initialization**: Set up model, clients, and resources
-    2. **Configuration**: Set generation parameters
-    3. **Prompt Preparation**: Format prompts for the model
-    4. **Generation**: Generate text responses
-    5. **Response Processing**: Parse and validate responses
-    6. **Cleanup**: Release resources when no longer needed
-
-    ## Error Handling
-
-    Implementations should handle:
-    - Input validation errors
-    - Configuration issues
-    - Generation failures
-    - Response parsing problems
-    - Resource cleanup
-
-    ## Examples
-
-    ```python
-    from sifaka.models.base import LanguageModel, ModelConfig
-    from typing import Dict, Any, Optional
-
-    class CompletionModel(LanguageModel[str]):
-        def __init__(self, model_name: str, api_key: Optional[str] = None):
-            self._model_name = model_name
-            self._api_key = api_key
-            self._client = self._create_client()
-
-        @property
-        def model_name(self) -> str:
-            return self._model_name
-
-        def _create_client(self):
-            # Create appropriate client for the model
-            if "gpt" in self._model_name.lower():
-                from openai import OpenAI
-                return OpenAI(api_key=self._api_key)
-            elif "claude" in self._model_name.lower():
-                from anthropic import Anthropic
-                return Anthropic(api_key=self._api_key)
-            else:
-                raise ValueError(f"Unsupported model: {self._model_name}")
-
-        def generate(self, prompt: str, **kwargs) -> str:
-            # Input validation
-            if not prompt:
-                raise ValueError("Prompt cannot be empty")
-
-            # Default parameters
-            temperature = kwargs.get("temperature", 0.7)
-            max_tokens = kwargs.get("max_tokens", 1000)
-
-            # Error handling with try-except
-            try:
-                # Generate based on model type
-                if "gpt" in self._model_name.lower():
-                    response = self._client.completions.create(
-                        model=self._model_name,
-                        prompt=prompt,
-                        temperature=temperature,
-                        max_tokens=max_tokens
-                    )
-                    return response.choices[0].text.strip()
-                elif "claude" in self._model_name.lower():
-                    response = self._client.completions.create(
-                        model=self._model_name,
-                        prompt=prompt,
-                        temperature=temperature,
-                        max_tokens=max_tokens
-                    )
-                    return response.completion.strip()
-                else:
-                    raise ValueError(f"Unsupported model: {self._model_name}")
-            except Exception as e:
-                # Proper error propagation with context
-                raise RuntimeError(f"Error generating from {self._model_name}: {e}")
-
-        def close(self):
-            # Resource cleanup
-            if hasattr(self._client, "close"):
-                self._client.close()
-    ```
-    """
-
-    @property
-    def model_name(self) -> str:
-        """
-        Get the model name.
-
-        Returns:
-            The name of the language model
-        """
-        ...
-
-    def generate(self, prompt: str, **kwargs) -> R:
-        """
-        Generate text from a prompt.
-
-        Args:
-            prompt: The prompt to generate from
-            **kwargs: Additional model-specific parameters
-
-        Returns:
-            The generated text or structured response
-
-        Raises:
-            TypeError: If prompt is not a string
-            ValueError: If prompt is empty or invalid
-            RuntimeError: If generation fails
-        """
-        ...
+# Use LanguageModelProtocol as an alias for backward compatibility
+# This will be used by existing code that imports LanguageModel from models.base
+LanguageModel = LanguageModelProtocol
 
 
 class ModelProvider(ModelProviderInterface, Generic[C], ABC):

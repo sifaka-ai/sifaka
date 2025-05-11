@@ -1,21 +1,33 @@
 """
 Chain Engine Module
 
-This module provides the core execution engine for the Sifaka chain system.
-It coordinates the flow between components, handles retries, and manages state.
+A module providing the core execution engine for the Sifaka chain system.
+
+## Overview
+This module provides the core execution engine for the Sifaka chain system,
+coordinating the flow between components, handling retries, and managing state.
+The Engine class is responsible for the actual execution of the chain, including
+generating output, validating it, improving it if necessary, and creating the
+final result.
 
 ## Components
-1. **Engine**: Core execution engine that coordinates the flow
+- Engine: Core execution engine that coordinates the flow
+- CacheManager: Manager for caching results
+- RetryManager: Manager for handling retries
+- Model: Interface for text generation models
+- Validator: Interface for output validators
+- Improver: Interface for output improvers
+- Formatter: Interface for result formatters
 
 ## Usage Examples
 ```python
 from sifaka.chain.engine import Engine
 from sifaka.chain.config import EngineConfig
-from sifaka.chain.state import StateTracker
+from sifaka.utils.state import StateManager
 
 # Create engine
 engine = Engine(
-    state_tracker=StateTracker(),
+    state_manager=StateManager(),
     config=EngineConfig(max_attempts=3)
 )
 
@@ -31,7 +43,25 @@ result = engine.run(
 # Access result
 print(f"Output: {result.output}")
 print(f"All validations passed: {result.all_passed}")
+print(f"Execution time: {result.execution_time:.2f}s")
 ```
+
+## Error Handling
+The module handles various error conditions:
+- ChainError: Raised when chain execution fails
+- ModelError: Raised when model generation fails
+- ValidationError: Raised when validation fails
+- ImproverError: Raised when improver refinement fails
+- FormatterError: Raised when formatter formatting fails
+
+## Execution Flow
+1. Check cache for existing result
+2. Generate output using model
+3. Validate output using validators
+4. Improve output using improver if validation fails
+5. Format result using formatter
+6. Cache result for future use
+7. Return result
 """
 
 from typing import List, Optional
@@ -52,7 +82,51 @@ logger = get_logger(__name__)
 
 
 class Engine(BaseModel):
-    """Core execution engine for the Sifaka chain system."""
+    """
+    Core execution engine for the Sifaka chain system.
+
+    This class provides the core execution logic for the Sifaka chain system,
+    coordinating the flow between components, handling retries, and managing state.
+    It is responsible for generating output, validating it, improving it if necessary,
+    and creating the final result.
+
+    ## Architecture
+    The Engine class follows a component-based architecture:
+    - Uses Pydantic for data validation
+    - Uses StateManager for state management
+    - Uses CacheManager for result caching
+    - Uses RetryManager for handling retries
+    - Coordinates between Model, Validator, Improver, and Formatter components
+
+    ## Lifecycle
+    1. **Initialization**: Set up engine resources and configuration
+    2. **Execution**: Run inputs through the flow
+    3. **Result Handling**: Process and return results
+    4. **State Management**: Manage engine state
+    5. **Error Handling**: Handle and track errors
+    6. **Execution Tracking**: Track execution statistics
+
+    ## Examples
+    ```python
+    # Create engine
+    engine = Engine(
+        state_manager=StateManager(),
+        config=EngineConfig(max_attempts=3)
+    )
+
+    # Run engine
+    result = engine.run(
+        prompt="Write a story",
+        model=model,
+        validators=validators,
+        improver=improver,
+        formatter=formatter
+    )
+    ```
+
+    Attributes:
+        config (EngineConfig): Engine configuration
+    """
 
     # State management using StateManager
     _state_manager: StateManager = PrivateAttr()
@@ -221,14 +295,22 @@ class Engine(BaseModel):
         """
         Generate output using the model.
 
+        This method generates output using the model component, handling
+        any errors that may occur during generation.
+
         Args:
-            prompt: The prompt to generate from
+            prompt (str): The prompt to generate from
 
         Returns:
-            The generated output
+            str: The generated output
 
         Raises:
             ModelError: If model generation fails
+
+        Example:
+            ```python
+            output = engine._generate_output("Write a story about a robot")
+            ```
         """
         model = self._state_manager.get("model")
 
@@ -245,14 +327,24 @@ class Engine(BaseModel):
         """
         Validate output using validators.
 
+        This method validates the generated output using the validator components,
+        handling any errors that may occur during validation. It returns a list
+        of validation results, one for each validator.
+
         Args:
-            output: The output to validate
+            output (str): The output to validate
 
         Returns:
-            List of validation results
+            List[ValidationResult]: List of validation results, one for each validator
 
         Raises:
             ValidationError: If validation fails
+
+        Example:
+            ```python
+            validation_results = engine._validate_output("Generated text")
+            all_passed = all(result.passed for result in validation_results)
+            ```
         """
         validators = self._state_manager.get("validators", [])
         results = []
@@ -284,15 +376,27 @@ class Engine(BaseModel):
         """
         Improve output using the improver.
 
+        This method improves the generated output using the improver component
+        if one is available, handling any errors that may occur during improvement.
+        It uses the validation results to guide the improvement process.
+
         Args:
-            output: The output to improve
-            validation_results: The validation results
+            output (str): The output to improve
+            validation_results (List[ValidationResult]): The validation results
 
         Returns:
-            The improved output
+            str: The improved output, or the original output if no improver is available
 
         Raises:
             ImproverError: If improvement fails
+
+        Example:
+            ```python
+            improved_output = engine._improve_output(
+                "Generated text",
+                validation_results
+            )
+            ```
         """
         improver = self._state_manager.get("improver")
 
@@ -323,14 +427,28 @@ class Engine(BaseModel):
         """
         Create a chain result.
 
+        This method creates a ChainResult object from the given parameters,
+        including execution time and metadata. It also applies formatting
+        if a formatter is available.
+
         Args:
-            prompt: The original prompt
-            output: The generated output
-            validation_results: The validation results
-            attempt_count: The number of attempts
+            prompt (str): The original prompt
+            output (str): The generated output
+            validation_results (List[ValidationResult]): The validation results
+            attempt_count (int): The number of attempts made
 
         Returns:
-            The chain result
+            ChainResult: The chain result object
+
+        Example:
+            ```python
+            result = engine._create_result(
+                prompt="Write a story",
+                output="Generated text",
+                validation_results=validation_results,
+                attempt_count=2
+            )
+            ```
         """
         # Calculate execution time
         start_time = self._state_manager.get_metadata("execution_start_time", 0)

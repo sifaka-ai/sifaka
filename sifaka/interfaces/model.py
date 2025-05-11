@@ -1,7 +1,7 @@
 """
 Model interfaces for Sifaka.
 
-This module defines the interfaces for model providers in the Sifaka framework.
+This module defines ALL interfaces for model providers in the Sifaka framework.
 These interfaces establish a common contract for model provider behavior, enabling better
 modularity and extensibility.
 
@@ -9,6 +9,7 @@ modularity and extensibility.
 
 1. **ModelProviderProtocol**: Base interface for all model providers
    - **AsyncModelProviderProtocol**: Interface for asynchronous model providers
+2. **LanguageModelProtocol**: Interface for language model implementations
 
 ## Usage
 
@@ -216,3 +217,66 @@ class AsyncModelProviderProtocol(Protocol):
             ValueError: If the text is invalid
         """
         pass
+
+
+# Type variable for the return type of language models
+R = TypeVar("R")
+
+
+@runtime_checkable
+class LanguageModelProtocol(Protocol[R]):
+    """
+    Protocol for language model interfaces.
+
+    Classes implementing this protocol provide a high-level interface
+    for generating text using language models.
+
+    Type Parameters:
+        R: The return type of the generate method
+
+    ## Lifecycle
+
+    1. **Initialization**: Set up model, clients, and resources
+    2. **Configuration**: Set generation parameters
+    3. **Prompt Preparation**: Format prompts for the model
+    4. **Generation**: Generate text responses
+    5. **Response Processing**: Parse and validate responses
+    6. **Cleanup**: Release resources when no longer needed
+
+    ## Error Handling
+
+    Implementations should handle:
+    - Input validation errors
+    - Configuration issues
+    - Generation failures
+    - Response parsing problems
+    - Resource cleanup
+    """
+
+    @property
+    def model_name(self) -> str:
+        """
+        Get the model name.
+
+        Returns:
+            The name of the language model
+        """
+        ...
+
+    def generate(self, prompt: str, **kwargs) -> R:
+        """
+        Generate text from a prompt.
+
+        Args:
+            prompt: The prompt to generate from
+            **kwargs: Additional model-specific parameters
+
+        Returns:
+            The generated text or structured response
+
+        Raises:
+            TypeError: If prompt is not a string
+            ValueError: If prompt is empty or invalid
+            RuntimeError: If generation fails
+        """
+        ...

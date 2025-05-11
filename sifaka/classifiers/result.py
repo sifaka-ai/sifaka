@@ -9,7 +9,7 @@ It standardizes the format of classification results, including label, confidenc
 
 ## Usage Examples
 ```python
-from sifaka.classifiers.v2.result import ClassificationResult
+from sifaka.classifiers.result import ClassificationResult
 
 # Create a classification result
 result = ClassificationResult(
@@ -49,70 +49,56 @@ from pydantic import BaseModel, Field, computed_field
 
 class ClassificationResult(BaseModel):
     """Result of a classification operation."""
-    
+
     label: str = Field(description="The classification label")
-    confidence: float = Field(
-        default=1.0, ge=0.0, le=1.0, description="Confidence score (0-1)"
-    )
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict, description="Additional metadata"
-    )
-    issues: List[str] = Field(
-        default_factory=list, description="List of issues found"
-    )
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Confidence score (0-1)")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    issues: List[str] = Field(default_factory=list, description="List of issues found")
     suggestions: List[str] = Field(
         default_factory=list, description="List of improvement suggestions"
     )
-    timestamp: float = Field(
-        default_factory=time.time, description="Result creation timestamp"
-    )
-    
+    timestamp: float = Field(default_factory=time.time, description="Result creation timestamp")
+
     def with_metadata(self, **kwargs: Any) -> "ClassificationResult":
         """
         Create a new result with additional metadata.
-        
+
         Args:
             **kwargs: Metadata key-value pairs
-            
+
         Returns:
             New result with updated metadata
         """
-        return self.model_copy(
-            update={"metadata": {**self.metadata, **kwargs}}
-        )
-    
+        return self.model_copy(update={"metadata": {**self.metadata, **kwargs}})
+
     def with_issues(self, issues: List[str]) -> "ClassificationResult":
         """
         Create a new result with additional issues.
-        
+
         Args:
             issues: List of issues to add
-            
+
         Returns:
             New result with updated issues
         """
-        return self.model_copy(
-            update={"issues": self.issues + issues}
-        )
-    
+        return self.model_copy(update={"issues": self.issues + issues})
+
     def with_suggestions(self, suggestions: List[str]) -> "ClassificationResult":
         """
         Create a new result with additional suggestions.
-        
+
         Args:
             suggestions: List of suggestions to add
-            
+
         Returns:
             New result with updated suggestions
         """
-        return self.model_copy(
-            update={"suggestions": self.suggestions + suggestions}
-        )
-    
+        return self.model_copy(update={"suggestions": self.suggestions + suggestions})
+
     def to_dict(self) -> Dict[str, Any]:
         """
         Convert result to dictionary.
-        
+
         Returns:
             Dictionary representation of the result
         """

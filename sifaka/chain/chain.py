@@ -1,11 +1,20 @@
 """
 Chain Module
 
-This module provides the main Chain class for the Sifaka chain system.
-It serves as the primary user-facing interface for running chains.
+A module providing the main Chain class for the Sifaka chain system.
+
+## Overview
+This module provides the main Chain class for the Sifaka chain system,
+serving as the primary user-facing interface for running chains. The Chain
+class orchestrates the validation and improvement flow between models, rules,
+and critics, providing a standardized way to generate, validate, and improve text.
 
 ## Components
-1. **Chain**: Main user-facing class for running chains
+- Chain: Main user-facing class for running chains
+- Model: Interface for text generation models
+- Validator: Interface for output validators
+- Improver: Interface for output improvers
+- Formatter: Interface for result formatters
 
 ## Usage Examples
 ```python
@@ -34,7 +43,32 @@ chain = Chain(
 result = chain.run("Write a short story")
 print(f"Output: {result.output}")
 print(f"All validations passed: {result.all_passed}")
+
+# Run chain asynchronously
+import asyncio
+
+async def run_async():
+    result = await chain.run_async("Write a short story")
+    print(f"Output: {result.output}")
+
+asyncio.run(run_async())
 ```
+
+## Error Handling
+The module handles various error conditions:
+- ChainError: Raised when chain execution fails
+- ValidationError: Raised when validation fails
+- ImproverError: Raised when improver refinement fails
+- ModelError: Raised when model generation fails
+- FormatterError: Raised when formatter formatting fails
+
+## Configuration
+Chain behavior can be configured with:
+- max_attempts: Maximum number of generation attempts
+- cache_enabled: Whether to enable result caching
+- trace_enabled: Whether to enable execution tracing
+- async_enabled: Whether to enable async execution
+- timeout: Timeout for chain operations in seconds
 """
 
 from typing import Any, Dict, List, Optional
@@ -60,10 +94,18 @@ class Chain:
 
     This class implements the Chain interface from sifaka.interfaces.chain.
     It provides a standardized way to run chains with proper lifecycle management
-    and state tracking.
+    and state tracking, orchestrating the validation and improvement flow
+    between models, rules, and critics.
+
+    ## Architecture
+    The Chain class follows a component-based architecture:
+    - Uses Engine for core execution logic
+    - Manages components (Model, Validator, Improver, Formatter)
+    - Uses StateManager for state management
+    - Provides synchronous and asynchronous execution
+    - Implements proper error handling and statistics tracking
 
     ## Lifecycle
-
     1. **Initialization**: Set up chain resources and configuration
     2. **Execution**: Run inputs through the flow
     3. **Result Handling**: Process and return results
@@ -72,6 +114,28 @@ class Chain:
     6. **Error Handling**: Handle and track errors
     7. **Execution Tracking**: Track execution statistics
     8. **Cleanup**: Release resources when no longer needed
+
+    ## Examples
+    ```python
+    # Create a chain
+    chain = Chain(
+        model=OpenAIProvider("gpt-3.5-turbo"),
+        validators=[create_length_rule(min_chars=10, max_chars=1000)],
+        improver=create_prompt_critic(
+            llm_provider=model,
+            system_prompt="You are an expert editor that improves text."
+        ),
+        max_attempts=3
+    )
+
+    # Run the chain
+    result = chain.run("Write a short story")
+
+    # Access the result
+    print(f"Output: {result.output}")
+    print(f"All validations passed: {result.all_passed}")
+    print(f"Execution time: {result.execution_time:.2f}s")
+    ```
     """
 
     def __init__(
@@ -213,17 +277,32 @@ class Chain:
 
     @property
     def name(self) -> str:
-        """Get chain name."""
+        """
+        Get chain name.
+
+        Returns:
+            str: The name of the chain
+        """
         return self._name
 
     @property
     def description(self) -> str:
-        """Get chain description."""
+        """
+        Get chain description.
+
+        Returns:
+            str: The description of the chain
+        """
         return self._description
 
     @property
     def config(self) -> ChainConfig:
-        """Get chain configuration."""
+        """
+        Get chain configuration.
+
+        Returns:
+            ChainConfig: The configuration of the chain
+        """
         return self._config
 
     @property
@@ -231,8 +310,11 @@ class Chain:
         """
         Get the state manager.
 
+        This property provides access to the state manager used by the chain
+        for state management and tracking.
+
         Returns:
-            The state manager
+            StateManager: The state manager instance
         """
         return self._state_manager
 

@@ -10,7 +10,7 @@ These factories simplify the creation of classifiers with sensible defaults.
 
 ## Usage Examples
 ```python
-from sifaka.classifiers.v2.factories import create_classifier
+from sifaka.classifiers.factories import create_classifier
 from sifaka.classifiers.implementations.content.toxicity import ToxicityClassifier
 
 # Create classifier implementation
@@ -54,10 +54,10 @@ def create_classifier(
 ) -> Classifier:
     """
     Create a classifier with the specified implementation.
-    
+
     This factory function creates a classifier with the specified implementation,
     automatically adapting it to the required interface if needed.
-    
+
     Args:
         implementation: The classifier implementation to use
         name: Classifier name
@@ -68,7 +68,7 @@ def create_classifier(
         async_enabled: Whether to enable asynchronous execution
         labels: List of valid labels
         **kwargs: Additional parameters for the configuration
-        
+
     Returns:
         A classifier instance
     """
@@ -76,7 +76,7 @@ def create_classifier(
     adapted_implementation = implementation
     if not isinstance(implementation, ClassifierImplementation):
         adapted_implementation = ImplementationAdapter(implementation)
-    
+
     # Create configuration
     config = ClassifierConfig(
         name=name,
@@ -88,7 +88,7 @@ def create_classifier(
         labels=labels or [],
         params=kwargs,
     )
-    
+
     # Create classifier
     return Classifier(
         implementation=adapted_implementation,

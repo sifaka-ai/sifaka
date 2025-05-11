@@ -6,18 +6,31 @@ for model providers, delegating to specialized components.
 """
 
 from abc import abstractmethod
-from typing import Any, Dict, Generic, Optional, TypeVar
+from typing import Any, Dict, Generic, Optional, TypeVar, TYPE_CHECKING
 
 from pydantic import PrivateAttr
 
-from sifaka.models.base import APIClient, ModelConfig, ModelProvider, TokenCounter
+# Import interfaces directly to avoid circular dependencies
+from sifaka.interfaces.client import APIClientProtocol as APIClient
+from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
+from sifaka.interfaces.model import ModelProviderProtocol
+
+# Import base classes using string type annotations for forward references
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sifaka.models.base import ModelProvider
+# Import at runtime - outside the TYPE_CHECKING block
+from sifaka.models.base import ModelProvider
+
+from sifaka.utils.config import ModelConfig
 from sifaka.models.managers.client import ClientManager
 from sifaka.models.managers.token_counter import TokenCounterManager
 from sifaka.models.managers.tracing import TracingManager
 from sifaka.models.services.generation import GenerationService
 from sifaka.utils.tracing import Tracer
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import StateManager, create_model_state
+from sifaka.utils.state import create_model_state
 
 logger = get_logger(__name__)
 
@@ -26,7 +39,7 @@ T = TypeVar("T", bound="ModelProviderCore")
 C = TypeVar("C", bound=ModelConfig)
 
 
-class ModelProviderCore(ModelProvider[C], Generic[C]):
+class ModelProviderCore(ModelProvider[C], ModelProviderProtocol, Generic[C]):
     """
     Core model provider implementation that delegates to specialized components.
 
@@ -306,14 +319,24 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
 
         return result
 
-    def _update_statistics(self, _result: str, processing_time_ms: float) -> None:
-        """Update statistics after generation."""
+    def _update_statistics(self, result: str, processing_time_ms: float) -> None:
+        """
+        Update statistics after generation.
+
+        Args:
+            result: The generated text (used for potential future metrics like token count)
+            processing_time_ms: The processing time in milliseconds
+        """
         # Track generation count
         generation_stats = self._state_manager.get("generation_stats", {})
         generation_stats["generation_count"] = generation_stats.get("generation_count", 0) + 1
         generation_stats["total_generation_time_ms"] = (
             generation_stats.get("total_generation_time_ms", 0) + processing_time_ms
         )
+
+        # Could add metrics based on result in the future
+        # For example: generation_stats["avg_token_count"] = len(result.split())
+
         self._state_manager.update("generation_stats", generation_stats)
 
     def _create_token_counter_manager(

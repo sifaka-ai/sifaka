@@ -9,8 +9,8 @@ It serves as the primary user-facing interface for classification.
 
 ## Usage Examples
 ```python
-from sifaka.classifiers.v2 import Classifier
-from sifaka.classifiers.v2.implementations.content import ToxicityClassifier
+from sifaka.classifiers import Classifier
+from sifaka.classifiers.implementations.content import ToxicityClassifier
 
 # Create classifier implementation
 implementation = ToxicityClassifier()

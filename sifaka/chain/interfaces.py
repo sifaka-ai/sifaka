@@ -5,16 +5,24 @@ This module defines the core interfaces for the Sifaka chain system.
 These interfaces establish a common contract for component behavior,
 enabling better modularity, extensibility, and interoperability.
 
-## Interface Hierarchy
+## Overview
+The interfaces in this module form the foundation of the chain system's
+component architecture. They define the contracts that components must
+adhere to, ensuring consistent behavior and interoperability between
+different implementations. These interfaces use Python's Protocol class
+to enable structural subtyping, allowing components to implement the
+interfaces without explicit inheritance.
 
-1. **Model**: Interface for text generation models
-2. **Validator**: Interface for output validators
-3. **Improver**: Interface for output improvers
-4. **Formatter**: Interface for result formatters
-5. **Plugin**: Interface for plugins
+## Components
+1. **ChainComponent**: Base interface for all chain components
+2. **ValidationResult**: Result model for validation operations
+3. **Model**: Interface for text generation models
+4. **Validator**: Interface for output validators
+5. **Improver**: Interface for output improvers
+6. **Formatter**: Interface for result formatters
+7. **Plugin**: Interface for chain plugins
 
 ## Usage Examples
-
 ```python
 from typing import List
 from sifaka.chain.interfaces import Model, Validator, ValidationResult
@@ -48,6 +56,19 @@ class LengthValidator(Validator):
             score=1.0
         )
 ```
+
+## Error Handling
+The interfaces define consistent error handling patterns:
+- ModelError: Raised when text generation fails
+- ValidationError: Raised when validation fails
+- ImproverError: Raised when improvement fails
+- FormatterError: Raised when formatting fails
+
+## Configuration
+The interfaces are designed to work with the following components:
+- Pydantic models for data validation and serialization
+- Protocol classes for interface definition
+- Asynchronous methods with default implementations
 """
 
 from abc import abstractmethod
@@ -60,21 +81,111 @@ T = TypeVar("T")
 
 @runtime_checkable
 class ChainComponent(Protocol):
-    """Base interface for all chain components."""
+    """
+    Base interface for all chain components.
+
+    This interface defines the common properties that all chain components
+    must implement. It serves as the foundation for the component hierarchy
+    in the chain system, ensuring consistent identification and description
+    of components.
+
+    ## Architecture
+    The ChainComponent interface uses Python's Protocol class to define
+    a structural interface that components can implement without explicit
+    inheritance. This enables better flexibility and composition in the
+    component architecture.
+
+    ## Lifecycle
+    Components implementing this interface should maintain consistent
+    name and description properties throughout their lifecycle.
+
+    ## Examples
+    ```python
+    class MyComponent:
+        @property
+        def name(self) -> str:
+            return "my_component"
+
+        @property
+        def description(self) -> str:
+            return "A custom chain component"
+    ```
+    """
 
     @property
     def name(self) -> str:
-        """Get the component name."""
+        """
+        Get the component name.
+
+        Returns:
+            str: A unique identifier for the component
+        """
         ...
 
     @property
     def description(self) -> str:
-        """Get the component description."""
+        """
+        Get the component description.
+
+        Returns:
+            str: A human-readable description of the component
+        """
         ...
 
 
 class ValidationResult(BaseModel):
-    """Result of a validation operation."""
+    """
+    Result of a validation operation.
+
+    This class represents the result of validating an output against a rule or
+    validator. It includes information about whether the validation passed,
+    a descriptive message, a numerical score, and optional lists of issues
+    and improvement suggestions.
+
+    ## Architecture
+    The ValidationResult class is designed as an immutable Pydantic model
+    with fields for storing validation results. It follows a value object
+    pattern, where instances represent the outcome of a validation operation.
+
+    ## Lifecycle
+    1. Creation: Instantiated with validation outcome
+    2. Usage: Accessed to retrieve validation status and details
+
+    ## Examples
+    ```python
+    # Create a validation result
+    result = ValidationResult(
+        passed=True,
+        message="Length validation passed",
+        score=1.0
+    )
+
+    # Create a failed validation with issues and suggestions
+    failed_result = ValidationResult(
+        passed=False,
+        message="Content validation failed",
+        score=0.3,
+        issues=["Contains inappropriate content"],
+        suggestions=["Remove inappropriate content"]
+    )
+
+    # Check validation status
+    if result.passed:
+        print("Validation passed!")
+    else:
+        print(f"Validation failed: {result.message}")
+        print(f"Issues: {result.issues}")
+        print(f"Suggestions: {result.suggestions}")
+    ```
+
+    Attributes:
+        passed (bool): Whether the validation passed
+        message (str): Validation message
+        score (float): Validation score (0.0 to 1.0)
+        issues (List[str]): List of issues found
+        suggestions (List[str]): List of improvement suggestions
+        metadata (Dict[str, Any]): Additional metadata
+    """
 
     passed: bool = Field(description="Whether the validation passed")
     message: str = Field(description="Validation message")

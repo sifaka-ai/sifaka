@@ -14,8 +14,8 @@ enabling better modularity, extensibility, and interoperability.
 
 ```python
 from typing import Dict, Any
-from sifaka.classifiers.v2.interfaces import ClassifierImplementation
-from sifaka.classifiers.v2.result import ClassificationResult
+from sifaka.classifiers.interfaces import ClassifierImplementation
+from sifaka.classifiers.result import ClassificationResult
 
 class SentimentClassifier(ClassifierImplementation):
     def classify(self, text: str) -> ClassificationResult:

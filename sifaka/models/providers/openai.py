@@ -47,16 +47,17 @@ The provider implements comprehensive error handling:
 """
 
 import os
-import time
-from typing import Any, Dict, Optional, ClassVar
+from typing import Any, Dict, Optional, ClassVar, TYPE_CHECKING
 
 import tiktoken
 
-from sifaka.models.base import APIClient, TokenCounter
+# Import interfaces directly to avoid circular dependencies
+from sifaka.interfaces.client import APIClientProtocol as APIClient
+from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
+from sifaka.interfaces.model import ModelProviderProtocol
+
 from sifaka.utils.config import ModelConfig
-from sifaka.models.core import ModelProviderCore
 from sifaka.utils.error_patterns import safely_execute_component_operation
-from sifaka.utils.errors import ModelError
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -207,7 +208,7 @@ class OpenAITokenCounter(TokenCounter):
         )
 
 
-class OpenAIProvider(ModelProviderCore):
+class OpenAIProvider(ModelProviderProtocol):
     """
     OpenAI model provider implementation.
 
@@ -276,14 +277,16 @@ class OpenAIProvider(ModelProviderCore):
             self.warm_up()
 
         # Process input
-        start_time = __import__("time").time()
+        import time
+
+        start_time = time.time()
 
         # Define the operation
         def operation():
             # Actual processing logic
             return self.generate(prompt, **kwargs)
 
-        # Use standardized error handling
+        # Use standardized error handling - import at function level to avoid circular dependencies
         from sifaka.utils.error_patterns import safely_execute_component_operation
 
         result = safely_execute_component_operation(
@@ -294,7 +297,7 @@ class OpenAIProvider(ModelProviderCore):
         )
 
         # Update statistics
-        processing_time = __import__("time").time() - start_time
+        processing_time = time.time() - start_time
         stats = self._state_manager.get("stats", {})
         stats["generation_count"] = stats.get("generation_count", 0) + 1
         stats["total_processing_time"] = (
@@ -323,7 +326,9 @@ class OpenAIProvider(ModelProviderCore):
             self.warm_up()
 
         # Process input
-        start_time = __import__("time").time()
+        import time
+
+        start_time = time.time()
 
         try:
             # Define the async operation
@@ -338,7 +343,7 @@ class OpenAIProvider(ModelProviderCore):
             result = await async_operation()
 
             # Update statistics
-            processing_time = __import__("time").time() - start_time
+            processing_time = time.time() - start_time
             stats = self._state_manager.get("stats", {})
             stats["generation_count"] = stats.get("generation_count", 0) + 1
             stats["total_processing_time"] = (
