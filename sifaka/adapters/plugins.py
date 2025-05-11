@@ -251,8 +251,20 @@ class PluginLoader(CorePluginLoader):
         """
         Get the adapter plugin registry.
 
+        This method returns the adapter plugin registry associated with this loader.
+        It casts the core registry to an adapter registry to ensure type safety.
+
         Returns:
-            Adapter plugin registry
+            Adapter plugin registry with all registered plugins
+
+        Example:
+            ```python
+            loader = PluginLoader()
+            registry = loader.get_registry()
+
+            # Use the registry
+            plugin = registry.get_plugin("my_plugin")
+            ```
         """
         # Cast the core registry to an adapter registry
         return cast(PluginRegistry, super().get_registry())
