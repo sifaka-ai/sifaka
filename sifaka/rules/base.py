@@ -239,16 +239,17 @@ class BaseValidator(Validatable[T], Generic[T]):
         Returns:
             Validation result for empty text, or None if text is not empty
         """
-        if not text or (isinstance(text, str) and text.strip() == ""):
-            return RuleResult(
-                passed=False,
-                message="Empty text",
-                metadata={"error_type": "empty_text"},
-                score=0.0,
-                issues=["Text is empty"],
-                suggestions=["Provide non-empty text"],
-            )
-        return None
+        from sifaka.utils.text import handle_empty_text
+
+        # Use the standardized function with passed=False for rules
+        # This maintains the current behavior where empty text fails validation
+        return handle_empty_text(
+            text=text,
+            passed=False,
+            message="Empty text",
+            metadata={"error_type": "empty_text"},
+            component_type="rule",
+        )
 
     def update_statistics(self, result: RuleResult) -> None:
         """

@@ -255,7 +255,12 @@ class CriticCore(BaseCritic):
             raise RuntimeError("Critique service not properly initialized")
 
         # Validate text
-        if not text or not isinstance(text, str):
+        from sifaka.utils.text import is_empty_text
+
+        if not isinstance(text, str):
+            raise ValueError("Text must be a string")
+
+        if is_empty_text(text):
             raise ValueError("Text must be a non-empty string")
 
         # Track validation count
@@ -321,8 +326,14 @@ class CriticCore(BaseCritic):
             raise RuntimeError("Critique service not properly initialized")
 
         # Validate inputs
-        if not text or not isinstance(text, str):
+        from sifaka.utils.text import is_empty_text
+
+        if not isinstance(text, str):
+            raise ValueError("Text must be a string")
+
+        if is_empty_text(text):
             raise ValueError("Text must be a non-empty string")
+
         if not violations or not isinstance(violations, list):
             raise ValueError("Violations must be a non-empty list")
 
@@ -414,7 +425,12 @@ class CriticCore(BaseCritic):
             raise RuntimeError("Critique service not properly initialized")
 
         # Validate text
-        if not text or not isinstance(text, str):
+        from sifaka.utils.text import is_empty_text
+
+        if not isinstance(text, str):
+            raise ValueError("Text must be a string")
+
+        if is_empty_text(text):
             raise ValueError("Text must be a non-empty string")
 
         # Track critique count
@@ -483,9 +499,18 @@ class CriticCore(BaseCritic):
             raise RuntimeError("Critique service not properly initialized")
 
         # Validate inputs
-        if not text or not isinstance(text, str):
+        from sifaka.utils.text import is_empty_text
+
+        if not isinstance(text, str):
+            raise ValueError("Text must be a string")
+
+        if is_empty_text(text):
             raise ValueError("Text must be a non-empty string")
-        if not feedback or not isinstance(feedback, str):
+
+        if not isinstance(feedback, str):
+            raise ValueError("Feedback must be a string")
+
+        if is_empty_text(feedback):
             raise ValueError("Feedback must be a non-empty string")
 
         # Track improvement count

@@ -9,8 +9,20 @@ including standardized handling for empty text validation.
 The module provides standardized empty text handling:
 
 1. **is_empty_text**: Check if text is empty or contains only whitespace
-2. **handle_empty_text**: Standardized handling for empty text in rules and adapters
+2. **handle_empty_text**: Standardized handling for empty text in all components
 3. **handle_empty_text_for_classifier**: Standardized handling for empty text in classifiers
+
+## Standardized Usage Guidelines
+
+For consistent behavior across the codebase, follow these guidelines:
+
+- For rules: use `handle_empty_text(text, passed=False)`
+- For adapters: use `handle_empty_text(text, passed=True)`
+- For core components: use `handle_empty_text(text, passed=False)`
+- For chain components: use `handle_empty_text(text, passed=False)`
+- For critics components: use `handle_empty_text(text, passed=False)`
+- For retrieval components: use `handle_empty_text(text, passed=False)`
+- For classifiers: use `handle_empty_text_for_classifier(text)`
 
 ## Usage Examples
 
@@ -92,14 +104,25 @@ def handle_empty_text(
     passed: bool = True,
     message: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
-    component_type: Literal["rule", "adapter", "classifier"] = "rule",
+    component_type: Literal[
+        "rule", "adapter", "classifier", "chain", "critic", "retrieval", "component"
+    ] = "rule",
 ) -> Optional[RuleResult]:
     """
     Standardized handling for empty text validation.
 
     This function provides consistent handling of empty text across different
     components in the Sifaka framework. It should be used by all validators,
-    rules, and adapters to ensure consistent behavior.
+    rules, adapters, chain components, critics, and retrieval components to ensure
+    consistent behavior.
+
+    Usage guidelines:
+    - For rules: use with passed=False
+    - For adapters: use with passed=True
+    - For core components: use with passed=False
+    - For chain components: use with passed=False
+    - For critics components: use with passed=False
+    - For retrieval components: use with passed=False
 
     Args:
         text: The text to check
@@ -158,7 +181,8 @@ def handle_empty_text_for_classifier(
     Standardized handling for empty text in classifiers.
 
     This function provides consistent handling of empty text for classifiers
-    in the Sifaka framework.
+    in the Sifaka framework. All classifier components should use this function
+    to handle empty text validation consistently.
 
     Args:
         text: The text to check

@@ -283,12 +283,24 @@ class RetrieverCore(BaseComponent):
         Raises:
             InputError: If the query is empty or invalid
         """
-        if not query or not isinstance(query, str):
+        from sifaka.utils.text import is_empty_text
+
+        if not isinstance(query, str):
+            raise InputError(
+                "Query must be a string",
+                metadata={
+                    "query_type": type(query).__name__,
+                    "query_length": len(str(query)) if query else 0,
+                },
+            )
+
+        if is_empty_text(query):
             raise InputError(
                 "Query must be a non-empty string",
                 metadata={
                     "query_type": type(query).__name__,
-                    "query_length": len(str(query)) if query else 0,
+                    "query_length": len(query),
+                    "reason": "empty_input",
                 },
             )
 
@@ -500,9 +512,21 @@ class RetrieverCore(BaseComponent):
             InputError: If the input is not a string
             RetrievalError: If retrieval fails
         """
+        from sifaka.utils.text import is_empty_text
+
         if not isinstance(input_data, str):
             raise InputError(
                 "Input data must be a string", metadata={"input_type": type(input_data).__name__}
+            )
+
+        if is_empty_text(input_data):
+            raise InputError(
+                "Input data must be a non-empty string",
+                metadata={
+                    "input_type": type(input_data).__name__,
+                    "input_length": len(input_data),
+                    "reason": "empty_input",
+                },
             )
 
         return self.retrieve(input_data, **kwargs)

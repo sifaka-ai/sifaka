@@ -212,6 +212,32 @@ class BaseComponent(ABC, Generic[T, R]):
 
     def handle_empty_input(self, input: str) -> Optional[BaseResult]:
         """Handle empty input validation."""
+        from sifaka.utils.text import is_empty_text, handle_empty_text
+
+        # Use the standardized function with passed=False for core components
+        # This maintains the current behavior where empty input fails validation
+        if isinstance(input, str) and is_empty_text(input):
+            result = handle_empty_text(
+                text=input,
+                passed=False,
+                message="Empty input",
+                metadata={"error_type": "empty_input"},
+                component_type="component",
+            )
+
+            # Convert RuleResult to BaseResult if needed
+            if result and not isinstance(result, BaseResult):
+                return BaseResult(
+                    passed=result.passed,
+                    message=result.message,
+                    metadata=result.metadata,
+                    score=result.score,
+                    issues=result.issues or ["Input is empty"],
+                    suggestions=result.suggestions or ["Provide non-empty input"],
+                )
+            return result
+
+        # Handle non-string empty inputs
         if not input:
             return BaseResult(
                 passed=False,
@@ -221,6 +247,7 @@ class BaseComponent(ABC, Generic[T, R]):
                 issues=["Input is empty"],
                 suggestions=["Provide non-empty input"],
             )
+
         return None
 
     def validate_text_length(

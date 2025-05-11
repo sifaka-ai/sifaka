@@ -151,8 +151,18 @@ class Chain:
 
         Raises:
             ChainError: If chain execution fails
+            ValueError: If prompt is empty or not a string
         """
         try:
+            # Validate prompt
+            from sifaka.utils.text import is_empty_text
+
+            if not isinstance(prompt, str):
+                raise ValueError("Prompt must be a string")
+
+            if is_empty_text(prompt):
+                raise ValueError("Prompt must be a non-empty string")
+
             # Track execution count
             execution_count = self._state_manager.get("execution_count", 0)
             self._state_manager.update("execution_count", execution_count + 1)
@@ -204,7 +214,17 @@ class Chain:
 
         Raises:
             ChainError: If chain execution fails
+            ValueError: If prompt is empty or not a string
         """
+        # Validate prompt
+        from sifaka.utils.text import is_empty_text
+
+        if not isinstance(prompt, str):
+            raise ValueError("Prompt must be a string")
+
+        if is_empty_text(prompt):
+            raise ValueError("Prompt must be a non-empty string")
+
         # Check if async is enabled
         if not self._config.async_enabled:
             raise ChainError("Async execution is not enabled in the configuration")
