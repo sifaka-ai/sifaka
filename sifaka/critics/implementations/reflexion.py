@@ -5,10 +5,71 @@ This module implements the Reflexion approach for critics, which enables languag
 agents to learn from feedback without requiring weight updates. It maintains reflections
 in memory to improve future text generation.
 
+## Overview
+The ReflexionCritic is a specialized implementation of the critic interface
+that uses memory-augmented generation to improve text quality over time. It
+maintains a buffer of past reflections and uses them to guide future text
+improvements, enabling a form of learning without model weight updates.
+
+## Components
+- **ReflexionCritic**: Main class implementing TextValidator, TextImprover, and TextCritic
+- **create_reflexion_critic**: Factory function for creating ReflexionCritic instances
+- **ReflexionCriticPromptManager**: Creates prompts with reflection context
+- **MemoryManager**: Manages the memory buffer of past reflections
+
+## Architecture
+The ReflexionCritic follows a memory-augmented architecture:
+- Uses standardized state management with _state_manager
+- Maintains a buffer of past reflections in memory
+- Incorporates reflections into prompts for improved generation
+- Implements both sync and async interfaces
+- Provides comprehensive error handling and recovery
+- Tracks performance and usage statistics
+
+## Usage Examples
+```python
+from sifaka.critics.implementations.reflexion import create_reflexion_critic
+from sifaka.models.providers import OpenAIProvider
+
+# Create a language model provider
+provider = OpenAIProvider(api_key="your-api-key")
+
+# Create a reflexion critic
+critic = create_reflexion_critic(
+    llm_provider=provider,
+    system_prompt="You are an expert editor that learns from past feedback",
+    memory_buffer_size=5,
+    reflection_depth=2
+)
+
+# Validate text
+text = "The quick brown fox jumps over the lazy dog."
+is_valid = critic.validate(text)
+
+# Critique text
+critique = critic.critique(text)
+print(f"Score: {critique.score}")
+print(f"Feedback: {critique.message}")
+
+# Improve text with feedback
+feedback = "The text needs more detail and better structure."
+improved_text = critic.improve(text, feedback)
+
+# Improve again - this time it will use the previous reflection
+improved_text_2 = critic.improve(
+    "Another sample text that needs improvement.",
+    "Make it more concise."
+)
+```
+
+## Error Handling
+The module implements comprehensive error handling for:
+- Input validation (empty text, invalid types)
+- Initialization errors (missing provider, invalid config)
+- Processing errors (model failures, timeout issues)
+- Resource management (cleanup, state preservation)
+
 ## Component Lifecycle
-
-### Reflexion Critic Lifecycle
-
 1. **Initialization Phase**
    - Configuration validation
    - Provider setup
@@ -26,35 +87,6 @@ in memory to improve future text generation.
    - Resource cleanup
    - State reset
    - Error recovery
-
-### Component Interactions
-
-1. **Language Model Provider**
-   - Receives formatted prompts
-   - Returns model responses
-   - Handles model-specific formatting
-
-2. **Memory Manager**
-   - Stores reflections
-   - Retrieves relevant reflections
-   - Manages memory buffer size
-
-Example:
-    ```python
-    from sifaka.critics.implementations.reflexion import create_reflexion_critic
-    from sifaka.models.providers import OpenAIProvider
-
-    # Create a language model provider
-    provider = OpenAIProvider(api_key="your-api-key")
-
-    # Create a reflexion critic
-    critic = create_reflexion_critic(llm_provider=provider)
-
-    # Improve text with feedback
-    text = "This is a sample technical document."
-    feedback = "The text needs more detail and better structure."
-    improved_text = critic.improve(text, feedback)
-    ```
 """
 
 import json
@@ -79,18 +111,69 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
 
     This critic implements the Reflexion approach, which enables learning from
     feedback without requiring weight updates. It maintains a memory buffer of
-    past reflections to improve future text generation.
+    past reflections to improve future text generation. It implements
+    the TextValidator, TextImprover, and TextCritic interfaces to provide a comprehensive
+    set of text analysis capabilities with memory-augmented generation.
 
     ## Architecture
-
     The ReflexionCritic follows a component-based architecture with memory-augmented generation:
+    - Uses standardized state management with _state_manager
+    - Maintains a buffer of past reflections in memory
+    - Incorporates reflections into prompts for improved generation
+    - Implements both sync and async interfaces
+    - Provides comprehensive error handling and recovery
+    - Tracks performance and usage statistics
 
-    1. **Core Components**
-       - **ReflexionCritic**: Main class that implements the critic interfaces
-       - **CritiqueService**: Service that handles the core critique functionality
-       - **ReflexionCriticPromptManager**: Creates prompts with reflection context
-       - **ResponseParser**: Parses and validates model responses
-       - **MemoryManager**: Manages the memory buffer of past reflections
+    ## Lifecycle
+    1. **Initialization**: Set up with configuration and dependencies
+       - Create/validate config
+       - Initialize language model provider
+       - Set up critique service
+       - Initialize memory manager with buffer size
+       - Set up state tracking
+
+    2. **Operation**: Process text through various methods
+       - validate(): Check if text meets quality standards
+       - critique(): Analyze text and provide detailed feedback
+       - improve(): Enhance text based on feedback and reflections
+       - Memory management: Store and retrieve reflections
+
+    3. **Error Handling**: Manage failures gracefully
+       - Input validation
+       - Model interaction errors
+       - Resource management
+       - State preservation
+       - Performance tracking
+
+    ## Examples
+    ```python
+    from sifaka.critics.implementations.reflexion import create_reflexion_critic
+    from sifaka.models.providers import OpenAIProvider
+
+    # Create a language model provider
+    provider = OpenAIProvider(api_key="your-api-key")
+
+    # Create a reflexion critic
+    critic = create_reflexion_critic(
+        llm_provider=provider,
+        system_prompt="You are an expert editor that learns from past feedback",
+        memory_buffer_size=5,
+        reflection_depth=2
+    )
+
+    # Validate text
+    text = "The quick brown fox jumps over the lazy dog."
+    is_valid = critic.validate(text)
+
+    # Critique text
+    critique = critic.critique(text)
+    print(f"Score: {critique.score}")
+    print(f"Feedback: {critique.message}")
+
+    # Improve text with feedback
+    feedback = "The text needs more detail and better structure."
+    improved_text = critic.improve(text, feedback)
+    ```
 
     ## State Management
     The class uses a standardized state management approach:
@@ -596,7 +679,60 @@ def create_reflexion_critic(
     """Create a reflexion critic with the given parameters.
 
     This factory function creates and configures a ReflexionCritic instance with
-    the specified parameters and components.
+    the specified parameters and components. It provides a convenient way to create
+    a reflexion critic with customized settings for memory-augmented text improvement.
+
+    ## Architecture
+    The factory function follows the Factory Method pattern to:
+    - Create standardized configuration objects
+    - Instantiate critic classes with consistent parameters
+    - Support optional parameter overrides
+    - Provide type safety through return types
+    - Handle error cases gracefully
+
+    ## Lifecycle
+    1. **Configuration**: Create and validate configuration
+       - Use default configuration as base
+       - Apply provided parameter overrides
+       - Validate configuration values
+       - Handle configuration errors
+
+    2. **Instantiation**: Create and initialize critic
+       - Create ReflexionCritic instance
+       - Initialize with resolved dependencies
+       - Apply configuration
+       - Handle initialization errors
+
+    ## Examples
+    ```python
+    from sifaka.critics.implementations.reflexion import create_reflexion_critic
+    from sifaka.models.providers import OpenAIProvider
+
+    # Create with basic parameters
+    provider = OpenAIProvider(api_key="your-api-key")
+    critic = create_reflexion_critic(
+        llm_provider=provider,
+        system_prompt="You are an expert editor that learns from past feedback",
+        memory_buffer_size=5,
+        reflection_depth=2
+    )
+
+    # Create with custom configuration
+    from sifaka.critics.config import ReflexionCriticConfig
+    config = ReflexionCriticConfig(
+        name="custom_reflexion_critic",
+        description="A custom reflexion critic",
+        system_prompt="You are an expert editor that learns from past feedback",
+        temperature=0.5,
+        max_tokens=2000,
+        memory_buffer_size=10,
+        reflection_depth=3
+    )
+    critic = create_reflexion_critic(
+        llm_provider=provider,
+        config=config
+    )
+    ```
 
     Args:
         llm_provider: Language model provider to use

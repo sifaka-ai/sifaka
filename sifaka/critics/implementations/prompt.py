@@ -4,10 +4,66 @@ Implementation of a prompt critic using a language model.
 This module provides a critic that uses language models to evaluate,
 validate, and improve text outputs based on rule violations.
 
+## Overview
+The PromptCritic is a comprehensive implementation of the critic interface
+that uses language models to analyze and improve text. It provides methods
+for text validation, critique, and improvement, with both synchronous and
+asynchronous interfaces.
+
+## Components
+- **PromptCritic**: Main class implementing TextValidator, TextImprover, and TextCritic
+- **create_prompt_critic**: Factory function for creating PromptCritic instances
+- **CritiqueService**: Internal service for text analysis (imported from services)
+
+## Architecture
+The PromptCritic follows a component-based architecture:
+- Uses standardized state management with _state_manager
+- Delegates to specialized services for text processing
+- Implements both sync and async interfaces
+- Provides comprehensive error handling and recovery
+- Tracks performance and usage statistics
+
+## Usage Examples
+```python
+from sifaka.critics.implementations.prompt import create_prompt_critic
+from sifaka.models.providers import OpenAIProvider
+
+# Create a language model provider
+provider = OpenAIProvider(api_key="your-api-key")
+
+# Create a prompt critic
+critic = create_prompt_critic(
+    llm_provider=provider,
+    system_prompt="You are an expert editor focusing on clarity and conciseness",
+    temperature=0.7
+)
+
+# Validate text
+text = "The quick brown fox jumps over the lazy dog."
+is_valid = critic.validate(text)
+
+# Critique text
+critique = critic.critique(text)
+print(f"Score: {critique['score']}")
+print(f"Feedback: {critique['feedback']}")
+
+# Improve text
+improved_text = critic.improve(text, "Make the text more descriptive")
+
+# Complete feedback loop
+original = "Summarize the benefits of AI"
+generator_response = "AI is good for many things."
+improved, report = critic.close_feedback_loop(original, generator_response)
+```
+
+## Error Handling
+The module implements comprehensive error handling for:
+- Input validation (empty text, invalid types)
+- Initialization errors (missing provider, invalid config)
+- Processing errors (model failures, timeout issues)
+- Resource management (cleanup, state preservation)
+
 ## Component Lifecycle
-
-### Prompt Critic Lifecycle
-
 1. **Initialization Phase**
    - Configuration validation
    - Provider setup
@@ -24,13 +80,6 @@ validate, and improve text outputs based on rule violations.
    - Resource cleanup
    - State reset
    - Error recovery
-
-### Component Interactions
-
-1. **Language Model Provider**
-   - Receives formatted prompts
-   - Returns model responses
-   - Handles model-specific formatting
 """
 
 import json
@@ -51,11 +100,66 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
     """A critic that uses a language model to evaluate and improve text.
 
     This critic analyzes text for clarity, ambiguity, completeness, and effectiveness
-    using a language model to generate feedback and validation scores.
+    using a language model to generate feedback and validation scores. It implements
+    the TextValidator, TextImprover, and TextCritic interfaces to provide a comprehensive
+    set of text analysis capabilities.
 
     ## Architecture
-
     The PromptCritic follows a component-based architecture with clear separation of concerns:
+    - Uses standardized state management with _state_manager
+    - Delegates to specialized services for text processing
+    - Implements both sync and async interfaces
+    - Provides comprehensive error handling and recovery
+    - Tracks performance and usage statistics
+
+    ## Lifecycle
+    1. **Initialization**: Set up with configuration and dependencies
+       - Create/validate config
+       - Initialize language model provider
+       - Set up critique service
+       - Initialize memory manager
+       - Set up state tracking
+
+    2. **Operation**: Process text through various methods
+       - validate(): Check if text meets quality standards
+       - critique(): Analyze text and provide detailed feedback
+       - improve(): Enhance text based on feedback
+       - close_feedback_loop(): Complete generator-critic feedback cycle
+
+    3. **Error Handling**: Manage failures gracefully
+       - Input validation
+       - Model interaction errors
+       - Resource management
+       - State preservation
+       - Performance tracking
+
+    ## Examples
+    ```python
+    from sifaka.critics.implementations.prompt import create_prompt_critic
+    from sifaka.models.providers import OpenAIProvider
+
+    # Create a language model provider
+    provider = OpenAIProvider(api_key="your-api-key")
+
+    # Create a prompt critic
+    critic = create_prompt_critic(
+        llm_provider=provider,
+        system_prompt="You are an expert editor focusing on clarity and conciseness",
+        temperature=0.7
+    )
+
+    # Validate text
+    text = "The quick brown fox jumps over the lazy dog."
+    is_valid = critic.validate(text)
+
+    # Critique text
+    critique = critic.critique(text)
+    print(f"Score: {critique['score']}")
+    print(f"Feedback: {critique['feedback']}")
+
+    # Improve text
+    improved_text = critic.improve(text, "Make the text more descriptive")
+    ```
 
     1. **Core Components**
        - **PromptCritic**: Main class that implements the critic interfaces
@@ -1027,6 +1131,66 @@ def create_prompt_critic(
     This factory function creates a configured PromptCritic instance with standardized
     state management and lifecycle handling. It uses the dependency injection system
     to resolve dependencies if not explicitly provided.
+
+    ## Architecture
+    The factory function follows the Factory Method pattern to:
+    - Create standardized configuration objects
+    - Instantiate critic classes with consistent parameters
+    - Support dependency injection through kwargs
+    - Provide type safety through return types
+    - Handle error cases gracefully
+
+    ## Lifecycle
+    1. **Dependency Resolution**: Resolve required dependencies
+       - Resolve llm_provider if not provided
+       - Resolve prompt_factory if not provided
+       - Handle dependency resolution errors
+
+    2. **Configuration**: Create and validate configuration
+       - Use default configuration as base
+       - Apply provided parameter overrides
+       - Validate configuration values
+       - Handle configuration errors
+
+    3. **Instantiation**: Create and initialize critic
+       - Create PromptCritic instance
+       - Initialize with resolved dependencies
+       - Apply configuration
+       - Handle initialization errors
+
+    ## Examples
+    ```python
+    from sifaka.critics.implementations.prompt import create_prompt_critic
+    from sifaka.models.providers import OpenAIProvider
+
+    # Create with explicit provider
+    provider = OpenAIProvider(api_key="your-api-key")
+    critic = create_prompt_critic(
+        llm_provider=provider,
+        system_prompt="You are an expert editor",
+        temperature=0.7
+    )
+
+    # Create with dependency injection
+    critic = create_prompt_critic(
+        system_prompt="You are an expert editor",
+        temperature=0.7
+    )
+
+    # Create with custom configuration
+    from sifaka.critics.config import PromptCriticConfig
+    config = PromptCriticConfig(
+        name="custom_critic",
+        description="A custom prompt critic",
+        system_prompt="You are an expert editor",
+        temperature=0.5,
+        max_tokens=2000
+    )
+    critic = create_prompt_critic(
+        llm_provider=provider,
+        config=config
+    )
+    ```
 
     Args:
         llm_provider: The language model provider to use (injected if not provided)

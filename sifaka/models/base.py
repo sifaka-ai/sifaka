@@ -1,11 +1,21 @@
 """
-Base implementations for model providers.
+Model Base Module
 
-This module provides the core base implementations for model providers,
+This module provides the core base implementations for model providers in the Sifaka framework,
 building on the interfaces defined in sifaka.interfaces.model.
 
-## Architecture Overview
+## Overview
+The model base module serves as the foundation for all language model integrations in Sifaka.
+It defines abstract base classes and factory functions that standardize how model providers
+are implemented, configured, and used throughout the system. This ensures consistent behavior
+and error handling across different model providers.
 
+## Components
+- **ModelProvider**: Abstract base class implementing the ModelProviderProtocol
+- **create_model_provider**: Factory function for creating model provider instances
+- **LanguageModel**: Type alias for LanguageModelProtocol (for backward compatibility)
+
+## Architecture
 The model system follows a layered architecture:
 
 1. **ModelProvider**: High-level interface for model interactions
@@ -13,27 +23,7 @@ The model system follows a layered architecture:
 3. **TokenCounter**: Utility for token counting
 4. **Config**: Configuration and settings management
 
-## Component Lifecycle
-
-### ModelProvider
-1. **Initialization**: Set up with model name and configuration
-2. **Configuration**: Define generation parameters
-3. **Operation**: Generate text, count tokens, trace events
-4. **Error Handling**: Manage API failures and retry strategies
-5. **Cleanup**: Release resources when no longer needed
-
-### Error Handling Patterns
-
-The model system implements several error handling patterns:
-
-1. **Typed Exceptions**: Use specific exception types for different error cases
-2. **Automatic Retries**: Implement backoff strategy for transient errors
-3. **Graceful Degradation**: Fallback to simpler models when primary fails
-4. **Thorough Logging**: Log all errors with context for diagnosis
-5. **Tracing**: Record detailed events for monitoring and debugging
-
 ## Usage Examples
-
 ```python
 from sifaka.models import create_model_provider, ModelConfig
 from sifaka.interfaces.model import ModelProviderProtocol
@@ -67,6 +57,27 @@ except RuntimeError as e:
     )
     response = fallback_provider.generate("Explain quantum computing briefly")
 ```
+
+## Error Handling
+The model system implements several error handling patterns:
+
+1. **Typed Exceptions**: Use specific exception types for different error cases
+   - TypeError: For type validation issues
+   - ValueError: For invalid inputs
+   - RuntimeError: For operational failures
+
+2. **Automatic Retries**: Implement backoff strategy for transient errors
+3. **Graceful Degradation**: Fallback to simpler models when primary fails
+4. **Thorough Logging**: Log all errors with context for diagnosis
+5. **Tracing**: Record detailed events for monitoring and debugging
+
+## Configuration
+Model providers can be configured with:
+- **model_name**: Name of the model to use
+- **temperature**: Controls randomness (0-1)
+- **max_tokens**: Maximum tokens to generate
+- **api_key**: API key for authentication
+- **trace_enabled**: Enable/disable tracing
 """
 
 from abc import ABC, abstractmethod
@@ -110,15 +121,22 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
     """
     Abstract base class for model providers.
 
-    This class implements the ModelProviderProtocol interface from sifaka.models.interfaces
-    and enforces a consistent interface for all model providers
-    while allowing for flexible implementation of specific provider features.
+    This class implements the ModelProviderProtocol interface and enforces a consistent
+    interface for all model providers while allowing for flexible implementation of
+    specific provider features.
+
+    ## Architecture
+    ModelProvider follows a layered architecture with:
+    - High-level interface for model interactions
+    - Dependency injection for API clients and token counters
+    - Tracing and logging for monitoring and debugging
+    - Generic type parameter for configuration customization
+    - Abstract methods for provider-specific implementations
 
     Type Parameters:
         C: The configuration type, must be a subclass of ModelConfig
 
     ## Lifecycle
-
     1. **Initialization**: Set up with model name and configuration
        - Create/validate config
        - Initialize dependencies (API client, token counter)
@@ -142,8 +160,7 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
        - Close API clients
        - Ensure proper resource management
 
-    ## Error Handling Patterns
-
+    ## Error Handling
     This class implements several error handling patterns:
 
     1. **Input Validation**: Validates all inputs before processing
@@ -166,7 +183,6 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
        - Includes relevant metadata with errors
 
     ## Examples
-
     ```python
     from sifaka.interfaces.model import ModelProviderProtocol
     from sifaka.interfaces.client import APIClientProtocol
@@ -217,6 +233,14 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         fallback_provider = FallbackProviderClass(model_name="fallback-model")
         response = fallback_provider.generate("Explain quantum computing briefly")
     ```
+
+    Attributes:
+        _model_name (str): The name of the model being used
+        _config (C): The configuration for the model provider
+        _api_client (APIClient): The client for API communication
+        _token_counter (TokenCounter): The counter for token estimation
+        _tracer (Tracer): The tracer for event recording
+        _initialized (bool): Whether the provider has been initialized
     """
 
     def __init__(
@@ -363,8 +387,33 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         It ensures that the API client and token counter are created if they
         haven't been provided during initialization.
 
+        ## Lifecycle
+        1. Check if already initialized to prevent duplicate initialization
+        2. Create API client and token counter if not already provided
+        3. Mark as initialized for future reference
+        4. Log initialization status for debugging
+
+        ## Error Handling
+        - Catches and logs any exceptions during initialization
+        - Re-raises exceptions as RuntimeError with context
+        - Prevents partial initialization by rolling back on failure
+
         Raises:
-            RuntimeError: If initialization fails
+            RuntimeError: If initialization fails for any reason
+
+        Example:
+            ```python
+            provider = OpenAIProvider(model_name="gpt-4")
+
+            # Initialize resources
+            provider.initialize()
+
+            # Use the initialized provider
+            response = provider.generate("Hello, world!")
+
+            # Clean up when done
+            provider.cleanup()
+            ```
         """
         if self._initialized:
             logger.debug(f"{self.__class__.__name__} already initialized")
@@ -385,10 +434,36 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         Clean up the model provider.
 
         This method releases any resources held by the model provider.
-        It ensures that the API client and token counter are properly closed.
+        It ensures that the API client and token counter are properly closed
+        to prevent resource leaks.
+
+        ## Lifecycle
+        1. Check if provider is initialized to avoid unnecessary cleanup
+        2. Close API client if it has a close method
+        3. Close token counter if it has a close method
+        4. Mark as uninitialized for future reference
+        5. Log cleanup status for debugging
+
+        ## Error Handling
+        - Catches and logs any exceptions during cleanup
+        - Re-raises exceptions as RuntimeError with context
+        - Continues cleanup even if some components fail
 
         Raises:
-            RuntimeError: If cleanup fails
+            RuntimeError: If cleanup fails for any reason
+
+        Example:
+            ```python
+            provider = OpenAIProvider(model_name="gpt-4")
+
+            try:
+                # Initialize and use the provider
+                provider.initialize()
+                response = provider.generate("Hello, world!")
+            finally:
+                # Ensure resources are cleaned up even if an error occurs
+                provider.cleanup()
+            ```
         """
         if not self._initialized:
             logger.debug(f"{self.__class__.__name__} not initialized, nothing to clean up")
@@ -414,8 +489,17 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         """
         Get the model name.
 
+        This property provides read-only access to the model name that was
+        specified during initialization.
+
         Returns:
-            The name of the language model
+            str: The name of the language model
+
+        Example:
+            ```python
+            provider = OpenAIProvider(model_name="gpt-4")
+            print(f"Using model: {provider.model_name}")
+            ```
         """
         return self._model_name
 
@@ -424,8 +508,24 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         """
         Get the model configuration.
 
+        This property provides read-only access to the current configuration
+        object. The configuration can be updated using the update_config method.
+
         Returns:
-            The current model configuration
+            C: The current model configuration
+
+        Example:
+            ```python
+            provider = OpenAIProvider(model_name="gpt-4")
+
+            # Access configuration properties
+            print(f"Temperature: {provider.config.temperature}")
+            print(f"Max tokens: {provider.config.max_tokens}")
+
+            # Update configuration
+            new_config = ModelConfig(temperature=0.9, max_tokens=2000)
+            provider.update_config(new_config)
+            ```
         """
         return self._config
 
@@ -434,8 +534,18 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         """
         Get the model provider description.
 
+        This property returns a human-readable description of the provider,
+        including the provider class name and the model name.
+
         Returns:
-            The description of the model provider
+            str: The description of the model provider
+
+        Example:
+            ```python
+            provider = OpenAIProvider(model_name="gpt-4")
+            print(f"Provider: {provider.description}")
+            # Output: "OpenAIProvider for gpt-4"
+            ```
         """
         return f"{self.__class__.__name__} for {self.model_name}"
 
@@ -443,11 +553,42 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         """
         Update the model configuration.
 
+        This method replaces the current configuration with a new one.
+        It validates that the new configuration is an instance of ModelConfig
+        before applying the change.
+
+        ## Lifecycle
+        1. Validate the new configuration object
+        2. Replace the current configuration
+        3. Log the configuration update for debugging
+
+        ## Error Handling
+        - Validates that config is an instance of ModelConfig
+        - Raises ValueError with a descriptive message if validation fails
+
         Args:
-            config: The new configuration object
+            config (C): The new configuration object
 
         Raises:
-            ValueError: If the configuration is invalid
+            ValueError: If the configuration is not an instance of ModelConfig
+
+        Example:
+            ```python
+            provider = OpenAIProvider(model_name="gpt-4")
+
+            # Create a new configuration
+            new_config = ModelConfig(
+                temperature=0.9,
+                max_tokens=2000,
+                api_key="new-api-key"
+            )
+
+            # Update the provider's configuration
+            provider.update_config(new_config)
+
+            # Use the provider with the new configuration
+            response = provider.generate("Hello with new config!")
+            ```
         """
         if not isinstance(config, ModelConfig):
             raise ValueError(f"Config must be an instance of ModelConfig, got {type(config)}")
@@ -462,8 +603,13 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         initialization. It's used by the constructor to ensure a valid configuration
         is always available.
 
-        ## Lifecycle
+        ## Architecture
+        This method follows the Template Method pattern:
+        - Base class provides a default implementation
+        - Subclasses can override to provide specialized configurations
+        - Type safety is maintained through generic type parameter C
 
+        ## Lifecycle
         1. **Creation**: Create a default ModelConfig instance
            - Use default values for all parameters
            - Cast to the generic type C for type safety
@@ -472,29 +618,31 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
            - Override to provide model-specific defaults
            - Override to use provider-specific config classes
 
-        ## Examples
-
-        Basic implementation:
-
-        ```python
-        def _create_default_config(self) -> ModelConfig:
-            return ModelConfig()
-        ```
-
-        Provider-specific implementation:
-
-        ```python
-        class CustomProvider(ModelProvider[CustomConfig]):
-            def _create_default_config(self) -> CustomConfig:
-                return CustomConfig(
-                    temperature=0.7,
-                    max_tokens=1000,
-                    system_prompt="You are a helpful assistant."
-                )
-        ```
+        ## Error Handling
+        - Returns a valid default configuration
+        - Type casting ensures compatibility with expected return type
+        - No exceptions should be raised by this method
 
         Returns:
-            A default configuration instance appropriate for this provider
+            C: A default configuration instance appropriate for this provider
+
+        Example:
+            Basic implementation:
+            ```python
+            def _create_default_config(self) -> ModelConfig:
+                return ModelConfig()
+            ```
+
+            Provider-specific implementation:
+            ```python
+            class CustomProvider(ModelProvider[CustomConfig]):
+                def _create_default_config(self) -> CustomConfig:
+                    return CustomConfig(
+                        temperature=0.7,
+                        max_tokens=1000,
+                        system_prompt="You are a helpful assistant."
+                    )
+            ```
         """
         return ModelConfig()  # type: ignore
 
@@ -503,11 +651,37 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         """
         Create a default API client if none was provided.
 
+        This abstract method must be implemented by subclasses to provide
+        a default API client implementation specific to the model provider.
+
+        ## Architecture
+        This method follows the Factory Method pattern:
+        - Abstract in base class, implemented in subclasses
+        - Creates appropriate client for specific provider type
+        - Returns an object implementing the APIClient protocol
+
+        ## Error Handling
+        - Should raise RuntimeError if client creation fails
+        - Should include specific error details in exception message
+        - May attempt fallback strategies before failing
+
         Returns:
-            A default API client for the model
+            APIClient: A default API client for the model
 
         Raises:
             RuntimeError: If a default client cannot be created
+
+        Example:
+            ```python
+            class OpenAIProvider(ModelProvider):
+                def _create_default_client(self) -> APIClient:
+                    try:
+                        # Try to create client with API key from config
+                        return OpenAIClient(api_key=self.config.api_key)
+                    except Exception as e:
+                        # Provide detailed error message
+                        raise RuntimeError(f"Failed to create OpenAI client: {e}") from e
+            ```
         """
         ...
 
@@ -516,11 +690,37 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         """
         Create a default token counter if none was provided.
 
+        This abstract method must be implemented by subclasses to provide
+        a default token counter implementation specific to the model provider.
+
+        ## Architecture
+        This method follows the Factory Method pattern:
+        - Abstract in base class, implemented in subclasses
+        - Creates appropriate counter for specific model type
+        - Returns an object implementing the TokenCounter protocol
+
+        ## Error Handling
+        - Should raise RuntimeError if counter creation fails
+        - Should include specific error details in exception message
+        - May attempt fallback strategies before failing
+
         Returns:
-            A default token counter for the model
+            TokenCounter: A default token counter for the model
 
         Raises:
             RuntimeError: If a default token counter cannot be created
+
+        Example:
+            ```python
+            class OpenAIProvider(ModelProvider):
+                def _create_default_token_counter(self) -> TokenCounter:
+                    try:
+                        # Create counter specific to this model
+                        return OpenAITokenCounter(model=self.model_name)
+                    except Exception as e:
+                        # Provide detailed error message
+                        raise RuntimeError(f"Failed to create token counter: {e}") from e
+            ```
         """
         ...
 
@@ -899,7 +1099,26 @@ def create_model_provider(
     Factory function to create a model provider with a standardized configuration.
 
     This function simplifies the creation of model providers by providing
-    a consistent interface for common configuration options.
+    a consistent interface for common configuration options across different
+    provider implementations.
+
+    ## Architecture
+    The factory function follows the Factory Method pattern to:
+    - Create standardized configuration objects
+    - Instantiate provider classes with consistent parameters
+    - Support dependency injection through kwargs
+    - Provide type safety through generic return types
+
+    ## Lifecycle
+    1. Create a standard ModelConfig with common parameters
+    2. Instantiate the provider with the config and model name
+    3. Pass through any additional provider-specific arguments
+
+    ## Error Handling
+    This function handles these error cases:
+    - Validates parameters before creating the provider
+    - Propagates exceptions from provider initialization
+    - Provides clear error messages for debugging
 
     Args:
         provider_type: The class of the provider to create
@@ -917,7 +1136,7 @@ def create_model_provider(
         TypeError: If provider_type is not a valid model provider class
         RuntimeError: If provider creation fails
 
-    Examples:
+    Example:
         ```python
         from sifaka.interfaces.model import ModelProviderProtocol
 

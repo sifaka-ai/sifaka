@@ -5,12 +5,80 @@ This module implements the Self-Reflective Retrieval-Augmented Generation approa
 which enables language models to decide when and what to retrieve, and reflect on the
 relevance and utility of the retrieved information.
 
-Based on Self-RAG: https://arxiv.org/abs/2310.11511
+## Overview
+The SelfRAGCritic is a specialized implementation of the critic interface
+that combines retrieval-augmented generation with self-reflection. It enables
+language models to decide when and what information to retrieve, and then
+reflect on the relevance and utility of the retrieved information for improving
+text quality. This approach enhances the model's ability to provide accurate,
+well-informed critiques and improvements.
+
+## Components
+- **SelfRAGCritic**: Main class implementing TextValidator, TextImprover, and TextCritic
+- **create_self_rag_critic**: Factory function for creating SelfRAGCritic instances
+- **Retriever**: Component that retrieves relevant information from external sources
+- **PromptManager**: Creates prompts for different stages of the Self-RAG process
+
+## Architecture
+The SelfRAGCritic follows a retrieval-augmented architecture:
+- Uses standardized state management with _state_manager
+- Implements a multi-stage process (retrieval decision, retrieval, generation, reflection)
+- Provides automatic retrieval decisions based on task requirements
+- Implements both sync and async interfaces
+- Provides comprehensive error handling and recovery
+- Tracks performance and retrieval statistics
+
+## Usage Examples
+```python
+from sifaka.critics.implementations.self_rag import create_self_rag_critic
+from sifaka.models.providers import OpenAIProvider
+from sifaka.retrieval import SimpleRetriever
+
+# Create a language model provider
+provider = OpenAIProvider(api_key="your-api-key")
+
+# Create a retriever with some documents
+documents = [
+    "Health insurance claims must be filed within 90 days of service.",
+    "To file a claim, you need to submit the claim form and receipts.",
+    "Claims can be submitted online or by mail."
+]
+retriever = SimpleRetriever(documents=documents)
+
+# Create a Self-RAG critic
+critic = create_self_rag_critic(
+    llm_provider=provider,
+    retriever=retriever,
+    system_prompt="You are an expert assistant that provides accurate information.",
+    temperature=0.7,
+    retrieval_threshold=0.6
+)
+
+# Use the critic to improve text
+task = "What are the steps to file a claim for health reimbursement?"
+result = critic.run(task, response=None)
+print(f"Response: {result['response']}")
+print(f"Reflection: {result['reflection']}")
+
+# Critique existing text
+response = "To file a claim, just send an email."
+critique = critic.critique(response, {"task": task})
+print(f"Score: {critique['score']}")
+print(f"Feedback: {critique['feedback']}")
+
+# Improve existing text
+improved_text = critic.improve(response, {"task": task})
+print(f"Improved text: {improved_text}")
+```
+
+## Error Handling
+The module implements comprehensive error handling for:
+- Input validation (empty text, invalid types)
+- Initialization errors (missing provider, invalid config)
+- Processing errors (model failures, timeout issues)
+- Resource management (cleanup, state preservation)
 
 ## Component Lifecycle
-
-### Self-RAG Critic Lifecycle
-
 1. **Initialization Phase**
    - Configuration validation
    - Provider setup
@@ -32,7 +100,65 @@ Based on Self-RAG: https://arxiv.org/abs/2310.11511
    - State reset
    - Error recovery
 
-Example:
+## References
+Based on Self-RAG: https://arxiv.org/abs/2310.11511
+"""
+
+import json
+import time
+from typing import Any, Dict, List, Optional, Union, cast
+
+from pydantic import ConfigDict, Field, PrivateAttr
+
+from ...core.base import BaseComponent
+from ...utils.state import create_critic_state
+from ...core.base import BaseResult as CriticResult
+from ..config import SelfRAGCriticConfig
+from ..interfaces.critic import TextCritic, TextImprover, TextValidator
+from ...retrieval import Retriever
+
+
+class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, TextCritic):
+    """
+    A critic that implements the Self-Reflective Retrieval-Augmented Generation approach.
+
+    This critic enables language models to decide when and what to retrieve,
+    and reflect on the relevance and utility of the retrieved information. It implements
+    the TextValidator, TextImprover, and TextCritic interfaces to provide a comprehensive
+    set of text analysis capabilities with retrieval augmentation.
+
+    Based on Self-RAG: https://arxiv.org/abs/2310.11511
+
+    ## Architecture
+    The SelfRAGCritic follows a retrieval-augmented architecture:
+    - Uses standardized state management with _state_manager
+    - Implements a multi-stage process (retrieval decision, retrieval, generation, reflection)
+    - Provides automatic retrieval decisions based on task requirements
+    - Implements both sync and async interfaces
+    - Provides comprehensive error handling and recovery
+    - Tracks performance and retrieval statistics
+
+    ## Lifecycle
+    1. **Initialization**: Set up with configuration and dependencies
+       - Create/validate config
+       - Initialize language model provider
+       - Set up retriever component
+       - Initialize memory manager
+       - Set up state tracking
+
+    2. **Operation**: Process text through various methods
+       - validate(): Check if text meets quality standards
+       - critique(): Analyze text and provide detailed feedback
+       - improve(): Enhance text through retrieval-augmented generation
+       - run(): Execute the full Self-RAG process (retrieval decision, retrieval, generation, reflection)
+
+    3. **Cleanup**: Manage resources and finalize state
+       - Release resources
+       - Reset state
+       - Log final status
+       - Track performance metrics
+
+    ## Examples
     ```python
     from sifaka.critics.implementations.self_rag import create_self_rag_critic
     from sifaka.models.providers import OpenAIProvider
@@ -61,41 +187,6 @@ Example:
     print(f"Response: {result['response']}")
     print(f"Reflection: {result['reflection']}")
     ```
-"""
-
-import json
-import time
-from typing import Any, Dict, List, Optional, Union, cast
-
-from pydantic import ConfigDict, Field, PrivateAttr
-
-from ...core.base import BaseComponent
-from ...utils.state import create_critic_state
-from ...core.base import BaseResult as CriticResult
-from ..config import SelfRAGCriticConfig
-from ..interfaces.critic import TextCritic, TextImprover, TextValidator
-from ...retrieval import Retriever
-
-
-class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, TextCritic):
-    """
-    A critic that implements the Self-Reflective Retrieval-Augmented Generation approach.
-
-    This critic enables language models to decide when and what to retrieve,
-    and reflect on the relevance and utility of the retrieved information.
-
-    Based on Self-RAG: https://arxiv.org/abs/2310.11511
-
-    ## Architecture
-
-    The SelfRAGCritic follows a component-based architecture with retrieval augmentation:
-
-    1. **Core Components**
-       - **SelfRAGCritic**: Main class that implements the critic interfaces
-       - **Retriever**: Component that retrieves relevant information
-       - **PromptManager**: Creates prompts for different stages of the process
-       - **ResponseParser**: Parses and validates model responses
-       - **MemoryManager**: Manages history of retrievals and reflections
 
     ## State Management
     The class uses a standardized state management approach:
@@ -676,6 +767,68 @@ def create_self_rag_critic(
     This factory function creates a configured Self-RAG critic instance
     that enables language models to decide when and what to retrieve,
     and reflect on the relevance and utility of the retrieved information.
+    It provides a convenient way to create a self-reflective retrieval-augmented
+    critic with customized settings.
+
+    ## Architecture
+    The factory function follows the Factory Method pattern to:
+    - Create standardized configuration objects
+    - Instantiate critic classes with consistent parameters
+    - Support optional parameter overrides
+    - Provide type safety through return types
+    - Handle error cases gracefully
+
+    ## Lifecycle
+    1. **Configuration**: Create and validate configuration
+       - Use default configuration as base
+       - Apply provided parameter overrides
+       - Validate configuration values
+       - Handle configuration errors
+
+    2. **Instantiation**: Create and initialize critic
+       - Create SelfRAGCritic instance
+       - Initialize with resolved dependencies
+       - Apply configuration
+       - Handle initialization errors
+
+    ## Examples
+    ```python
+    from sifaka.critics.implementations.self_rag import create_self_rag_critic
+    from sifaka.models.providers import OpenAIProvider
+    from sifaka.retrieval import SimpleRetriever
+
+    # Create with basic parameters
+    provider = OpenAIProvider(api_key="your-api-key")
+    documents = [
+        "Health insurance claims must be filed within 90 days of service.",
+        "To file a claim, you need to submit the claim form and receipts.",
+        "Claims can be submitted online or by mail."
+    ]
+    retriever = SimpleRetriever(documents=documents)
+    critic = create_self_rag_critic(
+        llm_provider=provider,
+        retriever=retriever,
+        system_prompt="You are an expert assistant that provides accurate information.",
+        temperature=0.7,
+        retrieval_threshold=0.6
+    )
+
+    # Create with custom configuration
+    from sifaka.critics.config import SelfRAGCriticConfig
+    config = SelfRAGCriticConfig(
+        name="custom_self_rag_critic",
+        description="A custom Self-RAG critic",
+        system_prompt="You are an expert assistant that provides accurate information.",
+        temperature=0.5,
+        max_tokens=2000,
+        retrieval_threshold=0.7
+    )
+    critic = create_self_rag_critic(
+        llm_provider=provider,
+        retriever=retriever,
+        config=config
+    )
+    ```
 
     Args:
         llm_provider: The language model provider to use

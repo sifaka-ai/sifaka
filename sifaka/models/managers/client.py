@@ -3,6 +3,49 @@ API client manager for model providers.
 
 This module provides the ClientManager class which is responsible for
 managing API clients for model providers.
+
+## Overview
+The client manager module provides a standardized way to create, manage, and use
+API clients for different model providers. It handles client lifecycle management,
+lazy initialization, and provides a consistent interface for client operations.
+
+## Components
+- **ClientManager**: Abstract base class for managing API clients
+- **Provider-specific managers**: Concrete implementations for specific providers (e.g., OpenAIClientManager)
+
+## Usage Examples
+```python
+from sifaka.models.managers.client import ClientManager
+from sifaka.utils.config import ModelConfig
+
+# Create a client manager
+class MyClientManager(ClientManager):
+    def _create_default_client(self):
+        return MyAPIClient(api_key=self._config.api_key)
+
+# Use the client manager
+manager = MyClientManager(
+    model_name="my-model",
+    config=ModelConfig(api_key="your-api-key")
+)
+
+# Get a client and use it
+client = manager.get_client()
+response = client.send_prompt("Hello, world!", config)
+```
+
+## Error Handling
+The client manager implements several error handling patterns:
+- Lazy initialization to defer API client creation until needed
+- Abstract factory method pattern for provider-specific client creation
+- Proper error propagation with context for debugging
+- Logging for tracking client lifecycle events
+
+## Configuration
+Client managers are configured with:
+- **model_name**: Name of the model to create clients for
+- **config**: Configuration for the client (API keys, etc.)
+- **api_client**: Optional pre-configured API client
 """
 
 from abc import abstractmethod

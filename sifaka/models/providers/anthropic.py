@@ -8,6 +8,43 @@ interface for Anthropic Claude models.
 The Anthropic provider connects to Anthropic's API for text generation, offering access
 to Claude models like Claude 3 Opus, Claude 3 Sonnet, and others. It handles authentication,
 API communication, token counting, and response processing.
+
+## Components
+- **AnthropicProvider**: Main provider class for Anthropic Claude models
+- **AnthropicClientManager**: Manages Anthropic API client creation and configuration
+- **AnthropicTokenCounterManager**: Manages token counting for Anthropic models
+
+## Usage Examples
+```python
+from sifaka.models.providers.anthropic import AnthropicProvider
+from sifaka.utils.config import ModelConfig
+
+# Create a provider with default configuration
+provider = AnthropicProvider(model_name="claude-3-opus-20240229")
+
+# Create a provider with custom configuration
+config = ModelConfig(
+    temperature=0.7,
+    max_tokens=1000,
+    api_key="your-api-key",
+    trace_enabled=True,
+)
+provider = AnthropicProvider(model_name="claude-3-sonnet-20240229", config=config)
+
+# Generate text
+response = provider.generate("Explain quantum computing")
+
+# Count tokens
+token_count = provider.count_tokens("How many tokens is this?")
+```
+
+## Error Handling
+The provider implements comprehensive error handling:
+- API authentication errors
+- Rate limiting and quota errors
+- Network and timeout errors
+- Model-specific errors
+- Input validation errors
 """
 
 import time
@@ -35,6 +72,53 @@ class AnthropicProvider(ModelProviderProtocol):
     This provider supports Anthropic Claude models with configurable parameters,
     built-in token counting, and execution tracking. It handles communication
     with Anthropic's API, token counting, and response processing.
+
+    ## Architecture
+    AnthropicProvider implements the ModelProviderProtocol and follows Sifaka's component-based
+    architecture. It delegates API communication to AnthropicClientManager and token counting
+    to AnthropicTokenCounterManager. The provider uses standardized state management through
+    the StateManager from utils/state.py.
+
+    ## Lifecycle
+    1. Initialization: Creates client and token counter managers
+    2. Warm-up: Initializes API client and token counter
+    3. Operation: Handles text generation and token counting
+    4. Cleanup: Releases resources when no longer needed
+
+    ## Error Handling
+    The provider uses standardized error handling through utils/errors.py:
+    - safely_execute_component_operation for operation execution
+    - ModelError for standardized error reporting
+    - Error recording in state manager for debugging
+
+    ## Examples
+    ```python
+    from sifaka.models.providers.anthropic import AnthropicProvider
+    from sifaka.utils.config import ModelConfig
+
+    # Create a provider with default configuration
+    provider = AnthropicProvider(model_name="claude-3-opus-20240229")
+
+    # Create a provider with custom configuration
+    config = ModelConfig(
+        temperature=0.7,
+        max_tokens=1000,
+        api_key="your-api-key",
+        trace_enabled=True,
+    )
+    provider = AnthropicProvider(model_name="claude-3-sonnet-20240229", config=config)
+
+    # Generate text
+    response = provider.generate("Explain quantum computing")
+
+    # Count tokens
+    token_count = provider.count_tokens("How many tokens is this?")
+    ```
+
+    Attributes:
+        _state_manager (StateManager): Manages provider state
+        _client_manager (AnthropicClientManager): Manages API client
+        _token_counter_manager (AnthropicTokenCounterManager): Manages token counter
     """
 
     # Class constants
@@ -224,6 +308,20 @@ class AnthropicProvider(ModelProviderProtocol):
     def warm_up(self) -> None:
         """
         Initialize resources needed by the Anthropic provider.
+
+        This method initializes the API client and token counter, storing them in the
+        state manager for later use. It's called automatically before the first operation
+        if the provider hasn't been initialized yet.
+
+        The warm-up process includes:
+        1. Getting the API client from the client manager
+        2. Getting the token counter from the token counter manager
+        3. Storing both in the state manager
+        4. Marking the provider as initialized
+
+        Raises:
+            ImportError: If the Anthropic package is not installed
+            ModelError: If initialization fails due to API issues
         """
         # Ensure component is not already initialized
         if self._state_manager.get("initialized", False):
@@ -245,6 +343,21 @@ class AnthropicProvider(ModelProviderProtocol):
     def cleanup(self) -> None:
         """
         Release resources used by the Anthropic provider.
+
+        This method releases any resources used by the provider, including:
+        1. Closing the API client if it has a close method
+        2. Resetting statistics
+        3. Marking the provider as not initialized
+
+        The provider can be reused after cleanup by calling warm_up() again.
+
+        Example:
+            ```python
+            provider = AnthropicProvider(model_name="claude-3-opus-20240229")
+            provider.generate("Hello")  # Automatically warms up
+            provider.cleanup()  # Release resources
+            provider.warm_up()  # Reinitialize for reuse
+            ```
         """
         # Check if already cleaned up
         if not self._state_manager.get("initialized", False):
@@ -275,12 +388,47 @@ class AnthropicProvider(ModelProviderProtocol):
         """
         Generate text from a prompt.
 
+        This method sends a prompt to the Anthropic API and returns the generated text.
+        It automatically initializes the provider if needed, and handles configuration
+        overrides through kwargs.
+
+        The generation process includes:
+        1. Ensuring the provider is initialized
+        2. Getting the API client from state
+        3. Applying configuration overrides from kwargs
+        4. Sending the prompt to the API
+        5. Returning the generated text
+
         Args:
-            prompt: The prompt to send to the model
-            **kwargs: Additional keyword arguments to pass to the model
+            prompt (str): The prompt to send to the model
+            **kwargs: Additional keyword arguments to override configuration
+                - temperature (float): Controls randomness (0.0-1.0)
+                - max_tokens (int): Maximum tokens to generate
+                - top_p (float): Nucleus sampling parameter
+                - top_k (int): Top-k sampling parameter
+                - stop_sequences (List[str]): Sequences that stop generation
 
         Returns:
-            The generated text response
+            str: The generated text response
+
+        Raises:
+            ModelError: If generation fails due to API issues
+            ValueError: If invalid configuration is provided
+
+        Example:
+            ```python
+            provider = AnthropicProvider(model_name="claude-3-opus-20240229")
+
+            # Basic generation
+            response = provider.generate("Explain quantum computing")
+
+            # Generation with configuration overrides
+            response = provider.generate(
+                "Write a poem about AI",
+                temperature=0.9,
+                max_tokens=200
+            )
+            ```
         """
         # Ensure component is initialized
         if not self._state_manager.get("initialized", False):
@@ -309,11 +457,38 @@ class AnthropicProvider(ModelProviderProtocol):
         """
         Count tokens in the text.
 
+        This method counts the number of tokens in the provided text using the
+        appropriate tokenizer for the current model. It automatically initializes
+        the provider if needed.
+
+        The token counting process includes:
+        1. Ensuring the provider is initialized
+        2. Getting the token counter from state
+        3. Counting tokens using the token counter
+        4. Updating token counting statistics
+
         Args:
-            text: The text to count tokens for
+            text (str): The text to count tokens for
 
         Returns:
-            The number of tokens in the text
+            int: The number of tokens in the text
+
+        Raises:
+            ModelError: If token counting fails
+            ValueError: If the text is invalid
+
+        Example:
+            ```python
+            provider = AnthropicProvider(model_name="claude-3-opus-20240229")
+
+            # Count tokens in a string
+            token_count = provider.count_tokens("How many tokens is this?")
+
+            # Count tokens in a longer text
+            with open("document.txt", "r") as f:
+                text = f.read()
+                token_count = provider.count_tokens(text)
+            ```
         """
         # Ensure component is initialized
         if not self._state_manager.get("initialized", False):
@@ -343,8 +518,30 @@ class AnthropicProvider(ModelProviderProtocol):
         """
         Get statistics about provider usage.
 
+        This method returns a dictionary with statistics about the provider's usage,
+        including generation count, token count calls, error count, and processing time.
+
+        The statistics include:
+        - generation_count: Number of text generation calls
+        - token_count_calls: Number of token counting calls
+        - error_count: Number of errors encountered
+        - total_processing_time: Total processing time in milliseconds
+        - Any additional statistics from the tracing manager
+
         Returns:
-            Dictionary with usage statistics
+            Dict[str, Any]: Dictionary with usage statistics
+
+        Example:
+            ```python
+            provider = AnthropicProvider(model_name="claude-3-opus-20240229")
+            provider.generate("Hello, world!")
+            provider.count_tokens("How many tokens?")
+
+            # Get usage statistics
+            stats = provider.get_statistics()
+            print(f"Generation count: {stats['generation_count']}")
+            print(f"Token count calls: {stats['token_count_calls']}")
+            ```
         """
         # Get statistics from tracing manager and state
         tracing_manager = self._state_manager.get("tracing_manager")

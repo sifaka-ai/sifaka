@@ -5,43 +5,81 @@ This module implements a Constitutional AI approach for critics, which evaluates
 responses against a set of human-written principles (a "constitution") and provides
 natural language feedback when violations are detected.
 
+## Overview
+The ConstitutionalCritic is a specialized implementation of the critic interface
+that evaluates text against a set of predefined principles (a "constitution").
+It provides methods for validating, critiquing, and improving text based on
+these principles, ensuring that generated content aligns with ethical guidelines
+and quality standards.
+
+## Components
+- **ConstitutionalCritic**: Main class implementing TextValidator, TextImprover, and TextCritic
+- **create_constitutional_critic**: Factory function for creating ConstitutionalCritic instances
+- **PrinciplesManager**: Manages the list of principles (the "constitution")
+- **CritiqueService**: Evaluates responses against principles
+
+## Architecture
+The ConstitutionalCritic follows a principles-based architecture:
+- Uses standardized state management with _state_manager
+- Evaluates text against a set of configurable principles
+- Provides detailed feedback on principle violations
+- Implements both sync and async interfaces
+- Provides comprehensive error handling and recovery
+- Tracks performance and usage statistics
+
+## Usage Examples
+```python
+from sifaka.critics.implementations.constitutional import create_constitutional_critic
+from sifaka.models.providers import OpenAIProvider
+
+# Create a language model provider
+provider = OpenAIProvider(api_key="your-api-key")
+
+# Define principles
+principles = [
+    "Do not provide harmful, offensive, or biased content.",
+    "Explain reasoning in a clear and truthful manner.",
+    "Respect user autonomy and avoid manipulative language.",
+]
+
+# Create a constitutional critic
+critic = create_constitutional_critic(
+    llm_provider=provider,
+    principles=principles,
+    min_confidence=0.8,
+    temperature=0.7
+)
+
+# Validate a response
+task = "Explain why some people believe climate change isn't real."
+response = "Climate change is a hoax created by scientists to get funding."
+is_valid = critic.validate(response, metadata={"task": task})
+print(f"Response is valid: {is_valid}")
+
+# Get critique for a response
+critique = critic.critique(response, metadata={"task": task})
+print(f"Score: {critique['score']}")
+print(f"Feedback: {critique['feedback']}")
+print(f"Issues: {critique['issues']}")
+
+# Improve a response
+improved_response = critic.improve(response, metadata={"task": task})
+print(f"Improved response: {improved_response}")
+
+# Improve with specific feedback
+feedback = "The response should acknowledge scientific consensus while explaining skepticism."
+improved_response = critic.improve_with_feedback(response, feedback)
+```
+
+## Error Handling
+The module implements comprehensive error handling for:
+- Input validation (empty text, invalid types)
+- Initialization errors (missing provider, invalid config)
+- Processing errors (model failures, timeout issues)
+- Resource management (cleanup, state preservation)
+
+## References
 Based on Constitutional AI: https://arxiv.org/abs/2212.08073
-
-Example:
-    ```python
-    from sifaka.critics.implementations.constitutional import create_constitutional_critic
-    from sifaka.models.providers import OpenAIProvider
-
-    # Create a language model provider
-    provider = OpenAIProvider(api_key="your-api-key")
-
-    # Define principles
-    principles = [
-        "Do not provide harmful, offensive, or biased content.",
-        "Explain reasoning in a clear and truthful manner.",
-        "Respect user autonomy and avoid manipulative language.",
-    ]
-
-    # Create a constitutional critic
-    critic = create_constitutional_critic(
-        llm_provider=provider,
-        principles=principles
-    )
-
-    # Validate a response
-    task = "Explain why some people believe climate change isn't real."
-    response = "Climate change is a hoax created by scientists to get funding."
-    is_valid = critic.validate(response, metadata={"task": task})
-    print(f"Response is valid: {is_valid}")
-
-    # Get critique for a response
-    critique = critic.critique(response, metadata={"task": task})
-    print(f"Critique: {critique}")
-
-    # Improve a response
-    improved_response = critic.improve(response, metadata={"task": task})
-    print(f"Improved response: {improved_response}")
-    ```
 """
 
 import json
@@ -72,18 +110,66 @@ class ConstitutionalCritic(
     Based on Constitutional AI: https://arxiv.org/abs/2212.08073
 
     This critic analyzes responses for alignment with specified principles and
-    generates critiques when violations are detected.
+    generates critiques when violations are detected. It implements the TextValidator,
+    TextImprover, and TextCritic interfaces to provide a comprehensive set of
+    text analysis capabilities based on constitutional principles.
 
     ## Architecture
+    The ConstitutionalCritic follows a principles-based architecture:
+    - Uses standardized state management with _state_manager
+    - Evaluates text against a set of configurable principles
+    - Provides detailed feedback on principle violations
+    - Implements both sync and async interfaces
+    - Provides comprehensive error handling and recovery
+    - Tracks performance and usage statistics
 
-    The ConstitutionalCritic follows a component-based architecture with principles-based evaluation:
+    ## Lifecycle
+    1. **Initialization**: Set up with configuration and dependencies
+       - Create/validate config with principles
+       - Initialize language model provider
+       - Set up critique service
+       - Initialize memory manager
+       - Set up state tracking
 
-    1. **Core Components**
-       - **ConstitutionalCritic**: Main class that implements the critic interfaces
-       - **PrinciplesManager**: Manages the list of principles (the "constitution")
-       - **CritiqueGenerator**: Evaluates responses against principles
-       - **ResponseImprover**: Improves responses based on critiques
-       - **PromptManager**: Creates specialized prompts for critique and improvement
+    2. **Operation**: Process text through various methods
+       - validate(): Check if text meets principles
+       - critique(): Analyze text against principles and provide detailed feedback
+       - improve(): Enhance text to better align with principles
+       - improve_with_feedback(): Enhance text based on specific feedback
+
+    3. **Error Handling**: Manage failures gracefully
+       - Input validation
+       - Model interaction errors
+       - Resource management
+       - State preservation
+       - Performance tracking
+
+    ## Examples
+    ```python
+    from sifaka.critics.implementations.constitutional import create_constitutional_critic
+    from sifaka.models.providers import OpenAIProvider
+
+    # Create a language model provider
+    provider = OpenAIProvider(api_key="your-api-key")
+
+    # Define principles
+    principles = [
+        "Do not provide harmful, offensive, or biased content.",
+        "Explain reasoning in a clear and truthful manner.",
+        "Respect user autonomy and avoid manipulative language.",
+    ]
+
+    # Create a constitutional critic
+    critic = create_constitutional_critic(
+        llm_provider=provider,
+        principles=principles
+    )
+
+    # Validate a response
+    task = "Explain why some people believe climate change isn't real."
+    response = "Climate change is a hoax created by scientists to get funding."
+    is_valid = critic.validate(response, metadata={"task": task})
+    ```
 
     ## State Management
     The class uses a standardized state management approach:
@@ -649,7 +735,65 @@ def create_constitutional_critic(
     Create a constitutional critic with the given parameters.
 
     This factory function creates and configures a ConstitutionalCritic instance with
-    the specified parameters and components.
+    the specified parameters and components. It provides a convenient way to create
+    a constitutional critic with customized principles and settings for evaluating
+    text against ethical guidelines and quality standards.
+
+    ## Architecture
+    The factory function follows the Factory Method pattern to:
+    - Create standardized configuration objects
+    - Instantiate critic classes with consistent parameters
+    - Support optional parameter overrides
+    - Provide type safety through return types
+    - Handle error cases gracefully
+
+    ## Lifecycle
+    1. **Configuration**: Create and validate configuration
+       - Use default configuration as base
+       - Apply provided parameter overrides
+       - Validate configuration values
+       - Handle configuration errors
+
+    2. **Instantiation**: Create and initialize critic
+       - Create ConstitutionalCritic instance
+       - Initialize with resolved dependencies
+       - Apply configuration
+       - Handle initialization errors
+
+    ## Examples
+    ```python
+    from sifaka.critics.implementations.constitutional import create_constitutional_critic
+    from sifaka.models.providers import OpenAIProvider
+
+    # Create with basic parameters
+    provider = OpenAIProvider(api_key="your-api-key")
+    principles = [
+        "Do not provide harmful, offensive, or biased content.",
+        "Explain reasoning in a clear and truthful manner.",
+        "Respect user autonomy and avoid manipulative language.",
+    ]
+    critic = create_constitutional_critic(
+        llm_provider=provider,
+        principles=principles,
+        min_confidence=0.8,
+        temperature=0.7
+    )
+
+    # Create with custom configuration
+    from sifaka.critics.config import ConstitutionalCriticConfig
+    config = ConstitutionalCriticConfig(
+        name="custom_constitutional_critic",
+        description="A custom constitutional critic",
+        principles=principles,
+        temperature=0.5,
+        max_tokens=2000,
+        min_confidence=0.9
+    )
+    critic = create_constitutional_critic(
+        llm_provider=provider,
+        config=config
+    )
+    ```
 
     Args:
         llm_provider: Language model provider to use

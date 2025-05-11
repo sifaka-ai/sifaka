@@ -122,7 +122,46 @@ class MockProvider(ModelProviderCore):
     ## Architecture
     MockProvider extends ModelProviderCore and follows Sifaka's component-based
     architecture. It delegates API communication to MockAPIClient and token counting
-    to MockTokenCounter.
+    to MockTokenCounter. The provider uses standardized state management through
+    the StateManager from utils/state.py.
+
+    ## Lifecycle
+    1. Initialization: Creates client and token counter managers
+    2. Warm-up: Initializes API client and token counter
+    3. Operation: Handles text generation and token counting
+    4. Cleanup: Releases resources when no longer needed
+
+    ## Error Handling
+    The provider implements simulated error handling for testing:
+    - Simulated API errors
+    - Simulated rate limiting
+    - Simulated network errors
+
+    ## Examples
+    ```python
+    from sifaka.models.providers.mock import MockProvider
+    from sifaka.utils.config import ModelConfig
+
+    # Create a provider with default configuration
+    provider = MockProvider(model_name="mock-model")
+
+    # Create a provider with custom configuration
+    config = ModelConfig(
+        temperature=0.8,
+        max_tokens=2000,
+        api_key="mock-api-key"
+    )
+    provider = MockProvider(model_name="mock-model", config=config)
+
+    # Generate text
+    response = provider.generate("Explain quantum computing")
+
+    # Count tokens
+    token_count = provider.count_tokens("How many tokens is this?")
+    ```
+
+    Attributes:
+        _state_manager (StateManager): Manages provider state
     """
 
     # Class constants
@@ -174,15 +213,43 @@ class MockProvider(ModelProviderCore):
         """
         Invoke the model with a prompt (delegates to generate).
 
-        This method is needed for compatibility with the critique service
-        which expects an 'invoke' method.
+        This method simulates sending a prompt to an API and returns a mock generated text.
+        It delegates to the generate method and tracks statistics about the operation.
+        This method is needed for compatibility with the critique service which expects
+        an 'invoke' method.
+
+        The invocation process includes:
+        1. Tracking the start time
+        2. Calling the generate method with the prompt and kwargs
+        3. Updating statistics in the state manager
+        4. Returning the generated text
 
         Args:
-            prompt: The prompt to send to the model
-            **kwargs: Additional keyword arguments to pass to the model
+            prompt (str): The prompt to send to the model
+            **kwargs: Additional keyword arguments to override configuration
+                - temperature (float): Controls randomness (0.0-1.0)
+                - max_tokens (int): Maximum tokens to generate
 
         Returns:
-            The generated text response
+            str: The mock generated text response
+
+        Raises:
+            RuntimeError: If generation fails (simulated errors)
+
+        Example:
+            ```python
+            provider = MockProvider(model_name="mock-model")
+
+            # Basic invocation
+            response = provider.invoke("Explain quantum computing")
+
+            # Invocation with configuration overrides
+            response = provider.invoke(
+                "Write a poem about AI",
+                temperature=0.9,
+                max_tokens=200
+            )
+            ```
         """
         # Track generation count in state
         import time
@@ -215,15 +282,40 @@ class MockProvider(ModelProviderCore):
         """
         Asynchronously invoke the model with a prompt.
 
-        This method delegates to agenerate if it exists, or falls back to
-        synchronous generate.
+        This method provides asynchronous invocation of the mock model. It delegates to
+        agenerate if it exists, or falls back to synchronous generate. It also tracks
+        statistics about the operation.
+
+        The async invocation process includes:
+        1. Tracking the start time
+        2. Calling agenerate if available, otherwise falling back to generate
+        3. Updating statistics in the state manager
+        4. Returning the generated text
 
         Args:
-            prompt: The prompt to send to the model
-            **kwargs: Additional keyword arguments to pass to the model
+            prompt (str): The prompt to send to the model
+            **kwargs: Additional keyword arguments to override configuration
+                - temperature (float): Controls randomness (0.0-1.0)
+                - max_tokens (int): Maximum tokens to generate
 
         Returns:
-            The generated text response
+            str: The mock generated text response
+
+        Raises:
+            RuntimeError: If generation fails (simulated errors)
+
+        Example:
+            ```python
+            import asyncio
+
+            async def generate_text():
+                provider = MockProvider(model_name="mock-model")
+                response = await provider.ainvoke("Explain quantum computing")
+                return response
+
+            # Run the async function
+            response = asyncio.run(generate_text())
+            ```
         """
         # Track generation count in state
         import time
@@ -257,11 +349,29 @@ class MockProvider(ModelProviderCore):
             raise
 
     def _create_default_client(self) -> APIClient:
-        """Create a default mock API client."""
+        """
+        Create a default mock API client.
+
+        This method creates and returns a new MockAPIClient instance with the API key
+        from the provider's configuration. It's called by the ModelProviderCore
+        when no custom client is provided.
+
+        Returns:
+            APIClient: A new MockAPIClient instance
+        """
         return MockAPIClient(api_key=self._state_manager.get("config").api_key)
 
     def _create_default_token_counter(self) -> TokenCounter:
-        """Create a default mock token counter."""
+        """
+        Create a default mock token counter.
+
+        This method creates and returns a new MockTokenCounter instance for the
+        provider's model. It's called by the ModelProviderCore when no custom
+        token counter is provided.
+
+        Returns:
+            TokenCounter: A new MockTokenCounter instance
+        """
         return MockTokenCounter(model=self._state_manager.get("model_name"))
 
     @property
@@ -278,8 +388,30 @@ class MockProvider(ModelProviderCore):
         """
         Get statistics about provider usage.
 
+        This method returns a dictionary with statistics about the provider's usage,
+        including generation count, token count calls, error count, and processing time.
+
+        The statistics include:
+        - generation_count: Number of text generation calls
+        - token_count_calls: Number of token counting calls
+        - error_count: Number of errors encountered
+        - total_processing_time: Total processing time in milliseconds
+        - Any additional statistics from the tracing manager
+
         Returns:
-            Dictionary with usage statistics
+            Dict[str, Any]: Dictionary with usage statistics
+
+        Example:
+            ```python
+            provider = MockProvider(model_name="mock-model")
+            provider.generate("Hello, world!")
+            provider.count_tokens("How many tokens?")
+
+            # Get usage statistics
+            stats = provider.get_statistics()
+            print(f"Generation count: {stats['generation_count']}")
+            print(f"Token count calls: {stats['token_count_calls']}")
+            ```
         """
         # Get statistics from tracing manager and state
         tracing_manager = self._state_manager.get("tracing_manager")

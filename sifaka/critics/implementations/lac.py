@@ -1,11 +1,22 @@
 """
-LAC (LLM-Based Actor-Critic) critic module for Sifaka.
+LAC (LLM-Based Actor-Critic) Critic Module
 
-This module implements the LAC approach for critics, which combines language feedback
+A module implementing the LAC approach for critics, which combines language feedback
 and value scoring to improve language model-based decision making.
+
+## Overview
+This module provides a comprehensive implementation of the LLM-Based Actor-Critic (LAC)
+approach for text evaluation and improvement. It combines natural language feedback
+with numeric value scoring to enhance language model outputs.
 
 Based on: Language Feedback Improves Language Model-based Decision Making
 https://arxiv.org/abs/2403.03692
+
+## Components
+- FeedbackCritic: Provides detailed natural language feedback on text
+- ValueCritic: Assigns numeric quality scores to text
+- LACCritic: Combines feedback and value critics for comprehensive evaluation
+- Factory functions for creating configured critic instances
 
 ## Component Lifecycle
 
@@ -28,30 +39,44 @@ https://arxiv.org/abs/2403.03692
    - State reset
    - Error recovery
 
-Example:
-    ```python
-    from sifaka.critics.implementations.lac import create_lac_critic
-    from sifaka.models.providers import OpenAIProvider
+## Usage Examples
+```python
+from sifaka.critics.implementations.lac import create_lac_critic
+from sifaka.models.providers import OpenAIProvider
 
-    # Create a language model provider
-    provider = OpenAIProvider(api_key="your-api-key")
+# Create a language model provider
+provider = OpenAIProvider(api_key="your-api-key")
 
-    # Create a LAC critic
-    critic = create_lac_critic(llm_provider=provider)
+# Create a LAC critic
+critic = create_lac_critic(llm_provider=provider)
 
-    # Use the critic to improve text
-    task = "Summarize the causes of World War I in 3 bullet points."
-    response = provider.generate(f"Task:\n{task}")
-    results = critic.critique(response, {"task": task})
+# Use the critic to improve text
+task = "Summarize the causes of World War I in 3 bullet points."
+response = provider.generate(f"Task:\n{task}")
+results = critic.critique(response, {"task": task})
 
-    print("Feedback:", results["feedback"])
-    print("Value Score:", results["value"])
-    ```
+print("Feedback:", results["feedback"])
+print("Value Score:", results["value"])
+```
+
+## Error Handling
+The module implements comprehensive error handling with specific exceptions for:
+- Configuration errors (ValueError)
+- Initialization failures (RuntimeError)
+- Provider compatibility issues (TypeError)
+- Input validation errors (ValueError)
+
+## Configuration
+All critics support configuration through Pydantic models with options for:
+- Language model provider settings
+- Prompt templates
+- Temperature and token limits
+- Performance tracking
+- Caching behavior
 """
 
-import json
 import time
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Union
 
 from pydantic import Field, PrivateAttr, ConfigDict
 
@@ -87,7 +112,20 @@ class FeedbackCritic(BaseComponent[str, CriticResult], TextValidator, TextImprov
     A critic that produces natural language feedback for a model's response to a task.
 
     This critic analyzes text and provides detailed feedback on what could be
-    improved or what was done well.
+    improved or what was done well. It focuses on qualitative assessment rather
+    than numeric scoring.
+
+    ## Architecture
+    The FeedbackCritic implements multiple interfaces:
+    - BaseComponent: Core component functionality
+    - TextValidator: Text quality validation
+    - TextImprover: Text improvement capabilities
+    - TextCritic: Text critique and analysis
+
+    ## Lifecycle
+    1. **Initialization**: Configure with LLM provider and settings
+    2. **Operation**: Process text through validation, critique, or improvement
+    3. **Cleanup**: Release resources and reset state
 
     ## State Management
     The class uses a standardized state management approach:
@@ -99,6 +137,29 @@ class FeedbackCritic(BaseComponent[str, CriticResult], TextValidator, TextImprov
       - model: Language model provider
       - initialized: Initialization status
       - cache: Temporary data storage
+
+    ## Error Handling
+    - ValueError: For invalid inputs or configuration
+    - RuntimeError: For initialization or processing failures
+    - All errors are tracked if track_errors is enabled
+
+    ## Examples
+    ```python
+    from sifaka.critics.implementations.lac import create_feedback_critic
+    from sifaka.models.providers import OpenAIProvider
+
+    provider = OpenAIProvider(api_key="your-api-key")
+    critic = create_feedback_critic(llm_provider=provider)
+
+    task = "Write a concise summary of quantum computing."
+    response = "Quantum computers use qubits."
+
+    feedback = critic.run(task, response)
+    print(feedback)
+    ```
+
+    Attributes:
+        config (FeedbackCriticConfig): Configuration settings for the critic
     """
 
     # Pydantic v2 configuration
@@ -857,7 +918,19 @@ class ValueCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover,
     A critic that estimates a numeric value for a model's response to a task.
 
     This critic analyzes text and provides a numeric score (e.g., probability of success)
-    for the response.
+    for the response. It focuses on quantitative assessment rather than qualitative feedback.
+
+    ## Architecture
+    The ValueCritic implements multiple interfaces:
+    - BaseComponent: Core component functionality
+    - TextValidator: Text quality validation
+    - TextImprover: Text improvement capabilities
+    - TextCritic: Text critique and analysis
+
+    ## Lifecycle
+    1. **Initialization**: Configure with LLM provider and scoring settings
+    2. **Operation**: Process text to generate numeric scores
+    3. **Cleanup**: Release resources and reset state
 
     ## State Management
     The class uses a standardized state management approach:
@@ -869,6 +942,29 @@ class ValueCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover,
       - model: Language model provider
       - initialized: Initialization status
       - cache: Temporary data storage
+
+    ## Error Handling
+    - ValueError: For invalid inputs or configuration
+    - RuntimeError: For initialization or processing failures
+    - All errors are tracked if track_errors is enabled
+
+    ## Examples
+    ```python
+    from sifaka.critics.implementations.lac import create_value_critic
+    from sifaka.models.providers import OpenAIProvider
+
+    provider = OpenAIProvider(api_key="your-api-key")
+    critic = create_value_critic(llm_provider=provider)
+
+    task = "Write a concise summary of quantum computing."
+    response = "Quantum computers use qubits."
+
+    score = critic.run(task, response)
+    print(f"Quality score: {score:.2f}")
+    ```
+
+    Attributes:
+        config (ValueCriticConfig): Configuration settings for the critic
     """
 
     # Pydantic v2 configuration
@@ -1116,10 +1212,27 @@ class LACCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, T
     A critic that implements the LLM-Based Actor-Critic (LAC) approach.
 
     This critic combines language feedback and value scoring to improve
-    language model-based decision making.
+    language model-based decision making. It integrates both qualitative feedback
+    and quantitative assessment for comprehensive text evaluation.
 
     Based on: Language Feedback Improves Language Model-based Decision Making
     https://arxiv.org/abs/2403.03692
+
+    ## Architecture
+    The LACCritic implements multiple interfaces:
+    - BaseComponent: Core component functionality
+    - TextValidator: Text quality validation
+    - TextImprover: Text improvement capabilities
+    - TextCritic: Text critique and analysis
+
+    It composes two specialized critics:
+    - FeedbackCritic: For qualitative natural language feedback
+    - ValueCritic: For quantitative scoring
+
+    ## Lifecycle
+    1. **Initialization**: Configure with LLM provider and create sub-critics
+    2. **Operation**: Process text through both feedback and value components
+    3. **Cleanup**: Release resources and reset state for all components
 
     ## State Management
     The class uses a standardized state management approach:
@@ -1131,6 +1244,30 @@ class LACCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, T
       - model: Language model provider
       - initialized: Initialization status
       - cache: Temporary data storage containing feedback and value critics
+
+    ## Error Handling
+    - ValueError: For invalid inputs or configuration
+    - RuntimeError: For initialization or processing failures
+    - All errors are tracked if track_errors is enabled
+
+    ## Examples
+    ```python
+    from sifaka.critics.implementations.lac import create_lac_critic
+    from sifaka.models.providers import OpenAIProvider
+
+    provider = OpenAIProvider(api_key="your-api-key")
+    critic = create_lac_critic(llm_provider=provider)
+
+    task = "Write a concise summary of quantum computing."
+    response = "Quantum computers use qubits."
+
+    result = critic.critique(response, {"task": task})
+    print(f"Feedback: {result['feedback']}")
+    print(f"Value: {result['value']}")
+    ```
+
+    Attributes:
+        config (LACCriticConfig): Configuration settings for the critic
     """
 
     # Pydantic v2 configuration
@@ -1435,7 +1572,14 @@ def create_feedback_critic(
     Create a feedback critic with the given parameters.
 
     This factory function creates a configured feedback critic instance
-    that provides natural language feedback for text.
+    that provides natural language feedback for text. It handles configuration
+    creation, validation, and critic instantiation.
+
+    Detailed description of what the method does:
+    - Creates a default configuration if none is provided
+    - Updates configuration with any provided parameters
+    - Validates the configuration
+    - Instantiates and returns a FeedbackCritic
 
     Args:
         llm_provider: The language model provider to use
@@ -1454,11 +1598,30 @@ def create_feedback_critic(
         **kwargs: Additional configuration parameters
 
     Returns:
-        A configured FeedbackCritic instance
+        FeedbackCritic: A configured FeedbackCritic instance
 
     Raises:
         ValueError: If configuration is invalid
         TypeError: If llm_provider is not a valid provider
+
+    Example:
+        ```python
+        from sifaka.critics.implementations.lac import create_feedback_critic
+        from sifaka.models.providers import OpenAIProvider
+
+        provider = OpenAIProvider(api_key="your-api-key")
+
+        # Create with default settings
+        critic = create_feedback_critic(llm_provider=provider)
+
+        # Create with custom settings
+        custom_critic = create_feedback_critic(
+            llm_provider=provider,
+            name="custom_feedback",
+            temperature=0.5,
+            max_tokens=500
+        )
+        ```
     """
     try:
         # Create config if not provided
@@ -1534,7 +1697,14 @@ def create_value_critic(
     Create a value critic with the given parameters.
 
     This factory function creates a configured value critic instance
-    that provides numeric value scoring for text.
+    that provides numeric value scoring for text. It handles configuration
+    creation, validation, and critic instantiation.
+
+    Detailed description of what the method does:
+    - Creates a default configuration if none is provided
+    - Updates configuration with any provided parameters
+    - Validates the configuration
+    - Instantiates and returns a ValueCritic
 
     Args:
         llm_provider: The language model provider to use
@@ -1555,11 +1725,31 @@ def create_value_critic(
         **kwargs: Additional configuration parameters
 
     Returns:
-        A configured ValueCritic instance
+        ValueCritic: A configured ValueCritic instance
 
     Raises:
         ValueError: If configuration is invalid
         TypeError: If llm_provider is not a valid provider
+
+    Example:
+        ```python
+        from sifaka.critics.implementations.lac import create_value_critic
+        from sifaka.models.providers import OpenAIProvider
+
+        provider = OpenAIProvider(api_key="your-api-key")
+
+        # Create with default settings
+        critic = create_value_critic(llm_provider=provider)
+
+        # Create with custom settings
+        custom_critic = create_value_critic(
+            llm_provider=provider,
+            name="custom_value",
+            temperature=0.3,
+            min_score=0.0,
+            max_score=10.0
+        )
+        ```
     """
     try:
         # Create config if not provided
@@ -1638,7 +1828,15 @@ def create_lac_critic(
     Create a LAC critic with the given parameters.
 
     This factory function creates a configured LAC critic instance
-    that combines language feedback and value scoring.
+    that combines language feedback and value scoring. It implements
+    the LLM-Based Actor-Critic approach for comprehensive text evaluation.
+
+    Detailed description of what the method does:
+    - Creates a default configuration if none is provided
+    - Updates configuration with any provided parameters
+    - Validates the configuration
+    - Creates and configures feedback and value sub-critics
+    - Instantiates and returns a LACCritic
 
     Args:
         llm_provider: The language model provider to use
@@ -1658,11 +1856,33 @@ def create_lac_critic(
         **kwargs: Additional configuration parameters
 
     Returns:
-        A configured LACCritic instance
+        LACCritic: A configured LACCritic instance
 
     Raises:
         ValueError: If configuration is invalid
         TypeError: If llm_provider is not a valid provider
+
+    Example:
+        ```python
+        from sifaka.critics.implementations.lac import create_lac_critic
+        from sifaka.models.providers import OpenAIProvider
+
+        provider = OpenAIProvider(api_key="your-api-key")
+
+        # Create with default settings
+        critic = create_lac_critic(llm_provider=provider)
+
+        # Create with custom settings
+        custom_critic = create_lac_critic(
+            llm_provider=provider,
+            name="custom_lac",
+            temperature=0.5,
+            feedback_prompt_template="Provide detailed feedback on this text: {response}"
+        )
+
+        # Use the critic
+        result = critic.critique("This is a test", {"task": "Evaluate this text"})
+        ```
     """
     try:
         # Create config if not provided

@@ -11,6 +11,40 @@ API communication, token counting, response processing, and execution tracking.
 
 ## Components
 - **OpenAIProvider**: Main provider class for OpenAI models
+- **OpenAIClientManager**: Manages OpenAI API client creation and configuration
+- **OpenAITokenCounterManager**: Manages token counting for OpenAI models
+
+## Usage Examples
+```python
+from sifaka.models.providers.openai import OpenAIProvider
+from sifaka.utils.config import ModelConfig
+
+# Create a provider with default configuration
+provider = OpenAIProvider(model_name="gpt-4")
+
+# Create a provider with custom configuration
+config = ModelConfig(
+    temperature=0.7,
+    max_tokens=1000,
+    api_key="your-api-key",
+    trace_enabled=True,
+)
+provider = OpenAIProvider(model_name="gpt-4", config=config)
+
+# Generate text
+response = provider.generate("Explain quantum computing")
+
+# Count tokens
+token_count = provider.count_tokens("How many tokens is this?")
+```
+
+## Error Handling
+The provider implements comprehensive error handling:
+- API authentication errors
+- Rate limiting and quota errors
+- Network and timeout errors
+- Model-specific errors
+- Input validation errors
 """
 
 import time
@@ -38,6 +72,53 @@ class OpenAIProvider(ModelProviderProtocol):
     This provider supports OpenAI models with configurable parameters,
     built-in token counting, and execution tracking. It handles communication
     with OpenAI's API, token counting, and response processing.
+
+    ## Architecture
+    OpenAIProvider implements the ModelProviderProtocol and follows Sifaka's component-based
+    architecture. It delegates API communication to OpenAIClientManager and token counting
+    to OpenAITokenCounterManager. The provider uses standardized state management through
+    the StateManager from utils/state.py.
+
+    ## Lifecycle
+    1. Initialization: Creates client and token counter managers
+    2. Warm-up: Initializes API client and token counter
+    3. Operation: Handles text generation and token counting
+    4. Cleanup: Releases resources when no longer needed
+
+    ## Error Handling
+    The provider uses standardized error handling through utils/errors.py:
+    - safely_execute_component_operation for operation execution
+    - ModelError for standardized error reporting
+    - Error recording in state manager for debugging
+
+    ## Examples
+    ```python
+    from sifaka.models.providers.openai import OpenAIProvider
+    from sifaka.utils.config import ModelConfig
+
+    # Create a provider with default configuration
+    provider = OpenAIProvider(model_name="gpt-4")
+
+    # Create a provider with custom configuration
+    config = ModelConfig(
+        temperature=0.7,
+        max_tokens=1000,
+        api_key="your-api-key",
+        trace_enabled=True,
+    )
+    provider = OpenAIProvider(model_name="gpt-4", config=config)
+
+    # Generate text
+    response = provider.generate("Explain quantum computing")
+
+    # Count tokens
+    token_count = provider.count_tokens("How many tokens is this?")
+    ```
+
+    Attributes:
+        _state_manager (StateManager): Manages provider state
+        _client_manager (OpenAIClientManager): Manages API client
+        _token_counter_manager (OpenAITokenCounterManager): Manages token counter
     """
 
     # Class constants
@@ -227,6 +308,20 @@ class OpenAIProvider(ModelProviderProtocol):
     def warm_up(self) -> None:
         """
         Initialize resources needed by the OpenAI provider.
+
+        This method initializes the API client and token counter, storing them in the
+        state manager for later use. It's called automatically before the first operation
+        if the provider hasn't been initialized yet.
+
+        The warm-up process includes:
+        1. Getting the API client from the client manager
+        2. Getting the token counter from the token counter manager
+        3. Storing both in the state manager
+        4. Marking the provider as initialized
+
+        Raises:
+            ImportError: If the OpenAI package is not installed
+            ModelError: If initialization fails due to API issues
         """
         # Ensure component is not already initialized
         if self._state_manager.get("initialized", False):
@@ -248,6 +343,21 @@ class OpenAIProvider(ModelProviderProtocol):
     def cleanup(self) -> None:
         """
         Release resources used by the OpenAI provider.
+
+        This method releases any resources used by the provider, including:
+        1. Closing the API client if it has a close method
+        2. Resetting statistics
+        3. Marking the provider as not initialized
+
+        The provider can be reused after cleanup by calling warm_up() again.
+
+        Example:
+            ```python
+            provider = OpenAIProvider(model_name="gpt-4")
+            provider.generate("Hello")  # Automatically warms up
+            provider.cleanup()  # Release resources
+            provider.warm_up()  # Reinitialize for reuse
+            ```
         """
         # Check if already cleaned up
         if not self._state_manager.get("initialized", False):
@@ -278,12 +388,48 @@ class OpenAIProvider(ModelProviderProtocol):
         """
         Generate text from a prompt.
 
+        This method sends a prompt to the OpenAI API and returns the generated text.
+        It automatically initializes the provider if needed, and handles configuration
+        overrides through kwargs.
+
+        The generation process includes:
+        1. Ensuring the provider is initialized
+        2. Getting the API client from state
+        3. Applying configuration overrides from kwargs
+        4. Sending the prompt to the API
+        5. Returning the generated text
+
         Args:
-            prompt: The prompt to send to the model
-            **kwargs: Additional keyword arguments to pass to the model
+            prompt (str): The prompt to send to the model
+            **kwargs: Additional keyword arguments to override configuration
+                - temperature (float): Controls randomness (0.0-2.0)
+                - max_tokens (int): Maximum tokens to generate
+                - top_p (float): Nucleus sampling parameter
+                - frequency_penalty (float): Penalizes repeated tokens
+                - presence_penalty (float): Penalizes repeated topics
+                - stop (List[str]): Sequences that stop generation
 
         Returns:
-            The generated text response
+            str: The generated text response
+
+        Raises:
+            ModelError: If generation fails due to API issues
+            ValueError: If invalid configuration is provided
+
+        Example:
+            ```python
+            provider = OpenAIProvider(model_name="gpt-4")
+
+            # Basic generation
+            response = provider.generate("Explain quantum computing")
+
+            # Generation with configuration overrides
+            response = provider.generate(
+                "Write a poem about AI",
+                temperature=0.9,
+                max_tokens=200
+            )
+            ```
         """
         # Ensure component is initialized
         if not self._state_manager.get("initialized", False):
@@ -312,11 +458,38 @@ class OpenAIProvider(ModelProviderProtocol):
         """
         Count tokens in the text.
 
+        This method counts the number of tokens in the provided text using the
+        appropriate tokenizer for the current model. It automatically initializes
+        the provider if needed.
+
+        The token counting process includes:
+        1. Ensuring the provider is initialized
+        2. Getting the token counter from state
+        3. Counting tokens using the token counter
+        4. Updating token counting statistics
+
         Args:
-            text: The text to count tokens for
+            text (str): The text to count tokens for
 
         Returns:
-            The number of tokens in the text
+            int: The number of tokens in the text
+
+        Raises:
+            ModelError: If token counting fails
+            ValueError: If the text is invalid
+
+        Example:
+            ```python
+            provider = OpenAIProvider(model_name="gpt-4")
+
+            # Count tokens in a string
+            token_count = provider.count_tokens("How many tokens is this?")
+
+            # Count tokens in a longer text
+            with open("document.txt", "r") as f:
+                text = f.read()
+                token_count = provider.count_tokens(text)
+            ```
         """
         # Ensure component is initialized
         if not self._state_manager.get("initialized", False):
@@ -340,8 +513,30 @@ class OpenAIProvider(ModelProviderProtocol):
         """
         Get statistics about provider usage.
 
+        This method returns a dictionary with statistics about the provider's usage,
+        including generation count, token count calls, error count, and processing time.
+
+        The statistics include:
+        - generation_count: Number of text generation calls
+        - token_count_calls: Number of token counting calls
+        - error_count: Number of errors encountered
+        - total_processing_time: Total processing time in milliseconds
+        - Any additional statistics from the tracing manager
+
         Returns:
-            Dictionary with usage statistics
+            Dict[str, Any]: Dictionary with usage statistics
+
+        Example:
+            ```python
+            provider = OpenAIProvider(model_name="gpt-4")
+            provider.generate("Hello, world!")
+            provider.count_tokens("How many tokens?")
+
+            # Get usage statistics
+            stats = provider.get_statistics()
+            print(f"Generation count: {stats['generation_count']}")
+            print(f"Token count calls: {stats['token_count_calls']}")
+            ```
         """
         # Get statistics from tracing manager and state
         tracing_manager = self._state_manager.get("tracing_manager")

@@ -5,27 +5,73 @@ This module implements the Self-Refine approach for critics, which enables langu
 to iteratively critique and revise their own outputs without requiring external feedback.
 The critic uses the same language model to generate critiques and revisions in multiple rounds.
 
+## Overview
+The SelfRefineCritic is a specialized implementation of the critic interface
+that enables language models to iteratively improve their own outputs through
+self-critique and revision. It implements a multi-round refinement process
+where the model critiques its own output and then revises it based on that
+critique, leading to progressively improved results without external feedback.
+
+## Components
+- **SelfRefineCritic**: Main class implementing TextValidator, TextImprover, and TextCritic
+- **create_self_refine_critic**: Factory function for creating SelfRefineCritic instances
+- **PromptManager**: Creates prompts for critique and revision phases
+- **ResponseParser**: Parses and validates model responses
+
+## Architecture
+The SelfRefineCritic follows an iterative refinement architecture:
+- Uses standardized state management with _state_manager
+- Implements a multi-round refinement process
+- Provides automatic stopping criteria based on critique quality
+- Implements both sync and async interfaces
+- Provides comprehensive error handling and recovery
+- Tracks performance and iteration statistics
+
+## Usage Examples
+```python
+from sifaka.critics.implementations.self_refine import create_self_refine_critic
+from sifaka.models.providers import OpenAIProvider
+
+# Create a language model provider
+provider = OpenAIProvider(api_key="your-api-key")
+
+# Create a self-refine critic
+critic = create_self_refine_critic(
+    llm_provider=provider,
+    max_iterations=3,
+    temperature=0.7,
+    system_prompt="You are an expert editor focused on clarity and accuracy."
+)
+
+# Use the critic to improve text
+task = "Write a concise explanation of quantum computing."
+initial_output = "Quantum computing uses quantum bits."
+improved_output = critic.improve(initial_output, {"task": task})
+print(f"Improved output: {improved_output}")
+
+# Get critique for text
+critique = critic.critique(initial_output, {"task": task})
+print(f"Score: {critique['score']}")
+print(f"Feedback: {critique['feedback']}")
+
+# Validate text
+is_valid = critic.validate(initial_output, {"task": task})
+print(f"Is valid: {is_valid}")
+
+# Improve with specific feedback
+feedback = "The explanation should include more details about qubits."
+improved_output = critic.improve_with_feedback(initial_output, feedback)
+```
+
+## Error Handling
+The module implements comprehensive error handling for:
+- Input validation (empty text, invalid types)
+- Initialization errors (missing provider, invalid config)
+- Processing errors (model failures, timeout issues)
+- Resource management (cleanup, state preservation)
+
+## References
 Based on Self-Refine: https://arxiv.org/abs/2303.17651
-
-Example:
-    ```python
-    from sifaka.critics.implementations.self_refine import create_self_refine_critic
-    from sifaka.models.providers import OpenAIProvider
-
-    # Create a language model provider
-    provider = OpenAIProvider(api_key="your-api-key")
-
-    # Create a self-refine critic
-    critic = create_self_refine_critic(
-        llm_provider=provider,
-        max_iterations=3
-    )
-
-    # Use the critic to improve text
-    task = "Write a concise explanation of quantum computing."
-    initial_output = "Quantum computing uses quantum bits."
-    improved_output = critic.improve(initial_output, {"task": task})
-    ```
 """
 
 import json
@@ -50,30 +96,61 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
     A critic that implements the Self-Refine approach for iterative self-improvement.
 
     This critic uses the same language model to critique and revise its own outputs
-    in multiple iterations, leading to progressively improved results.
+    in multiple iterations, leading to progressively improved results. It implements
+    the TextValidator, TextImprover, and TextCritic interfaces to provide a comprehensive
+    set of text analysis capabilities with iterative self-refinement.
 
     Based on Self-Refine: https://arxiv.org/abs/2303.17651
 
-    ## Lifecycle Management
+    ## Architecture
+    The SelfRefineCritic follows an iterative refinement architecture:
+    - Uses standardized state management with _state_manager
+    - Implements a multi-round refinement process
+    - Provides automatic stopping criteria based on critique quality
+    - Implements both sync and async interfaces
+    - Provides comprehensive error handling and recovery
+    - Tracks performance and iteration statistics
 
-    The SelfRefineCritic manages its lifecycle through three main phases:
+    ## Lifecycle
+    1. **Initialization**: Set up with configuration and dependencies
+       - Create/validate config
+       - Initialize language model provider
+       - Set up prompt manager
+       - Initialize memory manager
+       - Set up state tracking
 
-    1. **Initialization**
-       - Validates configuration
-       - Sets up language model provider
-       - Initializes state
-       - Allocates resources
+    2. **Operation**: Process text through various methods
+       - validate(): Check if text meets quality standards
+       - critique(): Analyze text and provide detailed feedback
+       - improve(): Enhance text through multiple iterations of self-critique and revision
+       - improve_with_feedback(): Enhance text based on specific feedback
 
-    2. **Operation**
-       - Validates text
-       - Critiques text
-       - Improves text through multiple iterations
-       - Tracks improvements
+    3. **Cleanup**: Manage resources and finalize state
+       - Release resources
+       - Reset state
+       - Log final status
+       - Track performance metrics
 
-    3. **Cleanup**
-       - Releases resources
-       - Resets state
-       - Logs final status
+    ## Examples
+    ```python
+    from sifaka.critics.implementations.self_refine import create_self_refine_critic
+    from sifaka.models.providers import OpenAIProvider
+
+    # Create a language model provider
+    provider = OpenAIProvider(api_key="your-api-key")
+
+    # Create a self-refine critic
+    critic = create_self_refine_critic(
+        llm_provider=provider,
+        max_iterations=3,
+        temperature=0.7
+    )
+
+    # Use the critic to improve text
+    task = "Write a concise explanation of quantum computing."
+    initial_output = "Quantum computing uses quantum bits."
+    improved_output = critic.improve(initial_output, {"task": task})
+    ```
     """
 
     # Class constants
@@ -753,7 +830,59 @@ def create_self_refine_critic(
     Create a self-refine critic with the given parameters.
 
     This factory function creates and configures a SelfRefineCritic instance with
-    the specified parameters and components.
+    the specified parameters and components. It provides a convenient way to create
+    a self-refine critic with customized settings for iterative text improvement.
+
+    ## Architecture
+    The factory function follows the Factory Method pattern to:
+    - Create standardized configuration objects
+    - Instantiate critic classes with consistent parameters
+    - Support optional parameter overrides
+    - Provide type safety through return types
+    - Handle error cases gracefully
+
+    ## Lifecycle
+    1. **Configuration**: Create and validate configuration
+       - Use default configuration as base
+       - Apply provided parameter overrides
+       - Validate configuration values
+       - Handle configuration errors
+
+    2. **Instantiation**: Create and initialize critic
+       - Create SelfRefineCritic instance
+       - Initialize with resolved dependencies
+       - Apply configuration
+       - Handle initialization errors
+
+    ## Examples
+    ```python
+    from sifaka.critics.implementations.self_refine import create_self_refine_critic
+    from sifaka.models.providers import OpenAIProvider
+
+    # Create with basic parameters
+    provider = OpenAIProvider(api_key="your-api-key")
+    critic = create_self_refine_critic(
+        llm_provider=provider,
+        max_iterations=3,
+        temperature=0.7,
+        system_prompt="You are an expert editor focused on clarity and accuracy."
+    )
+
+    # Create with custom configuration
+    from sifaka.critics.config import SelfRefineCriticConfig
+    config = SelfRefineCriticConfig(
+        name="custom_self_refine_critic",
+        description="A custom self-refine critic",
+        system_prompt="You are an expert editor focused on clarity and accuracy.",
+        temperature=0.5,
+        max_tokens=2000,
+        max_iterations=5
+    )
+    critic = create_self_refine_critic(
+        llm_provider=provider,
+        config=config
+    )
+    ```
 
     Args:
         llm_provider: Language model provider to use

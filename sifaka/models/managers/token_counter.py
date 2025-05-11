@@ -3,6 +3,44 @@ Token counter manager for model providers.
 
 This module provides the TokenCounterManager class which is responsible for
 managing token counters for model providers.
+
+## Overview
+The token counter manager module provides a standardized way to create, manage, and use
+token counters for different model providers. It handles counter lifecycle management,
+lazy initialization, and provides a consistent interface for token counting operations.
+
+## Components
+- **TokenCounterManager**: Abstract base class for managing token counters
+- **Provider-specific managers**: Concrete implementations for specific providers (e.g., AnthropicTokenCounterManager)
+
+## Usage Examples
+```python
+from sifaka.models.managers.token_counter import TokenCounterManager
+
+# Create a token counter manager
+class MyTokenCounterManager(TokenCounterManager):
+    def _create_default_token_counter(self):
+        return MyTokenCounter(model=self._model_name)
+
+# Use the token counter manager
+manager = MyTokenCounterManager(model_name="my-model")
+
+# Count tokens in text
+token_count = manager.count_tokens("How many tokens is this?")
+```
+
+## Error Handling
+The token counter manager implements several error handling patterns:
+- Lazy initialization to defer token counter creation until needed
+- Abstract factory method pattern for provider-specific counter creation
+- Type checking for input validation
+- Proper error propagation with context for debugging
+- Logging for tracking counter lifecycle events
+
+## Configuration
+Token counter managers are configured with:
+- **model_name**: Name of the model to create token counters for
+- **token_counter**: Optional pre-configured token counter
 """
 
 from abc import abstractmethod

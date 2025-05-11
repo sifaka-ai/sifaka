@@ -1,9 +1,22 @@
 """
-Base classes for Sifaka rules.
+Base Classes for Sifaka Rules
 
 This module defines the core architecture for rules in Sifaka,
 providing the foundation for all validation components in the framework.
 
+## Overview
+The rules system is a key validation component in Sifaka that enables
+content and format validation across the framework. It follows a delegation pattern
+where high-level rule containers define what to validate, while validators
+implement the actual validation logic.
+
+## Components
+- Rule: Base class for all rules
+- RuleConfig: Configuration for rules
+- RuleResult: Result from rule validation
+- FunctionRule: Rule that uses a function for validation
+
+## Architecture
 The rules system follows a delegation pattern:
 1. Rules are high-level containers that define what to validate
 2. Validators implement the actual validation logic
@@ -13,6 +26,50 @@ This separation of concerns allows for:
 - Reusing validation logic across different rules
 - Testing validation logic independently
 - Extending the framework with custom validators
+
+## Usage Examples
+```python
+from sifaka.rules.base import FunctionRule, RuleResult
+from sifaka.rules.config import RuleConfig
+
+# Create a simple function-based rule
+def validate_length(text: str) -> RuleResult:
+    if len(text) < 10:
+        return RuleResult(
+            passed=False,
+            message="Text is too short",
+            issues=["Text must be at least 10 characters"]
+        )
+    return RuleResult(passed=True, message="Text length is valid")
+
+# Create a rule with the validation function
+rule = FunctionRule(
+    name="length_rule",
+    func=validate_length,
+    description="Validates text length",
+    config=RuleConfig(severity="warning", category="formatting")
+)
+
+# Validate some text
+result = rule.validate("Hello")  # Will fail
+print(result.passed)  # False
+print(result.message)  # "Text is too short"
+
+result = rule.validate("Hello, world! This is a longer text.")  # Will pass
+print(result.passed)  # True
+```
+
+## Error Handling
+Rules use a standardized error handling approach:
+- Validation errors are captured and returned as RuleResult objects
+- System errors are logged and can be tracked via the rule's state manager
+- The safely_execute_rule utility is used to ensure consistent error handling
+
+## State Management
+Rules use the StateManager from sifaka.utils.state for managing internal state:
+- Performance metrics are tracked when enabled
+- Error occurrences are recorded when enabled
+- Rule metadata is stored for debugging and monitoring
 """
 
 from abc import abstractmethod
@@ -151,10 +208,64 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
     Rules are high-level components that define what to validate.
     They delegate the actual validation work to validators.
 
-    Lifecycle:
-        1. Initialization: Set up with validator and configuration
-        2. Validation: Delegate to validator and process results
-        3. Result: Return standardized validation results with metadata
+    ## Architecture
+    Rules follow a component-based architecture:
+    - They extend BaseComponent for consistent interfaces
+    - They use validators for the actual validation logic
+    - They manage state using StateManager
+    - They produce standardized RuleResult objects
+
+    ## Lifecycle
+    1. Initialization: Set up with validator and configuration
+       - Create default validator if none provided
+       - Initialize state manager with metadata
+    2. Validation: Delegate to validator and process results
+       - Validate input type compatibility
+       - Handle empty inputs
+       - Delegate to validator for actual validation
+       - Process and standardize results
+    3. Result: Return standardized validation results with metadata
+       - Add rule metadata (severity, category, tags)
+       - Track performance metrics
+       - Record errors if they occur
+
+    ## Error Handling
+    - Input validation errors return a failed RuleResult
+    - Validator compatibility errors return a failed RuleResult
+    - Implementation errors are caught and converted to failed RuleResults
+    - All errors are logged and can be tracked via statistics
+
+    ## Examples
+    ```python
+    from sifaka.rules.base import Rule, RuleResult
+    from sifaka.rules.validators import RuleValidator
+
+    # Create a custom validator
+    class LengthValidator(RuleValidator[str]):
+        def validate(self, input: str) -> RuleResult:
+            if len(input) < 10:
+                return RuleResult(
+                    passed=False,
+                    message="Text is too short",
+                    issues=["Text must be at least 10 characters"]
+                )
+            return RuleResult(passed=True, message="Text length is valid")
+
+        def can_validate(self, input: Any) -> bool:
+            return isinstance(input, str)
+
+    # Create a custom rule
+    class LengthRule(Rule[str]):
+        def _create_default_validator(self) -> RuleValidator[str]:
+            return LengthValidator()
+
+    # Use the rule
+    rule = LengthRule(
+        name="length_rule",
+        description="Validates text length"
+    )
+    result = rule.validate("Hello")  # Will fail
+    ```
     """
 
     # State management using StateManager
@@ -171,12 +282,44 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
         """
         Initialize the rule.
 
+        Creates a new rule with the specified name, description, configuration,
+        and validator. If no validator is provided, the _create_default_validator
+        method is called to create one.
+
         Args:
             name: Name of the rule
             description: Description of the rule
             config: Configuration for the rule
             validator: Validator to use for validation
-            **kwargs: Additional keyword arguments for configuration
+            **kwargs: Additional keyword arguments for configuration including:
+                - severity: Severity level for rule violations
+                - category: Category of the rule
+                - tags: List of tags for categorizing the rule
+                - priority: Priority level for validation
+                - cache_size: Size of the validation cache
+                - cost: Computational cost of validation
+
+        Raises:
+            ValueError: If the rule cannot be initialized properly
+            TypeError: If the validator is not compatible with the rule
+
+        Example:
+            ```python
+            from sifaka.rules.base import Rule
+            from sifaka.rules.validators import RuleValidator
+
+            # Create a custom validator
+            validator = CustomValidator()
+
+            # Create a rule with the validator
+            rule = Rule(
+                name="custom_rule",
+                description="Custom validation rule",
+                validator=validator,
+                severity="warning",
+                category="content"
+            )
+            ```
         """
         super().__init__(name, description, config or RuleConfig(**kwargs))
         self._validator = validator or self._create_default_validator()
@@ -354,24 +497,63 @@ class FunctionRule(Rule[T]):
     This rule wraps a function that performs validation,
     making it easy to create simple rules without defining new classes.
 
-    Examples:
-        ```python
-        def validate_length(text: str) -> RuleResult:
-            if len(text) < 10:
-                return RuleResult(
-                    passed=False,
-                    message="Text is too short",
-                    issues=["Text must be at least 10 characters"]
-                )
-            return RuleResult(passed=True, message="Text length is valid")
+    ## Architecture
+    FunctionRule extends the base Rule class but simplifies rule creation by:
+    - Accepting a validation function in the constructor
+    - Creating a FunctionValidator that wraps the function
+    - Delegating validation to the function-based validator
 
-        rule = FunctionRule(
-            name="length_rule",
-            func=validate_length,
-            description="Validates text length"
+    ## Lifecycle
+    1. Initialization: Set up with validation function and configuration
+       - Create a FunctionValidator with the provided function
+       - Initialize base rule with the validator
+    2. Validation: Delegate to the function-based validator
+       - Input validation follows the base Rule pattern
+       - The wrapped function is called by the validator
+    3. Result: Return standardized validation results
+
+    ## Error Handling
+    - Function errors are caught and converted to failed RuleResults
+    - Type compatibility is checked before calling the function
+    - All errors are logged and can be tracked via statistics
+
+    ## Examples
+    ```python
+    from sifaka.rules.base import FunctionRule, RuleResult
+
+    # Define a validation function
+    def validate_length(text: str) -> RuleResult:
+        if len(text) < 10:
+            return RuleResult(
+                passed=False,
+                message="Text is too short",
+                issues=["Text must be at least 10 characters"],
+                score=0.0
+            )
+        return RuleResult(
+            passed=True,
+            message="Text length is valid",
+            score=1.0
         )
-        result = rule.validate("Hello")  # Will fail
-        ```
+
+    # Create a rule with the function
+    rule = FunctionRule(
+        name="length_rule",
+        func=validate_length,
+        description="Validates text length",
+        validation_type=str,  # Optional: specify input type
+        severity="warning",   # Optional: set severity level
+        category="formatting" # Optional: set category
+    )
+
+    # Validate text
+    result = rule.validate("Hello")  # Will fail
+    print(result.passed)  # False
+    print(result.message)  # "Text is too short"
+
+    result = rule.validate("Hello, world! This is a longer text.")  # Will pass
+    print(result.passed)  # True
+    ```
     """
 
     def __init__(
@@ -415,8 +597,16 @@ class FunctionRule(Rule[T]):
         This method is not used since we create the validator in __init__,
         but it's required by the abstract base class.
 
+        Returns:
+            RuleValidator[T]: This method does not actually return a validator.
+
         Raises:
             NotImplementedError: Always raised since this method should not be called
+
+        Note:
+            This method exists only to satisfy the abstract method requirement
+            from the base Rule class. It should never be called in practice
+            because FunctionRule always creates its validator in __init__.
         """
         raise NotImplementedError("FunctionRule requires a validator to be passed in __init__")
 
