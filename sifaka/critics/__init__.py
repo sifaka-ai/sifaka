@@ -11,7 +11,7 @@ from .base import CriticResultEnum as CriticResult
 from .core import CriticCore
 
 # Import configuration
-from .config import (
+from sifaka.utils.config import (
     CriticConfig,
     CriticMetadata,
     PromptCriticConfig,

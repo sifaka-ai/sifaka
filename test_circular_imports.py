@@ -35,29 +35,24 @@ def main():
         # Model modules
         "sifaka.models.base",
         "sifaka.models.core",
-        "sifaka.models.config",
         "sifaka.models.factories",
         "sifaka.models.providers.openai",
         "sifaka.models.providers.anthropic",
         # Chain modules
         "sifaka.chain.chain",
-        "sifaka.chain.config",
         "sifaka.chain.factories",
         "sifaka.chain.engine",
         "sifaka.chain.managers.memory",
         # Retrieval modules
         "sifaka.retrieval.core",
-        "sifaka.retrieval.config",
         "sifaka.retrieval.factories",
         # Classifier modules
         "sifaka.classifiers.classifier",
-        "sifaka.classifiers.config",
         "sifaka.classifiers.factories",
         "sifaka.classifiers.engine",
         # Critic modules
         "sifaka.critics.base",
         "sifaka.critics.core",
-        "sifaka.critics.config",
         "sifaka.critics.implementations.prompt",
         "sifaka.critics.strategies.improvement",
         # Adapter modules

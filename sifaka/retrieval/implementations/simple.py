@@ -60,7 +60,7 @@ from sifaka.utils.logging import get_logger
 from sifaka.utils.common import record_error
 
 from ..core import RetrieverCore
-from ..config import RetrieverConfig
+from sifaka.utils.config import RetrieverConfig
 from ..result import StringRetrievalResult
 from ..strategies.ranking import SimpleRankingStrategy
 

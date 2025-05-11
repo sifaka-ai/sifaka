@@ -238,9 +238,9 @@ def create_chain(
         except DependencyError:
             try:
                 # Try to get by type if not found by name
-                from sifaka.interfaces.model import ModelProvider
+                from sifaka.interfaces.model import ModelProviderProtocol
 
-                model = provider.get_by_type(ModelProvider, None, session_id, request_id)
+                model = provider.get_by_type(ModelProviderProtocol, None, session_id, request_id)
             except (DependencyError, ImportError):
                 # Don't raise here, let the specific factory function handle it
                 pass
@@ -335,9 +335,11 @@ def create_critic(
         except DependencyError:
             try:
                 # Try to get by type if not found by name
-                from sifaka.interfaces.model import ModelProvider
+                from sifaka.interfaces.model import ModelProviderProtocol
 
-                model_provider = provider.get_by_type(ModelProvider, None, session_id, request_id)
+                model_provider = provider.get_by_type(
+                    ModelProviderProtocol, None, session_id, request_id
+                )
             except (DependencyError, ImportError):
                 # Don't raise here, let the specific factory function handle it
                 pass

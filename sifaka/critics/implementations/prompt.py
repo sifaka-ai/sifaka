@@ -92,7 +92,7 @@ from ...core.base import BaseComponent
 from ...utils.state import create_critic_state
 from ...utils.common import record_error
 from ...core.base import BaseResult as CriticResult
-from ..config import PromptCriticConfig
+from ...utils.config import PromptCriticConfig
 from ..interfaces.critic import TextCritic, TextImprover, TextValidator
 
 
@@ -219,10 +219,21 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
         """
         # Create config if not provided
         if config is None:
-            from ..config import DEFAULT_PROMPT_CONFIG
-
-            config = DEFAULT_PROMPT_CONFIG.model_copy(
-                update={"name": name, "description": description, **kwargs}
+            # Create a default config
+            config = PromptCriticConfig(
+                name=name,
+                description=description,
+                system_prompt="You are a helpful assistant that provides high-quality feedback and improvements for text.",
+                temperature=0.7,
+                max_tokens=1000,
+                min_confidence=0.7,
+                max_attempts=3,
+                cache_size=100,
+                eager_initialization=False,
+                memory_buffer_size=10,
+                track_performance=True,
+                track_errors=True,
+                **kwargs,
             )
 
         # Initialize base component
@@ -1178,7 +1189,7 @@ def create_prompt_critic(
     )
 
     # Create with custom configuration
-    from sifaka.critics.config import PromptCriticConfig
+    from sifaka.utils.config import PromptCriticConfig
     config = PromptCriticConfig(
         name="custom_critic",
         description="A custom prompt critic",
@@ -1259,10 +1270,21 @@ def create_prompt_critic(
 
         # Create config if not provided
         if config is None:
-            from ..config import DEFAULT_PROMPT_CONFIG
-
-            # Start with default config
-            config = DEFAULT_PROMPT_CONFIG.model_copy()
+            # Create a default config
+            config = PromptCriticConfig(
+                name="prompt_critic",
+                description="A critic that uses prompts to improve text",
+                system_prompt="You are a helpful assistant that provides high-quality feedback and improvements for text.",
+                temperature=0.7,
+                max_tokens=1000,
+                min_confidence=0.7,
+                max_attempts=3,
+                cache_size=100,
+                eager_initialization=False,
+                memory_buffer_size=10,
+                track_performance=True,
+                track_errors=True,
+            )
 
             # Create updates dictionary with all provided parameters
             updates = {}

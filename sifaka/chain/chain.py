@@ -81,7 +81,7 @@ from ..utils.state import create_chain_state
 from ..utils.common import update_statistics
 from ..utils.logging import get_logger
 from .result import ChainResult
-from .config import ChainConfig
+from ..utils.config import ChainConfig
 from ..utils.errors import ChainError
 
 # Configure logger

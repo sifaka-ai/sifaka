@@ -84,7 +84,7 @@ from ...core.base import BaseComponent
 from ...utils.state import create_critic_state
 from ...utils.logging import get_logger
 from ...core.base import BaseResult as CriticResult
-from ..config import SelfRefineCriticConfig
+from sifaka.utils.config import SelfRefineCriticConfig
 from ..interfaces.critic import TextCritic, TextImprover, TextValidator
 
 # Configure logging
@@ -190,7 +190,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
         """
         # Create default config if not provided
         if config is None:
-            from ..config import DEFAULT_SELF_REFINE_CONFIG
+            from sifaka.utils.config import DEFAULT_SELF_REFINE_CONFIG
 
             config = DEFAULT_SELF_REFINE_CONFIG.model_copy(
                 update={"name": name, "description": description, **kwargs}
@@ -869,7 +869,7 @@ def create_self_refine_critic(
     )
 
     # Create with custom configuration
-    from sifaka.critics.config import SelfRefineCriticConfig
+    from sifaka.utils.config import SelfRefineCriticConfig
     config = SelfRefineCriticConfig(
         name="custom_self_refine_critic",
         description="A custom self-refine critic",
@@ -912,7 +912,7 @@ def create_self_refine_critic(
     try:
         # Create config if not provided
         if config is None:
-            from ..config import DEFAULT_SELF_REFINE_CONFIG
+            from sifaka.utils.config import DEFAULT_SELF_REFINE_CONFIG
 
             # Start with default config
             config = DEFAULT_SELF_REFINE_CONFIG.model_copy()
@@ -953,7 +953,7 @@ def create_self_refine_critic(
             # Create updated config
             config = config.model_copy(update=updates)
         elif isinstance(config, dict):
-            from ..config import SelfRefineCriticConfig
+            from sifaka.utils.config import SelfRefineCriticConfig
 
             config = SelfRefineCriticConfig(**config)
 

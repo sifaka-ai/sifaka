@@ -74,7 +74,7 @@ from typing import Any, List, Optional
 
 from .chain import Chain
 from .interfaces import Model, Validator, Improver, Formatter
-from .config import ChainConfig
+from ..utils.config import ChainConfig
 from .adapters import ModelAdapter, ValidatorAdapter, ImproverAdapter, FormatterAdapter
 
 
@@ -354,7 +354,7 @@ def create_backoff_chain(
         # Create config if not provided
         config = kwargs.pop("config", None)
         if not config:
-            from sifaka.chain.config import EngineConfig
+            from sifaka.utils.config import EngineConfig
 
             engine_config = EngineConfig(
                 max_attempts=max_attempts,

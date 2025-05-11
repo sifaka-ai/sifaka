@@ -30,7 +30,7 @@ This separation of concerns allows for:
 ## Usage Examples
 ```python
 from sifaka.rules.base import FunctionRule, RuleResult
-from sifaka.rules.config import RuleConfig
+from sifaka.utils.config import RuleConfig
 
 # Create a simple function-based rule
 def validate_length(text: str) -> RuleResult:

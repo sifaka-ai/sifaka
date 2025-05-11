@@ -16,7 +16,8 @@ It also provides base classes and interfaces:
 # from sifaka.critics.prompt import LanguageModel
 
 # Import base classes and interfaces
-from .base import ModelProvider, APIClient, TokenCounter, ModelConfig
+from .base import ModelProvider, APIClient, TokenCounter
+from sifaka.utils.config import ModelConfig
 from .core import ModelProviderCore
 from sifaka.interfaces import ModelProviderProtocol, APIClientProtocol, TokenCounterProtocol
 

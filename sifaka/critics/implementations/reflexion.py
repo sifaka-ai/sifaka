@@ -99,7 +99,7 @@ from ...core.base import BaseComponent
 from ...utils.state import create_critic_state
 from ...utils.logging import get_logger
 from ...core.base import BaseResult as CriticResult
-from ..config import ReflexionCriticConfig
+from ...utils.config import ReflexionCriticConfig
 from ..interfaces.critic import TextCritic, TextImprover, TextValidator
 
 # Configure logging
@@ -229,10 +229,19 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
         """
         # Create default config if not provided
         if config is None:
-            from ..config import DEFAULT_REFLEXION_CONFIG
-
-            config = DEFAULT_REFLEXION_CONFIG.model_copy(
-                update={"name": name, "description": description, **kwargs}
+            # Create a default config
+            config = ReflexionCriticConfig(
+                name=name,
+                description=description,
+                system_prompt="You are a helpful assistant that provides high-quality feedback and improvements for text, using reflections on past feedback to guide your improvements.",
+                temperature=0.7,
+                max_tokens=1000,
+                min_confidence=0.7,
+                max_attempts=3,
+                cache_size=100,
+                memory_buffer_size=5,
+                reflection_depth=1,
+                **kwargs,
             )
 
         # Initialize base component
@@ -718,7 +727,7 @@ def create_reflexion_critic(
     )
 
     # Create with custom configuration
-    from sifaka.critics.config import ReflexionCriticConfig
+    from sifaka.utils.config import ReflexionCriticConfig
     config = ReflexionCriticConfig(
         name="custom_reflexion_critic",
         description="A custom reflexion critic",
@@ -763,41 +772,26 @@ def create_reflexion_critic(
     try:
         # Create config if not provided
         if config is None:
-            from ..config import DEFAULT_REFLEXION_CONFIG
-
-            # Start with default config
-            config = DEFAULT_REFLEXION_CONFIG.model_copy()
-
-            # Update with provided values
-            updates = {
-                "name": name,
-                "description": description,
-                "system_prompt": system_prompt,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-                "min_confidence": min_confidence,
-                "max_attempts": max_attempts,
-                "memory_buffer_size": memory_buffer_size,
-                "reflection_depth": reflection_depth,
-                "track_performance": track_performance,
-            }
-
-            # Add optional parameters if provided
-            if cache_size is not None:
-                updates["cache_size"] = cache_size
-            if priority is not None:
-                updates["priority"] = priority
-            if cost is not None:
-                updates["cost"] = cost
-
-            # Add any additional kwargs
-            updates.update(kwargs)
-
-            # Create updated config
-            config = config.model_copy(update=updates)
+            # Create a default config with provided values
+            config = ReflexionCriticConfig(
+                name=name,
+                description=description,
+                system_prompt=system_prompt
+                or "You are a helpful assistant that provides high-quality feedback and improvements for text, using reflections on past feedback to guide your improvements.",
+                temperature=temperature or 0.7,
+                max_tokens=max_tokens or 1000,
+                min_confidence=min_confidence or 0.7,
+                max_attempts=max_attempts or 3,
+                cache_size=cache_size or 100,
+                memory_buffer_size=memory_buffer_size or 5,
+                reflection_depth=reflection_depth or 1,
+                track_performance=track_performance if track_performance is not None else True,
+                priority=priority,
+                cost=cost,
+                **kwargs,
+            )
         elif isinstance(config, dict):
-            from ..config import ReflexionCriticConfig
-
+            # Convert dict to ReflexionCriticConfig
             config = ReflexionCriticConfig(**config)
 
         # Create and return the critic

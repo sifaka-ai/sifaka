@@ -93,7 +93,7 @@ from ...utils.state import create_critic_state
 from ...utils.common import record_error
 from ...utils.logging import get_logger
 from ...core.base import BaseResult as CriticResult
-from ..config import ConstitutionalCriticConfig
+from ...utils.config import ConstitutionalCriticConfig
 from ..interfaces.critic import TextCritic, TextImprover, TextValidator
 
 # Configure logging
@@ -226,15 +226,29 @@ class ConstitutionalCritic(
         """
         # Create default config if not provided
         if config is None:
-            from ..config import DEFAULT_CONSTITUTIONAL_CONFIG
+            # Create a default config
+            default_principles = [
+                "The text should be clear and concise.",
+                "The text should be grammatically correct.",
+                "The text should be well-structured.",
+                "The text should be factually accurate.",
+                "The text should be appropriate for the intended audience.",
+            ]
 
-            config = DEFAULT_CONSTITUTIONAL_CONFIG.model_copy(
-                update={"name": name, "description": description, **kwargs}
+            config = ConstitutionalCriticConfig(
+                name=name,
+                description=description,
+                system_prompt="You are a helpful assistant that provides high-quality feedback and improvements for text, ensuring that the text adheres to a set of principles.",
+                temperature=0.7,
+                max_tokens=1000,
+                min_confidence=0.7,
+                max_attempts=3,
+                cache_size=100,
+                principles=principles or default_principles,
+                **kwargs,
             )
 
-            # Override principles if provided
-            if principles is not None:
-                config.principles = principles
+            # Principles are already set in the constructor
 
         # Initialize base component
         super().__init__(name=name, description=description, config=config)
@@ -780,7 +794,7 @@ def create_constitutional_critic(
     )
 
     # Create with custom configuration
-    from sifaka.critics.config import ConstitutionalCriticConfig
+    from sifaka.utils.config import ConstitutionalCriticConfig
     config = ConstitutionalCriticConfig(
         name="custom_constitutional_critic",
         description="A custom constitutional critic",
@@ -823,7 +837,7 @@ def create_constitutional_critic(
     try:
         # Create config if not provided
         if config is None:
-            from ..config import DEFAULT_CONSTITUTIONAL_CONFIG
+            from sifaka.utils.config import DEFAULT_CONSTITUTIONAL_CONFIG
 
             # Start with default config
             config = DEFAULT_CONSTITUTIONAL_CONFIG.model_copy()
@@ -864,7 +878,7 @@ def create_constitutional_critic(
             # Create updated config
             config = config.model_copy(update=updates)
         elif isinstance(config, dict):
-            from ..config import ConstitutionalCriticConfig
+            from sifaka.utils.config import ConstitutionalCriticConfig
 
             config = ConstitutionalCriticConfig(**config)
 

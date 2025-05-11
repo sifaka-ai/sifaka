@@ -14,7 +14,7 @@ to the query.
 
 ```python
 from sifaka.retrieval.strategies.ranking import SimpleRankingStrategy, ScoreThresholdRankingStrategy
-from sifaka.retrieval.config import RankingConfig
+from sifaka.utils.config import RankingConfig
 
 # Create a simple ranking strategy
 config = RankingConfig(top_k=5)
@@ -48,7 +48,7 @@ from sifaka.utils.errors import RetrievalError, InputError, handle_error
 from sifaka.utils.logging import get_logger
 from sifaka.utils.common import record_error
 
-from ..config import RankingConfig
+from sifaka.utils.config import RankingConfig
 
 logger = get_logger(__name__)
 

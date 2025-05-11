@@ -74,7 +74,7 @@ Usage Example:
 """
 
 from .base import Rule, RuleConfig, RuleResult, FunctionRule
-from .config import RulePriority
+from sifaka.utils.config import RulePriority
 from .factories import create_rule, create_validation_manager
 from .interfaces import (
     Rule as RuleInterface,

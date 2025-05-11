@@ -59,8 +59,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sifaka.models.base import ModelProvider
-# Import at runtime - outside the TYPE_CHECKING block
-from sifaka.models.base import ModelProvider
 
 from sifaka.utils.config import ModelConfig
 from sifaka.models.managers.client import ClientManager
@@ -78,7 +76,7 @@ T = TypeVar("T", bound="ModelProviderCore")
 C = TypeVar("C", bound=ModelConfig)
 
 
-class ModelProviderCore(ModelProvider[C], ModelProviderProtocol, Generic[C]):
+class ModelProviderCore(ModelProviderProtocol, Generic[C]):
     """
     Core model provider implementation that delegates to specialized components.
 

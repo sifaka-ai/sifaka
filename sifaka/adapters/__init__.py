@@ -59,7 +59,7 @@ from sifaka.adapters.classifier import (
 
 # Export types from sifaka.classifiers for convenience
 from sifaka.classifiers.result import ClassificationResult
-from sifaka.classifiers.config import ClassifierConfig
+from sifaka.utils.config import ClassifierConfig
 
 # Try to import Guardrails adapters if available
 try:

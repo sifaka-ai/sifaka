@@ -68,7 +68,7 @@ from typing import Any, List, Optional, Type
 
 from .base import Rule
 from .validators import BaseValidator
-from .config import RuleConfig
+from sifaka.utils.config import RuleConfig
 from .managers.validation import ValidationManager, ValidationConfig
 from sifaka.utils.logging import get_logger
 

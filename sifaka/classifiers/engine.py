@@ -27,7 +27,7 @@ The engine follows a layered architecture:
 ## Usage Examples
 ```python
 from sifaka.classifiers.engine import Engine
-from sifaka.classifiers.config import ClassifierConfig
+from sifaka.utils.config import ClassifierConfig
 from sifaka.utils.state import StateManager
 
 # Create engine
@@ -81,7 +81,7 @@ from .interfaces import ClassifierImplementation
 from ..utils.state import StateManager
 from ..utils.logging import get_logger
 from .result import ClassificationResult
-from .config import ClassifierConfig
+from ..utils.config import ClassifierConfig
 from ..utils.errors import ClassifierError, safely_execute_component_operation as safely_execute
 from .adapters import ImplementationError
 
@@ -115,6 +115,8 @@ class Engine:
     ## Examples
     ```python
     # Create engine with configuration
+    from sifaka.utils.config import ClassifierConfig
+
     engine = Engine(
         state_manager=StateManager(),
         config=ClassifierConfig(

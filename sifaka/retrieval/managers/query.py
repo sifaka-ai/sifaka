@@ -29,8 +29,7 @@ from sifaka.core.base import BaseComponent
 from sifaka.utils.errors import RetrievalError, InputError, handle_error
 from sifaka.utils.logging import get_logger
 from sifaka.utils.patterns import PUNCTUATION_PATTERN, replace_pattern
-
-from ..config import QueryProcessingConfig
+from sifaka.utils.config import QueryProcessingConfig
 from sifaka.interfaces.retrieval import QueryProcessor
 
 logger = get_logger(__name__)

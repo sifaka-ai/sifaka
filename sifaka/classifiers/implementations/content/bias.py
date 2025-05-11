@@ -112,7 +112,7 @@ from pydantic import ConfigDict, PrivateAttr
 
 from sifaka.classifiers.classifier import Classifier
 from sifaka.classifiers.result import ClassificationResult
-from sifaka.classifiers.config import ClassifierConfig
+from sifaka.utils.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.config import extract_classifier_config_params
 
@@ -187,7 +187,7 @@ class BiasDetector(Classifier):
     ## Examples
     ```python
     from sifaka.classifiers.implementations.content.bias import BiasDetector
-    from sifaka.classifiers.config import ClassifierConfig
+    from sifaka.utils.config import ClassifierConfig
 
     # Create a bias detector with default settings
     detector = BiasDetector()

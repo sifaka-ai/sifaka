@@ -72,7 +72,7 @@ from .interfaces import Model, Validator, Improver, Formatter, ValidationResult
 from ..utils.state import StateManager
 from ..utils.logging import get_logger
 from .result import ChainResult
-from .config import EngineConfig
+from ..utils.config import EngineConfig
 from ..utils.errors import ChainError, safely_execute_chain
 from .managers.cache import CacheManager
 from .managers.retry import RetryManager

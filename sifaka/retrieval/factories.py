@@ -26,8 +26,8 @@ from typing import Any, Dict, Optional
 from sifaka.utils.errors import RetrievalError, handle_error
 from sifaka.utils.logging import get_logger
 from sifaka.interfaces.factories import create_component
+from sifaka.utils.config import RetrieverConfig
 
-from .config import RetrieverConfig
 from .implementations.simple import SimpleRetriever
 from .strategies.ranking import SimpleRankingStrategy, ScoreThresholdRankingStrategy
 

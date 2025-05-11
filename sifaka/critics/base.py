@@ -120,7 +120,7 @@ from sifaka.utils.logging import get_logger
 logger = get_logger(__name__)
 
 # Import the Pydantic models
-from .config import CriticConfig, CriticMetadata
+from sifaka.utils.config import CriticConfig, CriticMetadata
 
 # Also import for type checking to ensure proper IDE support
 if TYPE_CHECKING:

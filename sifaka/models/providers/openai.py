@@ -56,7 +56,7 @@ from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
 from sifaka.interfaces.model import ModelProviderProtocol
 from sifaka.models.managers.openai_client import OpenAIClientManager
 from sifaka.models.managers.openai_token_counter import OpenAITokenCounterManager
-from sifaka.utils.config import ModelConfig
+from sifaka.utils.config import OpenAIConfig
 from sifaka.utils.errors import safely_execute_component_operation
 from sifaka.utils.errors import ModelError
 from sifaka.utils.common import record_error
@@ -94,13 +94,13 @@ class OpenAIProvider(ModelProviderProtocol):
     ## Examples
     ```python
     from sifaka.models.providers.openai import OpenAIProvider
-    from sifaka.utils.config import ModelConfig
+    from sifaka.utils.config import OpenAIConfig
 
     # Create a provider with default configuration
     provider = OpenAIProvider(model_name="gpt-4")
 
     # Create a provider with custom configuration
-    config = ModelConfig(
+    config = OpenAIConfig(
         temperature=0.7,
         max_tokens=1000,
         api_key="your-api-key",
@@ -127,7 +127,7 @@ class OpenAIProvider(ModelProviderProtocol):
     def __init__(
         self,
         model_name: str = DEFAULT_MODEL,
-        config: Optional[ModelConfig] = None,
+        config: Optional[OpenAIConfig] = None,
         api_client: Optional[APIClient] = None,
         token_counter: Optional[TokenCounter] = None,
     ) -> None:
@@ -155,7 +155,7 @@ class OpenAIProvider(ModelProviderProtocol):
         # Create managers
         self._client_manager = OpenAIClientManager(
             model_name=model_name,
-            config=config or ModelConfig(),
+            config=config or OpenAIConfig(),
             api_client=api_client,
         )
         self._token_counter_manager = OpenAITokenCounterManager(
@@ -165,7 +165,7 @@ class OpenAIProvider(ModelProviderProtocol):
 
         # Initialize state
         self._state_manager.update("model_name", model_name)
-        self._state_manager.update("config", config or ModelConfig())
+        self._state_manager.update("config", config or OpenAIConfig())
         self._state_manager.update("initialized", False)
         self._state_manager.update(
             "stats",

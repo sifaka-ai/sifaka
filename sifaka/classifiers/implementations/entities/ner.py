@@ -115,7 +115,7 @@ from pydantic import ConfigDict
 
 from sifaka.classifiers.classifier import Classifier
 from sifaka.classifiers.result import ClassificationResult
-from sifaka.classifiers.config import ClassifierConfig
+from sifaka.utils.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
 from sifaka.utils.config import extract_classifier_config_params

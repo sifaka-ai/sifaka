@@ -44,7 +44,21 @@ class MyCritic(Critic[str, str]):
 """
 
 # Import interfaces from component-specific directories
-from .chain import Chain, AsyncChain
+from .chain import (
+    Chain,
+    AsyncChain,
+    ChainComponent,
+    ValidationResult,
+    Model,
+    Validator,
+    Improver,
+    ChainFormatter,
+    ChainPlugin,
+    PromptManager,
+    ValidationManager,
+    RetryStrategy,
+    ResultFormatter,
+)
 from .retrieval import Retriever, AsyncRetriever, DocumentStore, IndexManager, QueryProcessor
 from .classifier import ClassifierProtocol, TextProcessor
 from .critic import Critic, AsyncCritic, CritiqueResult
@@ -58,6 +72,17 @@ __all__ = [
     # Chain interfaces
     "Chain",
     "AsyncChain",
+    "ChainComponent",
+    "ValidationResult",
+    "Model",
+    "Validator",
+    "Improver",
+    "ChainFormatter",
+    "ChainPlugin",
+    "PromptManager",
+    "ValidationManager",
+    "RetryStrategy",
+    "ResultFormatter",
     # Retrieval interfaces
     "Retriever",
     "AsyncRetriever",

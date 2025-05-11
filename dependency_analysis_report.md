@@ -1,19 +1,19 @@
 # Dependency Analysis Report
 
 Total modules: 143
-Total dependencies: 543
-Circular dependencies: 90
+Total dependencies: 581
+Circular dependencies: 96
 
 ## Circular Dependencies
 
 ### Cycle 1
 ```
-sifaka.rules.base -> sifaka.rules.base
+sifaka.utils.config -> sifaka.utils.config
 ```
 
 ### Cycle 2
 ```
-sifaka.utils.logging -> sifaka.utils.logging
+sifaka.core.base -> sifaka.core.base
 ```
 
 ### Cycle 3
@@ -23,172 +23,172 @@ sifaka.utils.state -> sifaka.utils.state
 
 ### Cycle 4
 ```
-sifaka.rules.base -> sifaka.rules.formatting.length -> sifaka.rules.base
+sifaka.utils.errors -> sifaka.utils.errors
 ```
 
 ### Cycle 5
 ```
-sifaka.utils.errors -> sifaka.utils.errors
+sifaka.utils.text -> sifaka.utils.text
 ```
 
 ### Cycle 6
 ```
-sifaka.utils.patterns -> sifaka.utils.patterns
+sifaka.core.base -> sifaka.utils.text -> sifaka.core.base
 ```
 
 ### Cycle 7
 ```
-sifaka.rules.formatting.length -> sifaka.rules.formatting.length
+sifaka.utils.common -> sifaka.utils.common
 ```
 
 ### Cycle 8
 ```
-sifaka.rules.base -> sifaka.utils.text -> sifaka.rules.base
+sifaka.utils.logging -> sifaka.utils.logging
 ```
 
 ### Cycle 9
 ```
-sifaka.utils.text -> sifaka.utils.text
+sifaka.rules.base -> sifaka.rules.base
 ```
 
 ### Cycle 10
 ```
-sifaka.utils.common -> sifaka.utils.common
+sifaka.rules.result -> sifaka.rules.result
 ```
 
 ### Cycle 11
 ```
-sifaka.core.validation -> sifaka.core.validation
+sifaka.rules.validators -> sifaka.rules.validators
 ```
 
 ### Cycle 12
 ```
-sifaka.utils.config -> sifaka.utils.config
+sifaka.models.managers.token_counter -> sifaka.models.managers.token_counter
 ```
 
 ### Cycle 13
 ```
-sifaka.utils.config -> sifaka.critics.models -> sifaka.utils.config
+sifaka.models.managers.client -> sifaka.models.managers.client
 ```
 
 ### Cycle 14
 ```
-sifaka.critics.models -> sifaka.critics.models
+sifaka.rules.formatting.length -> sifaka.rules.formatting.length
 ```
 
 ### Cycle 15
 ```
-sifaka.core.base -> sifaka.core.base
+sifaka.utils.patterns -> sifaka.utils.patterns
 ```
 
 ### Cycle 16
 ```
-sifaka.utils.config -> sifaka.models.config -> sifaka.utils.config
+sifaka.classifiers.implementations.content.profanity -> sifaka.classifiers.implementations.content.profanity
 ```
 
 ### Cycle 17
 ```
-sifaka.models.config -> sifaka.models.config
+sifaka.classifiers.result -> sifaka.classifiers.result
 ```
 
 ### Cycle 18
 ```
-sifaka.classifiers.config -> sifaka.utils.config -> sifaka.classifiers.config
+sifaka.rules.content.prohibited -> sifaka.rules.content.prohibited
 ```
 
 ### Cycle 19
 ```
-sifaka.utils.config -> sifaka.chain.config -> sifaka.utils.config
+sifaka.core.validation -> sifaka.core.validation
 ```
 
 ### Cycle 20
 ```
-sifaka.chain.config -> sifaka.chain.config
+sifaka.core.plugins -> sifaka.core.plugins
 ```
 
 ### Cycle 21
 ```
-sifaka.classifiers.result -> sifaka.classifiers.result
+sifaka.core.protocol -> sifaka.core.protocol
 ```
 
 ### Cycle 22
 ```
-sifaka.classifiers.implementations.content.profanity -> sifaka.classifiers.implementations.content.profanity
+sifaka.core.dependency -> sifaka.core.dependency
 ```
 
 ### Cycle 23
 ```
-sifaka.rules.content.prohibited -> sifaka.rules.content.prohibited
+sifaka.chain.factories -> sifaka.chain.factories
 ```
 
 ### Cycle 24
 ```
-sifaka.core.plugins -> sifaka.core.plugins
+sifaka.rules.factories -> sifaka.rules.factories
 ```
 
 ### Cycle 25
 ```
-sifaka.core.protocol -> sifaka.core.protocol
+sifaka.classifiers.implementations.content.toxicity -> sifaka.classifiers.implementations.content.toxicity
 ```
 
 ### Cycle 26
 ```
-sifaka.rules.formatting.structure -> sifaka.rules.formatting.structure
+sifaka.rules.content.base -> sifaka.rules.content.base
 ```
 
 ### Cycle 27
 ```
-sifaka.rules.formatting.format -> sifaka.rules.formatting.format
+sifaka.classifiers.implementations.content.bias -> sifaka.classifiers.implementations.content.bias
 ```
 
 ### Cycle 28
 ```
-sifaka.core.dependency -> sifaka.core.dependency
+sifaka.rules.content.safety -> sifaka.rules.content.safety
 ```
 
 ### Cycle 29
 ```
-sifaka.rules.content.sentiment -> sifaka.rules.content.sentiment
+sifaka.models.providers.openai -> sifaka.models.providers.openai
 ```
 
 ### Cycle 30
 ```
-sifaka.utils.results -> sifaka.utils.results
+sifaka.retrieval.core -> sifaka.retrieval.core
 ```
 
 ### Cycle 31
 ```
-sifaka.interfaces.adapter -> sifaka.interfaces.adapter
+sifaka.interfaces.factories -> sifaka.interfaces.factories
 ```
 
 ### Cycle 32
 ```
-sifaka.classifiers.implementations.content.toxicity -> sifaka.classifiers.implementations.content.toxicity
+sifaka.utils.results -> sifaka.utils.results
 ```
 
 ### Cycle 33
 ```
-sifaka.rules.content.base -> sifaka.rules.content.base
+sifaka.critics.models -> sifaka.critics.models
 ```
 
 ### Cycle 34
 ```
-sifaka.rules.content.safety -> sifaka.rules.content.safety
+sifaka.rules.content.sentiment -> sifaka.rules.content.sentiment
 ```
 
 ### Cycle 35
 ```
-sifaka.chain.factories -> sifaka.chain.factories
+sifaka.rules.formatting.structure -> sifaka.rules.formatting.structure
 ```
 
 ### Cycle 36
 ```
-sifaka.rules.factories -> sifaka.rules.factories
+sifaka.rules.formatting.format -> sifaka.rules.formatting.format
 ```
 
 ### Cycle 37
 ```
-sifaka.interfaces.factories -> sifaka.interfaces.factories
+sifaka.interfaces.adapter -> sifaka.interfaces.adapter
 ```
 
 ### Cycle 38
@@ -268,62 +268,62 @@ sifaka.critics.implementations.reflexion -> sifaka.critics.implementations.refle
 
 ### Cycle 53
 ```
-sifaka.chain.interfaces -> sifaka.chain.interfaces
+sifaka.critics.implementations.prompt -> sifaka.critics.implementations.prompt
 ```
 
 ### Cycle 54
 ```
-sifaka.chain.plugins -> sifaka.chain.plugins
+sifaka.chain.interfaces -> sifaka.chain.interfaces
 ```
 
 ### Cycle 55
 ```
-sifaka.chain.result -> sifaka.chain.result
+sifaka.chain.plugins -> sifaka.chain.plugins
 ```
 
 ### Cycle 56
 ```
-sifaka.chain.engine -> sifaka.chain.engine
+sifaka.chain.result -> sifaka.chain.result
 ```
 
 ### Cycle 57
 ```
-sifaka.chain.state -> sifaka.chain.state
+sifaka.chain.engine -> sifaka.chain.engine
 ```
 
 ### Cycle 58
 ```
-sifaka.chain.adapters -> sifaka.chain.adapters
+sifaka.chain.state -> sifaka.chain.state
 ```
 
 ### Cycle 59
 ```
-sifaka.chain.managers.memory -> sifaka.chain.managers.memory
+sifaka.chain.adapters -> sifaka.chain.adapters
 ```
 
 ### Cycle 60
 ```
-sifaka.chain.managers.cache -> sifaka.chain.managers.cache
+sifaka.chain.managers.memory -> sifaka.chain.managers.memory
 ```
 
 ### Cycle 61
 ```
-sifaka.chain.managers.retry -> sifaka.chain.managers.retry
+sifaka.chain.managers.cache -> sifaka.chain.managers.cache
 ```
 
 ### Cycle 62
 ```
-sifaka.models.plugins -> sifaka.models.plugins
+sifaka.chain.managers.retry -> sifaka.chain.managers.retry
 ```
 
 ### Cycle 63
 ```
-sifaka.models.providers.mock -> sifaka.models.providers.mock
+sifaka.models.plugins -> sifaka.models.plugins
 ```
 
 ### Cycle 64
 ```
-sifaka.models.factories -> sifaka.models.factories
+sifaka.models.providers.anthropic -> sifaka.models.providers.anthropic
 ```
 
 ### Cycle 65
@@ -333,125 +333,155 @@ sifaka.models.providers.gemini -> sifaka.models.providers.gemini
 
 ### Cycle 66
 ```
-sifaka.models.result -> sifaka.models.result
+sifaka.models.factories -> sifaka.models.factories
 ```
 
 ### Cycle 67
 ```
-sifaka.models.utils -> sifaka.models.utils
+sifaka.models.providers.mock -> sifaka.models.providers.mock
 ```
 
 ### Cycle 68
 ```
-sifaka.adapters.plugins -> sifaka.adapters.plugins
+sifaka.models.result -> sifaka.models.result
 ```
 
 ### Cycle 69
 ```
-sifaka.retrieval.plugins -> sifaka.retrieval.plugins
+sifaka.models.utils -> sifaka.models.utils
 ```
 
 ### Cycle 70
 ```
-sifaka.retrieval.result -> sifaka.retrieval.result
+sifaka.adapters.plugins -> sifaka.adapters.plugins
 ```
 
 ### Cycle 71
 ```
-sifaka.retrieval.strategies.ranking -> sifaka.retrieval.strategies.ranking
+sifaka.retrieval.plugins -> sifaka.retrieval.plugins
 ```
 
 ### Cycle 72
 ```
-sifaka.rules.plugins -> sifaka.rules.plugins
+sifaka.retrieval.result -> sifaka.retrieval.result
 ```
 
 ### Cycle 73
 ```
-sifaka.rules.result -> sifaka.rules.result
+sifaka.retrieval.strategies.ranking -> sifaka.retrieval.strategies.ranking
 ```
 
 ### Cycle 74
 ```
-sifaka.rules.utils -> sifaka.rules.utils
+sifaka.rules.plugins -> sifaka.rules.plugins
 ```
 
 ### Cycle 75
 ```
-sifaka.rules.managers.validation -> sifaka.rules.managers.validation
+sifaka.rules.utils -> sifaka.rules.utils
 ```
 
 ### Cycle 76
 ```
-sifaka.rules.content.tone -> sifaka.rules.content.tone
+sifaka.rules.managers.validation -> sifaka.rules.managers.validation
 ```
 
 ### Cycle 77
 ```
-sifaka.rules.content.language -> sifaka.rules.content.language
+sifaka.rules.content.tone -> sifaka.rules.content.tone
 ```
 
 ### Cycle 78
 ```
-sifaka.rules.formatting.style -> sifaka.rules.formatting.style
+sifaka.rules.content.language -> sifaka.rules.content.language
 ```
 
 ### Cycle 79
 ```
-sifaka.rules.formatting.whitespace -> sifaka.rules.formatting.whitespace
+sifaka.rules.formatting.style -> sifaka.rules.formatting.style
 ```
 
 ### Cycle 80
 ```
-sifaka.classifiers.interfaces -> sifaka.classifiers.interfaces
+sifaka.rules.formatting.whitespace -> sifaka.rules.formatting.whitespace
 ```
 
 ### Cycle 81
 ```
-sifaka.classifiers.plugins -> sifaka.classifiers.plugins
+sifaka.classifiers.interfaces -> sifaka.classifiers.interfaces
 ```
 
 ### Cycle 82
 ```
-sifaka.classifiers.factories -> sifaka.classifiers.factories
+sifaka.classifiers.plugins -> sifaka.classifiers.plugins
 ```
 
 ### Cycle 83
 ```
-sifaka.classifiers.engine -> sifaka.classifiers.engine
+sifaka.classifiers.factories -> sifaka.classifiers.factories
 ```
 
 ### Cycle 84
 ```
-sifaka.classifiers.adapters -> sifaka.classifiers.adapters
+sifaka.classifiers.engine -> sifaka.classifiers.engine
 ```
 
 ### Cycle 85
 ```
-sifaka.classifiers.implementations.factories -> sifaka.classifiers.implementations.factories
+sifaka.classifiers.errors -> sifaka.classifiers.errors
 ```
 
 ### Cycle 86
 ```
-sifaka.classifiers.implementations.adapters -> sifaka.classifiers.implementations.adapters
+sifaka.classifiers.base -> sifaka.classifiers.base
 ```
 
 ### Cycle 87
 ```
-sifaka.classifiers.implementations.content.sentiment -> sifaka.classifiers.implementations.content.sentiment
+sifaka.classifiers.adapters -> sifaka.classifiers.adapters
 ```
 
 ### Cycle 88
 ```
-sifaka.classifiers.implementations.properties.language -> sifaka.classifiers.implementations.properties.language
+sifaka.classifiers.implementations.factories -> sifaka.classifiers.implementations.factories
 ```
 
 ### Cycle 89
 ```
-sifaka.interfaces.classifier -> sifaka.interfaces.classifier
+sifaka.classifiers.implementations.adapters -> sifaka.classifiers.implementations.adapters
 ```
 
 ### Cycle 90
+```
+sifaka.classifiers.implementations.content.spam -> sifaka.classifiers.implementations.content.spam
+```
+
+### Cycle 91
+```
+sifaka.classifiers.implementations.content.sentiment -> sifaka.classifiers.implementations.content.sentiment
+```
+
+### Cycle 92
+```
+sifaka.classifiers.implementations.properties.language -> sifaka.classifiers.implementations.properties.language
+```
+
+### Cycle 93
+```
+sifaka.classifiers.implementations.properties.topic -> sifaka.classifiers.implementations.properties.topic
+```
+
+### Cycle 94
+```
+sifaka.classifiers.implementations.entities.ner -> sifaka.classifiers.implementations.entities.ner
+```
+
+### Cycle 95
+```
+sifaka.interfaces.classifier -> sifaka.interfaces.classifier
+```
+
+### Cycle 96
 ```
 sifaka.interfaces.critic -> sifaka.interfaces.critic
 ```
@@ -490,9 +520,9 @@ sifaka.interfaces.critic -> sifaka.interfaces.critic
   - sifaka.interfaces.model
   - sifaka.models.managers.openai_client
   - sifaka.models.managers.openai_token_counter
+  - sifaka.models.providers.openai
   - sifaka.utils.common
   - sifaka.utils.config
-  - sifaka.utils.error_patterns
   - sifaka.utils.errors
   - sifaka.utils.logging
   - ... and 1 more
@@ -503,16 +533,26 @@ sifaka.interfaces.critic -> sifaka.interfaces.critic
   - sifaka.interfaces.model
   - sifaka.models.managers.anthropic_client
   - sifaka.models.managers.anthropic_token_counter
+  - sifaka.models.providers.anthropic
   - sifaka.utils.common
   - sifaka.utils.config
-  - sifaka.utils.error_patterns
   - sifaka.utils.errors
   - sifaka.utils.logging
   - ... and 1 more
 
-- **sifaka.classifiers.implementations.content.toxicity**: 10 dependencies
+- **sifaka.rules.validators**: 9 dependencies
+  - sifaka.core.base
+  - sifaka.rules.result
+  - sifaka.rules.validators
+  - sifaka.utils.common
+  - sifaka.utils.error_patterns
+  - sifaka.utils.errors
+  - sifaka.utils.logging
+  - sifaka.utils.state
+  - sifaka.utils.text
+
+- **sifaka.classifiers.implementations.content.toxicity**: 9 dependencies
   - sifaka.classifiers.classifier
-  - sifaka.classifiers.config
   - sifaka.classifiers.implementations.content.toxicity
   - sifaka.classifiers.implementations.content.toxicity_model
   - sifaka.classifiers.result
@@ -532,6 +572,16 @@ sifaka.interfaces.critic -> sifaka.interfaces.critic
   - sifaka.rules.base
   - sifaka.rules.formatting.length
 
+- **sifaka.critics.core**: 8 dependencies
+  - sifaka.core.managers.memory
+  - sifaka.core.managers.prompt
+  - sifaka.core.managers.response
+  - sifaka.critics.core
+  - sifaka.critics.managers
+  - sifaka.models.providers
+  - sifaka.utils.config
+  - sifaka.utils.text
+
 - **sifaka.models.factories**: 8 dependencies
   - sifaka.interfaces.model
   - sifaka.models.factories
@@ -541,6 +591,16 @@ sifaka.interfaces.critic -> sifaka.interfaces.critic
   - sifaka.models.providers.openai
   - sifaka.utils.config
   - sifaka.utils.logging
+
+- **sifaka.adaptersdantic_ai.adapter**: 8 dependencies
+  - sifaka.adapters.base
+  - sifaka.core.validation
+  - sifaka.critics.base
+  - sifaka.rules.base
+  - sifaka.rules.formatting.length
+  - sifaka.utils.errors
+  - sifaka.utils.logging
+  - sifaka.utils.state
 
 - **sifaka.adaptersdantic_ai.factory**: 8 dependencies
   - sifaka.adapters.base
@@ -552,14 +612,24 @@ sifaka.interfaces.critic -> sifaka.interfaces.critic
   - sifaka.utils.errors
   - sifaka.utils.logging
 
-- **sifaka.rules.base**: 8 dependencies
-  - sifaka.rules.base
-  - sifaka.rules.formatting.length
-  - sifaka.utils.common
-  - sifaka.utils.error_patterns
+- **sifaka.adapters.classifier.adapter**: 8 dependencies
+  - sifaka.adapters.base
+  - sifaka.adapters.classifier
+  - sifaka.classifiers.implementations.content.toxicity
+  - sifaka.classifiers.result
+  - sifaka.utils
   - sifaka.utils.errors
   - sifaka.utils.logging
-  - sifaka.utils.state
+  - sifaka.utils.text
+
+- **sifaka.retrieval.core**: 8 dependencies
+  - sifaka.core.base
+  - sifaka.interfaces.retrieval
+  - sifaka.retrieval.core
+  - sifaka.utils.common
+  - sifaka.utils.config
+  - sifaka.utils.errors
+  - sifaka.utils.logging
   - sifaka.utils.text
 
 - **sifaka.rules.managers.validation**: 8 dependencies
@@ -572,33 +642,23 @@ sifaka.interfaces.critic -> sifaka.interfaces.critic
   - sifaka.utils.logging
   - sifaka.utils.state
 
-- **sifaka.classifiers.implementations.content.sentiment**: 8 dependencies
-  - sifaka.classifiers.classifier
-  - sifaka.classifiers.config
-  - sifaka.classifiers.implementations.content.sentiment
-  - sifaka.classifiers.result
-  - sifaka.utils.config
-  - sifaka.utils.logging
-  - sifaka.utils.state
-  - sifaka.utils.text
-
-- **sifaka.critics.core**: 7 dependencies
+- **sifaka.critics.implementations.prompt**: 7 dependencies
+  - sifaka.core.dependency
   - sifaka.core.managers.memory
-  - sifaka.core.managers.prompt
-  - sifaka.core.managers.response
-  - sifaka.critics.core
-  - sifaka.critics.managers
+  - sifaka.core.managers.prompt_factories
+  - sifaka.critics.implementations.prompt
+  - sifaka.interfaces.model
   - sifaka.models.providers
-  - sifaka.utils.text
+  - sifaka.utils.config
 
 - **sifaka.chain.factories**: 7 dependencies
-  - sifaka.chain.config
   - sifaka.chain.factories
   - sifaka.core.dependency
   - sifaka.critics
   - sifaka.interfaces.model
   - sifaka.models
   - sifaka.rules
+  - sifaka.utils.config
 
 - **sifaka.models.base**: 7 dependencies
   - sifaka.interfaces.client
@@ -609,33 +669,6 @@ sifaka.interfaces.critic -> sifaka.interfaces.critic
   - sifaka.utils.logging
   - sifaka.utils.tracing
 
-- **sifaka.adaptersdantic_ai.adapter**: 7 dependencies
-  - sifaka.adapters.base
-  - sifaka.critics.base
-  - sifaka.rules.base
-  - sifaka.rules.formatting.length
-  - sifaka.utils.errors
-  - sifaka.utils.logging
-  - sifaka.utils.state
-
-- **sifaka.adapters.classifier.adapter**: 7 dependencies
-  - sifaka.adapters.base
-  - sifaka.adapters.classifier
-  - sifaka.classifiers.implementations.content.toxicity
-  - sifaka.utils
-  - sifaka.utils.errors
-  - sifaka.utils.logging
-  - sifaka.utils.text
-
-- **sifaka.retrieval.core**: 7 dependencies
-  - sifaka.core.base
-  - sifaka.interfaces.retrieval
-  - sifaka.utils.common
-  - sifaka.utils.error_patterns
-  - sifaka.utils.errors
-  - sifaka.utils.logging
-  - sifaka.utils.text
-
 - **sifaka.rules.content.safety**: 7 dependencies
   - sifaka.adapters.classifier
   - sifaka.classifiers.implementations.content.bias
@@ -645,42 +678,43 @@ sifaka.interfaces.critic -> sifaka.interfaces.critic
   - sifaka.rules.content.safety
   - sifaka.utils.logging
 
-- **sifaka.classifiers.implementations.content.profanity**: 7 dependencies
-  - sifaka.classifiers.classifier
-  - sifaka.classifiers.config
-  - sifaka.classifiers.implementations.content.profanity
+- **sifaka.classifiers.base**: 7 dependencies
+  - sifaka.classifiers.base
   - sifaka.classifiers.result
-  - sifaka.utils.logging
-  - sifaka.utils.state
-  - sifaka.utils.text
-
-- **sifaka.core.base**: 6 dependencies
   - sifaka.core.base
   - sifaka.utils.common
   - sifaka.utils.errors
+  - sifaka.utils.logging
+  - sifaka.utils.state
+
+- **sifaka.classifiers.implementations.content.sentiment**: 7 dependencies
+  - sifaka.classifiers.classifier
+  - sifaka.classifiers.implementations.content.sentiment
+  - sifaka.classifiers.result
+  - sifaka.utils.config
   - sifaka.utils.logging
   - sifaka.utils.state
   - sifaka.utils.text
 
 ## Most Depended-Upon Modules
 
-- **sifaka.utils.logging**: 67 dependents
-- **sifaka.utils.state**: 35 dependents
-- **sifaka.utils.errors**: 29 dependents
-- **sifaka.utils.config**: 24 dependents
-- **sifaka.rules.base**: 18 dependents
-- **sifaka.core.interfaces**: 14 dependents
+- **sifaka.utils.logging**: 70 dependents
+- **sifaka.utils.config**: 48 dependents
+- **sifaka.utils.state**: 37 dependents
+- **sifaka.utils.errors**: 34 dependents
+- **sifaka.rules.base**: 17 dependents
+- **sifaka.classifiers.result**: 17 dependents
+- **sifaka.core.base**: 16 dependents
+- **sifaka.core.interfaces**: 15 dependents
 - **sifaka.utils.text**: 13 dependents
-- **sifaka.core.base**: 12 dependents
-- **sifaka.classifiers.config**: 12 dependents
-- **sifaka.classifiers.result**: 12 dependents
-- **sifaka.utils.common**: 11 dependents
-- **sifaka.rules.formatting.length**: 10 dependents
+- **sifaka.utils.common**: 12 dependents
 - **sifaka.classifiers.classifier**: 10 dependents
 - **sifaka.core.managers.memory**: 9 dependents
-- **sifaka.utils.error_patterns**: 9 dependents
 - **sifaka.models**: 8 dependents
+- **sifaka.rules.formatting.length**: 8 dependents
 - **sifaka.core.plugins**: 8 dependents
 - **sifaka.interfaces.model**: 8 dependents
 - **sifaka.classifiers.implementations.content.toxicity**: 7 dependents
+- **sifaka.models.providers**: 7 dependents
+- **sifaka.interfaces.counter**: 7 dependents
 - **sifaka.interfaces.client**: 7 dependents

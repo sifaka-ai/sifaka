@@ -22,7 +22,7 @@ focus on their unique retrieval logic.
 
 ```python
 from sifaka.retrieval.core import RetrieverCore
-from sifaka.retrieval.config import RetrieverConfig
+from sifaka.utils.config import RetrieverConfig
 
 class MyRetriever(RetrieverCore):
     def __init__(self, config=None, name="MyRetriever", description="Custom retriever"):
@@ -123,7 +123,7 @@ def safely_execute_retrieval(
         }
 
 
-from .config import RetrieverConfig
+from sifaka.utils.config import RetrieverConfig
 from .result import RetrievedDocument, DocumentMetadata, StringRetrievalResult
 from sifaka.interfaces.retrieval import QueryProcessor
 from .managers.query import QueryManager
@@ -178,7 +178,7 @@ class RetrieverCore(BaseComponent):
 
     ```python
     from sifaka.retrieval.core import RetrieverCore
-    from sifaka.retrieval.config import RetrieverConfig
+    from sifaka.utils.config import RetrieverConfig
 
     # Create a basic retriever
     config = RetrieverConfig(retriever_type="simple")

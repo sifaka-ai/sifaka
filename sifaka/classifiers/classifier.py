@@ -84,7 +84,7 @@ from ..utils.state import StateManager, create_classifier_state
 from ..utils.common import update_statistics, record_error
 from ..utils.logging import get_logger
 from .result import ClassificationResult
-from .config import ClassifierConfig
+from ..utils.config import ClassifierConfig
 from ..utils.errors import ClassifierError
 
 # Configure logger

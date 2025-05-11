@@ -101,7 +101,7 @@ from sifaka.utils.tracing import Tracer
 
 logger = get_logger(__name__)
 
-# Import configuration
+# Import configuration from utils/config.py
 from sifaka.utils.config import ModelConfig
 
 # Type variables for generic type definitions

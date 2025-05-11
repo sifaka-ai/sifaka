@@ -13,7 +13,7 @@ specialized prompt creation methods for their respective critic types.
 ## Usage Examples
 ```python
 from sifaka.core.managers.prompt_factories import SelfRefineCriticPromptManager
-from sifaka.critics.config import SelfRefineCriticConfig
+from sifaka.utils.config import SelfRefineCriticConfig
 
 # Create a config
 config = SelfRefineCriticConfig(
