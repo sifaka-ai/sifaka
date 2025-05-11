@@ -25,6 +25,7 @@ class LogFormatter(Protocol):
         """Format a log record."""
         ...
 
+
 @runtime_checkable
 class LogHandler(Protocol):
     """Protocol for log handlers."""
@@ -36,6 +37,7 @@ class LogHandler(Protocol):
     def handle(self, record: logging.LogRecord) -> bool:
         """Handle a log record."""
         ...
+
 
 class StructuredFormatter(logging.Formatter):
     """A formatter that supports structured logging with optional color output."""
@@ -79,6 +81,7 @@ class StructuredFormatter(logging.Formatter):
 
         return formatted
 
+
 @dataclass(frozen=True)
 class LogConfig:
     """Immutable configuration for loggers."""
@@ -98,6 +101,7 @@ class LogConfig:
             raise ValueError("level must be an integer")
         if not isinstance(self.name, str) or not self.name:
             raise ValueError("name must be a non-empty string")
+
 
 class EnhancedLogger(logging.Logger):
     """Enhanced logger with additional convenience methods."""
@@ -136,6 +140,7 @@ class EnhancedLogger(logging.Logger):
         finally:
             duration = time.time() - start_time
             self.info(f"Operation '{operation}' completed in {duration:.2f}s")
+
 
 class LoggerFactory:
     """Factory for creating and configuring loggers."""
@@ -205,12 +210,15 @@ class LoggerFactory:
         self._loggers[name] = logger
         return logger
 
+
 # Global logger factory instance
 _logger_factory = LoggerFactory()
+
 
 def get_logger(name: str, level: Optional[int] = None) -> EnhancedLogger:
     """Get a logger with the given name and level."""
     return _logger_factory.get_logger(name, level)
+
 
 def set_log_level(level: int) -> None:
     """Set the logging level for all Sifaka loggers."""
@@ -218,14 +226,44 @@ def set_log_level(level: int) -> None:
         raise TypeError("level must be an integer")
     logging.getLogger("sifaka").setLevel(level)
 
+
 def disable_logging() -> None:
     """Disable all Sifaka logging."""
     logging.getLogger("sifaka").setLevel(logging.CRITICAL)
 
-def configure_logging(config: LogConfig) -> None:
-    """Configure logging with the given configuration."""
+
+def configure_logging(config: Optional[LogConfig] = None, level: Optional[str] = None) -> None:
+    """Configure logging with the given configuration or level.
+
+    Args:
+        config: A LogConfig object to use for configuration
+        level: A string log level (e.g., "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+              This is ignored if config is provided.
+    """
     global _logger_factory
-    _logger_factory = LoggerFactory(config)
+
+    if config:
+        _logger_factory = LoggerFactory(config)
+    elif level:
+        # Convert string level to int
+        numeric_level = getattr(logging, level.upper(), None)
+        if not isinstance(numeric_level, int):
+            raise ValueError(f"Invalid log level: {level}")
+
+        # Create a new config with the specified level
+        current_config = _logger_factory.config
+        new_config = LogConfig(
+            name=current_config.name,
+            level=numeric_level,
+            format_string=current_config.format_string,
+            date_format=current_config.date_format,
+            log_to_file=current_config.log_to_file,
+            log_dir=current_config.log_dir,
+            use_colors=current_config.use_colors,
+            structured=current_config.structured,
+        )
+        _logger_factory = LoggerFactory(new_config)
+
 
 def log_operation(logger: Optional[EnhancedLogger] = None):
     """Decorator to log function entry/exit with timing."""

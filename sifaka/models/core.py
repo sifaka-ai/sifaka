@@ -5,8 +5,10 @@ This module provides the ModelProviderCore class which is the main interface
 for model providers, delegating to specialized components.
 """
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Any, Dict, Generic, Optional, TypeVar
+
+from pydantic import PrivateAttr
 
 from sifaka.models.base import APIClient, ModelConfig, ModelProvider, TokenCounter
 from sifaka.models.managers.client import ClientManager
@@ -15,6 +17,7 @@ from sifaka.models.managers.tracing import TracingManager
 from sifaka.models.services.generation import GenerationService
 from sifaka.utils.tracing import Tracer
 from sifaka.utils.logging import get_logger
+from sifaka.utils.state import StateManager, create_model_state
 
 logger = get_logger(__name__)
 
@@ -38,6 +41,22 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
     2. Usage: Generate text and count tokens, delegating to the appropriate services
     3. Cleanup: Release any resources when no longer needed
 
+    ## State Management
+    The class uses a standardized state management approach:
+    - Single _state_manager attribute for all mutable state
+    - State initialization during construction
+    - State access through state manager
+    - Clear separation of configuration and state
+    - State components:
+      - model_name: Name of the language model
+      - config: Model configuration
+      - client_manager: API client manager
+      - token_counter_manager: Token counter manager
+      - tracing_manager: Tracing manager
+      - generation_service: Generation service
+      - initialized: Initialization status
+      - cache: Temporary data storage
+
     Examples:
         ```python
         # Create a custom provider that extends ModelProviderCore
@@ -53,6 +72,9 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
         response = provider.generate("Hello, world!")
         ```
     """
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_model_state)
 
     def __init__(
         self,
@@ -72,21 +94,36 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
             token_counter: Optional token counter to use
             tracer: Optional tracer to use
         """
-        self._model_name = model_name
-        self._config = config or self._create_default_config()
+        # Initialize state
+        self._state_manager.update("model_name", model_name)
+        self._state_manager.update("config", config or self._create_default_config())
+        self._state_manager.update("initialized", False)
+        self._state_manager.update("cache", {})
 
-        # Create managers
-        self._token_counter_manager = self._create_token_counter_manager(token_counter)
-        self._client_manager = self._create_client_manager(api_client)
-        self._tracing_manager = TracingManager(model_name, self._config, tracer)
+        # Create managers and store in state
+        token_counter_manager = self._create_token_counter_manager(token_counter)
+        client_manager = self._create_client_manager(api_client)
+        tracing_manager = TracingManager(model_name, self._state_manager.get("config"), tracer)
 
-        # Create services
-        self._generation_service = GenerationService(
+        self._state_manager.update("token_counter_manager", token_counter_manager)
+        self._state_manager.update("client_manager", client_manager)
+        self._state_manager.update("tracing_manager", tracing_manager)
+
+        # Create services and store in state
+        generation_service = GenerationService(
             model_name,
-            self._client_manager,
-            self._token_counter_manager,
-            self._tracing_manager,
+            client_manager,
+            token_counter_manager,
+            tracing_manager,
         )
+        self._state_manager.update("generation_service", generation_service)
+
+        # Set metadata
+        self._state_manager.set_metadata("component_type", self.__class__.__name__)
+        self._state_manager.set_metadata("creation_time", __import__("time").time())
+
+        # Mark as initialized
+        self._state_manager.update("initialized", True)
 
         logger.info(f"Initialized {self.__class__.__name__} with model {model_name}")
 
@@ -98,7 +135,7 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
         Returns:
             The name of the language model
         """
-        return self._model_name
+        return self._state_manager.get("model_name")
 
     @property
     def config(self) -> C:
@@ -108,7 +145,7 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
         Returns:
             The current model configuration
         """
-        return self._config
+        return self._state_manager.get("config")
 
     def count_tokens(self, text: str) -> int:
         """
@@ -129,15 +166,27 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
         if not isinstance(text, str):
             raise TypeError("text must be a string")
 
-        token_count = self._token_counter_manager.count_tokens(text)
+        # Get token counter manager from state
+        token_counter_manager = self._state_manager.get("token_counter_manager")
+        token_count = token_counter_manager.count_tokens(text)
 
-        self._tracing_manager.trace_event(
+        # Get tracing manager from state
+        tracing_manager = self._state_manager.get("tracing_manager")
+        tracing_manager.trace_event(
             "token_count",
             {
                 "text_length": len(text),
                 "token_count": token_count,
             },
         )
+
+        # Update statistics in state
+        count_stats = self._state_manager.get("token_count_stats", {})
+        count_stats["total_tokens_counted"] = (
+            count_stats.get("total_tokens_counted", 0) + token_count
+        )
+        count_stats["count_operations"] = count_stats.get("count_operations", 0) + 1
+        self._state_manager.update("token_count_stats", count_stats)
 
         return token_count
 
@@ -165,6 +214,13 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
         if not prompt.strip():
             raise ValueError("prompt cannot be empty")
 
+        # Check cache if enabled
+        cache = self._state_manager.get("cache", {})
+        cache_key = f"{prompt}_{str(kwargs)}"
+        if cache_key in cache:
+            self._state_manager.set_metadata("cache_hit", True)
+            return cache[cache_key]
+
         # Update config with any override kwargs
         config = ModelConfig(
             temperature=kwargs.pop("temperature", self.config.temperature),
@@ -175,16 +231,46 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
 
         # Verify API key is set before attempting to generate
         if not config.api_key:
-            model_specific_env = f"{self.__class__.__name__.replace('Provider', '').upper()}_API_KEY"
+            model_specific_env = (
+                f"{self.__class__.__name__.replace('Provider', '').upper()}_API_KEY"
+            )
             raise ValueError(
                 f"API key is missing. Please provide an API key either by setting the "
                 f"{model_specific_env} environment variable or by passing it explicitly "
                 f"via the api_key parameter or config."
             )
 
-        return self._generation_service.generate(prompt, config)
+        # Get generation service from state
+        generation_service = self._state_manager.get("generation_service")
 
-    def _create_token_counter_manager(self, token_counter: Optional[TokenCounter]) -> TokenCounterManager:
+        # Track generation count
+        generation_stats = self._state_manager.get("generation_stats", {})
+        generation_stats["generation_count"] = generation_stats.get("generation_count", 0) + 1
+        self._state_manager.update("generation_stats", generation_stats)
+
+        # Generate text
+        start_time = __import__("time").time()
+        result = generation_service.generate(prompt, config)
+        end_time = __import__("time").time()
+
+        # Update statistics
+        duration_ms = (end_time - start_time) * 1000
+        generation_stats = self._state_manager.get("generation_stats", {})
+        generation_stats["total_generation_time_ms"] = (
+            generation_stats.get("total_generation_time_ms", 0) + duration_ms
+        )
+        self._state_manager.update("generation_stats", generation_stats)
+
+        # Update cache
+        if len(cache) < 100:  # Limit cache size
+            cache[cache_key] = result
+            self._state_manager.update("cache", cache)
+
+        return result
+
+    def _create_token_counter_manager(
+        self, token_counter: Optional[TokenCounter]
+    ) -> TokenCounterManager:
         """
         Create a token counter manager.
 
@@ -197,11 +283,12 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
         Returns:
             A token counter manager
         """
+
         class ConcreteTokenCounterManager(TokenCounterManager):
             def _create_default_token_counter(self2) -> TokenCounter:
                 return self._create_default_token_counter()
 
-        return ConcreteTokenCounterManager(self._model_name, token_counter)
+        return ConcreteTokenCounterManager(self._state_manager.get("model_name"), token_counter)
 
     def _create_client_manager(self, api_client: Optional[APIClient]) -> ClientManager:
         """
@@ -216,11 +303,14 @@ class ModelProviderCore(ModelProvider[C], Generic[C]):
         Returns:
             A client manager
         """
+
         class ConcreteClientManager(ClientManager):
             def _create_default_client(self2) -> APIClient:
                 return self._create_default_client()
 
-        return ConcreteClientManager(self._model_name, self._config, api_client)
+        return ConcreteClientManager(
+            self._state_manager.get("model_name"), self._state_manager.get("config"), api_client
+        )
 
     @abstractmethod
     def _create_default_client(self) -> APIClient:

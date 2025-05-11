@@ -22,7 +22,6 @@ Usage Example:
     ```
 """
 
-import re
 import time
 from typing import List, Optional
 
@@ -30,6 +29,7 @@ from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
 from sifaka.utils.logging import get_logger
+from sifaka.utils.patterns import MULTIPLE_SPACES_PATTERN, replace_pattern, compile_pattern
 
 logger = get_logger(__name__)
 
@@ -299,7 +299,7 @@ class DefaultWhitespaceValidator(WhitespaceValidator):
 
         # Replace multiple spaces with single space
         if not self.config.allow_multiple_spaces:
-            text = re.sub(r" +", " ", text)
+            text = replace_pattern(text, MULTIPLE_SPACES_PATTERN, " ")
 
         # Remove leading whitespace
         if not self.config.allow_leading_whitespace:
@@ -324,7 +324,8 @@ class DefaultWhitespaceValidator(WhitespaceValidator):
             return []
 
         # Find sequences of newlines
-        newline_sequences = re.findall(r"\n+", text)
+        newline_pattern = compile_pattern(r"\n+")
+        newline_sequences = newline_pattern.findall(text)
         max_found = max([len(seq) for seq in newline_sequences]) if newline_sequences else 0
 
         if max_found > self.config.max_newlines:

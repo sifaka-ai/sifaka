@@ -678,13 +678,16 @@ class AnthropicProvider(ModelProviderCore):
             token_counter=token_counter,
         )
 
-        # Initialize statistics
-        self._generation_count = 0
-        self._token_count_calls = 0
-        self._reflection_count = 0
-        self._error_count = 0
-        self._total_processing_time = 0
-        self._last_generation_time = None
+        # Initialize statistics in state
+        stats = {
+            "generation_count": 0,
+            "token_count_calls": 0,
+            "reflection_count": 0,
+            "error_count": 0,
+            "total_processing_time": 0,
+            "last_generation_time": None,
+        }
+        self._state_manager.update("stats", stats)
 
         logger.debug(f"Initialized Anthropic provider with model {model_name}")
 
@@ -703,19 +706,31 @@ class AnthropicProvider(ModelProviderCore):
             The generated text response
         """
         start_time = time.time()
-        self._last_generation_time = start_time
+
+        # Get statistics from state
+        stats = self._state_manager.get("stats", {})
+        stats["last_generation_time"] = start_time
+        self._state_manager.update("stats", stats)
 
         try:
             result = self.generate(prompt, **kwargs)
 
-            # Update statistics
-            self._generation_count += 1
-            self._total_processing_time += (time.time() - start_time) * 1000
+            # Update statistics in state
+            stats = self._state_manager.get("stats", {})
+            stats["generation_count"] = stats.get("generation_count", 0) + 1
+            stats["total_processing_time"] = (
+                stats.get("total_processing_time", 0) + (time.time() - start_time) * 1000
+            )
+            self._state_manager.update("stats", stats)
 
             return result
 
         except Exception as e:
-            self._error_count += 1
+            # Update error count in state
+            stats = self._state_manager.get("stats", {})
+            stats["error_count"] = stats.get("error_count", 0) + 1
+            self._state_manager.update("stats", stats)
+
             logger.error(f"Error invoking model: {e}")
             raise
 
@@ -735,6 +750,11 @@ class AnthropicProvider(ModelProviderCore):
         """
         start_time = time.time()
 
+        # Get statistics from state
+        stats = self._state_manager.get("stats", {})
+        stats["last_generation_time"] = start_time
+        self._state_manager.update("stats", stats)
+
         try:
             if hasattr(self, "agenerate"):
                 result = await self.agenerate(prompt, **kwargs)
@@ -742,14 +762,22 @@ class AnthropicProvider(ModelProviderCore):
                 # Fall back to synchronous generate
                 result = self.generate(prompt, **kwargs)
 
-            # Update statistics
-            self._generation_count += 1
-            self._total_processing_time += (time.time() - start_time) * 1000
+            # Update statistics in state
+            stats = self._state_manager.get("stats", {})
+            stats["generation_count"] = stats.get("generation_count", 0) + 1
+            stats["total_processing_time"] = (
+                stats.get("total_processing_time", 0) + (time.time() - start_time) * 1000
+            )
+            self._state_manager.update("stats", stats)
 
             return result
 
         except Exception as e:
-            self._error_count += 1
+            # Update error count in state
+            stats = self._state_manager.get("stats", {})
+            stats["error_count"] = stats.get("error_count", 0) + 1
+            self._state_manager.update("stats", stats)
+
             logger.error(f"Error asynchronously invoking model: {e}")
             raise
 
@@ -802,7 +830,10 @@ class AnthropicProvider(ModelProviderCore):
             print(f"Analysis: {result.analysis}")
             ```
         """
-        self._reflection_count += 1
+        # Update reflection count in state
+        stats = self._state_manager.get("stats", {})
+        stats["reflection_count"] = stats.get("reflection_count", 0) + 1
+        self._state_manager.update("stats", stats)
 
         return AnthropicReflector(
             api_key=self.config.api_key,
@@ -823,7 +854,11 @@ class AnthropicProvider(ModelProviderCore):
         Returns:
             The number of tokens in the text
         """
-        self._token_count_calls += 1
+        # Update token count calls in state
+        stats = self._state_manager.get("stats", {})
+        stats["token_count_calls"] = stats.get("token_count_calls", 0) + 1
+        self._state_manager.update("stats", stats)
+
         return super().count_tokens(text)
 
     @property

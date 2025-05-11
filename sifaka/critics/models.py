@@ -66,9 +66,9 @@ The module implements:
 - Default value handling
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import List
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field
 from sifaka.core.base import BaseResult
 
 
@@ -145,67 +145,7 @@ class CriticMetadata(BaseResult):
     )
 
 
-class CriticConfig(BaseModel):
-    """
-    Base configuration for critics.
-
-    This class provides the base configuration for all critics,
-    including common parameters like name, description, and cache size.
-
-    ## Overview
-    The class provides:
-    - Basic critic identification (name, description)
-    - Cache configuration
-    - Extensible configuration structure
-    - Type-safe configuration management
-
-    ## Usage Examples
-    ```python
-    from sifaka.critics.models import CriticConfig
-
-    # Create a basic configuration
-    config = CriticConfig(
-        name="my_critic",
-        description="A custom critic",
-        cache_size=200
-    )
-
-    # Create a configuration with additional parameters
-    config = CriticConfig(
-        name="advanced_critic",
-        description="An advanced critic with custom settings",
-        cache_size=500,
-        custom_param1="value1",
-        custom_param2=42
-    )
-    ```
-
-    ## Error Handling
-    The class implements:
-    - Required field validation
-    - Type checking for all fields
-    - Cache size validation (non-negative)
-    - Extensible parameter handling
-
-    Attributes:
-        name: Name of the critic
-        description: Description of the critic
-        cache_size: Size of the cache for critic results
-    """
-
-    model_config = ConfigDict(extra="allow")
-
-    name: str = Field(
-        description="Name of the critic",
-    )
-    description: str = Field(
-        description="Description of the critic",
-    )
-    cache_size: int = Field(
-        default=100,
-        ge=0,
-        description="Size of the cache for critic results",
-    )
+from sifaka.utils.config import CriticConfig
 
 
 class PromptCriticConfig(CriticConfig):

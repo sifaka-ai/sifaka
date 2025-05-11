@@ -67,12 +67,13 @@ result = try_operation(
 ```
 """
 
-import logging
 import traceback
 from typing import Any, Callable, Dict, Optional, Type, TypeVar
 
+from .logging import get_logger
+
 # Configure logger
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 __all__ = [
     # Base error classes
@@ -87,6 +88,9 @@ __all__ = [
     "DependencyError",
     # Component-specific error classes
     "ChainError",
+    "ImproverError",
+    "FormatterError",
+    "PluginError",
     "ModelError",
     "RuleError",
     "CriticError",
@@ -221,6 +225,36 @@ class ChainError(SifakaError):
 
     This error is raised when a chain component encounters an error,
     such as during orchestration, execution, or result processing.
+    """
+
+    pass
+
+
+class ImproverError(ChainError):
+    """Error raised when improver refinement fails.
+
+    This error is raised when an improver component fails to refine output,
+    such as during critic-based improvement or other refinement processes.
+    """
+
+    pass
+
+
+class FormatterError(ChainError):
+    """Error raised when result formatting fails.
+
+    This error is raised when a formatter component fails to format results,
+    such as during output formatting or structure conversion.
+    """
+
+    pass
+
+
+class PluginError(ChainError):
+    """Error raised when plugin operations fail.
+
+    This error is raised when a plugin encounters an error during execution,
+    such as during initialization, processing, or cleanup.
     """
 
     pass

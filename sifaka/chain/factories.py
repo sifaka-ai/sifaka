@@ -12,7 +12,7 @@ These factories simplify the creation of chains with sensible defaults.
 
 ## Usage Examples
 ```python
-from sifaka.chain.v2.factories import create_chain
+from sifaka.chain import create_chain
 from sifaka.models import OpenAIProvider
 from sifaka.rules import create_length_rule
 from sifaka.critics import create_prompt_critic
@@ -60,10 +60,10 @@ def create_chain(
 ) -> Chain:
     """
     Create a chain with the specified components.
-    
+
     This factory function creates a chain with the specified components,
     automatically adapting them to the required interfaces if needed.
-    
+
     Args:
         model: The model to use for generation
         validators: The validators to use for validation
@@ -73,13 +73,13 @@ def create_chain(
         config: Chain configuration
         name: Chain name
         description: Chain description
-        
+
     Returns:
         A chain instance
     """
     # Adapt model if needed
     adapted_model = model if isinstance(model, Model) else ModelAdapter(model)
-    
+
     # Adapt validators if needed
     adapted_validators = []
     if validators:
@@ -88,7 +88,7 @@ def create_chain(
                 adapted_validators.append(validator)
             else:
                 adapted_validators.append(ValidatorAdapter(validator))
-    
+
     # Adapt improver if needed
     adapted_improver = None
     if improver:
@@ -96,7 +96,7 @@ def create_chain(
             adapted_improver = improver
         else:
             adapted_improver = ImproverAdapter(improver)
-    
+
     # Adapt formatter if needed
     adapted_formatter = None
     if formatter:
@@ -104,7 +104,7 @@ def create_chain(
             adapted_formatter = formatter
         else:
             adapted_formatter = FormatterAdapter(formatter)
-    
+
     # Create chain
     return Chain(
         model=adapted_model,

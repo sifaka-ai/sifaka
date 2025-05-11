@@ -46,6 +46,7 @@ from typing import Any, Dict, List, Optional
 from sifaka.core.base import BaseComponent
 from sifaka.utils.errors import RetrievalError, InputError, handle_error
 from sifaka.utils.logging import get_logger
+from sifaka.utils.common import record_error
 
 from ..config import RankingConfig
 
@@ -385,6 +386,9 @@ class SimpleRankingStrategy(RankingStrategy):
             return result
 
         except Exception as e:
+            # Use the standardized utility function
+            record_error(self._state_manager, e)
+
             # If it's already a RetrievalError or InputError, re-raise
             if isinstance(e, (RetrievalError, InputError)):
                 raise
@@ -644,6 +648,9 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
             return result
 
         except Exception as e:
+            # Use the standardized utility function
+            record_error(self._state_manager, e)
+
             # If it's already a RetrievalError or InputError, re-raise
             if isinstance(e, (RetrievalError, InputError)):
                 raise

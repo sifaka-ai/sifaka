@@ -8,7 +8,7 @@ simplifying the creation of model providers with common configurations.
 from typing import Any, Optional, Type, TypeVar
 
 from sifaka.models.core import ModelProviderCore
-from sifaka.models.config import ModelConfig
+from sifaka.utils.config import standardize_model_config
 from sifaka.models.providers.openai import OpenAIProvider
 from sifaka.models.providers.anthropic import AnthropicProvider
 from sifaka.models.providers.gemini import GeminiProvider
@@ -74,8 +74,8 @@ def create_model_provider(
         )
         ```
     """
-    # Create configuration
-    config = ModelConfig(
+    # Create configuration using standardization function
+    config = standardize_model_config(
         temperature=temperature,
         max_tokens=max_tokens,
         api_key=api_key,

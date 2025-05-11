@@ -57,6 +57,7 @@ from typing import Any, Dict, Optional
 
 from sifaka.utils.errors import RetrievalError, InputError, handle_error
 from sifaka.utils.logging import get_logger
+from sifaka.utils.common import record_error
 
 from ..core import RetrieverCore
 from ..config import RetrieverConfig
@@ -178,6 +179,8 @@ class SimpleRetriever(RetrieverCore):
         except Exception as e:
             if isinstance(e, FileNotFoundError):
                 raise
+            # Use the standardized utility function
+            record_error(self._state_manager, e)
             error_info = handle_error(e, self.name, "error")
             raise RetrievalError(
                 f"Failed to initialize document collection: {str(e)}", metadata=error_info
@@ -294,6 +297,9 @@ class SimpleRetriever(RetrieverCore):
             )
 
         except Exception as e:
+            # Use the standardized utility function
+            record_error(self._state_manager, e)
+
             # If it's already a RetrievalError or InputError, re-raise
             if isinstance(e, (RetrievalError, InputError)):
                 raise

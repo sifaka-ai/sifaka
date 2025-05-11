@@ -23,13 +23,13 @@ from sifaka.chain.core import ChainCore
 from sifaka.chain.managers.validation import ValidationManager
 from sifaka.chain.managers.prompt import PromptManager
 from sifaka.chain.strategies.retry import SimpleRetryStrategy
-from sifaka.chain.formatters.result import ResultFormatter
+from sifaka.chain.adapters import FormatterAdapter
 
 # Create components
 validation_manager = ValidationManager(rules=[...])
 prompt_manager = PromptManager()
 retry_strategy = SimpleRetryStrategy(max_attempts=3)
-result_formatter = ResultFormatter()
+result_formatter = FormatterAdapter(formatter=None)
 
 # Create chain core with state management
 chain_core = ChainCore(

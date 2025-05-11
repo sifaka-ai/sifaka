@@ -11,6 +11,19 @@ The module provides standardized pattern matching:
 1. **compile_pattern**: Compile a regex pattern with caching
 2. **match_pattern**: Match a pattern against text
 3. **find_patterns**: Find all matches of patterns in text
+4. **replace_pattern**: Replace all occurrences of a pattern in text
+5. **count_patterns**: Count matches of patterns in text
+
+## Common Patterns
+
+The module provides common regex patterns as constants:
+
+1. **WHITESPACE_PATTERN**: Matches any whitespace characters
+2. **MULTIPLE_SPACES_PATTERN**: Matches multiple consecutive spaces
+3. **MULTIPLE_NEWLINES_PATTERN**: Matches multiple consecutive newlines
+4. **PUNCTUATION_PATTERN**: Matches punctuation characters
+5. **EMAIL_PATTERN**: Matches email addresses
+6. **URL_PATTERN**: Matches URLs
 
 ## Pattern Types
 
@@ -24,7 +37,8 @@ The module supports different pattern types:
 
 ```python
 from sifaka.utils.patterns import (
-    compile_pattern, match_pattern, find_patterns
+    compile_pattern, match_pattern, find_patterns, replace_pattern,
+    WHITESPACE_PATTERN, EMAIL_PATTERN
 )
 
 # Compile a pattern
@@ -49,6 +63,16 @@ matches = find_patterns(
     },
     case_sensitive=False
 )
+
+# Replace patterns
+normalized_text = replace_pattern(
+    "This   has   multiple    spaces",
+    WHITESPACE_PATTERN,
+    " "
+)
+
+# Use predefined patterns
+is_email = match_pattern("user@example.com", EMAIL_PATTERN)
 ```
 """
 
@@ -288,6 +312,74 @@ def find_patterns(
     return results
 
 
+def replace_pattern(
+    text: str,
+    pattern: Union[str, Pattern],
+    replacement: str,
+    case_sensitive: bool = True,
+    multiline: bool = False,
+    dotall: bool = False,
+    unicode: bool = True,
+) -> str:
+    """
+    Replace all occurrences of a pattern in text.
+
+    Args:
+        text: Text to search in
+        pattern: Regex pattern string or compiled pattern
+        replacement: Replacement string
+        case_sensitive: Whether the pattern is case-sensitive
+        multiline: Whether to use multiline mode
+        dotall: Whether to use dotall mode (. matches newlines)
+        unicode: Whether to use unicode mode
+
+    Returns:
+        Text with pattern replaced
+
+    Raises:
+        ValidationError: If the pattern is invalid
+
+    Examples:
+        ```python
+        from sifaka.utils.patterns import replace_pattern
+
+        # Replace multiple spaces with a single space
+        text = "This   has   multiple    spaces"
+        normalized = replace_pattern(text, r"\s+", " ")
+        print(normalized)  # "This has multiple spaces"
+
+        # Replace email addresses with [EMAIL]
+        text = "Contact us at user@example.com or support@example.com"
+        redacted = replace_pattern(
+            text,
+            r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
+            "[EMAIL]",
+            case_sensitive=False
+        )
+        print(redacted)  # "Contact us at [EMAIL] or [EMAIL]"
+
+        # Use compiled pattern
+        import re
+        email_pattern = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+        redacted = replace_pattern(text, email_pattern, "[EMAIL]")
+        ```
+    """
+    # Compile pattern if needed
+    if isinstance(pattern, str):
+        compiled = compile_pattern(
+            pattern,
+            case_sensitive=case_sensitive,
+            multiline=multiline,
+            dotall=dotall,
+            unicode=unicode,
+        )
+    else:
+        compiled = pattern
+
+    # Replace pattern
+    return compiled.sub(replacement, text)
+
+
 def count_patterns(
     text: str,
     patterns: Dict[str, Union[str, Pattern]],
@@ -478,3 +570,26 @@ def match_wildcard(text: str, pattern: str, case_sensitive: bool = True) -> bool
 
     # Match using regex
     return match_pattern(text, regex_pattern, case_sensitive=case_sensitive)
+
+
+# Define common regex patterns after all functions are defined
+WHITESPACE_PATTERN = compile_pattern(r"\s+")
+MULTIPLE_SPACES_PATTERN = compile_pattern(r" +")
+MULTIPLE_NEWLINES_PATTERN = compile_pattern(r"\n{3,}")
+PUNCTUATION_PATTERN = compile_pattern(r"[^\w\s]")
+EMAIL_PATTERN = compile_pattern(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
+URL_PATTERN = compile_pattern(r"https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+")
+
+
+class ValidationPattern:
+    """Common validation patterns."""
+
+    EMAIL = compile_pattern(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+    URL = compile_pattern(
+        r"^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$"
+    )
+    PHONE = compile_pattern(r"^\+?1?\d{9,15}$")
+    DATE = compile_pattern(r"^\d{4}-\d{2}-\d{2}$")
+    TIME = compile_pattern(r"^\d{2}:\d{2}(:\d{2})?$")
+    IPV4 = compile_pattern(r"^(\d{1,3}\.){3}\d{1,3}$")
+    IPV6 = compile_pattern(r"^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$")

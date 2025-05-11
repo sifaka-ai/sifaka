@@ -1,11 +1,11 @@
 """
-Chain Module (v2)
+Chain Module
 
 ## Overview
-This module provides a simplified and more maintainable implementation of the chain system
+This module provides a simplified and maintainable implementation of the chain system
 for orchestrating the validation and improvement flow between models, rules, and critics.
 It serves as the central coordinator for Sifaka's validation and refinement capabilities,
-implementing a flexible and extensible chain system with a cleaner architecture.
+implementing a flexible and extensible chain system with a clean architecture.
 
 ## Components
 1. **Chain**: Main user-facing class for running chains
@@ -18,7 +18,7 @@ implementing a flexible and extensible chain system with a cleaner architecture.
 
 ## Usage Examples
 ```python
-from sifaka.chain.v2 import Chain
+from sifaka.chain import Chain
 from sifaka.models import OpenAIProvider
 from sifaka.rules import create_length_rule
 from sifaka.critics import create_prompt_critic
@@ -61,7 +61,6 @@ print(f"All validations passed: {result.all_passed}")
 from .chain import Chain
 from .engine import Engine
 from .result import ChainResult
-from .state import StateTracker
 
 # Interfaces
 from .interfaces import Model, Validator, Improver, Formatter, Plugin
@@ -69,12 +68,14 @@ from .interfaces import Model, Validator, Improver, Formatter, Plugin
 # Factory functions
 from .factories import create_chain
 
+# State management
+from ..utils.state import StateManager, create_chain_state
+
 __all__ = [
     # Core components
     "Chain",
     "Engine",
     "ChainResult",
-    "StateTracker",
     # Interfaces
     "Model",
     "Validator",
@@ -83,4 +84,7 @@ __all__ = [
     "Plugin",
     # Factory functions
     "create_chain",
+    # State management
+    "StateManager",
+    "create_chain_state",
 ]

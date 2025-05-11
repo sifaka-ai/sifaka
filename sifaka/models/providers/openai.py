@@ -17,7 +17,7 @@ API communication, token counting, response processing, and execution tracking.
 ## Usage Examples
 ```python
 from sifaka.models.providers.openai import OpenAIProvider
-from sifaka.models.config import ModelConfig
+from sifaka.utils.config import ModelConfig
 
 # Create a provider with default configuration
 provider = OpenAIProvider(model_name="gpt-4")
@@ -51,9 +51,10 @@ from typing import Any, Dict, Optional, ClassVar
 
 import tiktoken
 
-from sifaka.models.base import APIClient, ModelConfig, TokenCounter
+from sifaka.models.base import APIClient, TokenCounter
+from sifaka.utils.config import ModelConfig
 from sifaka.models.core import ModelProviderCore
-from sifaka.utils.errors import handle_error
+from sifaka.utils.error_patterns import safely_execute_model
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -112,7 +113,8 @@ class OpenAIClient(APIClient):
                 "OPENAI_API_KEY environment variable or by passing it explicitly."
             )
 
-        try:
+        # Define the generation operation
+        def generate_operation():
             # Import OpenAI here to avoid dependency issues
             import openai
 
@@ -135,10 +137,12 @@ class OpenAIClient(APIClient):
             response = openai.Completion.create(**params)
             return response.choices[0].text.strip()
 
-        except Exception as e:
-            error_info = handle_error(e, "OpenAIClient")
-            logger.error(f"OpenAI API error: {error_info['error_message']}")
-            raise RuntimeError(f"OpenAI API error: {str(e)}") from e
+        # Use the standardized safely_execute_model function
+        return safely_execute_model(
+            operation=generate_operation,
+            model_name=config.params.get("model_name", "gpt-4"),
+            component_name="OpenAIClient",
+        )
 
 
 class OpenAITokenCounter(TokenCounter):
@@ -151,7 +155,9 @@ class OpenAITokenCounter(TokenCounter):
         Args:
             model: The model to count tokens for
         """
-        try:
+
+        # Define the initialization operation
+        def init_operation():
             # Get the appropriate encoding for the model
             if "gpt-4" in model:
                 encoding_name = "cl100k_base"
@@ -164,10 +170,14 @@ class OpenAITokenCounter(TokenCounter):
             logger.debug(
                 f"Initialized token counter for model {model} with encoding {encoding_name}"
             )
-        except Exception as e:
-            error_info = handle_error(e, "OpenAITokenCounter")
-            logger.error(f"Error initializing token counter: {error_info['error_message']}")
-            raise RuntimeError(f"Failed to initialize token counter: {str(e)}") from e
+            return self.encoding
+
+        # Use the standardized safely_execute_model function
+        safely_execute_model(
+            operation=init_operation,
+            model_name=model,
+            component_name="OpenAITokenCounter",
+        )
 
     def count_tokens(self, text: str) -> int:
         """
@@ -179,12 +189,17 @@ class OpenAITokenCounter(TokenCounter):
         Returns:
             The number of tokens in the text
         """
-        try:
+
+        # Define the token counting operation
+        def count_operation():
             return len(self.encoding.encode(text))
-        except Exception as e:
-            error_info = handle_error(e, "OpenAITokenCounter")
-            logger.error(f"Error counting tokens: {error_info['error_message']}")
-            raise RuntimeError(f"Failed to count tokens: {str(e)}") from e
+
+        # Use the standardized safely_execute_model function
+        return safely_execute_model(
+            operation=count_operation,
+            model_name="tiktoken",
+            component_name="OpenAITokenCounter",
+        )
 
 
 class OpenAIProvider(ModelProviderCore):
@@ -237,6 +252,15 @@ class OpenAIProvider(ModelProviderCore):
             token_counter=token_counter,
         )
 
+        # Initialize provider-specific stats
+        stats = {
+            "generation_count": 0,
+            "token_count_calls": 0,
+            "error_count": 0,
+            "total_processing_time": 0,
+        }
+        self._state_manager.update("stats", stats)
+
     def invoke(self, prompt: str, **kwargs) -> str:
         """
         Invoke the model with a prompt (delegates to generate).
@@ -251,7 +275,32 @@ class OpenAIProvider(ModelProviderCore):
         Returns:
             The generated text response
         """
-        return self.generate(prompt, **kwargs)
+        # Track generation count in state
+        import time
+
+        start_time = time.time()
+
+        try:
+            result = self.generate(prompt, **kwargs)
+
+            # Update statistics in state
+            stats = self._state_manager.get("stats", {})
+            stats["generation_count"] = stats.get("generation_count", 0) + 1
+            stats["total_processing_time"] = (
+                stats.get("total_processing_time", 0) + (time.time() - start_time) * 1000
+            )
+            self._state_manager.update("stats", stats)
+
+            return result
+
+        except Exception:
+            # Update error count in state
+            stats = self._state_manager.get("stats", {})
+            stats["error_count"] = stats.get("error_count", 0) + 1
+            self._state_manager.update("stats", stats)
+
+            # Re-raise the exception
+            raise
 
     async def ainvoke(self, prompt: str, **kwargs) -> str:
         """
@@ -267,19 +316,44 @@ class OpenAIProvider(ModelProviderCore):
         Returns:
             The generated text response
         """
-        if hasattr(self, "agenerate"):
-            return await self.agenerate(prompt, **kwargs)
+        # Track generation count in state
+        import time
 
-        # Fall back to synchronous generate
-        return self.generate(prompt, **kwargs)
+        start_time = time.time()
+
+        try:
+            if hasattr(self, "agenerate"):
+                result = await self.agenerate(prompt, **kwargs)
+            else:
+                # Fall back to synchronous generate
+                result = self.generate(prompt, **kwargs)
+
+            # Update statistics in state
+            stats = self._state_manager.get("stats", {})
+            stats["generation_count"] = stats.get("generation_count", 0) + 1
+            stats["total_processing_time"] = (
+                stats.get("total_processing_time", 0) + (time.time() - start_time) * 1000
+            )
+            self._state_manager.update("stats", stats)
+
+            return result
+
+        except Exception:
+            # Update error count in state
+            stats = self._state_manager.get("stats", {})
+            stats["error_count"] = stats.get("error_count", 0) + 1
+            self._state_manager.update("stats", stats)
+
+            # Re-raise the exception
+            raise
 
     def _create_default_client(self) -> APIClient:
         """Create a default OpenAI client."""
-        return OpenAIClient(api_key=self.config.api_key)
+        return OpenAIClient(api_key=self._state_manager.get("config").api_key)
 
     def _create_default_token_counter(self) -> TokenCounter:
         """Create a default token counter for the current model."""
-        return OpenAITokenCounter(model=self.model_name)
+        return OpenAITokenCounter(model=self._state_manager.get("model_name"))
 
     @property
     def name(self) -> str:
@@ -289,7 +363,7 @@ class OpenAIProvider(ModelProviderCore):
         Returns:
             The provider name
         """
-        return f"OpenAI-{self.model_name}"
+        return f"OpenAI-{self._state_manager.get('model_name')}"
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -298,5 +372,11 @@ class OpenAIProvider(ModelProviderCore):
         Returns:
             Dictionary with usage statistics
         """
-        # Get statistics from tracing manager
-        return self._tracing_manager.get_statistics()
+        # Get statistics from tracing manager and state
+        tracing_manager = self._state_manager.get("tracing_manager")
+        tracing_stats = tracing_manager.get_statistics()
+
+        # Combine with any other stats from state
+        stats = self._state_manager.get("stats", {})
+
+        return {**tracing_stats, **stats}

@@ -85,7 +85,8 @@ from sifaka.interfaces import (
     Validatable,
 )
 from .managers.validation import ValidationManager
-from .utils import create_rule_result, create_error_result, try_validate
+from .utils import try_validate
+from sifaka.utils.results import create_rule_result, create_error_result
 
 # Import from content rules
 from .content.prohibited import create_prohibited_content_rule

@@ -22,13 +22,13 @@ query preprocessing, expansion, and other query-related operations.
    - Lemmatization: Apply lemmatization to the query terms
 """
 
-import re
 import time
 from typing import Any, Dict, Optional, Set
 
 from sifaka.core.base import BaseComponent
 from sifaka.utils.errors import RetrievalError, InputError, handle_error
 from sifaka.utils.logging import get_logger
+from sifaka.utils.patterns import PUNCTUATION_PATTERN, replace_pattern
 
 from ..config import QueryProcessingConfig
 from ..interfaces.retriever import QueryProcessor
@@ -270,7 +270,7 @@ class QueryManager(BaseComponent, QueryProcessor):
         Returns:
             The query with punctuation removed
         """
-        return re.sub(r"[^\w\s]", "", query)
+        return replace_pattern(query, PUNCTUATION_PATTERN, "")
 
     def _expand_query(self, query: str) -> str:
         """

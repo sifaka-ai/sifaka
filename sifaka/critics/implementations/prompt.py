@@ -41,6 +41,7 @@ from pydantic import PrivateAttr, ConfigDict, Field
 
 from ...core.base import BaseComponent
 from ...utils.state import create_critic_state
+from ...utils.common import record_error
 from ...core.base import BaseResult as CriticResult
 from ..config import PromptCriticConfig
 from ..interfaces.critic import TextCritic, TextImprover, TextValidator
@@ -209,7 +210,8 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             return result
 
         except Exception as e:
-            self.record_error(e)
+            # Use the standardized utility function
+            record_error(self._state_manager, e)
             processing_time = (time.time() - start_time) * 1000
             return CriticResult(
                 passed=False,
@@ -288,7 +290,8 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             return improved_text
 
         except Exception as e:
-            self.record_error(e)
+            # Use the standardized utility function
+            record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to improve text: {str(e)}") from e
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
@@ -356,7 +359,8 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             return improved_text
 
         except Exception as e:
-            self.record_error(e)
+            # Use the standardized utility function
+            record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to improve text with feedback: {str(e)}") from e
 
     def improve_with_history(
@@ -410,7 +414,8 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             return improved_text, parsed_items
 
         except Exception as e:
-            self.record_error(e)
+            # Use the standardized utility function
+            record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to improve text with history: {str(e)}") from e
 
     def close_feedback_loop(
@@ -478,7 +483,8 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             return improved_text, report
 
         except Exception as e:
-            self.record_error(e)
+            # Use the standardized utility function
+            record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to close feedback loop: {str(e)}") from e
 
     def validate(self, text: str) -> bool:

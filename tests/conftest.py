@@ -7,14 +7,16 @@ This file contains pytest hooks and fixtures used across all test modules.
 import os
 import sys
 import pytest
-import logging
+
+from sifaka.utils.logging import get_logger, configure_logging
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+configure_logging(level="INFO")
+logger = get_logger(__name__)
 
 # Add the project root to the path so we can import modules
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 
 def pytest_configure(config):
     """
@@ -25,6 +27,7 @@ def pytest_configure(config):
     # Apply compatibility patches for external libraries
     try:
         from sifaka.utils.patches import apply_all_patches
+
         apply_all_patches()
         logger.info("Successfully applied compatibility patches")
     except ImportError:

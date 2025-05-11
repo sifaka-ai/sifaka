@@ -38,7 +38,6 @@ print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 """
 
-import re
 import time
 from enum import Enum, auto
 from typing import List, Optional
@@ -52,6 +51,7 @@ from sifaka.rules.base import (
     BaseValidator,
 )
 from sifaka.utils.logging import get_logger
+from sifaka.utils.patterns import WHITESPACE_PATTERN, MULTIPLE_NEWLINES_PATTERN, replace_pattern
 
 logger = get_logger(__name__)
 
@@ -1078,12 +1078,12 @@ class DefaultFormattingValidator(FormattingValidator):
             text = text.strip()
 
         if self.config.normalize_whitespace:
-            text = re.sub(r"\s+", " ", text)
+            text = replace_pattern(text, WHITESPACE_PATTERN, " ")
             if original_text != text:
                 suggestions.append("Normalize whitespace (remove extra spaces)")
 
         if self.config.remove_extra_lines:
-            text = re.sub(r"\n{3,}", "\n\n", text)
+            text = replace_pattern(text, MULTIPLE_NEWLINES_PATTERN, "\n\n")
             if original_text != text:
                 suggestions.append("Remove extra blank lines")
 

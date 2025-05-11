@@ -1,8 +1,8 @@
 """
 Classifier Configuration Module
 
-This module provides configuration classes for the Sifaka classifiers system.
-It defines a unified configuration system with sensible defaults and validation.
+This module imports standardized configuration classes from utils/config.py and
+extends them with classifier-specific functionality.
 
 ## Components
 1. **ClassifierConfig**: Configuration for classifiers
@@ -10,13 +10,15 @@ It defines a unified configuration system with sensible defaults and validation.
 
 ## Usage Examples
 ```python
-from sifaka.classifiers.v2.config import ClassifierConfig
+from sifaka.utils.config import ClassifierConfig, standardize_classifier_config
 
 # Create classifier configuration
 config = ClassifierConfig(
-    cache_enabled=True,
+    name="sentiment_classifier",
+    description="Classifies text sentiment",
     cache_size=100,
     min_confidence=0.7,
+    labels=["positive", "negative", "neutral"],
     params={
         "threshold": 0.8,
         "use_fallback": True,
@@ -30,82 +32,32 @@ classifier = Classifier(
 )
 
 # Update configuration
-updated_config = config.model_copy(update={"min_confidence": 0.5})
+updated_config = config.with_options(min_confidence=0.5)
 classifier.update_config(updated_config)
+
+# Standardize configuration
+std_config = standardize_classifier_config(
+    min_confidence=0.7,
+    labels=["positive", "negative", "neutral"],
+    params={"threshold": 0.8}
+)
 ```
 """
 
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field
 
-
-class BaseConfig(BaseModel):
-    """Base configuration for all components."""
-    
-    name: str = Field(default="", description="Component name")
-    description: str = Field(default="", description="Component description")
-    params: Dict[str, Any] = Field(default_factory=dict, description="Additional parameters")
-    
-    model_config = ConfigDict(frozen=True)
-    
-    def with_params(self, **kwargs: Any) -> "BaseConfig":
-        """
-        Create a new configuration with updated parameters.
-        
-        Args:
-            **kwargs: Parameters to update
-            
-        Returns:
-            New configuration with updated parameters
-        """
-        return self.model_copy(
-            update={"params": {**self.params, **kwargs}}
-        )
-
-
-class ClassifierConfig(BaseConfig):
-    """Configuration for classifiers."""
-    
-    cache_enabled: bool = Field(
-        default=True,
-        description="Whether to enable result caching"
-    )
-    cache_size: int = Field(
-        default=100,
-        ge=0,
-        description="Maximum number of cached results"
-    )
-    min_confidence: float = Field(
-        default=0.5,
-        ge=0.0,
-        le=1.0,
-        description="Minimum confidence threshold"
-    )
-    async_enabled: bool = Field(
-        default=False,
-        description="Whether to enable asynchronous execution"
-    )
-    labels: List[str] = Field(
-        default_factory=list,
-        description="List of valid labels"
-    )
+from sifaka.utils.config import BaseConfig
 
 
 class ImplementationConfig(BaseConfig):
     """Configuration for classifier implementations."""
-    
+
     timeout: float = Field(
-        default=10.0,
-        ge=0.0,
-        description="Timeout for classification operations in seconds"
+        default=10.0, ge=0.0, description="Timeout for classification operations in seconds"
     )
     fallback_label: str = Field(
-        default="unknown",
-        description="Fallback label to use when classification fails"
+        default="unknown", description="Fallback label to use when classification fails"
     )
     fallback_confidence: float = Field(
-        default=0.0,
-        ge=0.0,
-        le=1.0,
-        description="Confidence score for fallback label"
+        default=0.0, ge=0.0, le=1.0, description="Confidence score for fallback label"
     )

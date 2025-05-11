@@ -4,6 +4,27 @@ This guide provides detailed instructions for eliminating redundant and duplicat
 
 ## 1. Duplicated Manager Implementations
 
+### 0.1 Result Utilities Consolidation ✅
+
+Consolidated redundant result creation utilities:
+- `sifaka/utils/results.py` ✅ (Primary implementation)
+- `sifaka/rules/utils.py` ✅ (Updated to use utils/results.py)
+
+#### Implementation Steps:
+
+1. **Analyze functionality**: ✅
+   - `utils/results.py` provides standardized result creation utilities ✅
+   - `rules/utils.py` had duplicate implementations of result creation functions ✅
+
+2. **Consolidate implementations**: ✅
+   - Removed redundant `create_rule_result` and `create_error_result` functions from rules/utils.py ✅
+   - Updated `try_validate` function to use the imported functions ✅
+   - Updated imports in rules/__init__.py ✅
+
+3. **Update documentation**: ✅
+   - Updated docstrings to reflect the changes ✅
+   - Added comments to indicate where functions were moved ✅
+
 ### 1.1 Memory Managers Consolidation
 
 Currently, there are two similar implementations of memory managers:
@@ -74,33 +95,33 @@ Currently, there are two similar implementations of prompt managers:
 
 ## 2. Redundant Result Classes
 
-### 2.1 Chain Result Classes Consolidation
+### 2.1 Chain Result Classes Consolidation ✅
 
-Currently, there are two overlapping result classes:
-- `sifaka/chain/result.py`
-- `sifaka/chain/formatters/result.py`
+~~Currently, there are two overlapping result classes:~~
+- `sifaka/chain/result.py` ✅
+- ~~`sifaka/chain/formatters/result.py`~~ ✅ (Removed - this file didn't actually exist)
 
 #### Implementation Steps:
 
-1. **Analyze functionality**:
-   - `result.py` defines the data structure for chain results
-   - `formatters/result.py` provides formatting functionality
-   - Determine if they should be merged or kept separate with clear responsibilities
+1. **Analyze functionality**: ✅
+   - `result.py` defines the data structure for chain results ✅
+   - ~~`formatters/result.py` provides formatting functionality~~ (File didn't exist)
+   - Determined that there was no actual redundancy to fix ✅
 
-2. **If merging**:
-   - Create a unified implementation that combines all necessary functionality
-   - Ensure it follows Pydantic 2 patterns
-   - Include comprehensive error handling
+2. ~~**If merging**:~~
+   - ~~Create a unified implementation that combines all necessary functionality~~
+   - ~~Ensure it follows Pydantic 2 patterns~~
+   - ~~Include comprehensive error handling~~
 
-3. **If keeping separate**:
-   - Clearly define the responsibilities of each
-   - Remove any duplicated functionality
-   - Ensure they work together seamlessly
+3. ~~**If keeping separate**:~~
+   - ~~Clearly define the responsibilities of each~~
+   - ~~Remove any duplicated functionality~~
+   - ~~Ensure they work together seamlessly~~
 
-4. **Update imports**:
-   - Find all files that import from these implementations
-   - Update imports as needed
-   - Test functionality after updates
+4. **Update imports**: ✅
+   - Found and updated references in documentation ✅
+   - Updated imports as needed ✅
+   - Tested functionality after updates ✅
 
 ## 3. Duplicated Error Handling Patterns
 
@@ -139,7 +160,7 @@ The file `sifaka/utils/error_patterns.py` contains duplicated code for different
                error, component_name, component_type, log_level, include_traceback, additional_metadata
            )
        return handler
-   
+
    # Create specific handlers
    handle_chain_error = create_error_handler("Chain")
    handle_model_error = create_error_handler("Model")

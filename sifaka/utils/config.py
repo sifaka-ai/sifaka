@@ -1,9 +1,21 @@
 """
 Configuration utilities for Sifaka.
 
-This module provides utility functions for handling configuration objects
-consistently across the Sifaka framework. It includes standardization functions
-for different types of configurations used throughout the system.
+This module provides a unified configuration system for the Sifaka framework,
+including base configuration classes and standardization functions for different
+component types.
+
+## Configuration Classes
+
+The module defines a hierarchy of configuration classes:
+
+1. **BaseConfig**: Base configuration class for all components
+2. **ModelConfig**: Configuration for model providers
+3. **RuleConfig**: Configuration for rules
+4. **CriticConfig**: Configuration for critics
+5. **ChainConfig**: Configuration for chains
+6. **ClassifierConfig**: Configuration for classifiers
+7. **RetrieverConfig**: Configuration for retrievers
 
 ## Configuration Standardization
 
@@ -13,8 +25,10 @@ The module provides standardized configuration handling for different component 
 2. **standardize_critic_config**: Standardize critic configuration
 3. **standardize_model_config**: Standardize model provider configuration
 4. **standardize_chain_config**: Standardize chain configuration
-5. **standardize_retry_config**: Standardize retry strategy configuration
-6. **standardize_validation_config**: Standardize validation configuration
+5. **standardize_classifier_config**: Standardize classifier configuration
+6. **standardize_retriever_config**: Standardize retriever configuration
+7. **standardize_retry_config**: Standardize retry strategy configuration
+8. **standardize_validation_config**: Standardize validation configuration
 
 ## Usage Pattern
 
@@ -28,18 +42,31 @@ All standardization functions follow a consistent pattern:
 
 ```python
 from sifaka.utils.config import (
+    BaseConfig, ModelConfig, RuleConfig, CriticConfig,
     standardize_rule_config, standardize_critic_config, standardize_model_config
 )
-from sifaka.rules.base import RuleConfig
-from sifaka.critics.models import CriticConfig, PromptCriticConfig
 
-# Create rule configuration
+# Create base configuration
+base_config = BaseConfig(
+    name="my_component",
+    description="A sample component",
+    params={"key": "value"}
+)
+
+# Create model configuration
+model_config = ModelConfig(
+    temperature=0.7,
+    max_tokens=1000,
+    params={"system_prompt": "You are a helpful assistant."}
+)
+
+# Create rule configuration using standardization
 rule_config = standardize_rule_config(
     priority="HIGH",
     params={"min_length": 10, "max_length": 100}
 )
 
-# Create critic configuration
+# Create critic configuration using standardization
 critic_config = standardize_critic_config(
     min_confidence=0.8,
     params={"system_prompt": "You are an expert editor."}
@@ -62,17 +89,314 @@ updated_config = standardize_rule_config(
 ```
 """
 
-from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union, cast
+from typing import Any, Dict, List, Optional, Type, TypeVar, Union, cast
+from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
-from sifaka.rules.base import RuleConfig
-from sifaka.critics.models import CriticConfig
-from sifaka.models.config import ModelConfig
-from sifaka.chain.config import ChainConfig, RetryConfig, ValidationConfig
-
+# Type variables for generic configuration handling
 T = TypeVar("T", bound=BaseModel)
 C = TypeVar("C")  # For ClassifierConfig generic type
+
+
+class BaseConfig(BaseModel):
+    """
+    Base configuration for all Sifaka components.
+
+    This class provides a consistent foundation for all configuration classes
+    in the Sifaka framework. It defines common fields and methods that are
+    shared across all component types.
+
+    Attributes:
+        name: Component name
+        description: Component description
+        params: Dictionary of additional parameters
+
+    Methods:
+        with_params: Create a new configuration with updated parameters
+        with_options: Create a new configuration with updated options
+    """
+
+    name: str = Field(default="", description="Component name")
+    description: str = Field(default="", description="Component description")
+    params: Dict[str, Any] = Field(default_factory=dict, description="Additional parameters")
+
+    model_config = ConfigDict(frozen=True)
+
+    def with_params(self, **kwargs: Any) -> "BaseConfig":
+        """
+        Create a new configuration with updated parameters.
+
+        Args:
+            **kwargs: Parameters to update
+
+        Returns:
+            New configuration with updated parameters
+        """
+        return self.model_copy(update={"params": {**self.params, **kwargs}})
+
+    def with_options(self, **kwargs: Any) -> "BaseConfig":
+        """
+        Create a new configuration with updated options.
+
+        Args:
+            **kwargs: Options to update
+
+        Returns:
+            New configuration with updated options
+        """
+        return self.model_copy(update=kwargs)
+
+
+class ModelConfig(BaseConfig):
+    """
+    Configuration for model providers.
+
+    This class provides a consistent way to configure model providers across the Sifaka framework.
+    It handles common configuration options like temperature and max_tokens, while
+    allowing model-specific options through the params dictionary.
+
+    Attributes:
+        temperature: Temperature for text generation (0.0 to 1.0)
+        max_tokens: Maximum number of tokens to generate
+        api_key: Optional API key for the model provider
+        trace_enabled: Whether to enable tracing
+    """
+
+    temperature: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Temperature for text generation",
+    )
+    max_tokens: int = Field(
+        default=1000,
+        ge=1,
+        description="Maximum number of tokens to generate",
+    )
+    api_key: Optional[str] = Field(
+        default=None,
+        description="API key for the model provider",
+    )
+    trace_enabled: bool = Field(
+        default=False,
+        description="Whether to enable tracing",
+    )
+
+
+class RulePriority(str, Enum):
+    """Priority levels for rules."""
+
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+
+class RuleConfig(BaseConfig):
+    """
+    Configuration for rules.
+
+    This class provides a consistent way to configure rules across the Sifaka framework.
+    It handles common configuration options like priority and cost, while
+    allowing rule-specific options through the params dictionary.
+
+    Attributes:
+        priority: Rule priority level
+        cost: Computational cost of the rule
+        cache_size: Size of the rule's result cache
+    """
+
+    priority: Union[RulePriority, str] = Field(
+        default=RulePriority.MEDIUM,
+        description="Priority level of the rule",
+    )
+    cost: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Computational cost of the rule",
+    )
+    cache_size: int = Field(
+        default=100,
+        ge=0,
+        description="Size of the rule's result cache",
+    )
+
+
+class CriticConfig(BaseConfig):
+    """
+    Configuration for critics.
+
+    This class provides a consistent way to configure critics across the Sifaka framework.
+    It handles common configuration options like min_confidence and max_attempts, while
+    allowing critic-specific options through the params dictionary.
+
+    Attributes:
+        min_confidence: Minimum confidence threshold
+        max_attempts: Maximum number of improvement attempts
+        cache_size: Size of the critic's result cache
+    """
+
+    min_confidence: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Minimum confidence threshold",
+    )
+    max_attempts: int = Field(
+        default=3,
+        ge=1,
+        description="Maximum number of improvement attempts",
+    )
+    cache_size: int = Field(
+        default=100,
+        ge=0,
+        description="Size of the critic's result cache",
+    )
+
+
+class ChainConfig(BaseConfig):
+    """
+    Configuration for chains.
+
+    This class provides a consistent way to configure chains across the Sifaka framework.
+    It handles common configuration options like max_attempts and cache_enabled, while
+    allowing chain-specific options through the params dictionary.
+
+    Attributes:
+        max_attempts: Maximum number of generation attempts
+        cache_enabled: Whether to enable result caching
+        trace_enabled: Whether to enable execution tracing
+    """
+
+    max_attempts: int = Field(
+        default=3,
+        ge=1,
+        description="Maximum number of generation attempts",
+    )
+    cache_enabled: bool = Field(
+        default=True,
+        description="Whether to enable result caching",
+    )
+    trace_enabled: bool = Field(
+        default=False,
+        description="Whether to enable execution tracing",
+    )
+
+
+class ClassifierConfig(BaseConfig):
+    """
+    Configuration for classifiers.
+
+    This class provides a consistent way to configure classifiers across the Sifaka framework.
+    It handles common configuration options like min_confidence and cache_size, while
+    allowing classifier-specific options through the params dictionary.
+
+    Attributes:
+        min_confidence: Minimum confidence threshold
+        cache_size: Size of the classifier's result cache
+        labels: List of classification labels
+        cost: Computational cost of the classifier
+    """
+
+    min_confidence: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Minimum confidence threshold",
+    )
+    cache_size: int = Field(
+        default=100,
+        ge=0,
+        description="Size of the classifier's result cache",
+    )
+    labels: List[str] = Field(
+        default_factory=list,
+        description="List of classification labels",
+    )
+    cost: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Computational cost of the classifier",
+    )
+
+
+class RetrieverConfig(BaseConfig):
+    """
+    Configuration for retrievers.
+
+    This class provides a consistent way to configure retrievers across the Sifaka framework.
+    It handles common configuration options like top_k and score_threshold, while
+    allowing retriever-specific options through the params dictionary.
+
+    Attributes:
+        top_k: Number of top results to return
+        score_threshold: Minimum score threshold for results
+        cache_size: Size of the retriever's result cache
+    """
+
+    top_k: int = Field(
+        default=3,
+        ge=1,
+        description="Number of top results to return",
+    )
+    score_threshold: Optional[float] = Field(
+        default=None,
+        description="Minimum score threshold for results",
+    )
+    cache_size: int = Field(
+        default=100,
+        ge=0,
+        description="Size of the retriever's result cache",
+    )
+
+
+class RetryConfig(BaseConfig):
+    """
+    Configuration for retry strategies.
+
+    This class provides a consistent way to configure retry strategies across the Sifaka framework.
+    It handles common configuration options like max_attempts and retry_delay, while
+    allowing strategy-specific options through the params dictionary.
+
+    Attributes:
+        max_attempts: Maximum number of retry attempts
+        retry_delay: Delay between retry attempts in seconds
+    """
+
+    max_attempts: int = Field(
+        default=3,
+        ge=1,
+        description="Maximum number of retry attempts",
+    )
+    retry_delay: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Delay between retry attempts in seconds",
+    )
+
+
+class ValidationConfig(BaseConfig):
+    """
+    Configuration for validation.
+
+    This class provides a consistent way to configure validation across the Sifaka framework.
+    It handles common configuration options like prioritize_by_cost and parallel_validation, while
+    allowing validation-specific options through the params dictionary.
+
+    Attributes:
+        prioritize_by_cost: Whether to prioritize validators by cost
+        parallel_validation: Whether to run validators in parallel
+    """
+
+    prioritize_by_cost: bool = Field(
+        default=False,
+        description="Whether to prioritize validators by cost",
+    )
+    parallel_validation: bool = Field(
+        default=False,
+        description="Whether to run validators in parallel",
+    )
 
 
 def standardize_rule_config(
@@ -646,6 +970,191 @@ def standardize_validation_config(
     else:
         # Create a new config with the params and kwargs
         return ValidationConfig(params=final_params, **kwargs)
+
+
+def standardize_classifier_config(
+    config: Optional[Union[Dict[str, Any], ClassifierConfig]] = None,
+    params: Optional[Dict[str, Any]] = None,
+    config_class: Type[T] = ClassifierConfig,
+    **kwargs: Any,
+) -> T:
+    """
+    Standardize classifier configuration.
+
+    This utility function ensures that classifier configuration is consistently
+    handled across the framework. It accepts various input formats and
+    returns a standardized ClassifierConfig object or a subclass.
+
+    Args:
+        config: Optional configuration (either a dict or ClassifierConfig)
+        params: Optional params dictionary to merge with config
+        config_class: The config class to use (default: ClassifierConfig)
+        **kwargs: Additional parameters to include in the config
+
+    Returns:
+        Standardized ClassifierConfig object or subclass
+
+    Examples:
+        ```python
+        from sifaka.utils.config import standardize_classifier_config
+        from sifaka.utils.config import ClassifierConfig
+
+        # Create from parameters
+        config = standardize_classifier_config(
+            min_confidence=0.8,
+            cache_size=200,
+            labels=["positive", "negative", "neutral"],
+            params={"threshold": 0.5}
+        )
+
+        # Create from existing config
+        existing = ClassifierConfig(min_confidence=0.7)
+        updated = standardize_classifier_config(
+            config=existing,
+            params={"threshold": 0.6}
+        )
+
+        # Create from dictionary
+        dict_config = {
+            "min_confidence": 0.9,
+            "labels": ["toxic", "non-toxic"],
+            "params": {"threshold": 0.7}
+        }
+        config = standardize_classifier_config(config=dict_config)
+
+        # Create specialized config
+        from sifaka.classifiers.config import ToxicityClassifierConfig
+        toxicity_config = standardize_classifier_config(
+            config_class=ToxicityClassifierConfig,
+            min_confidence=0.8,
+            labels=["toxic", "non-toxic"],
+            params={"threshold": 0.7}
+        )
+        ```
+    """
+    # Start with empty params dictionary
+    final_params: Dict[str, Any] = {}
+
+    # If params is provided, use it as the base
+    if params:
+        final_params.update(params)
+
+    # If config is a dictionary
+    if isinstance(config, dict):
+        # Extract params from the dictionary
+        dict_params = config.pop("params", {}) if config else {}
+        final_params.update(dict_params)
+
+        # Create config with the remaining options and the merged params
+        return cast(
+            T, config_class(**({} if config is None else config), params=final_params, **kwargs)
+        )
+
+    # If config is a ClassifierConfig
+    elif isinstance(config, ClassifierConfig):
+        # Merge the existing params with the new params
+        final_params.update(config.params)
+
+        # Create a new config with the updated params
+        config_dict = {**config.model_dump(), "params": final_params, **kwargs}
+        return cast(T, config_class(**config_dict))
+
+    # If no config is provided
+    else:
+        # Create a new config with the params and kwargs
+        return cast(T, config_class(params=final_params, **kwargs))
+
+
+def standardize_retriever_config(
+    config: Optional[Union[Dict[str, Any], RetrieverConfig]] = None,
+    params: Optional[Dict[str, Any]] = None,
+    config_class: Type[T] = RetrieverConfig,
+    **kwargs: Any,
+) -> T:
+    """
+    Standardize retriever configuration.
+
+    This utility function ensures that retriever configuration is consistently
+    handled across the framework. It accepts various input formats and
+    returns a standardized RetrieverConfig object or a subclass.
+
+    Args:
+        config: Optional configuration (either a dict or RetrieverConfig)
+        params: Optional params dictionary to merge with config
+        config_class: The config class to use (default: RetrieverConfig)
+        **kwargs: Additional parameters to include in the config
+
+    Returns:
+        Standardized RetrieverConfig object or subclass
+
+    Examples:
+        ```python
+        from sifaka.utils.config import standardize_retriever_config
+        from sifaka.utils.config import RetrieverConfig
+
+        # Create from parameters
+        config = standardize_retriever_config(
+            top_k=5,
+            score_threshold=0.7,
+            params={"index_path": "/path/to/index"}
+        )
+
+        # Create from existing config
+        existing = RetrieverConfig(top_k=3)
+        updated = standardize_retriever_config(
+            config=existing,
+            params={"index_path": "/path/to/index"}
+        )
+
+        # Create from dictionary
+        dict_config = {
+            "top_k": 10,
+            "score_threshold": 0.5,
+            "params": {"index_path": "/path/to/index"}
+        }
+        config = standardize_retriever_config(config=dict_config)
+
+        # Create specialized config
+        from sifaka.retrieval.config import VectorRetrieverConfig
+        vector_config = standardize_retriever_config(
+            config_class=VectorRetrieverConfig,
+            top_k=5,
+            score_threshold=0.7,
+            params={"index_path": "/path/to/index", "embedding_model": "all-MiniLM-L6-v2"}
+        )
+        ```
+    """
+    # Start with empty params dictionary
+    final_params: Dict[str, Any] = {}
+
+    # If params is provided, use it as the base
+    if params:
+        final_params.update(params)
+
+    # If config is a dictionary
+    if isinstance(config, dict):
+        # Extract params from the dictionary
+        dict_params = config.pop("params", {}) if config else {}
+        final_params.update(dict_params)
+
+        # Create config with the remaining options and the merged params
+        return cast(
+            T, config_class(**({} if config is None else config), params=final_params, **kwargs)
+        )
+
+    # If config is a RetrieverConfig
+    elif isinstance(config, RetrieverConfig):
+        # Merge the existing params with the new params
+        final_params.update(config.params)
+
+        # Create a new config with the updated params
+        config_dict = {**config.model_dump(), "params": final_params, **kwargs}
+        return cast(T, config_class(**config_dict))
+
+    # If no config is provided
+    else:
+        # Create a new config with the params and kwargs
+        return cast(T, config_class(params=final_params, **kwargs))
 
 
 def extract_classifier_config_params(

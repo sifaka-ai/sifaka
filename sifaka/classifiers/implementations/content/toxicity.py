@@ -89,6 +89,7 @@ from sifaka.classifiers.models import ClassificationResult
 from sifaka.classifiers.config import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
+from sifaka.utils.common import record_error
 from sifaka.classifiers.implementations.content.toxicity_model import ToxicityModel
 from sifaka.utils.config import extract_classifier_config_params
 
@@ -451,11 +452,8 @@ class ToxicityClassifier(BaseClassifier[str, str]):
             logger.error("Failed to classify text: %s", e)
             self._state_manager.update("error", f"Failed to classify text: {e}")
 
-            # Track errors in state
-            error_info = {"error": str(e), "type": type(e).__name__}
-            errors = self._state_manager.get("errors", [])
-            errors.append(error_info)
-            self._state_manager.update("errors", errors)
+            # Use the standardized utility function
+            record_error(self._state_manager, e)
 
             return ClassificationResult[str](
                 label="unknown",
@@ -556,11 +554,8 @@ class ToxicityClassifier(BaseClassifier[str, str]):
             logger.error("Failed to batch classify texts: %s", e)
             self._state_manager.update("error", f"Failed to batch classify texts: {e}")
 
-            # Track errors in state
-            error_info = {"error": str(e), "type": type(e).__name__, "batch_size": len(texts)}
-            errors = self._state_manager.get("errors", [])
-            errors.append(error_info)
-            self._state_manager.update("errors", errors)
+            # Use the standardized utility function
+            record_error(self._state_manager, e)
 
             # Create error results for non-empty texts
             error_results = [

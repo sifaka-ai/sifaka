@@ -1,4 +1,4 @@
-# Sifaka Chain v2
+# Sifaka Chain
 
 This package provides a simplified and more maintainable implementation of the chain system for orchestrating the validation and improvement flow between models, rules, and critics.
 

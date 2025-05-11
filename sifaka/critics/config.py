@@ -1,20 +1,18 @@
 """
 Configuration for critics.
 
-This module provides configuration classes and utilities for critics in the Sifaka framework.
-It centralizes configuration management and provides default configurations for different
-critic types.
+This module imports standardized configuration classes from utils/config.py and
+extends them with critic-specific functionality. It provides default configurations
+for different critic types.
 
 ## Overview
 The module provides:
-- Base configuration classes for critics
-- Specialized configuration classes for different critic types
 - Default system prompts for each critic type
 - Default configurations with sensible defaults
 - Configuration validation and type checking
 
 ## Components
-1. **Configuration Classes**
+1. **Configuration Classes** (imported from utils/config.py and models.py)
    - CriticConfig: Base configuration for all critics
    - PromptCriticConfig: Configuration for prompt-based critics
    - ReflexionCriticConfig: Configuration for reflexion critics
@@ -39,12 +37,13 @@ The module provides:
 ```python
 from sifaka.critics.config import (
     DEFAULT_PROMPT_CONFIG,
-    DEFAULT_REFLEXION_CONFIG,
-    PromptCriticConfig
+    DEFAULT_REFLEXION_CONFIG
 )
+from sifaka.critics.models import PromptCriticConfig
+from sifaka.utils.config import standardize_critic_config
 
 # Use default configurations
-critic = PromptCriticConfig(**DEFAULT_PROMPT_CONFIG.dict())
+critic = PromptCriticConfig(**DEFAULT_PROMPT_CONFIG.model_dump())
 
 # Create custom configuration
 custom_config = PromptCriticConfig(
@@ -57,9 +56,17 @@ custom_config = PromptCriticConfig(
 
 # Combine with default configuration
 combined_config = PromptCriticConfig(
-    **DEFAULT_PROMPT_CONFIG.dict(),
+    **DEFAULT_PROMPT_CONFIG.model_dump(),
     name="combined_critic",
     temperature=0.5
+)
+
+# Standardize configuration
+std_config = standardize_critic_config(
+    config_class=PromptCriticConfig,
+    system_prompt="You are a specialized critic",
+    temperature=0.5,
+    max_tokens=2000
 )
 ```
 
@@ -71,10 +78,6 @@ The module implements:
 - Required field validation
 - Range validation for numeric fields
 """
-
-from typing import Any, Dict, List, Optional, Union
-
-from pydantic import BaseModel, Field, validator
 
 # Import models from models.py for backward compatibility
 from .models import (

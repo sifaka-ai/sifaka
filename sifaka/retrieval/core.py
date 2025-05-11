@@ -44,8 +44,10 @@ import time
 from typing import Any, Dict, List, Optional
 
 from sifaka.core.base import BaseComponent
-from sifaka.utils.errors import RetrievalError, InputError, handle_error
+from sifaka.utils.errors import RetrievalError, InputError, handle_error, try_component_operation
+from sifaka.utils.error_patterns import safely_execute_retrieval, create_retrieval_error_result
 from sifaka.utils.logging import get_logger
+from sifaka.utils.common import record_error
 
 from .config import RetrieverConfig
 from .result import RetrievalResult, RetrievedDocument, DocumentMetadata, StringRetrievalResult
@@ -393,7 +395,8 @@ class RetrieverCore(BaseComponent):
         # Record start time
         start_time = time.time()
 
-        try:
+        # Define the retrieval operation
+        def retrieval_operation():
             # Process the query
             processed_query = self.process_query(query)
 
@@ -415,23 +418,28 @@ class RetrieverCore(BaseComponent):
 
             return result
 
-        except Exception as e:
-            # Track error
-            error_count = self._state_manager.get_metadata("error_count", 0)
-            self._state_manager.set_metadata("error_count", error_count + 1)
-            self._state_manager.set_metadata("last_error", str(e))
-            self._state_manager.set_metadata("last_error_time", time.time())
+        # Use the standardized safely_execute_retrieval function
+        result = safely_execute_retrieval(
+            operation=retrieval_operation,
+            retriever_name=self.name,
+            component_name=self.__class__.__name__,
+            additional_metadata={"query": query},
+        )
 
-            # Log error
-            logger.error(f"Retrieval error in {self.name}: {str(e)}")
+        # If the result is an ErrorResult, convert it to a RetrievalError
+        if isinstance(result, dict) and result.get("error_type"):
+            # Record the error
+            record_error(
+                self._state_manager, Exception(result.get("error_message", "Unknown error"))
+            )
 
-            # Re-raise as RetrievalError
-            if not isinstance(e, (InputError, RetrievalError)):
-                raise RetrievalError(
-                    f"Retrieval failed: {str(e)}",
-                    metadata={"query": query, "error_type": type(e).__name__},
-                )
-            raise
+            # Raise a RetrievalError
+            raise RetrievalError(
+                result.get("error_message", "Retrieval failed"),
+                metadata={"query": query, "error_type": result.get("error_type")},
+            )
+
+        return result
 
     def _update_execution_stats(self, execution_time_ms: float) -> None:
         """

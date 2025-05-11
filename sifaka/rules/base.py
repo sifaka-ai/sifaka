@@ -37,8 +37,11 @@ from sifaka.core.base import (
     BaseResult,
     Validatable,
 )
+from sifaka.utils.errors import RuleError, try_component_operation
+from sifaka.utils.error_patterns import safely_execute_rule, create_rule_error_result
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import StateManager
+from sifaka.utils.common import update_statistics, record_error
 
 logger = get_logger(__name__)
 
@@ -254,20 +257,16 @@ class BaseValidator(Validatable[T], Generic[T]):
         Args:
             result: The validation result
         """
+        # Use the standardized utility function
+        # Convert processing_time_ms to seconds for the utility function
+        execution_time = result.processing_time_ms / 1000.0
+        update_statistics(
+            state_manager=self._state_manager, execution_time=execution_time, success=result.passed
+        )
+
+        # Update validation-specific counts
         validation_count = self._state_manager.get_metadata("validation_count", 0)
         self._state_manager.set_metadata("validation_count", validation_count + 1)
-
-        if result.passed:
-            success_count = self._state_manager.get_metadata("success_count", 0)
-            self._state_manager.set_metadata("success_count", success_count + 1)
-        else:
-            failure_count = self._state_manager.get_metadata("failure_count", 0)
-            self._state_manager.set_metadata("failure_count", failure_count + 1)
-
-        total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
-        self._state_manager.set_metadata(
-            "total_processing_time_ms", total_time + result.processing_time_ms
-        )
 
     def record_error(self, error: Exception) -> None:
         """
@@ -276,10 +275,8 @@ class BaseValidator(Validatable[T], Generic[T]):
         Args:
             error: The exception that occurred
         """
-        error_count = self._state_manager.get_metadata("error_count", 0)
-        self._state_manager.set_metadata("error_count", error_count + 1)
-        self._state_manager.set_metadata("last_error", str(error))
-        self._state_manager.set_metadata("last_error_time", datetime.now())
+        # Use the standardized utility function
+        record_error(self._state_manager, error)
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -410,29 +407,30 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
             self.update_statistics(result)
             return result
 
-        try:
-            # Run validation
-            if not self._validator.can_validate(input):
-                result = RuleResult(
-                    passed=False,
-                    message="Invalid input type",
-                    metadata={
-                        "error_type": "invalid_type",
-                        "rule_id": rule_id,
-                        "rule_type": self.__class__.__name__,
-                    },
-                    score=0.0,
-                    issues=["Input type not supported"],
-                    suggestions=["Use supported input type"],
-                    processing_time_ms=time.time() - start_time,
-                    rule_id=rule_id,
-                    severity=self.config.severity,
-                    category=self.config.category,
-                    tags=self.config.tags,
-                )
-                self.update_statistics(result)
-                return result
+        # Check if validator can validate the input
+        if not self._validator.can_validate(input):
+            result = RuleResult(
+                passed=False,
+                message="Invalid input type",
+                metadata={
+                    "error_type": "invalid_type",
+                    "rule_id": rule_id,
+                    "rule_type": self.__class__.__name__,
+                },
+                score=0.0,
+                issues=["Input type not supported"],
+                suggestions=["Use supported input type"],
+                processing_time_ms=time.time() - start_time,
+                rule_id=rule_id,
+                severity=self.config.severity,
+                category=self.config.category,
+                tags=self.config.tags,
+            )
+            self.update_statistics(result)
+            return result
 
+        # Define the validation operation
+        def validation_operation():
             # Get validation result from validator
             result = self._validator.validate(input)
 
@@ -449,23 +447,35 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
                 .with_tags(self.config.tags)
             )
 
-            # Update statistics
-            self.update_statistics(result)
             return result
 
-        except Exception as e:
-            self.record_error(e)
-            logger.error(f"Error validating input with rule {rule_id}: {e}")
+        # Use the standardized safely_execute_rule function
+        result = safely_execute_rule(
+            operation=validation_operation,
+            rule_name=self.name,
+            component_name=self.__class__.__name__,
+            additional_metadata={
+                "rule_id": rule_id,
+                "rule_type": self.__class__.__name__,
+            },
+        )
+
+        # If the result is an ErrorResult, convert it to a RuleResult
+        if isinstance(result, dict) and result.get("error_type"):
+            # Record the error
+            self.record_error(Exception(result.get("error_message", "Unknown error")))
+
+            # Create a RuleResult from the error
             result = RuleResult(
                 passed=False,
-                message=f"Error: {str(e)}",
+                message=result.get("error_message", "Validation failed"),
                 metadata={
-                    "error_type": type(e).__name__,
+                    "error_type": result.get("error_type"),
                     "rule_id": rule_id,
                     "rule_type": self.__class__.__name__,
                 },
                 score=0.0,
-                issues=[f"Validation error: {str(e)}"],
+                issues=[f"Validation error: {result.get('error_message')}"],
                 suggestions=["Retry with different input"],
                 processing_time_ms=time.time() - start_time,
                 rule_id=rule_id,
@@ -473,8 +483,10 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
                 category=self.config.category,
                 tags=self.config.tags,
             )
-            self.update_statistics(result)
-            return result
+
+        # Update statistics
+        self.update_statistics(result)
+        return result
 
     def process(self, input: T) -> RuleResult:
         """
@@ -538,37 +550,48 @@ class FunctionValidator(BaseValidator[T]):
         """
         start_time = time.time()
 
-        try:
-            # Handle empty text for string inputs
-            if isinstance(input, str):
-                empty_result = self.handle_empty_text(input)
-                if empty_result:
-                    return empty_result
+        # Handle empty text for string inputs
+        if isinstance(input, str):
+            empty_result = self.handle_empty_text(input)
+            if empty_result:
+                return empty_result
 
+        # Define the validation operation
+        def validation_operation():
             # Call the validation function
             result = self._func(input)
 
             # Add processing time
             result = result.with_metadata(processing_time_ms=time.time() - start_time)
 
-            # Update statistics
-            self.update_statistics(result)
-
             return result
 
-        except Exception as e:
-            self.record_error(e)
-            logger.error(f"Error in function validator: {e}")
+        # Use the standardized safely_execute_rule function
+        result = safely_execute_rule(
+            operation=validation_operation,
+            rule_name=self.__class__.__name__,
+            component_name="FunctionValidator",
+        )
 
-            return RuleResult(
+        # If the result is an ErrorResult, convert it to a RuleResult
+        if isinstance(result, dict) and result.get("error_type"):
+            # Record the error
+            self.record_error(Exception(result.get("error_message", "Unknown error")))
+
+            # Create a RuleResult from the error
+            result = RuleResult(
                 passed=False,
-                message=f"Error: {str(e)}",
-                metadata={"error_type": type(e).__name__},
+                message=result.get("error_message", "Validation failed"),
+                metadata={"error_type": result.get("error_type")},
                 score=0.0,
-                issues=[f"Validation error: {str(e)}"],
+                issues=[f"Validation error: {result.get('error_message')}"],
                 suggestions=["Retry with different input"],
                 processing_time_ms=time.time() - start_time,
             )
+
+        # Update statistics
+        self.update_statistics(result)
+        return result
 
 
 class FunctionRule(Rule[T]):

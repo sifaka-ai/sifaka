@@ -58,7 +58,6 @@ Example:
 """
 
 import json
-import logging
 import time
 from typing import Any, Dict, List, Optional, Union
 
@@ -66,12 +65,13 @@ from pydantic import PrivateAttr, ConfigDict, Field
 
 from ...core.base import BaseComponent
 from ...utils.state import create_critic_state
+from ...utils.logging import get_logger
 from ...core.base import BaseResult as CriticResult
 from ..config import ReflexionCriticConfig
 from ..interfaces.critic import TextCritic, TextImprover, TextValidator
 
 # Configure logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # Note: This class is kept for backward compatibility with tests

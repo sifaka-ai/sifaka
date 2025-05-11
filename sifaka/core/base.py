@@ -6,27 +6,28 @@ implementing common patterns for state management, configuration, and error hand
 """
 
 from abc import ABC, abstractmethod
+from datetime import datetime
 from enum import Enum, auto
+import re
 from typing import (
     Any,
     Dict,
     Generic,
     List,
     Optional,
-    Type,
-    TypeVar,
     Protocol,
     runtime_checkable,
+    Type,
+    TypeVar,
     Union,
 )
-import re
-import time
-from datetime import datetime
 
 from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 
-from sifaka.utils.state import StateManager
+from sifaka.utils.common import update_statistics, record_error
 from sifaka.utils.logging import get_logger
+from sifaka.utils.patterns import ValidationPattern
+from sifaka.utils.state import StateManager
 
 logger = get_logger(__name__)
 
@@ -44,16 +45,7 @@ class ComponentResultEnum(str, Enum):
     FAILURE = auto()
 
 
-class ValidationPattern:
-    """Common validation patterns."""
-
-    EMAIL = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
-    URL = r"^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$"
-    PHONE = r"^\+?1?\d{9,15}$"
-    DATE = r"^\d{4}-\d{2}-\d{2}$"
-    TIME = r"^\d{2}:\d{2}(:\d{2})?$"
-    IPV4 = r"^(\d{1,3}\.){3}\d{1,3}$"
-    IPV6 = r"^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$"
+# ValidationPattern is imported at the top of the file
 
 
 class BaseConfig(BaseModel):
@@ -295,33 +287,26 @@ class BaseComponent(ABC, Generic[T, R]):
 
     def update_statistics(self, result: BaseResult) -> None:
         """Update component statistics based on result."""
+        # Use the standardized utility function
+        # Convert processing_time_ms to seconds for the utility function
+        execution_time = result.processing_time_ms / 1000.0
+        update_statistics(
+            state_manager=self._state_manager, execution_time=execution_time, success=result.passed
+        )
+
+        # Update component-specific statistics
         validation_count = self._state_manager.get_metadata("validation_count", 0)
         self._state_manager.set_metadata("validation_count", validation_count + 1)
-
-        if result.passed:
-            success_count = self._state_manager.get_metadata("success_count", 0)
-            self._state_manager.set_metadata("success_count", success_count + 1)
-        else:
-            failure_count = self._state_manager.get_metadata("failure_count", 0)
-            self._state_manager.set_metadata("failure_count", failure_count + 1)
 
         if result.suggestions:
             improvement_count = self._state_manager.get_metadata("improvement_count", 0)
             self._state_manager.set_metadata("improvement_count", improvement_count + 1)
 
-        if self.config.track_performance:
-            total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
-            self._state_manager.set_metadata(
-                "total_processing_time_ms", total_time + result.processing_time_ms
-            )
-
     def record_error(self, error: Exception) -> None:
         """Record an error occurrence."""
         if self.config.track_errors:
-            error_count = self._state_manager.get_metadata("error_count", 0)
-            self._state_manager.set_metadata("error_count", error_count + 1)
-            self._state_manager.set_metadata("last_error", str(error))
-            self._state_manager.set_metadata("last_error_time", datetime.now())
+            # Use the standardized utility function
+            record_error(self._state_manager, error)
 
     @abstractmethod
     def process(self, input: T) -> R:

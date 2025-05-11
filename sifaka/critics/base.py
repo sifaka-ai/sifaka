@@ -108,6 +108,8 @@ from sifaka.core.base import (
     BaseComponent,
     BaseResult,
 )
+from sifaka.utils.errors import CriticError, try_component_operation
+from sifaka.utils.error_patterns import safely_execute_critic, create_critic_error_result
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -763,7 +765,8 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         if empty_result:
             return empty_result.with_metadata(processing_time_ms=time.time() - start_time)
 
-        try:
+        # Define the processing operation
+        def process_operation():
             # Run critique
             result = self.critique(text)
             self.update_statistics(result)
@@ -779,18 +782,26 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
 
             return result
 
-        except Exception as e:
-            self.record_error(e)
-            logger.error(f"Error processing text: {e}")
+        # Use the standardized safely_execute_critic function
+        result = safely_execute_critic(
+            operation=process_operation,
+            critic_name=self.name,
+            component_name=self.__class__.__name__,
+        )
+
+        # If the result is an ErrorResult, convert it to a BaseResult
+        if isinstance(result, dict) and result.get("error_type"):
             return BaseResult(
                 passed=False,
-                message=f"Error: {str(e)}",
-                metadata={"error_type": type(e).__name__},
+                message=result.get("error_message", "Unknown error"),
+                metadata={"error_type": result.get("error_type")},
                 score=0.0,
-                issues=[f"Processing error: {str(e)}"],
+                issues=[f"Processing error: {result.get('error_message')}"],
                 suggestions=["Retry with different input"],
                 processing_time_ms=time.time() - start_time,
             )
+
+        return result
 
     @classmethod
     def create(cls: Type[C], name: str, description: str, **kwargs: Any) -> C:

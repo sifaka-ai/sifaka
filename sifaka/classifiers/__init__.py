@@ -59,7 +59,6 @@ print(f"Confidence: {result.confidence:.2f}")
 from .classifier import Classifier
 from .engine import Engine
 from .result import ClassificationResult
-from .state import StateTracker
 
 # Interfaces
 from .interfaces import ClassifierImplementation, Plugin
@@ -72,12 +71,14 @@ from .implementations.factories import (
     create_profanity_classifier,
 )
 
+# State management
+from ..utils.state import StateManager, create_classifier_state
+
 __all__ = [
     # Core components
     "Classifier",
     "Engine",
     "ClassificationResult",
-    "StateTracker",
     # Interfaces
     "ClassifierImplementation",
     "Plugin",
@@ -86,4 +87,7 @@ __all__ = [
     "create_toxicity_classifier",
     "create_sentiment_classifier",
     "create_profanity_classifier",
+    # State management
+    "StateManager",
+    "create_classifier_state",
 ]

@@ -43,15 +43,15 @@ result = create_standard_result(
 
 from typing import Any, Dict, Optional, TypeVar, Callable
 import time
-import logging
 
 from sifaka.utils.state import StateManager
+from sifaka.utils.logging import get_logger
 
 # Type variable for return type
 T = TypeVar("T")
 
 # Get logger
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # ===== State Access Patterns =====

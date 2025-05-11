@@ -45,7 +45,6 @@ Example:
 """
 
 import json
-import logging
 import time
 from typing import Any, Dict, List, Optional, Union, cast
 
@@ -53,12 +52,14 @@ from pydantic import PrivateAttr, ConfigDict, Field
 
 from ...core.base import BaseComponent
 from ...utils.state import create_critic_state
+from ...utils.common import record_error
+from ...utils.logging import get_logger
 from ...core.base import BaseResult as CriticResult
 from ..config import ConstitutionalCriticConfig
 from ..interfaces.critic import TextCritic, TextImprover, TextValidator
 
 # Configure logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ConstitutionalCritic(
@@ -244,7 +245,8 @@ class ConstitutionalCritic(
             return result
 
         except Exception as e:
-            self.record_error(e)
+            # Use the standardized utility function
+            record_error(self._state_manager, e)
             processing_time = (time.time() - start_time) * 1000
             return CriticResult(
                 passed=False,
@@ -344,7 +346,8 @@ class ConstitutionalCritic(
             return is_valid
 
         except Exception as e:
-            self.record_error(e)
+            # Use the standardized utility function
+            record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to validate text: {str(e)}") from e
 
     def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -405,7 +408,8 @@ class ConstitutionalCritic(
             return critique_result
 
         except Exception as e:
-            self.record_error(e)
+            # Use the standardized utility function
+            record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to critique text: {str(e)}") from e
 
     def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
@@ -566,7 +570,8 @@ class ConstitutionalCritic(
             return improved_text
 
         except Exception as e:
-            self.record_error(e)
+            # Use the standardized utility function
+            record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to improve text with feedback: {str(e)}") from e
 
     def get_statistics(self) -> Dict[str, Any]:

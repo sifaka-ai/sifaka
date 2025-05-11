@@ -58,6 +58,7 @@ from typing import Any, Dict, List, Optional, TypeVar, Union, cast
 from sifaka.rules.base import RuleResult
 from sifaka.classifiers.base import ClassificationResult
 from sifaka.critics.models import CriticMetadata
+from sifaka.utils.common import create_standard_result
 
 
 # Type variables for generic types
@@ -114,8 +115,16 @@ def create_rule_result(
     if metadata:
         final_metadata.update(metadata)
 
-    # Create result
-    return RuleResult(passed=passed, message=message, metadata=final_metadata)
+    # Use the standardized result creation function
+    standard_result = create_standard_result(
+        output=None,  # Rule results don't have an output field
+        metadata=final_metadata,
+        success=passed,
+        message=message,
+    )
+
+    # Create result using the standard result data
+    return RuleResult(passed=passed, message=message, metadata=standard_result["metadata"])
 
 
 def create_classification_result(
@@ -168,8 +177,18 @@ def create_classification_result(
     if metadata:
         final_metadata.update(metadata)
 
-    # Create result
-    return ClassificationResult[R](label=label, confidence=confidence, metadata=final_metadata)
+    # Use the standardized result creation function
+    standard_result = create_standard_result(
+        output=label,
+        metadata=final_metadata,
+        success=True,  # Classification results don't have a success/failure concept
+        processing_time_ms=processing_time * 1000 if processing_time is not None else None,
+    )
+
+    # Create result using the standard result data
+    return ClassificationResult[R](
+        label=label, confidence=confidence, metadata=standard_result["metadata"]
+    )
 
 
 def create_critic_result(
@@ -220,13 +239,22 @@ def create_critic_result(
     if metadata:
         final_metadata.update(metadata)
 
-    # Create result
+    # Use the standardized result creation function
+    standard_result = create_standard_result(
+        output=feedback,
+        metadata=final_metadata,
+        success=score >= 0.5,  # Consider scores above 0.5 as "success"
+        message=feedback,
+        processing_time_ms=processing_time * 1000 if processing_time is not None else None,
+    )
+
+    # Create result using the standard result data
     return CriticMetadata(
         score=score,
         feedback=feedback,
         issues=issues or [],
         suggestions=suggestions or [],
-        metadata=final_metadata,
+        metadata=standard_result["metadata"],
     )
 
 
@@ -313,8 +341,16 @@ def create_error_result(
     if metadata:
         final_metadata.update(metadata)
 
-    # Create result
-    return RuleResult(passed=False, message=message, metadata=final_metadata)
+    # Use the standardized result creation function
+    standard_result = create_standard_result(
+        output=None,
+        metadata=final_metadata,
+        success=False,  # Error results are always failures
+        message=message,
+    )
+
+    # Create result using the standard result data
+    return RuleResult(passed=False, message=message, metadata=standard_result["metadata"])
 
 
 def create_unknown_result(
@@ -394,8 +430,18 @@ def create_unknown_result(
     if metadata:
         final_metadata.update(metadata)
 
-    # Create result
-    return ClassificationResult[str](label="unknown", confidence=0.0, metadata=final_metadata)
+    # Use the standardized result creation function
+    standard_result = create_standard_result(
+        output="unknown",
+        metadata=final_metadata,
+        success=False,  # Unknown results are considered failures
+        message=f"Unknown classification: {reason}",
+    )
+
+    # Create result using the standard result data
+    return ClassificationResult[str](
+        label="unknown", confidence=0.0, metadata=standard_result["metadata"]
+    )
 
 
 def merge_metadata(*metadata_dicts: Optional[Dict[str, Any]]) -> Dict[str, Any]:

@@ -17,7 +17,7 @@ response processing, and execution tracking.
 ## Usage Examples
 ```python
 from sifaka.models.providers.gemini import GeminiProvider
-from sifaka.models.config import ModelConfig
+from sifaka.utils.config import ModelConfig
 
 # Create a provider with default configuration
 provider = GeminiProvider(model_name="gemini-pro")
@@ -53,7 +53,8 @@ import tiktoken
 import importlib.util
 import google.generativeai as genai
 
-from sifaka.models.base import APIClient, ModelConfig, TokenCounter
+from sifaka.models.base import APIClient, TokenCounter
+from sifaka.utils.config import ModelConfig
 from sifaka.models.core import ModelProviderCore
 from sifaka.utils.errors import handle_error
 from sifaka.utils.logging import get_logger
@@ -226,6 +227,15 @@ class GeminiProvider(ModelProviderCore):
             token_counter=token_counter,
         )
 
+        # Initialize provider-specific stats
+        stats = {
+            "generation_count": 0,
+            "token_count_calls": 0,
+            "error_count": 0,
+            "total_processing_time": 0,
+        }
+        self._state_manager.update("stats", stats)
+
     def invoke(self, prompt: str, **kwargs) -> str:
         """
         Invoke the model with a prompt (delegates to generate).
@@ -240,7 +250,32 @@ class GeminiProvider(ModelProviderCore):
         Returns:
             The generated text response
         """
-        return self.generate(prompt, **kwargs)
+        # Track generation count in state
+        import time
+
+        start_time = time.time()
+
+        try:
+            result = self.generate(prompt, **kwargs)
+
+            # Update statistics in state
+            stats = self._state_manager.get("stats", {})
+            stats["generation_count"] = stats.get("generation_count", 0) + 1
+            stats["total_processing_time"] = (
+                stats.get("total_processing_time", 0) + (time.time() - start_time) * 1000
+            )
+            self._state_manager.update("stats", stats)
+
+            return result
+
+        except Exception:
+            # Update error count in state
+            stats = self._state_manager.get("stats", {})
+            stats["error_count"] = stats.get("error_count", 0) + 1
+            self._state_manager.update("stats", stats)
+
+            # Re-raise the exception
+            raise
 
     async def ainvoke(self, prompt: str, **kwargs) -> str:
         """
@@ -256,19 +291,44 @@ class GeminiProvider(ModelProviderCore):
         Returns:
             The generated text response
         """
-        if hasattr(self, "agenerate"):
-            return await self.agenerate(prompt, **kwargs)
+        # Track generation count in state
+        import time
 
-        # Fall back to synchronous generate
-        return self.generate(prompt, **kwargs)
+        start_time = time.time()
+
+        try:
+            if hasattr(self, "agenerate"):
+                result = await self.agenerate(prompt, **kwargs)
+            else:
+                # Fall back to synchronous generate
+                result = self.generate(prompt, **kwargs)
+
+            # Update statistics in state
+            stats = self._state_manager.get("stats", {})
+            stats["generation_count"] = stats.get("generation_count", 0) + 1
+            stats["total_processing_time"] = (
+                stats.get("total_processing_time", 0) + (time.time() - start_time) * 1000
+            )
+            self._state_manager.update("stats", stats)
+
+            return result
+
+        except Exception:
+            # Update error count in state
+            stats = self._state_manager.get("stats", {})
+            stats["error_count"] = stats.get("error_count", 0) + 1
+            self._state_manager.update("stats", stats)
+
+            # Re-raise the exception
+            raise
 
     def _create_default_client(self) -> APIClient:
         """Create a default Gemini client."""
-        return GeminiClient(api_key=self.config.api_key)
+        return GeminiClient(api_key=self._state_manager.get("config").api_key)
 
     def _create_default_token_counter(self) -> TokenCounter:
         """Create a default token counter for the current model."""
-        return GeminiTokenCounter(model=self.model_name)
+        return GeminiTokenCounter(model=self._state_manager.get("model_name"))
 
     @property
     def name(self) -> str:
@@ -278,7 +338,7 @@ class GeminiProvider(ModelProviderCore):
         Returns:
             The provider name
         """
-        return f"Gemini-{self.model_name}"
+        return f"Gemini-{self._state_manager.get('model_name')}"
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -287,5 +347,11 @@ class GeminiProvider(ModelProviderCore):
         Returns:
             Dictionary with usage statistics
         """
-        # Get statistics from tracing manager
-        return self._tracing_manager.get_statistics()
+        # Get statistics from tracing manager and state
+        tracing_manager = self._state_manager.get("tracing_manager")
+        tracing_stats = tracing_manager.get_statistics()
+
+        # Combine with any other stats from state
+        stats = self._state_manager.get("stats", {})
+
+        return {**tracing_stats, **stats}
