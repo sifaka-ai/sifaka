@@ -34,7 +34,7 @@ plugin = loader.load_plugin_from_module("my_plugin_module")
 
 from typing import Dict, Optional, Type, cast
 
-from .interfaces import Plugin
+from sifaka.interfaces.chain.plugin import ChainPlugin as Plugin
 from sifaka.core.plugins import PluginRegistry as CorePluginRegistry
 from sifaka.core.plugins import PluginLoader as CorePluginLoader
 from ..utils.logging import get_logger

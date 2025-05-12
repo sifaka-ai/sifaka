@@ -77,7 +77,7 @@ import time
 from ...utils.state import StateManager
 from ...utils.logging import get_logger
 from ...utils.errors import ChainError
-from ..interfaces import ValidationResult
+from sifaka.interfaces.chain.models import ValidationResult
 from ...core.results import ChainResult
 
 # Configure logger

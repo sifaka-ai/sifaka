@@ -837,10 +837,10 @@ def create_constitutional_critic(
     try:
         # Create config if not provided
         if config is None:
-            from sifaka.utils.config.critics import DEFAULT_CONSTITUTIONAL_CONFIG
+            from sifaka.utils.config.critics import DEFAULT_CONSTITUTIONAL_CRITIC_CONFIG
 
             # Start with default config
-            config = DEFAULT_CONSTITUTIONAL_CONFIG.model_copy()
+            config = DEFAULT_CONSTITUTIONAL_CRITIC_CONFIG.model_copy()
 
             # Update with provided values
             updates = {

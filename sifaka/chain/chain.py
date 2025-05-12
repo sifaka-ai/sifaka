@@ -75,7 +75,8 @@ from typing import Any, Dict, List, Optional
 import time
 import asyncio
 
-from .interfaces import Model, Validator, Improver, Formatter
+from sifaka.interfaces.chain.components import Model, Validator, Improver
+from sifaka.interfaces.chain.components.formatter import ChainFormatter as Formatter
 from .engine import Engine
 from ..utils.state import create_chain_state
 from ..utils.common import update_statistics

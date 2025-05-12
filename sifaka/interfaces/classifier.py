@@ -67,7 +67,7 @@ R = TypeVar("R")  # Result label type
 
 # Forward reference for ClassificationResult to avoid circular imports
 if TYPE_CHECKING:
-    from sifaka.classifiers.result import ClassificationResult
+    from sifaka.core.results import ClassificationResult
 
 
 @runtime_checkable

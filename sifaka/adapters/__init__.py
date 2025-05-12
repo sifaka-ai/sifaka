@@ -9,11 +9,41 @@ various external libraries, services, and model providers. It follows the adapte
 pattern to enable loose coupling between Sifaka and external systems.
 
 ## Components
-1. **Classifier Adapters**: Adapters for text classification systems
-2. **Guardrails Adapters**: Adapters for using Guardrails validators
-3. **PydanticAI Adapters**: Adapters for integrating with PydanticAI agents
+1. **Chain Adapters**: Adapters for chain components (models, validators, improvers, formatters)
+2. **Classifier Adapters**: Adapters for text classification systems
+3. **Guardrails Adapters**: Adapters for using Guardrails validators
+4. **PydanticAI Adapters**: Adapters for integrating with PydanticAI agents
 
 ## Usage Examples
+
+### Chain Adapters
+```python
+from sifaka.adapters import ModelAdapter, ValidatorAdapter, ImproverAdapter
+from sifaka.models import OpenAIProvider
+from sifaka.rules import create_length_rule
+from sifaka.critics import create_prompt_critic
+
+# Create components
+model_provider = OpenAIProvider("gpt-3.5-turbo")
+rule = create_length_rule(min_chars=10, max_chars=1000)
+critic = create_prompt_critic(
+    llm_provider=model_provider,
+    system_prompt="You are an expert editor that improves text."
+)
+
+# Create adapters
+model = ModelAdapter(model_provider)
+validator = ValidatorAdapter(rule)
+improver = ImproverAdapter(critic)
+
+# Use adapters
+output = model.generate("Write a short story")
+validation_result = validator.validate(output)
+if not validation_result.passed:
+    improved_output = improver.improve(output, [validation_result])
+```
+
+### Classifier Adapters
 ```python
 from sifaka.adapters import ClassifierAdapter, create_classifier_rule
 from sifaka.classifiers.implementations.content.toxicity import ToxicityClassifier
@@ -48,6 +78,14 @@ Each adapter type has its own configuration options:
 
 # Base adapter components
 from sifaka.adapters.base import Adaptable, BaseAdapter, AdapterError, create_adapter
+
+# Chain adapters
+from sifaka.adapters.chain import (
+    ModelAdapter,
+    ValidatorAdapter,
+    ImproverAdapter,
+    FormatterAdapter,
+)
 
 # Classifier adapters
 from sifaka.adapters.classifier import (
@@ -94,6 +132,11 @@ __all__ = [
     "BaseAdapter",
     "AdapterError",
     "create_adapter",
+    # Chain adapters
+    "ModelAdapter",
+    "ValidatorAdapter",
+    "ImproverAdapter",
+    "FormatterAdapter",
     # Classifier adapters
     "ClassifierAdapter",
     "ClassifierRule",

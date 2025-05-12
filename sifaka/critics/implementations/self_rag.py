@@ -242,9 +242,9 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
 
         # Create config if not provided
         if config is None:
-            from sifaka.utils.config.critics import DEFAULT_SELF_RAG_CONFIG
+            from sifaka.utils.config.critics import DEFAULT_SELF_RAG_CRITIC_CONFIG
 
-            config = DEFAULT_SELF_RAG_CONFIG.model_copy(
+            config = DEFAULT_SELF_RAG_CRITIC_CONFIG.model_copy(
                 update={"name": name, "description": description, **kwargs}
             )
 
@@ -860,9 +860,9 @@ def create_self_rag_critic(
     try:
         # Create config if not provided
         if config is None:
-            from sifaka.utils.config.critics import DEFAULT_SELF_RAG_CONFIG
+            from sifaka.utils.config.critics import DEFAULT_SELF_RAG_CRITIC_CONFIG
 
-            config = DEFAULT_SELF_RAG_CONFIG.model_copy()
+            config = DEFAULT_SELF_RAG_CRITIC_CONFIG.model_copy()
 
             # Update config with provided values
             updates = {}

@@ -258,10 +258,10 @@ def generate_implementation_template(protocol_class: Type[T]) -> str:
 
         # Output:
         # class ChainImplementation:
-        #     """Implementation of Chain protocol."""
+        #     '''Implementation of Chain protocol.'''
         #
         #     def run(self, prompt: str, **kwargs) -> str:
-        #         """Run the chain with the given prompt."""
+        #         '''Run the chain with the given prompt.'''
         #         # TODO: Implement run method
         #         raise NotImplementedError()
         ```
@@ -376,7 +376,7 @@ def get_protocol_requirements(protocol_class: Type[T]) -> Dict[str, Any]:
     # Format method requirements
     method_requirements = {}
     for method_name, method_info in protocol_methods.items():
-        signature = method_info["docstring"]
+        signature = method_info["signature"]
         docstring = method_info["docstring"] or f"{method_name} method."
 
         method_requirements[method_name] = {

@@ -75,7 +75,7 @@ from typing import Any, List, Optional
 from .chain import Chain
 from .interfaces import Model, Validator, Improver, Formatter
 from ..utils.config import ChainConfig
-from .adapters import ModelAdapter, ValidatorAdapter, ImproverAdapter, FormatterAdapter
+from ..adapters.chain import ModelAdapter, ValidatorAdapter, ImproverAdapter, FormatterAdapter
 
 
 def create_chain(

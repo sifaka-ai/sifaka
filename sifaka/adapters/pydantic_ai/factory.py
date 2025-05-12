@@ -344,7 +344,7 @@ def create_pydantic_adapter_with_critic(
             )
 
             # Import here to avoid circular imports
-            from sifaka.critics.prompt import create_prompt_critic
+            from sifaka.critics.implementations.prompt import create_prompt_critic
 
             # Create a prompt critic
             critic = create_prompt_critic(

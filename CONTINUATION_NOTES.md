@@ -15,6 +15,7 @@ We've made significant progress on Phase 1 of the Sifaka codebase improvement pl
    - `rules/formatting/style.py` (1,625 lines) → Modular directory structure (29% reduction)
    - `models/base.py` (1,185 lines) → Modular directory structure (24% reduction)
    - `models/core.py` (784 lines) → Modular directory structure (22% reduction)
+   - `interfaces/chain.py` (941 lines) → Modular directory structure (25% reduction)
 
 2. **Standardization**:
    - Standardized configuration management across components
@@ -30,12 +31,12 @@ We've made significant progress on Phase 1 of the Sifaka codebase improvement pl
    - Fixed configuration compatibility issues
    - Created integration tests for model providers
 
-## TOP PRIORITY: Fix Model Configuration Handling
+## ✅ COMPLETED: Fix Model Configuration Handling
 
-Before proceeding with further file refactoring, we need to address a critical issue with how model configurations are handled in the provider implementations. The current approach uses a hacky workaround with `deepcopy` that appears in multiple places:
+We have successfully addressed the critical issue with how model configurations are handled in the provider implementations. The previous approach used a hacky workaround with `deepcopy` that appeared in multiple places:
 
 ```python
-# In sifaka/models/providers/anthropic.py (lines 511-514 and 687-690)
+# Previous implementation in provider classes
 from copy import deepcopy
 new_config = deepcopy(config)
 if not hasattr(new_config, "params"):
@@ -43,119 +44,67 @@ if not hasattr(new_config, "params"):
 for key, value in kwargs.items():
     new_config.params[key] = value
 self._state_manager.update("config", new_config)
-
-# Similar code in sifaka/models/providers/openai.py (lines 514-517 and 689-692)
 ```
 
-### Implementation Plan
+### Implementation Summary
 
-1. **Modify ModelConfig Class**:
-   - Update `sifaka/utils/config/models.py` to include all parameters needed by different providers
-   - Add proper typing and documentation for each parameter
-   - Ensure the class has helper methods for creating updated configurations
+We've replaced this approach with a proper immutable pattern using the existing `with_options` and `with_params` methods in the `ModelConfig` class. The changes were made to the following files:
 
-2. **Update Provider Base Class**:
-   - Modify `sifaka/models/base/provider.py` to use the enhanced ModelConfig
-   - Add a standardized method for updating configurations
-   - Ensure all provider-specific parameters are properly handled
+1. **Provider Implementations**:
+   - Updated `sifaka/models/providers/openai.py` to use the immutable pattern
+   - Updated `sifaka/models/providers/anthropic.py` to use the immutable pattern
+   - Updated `sifaka/models/providers/gemini.py` to use the immutable pattern
+   - Updated `sifaka/models/providers/mock.py` to use the immutable pattern
 
-3. **Update Provider Implementations**:
-   - Modify `sifaka/models/providers/openai.py` to use the new approach
-   - Modify `sifaka/models/providers/anthropic.py` to use the new approach
-   - Update any other provider implementations (Gemini, Mock, etc.)
+2. **Tests**:
+   - Updated `tests/models/providers/test_provider_standardization.py` to match the new implementation
+   - Verified that all tests pass with the new implementation
 
-4. **Update Tests**:
-   - Ensure all tests pass with the new implementation
-   - Add tests specifically for configuration handling
+### Implementation Details
 
-### Detailed Changes
-
-#### 1. Update ModelConfig in utils/config/models.py
+The new implementation properly separates direct configuration attributes from parameters that should go into the `params` dictionary:
 
 ```python
-class ModelConfig(BaseModel):
-    # Existing parameters
-    model_name: str
-    temperature: float = 0.7
-    max_tokens: int = 1000
-    api_key: Optional[str] = None
+# New implementation in provider classes
+# Create a new config with updated values using the proper immutable pattern
+# First, check if any kwargs match direct config attributes
+config_kwargs = {}
+params_kwargs = {}
 
-    # Common parameters for all providers
-    top_p: float = 1.0
-    frequency_penalty: float = 0.0
-    presence_penalty: float = 0.0
-    stop_sequences: List[str] = Field(default_factory=list)
-    timeout_seconds: int = 60
-    trace_enabled: bool = False
-
-    # OpenAI-specific parameters
-    logit_bias: Dict[str, float] = Field(default_factory=dict)
-
-    # Anthropic-specific parameters
-    max_tokens_to_sample: Optional[int] = None
-    top_k: Optional[int] = None
-
-    # Generic params for anything not explicitly defined
-    params: Dict[str, Any] = Field(default_factory=dict)
-
-    model_config = ConfigDict(
-        extra="allow",  # Allow extra fields for flexibility
-        validate_assignment=True
-    )
-
-    # Helper methods for creating updated configurations
-    def with_temperature(self, temperature: float) -> "ModelConfig":
-        """Create a new config with updated temperature."""
-        return self.model_copy(update={"temperature": temperature})
-
-    def with_max_tokens(self, max_tokens: int) -> "ModelConfig":
-        """Create a new config with updated max_tokens."""
-        return self.model_copy(update={"max_tokens": max_tokens})
-
-    # Add similar methods for other common parameters
-```
-
-#### 2. Update ModelProvider in models/base/provider.py
-
-```python
-def update_config(self, **kwargs) -> None:
-    """
-    Update the provider configuration with new parameters.
-
-    This method creates a new configuration with the updated parameters
-    and stores it in the state manager.
-
-    Args:
-        **kwargs: Key-value pairs of configuration parameters to update
-    """
-    config = self._state_manager.get("config")
-    new_config = config.model_copy(update=kwargs)
-    self._state_manager.update("config", new_config)
-```
-
-#### 3. Update Provider Implementations
-
-For each provider implementation (OpenAI, Anthropic, etc.), replace the hacky deepcopy code with calls to the new `update_config` method:
-
-```python
-# Before
-from copy import deepcopy
-new_config = deepcopy(config)
-if not hasattr(new_config, "params"):
-    new_config.params = {}
 for key, value in kwargs.items():
-    new_config.params[key] = value
-self._state_manager.update("config", new_config)
+    if hasattr(config, key) and key != "params":
+        config_kwargs[key] = value
+    else:
+        params_kwargs[key] = value
 
-# After
-self.update_config(**kwargs)
+# Create updated config using with_options for direct attributes
+if config_kwargs:
+    new_config = config.with_options(**config_kwargs)
+else:
+    new_config = config
+
+# Add any params using with_params
+if params_kwargs:
+    new_config = new_config.with_params(**params_kwargs)
+
+# Store the updated config in the state manager
+self._state_manager.update("config", new_config)
 ```
+
+### Benefits of the New Implementation
+
+1. **Proper Immutability**: The configuration objects are now properly treated as immutable, which is consistent with their design.
+2. **Cleaner Code**: The code is now cleaner and more consistent across all provider implementations.
+3. **Better Type Safety**: The new approach leverages the type system better, making it easier to catch errors at compile time.
+4. **Improved Maintainability**: The code is now more maintainable and easier to understand.
+
+All tests are passing, confirming that the new implementation works correctly.
 
 ## Next Steps After Configuration Fix
 
 Once the configuration handling is fixed, we'll proceed with refactoring these files:
 
-1. **sifaka/chain/adapters.py** (1,080 lines)
+1. ✅ **sifaka/chain/adapters.py** (1,080 lines)
    - Split into a package structure with modules for different adapter types
    - Remove backward compatibility code
    - Improve documentation and type hints
@@ -165,7 +114,7 @@ Once the configuration handling is fixed, we'll proceed with refactoring these f
    - Remove backward compatibility code
    - Improve documentation and type hints
 
-3. **sifaka/interfaces/chain.py** (941 lines)
+3. ✅ **sifaka/interfaces/chain.py** (941 lines)
    - Split into a package structure with modules for different interface types
    - Remove backward compatibility code
    - Improve documentation and type hints
@@ -205,8 +154,8 @@ For each file to be refactored:
 
 ## Timeline
 
-- **Week 1**: Refactor `sifaka/chain/adapters.py` and `sifaka/core/managers/memory.py`
-- **Week 2**: Refactor `sifaka/interfaces/chain.py` and `sifaka/utils/logging.py`
+- **Week 1**: ✅ Refactor `sifaka/chain/adapters.py` and ⏳ `sifaka/core/managers/memory.py`
+- **Week 2**: ✅ Refactor `sifaka/interfaces/chain.py` and `sifaka/utils/logging.py`
 - **Week 3**: Refactor `sifaka/utils/config/critics.py` and `sifaka/critics/services/critique.py`
 - **Week 4**: Consolidate duplicated code and improve documentation
 

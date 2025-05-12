@@ -65,8 +65,8 @@ from sifaka.utils.state import StateManager, create_classifier_state
 from sifaka.utils.errors.component import ClassifierError, ImplementationError
 from sifaka.utils.common import update_statistics
 from sifaka.utils.logging import get_logger
-from .result import ClassificationResult
-from .config import ClassifierConfig
+from sifaka.core.results import ClassificationResult
+from sifaka.utils.config.classifiers import ClassifierConfig
 
 # Configure logger
 logger = get_logger(__name__)

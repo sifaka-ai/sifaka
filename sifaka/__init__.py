@@ -2,15 +2,6 @@
 Sifaka: A framework for building reliable and reflective AI systems.
 """
 
-# Apply compatibility patches early
-try:
-    from sifaka.utils.patches import apply_all_patches
-
-    apply_all_patches()
-except ImportError:
-    # If patches are not available, continue without them
-    pass
-
 
 # Import lazily to avoid circular dependencies
 def __getattr__(name):
@@ -84,25 +75,3 @@ __all__ = [
 
 # Version information
 __version__ = "0.1.0"
-
-__all__ = [
-    # Core components
-    "Chain",
-    "ChainResult",
-    "Generator",
-    "Improver",
-    "ImprovementResult",
-    "Validator",
-    "ValidationResult",
-    "ValidatorConfig",
-    "Rule",
-    # Model providers
-    "AnthropicProvider",
-    "OpenAIProvider",
-    # Rules
-    "create_length_rule",
-    # Critics
-    "CriticCore",
-    "create_prompt_critic",
-    "create_reflexion_critic",
-]

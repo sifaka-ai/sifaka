@@ -46,7 +46,7 @@ def create_component(
     name: str,
     description: str,
     config: Optional[Dict[str, Any]] = None,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> T:
     """
     Create a component with standardized configuration and state management.
@@ -66,12 +66,7 @@ def create_component(
         RuntimeError: If component creation fails
     """
     # Create the component
-    component = component_class(
-        name=name,
-        description=description,
-        config=config or {},
-        **kwargs
-    )
+    component = component_class(name=name, description=description, config=config or {}, **kwargs)
 
     # Initialize the component
     component.initialize()
@@ -80,10 +75,7 @@ def create_component(
 
 
 def create_chain(
-    name: str,
-    description: str,
-    config: Optional[Dict[str, Any]] = None,
-    **kwargs: Any
+    name: str, description: str, config: Optional[Dict[str, Any]] = None, **kwargs: Any
 ) -> Any:
     """
     Create a chain with standardized configuration and state management.
@@ -102,22 +94,15 @@ def create_chain(
         RuntimeError: If chain creation fails
     """
     # Import here to avoid circular imports
-    from sifaka.chain.core import ChainCore
+    from sifaka.chain import Chain as ChainCore
 
     return create_component(
-        component_class=ChainCore,
-        name=name,
-        description=description,
-        config=config,
-        **kwargs
+        component_class=ChainCore, name=name, description=description, config=config, **kwargs
     )
 
 
 def create_retriever(
-    name: str,
-    description: str,
-    config: Optional[Dict[str, Any]] = None,
-    **kwargs: Any
+    name: str, description: str, config: Optional[Dict[str, Any]] = None, **kwargs: Any
 ) -> Any:
     """
     Create a retriever with standardized configuration and state management.
@@ -139,9 +124,5 @@ def create_retriever(
     from sifaka.retrieval.core import RetrieverCore
 
     return create_component(
-        component_class=RetrieverCore,
-        name=name,
-        description=description,
-        config=config,
-        **kwargs
+        component_class=RetrieverCore, name=name, description=description, config=config, **kwargs
     )

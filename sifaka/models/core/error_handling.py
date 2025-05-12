@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def record_error(provider: 'ModelProviderCore', error: Exception) -> None:
+def record_error(provider: "ModelProviderCore", error: Exception) -> None:
     """
     Record an error in the state manager.
 
@@ -37,7 +37,7 @@ def record_error(provider: 'ModelProviderCore', error: Exception) -> None:
 
 
 def safely_execute(
-    provider: 'ModelProviderCore',
+    provider: "ModelProviderCore",
     operation: Callable[[], Any],
     error_context: Optional[Dict[str, Any]] = None,
 ) -> Any:
@@ -58,7 +58,7 @@ def safely_execute(
     Raises:
         Exception: If the operation raises an exception
     """
-    from sifaka.utils.error_patterns import safely_execute_component_operation
+    from sifaka.utils.errors.safe_execution import safely_execute_component_operation
 
     return safely_execute_component_operation(
         operation=operation,
@@ -68,7 +68,7 @@ def safely_execute(
     )
 
 
-def get_error_stats(provider: 'ModelProviderCore') -> Dict[str, Any]:
+def get_error_stats(provider: "ModelProviderCore") -> Dict[str, Any]:
     """
     Get error statistics.
 
@@ -92,7 +92,7 @@ def get_error_stats(provider: 'ModelProviderCore') -> Dict[str, Any]:
     }
 
 
-def clear_error_stats(provider: 'ModelProviderCore') -> None:
+def clear_error_stats(provider: "ModelProviderCore") -> None:
     """
     Clear error statistics.
 
@@ -101,8 +101,11 @@ def clear_error_stats(provider: 'ModelProviderCore') -> None:
     Args:
         provider: The model provider instance
     """
-    provider._state_manager.update("error_stats", {
-        "error_count": 0,
-        "error_types": {},
-        "last_error": None,
-    })
+    provider._state_manager.update(
+        "error_stats",
+        {
+            "error_count": 0,
+            "error_types": {},
+            "last_error": None,
+        },
+    )

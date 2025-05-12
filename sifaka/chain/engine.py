@@ -68,7 +68,9 @@ from typing import List, Optional
 import time
 from pydantic import BaseModel, PrivateAttr
 
-from .interfaces import Model, Validator, Improver, Formatter, ValidationResult
+from sifaka.interfaces.chain.components import Model, Validator, Improver
+from sifaka.interfaces.chain.components.formatter import ChainFormatter as Formatter
+from sifaka.interfaces.chain.models import ValidationResult
 from ..utils.state import StateManager
 from ..utils.logging import get_logger
 from ..core.results import ChainResult

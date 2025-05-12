@@ -24,13 +24,5 @@ def pytest_configure(config):
 
     This is called once at the beginning of a test run.
     """
-    # Apply compatibility patches for external libraries
-    try:
-        from sifaka.utils.patches import apply_all_patches
-
-        apply_all_patches()
-        logger.info("Successfully applied compatibility patches")
-    except ImportError:
-        logger.warning("Could not import patches module, skipping compatibility patches")
-    except Exception as e:
-        logger.warning(f"Failed to apply compatibility patches: {e}")
+    # Configure test environment
+    logger.info("Configuring test environment")

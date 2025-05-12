@@ -442,12 +442,26 @@ class MockProvider(ModelProviderCore):
         """
         config = self._state_manager.get("config")
 
-        # Update config with kwargs
+        # Create a new config with updated values using the proper immutable pattern
+        # First, check if any kwargs match direct config attributes
+        config_kwargs = {}
+        params_kwargs = {}
+
         for key, value in kwargs.items():
-            if hasattr(config, key):
-                setattr(config, key, value)
-            elif hasattr(config, "params"):
-                config.params[key] = value
+            if hasattr(config, key) and key != "params":
+                config_kwargs[key] = value
+            else:
+                params_kwargs[key] = value
+
+        # Create updated config using with_options for direct attributes
+        if config_kwargs:
+            new_config = config.with_options(**config_kwargs)
+        else:
+            new_config = config
+
+        # Add any params using with_params
+        if params_kwargs:
+            new_config = new_config.with_params(**params_kwargs)
 
         # Update state
-        self._state_manager.update("config", config)
+        self._state_manager.update("config", new_config)

@@ -510,19 +510,26 @@ class OpenAIProvider(ModelProviderCore):
         # Get config from state
         config = self._state_manager.get("config")
 
-        # Create a new config with updated values
-        from copy import deepcopy
+        # Create a new config with updated values using the proper immutable pattern
+        # First, check if any kwargs match direct config attributes
+        config_kwargs = {}
+        params_kwargs = {}
 
-        # Create a copy of the config
-        new_config = deepcopy(config)
-
-        # Create a params dictionary if it doesn't exist
-        if not hasattr(new_config, "params"):
-            new_config.params = {}
-
-        # Update the params dictionary with kwargs
         for key, value in kwargs.items():
-            new_config.params[key] = value
+            if hasattr(config, key) and key != "params":
+                config_kwargs[key] = value
+            else:
+                params_kwargs[key] = value
+
+        # Create updated config using with_options for direct attributes
+        if config_kwargs:
+            new_config = config.with_options(**config_kwargs)
+        else:
+            new_config = config
+
+        # Add any params using with_params
+        if params_kwargs:
+            new_config = new_config.with_params(**params_kwargs)
 
         # Store the updated config in the state manager
         self._state_manager.update("config", new_config)
@@ -685,19 +692,26 @@ class OpenAIProvider(ModelProviderCore):
         """
         config = self._state_manager.get("config")
 
-        # Create a new config with updated values
-        from copy import deepcopy
+        # Create a new config with updated values using the proper immutable pattern
+        # First, check if any kwargs match direct config attributes
+        config_kwargs = {}
+        params_kwargs = {}
 
-        # Create a copy of the config
-        new_config = deepcopy(config)
-
-        # Create a params dictionary if it doesn't exist
-        if not hasattr(new_config, "params"):
-            new_config.params = {}
-
-        # Update the params dictionary with kwargs
         for key, value in kwargs.items():
-            new_config.params[key] = value
+            if hasattr(config, key) and key != "params":
+                config_kwargs[key] = value
+            else:
+                params_kwargs[key] = value
+
+        # Create updated config using with_options for direct attributes
+        if config_kwargs:
+            new_config = config.with_options(**config_kwargs)
+        else:
+            new_config = config
+
+        # Add any params using with_params
+        if params_kwargs:
+            new_config = new_config.with_params(**params_kwargs)
 
         # Update state
         self._state_manager.update("config", new_config)

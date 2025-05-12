@@ -63,7 +63,9 @@ from .engine import Engine
 from ..core.results import ChainResult
 
 # Interfaces
-from .interfaces import Model, Validator, Improver, Formatter, Plugin
+from sifaka.interfaces.chain.components import Model, Validator, Improver
+from sifaka.interfaces.chain.components.formatter import ChainFormatter as Formatter
+from sifaka.interfaces.chain.plugin import ChainPlugin as Plugin
 
 # Factory functions are imported lazily to avoid circular dependencies
 # Use sifaka.core.factories.create_chain instead of importing it here

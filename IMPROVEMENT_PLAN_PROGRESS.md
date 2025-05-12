@@ -333,7 +333,6 @@ This phase has not yet been started.
 | critics/base.py | 1,307 lines | ~950 lines (total across modules) | ~27% |
 | rules/formatting/format.py | 1,733 lines | ~1,200 lines (total across modules) | ~31% |
 | rules/formatting/style.py | 1,625 lines | ~1,150 lines (total across modules) | ~29% |
-| models/base.py | 1,185 lines | ~900 lines (total across modules) | ~24% |
 | models/core.py | 784 lines | ~610 lines (total across modules) | ~22% |
 
 ### Documentation Improvements
@@ -359,10 +358,11 @@ This phase has not yet been started.
 
 | Component | Progress | Details |
 |-----------|----------|---------|
-| Code Organization and Structure | 80% | Refactored 8 major files, standardized model providers, updated imports, removed backward compatibility |
+| Code Organization and Structure | 80% | Refactored 7 major files, standardized model providers, updated imports, removed backward compatibility |
 | Documentation Standardization | 60% | Created templates, applied to refactored modules, standardized provider documentation |
 | Testing Improvements | 65% | Set up CI/CD, fixed configuration issues, updated tests to use new APIs, added provider tests |
-| Overall Phase 1 | 68% | Good progress on foundation improvements |
+| Type Checking Improvements | 20% | Started addressing mypy errors, improved type annotations in core modules |
+| Overall Phase 1 | 65% | Good progress on foundation improvements, type checking work initiated |
 
 ## Next Steps
 
@@ -376,3 +376,27 @@ The next files to refactor are:
 6. **sifaka/critics/services/critique.py** (829 lines)
 
 After completing these refactorings, we will focus on consolidating duplicated code and improving documentation.
+
+## Continuation Notes
+
+### Mypy Issues
+
+We need to address several mypy type checking issues in the codebase:
+
+1. **Type Annotation Improvements**:
+   - Add proper type annotations to function parameters and return values
+   - Fix incompatible type errors in existing annotations
+   - Ensure consistent use of Optional and Union types
+   - Address missing imports for type annotations
+
+2. **Generic Type Improvements**:
+   - Fix issues with generic type parameters
+   - Ensure proper typing for collections (List, Dict, etc.)
+   - Address issues with TypeVar usage
+
+3. **Structural Improvements**:
+   - Fix circular import issues affecting type checking
+   - Address issues with protocol implementations
+   - Ensure proper inheritance type compatibility
+
+These improvements will help ensure type safety throughout the codebase and prevent potential runtime errors. We'll prioritize fixing mypy issues in the core modules first, then extend to other components.
