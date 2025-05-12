@@ -95,6 +95,7 @@ Key configuration options include:
 - min_confidence: Threshold for entity confidence (default: 0.5)
 - cache_size: Size of the classification cache (0 to disable)
 """
+
 import importlib
 from abc import abstractmethod
 from typing import Any, ClassVar, Dict, List, Optional, Protocol, Set, Tuple, runtime_checkable
@@ -102,10 +103,11 @@ from typing_extensions import TypeGuard
 from pydantic import ConfigDict
 from sifaka.classifiers.classifier import Classifier
 from sifaka.core.results import ClassificationResult
-from sifaka.utils.config and config and config.classifiers import ClassifierConfig
+from sifaka.utils.config.classifiers import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
-from sifaka.utils.config and config and config.classifiers import extract_classifier_config_params
+from sifaka.utils.config.classifiers import extract_classifier_config_params
+
 logger = get_logger(__name__)
 
 
@@ -173,12 +175,10 @@ class NEREngine(Protocol):
     """
 
     @abstractmethod
-    def process(self, text: str) ->Any:
-        ...
+    def process(self, text: str) -> Any: ...
 
     @abstractmethod
-    def get_entities(self, doc: Any) ->List[Tuple[str, str, int, int]]:
-        ...
+    def get_entities(self, doc: Any) -> List[Tuple[str, str, int, int]]: ...
 
 
 class EntityResult:
@@ -222,8 +222,7 @@ class EntityResult:
     ```
     """
 
-    def __init__(self, text: str, entities: List[Dict[str, Any]],
-        entity_count: int) ->None:
+    def __init__(self, text: str, entities: List[Dict[str, Any]], entity_count: int) -> None:
         """
         Initialize an entity extraction result.
 
@@ -237,7 +236,7 @@ class EntityResult:
         self.entity_count = entity_count
 
     @property
-    def entity_density(self) ->float:
+    def entity_density(self) -> float:
         """
         Calculate ratio of entities to text length.
 
@@ -249,7 +248,7 @@ class EntityResult:
         Returns:
             Float representing entity density (entities per word)
         """
-        return self.entity_count / max(len(self.(text and text.split()), 1)
+        return self.entity_count / max(len(self.text.split()), 1)
 
 
 class NERClassifier(Classifier):
@@ -334,13 +333,26 @@ class NERClassifier(Classifier):
     Requires the 'ner' extra to be installed:
     pip install sifaka[ner]
     """
-    DEFAULT_LABELS: ClassVar[List[str]] = ['person', 'organization',
-        'location', 'date', 'money', 'unknown']
+
+    DEFAULT_LABELS: ClassVar[List[str]] = [
+        "person",
+        "organization",
+        "location",
+        "date",
+        "money",
+        "unknown",
+    ]
     DEFAULT_COST: ClassVar[int] = 2
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def __init__(self, name: str='ner_classifier', description: str=
-        'Identifies named entities in text', engine: Optional[Optional[NEREngine]] = None, config: Optional[Optional[ClassifierConfig]] = None, **kwargs) ->None:
+    def __init__(
+        self,
+        name: str = "ner_classifier",
+        description: str = "Identifies named entities in text",
+        engine: Optional[Optional[NEREngine]] = None,
+        config: Optional[Optional[ClassifierConfig]] = None,
+        **kwargs,
+    ) -> None:
         """
         Initialize the NER classifier.
 
@@ -352,73 +364,76 @@ class NERClassifier(Classifier):
             **kwargs: Additional configuration parameters
         """
         if config is None:
-            params = (kwargs and kwargs.pop('params', {})
-            config = ClassifierConfig(labels=NERClassifier.DEFAULT_LABELS,
-                cost=NERClassifier.DEFAULT_COST, params=params, **kwargs)
+            params = kwargs.pop("params", {})
+            config = ClassifierConfig(
+                labels=NERClassifier.DEFAULT_LABELS,
+                cost=NERClassifier.DEFAULT_COST,
+                params=params,
+                **kwargs,
+            )
         super().__init__(name=name, description=description, config=config)
-        if engine is not None and (self and self._validate_engine(engine):
-            cache = self.(_state_manager and _state_manager.get('cache', {})
-            cache['engine'] = engine
-            self.(_state_manager.update('cache', cache)
+        if engine is not None and self._validate_engine(engine):
+            cache = self._state_manager.get("cache", {})
+            cache["engine"] = engine
+            self._state_manager.update("cache", cache)
 
-    def _validate_engine(self, engine: Any) ->TypeGuard[NEREngine]:
+    def _validate_engine(self, engine: Any) -> TypeGuard[NEREngine]:
         """Validate that an engine implements the required protocol."""
-        return (self.validate_component(engine, NEREngine, 'Engine')
+        return self.validate_component(engine, NEREngine, "Engine")
 
-    def _load_spacy(self) ->NEREngine:
+    def _load_spacy(self) -> NEREngine:
         """Load the spaCy NER engine."""
         try:
-            if self.(_state_manager.get('cache', {}).get('engine'):
-                return self.(_state_manager.get('cache')['engine']
-            spacy = (importlib and importlib.import_module('spacy')
-            model_name = self.config and config and config and config and config and config and config.(params and params.get('model_name', 'en_core_web_sm')
-            nlp = (spacy.load(model_name)
-
+            if self._state_manager.get("cache", {}).get("engine"):
+                return self._state_manager.get("cache")["engine"]
+            spacy = importlib.import_module("spacy")
+            model_name = self.config.params.get("model_name", "en_core_web_sm")
+            nlp = spacy.load(model_name)
 
             class SpacyNERWrapper:
 
-                def __init__(self, nlp) ->None:
+                def __init__(self, nlp) -> None:
                     self.nlp = nlp
 
-                def process(self, text: str) ->Any:
-                    return (self.nlp(text)
+                def process(self, text: str) -> Any:
+                    return self.nlp(text)
 
-                def get_entities(self, doc: Any) ->List[Tuple[str, str, int,
-                    int]]:
+                def get_entities(self, doc: Any) -> List[Tuple[str, str, int, int]]:
                     """Extract entities from a spaCy doc."""
-                    return [(ent.text, ent.label_, ent.start_char, ent.
-                        end_char) for ent in doc.ents)
+                    return [
+                        (ent.text, ent.label_, ent.start_char, ent.end_char) for ent in doc.ents
+                    ]
+
             engine = SpacyNERWrapper(nlp)
-            if (self._validate_engine(engine):
-                cache = self.(_state_manager.get('cache', {})
-                cache['engine'] = engine
-                self.(_state_manager.update('cache', cache)
+            if self._validate_engine(engine):
+                cache = self._state_manager.get("cache", {})
+                cache["engine"] = engine
+                self._state_manager.update("cache", cache)
                 return engine
         except ImportError:
             raise ImportError(
-                'spacy package is required for NERClassifier. Install it with: pip install sifaka[ner]'
-                )
+                "spacy package is required for NERClassifier. Install it with: pip install sifaka[ner]"
+            )
         except Exception as e:
-            raise RuntimeError(f'Failed to load spaCy NER engine: {e}')
+            raise RuntimeError(f"Failed to load spaCy NER engine: {e}")
 
     @property
-    def entity_types(self) ->Set[str]:
+    def entity_types(self) -> Set[str]:
         """Get the entity types recognized by this classifier."""
-        entity_types = self.config and config and config and config and config and config and config.(params.get('entity_types', self.
-            DEFAULT_LABELS)
+        entity_types = self.config.params.get("entity_types", self.DEFAULT_LABELS)
         return set(entity_types) if isinstance(entity_types, list) else set()
 
-    def warm_up(self) ->None:
+    def warm_up(self) -> None:
         """Initialize the NER engine if needed."""
-        if not self.(_state_manager.get('initialized', False):
-            if not self.(_state_manager.get('cache', {}).get('engine'):
-                engine = (self._load_spacy()
-                cache = self.(_state_manager.get('cache', {})
-                cache['engine'] = engine
-                self.(_state_manager.update('cache', cache)
-            self.(_state_manager.update('initialized', True)
+        if not self._state_manager.get("initialized", False):
+            if not self._state_manager.get("cache", {}).get("engine"):
+                engine = self._load_spacy()
+                cache = self._state_manager.get("cache", {})
+                cache["engine"] = engine
+                self._state_manager.update("cache", cache)
+            self._state_manager.update("initialized", True)
 
-    def _extract_entities(self, text: str) ->EntityResult:
+    def _extract_entities(self, text: str) -> EntityResult:
         """
         Extract named entities from text.
 
@@ -428,23 +443,23 @@ class NERClassifier(Classifier):
         Returns:
             EntityResult with entity details
         """
-        if not self.(_state_manager.get('initialized', False):
-            (self.warm_up()
-        engine = self.(_state_manager.get('cache', {}).get('engine')
+        if not self._state_manager.get("initialized", False):
+            self.warm_up()
+        engine = self._state_manager.get("cache", {}).get("engine")
         if not engine:
-            raise RuntimeError('NER engine not initialized')
-        doc = engine and (engine.process(text)
-        entity_tuples = engine and (engine.get_entities(doc)
+            raise RuntimeError("NER engine not initialized")
+        doc = engine.process(text)
+        entity_tuples = engine.get_entities(doc)
         entities = []
-        for text, label, start, end in entity_tuples:
-            if self.entity_types and (label.lower() not in self.entity_types:
+        for entity_text, label, start, end in entity_tuples:
+            if self.entity_types and label.lower() not in self.entity_types:
                 continue
-            (entities.append({'text': text, 'type': (label.lower(), 'start':
-                start, 'end': end))
-        return EntityResult(text=text, entities=entities, entity_count=len(
-            entities))
+            entities.append(
+                {"text": entity_text, "type": label.lower(), "start": start, "end": end}
+            )
+        return EntityResult(text=text, entities=entities, entity_count=len(entities))
 
-    def _classify_impl_uncached(self, text: str) ->ClassificationResult:
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
         """
         Implement NER classification logic without caching.
 
@@ -454,52 +469,68 @@ class NERClassifier(Classifier):
         Returns:
             ClassificationResult with entity extraction results
         """
-        (self.warm_up()
+        self.warm_up()
         try:
-            entity_result = (self._extract_entities(text)
+            entity_result = self._extract_entities(text)
             entity_counts = {}
             for entity in entity_result.entities:
-                entity_type = entity['type']
-                entity_counts[entity_type] = (entity_counts.get(entity_type, 0
-                    ) + 1
-            dominant_type = 'unknown'
+                entity_type = entity["type"]
+                entity_counts[entity_type] = entity_counts.get(entity_type, 0) + 1
+
+            dominant_type = "unknown"
             max_count = 0
-            for entity_type, count in (entity_counts.items():
+            for entity_type, count in entity_counts.items():
                 if count > max_count:
                     max_count = count
                     dominant_type = entity_type
-            min_confidence = self.config and config and config and config and config and config and config.(params.get('min_confidence', 0.5)
-            confidence = min(1.0, max(entity_result.entity_density, 
-                min_confidence if entity_result.entity_count > 0 else 0.0))
+
+            min_confidence = self.config.params.get("min_confidence", 0.5)
+            confidence = min(
+                1.0,
+                max(
+                    entity_result.entity_density,
+                    min_confidence if entity_result.entity_count > 0 else 0.0,
+                ),
+            )
+
             entities_by_type = {}
             for entity in entity_result.entities:
-                entity_type = entity['type']
+                entity_type = entity["type"]
                 if entity_type not in entities_by_type:
                     entities_by_type[entity_type] = []
                 entities_by_type[entity_type].append(entity)
-            result = ClassificationResult(label=dominant_type if 
-                entity_result.entity_count > 0 else 'unknown', confidence=
-                confidence if entity_result.entity_count > 0 else 0.0,
-                metadata={'entities': entity_result.entities,
-                'entities_by_type': entities_by_type, 'entity_count':
-                entity_result.entity_count, 'entity_density': entity_result
-                .entity_density, 'dominant_entity_type': dominant_type if 
-                entity_result.entity_count > 0 else None})
-            stats = self.(_state_manager.get('statistics', {})
-            stats[result.label] = (stats.get(result.label, 0) + 1
-            self.(_state_manager.update('statistics', stats)
+
+            result = ClassificationResult(
+                label=dominant_type if entity_result.entity_count > 0 else "unknown",
+                confidence=confidence if entity_result.entity_count > 0 else 0.0,
+                metadata={
+                    "entities": entity_result.entities,
+                    "entities_by_type": entities_by_type,
+                    "entity_count": entity_result.entity_count,
+                    "entity_density": entity_result.entity_density,
+                    "dominant_entity_type": (
+                        dominant_type if entity_result.entity_count > 0 else None
+                    ),
+                },
+            )
+
+            stats = self._state_manager.get("statistics", {})
+            stats[result.label] = stats.get(result.label, 0) + 1
+            self._state_manager.update("statistics", stats)
             return result
         except Exception as e:
-            (logger and logger.error('Failed to extract entities: %s', e)
-            error_info = {'error': str(e), 'type': type(e).__name__)
-            errors = self.(_state_manager.get('errors', [])
-            (errors.append(error_info)
-            self.(_state_manager.update('errors', errors)
-            return ClassificationResult(label='unknown', confidence=0.0,
-                metadata={'error': str(e), 'reason': 'entity_extraction_error')
-                )
+            logger.error("Failed to extract entities: %s", e)
+            error_info = {"error": str(e), "type": type(e).__name__}
+            errors = self._state_manager.get("errors", [])
+            errors.append(error_info)
+            self._state_manager.update("errors", errors)
+            return ClassificationResult(
+                label="unknown",
+                confidence=0.0,
+                metadata={"error": str(e), "reason": "entity_extraction_error"},
+            )
 
-    def get_statistics(self) ->Dict[str, Any]:
+    def get_statistics(self) -> Dict[str, Any]:
         """
         Get classifier usage statistics.
 
@@ -509,36 +540,43 @@ class NERClassifier(Classifier):
         Returns:
             Dictionary containing statistics
         """
-        stats = {'classifications': self.(_state_manager.get('statistics', {
-            }), 'error_count': len(self.(_state_manager.get('errors', [])),
-            'cache_enabled': self.config and config and config.cache_size > 0, 'cache_size': self
-            .config and config and config.cache_size, 'initialized': self.(_state_manager.get(
-            'initialized', False), 'model_name': self.config and config and config and config and config and config and config.(params.get(
-            'model_name', 'en_core_web_sm'), 'entity_types': list(self.
-            entity_types))
-        if hasattr(self, '_result_cache'):
-            stats['cache_entries'] = len(self._result_cache)
+        stats = {
+            "classifications": self._state_manager.get("statistics", {}),
+            "error_count": len(self._state_manager.get("errors", [])),
+            "cache_enabled": self.config.cache_size > 0,
+            "cache_size": self.config.cache_size,
+            "initialized": self._state_manager.get("initialized", False),
+            "model_name": self.config.params.get("model_name", "en_core_web_sm"),
+            "entity_types": list(self.entity_types),
+        }
+        if hasattr(self, "_result_cache"):
+            stats["cache_entries"] = len(self._result_cache)
         return stats
 
-    def clear_cache(self) ->None:
+    def clear_cache(self) -> None:
         """
         Clear any cached data in the classifier.
 
         This method clears both the result cache and resets statistics in the state
         but preserves the engine and initialization status.
         """
-        if hasattr(self, '_result_cache'):
-            self.(_result_cache.clear()
-        self.(_state_manager.update('statistics', {})
-        self.(_state_manager.update('errors', [])
-        cache = self.(_state_manager.get('cache', {})
-        preserved_cache = {k: v for k, v in (cache.items() if k == 'engine')
-        self.(_state_manager.update('cache', preserved_cache)
+        if hasattr(self, "_result_cache"):
+            self._result_cache.clear()
+        self._state_manager.update("statistics", {})
+        self._state_manager.update("errors", [])
+        cache = self._state_manager.get("cache", {})
+        preserved_cache = {k: v for k, v in cache.items() if k == "engine"}
+        self._state_manager.update("cache", preserved_cache)
 
     @classmethod
-    def create_with_custom_engine(cls, engine: NEREngine, name: str=
-        'custom_ner_classifier', description: str='Custom NER engine',
-        config: Optional[Optional[ClassifierConfig]] = None, **kwargs) ->'NERClassifier':
+    def create_with_custom_engine(
+        cls,
+        engine: NEREngine,
+        name: str = "custom_ner_classifier",
+        description: str = "Custom NER engine",
+        config: Optional[Optional[ClassifierConfig]] = None,
+        **kwargs,
+    ) -> "NERClassifier":
         """
         Factory method to create a classifier with a custom engine.
 
@@ -553,26 +591,30 @@ class NERClassifier(Classifier):
             Configured NERClassifier instance
         """
         if not isinstance(engine, NEREngine):
-            raise ValueError(
-                f'Engine must implement NEREngine protocol, got {type(engine))'
-                )
+            raise ValueError(f"Engine must implement NEREngine protocol, got {type(engine)}")
         if config is None:
-            config = ClassifierConfig(labels=NERClassifier.DEFAULT_LABELS,
-                cost=NERClassifier.DEFAULT_COST, params=(kwargs.pop('params',
-                {}))
-        instance = cls(name=name, description=description, engine=engine,
-            config=config, **kwargs)
-        cache = {'engine': engine}
-        instance.(_state_manager.update('cache', cache)
-        instance.(_state_manager.update('initialized', True)
+            config = ClassifierConfig(
+                labels=NERClassifier.DEFAULT_LABELS,
+                cost=NERClassifier.DEFAULT_COST,
+                params=kwargs.pop("params", {}),
+            )
+        instance = cls(name=name, description=description, engine=engine, config=config, **kwargs)
+        cache = {"engine": engine}
+        instance._state_manager.update("cache", cache)
+        instance._state_manager.update("initialized", True)
         return instance
 
 
-def create_ner_classifier(name: str='ner_classifier', description: str=
-    'Identifies named entities in text', model_name: str='en_core_web_sm',
-    entity_types: Optional[Optional[List[str]]] = None, min_confidence: float=0.5,
-    cache_size: int=0, cost: int=NERClassifier.DEFAULT_COST, **kwargs: Any
-    ) ->NERClassifier:
+def create_ner_classifier(
+    name: str = "ner_classifier",
+    description: str = "Identifies named entities in text",
+    model_name: str = "en_core_web_sm",
+    entity_types: Optional[Optional[List[str]]] = None,
+    min_confidence: float = 0.5,
+    cache_size: int = 0,
+    cost: int = NERClassifier.DEFAULT_COST,
+    **kwargs: Any,
+) -> NERClassifier:
     """
     Factory function to create a NER classifier.
 
@@ -652,13 +694,22 @@ def create_ner_classifier(name: str='ner_classifier', description: str=
             print(f"Dominant entity: {result.label}, Count: {result.metadata['entity_count']}")
         ```
     """
-    default_params = {'model_name': model_name, 'entity_types': 
-        entity_types or NERClassifier.DEFAULT_LABELS, 'min_confidence':
-        min_confidence}
-    config_dict = extract_classifier_config_params(labels=NERClassifier.
-        DEFAULT_LABELS, cache_size=cache_size, min_confidence=
-        min_confidence, cost=cost, provided_params=(kwargs.pop('params', {}),
-        default_params=default_params, **kwargs)
+    default_params = {
+        "model_name": model_name,
+        "entity_types": entity_types or NERClassifier.DEFAULT_LABELS,
+        "min_confidence": min_confidence,
+    }
+
+    config_dict = extract_classifier_config_params(
+        labels=NERClassifier.DEFAULT_LABELS,
+        cache_size=cache_size,
+        min_confidence=min_confidence,
+        cost=cost,
+        provided_params=kwargs.pop("params", {}),
+        default_params=default_params,
+        **kwargs,
+    )
+
     config = ClassifierConfig[str](**config_dict)
-    return NERClassifier(name=name, description=description, config=config,
-        **kwargs)
+
+    return NERClassifier(name=name, description=description, config=config, **kwargs)

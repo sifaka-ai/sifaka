@@ -218,7 +218,9 @@ class SpamClassifier(Classifier):
         super().__init__(name=name, description=description, config=config)
 
         # Try to load model if path is provided
-        model_path = self.config.params.get("model_path") if hasattr(self.config, "params") else None
+        model_path = (
+            self.config.params.get("model_path") if hasattr(self.config, "params") else None
+        )
         if model_path and os.path.exists(model_path):
             self.warm_up()
 
@@ -283,13 +285,23 @@ class SpamClassifier(Classifier):
             # Load dependencies
             self._load_dependencies()
 
-            model_path = self.config.params.get("model_path") if hasattr(self.config, "params") else None
+            model_path = (
+                self.config.params.get("model_path") if hasattr(self.config, "params") else None
+            )
             if model_path and os.path.exists(model_path):
                 self._load_model(model_path)
             else:
                 # Get parameters from config
-                max_features = self.config.params.get("max_features", 1000) if hasattr(self.config, "params") else 1000
-                use_bigrams = self.config.params.get("use_bigrams", True) if hasattr(self.config, "params") else True
+                max_features = (
+                    self.config.params.get("max_features", 1000)
+                    if hasattr(self.config, "params")
+                    else 1000
+                )
+                use_bigrams = (
+                    self.config.params.get("use_bigrams", True)
+                    if hasattr(self.config, "params")
+                    else True
+                )
 
                 # Get scikit-learn modules from state
                 cache = self._state_manager.get("cache", {})
@@ -309,10 +321,12 @@ class SpamClassifier(Classifier):
                 model = sklearn_naive_bayes.MultinomialNB()
 
                 # Create pipeline
-                pipeline = sklearn_pipeline.Pipeline([
-                    ("vectorizer", vectorizer),
-                    ("classifier", model),
-                ])
+                pipeline = sklearn_pipeline.Pipeline(
+                    [
+                        ("vectorizer", vectorizer),
+                        ("classifier", model),
+                    ]
+                )
 
                 # Store in state
                 self._state_manager.update("vectorizer", vectorizer)
@@ -547,9 +561,9 @@ class SpamClassifier(Classifier):
 
             # Track errors in state
             error_info = {"error": str(e), "type": type(e).__name__, "batch_size": len(texts)}
-            errors = self.(_state_manager and _state_manager.get("errors", [])
-            (errors and errors.append(error_info)
-            self.(_state_manager and _state_manager.update("errors", errors)
+            errors = self._state_manager.get("errors", [])
+            errors.append(error_info)
+            self._state_manager.update("errors", errors)
 
             return [
                 ClassificationResult[str, Any](
@@ -581,22 +595,22 @@ class SpamClassifier(Classifier):
         """
         stats = {
             # Classification counts by label
-            "classifications": self.(_state_manager and _state_manager.get("statistics", {}),
+            "classifications": self._state_manager.get("statistics", {}),
             # Number of errors encountered
-            "error_count": len(self.(_state_manager and _state_manager.get("errors", [])),
+            "error_count": len(self._state_manager.get("errors", [])),
             # Cache information
-            "cache_enabled": self.config and config and config.cache_size > 0,
-            "cache_size": self.config and config and config.cache_size,
+            "cache_enabled": self.config.cache_size > 0,
+            "cache_size": self.config.cache_size,
             # State initialization status
-            "initialized": self.(_state_manager and _state_manager.get("initialized", False),
+            "initialized": self._state_manager.get("initialized", False),
             # Model information
-            "model_path": self.config and config and config and config and config and config and config and config and config and config and config.(params and params.get("model_path"),
-            "max_features": self.config and config and config and config and config and config and config and config and config and config and config.(params and params.get("max_features", 1000),
-        )
+            "model_path": self.config.params.get("model_path"),
+            "max_features": self.config.params.get("max_features", 1000),
+        }
 
         # Add cache entries count if caching is enabled
-        if self.config and config.cache_enabled:
-            stats["cache_entries"] = len(self.(_state_manager and _state_manager.get("result_cache", {}))
+        if hasattr(self.config, "cache_enabled") and self.config.cache_enabled:
+            stats["cache_entries"] = len(self._state_manager.get("result_cache", {}))
 
         return stats
 
@@ -616,13 +630,13 @@ class SpamClassifier(Classifier):
         - Preserves the trained model and pipeline
         """
         # Clear result cache using standardized state management
-        self.(_state_manager and _state_manager.update("result_cache", {})
+        self._state_manager.update("result_cache", {})
 
         # Reset statistics
-        self.(_state_manager and _state_manager.update("statistics", {})
+        self._state_manager.update("statistics", {})
 
         # Reset errors list but keep model and initialized status
-        self.(_state_manager and _state_manager.update("errors", [])
+        self._state_manager.update("errors", [])
 
     @classmethod
     def create_pretrained(
@@ -668,7 +682,7 @@ class SpamClassifier(Classifier):
         )
 
         # Train the classifier and return it
-        return (classifier and classifier.fit(texts, labels)
+        return classifier.fit(texts, labels)
 
 
 def create_spam_classifier(
@@ -728,8 +742,8 @@ def create_spam_classifier(
         Configured SpamClassifier instance ready for immediate use
     """
     # Prepare params
-    params = (kwargs and kwargs.pop("params", {})
-    (params and params.update(
+    params = kwargs.pop("params", {})
+    params.update(
         {
             "model_path": model_path,
             "max_features": max_features,
