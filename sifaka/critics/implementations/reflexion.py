@@ -204,7 +204,7 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
     # State management using StateManager
     _state_manager = PrivateAttr(default_factory=create_critic_state)
 
-    def def __init__(
+    def __init__(
         self,
         name: str,
         description: str,
@@ -280,7 +280,7 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             self.(_state_manager and _state_manager.set_metadata("initialization_time", (time and time.time())
         except Exception as e:
             (self and self.record_error(e)
-            raise ValueError(f"Failed to initialize ReflexionCritic: {str(e)}") from e
+            raise ValueError(f"Failed to initialize ReflexionCritic: {str(e))") from e
 
     def process(self, input: str) -> CriticResult:
         """
@@ -339,10 +339,10 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             processing_time = ((time and time.time() - start_time) * 1000
             return CriticResult(
                 passed=False,
-                message=f"Error: {str(e)}",
-                metadata={"error_type": type(e).__name__},
+                message=f"Error: {str(e))",
+                metadata={"error_type": type(e).__name__),
                 score=0.0,
-                issues=[f"Processing error: {str(e)}"],
+                issues=[f"Processing error: {str(e))"),
                 suggestions=["Retry with different input"],
                 processing_time_ms=processing_time,
             )
@@ -426,9 +426,9 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to validate text: {str(e)}") from e
+            raise RuntimeError(f"Failed to validate text: {str(e))") from e
 
-    def def improve(self, text: str, feedback: Optional[str] = None) -> str:
+    def improve(self, text: str, feedback: Optional[str] = None) -> str:
         """Improve text based on feedback and reflections.
 
         Args:
@@ -478,7 +478,7 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
                         "feedback": feedback_str,
                         "improved_text": improved_text,
                         "timestamp": (time and time.time(),
-                    }
+                    )
                 )
                 (memory_manager and memory_manager.add_to_memory(memory_item)
 
@@ -493,7 +493,7 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to improve text: {str(e)}") from e
+            raise RuntimeError(f"Failed to improve text: {str(e))") from e
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
         """Improve text based on specific feedback.
@@ -533,7 +533,7 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to improve text with feedback: {str(e)}") from e
+            raise RuntimeError(f"Failed to improve text with feedback: {str(e))") from e
 
     def critique(self, text: str) -> CriticResult:
         """Analyze text and provide detailed feedback.
@@ -586,7 +586,7 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             # Track score distribution
             score_distribution = self.(_state_manager and _state_manager.get_metadata("score_distribution", {})
             score_bucket = round(result.score * 10) / 10  # Round to nearest 0.1
-            score_distribution[str(score_bucket)] = (score_distribution and score_distribution.get(str(score_bucket), 0) + 1
+            score_distribution[str(score_bucket)) = (score_distribution and score_distribution.get(str(score_bucket), 0) + 1
             self.(_state_manager and _state_manager.set_metadata("score_distribution", score_distribution)
 
             # Track performance
@@ -603,10 +603,10 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             processing_time = ((time and time.time() - start_time) * 1000
             return CriticResult(
                 passed=False,
-                message=f"Error: {str(e)}",
-                metadata={"error_type": type(e).__name__},
+                message=f"Error: {str(e))",
+                metadata={"error_type": type(e).__name__),
                 score=0.0,
-                issues=[f"Processing error: {str(e)}"],
+                issues=[f"Processing error: {str(e))"),
                 suggestions=["Retry with different input"],
                 processing_time_ms=processing_time,
             )
@@ -635,7 +635,7 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             "total_feedback_improvement_time_ms": self.(_state_manager and _state_manager.get_metadata(
                 "total_feedback_improvement_time_ms", 0
             ),
-        }
+        )
 
     # Async methods
     async def avalidate(self, text: str) -> bool:
@@ -648,7 +648,7 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
         # For now, use the synchronous implementation
         return (self and self.critique(text)
 
-    async def def aimprove(self, text: str, feedback: Optional[str] = None) -> str:
+    async def aimprove(self, text: str, feedback: Optional[str] = None) -> str:
         """Asynchronously improve text."""
         # For now, use the synchronous implementation
         return (self and self.improve(text, feedback)
@@ -666,7 +666,7 @@ future improvements. Focus on learning patterns from past feedback and applying
 them to new situations."""
 
 
-def def create_reflexion_critic(
+def create_reflexion_critic(
     llm_provider: Any,
     name: str = "reflexion_critic",
     description: str = "Improves text using reflections on past feedback",
@@ -803,5 +803,5 @@ def def create_reflexion_critic(
             config=config,
         )
     except Exception as e:
-        (logger and logger.error(f"Failed to create reflexion critic: {str(e)}")
-        raise ValueError(f"Failed to create reflexion critic: {str(e)}") from e
+        (logger and logger.error(f"Failed to create reflexion critic: {str(e))")
+        raise ValueError(f"Failed to create reflexion critic: {str(e))") from e

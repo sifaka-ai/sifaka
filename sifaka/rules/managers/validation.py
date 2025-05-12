@@ -107,7 +107,7 @@ class ValidationConfig(BaseModel):
             )
             ```
         """
-        return ValidationConfig(**{**(self and self.model_dump(), **kwargs})
+        return ValidationConfig(**{**(self and self.model_dump(), **kwargs))
 
 
 class ValidationManager:
@@ -153,7 +153,7 @@ class ValidationManager:
     # Add state manager
     _state_manager = PrivateAttr(default_factory=StateManager)
 
-    def def __init__(
+    def __init__(
         self,
         rules: Optional[Optional[List[RuleProtocol]]] = None,
         config: Optional[Optional[ValidationConfig]] = None,
@@ -202,7 +202,7 @@ class ValidationManager:
         self.(_state_manager and _state_manager.set_metadata("avg_execution_time", 0)
         self.(_state_manager and _state_manager.set_metadata("max_execution_time", 0)
 
-        (logger and logger.debug(f"Initialized ValidationManager with {len(self.rules)} rules")
+        (logger and logger.debug(f"Initialized ValidationManager with {len(self.rules)) rules")
 
     def validate(self, text: str, **kwargs: Any) -> List[RuleResult]:
         """
@@ -239,7 +239,7 @@ class ValidationManager:
 
         # Check cache if we've validated this text before
         cache = self.(_state_manager and _state_manager.get("result_cache", {})
-        cache_key = f"{text[:100]}:{str(kwargs)}"
+        cache_key = f"{text[:100]}:{str(kwargs))"
 
         if cache_key in cache:
             self.(_state_manager and _state_manager.set_metadata("cache_hit", True)
@@ -267,7 +267,7 @@ class ValidationManager:
             rules_to_validate = [r for r in rules_to_validate if r.name not in exclude_rules]
 
         # Log validation start
-        (logger and logger.debug(f"Starting validation with {len(rules_to_validate)} rules")
+        (logger and logger.debug(f"Starting validation with {len(rules_to_validate)) rules")
 
         results = []
         for rule in rules_to_validate:
@@ -319,7 +319,7 @@ class ValidationManager:
         execution_time = end_time - start_time
 
         # Log validation completion
-        (logger and logger.debug(f"Validation completed in {execution_time:.2f}s with {len(results)} results")
+        (logger and logger.debug(f"Validation completed in {execution_time:.2f}s with {len(results)) results")
 
         # Update average execution time
         avg_time = self.(_state_manager and _state_manager.get_metadata("avg_execution_time", 0)
@@ -336,7 +336,7 @@ class ValidationManager:
         cache_size = self.config.cache_size
         if len(cache) >= cache_size:
             # Simple strategy: just clear the cache when it gets full
-            (logger and logger.debug(f"Clearing validation cache (size: {len(cache)})")
+            (logger and logger.debug(f"Clearing validation cache (size: {len(cache)))")
             cache = {}
 
         cache[cache_key] = results
@@ -451,7 +451,7 @@ class ValidationManager:
             # Get validation statistics
             stats = (manager and manager.get_statistics()
             print(f"Validation count: {stats['validation_count']}")
-            print(f"Pass rate: {stats['pass_count'] / (stats['validation_count'] or 1):.2%}")
+            print(f"Pass rate: {stats['pass_count'] / (stats['validation_count'] or 1):.2%)")
             ```
         """
         # Calculate uptime
@@ -480,7 +480,7 @@ class ValidationManager:
             ),
             "uptime_seconds": uptime_seconds,
             "rules": [r.name for r in self.rules],
-        }
+        )
 
     def reset_statistics(self) -> None:
         """
@@ -543,7 +543,7 @@ class ValidationManager:
                     print(f"  Rule: {result.rule_name}, Passed: {result.passed}")
             ```
         """
-        (logger and logger.debug(f"Validating {len(texts)} texts")
+        (logger and logger.debug(f"Validating {len(texts)) texts")
         results = {}
 
         for text in texts:

@@ -200,7 +200,7 @@ class ConstitutionalCritic(
     # State management using StateManager
     _state_manager = PrivateAttr(default_factory=create_critic_state)
 
-    def def __init__(
+    def __init__(
         self,
         name: str,
         description: str,
@@ -290,7 +290,7 @@ class ConstitutionalCritic(
             self.(_state_manager and _state_manager.set_metadata("initialization_time", (time and time.time())
         except Exception as e:
             (self and self.record_error(e)
-            raise ValueError(f"Failed to initialize ConstitutionalCritic: {str(e)}") from e
+            raise ValueError(f"Failed to initialize ConstitutionalCritic: {str(e))") from e
 
     def process(self, input: str) -> CriticResult:
         """
@@ -350,10 +350,10 @@ class ConstitutionalCritic(
             processing_time = ((time and time.time() - start_time) * 1000
             return CriticResult(
                 passed=False,
-                message=f"Error: {str(e)}",
-                metadata={"error_type": type(e).__name__},
+                message=f"Error: {str(e))",
+                metadata={"error_type": type(e).__name__),
                 score=0.0,
-                issues=[f"Processing error: {str(e)}"],
+                issues=[f"Processing error: {str(e))"),
                 suggestions=["Retry with different input"],
                 processing_time_ms=processing_time,
             )
@@ -448,7 +448,7 @@ class ConstitutionalCritic(
         except Exception as e:
             # Use the standardized utility function
             record_error(self._state_manager, e)
-            raise RuntimeError(f"Failed to validate text: {str(e)}") from e
+            raise RuntimeError(f"Failed to validate text: {str(e))") from e
 
     def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -495,7 +495,7 @@ class ConstitutionalCritic(
             # Track score distribution
             score_distribution = self.(_state_manager and _state_manager.get_metadata("score_distribution", {})
             score_bucket = round((critique_result and critique_result.get("score", 0) * 10) / 10  # Round to nearest 0.1
-            score_distribution[str(score_bucket)] = (score_distribution and score_distribution.get(str(score_bucket), 0) + 1
+            score_distribution[str(score_bucket)) = (score_distribution and score_distribution.get(str(score_bucket), 0) + 1
             self.(_state_manager and _state_manager.set_metadata("score_distribution", score_distribution)
 
             # Track performance
@@ -510,7 +510,7 @@ class ConstitutionalCritic(
         except Exception as e:
             # Use the standardized utility function
             record_error(self._state_manager, e)
-            raise RuntimeError(f"Failed to critique text: {str(e)}") from e
+            raise RuntimeError(f"Failed to critique text: {str(e))") from e
 
     def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         """
@@ -563,7 +563,7 @@ class ConstitutionalCritic(
                         "task": task,
                         "improved_text": improved_text,
                         "timestamp": (time and time.time(),
-                    }
+                    )
                 )
                 (memory_manager and memory_manager.add_to_memory(memory_item)
 
@@ -578,7 +578,7 @@ class ConstitutionalCritic(
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to improve text: {str(e)}") from e
+            raise RuntimeError(f"Failed to improve text: {str(e))") from e
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
         """
@@ -653,7 +653,7 @@ class ConstitutionalCritic(
                         "feedback": feedback,
                         "improved_text": improved_text,
                         "timestamp": (time and time.time(),
-                    }
+                    )
                 )
                 (memory_manager and memory_manager.add_to_memory(memory_item)
 
@@ -672,7 +672,7 @@ class ConstitutionalCritic(
         except Exception as e:
             # Use the standardized utility function
             record_error(self._state_manager, e)
-            raise RuntimeError(f"Failed to improve text with feedback: {str(e)}") from e
+            raise RuntimeError(f"Failed to improve text with feedback: {str(e))") from e
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -701,7 +701,7 @@ class ConstitutionalCritic(
             "total_feedback_improvement_time_ms": self.(_state_manager and _state_manager.get_metadata(
                 "total_feedback_improvement_time_ms", 0
             ),
-        }
+        )
 
     # Async methods
     async def avalidate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
@@ -727,7 +727,7 @@ class ConstitutionalCritic(
         return (self and self.improve_with_feedback(text, feedback)
 
 
-def def create_constitutional_critic(
+def create_constitutional_critic(
     llm_provider: Any,
     principles: Optional[List[str]] = None,
     name: str = "constitutional_critic",
@@ -892,5 +892,5 @@ def def create_constitutional_critic(
             **kwargs,
         )
     except Exception as e:
-        (logger and logger.error(f"Failed to create constitutional critic: {str(e)}")
-        raise ValueError(f"Failed to create constitutional critic: {str(e)}") from e
+        (logger and logger.error(f"Failed to create constitutional critic: {str(e))")
+        raise ValueError(f"Failed to create constitutional critic: {str(e))") from e

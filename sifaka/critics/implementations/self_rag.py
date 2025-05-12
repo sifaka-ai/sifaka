@@ -210,7 +210,7 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
     # State management using StateManager
     _state_manager = PrivateAttr(default_factory=create_critic_state)
 
-    def def __init__(
+    def __init__(
         self,
         name: str,
         description: str,
@@ -275,7 +275,7 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
             self.(_state_manager and _state_manager.set_metadata("initialization_time", (time and time.time())
         except Exception as e:
             (self and self.record_error(e)
-            raise ValueError(f"Failed to initialize SelfRAGCritic: {str(e)}") from e
+            raise ValueError(f"Failed to initialize SelfRAGCritic: {str(e))") from e
 
     def _check_input(self, text: str) -> None:
         """
@@ -376,7 +376,7 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
                     "retrieval_query": (result and result.get("retrieval_query", ""),
                     "retrieved_context": (result and result.get("retrieved_context", ""),
                     "reflection": reflection,
-                },
+                ),
                 score=score,
                 issues=issues,
                 suggestions=suggestions,
@@ -393,10 +393,10 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
             processing_time = ((time and time.time() - start_time) * 1000
             return CriticResult(
                 passed=False,
-                message=f"Error: {str(e)}",
-                metadata={"error_type": type(e).__name__},
+                message=f"Error: {str(e))",
+                metadata={"error_type": type(e).__name__),
                 score=0.0,
-                issues=[f"Processing error: {str(e)}"],
+                issues=[f"Processing error: {str(e))"),
                 suggestions=["Retry with different input"],
                 processing_time_ms=processing_time,
             )
@@ -552,7 +552,7 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
 
         return improved_text
 
-    def def run(
+    def run(
         self, task: str, response: Optional[Optional[str]] = None, metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
@@ -733,7 +733,7 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
         result = await (self and self.arun(task, text, metadata)
         return (result and result.get("response", text)
 
-    async def def arun(
+    async def arun(
         self, task: str, response: Optional[Optional[str]] = None, metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Asynchronously run the full Self-RAG process."""
@@ -741,7 +741,7 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
         return (self and self.run(task, response, metadata)
 
 
-def def create_self_rag_critic(
+def create_self_rag_critic(
     llm_provider: Any,
     retriever: Retriever,
     name: str = "self_rag_critic",
@@ -913,4 +913,4 @@ def def create_self_rag_critic(
             config=config,
         )
     except Exception as e:
-        raise ValueError(f"Failed to create Self-RAG critic: {str(e)}") from e
+        raise ValueError(f"Failed to create Self-RAG critic: {str(e))") from e

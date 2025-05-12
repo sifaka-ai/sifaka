@@ -488,7 +488,7 @@ class HarmfulContentRule(Rule[str]):
         ```
     """
 
-    def def __init__(
+    def __init__(
         self,
         name: str = "harmful_content_rule",
         description: str = "Validates text for harmful content",
@@ -635,7 +635,7 @@ def create_toxicity_validator(
     return adapter
 
 
-def def create_toxicity_rule(
+def create_toxicity_rule(
     name: str = "toxicity_rule",
     description: str = "Validates text for toxic content",
     threshold: float = 0.5,
@@ -753,7 +753,7 @@ def create_bias_validator(
     return adapter
 
 
-def def create_bias_rule(
+def create_bias_rule(
     name: str = "bias_rule",
     description: str = "Validates text for biased content",
     threshold: float = 0.3,
@@ -831,7 +831,7 @@ def def create_bias_rule(
     )
 
 
-def def create_harmful_content_rule(
+def create_harmful_content_rule(
     name: str = "harmful_content_rule",
     description: str = "Validates text for harmful content",
     categories: Optional[Dict[str, List[str]]] = None,

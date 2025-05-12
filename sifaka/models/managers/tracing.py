@@ -42,7 +42,7 @@ class TracingManager:
         ```
     """
 
-    def def __init__(self, model_name: str, config: ModelConfig, tracer: Optional[Optional[Tracer]] = None):
+    def __init__(self, model_name: str, config: ModelConfig, tracer: Optional[Optional[Tracer]] = None):
         """
         Initialize a TracingManager instance.
 

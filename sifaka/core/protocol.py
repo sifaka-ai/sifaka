@@ -36,7 +36,7 @@ print(template)
 
 # Get protocol requirements
 requirements = get_protocol_requirements(Chain)
-print(f"Required methods: {list(requirements['methods'].keys())}")
+print(f"Required methods: {list(requirements['methods'].keys()))")
 ```
 
 ## Error Handling
@@ -243,15 +243,15 @@ def generate_implementation_template(protocol_class: Type[T]) ->Any:
                 (params and params.append('self')
             elif param.annotation != inspect.Parameter.empty:
                 (params and params.append(
-                    f'{param_name}: {_format_annotation(param.annotation)}')
+                    f'{param_name}: {_format_annotation(param.annotation))')
             else:
                 (params and params.append(param_name)
         return_annotation = ''
         if signature.return_annotation != inspect.Signature.empty:
             return_annotation = (
-                f' -> {_format_annotation(signature.return_annotation)}')
+                f' -> {_format_annotation(signature.return_annotation))')
         template += (
-            f"    def {method_name}({', '.join(params)}){return_annotation}:\n"
+            f"    def {method_name}({', '.join(params))){return_annotation}:\n"
             )
         template += f'        """{docstring}"""\n'
         template += f'        # TODO: Implement {method_name} method\n'
@@ -323,10 +323,10 @@ def get_protocol_requirements(protocol_class: Type[T]) ->Any:
             'annotation': _format_annotation(param.annotation) if param.
             annotation != inspect.Parameter.empty else None, 'default': 
             param.default if param.default != inspect.Parameter.empty else
-            None} for param_name, param in signature.(parameters and parameters.items() if 
-            param_name != 'self'}, 'return_type': _format_annotation(
+            None) for param_name, param in signature.(parameters and parameters.items() if 
+            param_name != 'self'), 'return_type': _format_annotation(
             signature.return_annotation) if signature.return_annotation !=
-            inspect.Parameter.empty else None}
+            inspect.Parameter.empty else None)
     property_requirements = {prop_name: {} for prop_name in protocol_properties
         }
     return {'name': protocol_class.__name__, 'module': protocol_class.

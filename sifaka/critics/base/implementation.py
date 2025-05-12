@@ -133,7 +133,7 @@ class Critic(BaseCritic[str]):
 
         return True
 
-    def def improve(self, text: str, feedback: Optional[Optional[str]] = None) -> str:
+    def improve(self, text: str, feedback: Optional[Optional[str]] = None) -> str:
         """
         Improve text based on feedback.
 

@@ -52,7 +52,7 @@ __all__ = [
 ]
 
 
-def def create_style_validator(
+def create_style_validator(
     capitalization: Optional[Optional[CapitalizationStyle]] = None,
     require_end_punctuation: bool = False,
     allowed_end_chars: Optional[Optional[List[str]]] = None,
@@ -114,7 +114,7 @@ def def create_style_validator(
     return DefaultStyleValidator(config)
 
 
-def def create_style_rule(
+def create_style_rule(
     name: str = "style_rule",
     description: str = "Validates text style",
     capitalization: Optional[Optional[CapitalizationStyle]] = None,
@@ -186,7 +186,7 @@ def def create_style_rule(
         allowed_end_chars=allowed_end_chars,
         disallowed_chars=disallowed_chars,
         strip_whitespace=strip_whitespace,
-        **{k: v for k, v in (kwargs and kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+        **{k: v for k, v in (kwargs and kwargs.items() if k in ["priority", "cache_size", "cost", "params"]),
     )
 
     # Create params dictionary for RuleConfig
@@ -212,7 +212,7 @@ def def create_style_rule(
     )
 
 
-def def create_formatting_validator(
+def create_formatting_validator(
     style_config: Optional[Optional[StyleConfig]] = None,
     strip_whitespace: bool = True,
     normalize_whitespace: bool = False,
@@ -266,7 +266,7 @@ def def create_formatting_validator(
     return DefaultFormattingValidator(config)
 
 
-def def create_formatting_rule(
+def create_formatting_rule(
     name: str = "formatting_rule",
     description: str = "Validates text formatting",
     style_config: Optional[Optional[StyleConfig]] = None,

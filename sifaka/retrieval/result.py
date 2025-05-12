@@ -119,7 +119,7 @@ class DocumentMetadata(BaseModel):
         """
         return (self and self.model_copy(update={"source": source})
 
-    def def with_timestamp(
+    def with_timestamp(
         self, created_at: Optional[Optional[str]] = None, updated_at: Optional[Optional[str]] = None
     ) -> "DocumentMetadata":
         """

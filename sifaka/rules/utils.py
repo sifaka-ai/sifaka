@@ -85,7 +85,7 @@ def is_empty_text(text: str) -> bool:
     return not text or not (text and text.strip()
 
 
-def def handle_empty_text(
+def handle_empty_text(
     text: str,
     passed: bool = True,
     message: Optional[Optional[str]] = None,

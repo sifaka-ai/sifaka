@@ -376,7 +376,7 @@ class SentimentRule(Rule[str]):
         ```
     """
 
-    def def __init__(self, name: str='sentiment_rule', description: str=
+    def __init__(self, name: str='sentiment_rule', description: str=
         'Validates text sentiment', config: Optional[Optional[RuleConfig]] = None,
         validator: Optional[Optional[SentimentValidator]] = None, **kwargs) ->None:
         """
@@ -413,7 +413,7 @@ class SentimentRule(Rule[str]):
         return SentimentValidator(config)
 
 
-def def create_sentiment_validator(threshold: Optional[Optional[float]] = None,
+def create_sentiment_validator(threshold: Optional[Optional[float]] = None,
     valid_labels: Optional[Optional[List[str]]] = None, **kwargs: Any
     ) ->SentimentValidator:
     """
@@ -458,7 +458,7 @@ def def create_sentiment_validator(threshold: Optional[Optional[float]] = None,
         raise ValueError(f'Error creating sentiment validator: {str(e)}')
 
 
-def def create_sentiment_rule(name: str='sentiment_rule', description: str=
+def create_sentiment_rule(name: str='sentiment_rule', description: str=
     'Validates text sentiment', threshold: Optional[Optional[float]] = None,
     valid_labels: Optional[Optional[List[str]]] = None, rule_id: Optional[Optional[str]] = None, **
     kwargs: Any) ->SentimentRule:

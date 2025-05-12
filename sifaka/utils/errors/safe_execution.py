@@ -44,7 +44,7 @@ logger = get_logger(__name__)
 T = TypeVar("T")
 
 
-def def try_component_operation(
+def try_component_operation(
     operation: Callable[[], T],
     component_name: str,
     component_type: str,
@@ -223,7 +223,7 @@ safely_execute_classifier = create_safe_execution_factory("Classifier", Classifi
 safely_execute_retrieval = create_safe_execution_factory("Retrieval", RetrievalError)
 
 
-def def safely_execute_component(
+def safely_execute_component(
     operation: Callable[[], T],
     component_name: Optional[Optional[str]] = None,
     component_type: str = "component",

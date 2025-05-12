@@ -53,11 +53,13 @@ configuration values are valid and properly typed. If invalid configuration
 is provided, Pydantic will raise validation errors with detailed information
 about the validation failure.
 """
+
 from typing import Any, Dict, Generic, Optional, Type, TypeVar, Union, cast
 from pydantic import Field
 from .base import BaseConfig
-T = TypeVar('T', bound='ClassifierConfig')
-R = TypeVar('R')
+
+T = TypeVar("T", bound="ClassifierConfig")
+R = TypeVar("R")
 
 
 class ClassifierConfig(BaseConfig, Generic[R]):
@@ -100,7 +102,7 @@ class ClassifierConfig(BaseConfig, Generic[R]):
     # Access configuration values
     print(f"Name: {config.name}")
     print(f"Threshold: {config.threshold}")
-    print(f"Model: {config.(params and params.get('model')}")
+    print(f"Model: {config.(params and params.get('model'))")
 
     # Create a new configuration with updated options
     updated_config = (config and config.with_options(threshold=0.8)
@@ -114,12 +116,10 @@ class ClassifierConfig(BaseConfig, Generic[R]):
         cache_size: Size of the result cache
         trace_enabled: Whether to enable tracing
     """
-    threshold: float = Field(default=0.7, ge=0.0, le=1.0, description=
-        'Classification threshold')
-    cache_size: int = Field(default=100, ge=0, description=
-        'Size of the result cache')
-    trace_enabled: bool = Field(default=False, description=
-        'Whether to enable tracing')
+
+    threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Classification threshold")
+    cache_size: int = Field(default=100, ge=0, description="Size of the result cache")
+    trace_enabled: bool = Field(default=False, description="Whether to enable tracing")
 
 
 class ImplementationConfig(BaseConfig):
@@ -175,14 +175,15 @@ class ImplementationConfig(BaseConfig):
         temperature: Temperature for text generation
         max_tokens: Maximum number of tokens to generate
     """
-    model: str = Field(default='', description='Model name to use')
-    temperature: float = Field(default=0.7, ge=0.0, le=1.0, description=
-        'Temperature for text generation')
-    max_tokens: int = Field(default=1000, ge=1, description=
-        'Maximum number of tokens to generate')
+
+    model: str = Field(default="", description="Model name to use")
+    temperature: float = Field(
+        default=0.7, ge=0.0, le=1.0, description="Temperature for text generation"
+    )
+    max_tokens: int = Field(default=1000, ge=1, description="Maximum number of tokens to generate")
 
 
-def extract_classifier_config_params(config: Dict[str, Any]) ->Any:
+def extract_classifier_config_params(config: Dict[str, Any]) -> Any:
     """
     Extract classifier configuration parameters from a dictionary.
 
@@ -210,15 +211,18 @@ def extract_classifier_config_params(config: Dict[str, Any]) ->Any:
         # classifier_params = {"threshold": 0.7, "cache_size": 100}
         ```
     """
-    classifier_fields = set(ClassifierConfig.(__annotations__ and __annotations__.keys())
-    base_fields = set(BaseConfig.(__annotations__ and __annotations__.keys())
-    all_fields = (classifier_fields and classifier_fields.union(base_fields)
-    return {k: v for k, v in (config and config.items() if k in all_fields}
+    classifier_fields = set(ClassifierConfig.__annotations__.keys())
+    base_fields = set(BaseConfig.__annotations__.keys())
+    all_fields = classifier_fields.union(base_fields)
+    return {k: v for k, v in config.items() if k in all_fields}
 
 
-def standardize_classifier_config(config: Optional[Union[Dict[str, Any],
-    ClassifierConfig]]=None, params: Optional[Dict[str, Any]]=None,
-    config_class: Type[T]=ClassifierConfig, **kwargs: Any) ->Any:
+def standardize_classifier_config(
+    config: Optional[Union[Dict[str, Any], ClassifierConfig]] = None,
+    params: Optional[Dict[str, Any]] = None,
+    config_class: Type[T] = ClassifierConfig,
+    **kwargs: Any,
+) -> Any:
     """
     Standardize classifier configuration.
 
@@ -274,15 +278,16 @@ def standardize_classifier_config(config: Optional[Union[Dict[str, Any],
     """
     final_params: Dict[str, Any] = {}
     if params:
-        (final_params and final_params.update(params)
+        final_params.update(params)
     if isinstance(config, dict):
-        dict_params = (config and config.pop('params', {}) if config else {}
-        (final_params and final_params.update(dict_params)
-        return cast(T, config_class(**{} if config is None else config,
-            params=final_params, **kwargs))
+        dict_params = config.pop("params", {}) if config else {}
+        final_params.update(dict_params)
+        return cast(
+            T, config_class(**(config if config is not None else {}), params=final_params, **kwargs)
+        )
     elif isinstance(config, ClassifierConfig):
-        (final_params and final_params.update(config.params)
-        config_dict = {**(config and config.model_dump(), 'params': final_params, **kwargs}
+        final_params.update(config.params)
+        config_dict = {**config.model_dump(), "params": final_params, **kwargs}
         return cast(T, config_class(**config_dict))
     else:
         return cast(T, config_class(params=final_params, **kwargs))

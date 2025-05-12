@@ -166,7 +166,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
     # State management using StateManager
     _state_manager = PrivateAttr(default_factory=create_critic_state)
 
-    def def __init__(
+    def __init__(
         self,
         name: str,
         description: str,
@@ -248,7 +248,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             self.(_state_manager and _state_manager.set_metadata("initialization_time", (time and time.time())
         except Exception as e:
             (self and self.record_error(e)
-            raise ValueError(f"Failed to initialize SelfRefineCritic: {str(e)}") from e
+            raise ValueError(f"Failed to initialize SelfRefineCritic: {str(e))") from e
 
     def process(self, input: str) -> CriticResult:
         """
@@ -307,10 +307,10 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             processing_time = ((time and time.time() - start_time) * 1000
             return CriticResult(
                 passed=False,
-                message=f"Error: {str(e)}",
-                metadata={"error_type": type(e).__name__},
+                message=f"Error: {str(e))",
+                metadata={"error_type": type(e).__name__),
                 score=0.0,
-                issues=[f"Processing error: {str(e)}"],
+                issues=[f"Processing error: {str(e))"),
                 suggestions=["Retry with different input"],
                 processing_time_ms=processing_time,
             )
@@ -437,7 +437,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to validate text: {str(e)}") from e
+            raise RuntimeError(f"Failed to validate text: {str(e))") from e
 
     def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -528,7 +528,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             # Track score distribution
             score_distribution = self.(_state_manager and _state_manager.get_metadata("score_distribution", {})
             score_bucket = round(score * 10) / 10  # Round to nearest 0.1
-            score_distribution[str(score_bucket)] = (score_distribution and score_distribution.get(str(score_bucket), 0) + 1
+            score_distribution[str(score_bucket)) = (score_distribution and score_distribution.get(str(score_bucket), 0) + 1
             self.(_state_manager and _state_manager.set_metadata("score_distribution", score_distribution)
 
             # Track performance
@@ -542,7 +542,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to critique text: {str(e)}") from e
+            raise RuntimeError(f"Failed to critique text: {str(e))") from e
 
     def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         """
@@ -653,7 +653,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                         "task": task,
                         "improved_text": current_output,
                         "timestamp": (time and time.time(),
-                    }
+                    )
                 )
                 (memory_manager and memory_manager.add_to_memory(memory_item)
 
@@ -668,7 +668,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to improve text: {str(e)}") from e
+            raise RuntimeError(f"Failed to improve text: {str(e))") from e
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
         """
@@ -732,7 +732,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                         "feedback": feedback,
                         "improved_text": improved_text,
                         "timestamp": (time and time.time(),
-                    }
+                    )
                 )
                 (memory_manager and memory_manager.add_to_memory(memory_item)
 
@@ -750,7 +750,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to improve text with feedback: {str(e)}") from e
+            raise RuntimeError(f"Failed to improve text with feedback: {str(e))") from e
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -782,7 +782,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             "total_feedback_improvement_time_ms": self.(_state_manager and _state_manager.get_metadata(
                 "total_feedback_improvement_time_ms", 0
             ),
-        }
+        )
 
     # Async methods
     async def avalidate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
@@ -808,7 +808,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
         return (self and self.improve_with_feedback(text, feedback)
 
 
-def def create_self_refine_critic(
+def create_self_refine_critic(
     llm_provider: Any,
     name: str = "self_refine_critic",
     description: str = "Improves text through iterative self-critique and revision",
@@ -966,5 +966,5 @@ def def create_self_refine_critic(
             **kwargs,
         )
     except Exception as e:
-        (logger and logger.error(f"Failed to create self-refine critic: {str(e)}")
-        raise ValueError(f"Failed to create self-refine critic: {str(e)}") from e
+        (logger and logger.error(f"Failed to create self-refine critic: {str(e))")
+        raise ValueError(f"Failed to create self-refine critic: {str(e))") from e

@@ -30,7 +30,7 @@ This separation of concerns allows for:
 ## Usage Examples
 ```python
 from sifaka.rules.base import FunctionRule, RuleResult
-from sifaka.utils.config and config.rules import RuleConfig
+from sifaka.utils.config.rules import RuleConfig
 
 # Create a simple function-based rule
 def validate_length(text: str) -> RuleResult:
@@ -51,11 +51,11 @@ rule = FunctionRule(
 )
 
 # Validate some text
-result = (rule and rule.validate("Hello")  # Will fail
+result = rule.validate("Hello")  # Will fail
 print(result.passed)  # False
 print(result.message)  # "Text is too short"
 
-result = (rule and rule.validate("Hello, world! This is a longer text.")  # Will pass
+result = rule.validate("Hello, world! This is a longer text.")  # Will pass
 print(result.passed)  # True
 ```
 
@@ -71,20 +71,21 @@ Rules use the StateManager from sifaka.utils.state for managing internal state:
 - Error occurrences are recorded when enabled
 - Rule metadata is stored for debugging and monitoring
 """
+
 from abc import abstractmethod
 from typing import Any, Generic, List, Optional, Type, TypeVar
 import time
-from datetime import datetime
 from pydantic import Field, ConfigDict, PrivateAttr
-from sifaka.core.base import BaseComponent, BaseConfig, BaseResult
+from sifaka.core.base import BaseComponent, BaseConfig
 from sifaka.utils.errors.safe_execution import safely_execute_rule
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_rule_state, StateManager
 from .validators import RuleValidator, FunctionValidator, BaseValidator
+
 logger = get_logger(__name__)
-T = TypeVar('T')
-R = TypeVar('R')
-V = TypeVar('V', bound=BaseValidator)
+T = TypeVar("T")
+R = TypeVar("R")
+V = TypeVar("V", bound=BaseValidator)
 
 
 class RuleConfig(BaseConfig):
@@ -101,19 +102,18 @@ class RuleConfig(BaseConfig):
         track_errors: Whether to track error occurrences
         rule_id: Unique identifier for the rule
     """
-    model_config = ConfigDict(frozen=True, extra='forbid')
-    severity: str = Field(default='error', description=
-        'Severity level for rule violations')
-    category: str = Field(default='general', description='Category of the rule'
-        )
-    tags: List[str] = Field(default_factory=list, description=
-        'List of tags for categorizing the rule')
-    track_performance: bool = Field(default=True, description=
-        'Whether to track performance metrics')
-    track_errors: bool = Field(default=True, description=
-        'Whether to track error occurrences')
-    rule_id: Optional[str] = Field(default=None, description=
-        'Unique identifier for the rule')
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    severity: str = Field(default="error", description="Severity level for rule violations")
+    category: str = Field(default="general", description="Category of the rule")
+    tags: List[str] = Field(
+        default_factory=list, description="List of tags for categorizing the rule"
+    )
+    track_performance: bool = Field(
+        default=True, description="Whether to track performance metrics"
+    )
+    track_errors: bool = Field(default=True, description="Whether to track error occurrences")
+    rule_id: Optional[str] = Field(default=None, description="Unique identifier for the rule")
 
 
 from ..core.results import RuleResult
@@ -182,14 +182,20 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
         name="length_rule",
         description="Validates text length"
     )
-    result = (rule and rule.validate("Hello")  # Will fail
+    result = rule.validate("Hello")  # Will fail
     ```
     """
+
     _state_manager: StateManager = PrivateAttr()
 
-    def def __init__(self, name: str, description: str, config: Optional[
-        RuleConfig]=None, validator: Optional[Optional[RuleValidator[T]]] = None, **
-        kwargs: Any) ->None:
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        config: Optional[RuleConfig] = None,
+        validator: Optional[RuleValidator[T]] = None,
+        **kwargs: Any,
+    ) -> None:
         """
         Initialize the rule.
 
@@ -233,17 +239,21 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
             ```
         """
         super().__init__(name, description, config or RuleConfig(**kwargs))
-        self._validator = validator or (self and self._create_default_validator()
-        (object and object.__setattr__(self, '_state_manager', create_rule_state())
-        self.(_state_manager and _state_manager.set_metadata('rule_type', self.__class__.__name__)
-        self.(_state_manager and _state_manager.set_metadata('rule_id', getattr(config,
-            'rule_id', None) or name)
-        self.(_state_manager and _state_manager.set_metadata('validator_type', self._validator.
-            __class__.__name__ if hasattr(self._validator, '__class__') else
-            'Unknown')
+        self._validator = validator or self._create_default_validator()
+        object.__setattr__(self, "_state_manager", create_rule_state())
+        self._state_manager.set_metadata("rule_type", self.__class__.__name__)
+        self._state_manager.set_metadata("rule_id", getattr(config, "rule_id", None) or name)
+        self._state_manager.set_metadata(
+            "validator_type",
+            (
+                self._validator.__class__.__name__
+                if hasattr(self._validator, "__class__")
+                else "Unknown"
+            ),
+        )
 
     @abstractmethod
-    def _create_default_validator(self) ->RuleValidator[T]:
+    def _create_default_validator(self) -> RuleValidator[T]:
         """
         Create the default validator for this rule.
 
@@ -252,7 +262,7 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
         """
         ...
 
-    def model_validate(self, input: T) ->RuleResult:
+    def model_validate(self, input: T) -> RuleResult:
         """
         Validate the input using the rule's validator.
 
@@ -262,65 +272,114 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
         Returns:
             Validation result
         """
-        start_time = (time and time.time()
-        rule_id = self.(_state_manager and _state_manager.get_metadata('rule_id')
-        if not (self and self.validate_input(input):
-            result = RuleResult(passed=False, message='Invalid input',
-                metadata={'error_type': 'invalid_input', 'rule_id': rule_id,
-                'rule_type': self.__class__.__name__}, score=0.0, issues=[
-                'Invalid input type'], suggestions=['Provide valid input'],
-                processing_time_ms=(time and time.time() - start_time, rule_id=
-                rule_id, severity=self.config and config and config and config and config and config.severity, category=self.
-                config and config and config and config and config and config.category, tags=self.config and config and config and config and config.tags)
-            (self and self.update_statistics(result)
+        start_time = time.time()
+        rule_id = self._state_manager.get_metadata("rule_id")
+        if not self.validate_input(input):
+            result = RuleResult(
+                passed=False,
+                message="Invalid input",
+                metadata={
+                    "error_type": "invalid_input",
+                    "rule_id": rule_id,
+                    "rule_type": self.__class__.__name__,
+                },
+                score=0.0,
+                issues=["Invalid input type"],
+                suggestions=["Provide valid input"],
+                processing_time_ms=time.time() - start_time,
+                rule_id=rule_id,
+                severity=self.config.severity if self.config else None,
+                category=self.config.category if self.config else None,
+                tags=self.config.tags if self.config else None,
+            )
+            self.update_statistics(result)
             return result
-        empty_result = (self and self.handle_empty_input(input)
+        empty_result = self.handle_empty_input(input)
         if empty_result:
-            result = (empty_result and empty_result.with_metadata(processing_time_ms=time.
-                time() - start_time, rule_id=rule_id, rule_type=self.
-                __class__.__name__).with_rule_id(rule_id).with_severity(self
-                .config and config and config and config and config and config.severity).with_category(self.config and config and config and config and config and config.category
-                ).with_tags(self.config and config and config and config and config.tags)
-            (self and self.update_statistics(result)
+            result = empty_result.with_metadata(
+                processing_time_ms=time.time() - start_time,
+                rule_id=rule_id,
+                rule_type=self.__class__.__name__,
+            )
+            if self.config:
+                result = (
+                    result.with_severity(self.config.severity)
+                    .with_category(self.config.category)
+                    .with_tags(self.config.tags)
+                )
+            self.update_statistics(result)
             return result
-        if not self._validator and (validator and validator.can_validate(input):
-            result = RuleResult(passed=False, message='Invalid input type',
-                metadata={'error_type': 'invalid_type', 'rule_id': rule_id,
-                'rule_type': self.__class__.__name__}, score=0.0, issues=[
-                'Input type not supported'], suggestions=[
-                'Use supported input type'], processing_time_ms=(time and time.time() -
-                start_time, rule_id=rule_id, severity=self.config and config and config and config and config and config.severity,
-                category=self.config and config and config and config and config and config.category, tags=self.config and config and config and config and config.tags)
-            (self and self.update_statistics(result)
+        if not self._validator or not self._validator.can_validate(input):
+            result = RuleResult(
+                passed=False,
+                message="Invalid input type",
+                metadata={
+                    "error_type": "invalid_type",
+                    "rule_id": rule_id,
+                    "rule_type": self.__class__.__name__,
+                },
+                score=0.0,
+                issues=["Input type not supported"],
+                suggestions=["Use supported input type"],
+                processing_time_ms=time.time() - start_time,
+                rule_id=rule_id,
+                severity=self.config.severity if self.config else None,
+                category=self.config.category if self.config else None,
+                tags=self.config.tags if self.config else None,
+            )
+            self.update_statistics(result)
             return result
 
-        def validation_operation() ->Any:
-            result = self._validator and (validator and validator.validate(input)
-            result = (result and result.with_metadata(processing_time_ms=(time and time.time() -
-                start_time, rule_id=rule_id, rule_type=self.__class__.__name__
-                ).with_rule_id(rule_id).with_severity(self.config and config and config and config and config and config.severity
-                ).with_category(self.config and config and config and config and config and config.category).with_tags(self.config
-                .tags)
+        def validation_operation() -> Any:
+            result = self._validator.validate(input)
+            result = result.with_metadata(
+                processing_time_ms=time.time() - start_time,
+                rule_id=rule_id,
+                rule_type=self.__class__.__name__,
+            )
+            if self.config:
+                result = (
+                    result.with_rule_id(rule_id)
+                    .with_severity(self.config.severity)
+                    .with_category(self.config.category)
+                    .with_tags(self.config.tags)
+                )
             return result
-        result = safely_execute_rule(operation=validation_operation,
-            component_name=self.name, additional_metadata={'rule_id':
-            rule_id, 'rule_type': self.__class__.__name__})
-        if isinstance(result, dict) and (result and result.get('error_type'):
-            (self and self.record_error(Exception((result and result.get('error_message',
-                'Unknown error')))
-            result = RuleResult(passed=False, message=(result and result.get(
-                'error_message', 'Validation failed'), metadata={
-                'error_type': (result and result.get('error_type'), 'rule_id': rule_id,
-                'rule_type': self.__class__.__name__}, score=0.0, issues=[
-                f"Validation error: {(result and result.get('error_message')}"],
-                suggestions=['Retry with different input'],
-                processing_time_ms=(time and time.time() - start_time, rule_id=
-                rule_id, severity=self.config and config and config and config and config and config.severity, category=self.
-                config and config and config and config and config and config.category, tags=self.config and config and config and config and config.tags)
-        (self and self.update_statistics(result)
+
+        result = safely_execute_rule(
+            operation=validation_operation,
+            component_name=self.name,
+            additional_metadata={"rule_id": rule_id, "rule_type": self.__class__.__name__},
+        )
+        if isinstance(result, dict) and result and result.get("error_type"):
+            self.record_error(Exception(result.get("error_message", "Unknown error")))
+            result = RuleResult(
+                passed=False,
+                message=(
+                    result.get("error_message", "Validation failed")
+                    if result
+                    else "Validation failed"
+                ),
+                metadata={
+                    "error_type": result.get("error_type") if result else None,
+                    "rule_id": rule_id,
+                    "rule_type": self.__class__.__name__,
+                },
+                score=0.0,
+                issues=[
+                    f"Validation error: {result.get('error_message') if result else 'Unknown error'}"
+                ],
+                suggestions=["Retry with different input"],
+                processing_time_ms=time.time() - start_time,
+                rule_id=rule_id,
+                severity=self.config.severity if self.config else None,
+                category=self.config.category if self.config else None,
+                tags=self.config.tags if self.config else None,
+            )
+        self.update_statistics(result)
         return result
 
-    def process(self, input: T) ->RuleResult:
+    def process(self, input: T) -> RuleResult:
         """
         Process the input through the rule pipeline.
 
@@ -337,7 +396,7 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
         Returns:
             Processing result (same as validation result)
         """
-        return (self and self.model_validate(input)
+        return self.model_validate(input)
 
 
 class FunctionRule(Rule[T]):
@@ -397,17 +456,24 @@ class FunctionRule(Rule[T]):
     )
 
     # Validate text
-    result = (rule and rule.validate("Hello")  # Will fail
+    result = rule.validate("Hello")  # Will fail
     print(result.passed)  # False
     print(result.message)  # "Text is too short"
 
-    result = (rule and rule.validate("Hello, world! This is a longer text.")  # Will pass
+    result = rule.validate("Hello, world! This is a longer text.")  # Will pass
     print(result.passed)  # True
     ```
     """
 
-    def def __init__(self, name: str, func: Any, description: str='', config: Optional[Optional[RuleConfig]] = None, validation_type: Type[T]=str, **kwargs: Any
-        ) ->None:
+    def __init__(
+        self,
+        name: str,
+        func: Any,
+        description: str = "",
+        config: Optional[RuleConfig] = None,
+        validation_type: Type[T] = str,
+        **kwargs: Any,
+    ) -> None:
         """
         Initialize the rule.
 
@@ -420,12 +486,15 @@ class FunctionRule(Rule[T]):
             **kwargs: Additional keyword arguments for configuration
         """
         validator = FunctionValidator(func, validation_type)
-        super().__init__(name=name, description=description or
-            f'Function rule using {func.__name__}', config=config or
-            RuleConfig(**kwargs), validator=validator)
+        super().__init__(
+            name=name,
+            description=description or f"Function rule using {func.__name__}",
+            config=config or RuleConfig(**kwargs),
+            validator=validator,
+        )
         self._func = func
 
-    def _create_default_validator(self) ->RuleValidator[T]:
+    def _create_default_validator(self) -> RuleValidator[T]:
         """
         Create a default validator for this rule.
 
@@ -443,8 +512,7 @@ class FunctionRule(Rule[T]):
             from the base Rule class. It should never be called in practice
             because FunctionRule always creates its validator in __init__.
         """
-        raise NotImplementedError(
-            'FunctionRule requires a validator to be passed in __init__')
+        raise NotImplementedError("FunctionRule requires a validator to be passed in __init__")
 
 
-__all__ = ['Rule', 'RuleConfig', 'RuleResult', 'FunctionRule']
+__all__ = ["Rule", "RuleConfig", "RuleResult", "FunctionRule"]

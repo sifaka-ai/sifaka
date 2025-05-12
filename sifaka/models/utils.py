@@ -147,7 +147,7 @@ def create_error_result(
     )
 
 
-def def try_generate(
+def try_generate(
     generation_func: Callable[[], T],
     model_name: str,
     log_level: str = "error",

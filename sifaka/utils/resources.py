@@ -300,7 +300,7 @@ class ResourceManager:
         self._resources: Dict[str, ResourceInfo] = {}
         self._initialized: bool = False
 
-    def def register(self, name: str, resource: Any, required: bool=False,
+    def register(self, name: str, resource: Any, required: bool=False,
         dependencies: Optional[Optional[List[str]]] = None) ->None:
         """
         Register a resource.

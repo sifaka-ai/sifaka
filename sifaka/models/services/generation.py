@@ -48,7 +48,7 @@ class GenerationService(Generic[C, T]):
                 prompt_tokens, 'response_tokens': self.
                 (_token_counter_manager and _token_counter_manager.count_tokens(response),
                 'duration_ms': duration_ms, 'temperature': config.
-                temperature, 'max_tokens': config.max_tokens, 'success': True})
+                temperature, 'max_tokens': config.max_tokens, 'success': True))
             (logger and logger.debug(
                 f'Generated response in {duration_ms:.2f}ms (prompt: {prompt_tokens} tokens)'
                 )

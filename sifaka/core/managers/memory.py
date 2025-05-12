@@ -207,7 +207,7 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
     # State management
     _state_manager = PrivateAttr(default_factory=StateManager)
 
-    def def __init__(
+    def __init__(
         self,
         memories: List[BaseMemory[Any]],
         name: str = "memory_manager",
@@ -391,8 +391,8 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
         except Exception as e:
             # Record error
             (self and self.record_error(e)
-            (logger and logger.error(f"Memory storage error: {str(e)}")
-            raise ValueError(f"Memory storage error: {str(e)}")
+            (logger and logger.error(f"Memory storage error: {str(e))")
+            raise ValueError(f"Memory storage error: {str(e))")
 
     def retrieve(self, key: str) -> List[MemoryResult]:
         """
@@ -439,19 +439,19 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
                     result = (memory and memory.retrieve(key)
                     (results and results.append(result)
                 except Exception as e:
-                    (logger and logger.error(f"Error retrieving from memory {memory.name}: {str(e)}")
+                    (logger and logger.error(f"Error retrieving from memory {memory.name}: {str(e))")
                     # Continue with other memories
 
             # Create result for statistics
             retrieval_result = MemoryResult(
                 passed=len(results) > 0,
-                message=f"Retrieved {len(results)} results for key '{key}'",
+                message=f"Retrieved {len(results)) results for key '{key}'",
                 metadata={
                     "operation": "retrieve",
                     "key": key,
                     "result_count": len(results),
                     "cache_hit": False,
-                },
+                ),
                 score=1.0 if results else 0.0,
                 key=key,
                 found=len(results) > 0,
@@ -478,8 +478,8 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
         except Exception as e:
             # Record error
             (self and self.record_error(e)
-            (logger and logger.error(f"Memory retrieval error: {str(e)}")
-            raise ValueError(f"Memory retrieval error: {str(e)}")
+            (logger and logger.error(f"Memory retrieval error: {str(e))")
+            raise ValueError(f"Memory retrieval error: {str(e))")
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -498,7 +498,7 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
                 "memory_count": len(self.(_state_manager and _state_manager.get("memories", [])),
                 "cache_enabled": self.config and config and config and config.cache_enabled,
                 "max_items": self.config and config and config.max_items,
-            }
+            )
         )
 
         return stats
@@ -518,7 +518,7 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
             if hasattr(memory, "warm_up"):
                 (memory and memory.warm_up()
 
-        (logger and logger.debug(f"Memory manager '{self.name}' warmed up with {len(memories)} memories")
+        (logger and logger.debug(f"Memory manager '{self.name}' warmed up with {len(memories)) memories")
 
     def add_memory(self, memory: Any) -> None:
         """
@@ -533,7 +533,7 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
         """
         # Validate memory type
         if not isinstance(memory, BaseMemory):
-            raise ValueError(f"Expected BaseMemory instance, got {type(memory)}")
+            raise ValueError(f"Expected BaseMemory instance, got {type(memory))")
 
         # Check for duplicate memory names
         memories = self.(_state_manager and _state_manager.get("memories", [])
@@ -603,7 +603,7 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
         return self.(_state_manager and _state_manager.get("memories", [])
 
 
-def def create_key_value_memory_manager(
+def create_key_value_memory_manager(
     memories: Optional[List[BaseMemory]] = None,
     name: str = "memory_manager",
     description: str = "Memory manager for Sifaka",
@@ -791,7 +791,7 @@ class BufferMemoryManager:
             (logger and logger.error(f"Failed to add item to memory: {e}")
             raise RuntimeError(f"Failed to add item to memory: {e}")
 
-    def def get_memory(self, max_items: Optional[Optional[int]] = None) -> List[str]:
+    def get_memory(self, max_items: Optional[Optional[int]] = None) -> List[str]:
         """
         Retrieve items from memory.
 
@@ -905,10 +905,10 @@ class BufferMemoryManager:
             "overflow_count": self.(_state_manager.get_metadata("overflow_count", 0),
             "error_count": self.(_state_manager.get_metadata("error_count", 0),
             "uptime": (time.time() - self.(_state_manager.get_metadata("creation_time", (time.time()),
-        }
+        )
 
 
-def def create_buffer_memory_manager(
+def create_buffer_memory_manager(
     buffer_size: int = 5,
     name: Optional[str] = None,
     description: Optional[str] = None,

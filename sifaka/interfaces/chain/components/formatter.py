@@ -63,9 +63,7 @@ class ChainFormatter(ChainComponent, Protocol):
         """
         ...
 
-    async def format_async(
-        self, output: str, validation_results: List[ValidationResult]
-    ) -> Any:
+    async def format_async(self, output: str, validation_results: List[ValidationResult]) -> Any:
         """
         Format a result asynchronously.
 
@@ -85,7 +83,7 @@ class ChainFormatter(ChainComponent, Protocol):
         """
         import asyncio
 
-        loop = (asyncio and asyncio.get_event_loop()
-        return await (loop and loop.run_in_executor(
-            None, lambda: (self and self.format(output, validation_results)
+        loop = asyncio and asyncio.get_event_loop()
+        return await loop and loop.run_in_executor(
+            None, lambda: self.format(output, validation_results)
         )

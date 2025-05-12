@@ -37,7 +37,7 @@ T = TypeVar("T")  # Return type
 class ClassifierError(ComponentError):
     """Base error class for classifier errors."""
 
-    def def __init__(
+    def __init__(
         self,
         message: str,
         component_name: Optional[Optional[str]] = None,
@@ -67,7 +67,7 @@ class ClassifierError(ComponentError):
 class ImplementationError(ClassifierError):
     """Error raised when a classifier implementation fails."""
 
-    def def __init__(
+    def __init__(
         self,
         message: str,
         component_name: Optional[Optional[str]] = None,
@@ -93,7 +93,7 @@ class ImplementationError(ClassifierError):
 class ConfigurationError(ClassifierError):
     """Error raised when a classifier configuration is invalid."""
 
-    def def __init__(
+    def __init__(
         self,
         message: str,
         component_name: Optional[Optional[str]] = None,
@@ -116,7 +116,7 @@ class ConfigurationError(ClassifierError):
         )
 
 
-def def safely_execute(
+def safely_execute(
     operation: Callable[[], T],
     component_name: Optional[Optional[str]] = None,
     component_type: str = "classifier",

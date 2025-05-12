@@ -65,7 +65,7 @@ class LanguageValidator(BaseValidator[str]):
         'Confidence threshold for language detection')
     _langdetect = PrivateAttr(default=None)
 
-    def def __init__(self, allowed_languages: Optional[Optional[List[str]]] = None,
+    def __init__(self, allowed_languages: Optional[Optional[List[str]]] = None,
         threshold: float=0.7, **kwargs) ->None:
         """
         Initialize the validator.
@@ -243,7 +243,7 @@ class LanguageRule(Rule[str]):
             0.7))
 
 
-def def create_language_validator(allowed_languages: Optional[Optional[List[str]]] = None,
+def create_language_validator(allowed_languages: Optional[Optional[List[str]]] = None,
     threshold: float=0.7, **kwargs: Any) ->LanguageValidator:
     """
     Create a language validator.
@@ -287,7 +287,7 @@ def def create_language_validator(allowed_languages: Optional[Optional[List[str]
         =threshold, **kwargs)
 
 
-def def create_language_rule(allowed_languages: Optional[Optional[List[str]]] = None,
+def create_language_rule(allowed_languages: Optional[Optional[List[str]]] = None,
     threshold: float=0.7, name: str='language_rule', description: str=
     'Validates that text is in the allowed language(s)', rule_id: Optional[
     str]=None, config: Optional[RuleConfig]=None, **kwargs: Any

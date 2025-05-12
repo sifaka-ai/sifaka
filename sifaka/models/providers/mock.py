@@ -59,7 +59,7 @@ logger = get_logger(__name__)
 class MockAPIClient(APIClient):
     """Mock API client for testing."""
 
-    def def __init__(self, api_key: Optional[Optional[str]] = None) -> None:
+    def __init__(self, api_key: Optional[Optional[str]] = None) -> None:
         """
         Initialize the mock client.
 
@@ -168,7 +168,7 @@ class MockProvider(ModelProviderCore):
     # Class constants
     DEFAULT_MODEL: ClassVar[str] = "mock-model"
 
-    def def __init__(
+    def __init__(
         self,
         model_name: str = DEFAULT_MODEL,
         config: Optional[Optional[ModelConfig]] = None,

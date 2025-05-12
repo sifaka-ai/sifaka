@@ -67,7 +67,7 @@ class ModelProviderCore(ModelProviderProtocol, Generic[C]):
         C: The configuration type, must be a subclass of ModelConfig
     """
 
-    def def __init__(self, model_name: str, config: Optional[Optional[C]] = None,
+    def __init__(self, model_name: str, config: Optional[Optional[C]] = None,
         api_client: Optional[Optional[APIClient]] = None, token_counter: Optional[
         TokenCounter]=None, tracer: Optional[Optional[Tracer]] = None) ->None:
         """

@@ -82,9 +82,11 @@ State management can be configured through:
 2. Customizing state initialization with factory function parameters
 3. Setting component-specific metadata through the state manager
 """
+
 from typing import Any, Dict, List, Optional, TypeVar, Generic
 from pydantic import BaseModel, Field, ConfigDict
-T = TypeVar('T')
+
+T = TypeVar("T")
 
 
 class State(BaseModel):
@@ -107,8 +109,8 @@ class State(BaseModel):
         data (Dict[str, Any]): Dictionary containing state values
         metadata (Dict[str, Any]): Dictionary containing metadata about the component
     """
-    model_config = ConfigDict(frozen=True, extra='forbid',
-        validate_assignment=True)
+
+    model_config = ConfigDict(frozen=True, extra="forbid", validate_assignment=True)
     data: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
@@ -156,12 +158,12 @@ class StateManager:
     ```
     """
 
-    def __init__(self) ->None:
+    def __init__(self) -> None:
         """Initialize a new state manager with empty state and history."""
         self._state: State = State()
         self._history: List[State] = []
 
-    def update(self, key: str, value: Any) ->None:
+    def update(self, key: str, value: Any) -> None:
         """
         Update state with history tracking.
 
@@ -172,11 +174,10 @@ class StateManager:
             key (str): The state key to update
             value (Any): The new value to set
         """
-        self.(_history and _history.append(self._state)
-        self._state = self.(_state and _state.model_copy(update={'data': {**self._state
-            .data, key: value}})
+        self._history.append(self._state)
+        self._state = self._state.model_copy(update={"data": {**self._state.data, key: value}})
 
-    def rollback(self) ->None:
+    def rollback(self) -> None:
         """
         Rollback to previous state.
 
@@ -184,9 +185,9 @@ class StateManager:
         If there is no history, the state remains unchanged.
         """
         if self._history:
-            self._state = self.(_history and _history.pop()
+            self._state = self._history.pop()
 
-    def def get(self, key: str, default: Optional[Any] = None) ->Any:
+    def get(self, key: str, default: Optional[Any] = None) -> Any:
         """
         Get state value.
 
@@ -197,9 +198,9 @@ class StateManager:
         Returns:
             Any: The state value or default if key doesn't exist
         """
-        return self._state.(data and data.get(key, default)
+        return self._state.data.get(key, default)
 
-    def set_metadata(self, key: str, value: Any) ->None:
+    def set_metadata(self, key: str, value: Any) -> None:
         """
         Set metadata value.
 
@@ -210,10 +211,11 @@ class StateManager:
             key (str): The metadata key to update
             value (Any): The new value to set
         """
-        self._state = self.(_state and _state.model_copy(update={'metadata': {**self.
-            _state.metadata, key: value}})
+        self._state = self._state.model_copy(
+            update={"metadata": {**self._state.metadata, key: value}}
+        )
 
-    def def get_metadata(self, key: str, default: Optional[Any] = None) ->Any:
+    def get_metadata(self, key: str, default: Optional[Any] = None) -> Any:
         """
         Get metadata value.
 
@@ -224,9 +226,9 @@ class StateManager:
         Returns:
             Any: The metadata value or default if key doesn't exist
         """
-        return self._state.(metadata and metadata.get(key, default)
+        return self._state.metadata.get(key, default)
 
-    def reset(self) ->None:
+    def reset(self) -> None:
         """
         Reset state to initial values.
 
@@ -234,7 +236,7 @@ class StateManager:
         manager to its initial empty state.
         """
         self._state = State()
-        self.(_history and _history.clear()
+        self._history.clear()
 
 
 class ComponentState(BaseModel):
@@ -257,8 +259,8 @@ class ComponentState(BaseModel):
         initialized (bool): Whether the component has been initialized
         error (Optional[str]): Error message if the component encountered an error
     """
-    model_config = ConfigDict(frozen=True, extra='forbid',
-        validate_assignment=True)
+
+    model_config = ConfigDict(frozen=True, extra="forbid", validate_assignment=True)
     initialized: bool = False
     error: Optional[str] = None
 
@@ -286,6 +288,7 @@ class ClassifierState(ComponentState):
         cache (Dict[str, Any]): Cache for classification results
         dependencies_loaded (bool): Whether all dependencies have been loaded
     """
+
     model: Optional[Any] = None
     vectorizer: Optional[Any] = None
     pipeline: Optional[Any] = None
@@ -296,6 +299,7 @@ class ClassifierState(ComponentState):
 
 class RuleState(ComponentState):
     """State for rules."""
+
     validator: Optional[Any] = None
     handler: Optional[Any] = None
     cache: Dict[str, Any] = Field(default_factory=dict)
@@ -304,6 +308,7 @@ class RuleState(ComponentState):
 
 class CriticState(ComponentState):
     """State for critics."""
+
     model: Optional[Any] = None
     prompt_manager: Optional[Any] = None
     response_parser: Optional[Any] = None
@@ -313,6 +318,7 @@ class CriticState(ComponentState):
 
 class ModelState(ComponentState):
     """State for model providers."""
+
     client: Optional[Any] = None
     token_counter: Optional[Any] = None
     tracer: Optional[Any] = None
@@ -321,6 +327,7 @@ class ModelState(ComponentState):
 
 class ChainState(ComponentState):
     """State for chains."""
+
     model: Optional[Any] = None
     generator: Optional[Any] = None
     validation_manager: Optional[Any] = None
@@ -333,13 +340,14 @@ class ChainState(ComponentState):
 
 class AdapterState(ComponentState):
     """State for adapters."""
+
     adaptee: Optional[Any] = None
     adaptee_cache: Dict[str, Any] = Field(default_factory=dict)
     config_cache: Dict[str, Any] = Field(default_factory=dict)
     cache: Dict[str, Any] = Field(default_factory=dict)
 
 
-def create_state_manager(state_class: type[T], **kwargs: Any) ->StateManager:
+def create_state_manager(state_class: type[T], **kwargs: Any) -> StateManager:
     """
     Create a state manager for a specific state class.
 
@@ -361,12 +369,12 @@ def create_state_manager(state_class: type[T], **kwargs: Any) ->StateManager:
     """
     manager = StateManager()
     state = state_class(**kwargs)
-    for key, value in (state and state.model_dump().items():
-        (manager and manager.update(key, value)
+    for key, value in state.model_dump().items():
+        manager.update(key, value)
     return manager
 
 
-def create_classifier_state(**kwargs: Any) ->StateManager:
+def create_classifier_state(**kwargs: Any) -> StateManager:
     """
     Create a state manager for a classifier component.
 
@@ -392,26 +400,26 @@ def create_classifier_state(**kwargs: Any) ->StateManager:
     return create_state_manager(ClassifierState, **kwargs)
 
 
-def create_rule_state(**kwargs: Any) ->StateManager:
+def create_rule_state(**kwargs: Any) -> StateManager:
     """Create a state manager for a rule."""
     return create_state_manager(RuleState, **kwargs)
 
 
-def create_critic_state(**kwargs: Any) ->StateManager:
+def create_critic_state(**kwargs: Any) -> StateManager:
     """Create a state manager for a critic."""
     return create_state_manager(CriticState, **kwargs)
 
 
-def create_model_state(**kwargs: Any) ->StateManager:
+def create_model_state(**kwargs: Any) -> StateManager:
     """Create a state manager for a model provider."""
     return create_state_manager(ModelState, **kwargs)
 
 
-def create_chain_state(**kwargs: Any) ->StateManager:
+def create_chain_state(**kwargs: Any) -> StateManager:
     """Create a state manager for a chain."""
     return create_state_manager(ChainState, **kwargs)
 
 
-def create_adapter_state(**kwargs: Any) ->StateManager:
+def create_adapter_state(**kwargs: Any) -> StateManager:
     """Create a state manager for an adapter."""
     return create_state_manager(AdapterState, **kwargs)

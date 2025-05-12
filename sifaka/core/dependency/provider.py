@@ -135,7 +135,7 @@ class DependencyProvider:
         self._current_request_id: Optional[str] = None
         self._initialized = True
 
-    def def register(self, name: str, dependency: Any, scope: DependencyScope=
+    def register(self, name: str, dependency: Any, scope: DependencyScope=
         DependencyScope.SINGLETON, dependencies: Optional[Optional[List[str]]] = None
         ) ->None:
         """
@@ -225,7 +225,7 @@ class DependencyProvider:
         if dependencies:
             (self and self._update_dependency_graph(name, dependencies)
 
-    def def get(self, name: str, default: Optional[Any] = None, session_id: Optional[Optional[str]] = None, request_id: Optional[Optional[str]] = None) ->Any:
+    def get(self, name: str, default: Optional[Any] = None, session_id: Optional[Optional[str]] = None, request_id: Optional[Optional[str]] = None) ->Any:
         """
         Get a dependency by name.
 
@@ -313,7 +313,7 @@ class DependencyProvider:
                 raise DependencyError(f'Error getting dependency {name}: {e}')
             raise
 
-    def def session_scope(self, session_id: Optional[Optional[str]] = None) ->'SessionScope':
+    def session_scope(self, session_id: Optional[Optional[str]] = None) ->'SessionScope':
         """
         Create a session scope context manager.
 
@@ -325,7 +325,7 @@ class DependencyProvider:
         """
         return SessionScope(self, session_id)
 
-    def def request_scope(self, request_id: Optional[Optional[str]] = None) ->'RequestScope':
+    def request_scope(self, request_id: Optional[Optional[str]] = None) ->'RequestScope':
         """
         Create a request scope context manager.
 
@@ -337,7 +337,7 @@ class DependencyProvider:
         """
         return RequestScope(self, request_id)
 
-    def def clear_dependencies(self, session_id: Optional[Optional[str]] = None, request_id: Optional[Optional[str]] = None, clear_singletons: bool=False) ->None:
+    def clear_dependencies(self, session_id: Optional[Optional[str]] = None, request_id: Optional[Optional[str]] = None, clear_singletons: bool=False) ->None:
         """
         Clear dependencies from the provider.
 
@@ -366,7 +366,7 @@ class DependencyProvider:
         if clear_singletons:
             self._dependencies = {name: dep for name, dep in self.
                 (_dependencies.items() if self.(_scopes and _scopes.get(name) !=
-                DependencyScope.SINGLETON}
+                DependencyScope.SINGLETON)
         if session_id:
             if session_id in self._session_dependencies:
                 del self._session_dependencies[session_id]

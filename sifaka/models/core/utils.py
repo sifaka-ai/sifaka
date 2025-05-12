@@ -96,4 +96,4 @@ def get_component_info(provider: 'ModelProviderCore') ->Any:
         'config': provider.(config and config.model_dump(), 'initialized': provider.
         (_state_manager and _state_manager.get('initialized', False), 'creation_time': provider
         .(_state_manager and _state_manager.get_metadata('creation_time'), 'warm_up_time':
-        provider.(_state_manager and _state_manager.get_metadata('warm_up_time')}
+        provider.(_state_manager and _state_manager.get_metadata('warm_up_time'))

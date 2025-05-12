@@ -112,9 +112,9 @@ from pydantic import ConfigDict, PrivateAttr
 
 from sifaka.classifiers.classifier import Classifier
 from sifaka.core.results import ClassificationResult
-from sifaka.utils.config and config and config and config.classifiers import ClassifierConfig
+from sifaka.utils.config.classifiers import ClassifierConfig
 from sifaka.utils.logging import get_logger
-from sifaka.utils.config and config and config and config.classifiers import extract_classifier_config_params
+from sifaka.utils.config.classifiers import extract_classifier_config_params
 
 logger = get_logger(__name__)
 
@@ -268,7 +268,7 @@ class BiasDetector(Classifier):
         "geographical": ["urban", "rural", "city", "country", "coastal", "inland", "regional"],
     }
 
-    def def __init__(
+    def __init__(
         self,
         name: str = "bias_detector",
         description: str = "Detects various forms of bias in text",
@@ -292,7 +292,7 @@ class BiasDetector(Classifier):
         """
         # Create default config if not provided
         if config is None:
-            params = (kwargs and kwargs.pop("params", {})
+            params = kwargs and kwargs.pop("params", {})
 
             # Add default bias types and keywords if not provided
             if "bias_types" not in params:
@@ -301,9 +301,9 @@ class BiasDetector(Classifier):
                 params["bias_keywords"] = self.DEFAULT_BIAS_KEYWORDS
 
             config = ClassifierConfig(
-                labels=(params and params.get("bias_types", DEFAULT_BIAS_TYPES),
+                labels=(params and params.get("bias_types", DEFAULT_BIAS_TYPES)),
                 cost=self.DEFAULT_COST,
-                min_confidence=(params and params.get("min_confidence", 0.7),
+                min_confidence=(params and params.get("min_confidence", 0.7)),
                 params=params,
             )
 
@@ -328,12 +328,12 @@ class BiasDetector(Classifier):
         try:
             # Import necessary scikit-learn modules
             sklearn_modules = {
-                "feature_extraction_text": (importlib and importlib.import_module(
-                    "sklearn.feature_extraction.text"
+                "feature_extraction_text": (
+                    importlib and importlib.import_module("sklearn.feature_extraction.text")
                 ),
-                "svm": (importlib and importlib.import_module("sklearn.svm"),
-                "pipeline": (importlib and importlib.import_module("sklearn.pipeline"),
-                "calibration": (importlib and importlib.import_module("sklearn.calibration"),
+                "svm": (importlib and importlib.import_module("sklearn.svm")),
+                "pipeline": (importlib and importlib.import_module("sklearn.pipeline")),
+                "calibration": (importlib and importlib.import_module("sklearn.calibration")),
             }
             return sklearn_modules
         except ImportError:
@@ -364,20 +364,26 @@ class BiasDetector(Classifier):
             RuntimeError: If model initialization fails
         """
         # Check if already initialized
-        if self.(_state_manager and _state_manager.get("initialized", False):
+        if self._state_manager and self._state_manager.get("initialized", False):
             return
 
         # Load dependencies
-        sklearn = (self and self._load_dependencies()
-        self.(_state_manager and _state_manager.update("dependencies_loaded", True)
+        sklearn = self._load_dependencies()
+        self._state_manager.update("dependencies_loaded", True)
 
         # Get configuration from params
-        model_path = self.config and config and config and config and config and config and config and config and config and config and config and config and config and config and config and config.(params and params.get("model_path")
-        max_features = self.config and config and config and config and config and config and config and config and config and config and config and config and config and config and config and config.(params and params.get("max_features", 3000)
-        random_state = self.config and config and config and config and config and config and config and config and config and config and config and config and config and config and config and config.(params and params.get("random_state", 42)
+        model_path = (
+            self.config.params.get("model_path") if hasattr(self.config, "params") else None
+        )
+        max_features = (
+            self.config.params.get("max_features", 3000) if hasattr(self.config, "params") else 3000
+        )
+        random_state = (
+            self.config.params.get("random_state", 42) if hasattr(self.config, "params") else 42
+        )
 
-        if model_path and os.(path and path.exists(model_path):
-            (self and self._load_model(model_path)
+        if model_path and os.path.exists(model_path):
+            self._load_model(model_path)
         else:
             # Create TF-IDF vectorizer with custom analyzer to catch bias keywords
             vectorizer = sklearn["feature_extraction_text"].TfidfVectorizer(
@@ -385,7 +391,7 @@ class BiasDetector(Classifier):
                 stop_words="english",
                 ngram_range=(1, 2),
             )
-            self.(_state_manager and _state_manager.update("vectorizer", vectorizer)
+            self._state_manager.update("vectorizer", vectorizer)
 
             # Create SVM model with probability estimates
             svm = sklearn["svm"].LinearSVC(
@@ -399,7 +405,7 @@ class BiasDetector(Classifier):
                 estimator=svm,
                 cv=3,
             )
-            self.(_state_manager and _state_manager.update("model", model)
+            self._state_manager.update("model", model)
 
             # Create pipeline
             pipeline = sklearn["pipeline"].Pipeline(
@@ -408,10 +414,10 @@ class BiasDetector(Classifier):
                     ("classifier", model),
                 ]
             )
-            self.(_state_manager and _state_manager.update("pipeline", pipeline)
+            self._state_manager.update("pipeline", pipeline)
 
         # Mark as initialized
-        self.(_state_manager and _state_manager.update("initialized", True)
+        self._state_manager.update("initialized", True)
 
     def _extract_bias_features(self, text: str) -> Dict[str, float]:
         """
@@ -430,9 +436,11 @@ class BiasDetector(Classifier):
         """
         features = {}
         # Get bias keywords from params or use default empty dict
-        bias_keywords = self.config and config and config and config and config and config and config and config and config and config and config and config and config and config and config and config.(params and params.get("bias_keywords", {})
-        for bias_type, keywords in bias_keywords and (bias_keywords and bias_keywords.items():
-            count = sum(1 for kw in keywords if (re and re.search(rf"\b{kw}\b", (text and text.lower()))
+        bias_keywords = (
+            self.config.params.get("bias_keywords", {}) if hasattr(self.config, "params") else {}
+        )
+        for bias_type, keywords in bias_keywords.items():
+            count = sum(1 for kw in keywords if re.search(rf"\b{kw}\b", text.lower()))
             features[f"bias_{bias_type}"] = count / max(len(keywords), 1)  # Avoid division by zero
         return features
 
@@ -453,17 +461,23 @@ class BiasDetector(Classifier):
             IOError: If the file cannot be written
         """
         # Check if initialized
-        if not self.(_state_manager and _state_manager.get("initialized", False):
+        if not self._state_manager or not self._state_manager.get("initialized", False):
             raise RuntimeError("Model not initialized")
 
         with open(path, "wb") as f:
-            (pickle and pickle.dump(
+            pickle.dump(
                 {
-                    "vectorizer": self.(_state_manager and _state_manager.get("vectorizer"),
-                    "model": self.(_state_manager and _state_manager.get("model"),
-                    "pipeline": self.(_state_manager and _state_manager.get("pipeline"),
-                    "config_params": self.config and config and config and config and config and config and config and config and config and config and config and config and config and config and config and config.params,
-                    "feature_names": self.(_state_manager and _state_manager.get("feature_names"),
+                    "vectorizer": (
+                        self._state_manager.get("vectorizer") if self._state_manager else None
+                    ),
+                    "model": self._state_manager.get("model") if self._state_manager else None,
+                    "pipeline": (
+                        self._state_manager.get("pipeline") if self._state_manager else None
+                    ),
+                    "config_params": self.config.params if self.config else None,
+                    "feature_names": (
+                        self._state_manager.get("feature_names") if self._state_manager else None
+                    ),
                 },
                 f,
             )
@@ -485,27 +499,29 @@ class BiasDetector(Classifier):
             RuntimeError: If the loaded data is invalid or incompatible
         """
         with open(path, "rb") as f:
-            data = (pickle and pickle.load(f)
-            self.(_state_manager and _state_manager.update("vectorizer", data["vectorizer"])
-            self.(_state_manager and _state_manager.update("model", data["model"])
-            self.(_state_manager and _state_manager.update("pipeline", data["pipeline"])
+            data = pickle.load(f)
+            if self._state_manager:
+                self._state_manager.update("vectorizer", data["vectorizer"])
+                self._state_manager.update("model", data["model"])
+                self._state_manager.update("pipeline", data["pipeline"])
 
             # Load feature names if available
-            if "feature_names" in data:
-                self.(_state_manager and _state_manager.update("feature_names", data["feature_names"])
+            if "feature_names" in data and self._state_manager:
+                self._state_manager.update("feature_names", data["feature_names"])
 
             # Update config params if available in the saved model
-            if "config_params" in data:
+            if "config_params" in data and self.config:
                 # Create a new config with the loaded params
                 self.config = ClassifierConfig(
-                    labels=self.config and config and config and config and config and config.labels,
-                    cost=self.config and config.cost,
-                    min_confidence=self.config and config and config.min_confidence,
+                    labels=self.config.labels if self.config else [],
+                    cost=self.config.cost if self.config else 0.0,
+                    min_confidence=self.config.min_confidence if self.config else 0.7,
                     params=data["config_params"],
                 )
 
             # Mark as initialized
-            self.(_state_manager and _state_manager.update("initialized", True)
+            if self._state_manager:
+                self._state_manager.update("initialized", True)
 
     def fit(self, texts: List[str], labels: List[str]) -> "BiasDetector":
         """
@@ -530,19 +546,24 @@ class BiasDetector(Classifier):
             raise ValueError("Empty training data")
 
         # Load scikit-learn dependencies
-        sklearn = (self and self._load_dependencies()
-        self.(_state_manager and _state_manager.update("dependencies_loaded", True)
+        sklearn = self._load_dependencies()
+        if self._state_manager:
+            self._state_manager.update("dependencies_loaded", True)
 
         # Get configuration from params
-        max_features = self.config and config and config and config and config and config and config and config and config and config and config and config and config and config and config and config.(params and params.get("max_features", 3000)
-        random_state = self.config and config and config and config and config and config and config and config and config and config and config and config and config and config and config and config.(params and params.get("random_state", 42)
+        max_features = 3000
+        random_state = 42
+        if self.config and hasattr(self.config, "params"):
+            max_features = self.config.params.get("max_features", 3000)
+            random_state = self.config.params.get("random_state", 42)
 
         # Create vectorizer
         vectorizer = sklearn["feature_extraction_text"].TfidfVectorizer(
             max_features=max_features,
             stop_words="english",
         )
-        self.(_state_manager and _state_manager.update("vectorizer", vectorizer)
+        if self._state_manager:
+            self._state_manager.update("vectorizer", vectorizer)
 
         # Create and train SVM classifier
         model = sklearn["svm"].SVC(
@@ -550,7 +571,8 @@ class BiasDetector(Classifier):
             probability=True,
             random_state=random_state,
         )
-        self.(_state_manager and _state_manager.update("model", model)
+        if self._state_manager:
+            self._state_manager.update("model", model)
 
         # Create pipeline
         pipeline = sklearn["pipeline"].Pipeline(
@@ -561,17 +583,20 @@ class BiasDetector(Classifier):
         )
 
         # Fit pipeline
-        (pipeline and pipeline.fit(texts, labels)
-        self.(_state_manager and _state_manager.update("pipeline", pipeline)
-        self.(_state_manager and _state_manager.update("initialized", True)
+        pipeline.fit(texts, labels)
+        if self._state_manager:
+            self._state_manager.update("pipeline", pipeline)
+            self._state_manager.update("initialized", True)
 
         # Extract feature explanations
-        (self and self._extract_explanations()
+        self._extract_explanations()
 
         # Save model if path specified
-        model_path = self.config and config and config and config and config and config and config and config and config and config and config and config and config and config and config and config.(params and params.get("model_path")
+        model_path = None
+        if self.config and hasattr(self.config, "params"):
+            model_path = self.config.params.get("model_path")
         if model_path:
-            (self and self._save_model(model_path)
+            self._save_model(model_path)
 
         return self
 
@@ -592,16 +617,22 @@ class BiasDetector(Classifier):
             RuntimeError: If feature extraction fails
         """
         try:
-            model = self.(_state_manager and _state_manager.get("model")
-            if not hasattr(model, "base_estimator"):
+            if not self._state_manager:
+                return
+
+            model = self._state_manager.get("model")
+            if not model or not hasattr(model, "base_estimator"):
                 return
 
             # Get feature names
-            vectorizer = self.(_state_manager and _state_manager.get("vectorizer")
-            feature_names = (vectorizer and vectorizer.get_feature_names_out()
+            vectorizer = self._state_manager.get("vectorizer")
+            if not vectorizer:
+                return
+
+            feature_names = vectorizer.get_feature_names_out()
 
             # Store feature names in state
-            self.(_state_manager and _state_manager.update(
+            self._state_manager.update(
                 "feature_names",
                 {
                     "names": feature_names,
@@ -616,44 +647,46 @@ class BiasDetector(Classifier):
                 # For each class, extract the top features
                 explanations = {}
                 # Use labels from config instead of bias_types
-                for i, bias_type in enumerate(self.config and config and config and config and config and config.labels):
-                    # Skip if this is beyond the number of classes in the model
-                    if i >= coefficients.shape[0]:
-                        continue
+                if self.config and hasattr(self.config, "labels"):
+                    for i, bias_type in enumerate(self.config.labels):
+                        # Skip if this is beyond the number of classes in the model
+                        if i >= coefficients.shape[0]:
+                            continue
 
-                    # Get the coefficients for this class
-                    class_coef = coefficients[i]
+                        # Get the coefficients for this class
+                        class_coef = coefficients[i]
 
-                    # Get the top positive and negative features
-                    top_pos_indices = (class_coef and class_coef.argsort()[-20:][::-1]
-                    top_neg_indices = (class_coef and class_coef.argsort()[:20]
+                        # Get the top positive and negative features
+                        top_pos_indices = class_coef.argsort()[-20:][::-1]
+                        top_neg_indices = class_coef.argsort()[:20]
 
-                    explanations[bias_type] = {
-                        "positive": {
-                            feature_names[j]: float(class_coef[j]) for j in top_pos_indices
-                        },
-                        "negative": {
-                            feature_names[j]: float(class_coef[j]) for j in top_neg_indices
-                        },
-                    }
+                        explanations[bias_type] = {
+                            "positive": {
+                                feature_names[j]: float(class_coef[j]) for j in top_pos_indices
+                            },
+                            "negative": {
+                                feature_names[j]: float(class_coef[j]) for j in top_neg_indices
+                            },
+                        }
 
                 # Store explanations in state cache
-                cache = self.(_state_manager and _state_manager.get("cache", {})
+                cache = self._state_manager.get("cache", {})
                 cache["explanations"] = explanations
-                self.(_state_manager and _state_manager.update("cache", cache)
+                self._state_manager.update("cache", cache)
         except Exception as e:
-            (logger and logger.warning(f"Could not extract explanations: {e}")
-            self.(_state_manager and _state_manager.update("error", f"Failed to extract explanations: {e}")
+            logger.warning(f"Could not extract explanations: {e}")
+            if self._state_manager:
+                self._state_manager.update("error", f"Failed to extract explanations: {e}")
 
-            # Track errors in state
-            error_info = {
-                "error": str(e),
-                "type": type(e).__name__,
-                "context": "extract_explanations",
-            }
-            errors = self.(_state_manager and _state_manager.get("errors", [])
-            (errors and errors.append(error_info)
-            self.(_state_manager and _state_manager.update("errors", errors)
+                # Track errors in state
+                error_info = {
+                    "error": str(e),
+                    "type": type(e).__name__,
+                    "context": "extract_explanations",
+                }
+                errors = self._state_manager.get("errors", [])
+                errors.append(error_info)
+                self._state_manager.update("errors", errors)
 
     def _classify_impl(self, text: str) -> ClassificationResult:
         """
@@ -674,24 +707,31 @@ class BiasDetector(Classifier):
             RuntimeError: If the model is not initialized
         """
         # Check if initialized
-        if not self.(_state_manager and _state_manager.get("initialized", False):
-            (self and self.warm_up()
+        if not self._state_manager or not self._state_manager.get("initialized", False):
+            self.warm_up()
 
         # Check if still not initialized
-        if not self.(_state_manager and _state_manager.get("initialized", False):
+        if not self._state_manager or not self._state_manager.get("initialized", False):
             raise RuntimeError("Model not initialized")
 
         # Get prediction and probability
-        pipeline = self.(_state_manager and _state_manager.get("pipeline")
-        label = (pipeline and pipeline.predict([text])[0]
-        probs = (pipeline and pipeline.predict_proba([text])[0]
+        pipeline = self._state_manager.get("pipeline") if self._state_manager else None
+        if not pipeline:
+            raise RuntimeError("Pipeline not initialized")
+
+        label = pipeline.predict([text])[0]
+        probs = pipeline.predict_proba([text])[0]
         confidence = max(probs)
 
         # Extract bias features
-        bias_features = (self and self._extract_bias_features(text)
+        bias_features = self._extract_bias_features(text)
 
         # Get explanations from cache
-        explanations = self.(_state_manager and _state_manager.get("cache", {}).get("explanations", {}).get(label, {})
+        explanations = {}
+        if self._state_manager:
+            explanations = (
+                self._state_manager.get("cache", {}).get("explanations", {}).get(label, {})
+            )
 
         result = ClassificationResult(
             label=label,
@@ -703,9 +743,10 @@ class BiasDetector(Classifier):
         )
 
         # Track statistics
-        stats = self.(_state_manager and _state_manager.get("statistics", {})
-        stats[label] = (stats and stats.get(label, 0) + 1
-        self.(_state_manager and _state_manager.update("statistics", stats)
+        if self._state_manager:
+            stats = self._state_manager.get("statistics", {})
+            stats[label] = stats.get(label, 0) + 1
+            self._state_manager.update("statistics", stats)
 
         return result
 
@@ -731,39 +772,47 @@ class BiasDetector(Classifier):
             ValueError: If an empty list is provided
         """
         # Check if initialized
-        if not self.(_state_manager and _state_manager.get("initialized", False):
-            (self and self.warm_up()
+        if not self._state_manager or not self._state_manager.get("initialized", False):
+            self.warm_up()
 
         # Check if still not initialized
-        pipeline = self.(_state_manager and _state_manager.get("pipeline")
+        pipeline = self._state_manager.get("pipeline") if self._state_manager else None
         if not pipeline:
             raise RuntimeError(
                 "Model not initialized. You must either provide a model_path or call fit() before classification."
             )
 
         # Get model predictions for all texts
-        probas = (pipeline and pipeline.predict_proba(texts)
+        probas = pipeline.predict_proba(texts)
 
         results = []
         for i, text in enumerate(texts):
             # Extract bias features
-            bias_features = (self and self._extract_bias_features(text)
+            bias_features = self._extract_bias_features(text)
 
             # Get probabilities for this text
             proba = probas[i]
-            all_probs = {self.config and config and config and config and config and config.labels[i]: float(prob) for i, prob in enumerate(proba)}
+
+            # Create dictionary of probabilities for each label
+            all_probs = {}
+            if self.config and hasattr(self.config, "labels"):
+                all_probs = {self.config.labels[j]: float(prob) for j, prob in enumerate(proba)}
 
             # Get the most likely bias type
-            label = max((all_probs and all_probs.items(), key=lambda x: x[1])[0]
-            confidence = all_probs[label]
+            label = max(all_probs.items(), key=lambda x: x[1])[0] if all_probs else "unknown"
+            confidence = all_probs.get(label, 0.0)
 
             # Get min_confidence from config
-            min_confidence = self.config and config and config.min_confidence
+            min_confidence = 0.7
+            if self.config and hasattr(self.config, "min_confidence"):
+                min_confidence = self.config.min_confidence
 
             # Get explanations from cache
-            explanations = (
-                self.(_state_manager and _state_manager.get("cache", {}).get("explanations", {}).get(label, {})
-            )
+            explanations = {}
+            if self._state_manager:
+                explanations = (
+                    self._state_manager.get("cache", {}).get("explanations", {}).get(label, {})
+                )
 
             metadata = {
                 "probabilities": all_probs,
@@ -773,7 +822,7 @@ class BiasDetector(Classifier):
                 "explanations": explanations,
             }
 
-            (results and results.append(
+            results.append(
                 ClassificationResult(
                     label=label,
                     confidence=confidence,
@@ -782,9 +831,10 @@ class BiasDetector(Classifier):
             )
 
             # Track statistics for this label
-            stats = self.(_state_manager and _state_manager.get("statistics", {})
-            stats[label] = (stats and stats.get(label, 0) + 1
-            self.(_state_manager and _state_manager.update("statistics", stats)
+            if self._state_manager:
+                stats = self._state_manager.get("statistics", {})
+                stats[label] = stats.get(label, 0) + 1
+                self._state_manager.update("statistics", stats)
 
         return results
 
@@ -808,23 +858,38 @@ class BiasDetector(Classifier):
             - bias_keywords: Keywords associated with this bias type
             - overall_score: Overall bias score for this category
         """
-        if bias_type not in self.config and config and config and config and config and config.labels:
-            raise ValueError(f"Invalid bias type: {bias_type}. Must be one of {self.config and config and config and config and config and config.labels}")
+        if (
+            not self.config
+            or not hasattr(self.config, "labels")
+            or bias_type not in self.config.labels
+        ):
+            valid_labels = (
+                self.config.labels if self.config and hasattr(self.config, "labels") else []
+            )
+            raise ValueError(f"Invalid bias type: {bias_type}. Must be one of {valid_labels}")
 
         # Get the classification result without explanation to avoid recursion
-        result = (self and self._classify_impl(text)
+        result = self._classify_impl(text)
 
         # Extract the features that contributed to this bias type
         explanation = {}
-        explanations = self.(_state and _state.get("cache", {}).get("explanations", {})
-        if explanations and bias_type in explanations:
-            explanation = explanations[bias_type]
+        if self._state_manager:
+            explanations = self._state_manager.get("cache", {}).get("explanations", {})
+            if explanations and bias_type in explanations:
+                explanation = explanations[bias_type]
 
         # Get bias-specific features
-        bias_features = (self and self._extract_bias_features(text)
+        bias_features = self._extract_bias_features(text)
 
         # Get the probability for this bias type
-        bias_probability = result.(metadata and metadata.get("probabilities", {}).get(bias_type, 0.0)
+        bias_probability = 0.0
+        if hasattr(result, "metadata") and result.metadata:
+            bias_probability = result.metadata.get("probabilities", {}).get(bias_type, 0.0)
+
+        # Get bias keywords
+        bias_keywords = []
+        if self.config and hasattr(self.config, "params"):
+            bias_keywords = self.config.params.get("bias_keywords", {}).get(bias_type, [])
 
         # Create the explanation
         return {
@@ -832,10 +897,10 @@ class BiasDetector(Classifier):
             "probability": bias_probability,
             "confidence": result.confidence,
             "is_primary_bias": bias_type == result.label,
-            "contributing_features": (explanation and explanation.get("positive", {}),
-            "countering_features": (explanation and explanation.get("negative", {}),
+            "contributing_features": explanation.get("positive", {}) if explanation else {},
+            "countering_features": explanation.get("negative", {}) if explanation else {},
             "bias_specific_features": bias_features,
-            "examples": self.config and config and config and config and config and config and config and config and config and config and config and config and config and config and config and config.(params and params.get("bias_keywords", {}).get(bias_type, []),
+            "examples": bias_keywords,
         }
 
     def get_statistics(self) -> Dict[str, Any]:
@@ -850,24 +915,47 @@ class BiasDetector(Classifier):
         """
         stats = {
             # Classification counts by label
-            "classifications": self.(_state and _state.get("statistics", {}),
+            "classifications": (
+                self._state_manager.get("statistics", {}) if self._state_manager else {}
+            ),
             # Number of errors encountered
-            "error_count": len(self.(_state and _state.get("errors", [])),
+            "error_count": len(self._state_manager.get("errors", [])) if self._state_manager else 0,
             # Cache information
-            "cache_enabled": self.config and config and config.cache_size > 0,
-            "cache_size": self.config and config and config.cache_size,
+            "cache_enabled": (
+                self.config.cache_size > 0
+                if self.config and hasattr(self.config, "cache_size")
+                else False
+            ),
+            "cache_size": (
+                self.config.cache_size if self.config and hasattr(self.config, "cache_size") else 0
+            ),
             # State initialization status
-            "initialized": self.(_state and _state.get("initialized", False),
+            "initialized": (
+                self._state_manager.get("initialized", False) if self._state_manager else False
+            ),
             # Model information
-            "model_path": self.config and config and config and config and config and config and config and config and config and config and config and config and config and config and config and config.(params and params.get("model_path"),
-            "max_features": self.config and config and config and config and config and config and config and config and config and config and config and config and config and config and config and config.(params and params.get("max_features", 3000),
-            "random_state": self.config and config and config and config and config and config and config and config and config and config and config and config and config and config and config and config.(params and params.get("random_state", 42),
+            "model_path": (
+                self.config.params.get("model_path")
+                if self.config and hasattr(self.config, "params")
+                else None
+            ),
+            "max_features": (
+                self.config.params.get("max_features", 3000)
+                if self.config and hasattr(self.config, "params")
+                else 3000
+            ),
+            "random_state": (
+                self.config.params.get("random_state", 42)
+                if self.config and hasattr(self.config, "params")
+                else 42
+            ),
         }
 
         # Add feature information if available
-        feature_names = self.(_state and _state.get("feature_names")
-        if feature_names:
-            stats["feature_count"] = (feature_names and feature_names.get("count", 0)
+        if self._state_manager:
+            feature_names = self._state_manager.get("feature_names")
+            if feature_names:
+                stats["feature_count"] = feature_names.get("count", 0)
 
         # Add cache hit ratio if caching is enabled
         if hasattr(self, "_result_cache"):
@@ -884,27 +972,29 @@ class BiasDetector(Classifier):
         """
         # Clear classification result cache
         if hasattr(self, "_result_cache"):
-            self.(_result_cache and _result_cache.clear()
+            self._result_cache.clear()
 
-        # Reset statistics
-        self.(_state and _state.update("statistics", {})
+        # Reset statistics if state manager exists
+        if self._state_manager:
+            self._state_manager.update("statistics", {})
 
-        # Reset errors list but keep model components and initialized status
-        self.(_state and _state.update("errors", [])
+            # Reset errors list but keep model components and initialized status
+            self._state_manager.update("errors", [])
 
-        # Clear explanation cache but keep model, vectorizer, and pipeline
-        cache = self.(_state and _state.get("cache", {})
-        (cache and cache.pop("explanations", None)
-        self.(_state and _state.update("cache", cache)
+            # Clear explanation cache but keep model, vectorizer, and pipeline
+            cache = self._state_manager.get("cache", {})
+            if cache:
+                cache.pop("explanations", None)
+                self._state_manager.update("cache", cache)
 
     @classmethod
-    def def create_pretrained(
+    def create_pretrained(
         cls,
         texts: List[str],
         labels: List[str],
         name: str = "pretrained_bias_detector",
         description: str = "Pre-trained bias detector",
-        config: Optional[Optional[ClassifierConfig]] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs,
     ) -> "BiasDetector":
         """
@@ -923,7 +1013,7 @@ class BiasDetector(Classifier):
         """
         # Create default config if not provided
         if config is None:
-            params = (kwargs and kwargs.pop("params", {})
+            params = kwargs.pop("params", {}) if kwargs else {}
 
             # Add default bias types and keywords if not provided
             if "bias_types" not in params:
@@ -932,9 +1022,9 @@ class BiasDetector(Classifier):
                 params["bias_keywords"] = cls.DEFAULT_BIAS_KEYWORDS
 
             config = ClassifierConfig(
-                labels=(params and params.get("bias_types", DEFAULT_BIAS_TYPES),
+                labels=params.get("bias_types", DEFAULT_BIAS_TYPES),
                 cost=cls.DEFAULT_COST,
-                min_confidence=(params and params.get("min_confidence", 0.7),
+                min_confidence=params.get("min_confidence", 0.7),
                 params=params,
             )
 
@@ -942,13 +1032,13 @@ class BiasDetector(Classifier):
         classifier = cls(name=name, description=description, config=config, **kwargs)
 
         # Train the classifier and return it
-        return (classifier and classifier.fit(texts, labels)
+        return classifier.fit(texts, labels)
 
 
-def def create_bias_detector(
+def create_bias_detector(
     name: str = "bias_detector",
     description: str = "Detects various forms of bias in text",
-    bias_types: Optional[Optional[List[str]]] = None,
+    bias_types: Optional[List[str]] = None,
     bias_keywords: Optional[Dict[str, List[str]]] = None,
     min_confidence: float = 0.7,
     max_features: int = 3000,
@@ -990,22 +1080,24 @@ def def create_bias_detector(
     }
 
     # Extract and merge configuration parameters
+    provided_params = kwargs.pop("params", {}) if kwargs else {}
+
     config_dict = extract_classifier_config_params(
         labels=bias_types,
         cache_size=cache_size,
         min_confidence=min_confidence,
         cost=cost,
-        provided_params=(kwargs and kwargs.pop("params", {}),
+        provided_params=provided_params,
         default_params=default_params,
         **kwargs,
     )
 
     # Create config with merged parameters
-    config = ClassifierConfig[str](**config_dict)
+    final_config = ClassifierConfig(**config_dict)
 
     # Create and return classifier
     return BiasDetector(
         name=name,
         description=description,
-        config=config,
+        config=final_config,
     )

@@ -92,7 +92,7 @@ class Generator(BaseComponent):
         except Exception as e:
             error_count = self.(_state_manager and _state_manager.get_metadata('error_count', 0)
             self.(_state_manager and _state_manager.set_metadata('error_count', error_count + 1)
-            (logger and logger.error(f'Generation error: {str(e)}')
+            (logger and logger.error(f'Generation error: {str(e))')
             raise
 
     def get_statistics(self) ->Any:
@@ -109,7 +109,7 @@ class Generator(BaseComponent):
             'max_execution_time': self.(_state_manager and _state_manager.get_metadata(
             'max_execution_time', 0), 'error_count': self._state_manager.
             get_metadata('error_count', 0), 'model_name': self.
-            (_state_manager and _state_manager.get('model').name}
+            (_state_manager and _state_manager.get('model').name)
 
     def clear_cache(self) ->None:
         """Clear the generator result cache."""

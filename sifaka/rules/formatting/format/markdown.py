@@ -352,7 +352,7 @@ class MarkdownRule(BaseRule[str]):
         ```
     """
 
-    def def __init__(
+    def __init__(
         self,
         name: str,
         description: str,
@@ -398,7 +398,7 @@ class MarkdownRule(BaseRule[str]):
         return DefaultMarkdownValidator(self._markdown_config or MarkdownConfig())
 
 
-def def create_markdown_rule(
+def create_markdown_rule(
     required_elements: Optional[List[str]] = None,
     min_elements: Optional[int] = None,
     name: str = "markdown_rule",

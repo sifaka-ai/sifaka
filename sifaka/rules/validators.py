@@ -187,7 +187,7 @@ class BaseValidator(Generic[T]):
              else 0.0, 'average_processing_time_ms': total_time /
             total_count if total_count > 0 else 0.0, 'last_error': self.
             (_state_manager and _state_manager.get_metadata('last_error'), 'last_error_time':
-            self.(_state_manager and _state_manager.get_metadata('last_error_time')}
+            self.(_state_manager and _state_manager.get_metadata('last_error_time'))
 
 
 class FunctionValidator(BaseValidator[T]):
@@ -253,8 +253,8 @@ class FunctionValidator(BaseValidator[T]):
                 'Unknown error')))
             result = RuleResult(passed=False, message=(result and result.get(
                 'error_message', 'Validation failed'), metadata={
-                'error_type': (result and result.get('error_type')}, score=0.0, issues=
-                [f"Validation error: {(result and result.get('error_message')}"],
+                'error_type': (result and result.get('error_type')), score=0.0, issues=
+                [f"Validation error: {(result and result.get('error_message'))"),
                 suggestions=['Retry with different input'],
                 processing_time_ms=(time and time.time() - start_time)
         (self and self.update_statistics(result)

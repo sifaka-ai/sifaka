@@ -126,7 +126,7 @@ class OpenAIProvider(ModelProviderCore):
     # Class constants
     DEFAULT_MODEL: ClassVar[str] = "gpt-4"
 
-    def def __init__(
+    def __init__(
         self,
         model_name: str = DEFAULT_MODEL,
         config: Optional[Optional[OpenAIConfig]] = None,

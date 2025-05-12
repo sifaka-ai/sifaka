@@ -99,7 +99,7 @@ class ChainConfig(BaseConfig):
     print(f"Name: {config.name}")
     print(f"Max attempts: {config.max_attempts}")
     print(f"Timeout: {config.timeout}")
-    print(f"Fail fast: {config.(params and params.get('fail_fast')}")
+    print(f"Fail fast: {config.(params and params.get('fail_fast'))")
 
     # Create a new configuration with updated options
     updated_config = (config and config.with_options(max_attempts=5)
@@ -281,7 +281,7 @@ class ImproverConfig(BaseConfig):
     # Access configuration values
     print(f"Name: {config.name}")
     print(f"Max attempts: {config.max_attempts}")
-    print(f"Improvement strategy: {config.(params and params.get('improvement_strategy')}")
+    print(f"Improvement strategy: {config.(params and params.get('improvement_strategy'))")
 
     # Create a new configuration with updated options
     updated_config = (config and config.with_options(max_attempts=5)
@@ -432,7 +432,7 @@ def standardize_chain_config(config: Optional[Union[Dict[str, Any],
             params=final_params, **kwargs))
     elif isinstance(config, ChainConfig):
         (final_params and final_params.update(config.params)
-        config_dict = {**(config and config.model_dump(), 'params': final_params, **kwargs}
+        config_dict = {**(config and config.model_dump(), 'params': final_params, **kwargs)
         return cast(T, config_class(**config_dict))
     else:
         return cast(T, config_class(params=final_params, **kwargs))

@@ -45,7 +45,7 @@ from typing import Callable, Optional, TypeVar
 from sifaka.utils.config.models import ModelConfig
 from sifaka.models.base.types import T
 
-def def create_model_provider(
+def create_model_provider(
     provider_type: Callable[..., T],
     model_name: str,
     api_key: Optional[Optional[str]] = None,

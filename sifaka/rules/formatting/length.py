@@ -99,8 +99,8 @@ class LengthConfig(BaseModel):
     @classmethod
     def validate_max_chars(cls, v: Optional[int], info) ->Optional[int]:
         """Validate that max_chars is greater than min_chars if specified."""
-        if v is not None and info.(data and data.get('min_chars'
-            ) is not None and v < info.(data and data.get('min_chars'):
+        min_chars = info.data.get('min_chars')
+        if v is not None and min_chars is not None and v < min_chars:
             raise ValueError(
                 'max_chars must be greater than or equal to min_chars')
         return v
@@ -109,8 +109,8 @@ class LengthConfig(BaseModel):
     @classmethod
     def validate_max_words(cls, v: Optional[int], info) ->Optional[int]:
         """Validate that max_words is greater than min_words if specified."""
-        if v is not None and info.(data and data.get('min_words'
-            ) is not None and v < info.(data and data.get('min_words'):
+        min_words = info.data.get('min_words')
+        if v is not None and min_words is not None and v < min_words:
             raise ValueError(
                 'max_words must be greater than or equal to min_words')
         return v
@@ -164,7 +164,7 @@ class LengthValidator(BaseValidator[str]):
         Returns:
             Validation result
         """
-        empty_result = (self.handle_empty_text(text)
+        empty_result = self.handle_empty_text(text)
         if empty_result:
             return empty_result
         raise NotImplementedError('Subclasses must implement validate method')
@@ -207,15 +207,14 @@ class DefaultLengthValidator(LengthValidator):
             config: Length validation configuration
         """
         super().__init__(config)
-        (object and object.__setattr__(self, '_state_manager', create_rule_state())
-        self.(_state_manager.update('config', config)
-        self.(_state_manager.update('initialized', True)
-        self.(_state_manager.update('validation_count', 0)
-        self.(_state_manager.update('error_count', 0)
-        self.(_state_manager.update('cache', {})
-        self.(_state_manager.set_metadata('component_type', self.__class__.
-            __name__)
-        self.(_state_manager.set_metadata('creation_time', (time.time())
+        object.__setattr__(self, '_state_manager', create_rule_state())
+        self._state_manager.update('config', config)
+        self._state_manager.update('initialized', True)
+        self._state_manager.update('validation_count', 0)
+        self._state_manager.update('error_count', 0)
+        self._state_manager.update('cache', {})
+        self._state_manager.set_metadata('component_type', self.__class__.__name__)
+        self._state_manager.set_metadata('creation_time', time.time())
 
     def validate(self, text: str) ->RuleResult:
         """
@@ -227,35 +226,35 @@ class DefaultLengthValidator(LengthValidator):
         Returns:
             Validation result
         """
-        start_time = (time.time()
-        validation_count = self.(_state_manager.get('validation_count', 0)
-        self.(_state_manager.update('validation_count', validation_count + 1)
+        start_time = time.time()
+        validation_count = self._state_manager.get('validation_count', 0)
+        self._state_manager.update('validation_count', validation_count + 1)
 
         def validation_operation() ->Any:
-            empty_result = (self.handle_empty_text(text)
+            empty_result = self.handle_empty_text(text)
             if empty_result:
                 return empty_result
             errors = []
             suggestions = []
-            config = self.(_state_manager.get('config')
+            config = self._state_manager.get('config')
             char_count = len(text)
             if config.min_chars is not None and char_count < config.min_chars:
                 error_msg = (
                     f'Text is too short: {char_count} characters (minimum {config.min_chars})'
                     )
-                (errors and errors.append(error_msg)
-                (suggestions and suggestions.append(
+                errors.append(error_msg)
+                suggestions.append(
                     f'Add at least {config.min_chars - char_count} more characters'
                     )
             if config.max_chars is not None and char_count > config.max_chars:
                 error_msg = (
                     f'Text is too long: {char_count} characters (maximum {config.max_chars})'
                     )
-                (errors and errors.append(error_msg)
-                (suggestions and suggestions.append(
+                errors.append(error_msg)
+                suggestions.append(
                     f'Remove at least {char_count - config.max_chars} characters'
                     )
-            word_count = len((text and text.split())
+            word_count = len(text.split())
             if config.min_words is not None and word_count < config.min_words:
                 error_msg = (
                     f'Text has too few words: {word_count} words (minimum {config.min_words})'
@@ -274,7 +273,7 @@ class DefaultLengthValidator(LengthValidator):
                 errors else 'Text length validation successful', metadata={
                 'char_count': char_count, 'word_count': word_count,
                 'errors': errors, 'validator_type': self.__class__.__name__,
-                'validation_time': (time.time()}, score=1.0 if not errors else
+                'validation_time': (time.time()), score=1.0 if not errors else
                 0.0, issues=errors, suggestions=suggestions,
                 processing_time_ms=(time.time() - start_time)
             return result
@@ -282,13 +281,13 @@ class DefaultLengthValidator(LengthValidator):
             component_name=self.__class__.__name__, additional_metadata={
             'text_length': len(text)})
         if not getattr(result, 'passed', False):
-            error_count = self.(_state_manager and _state_manager.get('error_count', 0)
-            self.(_state_manager.update('error_count', error_count + 1)
-        cache = self.(_state_manager.get('cache', {})
+            error_count = self._state_manager.get('error_count', 0)
+            self._state_manager.update('error_count', error_count + 1)
+        cache = self._state_manager.get('cache', {})
         if len(cache) < 100:
             cache_key = hash(text)
             cache[cache_key] = result
-            self.(_state_manager.update('cache', cache)
+            self._state_manager.update('cache', cache)
         return result
 
 
@@ -475,7 +474,7 @@ class LengthRule(Rule[str]):
             'LengthRule requires a validator to be passed in __init__')
 
 
-def def create_length_validator(min_chars: Optional[Optional[int]] = None, max_chars: Optional[Optional[int]] = None, min_words: Optional[Optional[int]] = None, max_words: Optional[
+def create_length_validator(min_chars: Optional[Optional[int]] = None, max_chars: Optional[Optional[int]] = None, min_words: Optional[Optional[int]] = None, max_words: Optional[
     int]=None, **kwargs) ->LengthValidator:
     """
     Create a length validator with the specified constraints.
@@ -533,7 +532,7 @@ def def create_length_validator(min_chars: Optional[Optional[int]] = None, max_c
     return DefaultLengthValidator(config)
 
 
-def def create_length_rule(min_chars: Optional[Optional[int]] = None, max_chars: Optional[
+def create_length_rule(min_chars: Optional[Optional[int]] = None, max_chars: Optional[
     int]=None, min_words: Optional[Optional[int]] = None, max_words: Optional[Optional[int]] = None,
     rule_id: Optional[Optional[str]] = None, name: Optional[Optional[str]] = None, description: Optional[Optional[str]] = None, **kwargs) ->LengthRule:
     """

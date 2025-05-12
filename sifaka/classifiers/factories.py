@@ -41,7 +41,7 @@ from sifaka.utils.config.classifiers import ClassifierConfig
 from .adapters import ImplementationAdapter
 
 
-def def create_classifier(
+def create_classifier(
     implementation: Any,
     name: str = "classifier",
     description: str = "Sifaka classifier for text classification",

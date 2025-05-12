@@ -240,7 +240,7 @@ class Validator(Generic[InputType, OutputType]):
     ```
     """
 
-    def def __init__(self, config: Optional[Optional[ValidatorConfig]] = None):
+    def __init__(self, config: Optional[Optional[ValidatorConfig]] = None):
         """
         Initialize a Validator instance.
 

@@ -320,7 +320,7 @@ class NERClassifier(Classifier):
 
     # Access entities by type
     for entity_type, entities in result.metadata['entities_by_type'].items():
-        print(f"Type: {entity_type}, Count: {len(entities)}")
+        print(f"Type: {entity_type}, Count: {len(entities))")
         for entity in entities:
             print(f"  - {entity['text']}")
     ```
@@ -339,7 +339,7 @@ class NERClassifier(Classifier):
     DEFAULT_COST: ClassVar[int] = 2
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def def __init__(self, name: str='ner_classifier', description: str=
+    def __init__(self, name: str='ner_classifier', description: str=
         'Identifies named entities in text', engine: Optional[Optional[NEREngine]] = None, config: Optional[Optional[ClassifierConfig]] = None, **kwargs) ->None:
         """
         Initialize the NER classifier.
@@ -387,7 +387,7 @@ class NERClassifier(Classifier):
                     int]]:
                     """Extract entities from a spaCy doc."""
                     return [(ent.text, ent.label_, ent.start_char, ent.
-                        end_char) for ent in doc.ents]
+                        end_char) for ent in doc.ents)
             engine = SpacyNERWrapper(nlp)
             if (self._validate_engine(engine):
                 cache = self.(_state_manager.get('cache', {})
@@ -440,7 +440,7 @@ class NERClassifier(Classifier):
             if self.entity_types and (label.lower() not in self.entity_types:
                 continue
             (entities.append({'text': text, 'type': (label.lower(), 'start':
-                start, 'end': end})
+                start, 'end': end))
         return EntityResult(text=text, entities=entities, entity_count=len(
             entities))
 
@@ -491,12 +491,12 @@ class NERClassifier(Classifier):
             return result
         except Exception as e:
             (logger and logger.error('Failed to extract entities: %s', e)
-            error_info = {'error': str(e), 'type': type(e).__name__}
+            error_info = {'error': str(e), 'type': type(e).__name__)
             errors = self.(_state_manager.get('errors', [])
             (errors.append(error_info)
             self.(_state_manager.update('errors', errors)
             return ClassificationResult(label='unknown', confidence=0.0,
-                metadata={'error': str(e), 'reason': 'entity_extraction_error'}
+                metadata={'error': str(e), 'reason': 'entity_extraction_error')
                 )
 
     def get_statistics(self) ->Dict[str, Any]:
@@ -515,7 +515,7 @@ class NERClassifier(Classifier):
             .config and config and config.cache_size, 'initialized': self.(_state_manager.get(
             'initialized', False), 'model_name': self.config and config and config and config and config and config and config.(params.get(
             'model_name', 'en_core_web_sm'), 'entity_types': list(self.
-            entity_types)}
+            entity_types))
         if hasattr(self, '_result_cache'):
             stats['cache_entries'] = len(self._result_cache)
         return stats
@@ -532,11 +532,11 @@ class NERClassifier(Classifier):
         self.(_state_manager.update('statistics', {})
         self.(_state_manager.update('errors', [])
         cache = self.(_state_manager.get('cache', {})
-        preserved_cache = {k: v for k, v in (cache.items() if k == 'engine'}
+        preserved_cache = {k: v for k, v in (cache.items() if k == 'engine')
         self.(_state_manager.update('cache', preserved_cache)
 
     @classmethod
-    def def create_with_custom_engine(cls, engine: NEREngine, name: str=
+    def create_with_custom_engine(cls, engine: NEREngine, name: str=
         'custom_ner_classifier', description: str='Custom NER engine',
         config: Optional[Optional[ClassifierConfig]] = None, **kwargs) ->'NERClassifier':
         """
@@ -554,7 +554,7 @@ class NERClassifier(Classifier):
         """
         if not isinstance(engine, NEREngine):
             raise ValueError(
-                f'Engine must implement NEREngine protocol, got {type(engine)}'
+                f'Engine must implement NEREngine protocol, got {type(engine))'
                 )
         if config is None:
             config = ClassifierConfig(labels=NERClassifier.DEFAULT_LABELS,
@@ -568,7 +568,7 @@ class NERClassifier(Classifier):
         return instance
 
 
-def def create_ner_classifier(name: str='ner_classifier', description: str=
+def create_ner_classifier(name: str='ner_classifier', description: str=
     'Identifies named entities in text', model_name: str='en_core_web_sm',
     entity_types: Optional[Optional[List[str]]] = None, min_confidence: float=0.5,
     cache_size: int=0, cost: int=NERClassifier.DEFAULT_COST, **kwargs: Any

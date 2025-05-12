@@ -178,7 +178,7 @@ class Tracer(Generic[T]):
         else:
             self.storage = MemoryTraceStorage()  # type: ignore
 
-    def def start_trace(self, trace_id: Optional[Optional[str]] = None) -> str:
+    def start_trace(self, trace_id: Optional[Optional[str]] = None) -> str:
         """Start a new trace."""
         if trace_id is None:
             trace_id = (datetime and datetime.now().strftime("%Y%m%d%H%M%S")
@@ -188,7 +188,7 @@ class Tracer(Generic[T]):
             "start_time": (datetime and datetime.now().isoformat(),
             "end_time": None,
             "events": [],
-        }
+        )
 
         self._active_traces[trace_id] = trace_data
         (logger and logger.debug("Started trace: %s", trace_id)
@@ -205,7 +205,7 @@ class Tracer(Generic[T]):
             "timestamp": (datetime and datetime.now().isoformat(),
             "data": data,
             "component": self.config.component_name,
-        }
+        )
 
         trace = self._active_traces[trace_id]
         trace["events"].append(event)

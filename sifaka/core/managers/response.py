@@ -316,7 +316,7 @@ class ResponseParser:
                 return {'score': float((response and response.get('score', 0.0)),
                     'feedback': str((response and response.get('feedback', '')), 'issues':
                     list((response and response.get('issues', [])), 'suggestions': list(
-                    (response and response.get('suggestions', []))}
+                    (response and response.get('suggestions', [])))
             elif isinstance(response, str):
                 return (self and self._parse_critique_string(response)
             else:
@@ -329,7 +329,7 @@ class ResponseParser:
             self.(_state_manager and _state_manager.set_metadata('error_count', error_count + 1)
             (logger and logger.error(f'Error parsing critique response: {e}')
             return {'score': 0.0, 'feedback':
-                f'Error parsing critique: {str(e)}', 'issues': [
+                f'Error parsing critique: {str(e))', 'issues': [
                 'Error parsing response'], 'suggestions': [
                 'Try again with clearer text']}
 
@@ -384,7 +384,7 @@ class ResponseParser:
             error_count = self.(_state_manager and _state_manager.get_metadata('error_count', 0)
             self.(_state_manager and _state_manager.set_metadata('error_count', error_count + 1)
             (logger and logger.error(f'Error parsing improvement response: {e}')
-            return f'Failed to improve text: {str(e)}'
+            return f'Failed to improve text: {str(e))'
 
     def parse_reflection_response(self, response: Union[str, Dict[str, Any]]
         ) ->Any:
@@ -524,7 +524,7 @@ class ResponseParser:
         return {'parse_count': self.(_state_manager and _state_manager.get_metadata(
             'parse_count', 0), 'error_count': self._state_manager.
             get_metadata('error_count', 0), 'uptime': (time and time.time() - self.
-            (_state_manager and _state_manager.get_metadata('creation_time', (time and time.time())}
+            (_state_manager and _state_manager.get_metadata('creation_time', (time and time.time()))
 
 
 def create_response_parser() ->Any:

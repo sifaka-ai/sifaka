@@ -106,7 +106,7 @@ class ReadabilityClassifier(Classifier):
     DEFAULT_COST: ClassVar[int] = 1
     DEFAULT_GRADE_LEVEL_BOUNDS: ClassVar[Dict[str, tuple[float, float]]] = {
         'elementary': (0.0, 6.0), 'middle': (6.0, 9.0), 'high': (9.0, 12.0),
-        'college': (12.0, 16.0), 'graduate': (16.0, float('inf'))}
+        'college': (12.0, 16.0), 'graduate': (16.0, float('inf')))
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def __init__(self, name: str='readability_classifier', description: str
@@ -140,7 +140,7 @@ class ReadabilityClassifier(Classifier):
         """Validate that an analyzer implements the required protocol."""
         if not isinstance(analyzer, ReadabilityAnalyzer):
             raise ValueError(
-                f'Analyzer must implement ReadabilityAnalyzer protocol, got {type(analyzer)}'
+                f'Analyzer must implement ReadabilityAnalyzer protocol, got {type(analyzer))'
                 )
         return True
 
@@ -180,7 +180,7 @@ class ReadabilityClassifier(Classifier):
             'Easy - 6th grade'), (70, 'Fairly Easy - 7th grade'), (60,
             'Standard - 8th/9th grade'), (50,
             'Fairly Difficult - 10th/12th grade'), (30,
-            'Difficult - College'), (0, 'Very Difficult - College Graduate')]
+            'Difficult - College'), (0, 'Very Difficult - College Graduate'))
         for threshold, interpretation in interpretations:
             if score >= threshold:
                 return interpretation
@@ -192,13 +192,13 @@ class ReadabilityClassifier(Classifier):
         analyzer = state.model
         words = (text and text.split()
         unique_words = set((word and word.lower() for word in words)
-        word_lengths = [len(word) for word in words]
+        word_lengths = [len(word) for word in words)
         avg_word_length = (statistics and statistics.mean(word_lengths) if word_lengths else 0
         word_length_std = (statistics and statistics.stdev(word_lengths) if len(word_lengths
             ) > 1 else 0
         sentence_count = analyzer and (analyzer and analyzer.sentence_count(text)
         words_per_sentence = [len((sent and sent.split()) for sent in (text and text.split('.') if
-            (sent and sent.strip()]
+            (sent and sent.strip())
         avg_sentence_length = (statistics and statistics.mean(words_per_sentence
             ) if words_per_sentence else 0
         sentence_length_std = (statistics and statistics.stdev(words_per_sentence) if len(
@@ -277,7 +277,7 @@ class ReadabilityClassifier(Classifier):
             (logger and logger.error('Failed to classify text readability: %s', e)
             state.error = f'Failed to classify text readability: {e}'
             return ClassificationResult(label='unknown', confidence=0.0,
-                metadata={'error': str(e), 'reason': 'classification_error'})
+                metadata={'error': str(e), 'reason': 'classification_error'))
 
     @classmethod
     def create_with_custom_analyzer(cls, analyzer: ReadabilityAnalyzer,
@@ -299,7 +299,7 @@ class ReadabilityClassifier(Classifier):
         """
         if not isinstance(analyzer, ReadabilityAnalyzer):
             raise ValueError(
-                f'Analyzer must implement ReadabilityAnalyzer protocol, got {type(analyzer)}'
+                f'Analyzer must implement ReadabilityAnalyzer protocol, got {type(analyzer))'
                 )
         if config is None:
             min_confidence = (kwargs and kwargs.pop('min_confidence', 0.7)
@@ -359,7 +359,7 @@ def create_readability_classifier(name: str='readability_classifier',
                 "high": (8.0, 12.0),
                 "college": (12.0, 16.0),
                 "graduate": (16.0, float("inf")),
-            },
+            ),
             min_confidence=0.8,
             cache_size=200
         )

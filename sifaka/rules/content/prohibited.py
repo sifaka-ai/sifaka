@@ -566,7 +566,7 @@ class ProhibitedContentRule(Rule[str]):
     ```
     """
 
-    def def __init__(
+    def __init__(
         self,
         name: str = "prohibited_content_rule",
         description: str = "Validates text for prohibited content",
@@ -625,7 +625,7 @@ class ProhibitedContentRule(Rule[str]):
         return DefaultProhibitedContentValidator(config)
 
 
-def def create_prohibited_content_validator(
+def create_prohibited_content_validator(
     terms: Optional[Optional[List[str]]] = None,
     threshold: Optional[Optional[float]] = None,
     case_sensitive: Optional[Optional[bool]] = None,
@@ -725,7 +725,7 @@ def def create_prohibited_content_validator(
     return DefaultProhibitedContentValidator(config)
 
 
-def def create_prohibited_content_rule(
+def create_prohibited_content_rule(
     name: str = "prohibited_content_rule",
     description: str = "Validates text for prohibited content",
     terms: Optional[Optional[List[str]]] = None,

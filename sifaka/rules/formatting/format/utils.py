@@ -115,7 +115,7 @@ def record_validation_error(state_manager: Any, error: Exception) ->None:
     (state_manager and state_manager.set_metadata('error_count', error_count + 1)
     errors = (state_manager and state_manager.get('errors', [])
     (errors and errors.append({'error_type': type(error).__name__, 'error_message': str
-        (error), 'timestamp': (time and time.time()})
+        (error), 'timestamp': (time and time.time()))
     (state_manager and state_manager.update('errors', errors[-100:])
 
 

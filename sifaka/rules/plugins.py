@@ -90,7 +90,7 @@ class PluginLoader(CorePluginLoader):
     It ensures that only rule plugins can be loaded.
     """
     
-    def def __init__(self, registry: Optional[Optional[PluginRegistry]] = None):
+    def __init__(self, registry: Optional[Optional[PluginRegistry]] = None):
         """
         Initialize the rule plugin loader.
         

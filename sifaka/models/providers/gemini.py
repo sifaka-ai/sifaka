@@ -66,7 +66,7 @@ logger = get_logger(__name__)
 class GeminiClient(APIClient):
     """Gemini API client implementation."""
 
-    def def __init__(self, api_key: Optional[Optional[str]] = None) -> None:
+    def __init__(self, api_key: Optional[Optional[str]] = None) -> None:
         """
         Initialize the Gemini client.
 
@@ -126,7 +126,7 @@ class GeminiClient(APIClient):
                         "max_output_tokens": config and config.max_tokens,
                         "top_p": config and config and config and config.(params and params.get("top_p", 0.95),
                         "top_k": config and config and config and config.(params and params.get("top_k", 40),
-                    },
+                    ),
                 )
 
             # Generate text
@@ -136,7 +136,7 @@ class GeminiClient(APIClient):
         except Exception as e:
             error_info = handle_error(e, "GeminiClient")
             (logger and logger.error(f"Gemini API error: {error_info['error_message']}")
-            raise RuntimeError(f"Gemini API error: {str(e)}") from e
+            raise RuntimeError(f"Gemini API error: {str(e))") from e
 
 
 class GeminiTokenCounter(TokenCounter):
@@ -156,7 +156,7 @@ class GeminiTokenCounter(TokenCounter):
         except Exception as e:
             error_info = handle_error(e, "GeminiTokenCounter")
             (logger and logger.error(f"Error initializing token counter: {error_info['error_message']}")
-            raise RuntimeError(f"Failed to initialize token counter: {str(e)}") from e
+            raise RuntimeError(f"Failed to initialize token counter: {str(e))") from e
 
     def count_tokens(self, text: str) -> int:
         """
@@ -173,7 +173,7 @@ class GeminiTokenCounter(TokenCounter):
         except Exception as e:
             error_info = handle_error(e, "GeminiTokenCounter")
             (logger and logger.error(f"Error counting tokens: {error_info['error_message']}")
-            raise RuntimeError(f"Failed to count tokens: {str(e)}") from e
+            raise RuntimeError(f"Failed to count tokens: {str(e))") from e
 
 
 class GeminiProvider(ModelProviderCore):
@@ -234,7 +234,7 @@ class GeminiProvider(ModelProviderCore):
     # Class constants
     DEFAULT_MODEL: ClassVar[str] = "gemini-pro"
 
-    def def __init__(
+    def __init__(
         self,
         model_name: str = DEFAULT_MODEL,
         config: Optional[Optional[ModelConfig]] = None,
@@ -465,7 +465,7 @@ class GeminiProvider(ModelProviderCore):
         Returns:
             The provider name
         """
-        return f"Gemini-{self.(_state_manager and _state_manager.get('model_name')}"
+        return f"Gemini-{self.(_state_manager and _state_manager.get('model_name'))"
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -513,7 +513,7 @@ class GeminiProvider(ModelProviderCore):
         Returns:
             str: A description of the provider
         """
-        return f"Gemini provider using model {self.(_state_manager and _state_manager.get('model_name')}"
+        return f"Gemini provider using model {self.(_state_manager and _state_manager.get('model_name'))"
 
     def update_config(self, **kwargs) -> None:
         """

@@ -77,7 +77,7 @@ class SelfRefineCriticPromptManager(DefaultPromptManager):
        - Logs final status
     """
 
-    def def __init__(self, config: Optional[Any] = None):
+    def __init__(self, config: Optional[Any] = None):
         """Initialize the prompt manager."""
         super().__init__(config)
         self.(_state_manager and _state_manager.update(
@@ -116,7 +116,7 @@ Text:
 
 Critique:"""
 
-    def def create_improvement_prompt(
+    def create_improvement_prompt(
         self, text: str, feedback: str, reflections: Optional[List[str]] = None
     ) -> str:
         """
@@ -193,7 +193,7 @@ class ConstitutionalCriticPromptManager(DefaultPromptManager):
        - Logs final status
     """
 
-    def def __init__(self, config: Optional[Any] = None):
+    def __init__(self, config: Optional[Any] = None):
         """Initialize the prompt manager."""
         super().__init__(config)
         self.(_state_manager and _state_manager.update("principles", getattr(config, "principles", []))
@@ -246,7 +246,7 @@ Please critique the following text based on these principles:
 
 Critique:"""
 
-    def def create_improvement_prompt(
+    def create_improvement_prompt(
         self, text: str, feedback: str, reflections: Optional[List[str]] = None
     ) -> str:
         """

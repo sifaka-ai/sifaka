@@ -69,7 +69,7 @@ class QueryManager(BaseComponent, QueryProcessor):
 
     # State management is handled by BaseComponent
 
-    def def __init__(
+    def __init__(
         self,
         config: Optional[Optional[QueryProcessingConfig]] = None,
         name: str = "QueryManager",
@@ -95,7 +95,7 @@ class QueryManager(BaseComponent, QueryProcessor):
         self.(_state_manager and _state_manager.set_metadata("component_type", "query_manager")
         self.(_state_manager and _state_manager.set_metadata("creation_time", (time and time.time())
 
-    def def _initialize_state(self, config: Optional[Optional[QueryProcessingConfig]] = None) -> None:
+    def _initialize_state(self, config: Optional[Optional[QueryProcessingConfig]] = None) -> None:
         """
         Initialize the query manager state.
 
@@ -137,7 +137,7 @@ class QueryManager(BaseComponent, QueryProcessor):
         if not isinstance(config, QueryProcessingConfig):
             raise RetrievalError(
                 "Config must be an instance of QueryProcessingConfig",
-                metadata={"config_type": type(config).__name__},
+                metadata={"config_type": type(config).__name__),
             )
         self.(_state_manager and _state_manager.update("config", config)
 
@@ -258,7 +258,7 @@ class QueryManager(BaseComponent, QueryProcessor):
             The query with stopwords removed
         """
         words = (query and query.split()
-        filtered_words = [word for word in words if (word and word.lower() not in self.stopwords]
+        filtered_words = [word for word in words if (word and word.lower() not in self.stopwords)
         return " ".join(filtered_words)
 
     def _remove_punctuation(self, query: str) -> str:
@@ -319,7 +319,7 @@ class QueryManager(BaseComponent, QueryProcessor):
         except Exception as e:
             error_info = handle_error(e, self.name, "error")
             raise RetrievalError(
-                f"Query expansion failed: {str(e)}",
+                f"Query expansion failed: {str(e))",
                 metadata={"query": query, "expansion_method": expansion_method, **error_info},
             )
 
@@ -355,7 +355,7 @@ class QueryManager(BaseComponent, QueryProcessor):
                 metadata={
                     "query_type": type(query).__name__,
                     "query_length": len(str(query)) if query else 0,
-                },
+                ),
             )
 
         # Check cache
@@ -429,7 +429,7 @@ class QueryManager(BaseComponent, QueryProcessor):
             # Otherwise, wrap in RetrievalError
             error_info = handle_error(e, self.name, "error")
             raise RetrievalError(
-                f"Query processing failed: {str(e)}", metadata={"query": query, **error_info}
+                f"Query processing failed: {str(e))", metadata={"query": query, **error_info}
             )
 
     def get_statistics(self) -> Dict[str, Any]:
@@ -447,7 +447,7 @@ class QueryManager(BaseComponent, QueryProcessor):
             "stopwords_count": len(self.stopwords),
             "preprocessing_steps": self.config.preprocessing_steps,
             "expansion_method": self.config.expansion_method,
-        }
+        )
 
     def clear_cache(self) -> None:
         """

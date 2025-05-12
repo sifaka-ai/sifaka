@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 class OpenAIClient(APIClient):
     """OpenAI API client implementation."""
 
-    def def __init__(self, api_key: Optional[Optional[str]] = None) ->None:
+    def __init__(self, api_key: Optional[Optional[str]] = None) ->None:
         """
         Initialize the OpenAI client.
 
@@ -70,7 +70,7 @@ class OpenAIClient(APIClient):
                 temperature, 'top_p': config.(params and params.get('top_p', 1.0),
                 'frequency_penalty': config.(params and params.get('frequency_penalty',
                 0.0), 'presence_penalty': config.(params and params.get(
-                'presence_penalty', 0.0)}
+                'presence_penalty', 0.0))
             if config.(params and params.get('stop'):
                 params['stop'] = config.(params and params.get('stop')
             response = client.chat.(completions and completions.create(**params)
@@ -80,7 +80,7 @@ class OpenAIClient(APIClient):
         return safely_execute_component(operation=generate_operation,
             component_name='OpenAIClient', component_type='APIClient',
             error_class=ModelError, additional_metadata={'model_name':
-            config.(params and params.get('model_name', 'gpt-3.5-turbo')})
+            config.(params and params.get('model_name', 'gpt-3.5-turbo')))
 
 
 class OpenAIClientManager(ClientManager[OpenAIClient]):

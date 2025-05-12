@@ -92,7 +92,7 @@ class ClientManager(Generic[C]):
         ```
     """
 
-    def def __init__(self, model_name: str, config: ModelConfig, api_client: Optional[Optional[C]] = None):
+    def __init__(self, model_name: str, config: ModelConfig, api_client: Optional[Optional[C]] = None):
         """
         Initialize a ClientManager instance.
 

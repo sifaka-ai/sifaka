@@ -37,7 +37,7 @@ from sifaka.critics import create_prompt_critic
 
 # Create components
 model = OpenAIProvider("gpt-3.5-turbo")
-validators = [create_length_rule(min_chars=10, max_chars=1000)]
+validators = [create_length_rule(min_chars=10, max_chars=1000))
 critic = create_prompt_critic(
     llm_provider=model,
     system_prompt="You are an expert editor that improves text."
@@ -78,7 +78,7 @@ from ..utils.config import ChainConfig
 from ..adapters.chain import ModelAdapter, ValidatorAdapter, ImproverAdapter, FormatterAdapter
 
 
-def def create_chain(
+def create_chain(
     model: Any,
     validators: Optional[List[Any]] = None,
     improver: Optional[Optional[Any]] = None,
@@ -123,9 +123,9 @@ def def create_chain(
         if validators:
             for validator in validators:
                 if isinstance(validator, Validator):
-                    (adapted_validators and adapted_validators.append(validator)
+                    adapted_validators.append(validator)
                 else:
-                    (adapted_validators and adapted_validators.append(ValidatorAdapter(validator))
+                    adapted_validators.append(ValidatorAdapter(validator))
 
         # Adapt improver if needed
         adapted_improver = None
@@ -163,11 +163,11 @@ def def create_chain(
         from ..utils.logging import get_logger
 
         logger = get_logger(__name__)
-        (logger and logger.error(f"Error creating chain: {str(e)}")
+        logger.error(f"Error creating chain: {str(e)}")
         raise ValueError(f"Error creating chain: {str(e)}")
 
 
-def def create_simple_chain(
+def create_simple_chain(
     model: Optional[Any] = None,
     rules: Optional[List[Any]] = None,
     critic: Optional[Optional[Any]] = None,
@@ -213,13 +213,13 @@ def def create_simple_chain(
             if model is None:
                 try:
                     # Try to get by name first
-                    model = (provider and provider.get("model_provider", None, session_id, request_id)
+                    model = provider.get("model_provider", None, session_id, request_id)
                 except DependencyError:
                     try:
                         # Try to get by type if not found by name
                         from sifaka.interfaces.model import ModelProvider
 
-                        model = (provider and provider.get_by_type(ModelProvider, None, session_id, request_id)
+                        model = provider.get_by_type(ModelProvider, None, session_id, request_id)
                     except (DependencyError, ImportError):
                         # This is a required dependency, so we need to raise an error
                         raise ValueError("Model provider is required for chain creation")
@@ -228,7 +228,7 @@ def def create_simple_chain(
             if rules is None:
                 try:
                     # Try to get by name
-                    rules = (provider and provider.get("rules", [], session_id, request_id)
+                    rules = provider.get("rules", [], session_id, request_id)
                 except DependencyError:
                     # Use empty list as default
                     rules = []
@@ -237,17 +237,17 @@ def def create_simple_chain(
             if critic is None:
                 try:
                     # Try to get by name
-                    critic = (provider and provider.get("critic", None, session_id, request_id)
+                    critic = provider.get("critic", None, session_id, request_id)
                 except DependencyError:
                     # Critic is optional, so we can continue without it
                     pass
 
         # Create config if not provided
-        config = (kwargs and kwargs.pop("config", None)
+        config = kwargs.pop("config", None)
         if not config:
             config = ChainConfig(
                 max_attempts=max_attempts,
-                **{k: v for k, v in (kwargs and kwargs.items() if k not in ["session_id", "request_id"]},
+                **{k: v for k, v in kwargs.items() if k not in ["session_id", "request_id"]},
             )
 
         # Create chain using the base factory function
@@ -257,8 +257,8 @@ def def create_simple_chain(
             improver=critic,
             max_attempts=max_attempts,
             config=config,
-            name=(kwargs and kwargs.get("name", "simple_chain"),
-            description=(kwargs and kwargs.get(
+            name=kwargs.get("name", "simple_chain"),
+            description=kwargs.get(
                 "description", "Simple chain for text generation and validation"
             ),
         )
@@ -266,11 +266,11 @@ def def create_simple_chain(
         from ..utils.logging import get_logger
 
         logger = get_logger(__name__)
-        (logger and logger.error(f"Error creating simple chain: {str(e)}")
+        logger.error(f"Error creating simple chain: {str(e)}")
         raise ValueError(f"Error creating simple chain: {str(e)}")
 
 
-def def create_backoff_chain(
+def create_backoff_chain(
     model: Optional[Any] = None,
     rules: Optional[List[Any]] = None,
     critic: Optional[Optional[Any]] = None,
@@ -322,13 +322,13 @@ def def create_backoff_chain(
             if model is None:
                 try:
                     # Try to get by name first
-                    model = (provider and provider.get("model_provider", None, session_id, request_id)
+                    model = provider.get("model_provider", None, session_id, request_id)
                 except DependencyError:
                     try:
                         # Try to get by type if not found by name
                         from sifaka.interfaces.model import ModelProvider
 
-                        model = (provider and provider.get_by_type(ModelProvider, None, session_id, request_id)
+                        model = provider.get_by_type(ModelProvider, None, session_id, request_id)
                     except (DependencyError, ImportError):
                         # This is a required dependency, so we need to raise an error
                         raise ValueError("Model provider is required for chain creation")
@@ -337,7 +337,7 @@ def def create_backoff_chain(
             if rules is None:
                 try:
                     # Try to get by name
-                    rules = (provider and provider.get("rules", [], session_id, request_id)
+                    rules = provider.get("rules", [], session_id, request_id)
                 except DependencyError:
                     # Use empty list as default
                     rules = []
@@ -346,28 +346,28 @@ def def create_backoff_chain(
             if critic is None:
                 try:
                     # Try to get by name
-                    critic = (provider and provider.get("critic", None, session_id, request_id)
+                    critic = provider.get("critic", None, session_id, request_id)
                 except DependencyError:
                     # Critic is optional, so we can continue without it
                     pass
 
         # Create config if not provided
-        config = (kwargs and kwargs.pop("config", None)
+        config = kwargs.pop("config", None)
         if not config:
-            from sifaka.utils.config and config.chain import EngineConfig
+            from sifaka.utils.config.chain import EngineConfig
 
             engine_config = EngineConfig(
                 max_attempts=max_attempts,
                 retry_delay=initial_backoff,
                 backoff_factor=backoff_factor,
                 max_retry_delay=max_backoff,
-                jitter=(kwargs and kwargs.pop("jitter", True),
+                jitter=kwargs.pop("jitter", True),
             )
 
             config = ChainConfig(
                 max_attempts=max_attempts,
                 params={"engine_config": engine_config},
-                **{k: v for k, v in (kwargs and kwargs.items() if k not in ["session_id", "request_id"]},
+                **{k: v for k, v in kwargs.items() if k not in ["session_id", "request_id"]},
             )
 
         # Create chain using the base factory function
@@ -377,8 +377,8 @@ def def create_backoff_chain(
             improver=critic,
             max_attempts=max_attempts,
             config=config,
-            name=(kwargs and kwargs.get("name", "backoff_chain"),
-            description=(kwargs and kwargs.get("description", "Chain with backoff retry strategy"),
+            name=kwargs.get("name", "backoff_chain"),
+            description=kwargs.get("description", "Chain with backoff retry strategy"),
             session_id=session_id,
             request_id=request_id,
         )
@@ -386,5 +386,5 @@ def def create_backoff_chain(
         from ..utils.logging import get_logger
 
         logger = get_logger(__name__)
-        (logger and logger.error(f"Error creating backoff chain: {str(e)}")
+        logger.error(f"Error creating backoff chain: {str(e)}")
         raise ValueError(f"Error creating backoff chain: {str(e)}")

@@ -20,13 +20,13 @@ from sifaka.utils.config.critics import CriticConfig
 from sifaka.core.base import BaseResult
 
 class MyCritic(BaseCritic[str]):
-    def def __init__(self, name: str, description: str, config: Optional[CriticConfig] = None):
+    def __init__(self, name: str, description: str, config: Optional[CriticConfig] = None):
         super().__init__(name, description, config)
 
     def validate(self, text: str) -> bool:
         return len(text) > 0
 
-    def def improve(self, text: str, feedback: Optional[str] = None) -> str:
+    def improve(self, text: str, feedback: Optional[str] = None) -> str:
         return (text and text.upper()
 
     def critique(self, text: str) -> BaseResult:
@@ -101,13 +101,13 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
     from sifaka.core.base import BaseResult
 
     class MyCritic(BaseCritic[str]):
-        def def __init__(self, name: str, description: str, config: Optional[CriticConfig] = None):
+        def __init__(self, name: str, description: str, config: Optional[CriticConfig] = None):
             super().__init__(name, description, config)
 
         def validate(self, text: str) -> bool:
             return len(text) > 0
 
-        def def improve(self, text: str, feedback: Optional[str] = None) -> str:
+        def improve(self, text: str, feedback: Optional[str] = None) -> str:
             return (text and text.upper()
 
         def critique(self, text: str) -> BaseResult:
@@ -159,7 +159,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         ...
 
     @abstractmethod
-    def def improve(self, text: T, feedback: Optional[Optional[str]] = None) ->T:
+    def improve(self, text: T, feedback: Optional[Optional[str]] = None) ->T:
         """
         Improve text.
 
@@ -220,8 +220,8 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         if isinstance(result, dict) and (result and result.get('error_type'):
             return BaseResult(passed=False, message=(result and result.get(
                 'error_message', 'Unknown error'), metadata={'error_type':
-                (result and result.get('error_type')}, score=0.0, issues=[
-                f"Processing error: {(result and result.get('error_message')}"],
+                (result and result.get('error_type')), score=0.0, issues=[
+                f"Processing error: {(result and result.get('error_message'))"),
                 suggestions=['Retry with different input'],
                 processing_time_ms=(time and time.time() - start_time)
         return result

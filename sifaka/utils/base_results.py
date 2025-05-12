@@ -190,7 +190,7 @@ class CriticMetadata(BaseResult):
     )
 
 
-def def create_base_result(
+def create_base_result(
     passed: bool,
     message: str,
     metadata: Optional[Dict[str, Any]] = None,
@@ -225,7 +225,7 @@ def def create_base_result(
     )
 
 
-def def create_base_rule_result(
+def create_base_rule_result(
     passed: bool,
     message: str,
     rule_name: str = "unnamed_rule",
@@ -275,7 +275,7 @@ def def create_base_rule_result(
     )
 
 
-def def create_critic_metadata(
+def create_critic_metadata(
     score: float,
     feedback: str,
     passed: bool,

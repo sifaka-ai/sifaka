@@ -28,7 +28,7 @@ class AnthropicClient(APIClient):
     It manages authentication, request formatting, and response processing.
     """
 
-    def def __init__(self, api_key: Optional[Optional[str]] = None) -> None:
+    def __init__(self, api_key: Optional[Optional[str]] = None) -> None:
         """
         Initialize the Anthropic client.
 

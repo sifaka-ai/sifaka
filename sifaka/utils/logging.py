@@ -71,6 +71,7 @@ Logging can be configured with:
 - Color output options
 - Structured logging options
 """
+
 import json
 import logging
 import time
@@ -95,7 +96,7 @@ class LogFormatter(Protocol):
     that log formatters must satisfy.
     """
 
-    def format(self, record: logging.LogRecord) ->str:
+    def format(self, record: logging.LogRecord) -> str:
         """
         Format a log record.
 
@@ -121,7 +122,7 @@ class LogHandler(Protocol):
     that log handlers must satisfy.
     """
 
-    def setFormatter(self, formatter: LogFormatter) ->None:
+    def setFormatter(self, formatter: LogFormatter) -> None:
         """
         Set the formatter for this handler.
 
@@ -130,7 +131,7 @@ class LogHandler(Protocol):
         """
         ...
 
-    def handle(self, record: logging.LogRecord) ->bool:
+    def handle(self, record: logging.LogRecord) -> bool:
         """
         Handle a log record.
 
@@ -175,20 +176,29 @@ class StructuredFormatter(logging.Formatter):
         COLORS (Dict[str, str]): Color codes for different log levels
         RESET (str): ANSI code to reset colors
     """
-    COLORS = {'DEBUG': '\x1b[36m', 'INFO': '\x1b[32m', 'WARNING':
-        '\x1b[33m', 'ERROR': '\x1b[31m', 'CRITICAL': '\x1b[41m'}
-    RESET = '\x1b[0m'
 
-    def __init__(self, fmt: str=
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt:
-        str='%Y-%m-%d %H:%M:%S', use_colors: bool=True, structured: bool=False
-        ) ->None:
+    COLORS = {
+        "DEBUG": "\x1b[36m",
+        "INFO": "\x1b[32m",
+        "WARNING": "\x1b[33m",
+        "ERROR": "\x1b[31m",
+        "CRITICAL": "\x1b[41m",
+    }
+    RESET = "\x1b[0m"
+
+    def __init__(
+        self,
+        fmt: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt: str = "%Y-%m-%d %H:%M:%S",
+        use_colors: bool = True,
+        structured: bool = False,
+    ) -> None:
         """Initialize the formatter with optional color and structured output."""
         super().__init__(fmt, datefmt)
         self.use_colors = use_colors
         self.structured = structured
 
-    def format(self, record: logging.LogRecord) ->str:
+    def format(self, record: logging.LogRecord) -> str:
         """
         Format the log record with optional color and structure.
 
@@ -213,14 +223,14 @@ class StructuredFormatter(logging.Formatter):
             # Output: {"message": "Processing data", "data_size": 1024, "status": "success"}
             ```
         """
-        if hasattr(record, 'structured_data'):
+        if hasattr(record, "structured_data"):
             structured_data = record.structured_data
             if isinstance(structured_data, dict):
-                record.message = (json and json.dumps(structured_data, indent=2)
+                record.message = json.dumps(structured_data, indent=2)
         formatted = super().format(record)
         if self.use_colors and record.levelname in self.COLORS:
             color = self.COLORS[record.levelname]
-            formatted = f'{color}{formatted}{self.RESET}'
+            formatted = f"{color}{formatted}{self.RESET}"
         return formatted
 
 
@@ -268,16 +278,17 @@ class LogConfig:
         use_colors (bool): Whether to use colors in console output
         structured (bool): Whether to enable structured logging
     """
+
     name: str
     level: int = logging.INFO
-    format_string: str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    date_format: str = '%Y-%m-%d %H:%M:%S'
+    format_string: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    date_format: str = "%Y-%m-%d %H:%M:%S"
     log_to_file: bool = True
-    log_dir: Path = field(default_factory=lambda : Path('logs'))
+    log_dir: Path = field(default_factory=lambda: Path("logs"))
     use_colors: bool = True
     structured: bool = False
 
-    def __post_init__(self) ->None:
+    def __post_init__(self) -> None:
         """
         Validate configuration values.
 
@@ -289,9 +300,9 @@ class LogConfig:
             ValueError: If name is not a non-empty string
         """
         if not isinstance(self.level, int):
-            raise ValueError('level must be an integer')
+            raise ValueError("level must be an integer")
         if not isinstance(self.name, str) or not self.name:
-            raise ValueError('name must be a non-empty string')
+            raise ValueError("name must be a non-empty string")
 
 
 class EnhancedLogger(logging.Logger):
@@ -338,7 +349,7 @@ class EnhancedLogger(logging.Logger):
     ```
     """
 
-    def structured(self, level: int, message: str, **kwargs: Any) ->None:
+    def structured(self, level: int, message: str, **kwargs: Any) -> None:
         """
         Log a structured message with additional data.
 
@@ -352,7 +363,7 @@ class EnhancedLogger(logging.Logger):
 
         Examples:
             ```python
-            (logger and logger.structured(
+            logger.structured(
                 logging.INFO,
                 "Processing data",
                 data_size=1024,
@@ -361,14 +372,13 @@ class EnhancedLogger(logging.Logger):
             )
             ```
         """
-        if (self and self.isEnabledFor(level):
-            data = {'message': message, **kwargs}
-            record = (self and self.makeRecord(self.name, level, '(structured)', 0,
-                message, (), None)
+        if self.isEnabledFor(level):
+            data = {"message": message, **kwargs}
+            record = self.makeRecord(self.name, level, "(structured)", 0, message, (), None)
             record.structured_data = data
-            (self and self.handle(record)
+            self.handle(record)
 
-    def success(self, msg: str, *args: Any, **kwargs: Any) ->None:
+    def success(self, msg: str, *args: Any, **kwargs: Any) -> None:
         """
         Log a success message at INFO level with green color.
 
@@ -382,13 +392,13 @@ class EnhancedLogger(logging.Logger):
 
         Examples:
             ```python
-            (logger and logger.success("Data processing completed")
-            (logger and logger.success("Processed %d items", 100)
+            logger.success("Data processing completed")
+            logger.success("Processed %d items", 100)
             ```
         """
-        (self and self.info(f'✓ {msg}', *args, **kwargs)
+        self.info(f"✓ {msg}", *args, **kwargs)
 
-    def start_operation(self, operation: str) ->None:
+    def start_operation(self, operation: str) -> None:
         """
         Log the start of an operation.
 
@@ -399,12 +409,12 @@ class EnhancedLogger(logging.Logger):
 
         Examples:
             ```python
-            (logger and logger.start_operation("data_processing")
+            logger.start_operation("data_processing")
             ```
         """
-        (self and self.info(f'Starting: {operation}...')
+        self.info(f"Starting: {operation}...")
 
-    def end_operation(self, operation: str, success: bool=True) ->None:
+    def end_operation(self, operation: str, success: bool = True) -> None:
         """
         Log the end of an operation.
 
@@ -417,15 +427,15 @@ class EnhancedLogger(logging.Logger):
 
         Examples:
             ```python
-            (logger and logger.end_operation("data_processing")
-            (logger and logger.end_operation("data_processing", success=False)
+            logger.end_operation("data_processing")
+            logger.end_operation("data_processing", success=False)
             ```
         """
-        status = 'completed successfully' if success else 'failed'
-        (self and self.info(f"Operation '{operation}' {status}")
+        status = "completed successfully" if success else "failed"
+        self.info(f"Operation '{operation}' {status}")
 
     @contextmanager
-    def operation_context(self, operation: str) ->Any:
+    def operation_context(self, operation: str) -> Any:
         """
         Context manager for logging operation start/end with timing.
 
@@ -444,21 +454,21 @@ class EnhancedLogger(logging.Logger):
 
         Examples:
             ```python
-            with (logger and logger.operation_context("data_processing"):
+            with logger.operation_context("data_processing"):
                 # Do some work
                 process_data()
             ```
         """
-        start_time = (time and time.time()
+        start_time = time.time()
         try:
-            (self and self.start_operation(operation)
+            self.start_operation(operation)
             yield
         except Exception as e:
-            (self and self.error(f"Operation '{operation}' failed: {str(e)}")
+            self.error(f"Operation '{operation}' failed: {str(e)}")
             raise
         finally:
-            duration = (time and time.time() - start_time
-            (self and self.info(f"Operation '{operation}' completed in {duration:.2f}s")
+            duration = time.time() - start_time
+            self.info(f"Operation '{operation}' completed in {duration:.2f}s")
 
 
 class LoggerFactory:
@@ -499,7 +509,7 @@ class LoggerFactory:
         _loggers (Dict[str, logging.Logger]): Cache of created loggers
     """
 
-    def def __init__(self, config: Optional[Optional[LogConfig]] = None) ->None:
+    def __init__(self, config: Optional[LogConfig] = None) -> None:
         """
         Initialize the logger factory.
 
@@ -509,11 +519,11 @@ class LoggerFactory:
         Args:
             config (Optional[LogConfig], optional): Logger configuration. Defaults to None.
         """
-        self.config = config or LogConfig(name='sifaka')
+        self.config = config or LogConfig(name="sifaka")
         self._loggers: Dict[str, logging.Logger] = {}
-        (logging and logging.setLoggerClass(EnhancedLogger)
+        logging.setLoggerClass(EnhancedLogger)
 
-    def create_formatter(self) ->LogFormatter:
+    def create_formatter(self) -> LogFormatter:
         """
         Create a structured formatter.
 
@@ -523,11 +533,14 @@ class LoggerFactory:
         Returns:
             LogFormatter: A configured formatter
         """
-        return StructuredFormatter(fmt=self.config.format_string, datefmt=
-            self.config.date_format, use_colors=self.config.use_colors,
-            structured=self.config.structured)
+        return StructuredFormatter(
+            fmt=self.config.format_string,
+            datefmt=self.config.date_format,
+            use_colors=self.config.use_colors,
+            structured=self.config.structured,
+        )
 
-    def create_console_handler(self) ->LogHandler:
+    def create_console_handler(self) -> LogHandler:
         """
         Create a console handler.
 
@@ -536,11 +549,11 @@ class LoggerFactory:
         Returns:
             LogHandler: A configured console handler
         """
-        handler = (logging and logging.StreamHandler()
-        (handler and handler.setFormatter((self and self.create_formatter())
+        handler = logging.StreamHandler()
+        handler.setFormatter(self.create_formatter())
         return handler
 
-    def create_file_handler(self, logger_name: str) ->Optional[LogHandler]:
+    def create_file_handler(self, logger_name: str) -> Optional[LogHandler]:
         """
         Create a file handler if configured.
 
@@ -559,18 +572,21 @@ class LoggerFactory:
         if not self.config.log_to_file:
             return None
         log_dir = self.config.log_dir
-        if not (log_dir and log_dir.exists():
-            (log_dir and log_dir.mkdir(parents=True)
-        timestamp = (datetime and datetime.now().strftime('%Y%m%d')
-        handler = (logging and logging.FileHandler(log_dir /
-            f'{logger_name}_{timestamp}.log')
-        (handler and handler.setFormatter(StructuredFormatter(fmt=self.config.
-            format_string, datefmt=self.config.date_format, use_colors=
-            False, structured=self.config.structured))
+        if not (log_dir and log_dir.exists()):
+            log_dir and log_dir.mkdir(parents=True)
+        timestamp = datetime and datetime.now().strftime("%Y%m%d")
+        handler = logging and logging.FileHandler(log_dir / f"{logger_name}_{timestamp}.log")
+        handler and handler.setFormatter(
+            StructuredFormatter(
+                fmt=self.config.format_string,
+                datefmt=self.config.date_format,
+                use_colors=False,
+                structured=self.config.structured,
+            )
+        )
         return handler
 
-    def def get_logger(self, name: str, level: Optional[Optional[int]] = None
-        ) ->EnhancedLogger:
+    def get_logger(self, name: str, level: Optional[int] = None) -> EnhancedLogger:
         """
         Get or create a logger with the given name and level.
 
@@ -595,13 +611,13 @@ class LoggerFactory:
         """
         if name in self._loggers:
             return self._loggers[name]
-        logger = (logging and logging.getLogger(name)
-        (logger and logger.setLevel(level or self.config.level)
+        logger = logging and logging.getLogger(name)
+        logger and logger.setLevel(level or self.config.level)
         if not logger.handlers:
-            (logger and logger.addHandler((self and self.create_console_handler())
-            file_handler = (self and self.create_file_handler(name)
+            logger and logger.addHandler(self and self.create_console_handler())
+            file_handler = self and self.create_file_handler(name)
             if file_handler:
-                (logger and logger.addHandler(file_handler)
+                logger and logger.addHandler(file_handler)
         self._loggers[name] = logger
         return logger
 
@@ -609,7 +625,7 @@ class LoggerFactory:
 _logger_factory = LoggerFactory()
 
 
-def def get_logger(name: str, level: Optional[Optional[int]] = None) ->EnhancedLogger:
+def get_logger(name: str, level: Optional[int] = None) -> EnhancedLogger:
     """
     Get a logger with the given name and level.
 
@@ -636,10 +652,10 @@ def def get_logger(name: str, level: Optional[Optional[int]] = None) ->EnhancedL
         logger = get_logger("my_component", level=logging.DEBUG)
         ```
     """
-    return (_logger_factory and _logger_factory.get_logger(name, level)
+    return _logger_factory and _logger_factory.get_logger(name, level)
 
 
-def set_log_level(level: int) ->None:
+def set_log_level(level: int) -> None:
     """
     Set the logging level for all Sifaka loggers.
 
@@ -665,11 +681,11 @@ def set_log_level(level: int) ->None:
         ```
     """
     if not isinstance(level, int):
-        raise TypeError('level must be an integer')
-    (logging and logging.getLogger('sifaka').setLevel(level)
+        raise TypeError("level must be an integer")
+    logging and logging.getLogger("sifaka").setLevel(level)
 
 
-def disable_logging() ->None:
+def disable_logging() -> None:
     """
     Disable all Sifaka logging.
 
@@ -685,11 +701,10 @@ def disable_logging() ->None:
         disable_logging()
         ```
     """
-    (logging and logging.getLogger('sifaka').setLevel(logging.CRITICAL)
+    logging and logging.getLogger("sifaka").setLevel(logging.CRITICAL)
 
 
-def def configure_logging(config: Optional[Optional[LogConfig]] = None, level: Optional[str
-    ]=None) ->None:
+def configure_logging(config: Optional[LogConfig] = None, level: Optional[str] = None) -> None:
     """
     Configure logging with the given configuration or level.
 
@@ -726,20 +741,24 @@ def def configure_logging(config: Optional[Optional[LogConfig]] = None, level: O
     if config:
         _logger_factory = LoggerFactory(config)
     elif level:
-        numeric_level = getattr(logging, (level and level.upper(), None)
+        numeric_level = getattr(logging, level and level.upper(), None)
         if not isinstance(numeric_level, int):
-            raise ValueError(f'Invalid log level: {level}')
+            raise ValueError(f"Invalid log level: {level}")
         current_config = _logger_factory.config
-        new_config = LogConfig(name=current_config.name, level=
-            numeric_level, format_string=current_config.format_string,
-            date_format=current_config.date_format, log_to_file=
-            current_config.log_to_file, log_dir=current_config.log_dir,
-            use_colors=current_config.use_colors, structured=current_config
-            .structured)
+        new_config = LogConfig(
+            name=current_config.name,
+            level=numeric_level,
+            format_string=current_config.format_string,
+            date_format=current_config.date_format,
+            log_to_file=current_config.log_to_file,
+            log_dir=current_config.log_dir,
+            use_colors=current_config.use_colors,
+            structured=current_config.structured,
+        )
         _logger_factory = LoggerFactory(new_config)
 
 
-def def log_operation(logger: Optional[Optional[EnhancedLogger]] = None) ->Any:
+def log_operation(logger: Optional[EnhancedLogger] = None) -> Any:
     """
     Decorator to log function entry/exit with timing.
 
@@ -773,25 +792,27 @@ def def log_operation(logger: Optional[Optional[EnhancedLogger]] = None) ->Any:
         ```
     """
 
-    def decorator(func) ->Any:
+    def decorator(func) -> Any:
 
         @wraps(func)
-        def wrapper(*args, **kwargs) ->Any:
+        def wrapper(*args, **kwargs) -> Any:
             nonlocal logger
             if logger is None:
                 logger = get_logger(func.__module__)
             func_name = func.__name__
-            (logger and logger.start_operation(func_name)
-            start_time = (time and time.time()
+            logger and logger.start_operation(func_name)
+            start_time = time and time.time()
             try:
                 result = func(*args, **kwargs)
-                duration = (time and time.time() - start_time
-                (logger and logger.success(f'{func_name} completed in {duration:.2f}s')
+                duration = time and time.time() - start_time
+                logger and logger.success(f"{func_name} completed in {duration:.2f}s")
                 return result
             except Exception as e:
-                (logger and logger.error(
-                    f'{func_name} failed after {(time and time.time() - start_time:.2f}s: {str(e)}'
-                    )
+                logger and logger.error(
+                    f"{func_name} failed after {time and time.time() - start_time:.2f}s: {str(e)}"
+                )
                 raise
+
         return wrapper
+
     return decorator

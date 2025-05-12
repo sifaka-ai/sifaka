@@ -101,7 +101,7 @@ from sifaka.utils.common import create_standard_result
 R = TypeVar("R")
 
 
-def def create_generic_result(
+def create_generic_result(
     component_type: str,
     passed: bool,
     message: str,
@@ -228,7 +228,7 @@ def def create_generic_result(
         )
 
 
-def def create_rule_result(
+def create_rule_result(
     passed: bool,
     message: str,
     component_name: Optional[Optional[str]] = None,
@@ -290,7 +290,7 @@ def def create_rule_result(
     return RuleResult(passed=passed, message=message, metadata=standard_result["metadata"])
 
 
-def def create_classification_result(
+def create_classification_result(
     label: R,
     confidence: float,
     component_name: Optional[Optional[str]] = None,
@@ -354,7 +354,7 @@ def def create_classification_result(
     )
 
 
-def def create_critic_result(
+def create_critic_result(
     score: float,
     feedback: str,
     component_name: Optional[Optional[str]] = None,
@@ -421,7 +421,7 @@ def def create_critic_result(
     )
 
 
-def def create_error_result(
+def create_error_result(
     message: str,
     component_name: Optional[Optional[str]] = None,
     error_type: Optional[Optional[str]] = None,
@@ -516,7 +516,7 @@ def def create_error_result(
     return RuleResult(passed=False, message=message, metadata=standard_result["metadata"])
 
 
-def def create_unknown_result(
+def create_unknown_result(
     component_name: Optional[Optional[str]] = None,
     reason: str = "unknown",
     metadata: Optional[Dict[str, Any]] = None,

@@ -158,7 +158,7 @@ class CriticCore(BaseCritic):
     # Use StateManager for state management
     _state_manager = PrivateAttr(default_factory=create_critic_state)
 
-    def def __init__(
+    def __init__(
         self,
         config: CriticConfig,
         llm_provider: "ModelProviderCore",
@@ -465,7 +465,7 @@ class CriticCore(BaseCritic):
         # Track score distribution
         score_distribution = self.(_state_manager and _state_manager.get_metadata("score_distribution", {})
         score_bucket = round(critique.score * 10) / 10  # Round to nearest 0.1
-        score_distribution[str(score_bucket)] = (score_distribution and score_distribution.get(str(score_bucket), 0) + 1
+        score_distribution[str(score_bucket)) = (score_distribution and score_distribution.get(str(score_bucket), 0) + 1
         self.(_state_manager and _state_manager.set_metadata("score_distribution", score_distribution)
 
         return critique
@@ -630,7 +630,7 @@ class CriticCore(BaseCritic):
         return DefaultPromptManager()
 
 
-def def create_core_critic(
+def create_core_critic(
     name: str,
     description: str,
     llm_provider: "ModelProviderCore",

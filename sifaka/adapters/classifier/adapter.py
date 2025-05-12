@@ -55,6 +55,7 @@ The module uses a standardized state management approach:
 - Clear separation of configuration and state
 - Execution tracking for monitoring and debugging
 """
+
 import time
 from typing import Any, Callable, Dict, List, Optional, Protocol, Type, TypeVar, runtime_checkable
 from pydantic import BaseModel, Field, validate_call
@@ -64,8 +65,9 @@ from sifaka.utils.errors.base import ConfigurationError, ValidationError
 from sifaka.adapters.base import BaseAdapter, AdapterError
 from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.logging import get_logger
+
 logger = get_logger(__name__)
-C = TypeVar('C', bound='Classifier')
+C = TypeVar("C", bound="Classifier")
 
 
 @runtime_checkable
@@ -114,21 +116,21 @@ class Classifier(Protocol):
                 return ClassificationResult(
                     label="positive",
                     confidence=0.9,
-                    metadata={"input_length": len(text)}
+                    metadata={"input_length": len(text))
                 )
             else:
                 return ClassificationResult(
                     label="neutral",
                     confidence=0.7,
-                    metadata={"input_length": len(text)}
+                    metadata={"input_length": len(text))
                 )
 
         def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
-            return [(self and self.classify(text) for text in texts]
+            return [(self and self.classify(text) for text in texts)
     ```
     """
 
-    def classify(self, text: str) ->ClassificationResult:
+    def classify(self, text: str) -> ClassificationResult:
         """
         Classify text and return a classification result.
 
@@ -144,7 +146,7 @@ class Classifier(Protocol):
         """
         ...
 
-    def batch_classify(self, texts: List[str]) ->List[ClassificationResult]:
+    def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
         """
         Classify multiple texts and return classification results.
 
@@ -161,7 +163,7 @@ class Classifier(Protocol):
         ...
 
     @property
-    def name(self) ->str:
+    def name(self) -> str:
         """
         Get the classifier name.
 
@@ -171,7 +173,7 @@ class Classifier(Protocol):
         ...
 
     @property
-    def description(self) ->str:
+    def description(self) -> str:
         """
         Get the classifier description.
 
@@ -181,7 +183,7 @@ class Classifier(Protocol):
         ...
 
     @property
-    def config(self) ->Any:
+    def config(self) -> Any:
         """
         Get the classifier configuration.
 
@@ -227,13 +229,15 @@ class ClassifierRuleConfig(BaseModel):
         invalid_labels (Optional[List[str]]): Optional list of invalid labels
         extraction_function (Optional[Callable[[str], str]]): Optional function to extract text to classify
     """
-    threshold: float = Field(0.5, description=
-        'Confidence threshold for accepting a classification', ge=0.0, le=1.0)
-    valid_labels: List[str] = Field(..., description='List of valid labels')
-    invalid_labels: Optional[List[str]] = Field(None, description=
-        'List of invalid labels')
-    extraction_function: Optional[Callable[[str], str]] = Field(None,
-        description='Function to extract text to classify from input')
+
+    threshold: float = Field(
+        0.5, description="Confidence threshold for accepting a classification", ge=0.0, le=1.0
+    )
+    valid_labels: List[str] = Field(..., description="List of valid labels")
+    invalid_labels: Optional[List[str]] = Field(None, description="List of invalid labels")
+    extraction_function: Optional[Callable[[str], str]] = Field(
+        None, description="Function to extract text to classify from input"
+    )
 
 
 class ClassifierRule(Rule):
@@ -292,11 +296,19 @@ class ClassifierRule(Rule):
         severity (str): Severity level of validation failures
     """
 
-    def def __init__(self, classifier: Classifier, threshold: float=0.5,
-        valid_labels: Optional[Optional[List[str]]] = None, invalid_labels: Optional[
-        List[str]]=None, extraction_function: Optional[Callable[[str], str]
-        ]=None, rule_id: Optional[Optional[str]] = None, name: Optional[Optional[str]] = None,
-        description: Optional[Optional[str]] = None, severity: str='error', config: Optional[Optional[RuleConfig]] = None) ->None:
+    def __init__(
+        self,
+        classifier: Classifier,
+        threshold: float = 0.5,
+        valid_labels: Optional[Optional[List[str]]] = None,
+        invalid_labels: Optional[List[str]] = None,
+        extraction_function: Optional[Callable[[str], str]] = None,
+        rule_id: Optional[Optional[str]] = None,
+        name: Optional[Optional[str]] = None,
+        description: Optional[Optional[str]] = None,
+        severity: str = "error",
+        config: Optional[Optional[RuleConfig]] = None,
+    ) -> None:
         """
         Initialize the classifier rule.
 
@@ -316,64 +328,69 @@ class ClassifierRule(Rule):
             ConfigurationError: If configuration is invalid
         """
         if not isinstance(classifier, Classifier):
-            raise TypeError(f'Expected a Classifier, got {type(classifier)}')
+            raise TypeError(f"Expected a Classifier, got {type(classifier)}")
         all_labels = []
-        if hasattr(classifier.config, 'get'):
-            all_labels = classifier.config and config and config and config and config and (config and config.get('labels', [])
-        elif hasattr(classifier.config, 'labels'):
+        if hasattr(classifier.config, "get"):
+            all_labels = classifier.config.get("labels", [])
+        elif hasattr(classifier.config, "labels"):
             all_labels = classifier.config and config.labels
         if valid_labels is None and invalid_labels is None:
-            if config and 'valid_labels' in config and config and config and config.params:
-                valid_labels = config and config and config and config.params['valid_labels']
-            elif config and 'invalid_labels' in config and config and config and config.params:
-                invalid_labels = config and config and config and config.params['invalid_labels']
+            if config and "valid_labels" in config and config and config and config.params:
+                valid_labels = config and config and config and config.params["valid_labels"]
+            elif config and "invalid_labels" in config and config and config and config.params:
+                invalid_labels = config and config and config and config.params["invalid_labels"]
             else:
-                raise ValueError(
-                    'Either valid_labels or invalid_labels must be provided')
+                raise ValueError("Either valid_labels or invalid_labels must be provided")
         if invalid_labels is not None and valid_labels is not None:
-            raise ValueError(
-                'Only one of valid_labels or invalid_labels can be provided')
+            raise ValueError("Only one of valid_labels or invalid_labels can be provided")
         if valid_labels is None and invalid_labels is not None:
-            valid_labels = [label for label in all_labels if label not in
-                invalid_labels]
-        if threshold == 0.5 and config and 'threshold' in config and config and config and config.params:
-            threshold = config and config and config and config.params['threshold']
+            valid_labels = [label for label in all_labels if label not in invalid_labels]
+        if (
+            threshold == 0.5
+            and config
+            and "threshold" in config
+            and config
+            and config
+            and config.params
+        ):
+            threshold = config and config and config and config.params["threshold"]
         if name is None:
-            name = f'{classifier.name} rule'
+            name = f"{classifier.name} rule"
         if description is None:
-            description = (
-                f'Validates that text is classified as one of {valid_labels} with confidence >= {threshold}'
-                )
+            description = f"Validates that text is classified as one of {valid_labels} with confidence >= {threshold}"
         rule_config = config or RuleConfig()
-        rule_config = rule_config and (config.with_params(threshold=threshold,
-            valid_labels=valid_labels, invalid_labels=invalid_labels)
+        rule_config = rule_config.with_params(
+            threshold=threshold, valid_labels=valid_labels, invalid_labels=invalid_labels
+        )
         self._classifier = classifier
-        self._rule_id = rule_id or f'classifier_{classifier.name}'
+        self._rule_id = rule_id or f"classifier_{classifier.name}"
         self._severity = severity
-        self._classifier_config = ClassifierRuleConfig(threshold=threshold,
-            valid_labels=valid_labels, invalid_labels=invalid_labels,
-            extraction_function=extraction_function)
-        super().__init__(name=name, description=description, config=rule_config
-            )
-        self._validator = (self._create_default_validator()
+        self._classifier_config = ClassifierRuleConfig(
+            threshold=threshold,
+            valid_labels=valid_labels,
+            invalid_labels=invalid_labels,
+            extraction_function=extraction_function,
+        )
+        super().__init__(name=name, description=description, config=rule_config)
+        self._validator = self._create_default_validator()
 
     @property
-    def classifier(self) ->Classifier:
+    def classifier(self) -> Classifier:
         """Get the classifier used by this rule."""
         return self._classifier
 
     @property
-    def threshold(self) ->float:
+    def threshold(self) -> float:
         """Get the confidence threshold for this rule."""
-        return self._classifier_config and config and config and config and config and config and config and config and config and config and config.threshold
+        return self._classifier_config.threshold
 
     @property
-    def valid_labels(self) ->List[str]:
+    def valid_labels(self) -> List[str]:
         """Get the valid labels for this rule."""
-        return self._classifier_config and config and config and config and config and config and config and config and config and config.valid_labels
+        return self._classifier_config.valid_labels
 
     @property
-    def rule_id(self) ->str:
+    def rule_id(self) -> str:
         """
         Get the rule ID.
 
@@ -383,7 +400,7 @@ class ClassifierRule(Rule):
         return self._rule_id
 
     @property
-    def severity(self) ->str:
+    def severity(self) -> str:
         """
         Get the rule severity.
 
@@ -392,7 +409,7 @@ class ClassifierRule(Rule):
         """
         return self._severity
 
-    def _validate_text(self, text_to_classify: str) ->RuleResult:
+    def _validate_text(self, text_to_classify: str) -> RuleResult:
         """
         Internal method to validate text using the classifier.
 
@@ -405,35 +422,35 @@ class ClassifierRule(Rule):
         Raises:
             Exception: Any exception from the classifier is caught by the caller
         """
-        result = self.(_classifier.classify(text_to_classify)
+        result = self._classifier.classify(text_to_classify)
         label = result.label
         confidence = result.confidence
-        is_valid_label = label in self._classifier_config and config and config and config and config and config and config and config and config and config.valid_labels
-        passed = (is_valid_label and confidence >= self._classifier_config.
-            threshold)
-        metadata = {'label': label, 'confidence': confidence, 'threshold':
-            self._classifier_config and config and config and config and config and config and config and config and config and config and config.threshold, 'valid_labels': self.
-            _classifier_config and config and config and config and config and config and config and config and config and config.valid_labels, 'classification_result': {
-            'label': result.label, 'confidence': result.confidence,
-            'metadata': getattr(result, 'metadata', {})}, 'rule_id': self.
-            _rule_id, 'severity': self._severity}
+        is_valid_label = label in self._classifier_config.valid_labels
+        passed = is_valid_label and confidence >= self._classifier_config.threshold
+        metadata = {
+            "label": label,
+            "confidence": confidence,
+            "threshold": self._classifier_config.threshold,
+            "valid_labels": self._classifier_config.valid_labels,
+            "classification_result": {
+                "label": result.label,
+                "confidence": result.confidence,
+                "metadata": getattr(result, "metadata", {}),
+            },
+            "rule_id": self._rule_id,
+            "severity": self._severity,
+        }
         if passed:
-            message = (
-                f"Classified as '{label}' with confidence {confidence:.2f}, which is >= threshold {self._classifier_config and config and config and config and config and config and config and config and config and config and config.threshold} and in valid labels"
-                )
+            message = f"Classified as '{label}' with confidence {confidence:.2f}, which is >= threshold {self._classifier_config.threshold} and in valid labels"
         elif not is_valid_label:
-            message = (
-                f"Classified as '{label}' which is not in valid labels {self._classifier_config and config and config and config and config and config and config and config and config and config.valid_labels}"
-                )
-            metadata['errors'] = [message]
+            message = f"Classified as '{label}' which is not in valid labels {self._classifier_config.valid_labels}"
+            metadata["errors"] = [message]
         else:
-            message = (
-                f"Classified as '{label}' with confidence {confidence:.2f}, which is < threshold {self._classifier_config and config and config and config and config and config and config and config and config and config and config.threshold}"
-                )
-            metadata['errors'] = [message]
+            message = f"Classified as '{label}' with confidence {confidence:.2f}, which is < threshold {self._classifier_config.threshold}"
+            metadata["errors"] = [message]
         return RuleResult(passed=passed, message=message, metadata=metadata)
 
-    def validate(self, input_text: str, **kwargs) ->RuleResult:
+    def validate(self, input_text: str, **kwargs) -> RuleResult:
         """
         Validate input text using the classifier.
 
@@ -454,24 +471,34 @@ class ClassifierRule(Rule):
             ValidationError: If validation fails due to an error
         """
         from sifaka.utils.text import handle_empty_text
-        empty_result = handle_empty_text(input_text, passed=True, metadata=
-            {'rule_id': self._rule_id, 'severity': self._severity},
-            component_type='adapter')
+
+        empty_result = handle_empty_text(
+            input_text,
+            passed=True,
+            metadata={"rule_id": self._rule_id, "severity": self._severity},
+            component_type="adapter",
+        )
         if empty_result:
             return empty_result
         text_to_classify = input_text
-        if self._classifier_config and config and config and config and config.extraction_function:
-            text_to_classify = self._classifier_config and config and config and config and (config.extraction_function(
-                input_text)
+        if self._classifier_config.extraction_function:
+            text_to_classify = self._classifier_config.extraction_function(input_text)
         try:
-            return (self._validate_text(text_to_classify)
+            return self._validate_text(text_to_classify)
         except Exception as e:
-            error_message = f'Classification error: {str(e)}'
-            return RuleResult(passed=False, message=error_message, metadata
-                ={'error_type': type(e).__name__, 'rule_id': self._rule_id,
-                'severity': self._severity, 'errors': [error_message]})
+            error_message = f"Classification error: {str(e)}"
+            return RuleResult(
+                passed=False,
+                message=error_message,
+                metadata={
+                    "error_type": type(e).__name__,
+                    "rule_id": self._rule_id,
+                    "severity": self._severity,
+                    "errors": [error_message],
+                },
+            )
 
-    def _create_default_validator(self) ->Any:
+    def _create_default_validator(self) -> Any:
         """Create a default validator for this rule.
 
         This method is required by the Rule abstract base class.
@@ -480,18 +507,19 @@ class ClassifierRule(Rule):
             A validator that uses the classifier for validation
         """
 
-
         class ClassifierValidator:
 
-            def __init__(self, rule: ClassifierRule) ->None:
+            def __init__(self, rule: ClassifierRule) -> None:
                 self._rule = rule
 
-            def validate(self, input_text: str, **kwargs) ->RuleResult:
+            def validate(self, input_text: str, **kwargs) -> RuleResult:
                 from sifaka.utils.text import handle_empty_text
+
                 empty_result = handle_empty_text(input_text)
                 if empty_result:
                     return empty_result
-                return self.(_rule._validate_text(input_text)
+                return self._rule._validate_text(input_text)
+
         return ClassifierValidator(self)
 
 
@@ -575,10 +603,14 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         extraction_function (Optional[Callable[[str], str]]): Optional function to extract text for classification
     """
 
-    def def __init__(self, classifier: Classifier, threshold: float=0.5,
-        valid_labels: Optional[Optional[List[str]]] = None, invalid_labels: Optional[
-        List[str]]=None, extraction_function: Optional[Callable[[str], str]
-        ]=None) ->None:
+    def __init__(
+        self,
+        classifier: Classifier,
+        threshold: float = 0.5,
+        valid_labels: Optional[Optional[List[str]]] = None,
+        invalid_labels: Optional[List[str]] = None,
+        extraction_function: Optional[Callable[[str], str]] = None,
+    ) -> None:
         """
         Initialize the classifier adapter.
 
@@ -616,26 +648,27 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         """
         try:
             super().__init__(classifier)
-            state = self.(_state_manager.get_state()
-            config = ClassifierRuleConfig(threshold=threshold, valid_labels
-                =valid_labels if valid_labels is not None else [],
-                invalid_labels=invalid_labels, extraction_function=
-                extraction_function)
-            state.config_cache['classifier_config'] = config
-            self.(_state_manager and _state_manager.set_metadata('adapter_type', 'classifier')
-            self.(_state_manager.set_metadata('classifier_type', classifier.
-                __class__.__name__)
-            (logger and logger.debug(f'Initialized ClassifierAdapter for {classifier.name}'
-                )
+            state = self._state_manager.get_state()
+            config = ClassifierRuleConfig(
+                threshold=threshold,
+                valid_labels=valid_labels if valid_labels is not None else [],
+                invalid_labels=invalid_labels,
+                extraction_function=extraction_function,
+            )
+            state.config_cache["classifier_config"] = config
+            self._state_manager.set_metadata("adapter_type", "classifier")
+            self._state_manager.set_metadata("classifier_type", classifier.__class__.__name__)
+            logger.debug(f"Initialized ClassifierAdapter for {classifier.name}")
         except Exception as e:
-            error_info = handle_error(e,
-                f"ClassifierAdapter:{getattr(classifier, 'name', 'unknown')}")
+            error_info = handle_error(
+                e, f"ClassifierAdapter:{getattr(classifier, 'name', 'unknown')}"
+            )
             raise AdapterError(
-                f'Failed to initialize ClassifierAdapter: {str(e)}',
-                metadata=error_info) from e
+                f"Failed to initialize ClassifierAdapter: {str(e)}", metadata=error_info
+            ) from e
 
     @property
-    def config(self) ->ClassifierRuleConfig:
+    def config(self) -> ClassifierRuleConfig:
         """
         Get the adapter configuration.
 
@@ -650,11 +683,10 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
             print(f"Valid labels: {config and config and config and config and config and config and config and config and config and config.valid_labels}")
             ```
         """
-        return self.(_state_manager.get_state().config_cache['classifier_config'
-            ]
+        return self._state_manager.get_state().config_cache["classifier_config"]
 
     @property
-    def classifier(self) ->Classifier:
+    def classifier(self) -> Classifier:
         """
         Get the classifier being adapted.
 
@@ -671,7 +703,7 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         return self.adaptee
 
     @property
-    def valid_labels(self) ->List[str]:
+    def valid_labels(self) -> List[str]:
         """
         Get the valid labels for this adapter.
 
@@ -684,10 +716,10 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
             print(f"Valid labels: {adapter.valid_labels}")
             ```
         """
-        return self.config and config and config and config and config and config and config and config and config and config.valid_labels
+        return self.config.valid_labels
 
     @property
-    def threshold(self) ->float:
+    def threshold(self) -> float:
         """
         Get the confidence threshold for this adapter.
 
@@ -700,9 +732,9 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
             print(f"Confidence threshold: {adapter.threshold}")
             ```
         """
-        return self.config and config and config and config and config and config and config and config and config and config and config.threshold
+        return self.config.threshold
 
-    def _validate_impl(self, input_value: str, **kwargs) ->RuleResult:
+    def _validate_impl(self, input_value: str, **kwargs) -> RuleResult:
         """
         Implementation of validation logic for the classifier adapter.
 
@@ -719,47 +751,45 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
             ValidationError: If validation fails due to an error
             AdapterError: If adapter-specific error occurs
         """
-        state = self.(_state_manager.get_state()
+        state = self._state_manager.get_state()
         config = self.config
         text_to_classify = input_value
-        if config and config and config and config and config.extraction_function:
-            text_to_classify = config and config and config and config and (config.extraction_function(input_value)
-        cache_key = (self._get_cache_key(text_to_classify, kwargs)
+        if config.extraction_function:
+            text_to_classify = config.extraction_function(input_value)
+        cache_key = self._get_cache_key(text_to_classify, kwargs)
         if cache_key and cache_key in state.cache:
             cached_result = state.cache[cache_key]
-            (logger.debug(f'Cache hit for classifier {self.classifier.name}')
-            return RuleResult(passed=cached_result['passed'], message=
-                cached_result['message'], metadata=cached_result['metadata'])
-        result = self.(classifier.classify(text_to_classify)
+            logger.debug(f"Cache hit for classifier {self.classifier.name}")
+            return RuleResult(
+                passed=cached_result["passed"],
+                message=cached_result["message"],
+                metadata=cached_result["metadata"],
+            )
+        result = self.classifier.classify(text_to_classify)
         label = result.label
         confidence = result.confidence
-        is_valid_label = label in config and config and config and config and config and config and config and config and config and config.valid_labels
-        passed = is_valid_label and confidence >= config and config and config and config and config and config and config and config and config and config and config.threshold
-        metadata = {'label': label, 'confidence': confidence, 'threshold':
-            config and config and config and config and config and config and config and config and config and config and config.threshold, 'valid_labels': config and config and config and config and config and config and config and config and config and config.valid_labels,
-            'adaptee_name': self.classifier.name, 'classification_time':
-            (time.time()}
+        is_valid_label = label in config.valid_labels
+        passed = is_valid_label and confidence >= config.threshold
+        metadata = {
+            "label": label,
+            "confidence": confidence,
+            "threshold": config.threshold,
+            "valid_labels": config.valid_labels,
+            "adaptee_name": self.classifier.name,
+            "classification_time": time.time(),
+        }
         if passed:
-            message = (
-                f"Classified as '{label}' with confidence {confidence:.2f}, which is >= threshold {config and config and config and config and config and config and config and config and config and config and config.threshold} and in valid labels"
-                )
+            message = f"Classified as '{label}' with confidence {confidence:.2f}, which is >= threshold {config.threshold} and in valid labels"
         elif not is_valid_label:
-            message = (
-                f"Classified as '{label}' which is not in valid labels {config and config and config and config and config and config and config and config and config and config.valid_labels}"
-                )
+            message = f"Classified as '{label}' which is not in valid labels {config.valid_labels}"
         else:
-            message = (
-                f"Classified as '{label}' with confidence {confidence:.2f}, which is < threshold {config and config and config and config and config and config and config and config and config and config and config.threshold}"
-                )
-        result_obj = RuleResult(passed=passed, message=message, metadata=
-            metadata)
-        if cache_key and (kwargs.get('cache_result', True):
-            state.cache[cache_key] = {'passed': passed, 'message': message,
-                'metadata': metadata}
+            message = f"Classified as '{label}' with confidence {confidence:.2f}, which is < threshold {config.threshold}"
+        result_obj = RuleResult(passed=passed, message=message, metadata=metadata)
+        if cache_key and kwargs.get("cache_result", True):
+            state.cache[cache_key] = {"passed": passed, "message": message, "metadata": metadata}
         return result_obj
 
-    def _get_cache_key(self, input_value: str, kwargs: Dict[str, Any]
-        ) ->Optional[str]:
+    def _get_cache_key(self, input_value: str, kwargs: Dict[str, Any]) -> Optional[str]:
         """
         Generate a cache key for the input value and kwargs.
 
@@ -770,31 +800,44 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         Returns:
             Optional[str]: Cache key or None if caching is disabled
         """
-        if (kwargs.get('cache_result', True):
-            threshold = (kwargs.get('threshold', self.threshold)
-            return f'{hash(input_value)}:{threshold}'
+        if kwargs.get("cache_result", True):
+            threshold = kwargs.get("threshold", self.threshold)
+            return f"{hash(input_value)}:{threshold}"
         return None
 
-    def get_detailed_statistics(self) ->Dict[str, Any]:
+    def get_detailed_statistics(self) -> Dict[str, Any]:
         """
         Get detailed statistics about adapter usage.
 
         Returns:
             Dict[str, Any]: Dictionary with detailed usage statistics
         """
-        stats = (self.get_statistics()
-        (stats.update({'threshold': self.threshold, 'valid_labels': self.
-            valid_labels, 'classifier_name': self.classifier.name,
-            'classifier_type': self.(_state_manager.get_metadata(
-            'classifier_type', 'unknown')})
+        stats = self.get_statistics()
+        stats.update(
+            {
+                "threshold": self.threshold,
+                "valid_labels": self.valid_labels,
+                "classifier_name": self.classifier.name,
+                "classifier_type": self._state_manager.get_metadata("classifier_type", "unknown"),
+            }
+        )
         return stats
 
 
 @validate_call(config=dict(arbitrary_types_allowed=True))
-def def create_classifier_rule(classifier: Classifier, threshold: float=0.5,
-    valid_labels: Optional[Optional[List[str]]] = None, invalid_labels: Optional[List[
-    str]]=None, extraction_function: Optional[Callable[[str], str]]=None,
-    rule_id: Optional[Optional[str]] = None, name: Optional[Optional[str]] = None, description: Optional[Optional[str]] = None, severity: str='error', config: Optional[Optional[RuleConfig]] = None, **kwargs: Any) ->ClassifierRule:
+def create_classifier_rule(
+    classifier: Classifier,
+    threshold: float = 0.5,
+    valid_labels: Optional[Optional[List[str]]] = None,
+    invalid_labels: Optional[List[str]] = None,
+    extraction_function: Optional[Callable[[str], str]] = None,
+    rule_id: Optional[Optional[str]] = None,
+    name: Optional[Optional[str]] = None,
+    description: Optional[Optional[str]] = None,
+    severity: str = "error",
+    config: Optional[Optional[RuleConfig]] = None,
+    **kwargs: Any,
+) -> ClassifierRule:
     """
     Factory function to create a classifier rule.
 
@@ -838,23 +881,40 @@ def def create_classifier_rule(classifier: Classifier, threshold: float=0.5,
     ```
     """
     from sifaka.utils import standardize_rule_config
-    rule_params = {'threshold': threshold, 'valid_labels': valid_labels,
-        'invalid_labels': invalid_labels, 'extraction_function':
-        extraction_function}
-    rule_config = standardize_rule_config(config=config, params=rule_params,
-        **kwargs)
-    return ClassifierRule(classifier=classifier, threshold=threshold,
-        valid_labels=valid_labels, invalid_labels=invalid_labels,
-        extraction_function=extraction_function, rule_id=rule_id, name=name,
-        description=description, severity=severity, config=rule_config)
+
+    rule_params = {
+        "threshold": threshold,
+        "valid_labels": valid_labels,
+        "invalid_labels": invalid_labels,
+        "extraction_function": extraction_function,
+    }
+    rule_config = standardize_rule_config(config=config, params=rule_params, **kwargs)
+    return ClassifierRule(
+        classifier=classifier,
+        threshold=threshold,
+        valid_labels=valid_labels,
+        invalid_labels=invalid_labels,
+        extraction_function=extraction_function,
+        rule_id=rule_id,
+        name=name,
+        description=description,
+        severity=severity,
+        config=rule_config,
+    )
 
 
-def def create_classifier_adapter(classifier: Classifier, threshold: float=0.5,
-    valid_labels: Optional[Optional[List[str]]] = None, invalid_labels: Optional[List[
-    str]]=None, extraction_function: Optional[Callable[[str], str]]=None,
-    name: Optional[Optional[str]] = None, description: Optional[Optional[str]] = None, initialize:
-    bool=True, config: Optional[Dict[str, Any]]=None, **kwargs: Any
-    ) ->ClassifierAdapter:
+def create_classifier_adapter(
+    classifier: Classifier,
+    threshold: float = 0.5,
+    valid_labels: Optional[Optional[List[str]]] = None,
+    invalid_labels: Optional[List[str]] = None,
+    extraction_function: Optional[Callable[[str], str]] = None,
+    name: Optional[Optional[str]] = None,
+    description: Optional[Optional[str]] = None,
+    initialize: bool = True,
+    config: Optional[Dict[str, Any]] = None,
+    **kwargs: Any,
+) -> ClassifierAdapter:
     """
     Factory function to create a classifier adapter.
 
@@ -924,37 +984,40 @@ def def create_classifier_adapter(classifier: Classifier, threshold: float=0.5,
     """
     try:
         if not isinstance(classifier, Classifier):
-            raise ValueError(f'Expected a Classifier, got {type(classifier)}')
+            raise ValueError(f"Expected a Classifier, got {type(classifier)}")
         if config:
-            threshold = config and config and config and config and config and (config.get('threshold', threshold)
-            valid_labels = config and config and config and config and config and (config.get('valid_labels', valid_labels)
-            invalid_labels = config and config and config and config and config and (config.get('invalid_labels', invalid_labels)
-            extraction_function = config and config and config and config and config and (config.get('extraction_function',
-                extraction_function)
-        threshold = (kwargs.get('threshold', threshold)
-        valid_labels = (kwargs.get('valid_labels', valid_labels)
-        invalid_labels = (kwargs.get('invalid_labels', invalid_labels)
-        extraction_function = (kwargs.get('extraction_function',
-            extraction_function)
-        adapter = ClassifierAdapter(classifier=classifier, threshold=
-            threshold, valid_labels=valid_labels, invalid_labels=
-            invalid_labels, extraction_function=extraction_function)
+            threshold = config.get("threshold", threshold)
+            valid_labels = config.get("valid_labels", valid_labels)
+            invalid_labels = config.get("invalid_labels", invalid_labels)
+            extraction_function = config.get("extraction_function", extraction_function)
+        threshold = kwargs.get("threshold", threshold)
+        valid_labels = kwargs.get("valid_labels", valid_labels)
+        invalid_labels = kwargs.get("invalid_labels", invalid_labels)
+        extraction_function = kwargs.get("extraction_function", extraction_function)
+        adapter = ClassifierAdapter(
+            classifier=classifier,
+            threshold=threshold,
+            valid_labels=valid_labels,
+            invalid_labels=invalid_labels,
+            extraction_function=extraction_function,
+        )
         if name:
-            adapter.(_state_manager.set_metadata('name', name)
+            adapter._state_manager.set_metadata("name", name)
         if description:
-            adapter.(_state_manager.set_metadata('description', description)
+            adapter._state_manager.set_metadata("description", description)
         if initialize:
-            (adapter.warm_up()
-        (logger.debug(f'Created ClassifierAdapter for {classifier.name}')
+            adapter.warm_up()
+        logger.debug(f"Created ClassifierAdapter for {classifier.name}")
         return adapter
     except Exception as e:
         if isinstance(e, (ValueError, AdapterError)):
             raise
-        error_info = handle_error(e,
-            f"ClassifierAdapterFactory:{getattr(classifier, 'name', 'unknown')}"
-            )
-        raise AdapterError(f'Failed to create classifier adapter: {str(e)}',
-            metadata=error_info) from e
+        error_info = handle_error(
+            e, f"ClassifierAdapterFactory:{getattr(classifier, 'name', 'unknown')}"
+        )
+        raise AdapterError(
+            f"Failed to create classifier adapter: {str(e)}", metadata=error_info
+        ) from e
 
 
 ClassifierType = Type[Classifier]

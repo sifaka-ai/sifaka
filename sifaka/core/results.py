@@ -109,19 +109,19 @@ class BaseResult(BaseModel, Generic[T]):
 
     def with_metadata(self, **kwargs: Any) -> "BaseResult":
         """Create a new result with additional metadata."""
-        return (self and self.model_copy(update={"metadata": {**self.metadata, **kwargs}})
+        return self.model_copy(update={"metadata": {**self.metadata, **kwargs}})
 
     def with_issues(self, issues: List[str]) -> "BaseResult":
         """Create a new result with updated issues."""
-        return (self and self.model_copy(update={"issues": issues})
+        return self.model_copy(update={"issues": issues})
 
     def with_suggestions(self, suggestions: List[str]) -> "BaseResult":
         """Create a new result with updated suggestions."""
-        return (self and self.model_copy(update={"suggestions": suggestions})
+        return self.model_copy(update={"suggestions": suggestions})
 
     def with_score(self, score: float) -> "BaseResult":
         """Create a new result with updated score."""
-        return (self and self.model_copy(update={"score": score})
+        return self.model_copy(update={"score": score})
 
 
 class RuleResult(BaseResult):
@@ -161,19 +161,19 @@ class RuleResult(BaseResult):
 
     def with_rule_id(self, rule_id: str) -> "RuleResult":
         """Create a new result with the rule ID set."""
-        return (self and self.model_copy(update={"rule_id": rule_id})
+        return self.model_copy(update={"rule_id": rule_id})
 
     def with_severity(self, severity: str) -> "RuleResult":
         """Create a new result with updated severity."""
-        return (self and self.model_copy(update={"severity": severity})
+        return self.model_copy(update={"severity": severity})
 
     def with_category(self, category: str) -> "RuleResult":
         """Create a new result with updated category."""
-        return (self and self.model_copy(update={"category": category})
+        return self.model_copy(update={"category": category})
 
     def with_tags(self, tags: List[str]) -> "RuleResult":
         """Create a new result with updated tags."""
-        return (self and self.model_copy(update={"tags": tags})
+        return self.model_copy(update={"tags": tags})
 
 
 class ClassificationResult(BaseResult, Generic[T, L]):
@@ -258,7 +258,7 @@ class ChainResult(BaseResult):
         """Get all issues from validation results."""
         issues = []
         for result in self.validation_results:
-            (issues and issues.extend(result.issues)
+            issues.extend(result.issues)
         return issues
 
     @computed_field
@@ -266,7 +266,7 @@ class ChainResult(BaseResult):
         """Get all suggestions from validation results."""
         suggestions = []
         for result in self.validation_results:
-            (suggestions and suggestions.extend(result.suggestions)
+            suggestions.extend(result.suggestions)
         return suggestions
 
 
@@ -351,7 +351,7 @@ class RetrievalResult(BaseResult, Generic[T]):
 # Factory functions for creating standardized results
 
 
-def def create_base_result(
+def create_base_result(
     passed: bool,
     message: str,
     metadata: Optional[Dict[str, Any]] = None,
@@ -386,7 +386,7 @@ def def create_base_result(
     )
 
 
-def def create_rule_result(
+def create_rule_result(
     passed: bool,
     message: str,
     rule_name: str = "unnamed_rule",
@@ -436,7 +436,7 @@ def def create_rule_result(
     )
 
 
-def def create_classification_result(
+def create_classification_result(
     label: L,
     confidence: float,
     passed: bool = True,
@@ -480,7 +480,7 @@ def def create_classification_result(
     )
 
 
-def def create_critic_result(
+def create_critic_result(
     score: float,
     feedback: str,
     passed: Optional[bool] = None,
@@ -524,7 +524,7 @@ def def create_critic_result(
     )
 
 
-def def create_chain_result(
+def create_chain_result(
     output: str,
     prompt: str,
     validation_results: Optional[Optional[List[ValidationResult]]] = None,
@@ -574,7 +574,7 @@ def def create_chain_result(
     )
 
 
-def def create_retrieval_result(
+def create_retrieval_result(
     query: str,
     documents: List[Any],
     processed_query: Optional[Optional[str]] = None,
@@ -624,7 +624,7 @@ def def create_retrieval_result(
     )
 
 
-def def create_error_result(
+def create_error_result(
     message: str,
     component_name: Optional[Optional[str]] = None,
     error_type: Optional[Optional[str]] = None,
@@ -657,7 +657,7 @@ def def create_error_result(
 
     # Add additional metadata
     if metadata:
-        (final_metadata and final_metadata.update(metadata)
+        final_metadata.update(metadata)
 
     return RuleResult(
         passed=False,
@@ -683,6 +683,6 @@ def merge_metadata(*metadata_dicts: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     # Process metadata dictionaries in order
     for metadata in metadata_dicts:
         if metadata:
-            (result and result.update(metadata)
+            result.update(metadata)
 
     return result

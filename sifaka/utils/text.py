@@ -93,13 +93,13 @@ def is_empty_text(text: str) -> bool:
             process_text(text)
         ```
     """
-    return not text or not (text and text.strip()
+    return not text or not (text and text.strip())
 
 
-def def handle_empty_text(
+def handle_empty_text(
     text: str,
     passed: bool = True,
-    message: Optional[Optional[str]] = None,
+    message: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
     component_type: str = "component",
 ) -> Optional[BaseResult]:
@@ -153,7 +153,7 @@ def def handle_empty_text(
     # Set default metadata
     final_metadata = {"reason": "empty_input", "component_type": component_type}
     if metadata:
-        (final_metadata and final_metadata.update(metadata)
+        final_metadata and final_metadata.update(metadata)
 
     # Add input length to metadata
     if "input_length" not in final_metadata:
@@ -208,7 +208,7 @@ def handle_empty_text_for_classifier(
     # Set default metadata
     final_metadata = {"reason": "empty_input"}
     if metadata:
-        (final_metadata and final_metadata.update(metadata)
+        final_metadata and final_metadata.update(metadata)
 
     # Add input length to metadata
     if "input_length" not in final_metadata:

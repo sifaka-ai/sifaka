@@ -130,7 +130,7 @@ class StyleRule(Rule[str]):
     ```
     """
 
-    def def __init__(self, name: str='style_rule', description: str=
+    def __init__(self, name: str='style_rule', description: str=
         'Validates text style', config: Optional[Optional[RuleConfig]] = None,
         validator: Optional[Optional[StyleValidator]] = None, **kwargs) ->None:
         """
@@ -271,7 +271,7 @@ class FormattingRule(Rule[str]):
     ```
     """
 
-    def def __init__(self, name: str='formatting_rule', description: str=
+    def __init__(self, name: str='formatting_rule', description: str=
         'Validates text formatting', config: Optional[Optional[RuleConfig]] = None,
         validator: Optional[Optional[FormattingValidator]] = None, **kwargs) ->None:
         """

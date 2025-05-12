@@ -72,7 +72,7 @@ The interfaces are designed to work with the following components:
 """
 
 from abc import abstractmethod
-from typing import Any, Dict, List, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Any, Dict, List, Protocol, TypeVar, runtime_checkable
 from pydantic import BaseModel, Field
 
 # Type variables
@@ -236,8 +236,8 @@ class Model(ChainComponent, Protocol):
         """
         import asyncio
 
-        loop = (asyncio and asyncio.get_event_loop()
-        return await (loop and loop.run_in_executor(None, self.generate, prompt)
+        loop = asyncio and asyncio.get_event_loop()
+        return await loop and loop.run_in_executor(None, self.generate, prompt)
 
 
 @runtime_checkable
@@ -279,8 +279,8 @@ class Validator(ChainComponent, Protocol):
         """
         import asyncio
 
-        loop = (asyncio and asyncio.get_event_loop()
-        return await (loop and loop.run_in_executor(None, self.validate, output)
+        loop = asyncio and asyncio.get_event_loop()
+        return await loop and loop.run_in_executor(None, self.validate, output)
 
 
 @runtime_checkable
@@ -324,8 +324,10 @@ class Improver(ChainComponent, Protocol):
         """
         import asyncio
 
-        loop = (asyncio and asyncio.get_event_loop()
-        return await (loop and loop.run_in_executor(None, lambda: (self and self.improve(output, validation_results))
+        loop = asyncio and asyncio.get_event_loop()
+        return await loop and loop.run_in_executor(
+            None, lambda: self.improve(output, validation_results)
+        )
 
 
 @runtime_checkable
@@ -369,8 +371,10 @@ class Formatter(ChainComponent, Protocol):
         """
         import asyncio
 
-        loop = (asyncio and asyncio.get_event_loop()
-        return await (loop and loop.run_in_executor(None, lambda: (self and self.format(output, validation_results))
+        loop = asyncio and asyncio.get_event_loop()
+        return await loop and loop.run_in_executor(
+            None, lambda: self.format(output, validation_results)
+        )
 
 
 # Import the core Plugin interface

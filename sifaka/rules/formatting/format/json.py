@@ -364,7 +364,7 @@ class JsonRule(BaseRule[str]):
         ```
     """
 
-    def def __init__(
+    def __init__(
         self,
         name: str,
         description: str,
@@ -410,7 +410,7 @@ class JsonRule(BaseRule[str]):
         return DefaultJsonValidator(self._json_config or JsonConfig())
 
 
-def def create_json_rule(
+def create_json_rule(
     strict: Optional[bool] = None,
     allow_empty: Optional[bool] = None,
     name: str = "json_rule",

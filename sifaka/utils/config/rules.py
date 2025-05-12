@@ -28,7 +28,7 @@ config = RuleConfig(
 
 # Access configuration values
 print(f"Priority: {config.priority}")
-print(f"Min length: {config.(params and params.get('min_length')}")
+print(f"Min length: {config.(params and params.get('min_length'))")
 
 # Use standardization function
 config = standardize_rule_config(
@@ -129,7 +129,7 @@ class RuleConfig(BaseConfig):
     # Access configuration values
     print(f"Name: {config.name}")
     print(f"Priority: {config.priority}")
-    print(f"Min length: {config.(params and params.get('min_length')}")
+    print(f"Min length: {config.(params and params.get('min_length'))")
 
     # Create a new configuration with updated options
     updated_config = (config and config.with_options(priority=RulePriority.MEDIUM)
@@ -241,7 +241,7 @@ def standardize_rule_config(config: Optional[Union[Dict[str, Any],
             params=final_params, **kwargs))
     elif isinstance(config, RuleConfig):
         (final_params and final_params.update(config.params)
-        config_dict = {**(config and config.model_dump(), 'params': final_params, **kwargs}
+        config_dict = {**(config and config.model_dump(), 'params': final_params, **kwargs)
         return cast(T, config_class(**config_dict))
     else:
         if 'priority' in kwargs and isinstance(kwargs['priority'], str):

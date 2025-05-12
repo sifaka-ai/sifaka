@@ -16,7 +16,7 @@ from typing import Any, Dict, Optional
 from ..logging import get_logger
 
 
-def def configure_error_logging(
+def configure_error_logging(
     log_level: str = "ERROR",
     include_traceback: bool = True,
     log_format: Optional[Optional[str]] = None,

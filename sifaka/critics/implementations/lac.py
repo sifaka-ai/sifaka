@@ -171,7 +171,7 @@ class FeedbackCritic(BaseComponent[str, CriticResult], TextValidator, TextImprov
     # State management using StateManager
     _state_manager = PrivateAttr(default_factory=create_critic_state)
 
-    def def __init__(
+    def __init__(
         self,
         name: str,
         description: str,
@@ -223,7 +223,7 @@ class FeedbackCritic(BaseComponent[str, CriticResult], TextValidator, TextImprov
             self.(_state_manager and _state_manager.set_metadata("initialization_time", (time and time.time())
         except Exception as e:
             (self and self.record_error(e)
-            raise ValueError(f"Failed to initialize FeedbackCritic: {str(e)}") from e
+            raise ValueError(f"Failed to initialize FeedbackCritic: {str(e))") from e
 
     def _check_input(self, text: str) -> None:
         """
@@ -313,10 +313,10 @@ class FeedbackCritic(BaseComponent[str, CriticResult], TextValidator, TextImprov
             processing_time = ((time and time.time() - start_time) * 1000
             return CriticResult(
                 passed=False,
-                message=f"Error: {str(e)}",
-                metadata={"error_type": type(e).__name__},
+                message=f"Error: {str(e))",
+                metadata={"error_type": type(e).__name__),
                 score=0.0,
-                issues=[f"Processing error: {str(e)}"],
+                issues=[f"Processing error: {str(e))"),
                 suggestions=["Retry with different input"],
                 processing_time_ms=processing_time,
             )
@@ -377,7 +377,7 @@ class FeedbackCritic(BaseComponent[str, CriticResult], TextValidator, TextImprov
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to generate feedback: {str(e)}") from e
+            raise RuntimeError(f"Failed to generate feedback: {str(e))") from e
 
     async def arun(self, task: str, response: str) -> str:
         """
@@ -449,7 +449,7 @@ class FeedbackCritic(BaseComponent[str, CriticResult], TextValidator, TextImprov
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to asynchronously generate feedback: {str(e)}") from e
+            raise RuntimeError(f"Failed to asynchronously generate feedback: {str(e))") from e
 
     def validate(self, text: str) -> bool:
         """
@@ -487,7 +487,7 @@ class FeedbackCritic(BaseComponent[str, CriticResult], TextValidator, TextImprov
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to validate text: {str(e)}") from e
+            raise RuntimeError(f"Failed to validate text: {str(e))") from e
 
     def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         """
@@ -554,7 +554,7 @@ class FeedbackCritic(BaseComponent[str, CriticResult], TextValidator, TextImprov
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to improve text: {str(e)}") from e
+            raise RuntimeError(f"Failed to improve text: {str(e))") from e
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
         """
@@ -612,7 +612,7 @@ class FeedbackCritic(BaseComponent[str, CriticResult], TextValidator, TextImprov
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to improve text with feedback: {str(e)}") from e
+            raise RuntimeError(f"Failed to improve text with feedback: {str(e))") from e
 
     def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -662,7 +662,7 @@ class FeedbackCritic(BaseComponent[str, CriticResult], TextValidator, TextImprov
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to critique text: {str(e)}") from e
+            raise RuntimeError(f"Failed to critique text: {str(e))") from e
 
     async def avalidate(self, text: str) -> bool:
         """
@@ -700,7 +700,7 @@ class FeedbackCritic(BaseComponent[str, CriticResult], TextValidator, TextImprov
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to asynchronously validate text: {str(e)}") from e
+            raise RuntimeError(f"Failed to asynchronously validate text: {str(e))") from e
 
     async def aimprove(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         """
@@ -781,7 +781,7 @@ class FeedbackCritic(BaseComponent[str, CriticResult], TextValidator, TextImprov
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to asynchronously improve text: {str(e)}") from e
+            raise RuntimeError(f"Failed to asynchronously improve text: {str(e))") from e
 
     async def acritique(
         self, text: str, metadata: Optional[Dict[str, Any]] = None
@@ -833,7 +833,7 @@ class FeedbackCritic(BaseComponent[str, CriticResult], TextValidator, TextImprov
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to asynchronously critique text: {str(e)}") from e
+            raise RuntimeError(f"Failed to asynchronously critique text: {str(e))") from e
 
     def warm_up(self) -> None:
         """
@@ -861,7 +861,7 @@ class FeedbackCritic(BaseComponent[str, CriticResult], TextValidator, TextImprov
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to warm up critic: {str(e)}") from e
+            raise RuntimeError(f"Failed to warm up critic: {str(e))") from e
 
     def cleanup(self) -> None:
         """
@@ -883,7 +883,7 @@ class FeedbackCritic(BaseComponent[str, CriticResult], TextValidator, TextImprov
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to clean up critic: {str(e)}") from e
+            raise RuntimeError(f"Failed to clean up critic: {str(e))") from e
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -907,7 +907,7 @@ class FeedbackCritic(BaseComponent[str, CriticResult], TextValidator, TextImprov
                     if self.(_state_manager and _state_manager.get("model")
                     else None
                 ),
-            }
+            )
         )
 
         return stats
@@ -976,7 +976,7 @@ class ValueCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover,
     # State management using StateManager
     _state_manager = PrivateAttr(default_factory=create_critic_state)
 
-    def def __init__(
+    def __init__(
         self,
         name: str,
         description: str,
@@ -1030,7 +1030,7 @@ class ValueCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover,
             self.(_state_manager and _state_manager.set_metadata("initialization_time", (time and time.time())
         except Exception as e:
             (self and self.record_error(e)
-            raise ValueError(f"Failed to initialize ValueCritic: {str(e)}") from e
+            raise ValueError(f"Failed to initialize ValueCritic: {str(e))") from e
 
     def _check_input(self, text: str) -> None:
         """
@@ -1279,7 +1279,7 @@ class LACCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, T
     # State management using StateManager
     _state_manager = PrivateAttr(default_factory=create_critic_state)
 
-    def def __init__(
+    def __init__(
         self,
         name: str,
         description: str,
@@ -1385,7 +1385,7 @@ class LACCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, T
             self.(_state_manager and _state_manager.set_metadata("initialization_time", (time and time.time())
         except Exception as e:
             (self and self.record_error(e)
-            raise ValueError(f"Failed to initialize LACCritic: {str(e)}") from e
+            raise ValueError(f"Failed to initialize LACCritic: {str(e))") from e
 
     def _check_input(self, text: str) -> None:
         """
@@ -1552,7 +1552,7 @@ class LACCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, T
         }
 
 
-def def create_feedback_critic(
+def create_feedback_critic(
     llm_provider: Any,
     name: str = "feedback_critic",
     description: str = "Provides natural language feedback for text",
@@ -1672,10 +1672,10 @@ def def create_feedback_critic(
             config=config,
         )
     except Exception as e:
-        raise ValueError(f"Failed to create feedback critic: {str(e)}") from e
+        raise ValueError(f"Failed to create feedback critic: {str(e))") from e
 
 
-def def create_value_critic(
+def create_value_critic(
     llm_provider: Any,
     name: str = "value_critic",
     description: str = "Provides numeric value scoring for text",
@@ -1804,10 +1804,10 @@ def def create_value_critic(
             config=config,
         )
     except Exception as e:
-        raise ValueError(f"Failed to create value critic: {str(e)}") from e
+        raise ValueError(f"Failed to create value critic: {str(e))") from e
 
 
-def def create_lac_critic(
+def create_lac_critic(
     llm_provider: Any,
     name: str = "lac_critic",
     description: str = "Combines language feedback and value scoring",
@@ -1935,4 +1935,4 @@ def def create_lac_critic(
             config=config,
         )
     except Exception as e:
-        raise ValueError(f"Failed to create LAC critic: {str(e)}") from e
+        raise ValueError(f"Failed to create LAC critic: {str(e))") from e

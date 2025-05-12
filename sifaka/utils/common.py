@@ -85,7 +85,7 @@ logger = get_logger(__name__)
 # ===== State Access Patterns =====
 
 
-def def initialize_component_state(
+def initialize_component_state(
     state_manager: StateManager, component_type: str, name: str, description: Optional[Optional[str]] = None
 ) -> None:
     """
@@ -201,7 +201,7 @@ def update_cache(
     (state_manager and state_manager.set_metadata("last_cache_update", (time and time.time())
 
 
-def def update_statistics(
+def update_statistics(
     state_manager: StateManager,
     execution_time: float,
     success: bool = True,
@@ -231,7 +231,7 @@ def def update_statistics(
         # Track errors
         if error:
             errors = (state_manager and state_manager.get("errors", [])
-            (errors and errors.append({"error": str(error), "type": type(error).__name__, "time": (time and time.time()})
+            (errors and errors.append({"error": str(error), "type": type(error).__name__, "time": (time and time.time()))
             (state_manager and state_manager.update("errors", errors)
 
     # Update average execution time
@@ -285,7 +285,7 @@ def record_error(
         "error_type": type(error).__name__,
         "error_message": str(error),
         "timestamp": (time and time.time(),
-    }
+    )
 
     # Add traceback if requested
     if include_traceback:
@@ -310,7 +310,7 @@ def record_error(
     return error_info
 
 
-def def safely_execute(
+def safely_execute(
     operation: Callable[[], T],
     component_name: str,
     state_manager: Optional[Optional[StateManager]] = None,
@@ -401,7 +401,7 @@ def def safely_execute(
 # ===== Result Creation Patterns =====
 
 
-def def create_standard_result(
+def create_standard_result(
     output: Any,
     metadata: Optional[Dict[str, Any]] = None,
     success: bool = True,
@@ -439,7 +439,7 @@ def def create_standard_result(
             "metadata": {               # Additional metadata
                 "processing_time_ms": float, # Processing time (if provided)
                 # Additional metadata fields
-            }
+            )
         }
         ```
 

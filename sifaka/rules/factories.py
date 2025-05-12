@@ -75,7 +75,7 @@ from sifaka.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-def def create_rule(
+def create_rule(
     name: str,
     validator: BaseValidator,
     description: Optional[Optional[str]] = None,
@@ -176,7 +176,7 @@ def def create_rule(
                     k: v
                     for k, v in (kwargs and kwargs.items()
                     if k in ["priority", "cache_size", "cost", "severity", "category", "tags"]
-                },
+                ),
             )
 
         # Create and return rule
@@ -189,15 +189,15 @@ def def create_rule(
                 k: v
                 for k, v in (kwargs and kwargs.items()
                 if k not in ["priority", "cache_size", "cost", "severity", "category", "tags"]
-            },
+            ),
         )
 
     except Exception as e:
         (logger and logger.error(f"Error creating rule: {e}")
-        raise ValueError(f"Error creating rule: {str(e)}")
+        raise ValueError(f"Error creating rule: {str(e))")
 
 
-def def create_validation_manager(
+def create_validation_manager(
     rules: Optional[Optional[List[Rule]]] = None,
     prioritize_by_cost: bool = False,
     **kwargs: Any,
@@ -291,10 +291,10 @@ def def create_validation_manager(
 
         # Log creation
         if rules:
-            (logger and logger.debug(f"Created validation manager with {len(rules)} rules")
+            (logger and logger.debug(f"Created validation manager with {len(rules)) rules")
 
         return manager
 
     except Exception as e:
         (logger and logger.error(f"Error creating validation manager: {e}")
-        raise ValueError(f"Error creating validation manager: {str(e)}")
+        raise ValueError(f"Error creating validation manager: {str(e))")

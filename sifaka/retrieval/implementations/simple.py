@@ -105,7 +105,7 @@ class SimpleRetriever(RetrieverCore):
        - Similarity calculation errors
     """
 
-    def def __init__(
+    def __init__(
         self,
         documents: Optional[Dict[str, str]] = None,
         corpus: Optional[Optional[str]] = None,
@@ -165,7 +165,7 @@ class SimpleRetriever(RetrieverCore):
         try:
             if documents is not None:
                 self.(_state_manager and _state_manager.update("documents", documents)
-                (logger and logger.debug(f"Loaded {len(documents)} documents from dictionary")
+                (logger and logger.debug(f"Loaded {len(documents)) documents from dictionary")
             elif corpus is not None:
                 if not os.(path and path.exists(corpus):
                     raise FileNotFoundError(f"Corpus file not found: {corpus}")
@@ -176,7 +176,7 @@ class SimpleRetriever(RetrieverCore):
                     for i, line in enumerate(lines):
                         doc_dict[f"doc_{i}"] = (line.strip()
                     self.(_state_manager and _state_manager.update("documents", doc_dict)
-                    (logger and logger.debug(f"Loaded {len(doc_dict)} documents from corpus file: {corpus}")
+                    (logger and logger.debug(f"Loaded {len(doc_dict)) documents from corpus file: {corpus}")
             else:
                 # Initialize with empty dict, but warn
                 (logger.warning("Initializing SimpleRetriever with empty document collection")
@@ -187,7 +187,7 @@ class SimpleRetriever(RetrieverCore):
             record_error(self._state_manager, e)
             error_info = handle_error(e, self.name, "error")
             raise RetrievalError(
-                f"Failed to initialize document collection: {str(e)}",
+                f"Failed to initialize document collection: {str(e))",
                 metadata=error_info,
             ) from e
 
@@ -284,7 +284,7 @@ class SimpleRetriever(RetrieverCore):
                     "metadata": {"document_id": doc_id},
                 }
                 for doc_id, content in (documents.items()
-            ]
+            )
 
             # Get ranking strategy from state
             ranking_strategy = self.(_state_manager.get("ranking_strategy")
@@ -331,12 +331,12 @@ class SimpleRetriever(RetrieverCore):
             # Otherwise, wrap in RetrievalError
             error_info = handle_error(e, self.name, "error")
             raise RetrievalError(
-                f"Retrieval failed: {str(e)}",
+                f"Retrieval failed: {str(e))",
                 metadata={
                     "query": query,
                     "document_count": len(self.documents),
                     **error_info,
-                },
+                ),
             ) from e
 
     def get_statistics(self) -> Dict[str, Any]:
@@ -351,6 +351,6 @@ class SimpleRetriever(RetrieverCore):
             {
                 "document_count": len(self.documents),
                 "last_query_doc_count": self.(_state_manager.get_metadata("last_query_doc_count", 0),
-            }
+            )
         )
         return stats

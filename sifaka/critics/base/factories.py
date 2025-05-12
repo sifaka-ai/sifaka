@@ -65,7 +65,7 @@ DEFAULT_CACHE_SIZE = 100
 C = TypeVar("C", bound=BaseCritic)
 
 
-def def create_critic(
+def create_critic(
     critic_class: Type[C],
     name: str = "custom_critic",
     description: str = "Custom critic implementation",

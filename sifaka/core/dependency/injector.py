@@ -81,7 +81,7 @@ class DependencyInjector:
         request_id (Optional[str]): The request ID for scoped dependencies
     """
 
-    def def __init__(self, session_id: Optional[Optional[str]] = None, request_id: Optional
+    def __init__(self, session_id: Optional[Optional[str]] = None, request_id: Optional
         [str]=None) ->None:
         """
         Initialize a dependency injector.
@@ -278,7 +278,7 @@ class DependencyInjector:
         return cls
 
 
-def def inject_dependencies(func_or_class: Optional[Optional[F]] = None, session_id: Optional[Optional[str]] = None, request_id: Optional[Optional[str]] = None) ->F:
+def inject_dependencies(func_or_class: Optional[Optional[F]] = None, session_id: Optional[Optional[str]] = None, request_id: Optional[Optional[str]] = None) ->F:
     """
     Decorator for automatically injecting dependencies into functions or classes.
 

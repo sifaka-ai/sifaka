@@ -401,9 +401,9 @@ After completing these refactorings, we will focus on consolidating duplicated c
 
 ## Continuation Notes
 
-### Mypy Issues - MOSTLY RESOLVED ✅
+### Mypy Issues - IN PROGRESS ⏳
 
-We have successfully addressed most of the mypy type checking issues in the codebase:
+We have made progress addressing mypy type checking issues in the codebase, but significant work remains:
 
 1. **Type Annotation Improvements** ✅:
    - Added proper type annotations to function parameters and return values
@@ -416,14 +416,76 @@ We have successfully addressed most of the mypy type checking issues in the code
    - Ensured proper typing for collections (List, Dict, etc.)
    - Addressed issues with TypeVar usage (proper contravariant/covariant usage)
 
-3. **Structural Improvements** ✅:
-   - Fixed syntax errors in adapter files that were preventing proper analysis
+3. **Structural Improvements** 🔄:
+   - Started fixing syntax errors in adapter files that were preventing proper analysis
    - Addressed issues with protocol implementations
    - Ensured proper inheritance type compatibility
 
-4. **Remaining Issues** ⏳:
-   - There are still some errors in more complex files like `sifaka/adapters/classifier/adapter.py`
+4. **Syntax Error Fixes** 🔄:
+   - Identified 148 files with syntax errors across the codebase
+   - Successfully fixed syntax errors in several files manually:
+     - Fixed `sifaka/__init__.py` to properly import Any type
+     - Fixed `sifaka/adapters/base.py` to remove logical expressions with and operators
+     - Fixed `sifaka/adapters/pydantic_ai/factory.py` to fix parentheses and logical expressions
+   - Created a targeted approach for fixing syntax errors manually
+
+5. **Remaining Issues** ⏳:
+   - Need to continue fixing syntax errors in remaining files
+   - There are still many errors in complex files like `sifaka/rules/base.py`
    - We need to implement stricter mypy configuration once all errors are fixed
    - We should add type checking to the CI/CD pipeline to ensure new code maintains type safety
 
-These improvements have significantly enhanced type safety throughout the codebase, reducing the risk of type-related runtime errors and improving code maintainability. We've created automated scripts to systematically fix common mypy errors, which can be used to address similar issues in the future.
+The syntax errors in the codebase are more complex than initially anticipated. Many files have patterns like:
+- `(self and self._method())` instead of `self._method()`
+- `(object and object.__setattr__(self, '_state_manager', create_state()))` instead of `object.__setattr__(self, '_state_manager', create_state())`
+- Mismatched parentheses, braces, and brackets
+- Unclosed parentheses
+
+These issues require careful manual fixing to ensure we don't introduce new errors. We've established a methodical approach to fix these issues one file at a time, focusing on the most critical files first.
+
+## Current Status and Next Steps
+
+### Syntax Error Fixing Progress
+
+We've identified 148 files with syntax errors across the codebase. So far, we've successfully fixed syntax errors in:
+
+1. `sifaka/__init__.py` - Fixed import issues and type annotations
+2. `sifaka/adapters/pydantic_ai/factory.py` - Fixed logical expressions and parentheses issues
+3. `sifaka/adapters/base.py` - Fixed state manager access patterns and logical expressions
+
+### Next Files to Fix
+
+The next files to focus on fixing syntax errors are:
+
+1. `sifaka/rules/base.py` - Contains complex syntax errors with nested logical expressions
+2. `sifaka/core/plugins.py` - Contains syntax errors with mismatched parentheses
+3. `sifaka/core/dependency/injector.py` - Contains syntax errors with logical expressions
+4. `sifaka/classifiers/implementations/content/bias.py` - Contains complex nested logical expressions
+
+### Approach for Continuing Work
+
+1. **Manual Fixing**: Continue manually fixing syntax errors one file at a time, focusing on the most critical files first.
+
+2. **Common Patterns**: Apply the following fixes consistently:
+   - Replace `(self and self._method())` with `self._method()`
+   - Replace `(object and object.__setattr__(self, '_var', value))` with `object.__setattr__(self, '_var', value)`
+   - Fix mismatched parentheses, braces, and brackets
+   - Close unclosed parentheses
+   - Fix logical expressions in method calls
+
+3. **Testing**: After fixing each file, verify that it compiles correctly by importing it.
+
+4. **Documentation**: Update this document after each session to track progress.
+
+5. **Prioritization**: Focus on files that are imported by many other files first, as fixing these will unblock more of the codebase.
+
+### Long-term Strategy
+
+Once we've fixed the syntax errors, we'll need to:
+
+1. Run mypy on the entire codebase to identify remaining type checking issues
+2. Fix the remaining type checking issues
+3. Implement stricter mypy configuration
+4. Add type checking to the CI/CD pipeline
+
+This approach will ensure we make steady progress on improving the codebase quality while minimizing the risk of introducing new errors.

@@ -126,7 +126,7 @@ class AnthropicProvider(ModelProviderCore):
     # Class constants
     DEFAULT_MODEL: ClassVar[str] = "claude-3-opus-20240229"
 
-    def def __init__(
+    def __init__(
         self,
         model_name: str = DEFAULT_MODEL,
         config: Optional[Optional[ModelConfig]] = None,

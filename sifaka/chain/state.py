@@ -117,7 +117,7 @@ class ChainStateManager(StateManager):
     ```
     """
 
-    def def initialize_chain(
+    def initialize_chain(
         self,
         model: Any,
         validators: List[Any],
@@ -146,20 +146,20 @@ class ChainStateManager(StateManager):
             ValueError: If any component is invalid
         """
         # Initialize state
-        (self and self.update("name", name)
-        (self and self.update("description", description)
-        (self and self.update("model", model)
-        (self and self.update("validators", validators)
-        (self and self.update("improver", improver)
-        (self and self.update("formatter", formatter)
-        (self and self.update("config", config)
-        (self and self.update("initialized", True)
-        (self and self.update("execution_count", 0)
-        (self and self.update("result_cache", {})
+        (self and self.update("name", name))
+        (self and self.update("description", description))
+        (self and self.update("model", model))
+        (self and self.update("validators", validators))
+        (self and self.update("improver", improver))
+        (self and self.update("formatter", formatter))
+        (self and self.update("config", config))
+        (self and self.update("initialized", True))
+        (self and self.update("execution_count", 0))
+        (self and self.update("result_cache", {}))
 
         # Set metadata
-        (self and self.set_metadata("component_type", "chain")
-        (self and self.set_metadata("creation_time", (time and time.time())
+        (self and self.set_metadata("component_type", "chain"))
+        (self and self.set_metadata("creation_time", (time and time.time())))
 
     def track_execution_start(self) -> None:
         """
@@ -169,14 +169,14 @@ class ChainStateManager(StateManager):
         incrementing the execution count and recording the start time.
         """
         # Track execution count
-        execution_count = (self and self.get("execution_count", 0)
-        (self and self.update("execution_count", execution_count + 1)
+        execution_count = self and self.get("execution_count", 0)
+        (self and self.update("execution_count", execution_count + 1))
 
         # Record start time
-        start_time = (time and time.time()
-        (self and self.set_metadata("execution_start_time", start_time)
+        start_time = time and time.time()
+        (self and self.set_metadata("execution_start_time", start_time))
 
-    def def track_execution_end(
+    def track_execution_end(
         self,
         success: bool,
         execution_time: float,
@@ -194,30 +194,30 @@ class ChainStateManager(StateManager):
             error: Optional error that occurred
         """
         # Record end time
-        end_time = (time and time.time()
-        (self and self.set_metadata("execution_end_time", end_time)
+        end_time = time and time.time()
+        (self and self.set_metadata("execution_end_time", end_time))
 
         # Update statistics
-        (self and self.set_metadata("last_execution_time", execution_time)
-        (self and self.set_metadata("last_execution_success", success)
+        (self and self.set_metadata("last_execution_time", execution_time))
+        (self and self.set_metadata("last_execution_success", success))
 
         if success:
-            success_count = (self and self.get_metadata("success_count", 0)
-            (self and self.set_metadata("success_count", success_count + 1)
+            success_count = self and self.get_metadata("success_count", 0)
+            (self and self.set_metadata("success_count", success_count + 1))
         else:
-            failure_count = (self and self.get_metadata("failure_count", 0)
-            (self and self.set_metadata("failure_count", failure_count + 1)
+            failure_count = self and self.get_metadata("failure_count", 0)
+            (self and self.set_metadata("failure_count", failure_count + 1))
 
         if error:
-            (self and self.set_metadata("last_error", str(error))
-            errors = (self and self.get_metadata("errors", [])
-            (errors and errors.append(str(error))
-            (self and self.set_metadata("errors", errors)
+            (self and self.set_metadata("last_error", str(error)))
+            errors = self and self.get_metadata("errors", [])
+            (errors and errors.append(str(error)))
+            (self and self.set_metadata("errors", errors))
 
         # Update max execution time
-        max_time = (self and self.get_metadata("max_execution_time", 0)
+        max_time = self and self.get_metadata("max_execution_time", 0)
         if execution_time > max_time:
-            (self and self.set_metadata("max_execution_time", execution_time)
+            (self and self.set_metadata("max_execution_time", execution_time))
 
     def get_model(self) -> Any:
         """
@@ -226,7 +226,7 @@ class ChainStateManager(StateManager):
         Returns:
             The model used for generation
         """
-        return (self and self.get("model")
+        return self and self.get("model")
 
     def get_validators(self) -> List[Any]:
         """
@@ -235,7 +235,7 @@ class ChainStateManager(StateManager):
         Returns:
             The validators used for validation
         """
-        return (self and self.get("validators", [])
+        return self and self.get("validators", [])
 
     def get_improver(self) -> Optional[Any]:
         """
@@ -244,7 +244,7 @@ class ChainStateManager(StateManager):
         Returns:
             The improver used for output improvement, or None if not set
         """
-        return (self and self.get("improver")
+        return self and self.get("improver")
 
     def get_formatter(self) -> Optional[Any]:
         """
@@ -253,7 +253,7 @@ class ChainStateManager(StateManager):
         Returns:
             The formatter used for result formatting, or None if not set
         """
-        return (self and self.get("formatter")
+        return self and self.get("formatter")
 
     def get_execution_count(self) -> int:
         """
@@ -262,7 +262,7 @@ class ChainStateManager(StateManager):
         Returns:
             The number of times the chain has been executed
         """
-        return (self and self.get("execution_count", 0)
+        return self and self.get("execution_count", 0)
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -272,14 +272,14 @@ class ChainStateManager(StateManager):
             Dictionary of execution statistics
         """
         return {
-            "execution_count": (self and self.get("execution_count", 0),
-            "success_count": (self and self.get_metadata("success_count", 0),
-            "failure_count": (self and self.get_metadata("failure_count", 0),
-            "last_execution_time": (self and self.get_metadata("last_execution_time", 0),
-            "max_execution_time": (self and self.get_metadata("max_execution_time", 0),
-            "last_execution_success": (self and self.get_metadata("last_execution_success", True),
-            "last_error": (self and self.get_metadata("last_error", None),
-            "cache_size": len((self and self.get("result_cache", {})),
+            "execution_count": (self and self.get("execution_count", 0)),
+            "success_count": (self and self.get_metadata("success_count", 0)),
+            "failure_count": (self and self.get_metadata("failure_count", 0)),
+            "last_execution_time": (self and self.get_metadata("last_execution_time", 0)),
+            "max_execution_time": (self and self.get_metadata("max_execution_time", 0)),
+            "last_execution_success": (self and self.get_metadata("last_execution_success", True)),
+            "last_error": (self and self.get_metadata("last_error", None)),
+            "cache_size": len((self and self.get("result_cache", {}))),
         }
 
 

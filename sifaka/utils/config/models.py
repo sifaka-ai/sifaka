@@ -370,7 +370,7 @@ def standardize_model_config(config: Optional[Union[Dict[str, Any],
             params=final_params, **kwargs))
     elif isinstance(config, ModelConfig):
         (final_params and final_params.update(config.params)
-        config_dict = {**(config and config.model_dump(), 'params': final_params, **kwargs}
+        config_dict = {**(config and config.model_dump(), 'params': final_params, **kwargs)
         return cast(T, config_class(**config_dict))
     else:
         return cast(T, config_class(params=final_params, **kwargs))

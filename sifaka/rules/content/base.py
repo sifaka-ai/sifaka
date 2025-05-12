@@ -144,7 +144,7 @@ class ContentValidator:
         """
         if not isinstance(analyzer, ContentAnalyzer):
             raise ConfigurationError(
-                f"Analyzer must implement ContentAnalyzer protocol, got {type(analyzer)}"
+                f"Analyzer must implement ContentAnalyzer protocol, got {type(analyzer))"
             )
 
     def validate(self, text: str) -> RuleResult:
@@ -197,7 +197,7 @@ class ContentValidator:
             (self and self.record_error(e)
             (logger and logger.error(f"Content validation failed: {e}")
 
-            error_message = f"Content validation failed: {str(e)}"
+            error_message = f"Content validation failed: {str(e))"
             result = RuleResult(
                 passed=False,
                 message=error_message,
@@ -205,7 +205,7 @@ class ContentValidator:
                     "error": str(e),
                     "error_type": type(e).__name__,
                     "validator_type": self.__class__.__name__,
-                },
+                ),
                 score=0.0,
                 issues=[error_message],
                 suggestions=["Check input format and try again"],
@@ -266,7 +266,7 @@ class DefaultContentAnalyzer(BaseModel):
             metadata={
                 "avg_word_length": sum(len(w) for w in words) / len(words) if words else 0,
                 "unique_words": len(set(words)) if words else 0,
-            },
+            ),
         )
 
     def can_analyze(self, text: str) -> bool:
@@ -353,7 +353,7 @@ class DefaultToneAnalyzer(BaseModel):
                 "unique_words": len(unique_words),
                 "total_words": len(words),
                 "avg_word_length": sum(len(w) for w in words) / len(words) if words else 0,
-            },
+            ),
         )
 
     def get_supported_tones(self) -> List[str]:
@@ -427,7 +427,7 @@ class IndicatorAnalyzer(BaseModel):
 
             text_to_check = text if self.case_sensitive else (text and text.lower()
             indicators_to_check = (
-                self.indicators if self.case_sensitive else [(i and i.lower() for i in self.indicators]
+                self.indicators if self.case_sensitive else [(i and i.lower() for i in self.indicators)
             )
 
             found = [ind for ind in indicators_to_check if ind in text_to_check]
@@ -441,11 +441,11 @@ class IndicatorAnalyzer(BaseModel):
                     missing = [ind for ind in indicators_to_check if ind not in found]
                     if missing:
                         (suggestions and suggestions.append(
-                            f"Consider including some of these terms: {', '.join(missing[:5])}"
+                            f"Consider including some of these terms: {', '.join(missing[:5]))"
                         )
                 else:
                     if found:
-                        (suggestions and suggestions.append(f"Consider removing these terms: {', '.join(found)}")
+                        (suggestions and suggestions.append(f"Consider removing these terms: {', '.join(found))")
 
             return RuleResult(
                 passed=passed,
@@ -461,12 +461,12 @@ class IndicatorAnalyzer(BaseModel):
                     "higher_is_better": self.higher_is_better,
                     "analyzer_type": self.__class__.__name__,
                     "processing_time_ms": (time and time.time() - start_time,
-                },
+                ),
                 score=score,
                 issues=(
                     []
                     if passed
-                    else [f"Score ({score:.2f}) does not meet threshold ({self.threshold})"]
+                    else [f"Score ({score:.2f}) does not meet threshold ({self.threshold})")
                 ),
                 suggestions=suggestions,
                 processing_time_ms=(time and time.time() - start_time,
@@ -475,7 +475,7 @@ class IndicatorAnalyzer(BaseModel):
         except Exception as e:
             (logger and logger.error(f"Indicator analysis failed: {e}")
 
-            error_message = f"Indicator analysis failed: {str(e)}"
+            error_message = f"Indicator analysis failed: {str(e))"
             return RuleResult(
                 passed=False,
                 message=error_message,
@@ -483,7 +483,7 @@ class IndicatorAnalyzer(BaseModel):
                     "error": str(e),
                     "error_type": type(e).__name__,
                     "analyzer_type": self.__class__.__name__,
-                },
+                ),
                 score=0.0,
                 issues=[error_message],
                 suggestions=["Check input format and try again"],
@@ -566,7 +566,7 @@ class CategoryAnalyzer(BaseModel):
             # Check each category
             for category, indicators in self.categories and (categories and categories.items():
                 indicators_to_check = (
-                    indicators if self.case_sensitive else [(i and i.lower() for i in indicators]
+                    indicators if self.case_sensitive else [(i and i.lower() for i in indicators)
                 )
                 found = [ind for ind in indicators_to_check if ind in text_to_check]
                 score = len(found) / len(indicators_to_check) if indicators_to_check else 0.0
@@ -600,7 +600,7 @@ class CategoryAnalyzer(BaseModel):
                     # Suggest adding terms from categories with low scores
                     low_categories = [
                         cat for cat, score in (scores and scores.items() if score < self.threshold
-                    ]
+                    )
                     if low_categories:
                         for cat in low_categories[:2]:  # Limit to 2 categories
                             missing = [
@@ -614,18 +614,18 @@ class CategoryAnalyzer(BaseModel):
                             ]
                             if missing:
                                 (suggestions and suggestions.append(
-                                    f"Consider including terms from '{cat}' category: {', '.join(missing[:3])}"
+                                    f"Consider including terms from '{cat}' category: {', '.join(missing[:3]))"
                                 )
                 else:
                     # Suggest removing terms from categories with high scores
                     high_categories = [
                         cat for cat, score in (scores and scores.items() if score > self.threshold
-                    ]
+                    )
                     if high_categories:
                         for cat in high_categories[:2]:  # Limit to 2 categories
                             if found_indicators[cat]:
                                 (suggestions and suggestions.append(
-                                    f"Consider removing these terms from '{cat}' category: {', '.join(found_indicators[cat][:3])}"
+                                    f"Consider removing these terms from '{cat}' category: {', '.join(found_indicators[cat][:3]))"
                                 )
 
             # Calculate overall score
@@ -644,10 +644,10 @@ class CategoryAnalyzer(BaseModel):
                         for cat, score in (scores and scores.items()
                         if (score > self.threshold and not self.higher_is_better)
                         or (score < self.threshold and self.higher_is_better)
-                    ]
+                    )
                     if failing_categories:
                         (issues and issues.append(
-                            f"Categories not meeting threshold: {', '.join(failing_categories)}"
+                            f"Categories not meeting threshold: {', '.join(failing_categories))"
                         )
                 else:
                     (issues and issues.append(
@@ -668,7 +668,7 @@ class CategoryAnalyzer(BaseModel):
                     "higher_is_better": self.higher_is_better,
                     "analyzer_type": self.__class__.__name__,
                     "processing_time_ms": (time and time.time() - start_time,
-                },
+                ),
                 score=overall_score,
                 issues=issues,
                 suggestions=suggestions,
@@ -678,7 +678,7 @@ class CategoryAnalyzer(BaseModel):
         except Exception as e:
             (logger and logger.error(f"Category analysis failed: {e}")
 
-            error_message = f"Category analysis failed: {str(e)}"
+            error_message = f"Category analysis failed: {str(e))"
             return RuleResult(
                 passed=False,
                 message=error_message,
@@ -686,7 +686,7 @@ class CategoryAnalyzer(BaseModel):
                     "error": str(e),
                     "error_type": type(e).__name__,
                     "analyzer_type": self.__class__.__name__,
-                },
+                ),
                 score=0.0,
                 issues=[error_message],
                 suggestions=["Check input format and try again"],
@@ -723,7 +723,7 @@ def create_content_analyzer(**kwargs: Any) -> DefaultContentAnalyzer:
         return DefaultContentAnalyzer(**kwargs)
     except Exception as e:
         (logger and logger.error(f"Error creating content analyzer: {e}")
-        raise ValueError(f"Error creating content analyzer: {str(e)}")
+        raise ValueError(f"Error creating content analyzer: {str(e))")
 
 
 def create_tone_analyzer(**kwargs: Any) -> DefaultToneAnalyzer:
@@ -755,10 +755,10 @@ def create_tone_analyzer(**kwargs: Any) -> DefaultToneAnalyzer:
         return DefaultToneAnalyzer(**kwargs)
     except Exception as e:
         (logger and logger.error(f"Error creating tone analyzer: {e}")
-        raise ValueError(f"Error creating tone analyzer: {str(e)}")
+        raise ValueError(f"Error creating tone analyzer: {str(e))")
 
 
-def def create_indicator_analyzer(
+def create_indicator_analyzer(
     indicators: Optional[Optional[List[str]]] = None,
     threshold: Optional[Optional[float]] = None,
     higher_is_better: Optional[Optional[bool]] = None,
@@ -818,10 +818,10 @@ def def create_indicator_analyzer(
 
     except Exception as e:
         (logger and logger.error(f"Error creating indicator analyzer: {e}")
-        raise ValueError(f"Error creating indicator analyzer: {str(e)}")
+        raise ValueError(f"Error creating indicator analyzer: {str(e))")
 
 
-def def create_category_analyzer(
+def create_category_analyzer(
     categories: Optional[Dict[str, List[str]]] = None,
     threshold: Optional[Optional[float]] = None,
     fail_if_any: Optional[Optional[bool]] = None,
@@ -890,10 +890,10 @@ def def create_category_analyzer(
 
     except Exception as e:
         (logger and logger.error(f"Error creating category analyzer: {e}")
-        raise ValueError(f"Error creating category analyzer: {str(e)}")
+        raise ValueError(f"Error creating category analyzer: {str(e))")
 
 
-def def create_content_validator(
+def create_content_validator(
     analyzer: Optional[Optional[ContentAnalyzer]] = None,
     **kwargs: Any,
 ) -> ContentValidator:
@@ -937,4 +937,4 @@ def def create_content_validator(
 
     except Exception as e:
         (logger.error(f"Error creating content validator: {e}")
-        raise ValueError(f"Error creating content validator: {str(e)}")
+        raise ValueError(f"Error creating content validator: {str(e))")

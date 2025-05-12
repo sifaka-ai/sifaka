@@ -389,7 +389,7 @@ class PlainTextRule(BaseRule[str]):
         ```
     """
 
-    def def __init__(
+    def __init__(
         self,
         name: str,
         description: str,
@@ -435,7 +435,7 @@ class PlainTextRule(BaseRule[str]):
         return DefaultPlainTextValidator(self._plain_text_config or PlainTextConfig())
 
 
-def def create_plain_text_rule(
+def create_plain_text_rule(
     min_length: Optional[int] = None,
     max_length: Optional[int] = None,
     allow_empty: Optional[bool] = None,

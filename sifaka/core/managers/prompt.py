@@ -166,7 +166,7 @@ class BasePrompt(BaseComponent[Dict[str, Any], str]):
         description (str): Description of the prompt
     """
 
-    def def __init__(
+    def __init__(
         self,
         name: str,
         description: str,
@@ -242,7 +242,7 @@ class PromptManager(BaseComponent[Dict[str, Any], PromptResult]):
     4. Statistics: Track prompt generation performance
     """
 
-    def def __init__(
+    def __init__(
         self,
         prompts: Optional[List[BasePrompt]] = None,
         name: str = "prompt_manager",
@@ -488,7 +488,7 @@ class CriticPromptManager(ABC):
         pass
 
     @abstractmethod
-    def def create_improvement_prompt(
+    def create_improvement_prompt(
         self, text: str, feedback: str, reflections: Optional[Optional[List[str]]] = None
     ) -> str:
         """
@@ -564,7 +564,7 @@ class DefaultPromptManager(CriticPromptManager):
     ```
     """
 
-    def def __init__(self, config: Optional[Any] = None):
+    def __init__(self, config: Optional[Any] = None):
         """Initialize the prompt manager."""
         self.config = config
         self._state_manager = StateManager()
@@ -604,7 +604,7 @@ SUGGESTIONS: [list of suggestions for improvement]
 
 CRITIQUE:"""
 
-    def def create_improvement_prompt(
+    def create_improvement_prompt(
         self, text: str, feedback: str, reflections: Optional[Optional[List[str]]] = None
     ) -> str:
         """Create a prompt for text improvement."""
@@ -704,7 +704,7 @@ class ReflexionCriticPromptManager(DefaultPromptManager):
     that incorporate memory and reflections for the ReflexionCritic implementation.
     """
 
-    def def create_improvement_prompt(
+    def create_improvement_prompt(
         self, text: str, feedback: str, reflections: Optional[Optional[List[str]]] = None
     ) -> str:
         """Create a prompt for text improvement with reflections."""
@@ -737,7 +737,7 @@ REASONING: [explanation of your improvement approach]
 IMPROVEMENT:"""
 
 
-def def create_prompt_manager(
+def create_prompt_manager(
     prompts: Optional[List[BasePrompt]] = None,
     name: str = "prompt_manager",
     description: str = "Prompt manager for Sifaka",

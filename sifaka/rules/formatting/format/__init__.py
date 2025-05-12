@@ -107,7 +107,7 @@ class FormatRule(BaseRule[str]):
         ```
     """
 
-    def def __init__(
+    def __init__(
         self,
         name: str,
         description: str,
@@ -175,7 +175,7 @@ class FormatRule(BaseRule[str]):
         """
         return self._delegate_rule.validator
 
-    def def _create_delegate_rule(
+    def _create_delegate_rule(
         self,
         required_format: FormatType,
         markdown_elements: Optional[Set[str]] = None,
@@ -258,7 +258,7 @@ class FormatRule(BaseRule[str]):
             raise ValueError(f"Unsupported format type: {required_format}")
 
 
-def def create_format_rule(
+def create_format_rule(
     required_format: FormatType = "plain_text",
     markdown_elements: Optional[Set[str]] = None,
     min_elements: Optional[int] = None,

@@ -160,7 +160,7 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         _initialized (bool): Whether the provider has been initialized
     """
 
-    def def __init__(
+    def __init__(
         self,
         model_name: str,
         config: Optional[Optional[C]] = None,
@@ -303,7 +303,7 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
             ValueError: If the configuration is not an instance of ModelConfig
         """
         if not isinstance(config, ModelConfig):
-            raise ValueError(f"Config must be an instance of ModelConfig, got {type(config)}")
+            raise ValueError(f"Config must be an instance of ModelConfig, got {type(config))")
         self._config = config
         (logger and logger.info(f"Updated configuration for {self.__class__.__name__} with {self.model_name}")
 
@@ -433,7 +433,7 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
             {
                 "text_length": len(text),
                 "token_count": token_count,
-            },
+            ),
         )
 
         return token_count
@@ -496,7 +496,7 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
                     "temperature": config.temperature,
                     "max_tokens": config.max_tokens,
                     "success": True,
-                },
+                ),
             )
 
             (logger and logger.debug(

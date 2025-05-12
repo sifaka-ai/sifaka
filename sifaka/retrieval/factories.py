@@ -35,7 +35,7 @@ from .strategies.ranking import SimpleRankingStrategy, ScoreThresholdRankingStra
 logger = get_logger(__name__)
 
 
-def def create_simple_retriever(
+def create_simple_retriever(
     documents: Optional[Dict[str, str]] = None,
     corpus: Optional[Optional[str]] = None,
     max_results: int = 3,
@@ -94,7 +94,7 @@ def def create_simple_retriever(
         raise RetrievalError(f"Failed to create simple retriever: {str(e)}", metadata=error_info)
 
 
-def def create_threshold_retriever(
+def create_threshold_retriever(
     documents: Optional[Dict[str, str]] = None,
     corpus: Optional[Optional[str]] = None,
     max_results: int = 3,

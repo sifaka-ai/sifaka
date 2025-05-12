@@ -310,10 +310,10 @@ class LanguageClassifier(Classifier):
         'sw': 'Swahili', 'ta': 'Tamil', 'te': 'Telugu', 'th': 'Thai', 'tl':
         'Tagalog', 'tr': 'Turkish', 'uk': 'Ukrainian', 'ur': 'Urdu', 'vi':
         'Vietnamese', 'zh-cn': 'Chinese (Simplified)', 'zh-tw':
-        'Chinese (Traditional)'}
+        'Chinese (Traditional)')
     DEFAULT_COST: int = 1
 
-    def def __init__(self, name: str='language_classifier', description: str=
+    def __init__(self, name: str='language_classifier', description: str=
         'Detects text language', detector: Optional[Optional[LanguageDetector]] = None,
         config: Optional[Optional[ClassifierConfig]] = None, **kwargs) ->None:
         """
@@ -340,7 +340,7 @@ class LanguageClassifier(Classifier):
         """Validate that a detector implements the required protocol."""
         if not isinstance(detector, LanguageDetector):
             raise ValueError(
-                f'Detector must implement LanguageDetector protocol, got {type(detector)}'
+                f'Detector must implement LanguageDetector protocol, got {type(detector))'
                 )
         return True
 
@@ -428,27 +428,27 @@ class LanguageClassifier(Classifier):
                     =fallback_confidence, metadata={'detected_lang':
                     best_lang, 'detected_prob': best_prob, 'language_name':
                     (self.get_language_name(fallback_lang), 'reason': 
-                    'low_confidence' if best_lang else 'no_language_detected'})
+                    'low_confidence' if best_lang else 'no_language_detected'))
             result = ClassificationResult(label=best_lang, confidence=
                 best_prob, metadata={'language_name': self.
                 get_language_name(best_lang), 'all_langs': [{'lang':
                 getattr(lang_prob, 'lang', None), 'prob': float(getattr(
                 lang_prob, 'prob', 0.0)), 'name': (self.get_language_name(
-                getattr(lang_prob, 'lang', ''))} for lang_prob in lang_probs]})
+                getattr(lang_prob, 'lang', ''))) for lang_prob in lang_probs)})
             stats = self.(_state_manager.get('statistics', {})
             stats[best_lang] = (stats.get(best_lang, 0) + 1
             self.(_state_manager.update('statistics', stats)
             return result
         except Exception as e:
             (logger and logger.error('Failed to detect language: %s', e)
-            error_info = {'error': str(e), 'type': type(e).__name__}
+            error_info = {'error': str(e), 'type': type(e).__name__)
             errors = self.(_state_manager.get('errors', [])
             (errors.append(error_info)
             self.(_state_manager.update('errors', errors)
             return ClassificationResult(label=fallback_lang, confidence=
                 fallback_confidence, metadata={'error': str(e),
                 'language_name': (self.get_language_name(fallback_lang),
-                'reason': 'detection_error'})
+                'reason': 'detection_error'))
 
     def batch_classify(self, texts: List[str]) ->List[ClassificationResult]:
         """
@@ -464,7 +464,7 @@ class LanguageClassifier(Classifier):
             List of ClassificationResults
         """
         (self.validate_batch_input(texts)
-        return [(self.classify(text) for text in texts]
+        return [(self.classify(text) for text in texts)
 
     def get_statistics(self) ->Dict[str, Any]:
         """
@@ -477,11 +477,11 @@ class LanguageClassifier(Classifier):
             Dictionary containing statistics
         """
         stats = super().get_statistics()
-        (stats.update({'seed': self.config and config and config and config and config and config and config and config.(params.get('seed', 0)})
+        (stats.update({'seed': self.config and config and config and config and config and config and config and config.(params.get('seed', 0)))
         detected_languages = set(self.(_state_manager.get('statistics', {}).
             keys())
         stats['detected_languages'] = [{'code': lang, 'name': self.
-            get_language_name(lang)} for lang in detected_languages]
+            get_language_name(lang)) for lang in detected_languages)
         return stats
 
     def clear_cache(self) ->None:
@@ -493,11 +493,11 @@ class LanguageClassifier(Classifier):
         """
         super().clear_cache()
         cache = self.(_state_manager.get('cache', {})
-        preserved_cache = {k: v for k, v in (cache.items() if k == 'detector'}
+        preserved_cache = {k: v for k, v in (cache.items() if k == 'detector')
         self.(_state_manager.update('cache', preserved_cache)
 
     @classmethod
-    def def create_with_custom_detector(cls, detector: LanguageDetector, name:
+    def create_with_custom_detector(cls, detector: LanguageDetector, name:
         str='custom_language_classifier', description: str=
         'Custom language detector', config: Optional[Optional[ClassifierConfig]] = None,
         **kwargs) ->'LanguageClassifier':
@@ -516,7 +516,7 @@ class LanguageClassifier(Classifier):
         """
         if not isinstance(detector, LanguageDetector):
             raise ValueError(
-                f'Detector must implement LanguageDetector protocol, got {type(detector)}'
+                f'Detector must implement LanguageDetector protocol, got {type(detector))'
                 )
         if config is None:
             params = (kwargs.pop('params', {})

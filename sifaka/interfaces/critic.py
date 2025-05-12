@@ -57,7 +57,7 @@ class MyCritic(Critic[str, str, dict]):
             "suggestions": []
         }
 
-    def def improve(self, text: str, feedback: Optional[Optional[str]] = None) -> str:
+    def improve(self, text: str, feedback: Optional[Optional[str]] = None) -> str:
         return (text and text.strip()
 ```
 
@@ -481,7 +481,7 @@ class Critic(Identifiable, Configurable[ConfigType], Protocol[InputType, OutputT
         pass
 
     @abstractmethod
-    def def improve(self, text: InputType, feedback: Optional[Optional[str]] = None) -> OutputType:
+    def improve(self, text: InputType, feedback: Optional[Optional[str]] = None) -> OutputType:
         """
         Improve text.
 
@@ -605,7 +605,7 @@ class AsyncCritic(Protocol[InputType, OutputType, ResultType]):
         pass
 
     @abstractmethod
-    async def def improve(self, text: InputType, feedback: Optional[Optional[str]] = None) -> OutputType:
+    async def improve(self, text: InputType, feedback: Optional[Optional[str]] = None) -> OutputType:
         """
         Improve text asynchronously.
 

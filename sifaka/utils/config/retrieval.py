@@ -109,7 +109,7 @@ class RetrieverConfig(BaseConfig):
     print(f"Name: {config.name}")
     print(f"Top K: {config.top_k}")
     print(f"Max Results: {config.max_results}")
-    print(f"Algorithm: {config.(params and params.get('algorithm')}")
+    print(f"Algorithm: {config.(params and params.get('algorithm'))")
 
     # Create a new configuration with updated options
     updated_config = (config and config.with_options(top_k=20)
@@ -185,7 +185,7 @@ class RankingConfig(BaseConfig):
     # Access configuration values
     print(f"Name: {config.name}")
     print(f"Algorithm: {config.algorithm}")
-    print(f"Title weight: {config.(weights and weights.get('title')}")
+    print(f"Title weight: {config.(weights and weights.get('title'))")
 
     # Create a new configuration with updated options
     updated_config = (config and config.with_options(algorithm="tfidf")
@@ -410,7 +410,7 @@ def standardize_retriever_config(config: Optional[Union[Dict[str, Any],
             params=final_params, **kwargs))
     elif isinstance(config, RetrieverConfig):
         (final_params and final_params.update(config.params)
-        config_dict = {**(config and config.model_dump(), 'params': final_params, **kwargs}
+        config_dict = {**(config and config.model_dump(), 'params': final_params, **kwargs)
         return cast(T, config_class(**config_dict))
     else:
         return cast(T, config_class(params=final_params, **kwargs))

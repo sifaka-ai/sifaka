@@ -131,7 +131,7 @@ class Classifier:
     ```
     """
 
-    def def __init__(
+    def __init__(
         self,
         implementation: ClassifierImplementation,
         config: Optional[Optional[ClassifierConfig]] = None,
@@ -162,17 +162,18 @@ class Classifier:
         )
 
         # Initialize state
-        self.(_state_manager and _state_manager.update("name", name)
-        self.(_state_manager and _state_manager.update("description", description)
-        self.(_state_manager and _state_manager.update("implementation", implementation)
-        self.(_state_manager and _state_manager.update("config", self._config)
-        self.(_state_manager and _state_manager.update("initialized", True)
-        self.(_state_manager and _state_manager.update("execution_count", 0)
-        self.(_state_manager and _state_manager.update("result_cache", {})
+        if self._state_manager:
+            self._state_manager.update("name", name)
+            self._state_manager.update("description", description)
+            self._state_manager.update("implementation", implementation)
+            self._state_manager.update("config", self._config)
+            self._state_manager.update("initialized", True)
+            self._state_manager.update("execution_count", 0)
+            self._state_manager.update("result_cache", {})
 
-        # Set metadata
-        self.(_state_manager and _state_manager.set_metadata("component_type", "classifier")
-        self.(_state_manager and _state_manager.set_metadata("creation_time", (time and time.time())
+            # Set metadata
+            self._state_manager.set_metadata("component_type", "classifier")
+            self._state_manager.set_metadata("creation_time", time.time())
 
     @property
     def name(self) -> str:
@@ -215,7 +216,8 @@ class Classifier:
             config: New classifier configuration
         """
         self._config = config
-        self.(_state_manager and _state_manager.update("config", config)
+        if self._state_manager:
+            self._state_manager.update("config", config)
 
     def classify(self, text: str) -> ClassificationResult:
         """
@@ -237,35 +239,39 @@ class Classifier:
         """
         try:
             # Track execution count
-            execution_count = self.(_state_manager and _state_manager.get("execution_count", 0)
-            self.(_state_manager and _state_manager.update("execution_count", execution_count + 1)
+            execution_count = (
+                self._state_manager.get("execution_count", 0) if self._state_manager else 0
+            )
+            if self._state_manager:
+                self._state_manager.update("execution_count", execution_count + 1)
 
             # Record start time
-            start_time = (time and time.time()
-            self.(_state_manager and _state_manager.set_metadata("execution_start_time", start_time)
+            start_time = time.time()
+            if self._state_manager:
+                self._state_manager.set_metadata("execution_start_time", start_time)
 
             # Run engine
-            result = self.(_engine and _engine.classify(
+            result = self._engine.classify(
                 text=text,
                 implementation=self._implementation,
             )
 
             # Record end time
-            end_time = (time and time.time()
+            end_time = time.time()
             execution_time = end_time - start_time
 
             # Update statistics
-            (self and self._update_statistics(execution_time, success=True)
+            self._update_statistics(execution_time, success=True)
 
             return result
 
         except Exception as e:
             # Record end time
-            end_time = (time and time.time()
+            end_time = time.time()
             execution_time = end_time - start_time
 
             # Update statistics
-            (self and self._update_statistics(execution_time, success=False, error=e)
+            self._update_statistics(execution_time, success=False, error=e)
 
             # Raise as classifier error
             if isinstance(e, ClassifierError):
@@ -293,14 +299,14 @@ class Classifier:
         results = []
         for text in texts:
             try:
-                result = (self and self.classify(text)
-                (results and results.append(result)
+                result = self.classify(text)
+                results.append(result)
             except Exception as e:
-                (logger and logger.error(f"Failed to classify text: {str(e)}")
+                logger.error(f"Failed to classify text: {str(e)}")
                 # Create fallback result
-                (results and results.append(
+                results.append(
                     ClassificationResult(
-                        label=self._config.(params and params.get("fallback_label", "unknown"),
+                        label=self._config.params.get("fallback_label", "unknown"),
                         confidence=0.0,
                         metadata={"error": str(e), "error_type": type(e).__name__},
                         issues=[f"Classification failed: {str(e)}"],
@@ -328,35 +334,39 @@ class Classifier:
 
         try:
             # Track execution count
-            execution_count = self.(_state_manager and _state_manager.get("execution_count", 0)
-            self.(_state_manager and _state_manager.update("execution_count", execution_count + 1)
+            execution_count = (
+                self._state_manager.get("execution_count", 0) if self._state_manager else 0
+            )
+            if self._state_manager:
+                self._state_manager.update("execution_count", execution_count + 1)
 
             # Record start time
-            start_time = (time and time.time()
-            self.(_state_manager and _state_manager.set_metadata("execution_start_time", start_time)
+            start_time = time.time()
+            if self._state_manager:
+                self._state_manager.set_metadata("execution_start_time", start_time)
 
             # Run engine
-            result = await self.(_engine and _engine.classify_async(
+            result = await self._engine.classify_async(
                 text=text,
                 implementation=self._implementation,
             )
 
             # Record end time
-            end_time = (time and time.time()
+            end_time = time.time()
             execution_time = end_time - start_time
 
             # Update statistics
-            (self and self._update_statistics(execution_time, success=True)
+            self._update_statistics(execution_time, success=True)
 
             return result
 
         except Exception as e:
             # Record end time
-            end_time = (time and time.time()
+            end_time = time.time()
             execution_time = end_time - start_time
 
             # Update statistics
-            (self and self._update_statistics(execution_time, success=False, error=e)
+            self._update_statistics(execution_time, success=False, error=e)
 
             # Raise as classifier error
             if isinstance(e, ClassifierError):
@@ -381,20 +391,20 @@ class Classifier:
             raise ClassifierError("Async execution is not enabled in the configuration")
 
         # Create tasks for all texts
-        tasks = [(self and self.classify_async(text) for text in texts]
+        tasks = [self.classify_async(text) for text in texts]
 
         # Wait for all tasks to complete
-        results = await (asyncio and asyncio.gather(*tasks, return_exceptions=True)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Process results
         processed_results = []
         for result in results:
             if isinstance(result, Exception):
-                (logger and logger.error(f"Failed to classify text: {str(result)}")
+                logger.error(f"Failed to classify text: {str(result)}")
                 # Create fallback result
-                (processed_results and processed_results.append(
+                processed_results.append(
                     ClassificationResult(
-                        label=self._config.(params and params.get("fallback_label", "unknown"),
+                        label=self._config.params.get("fallback_label", "unknown"),
                         confidence=0.0,
                         metadata={"error": str(result), "error_type": type(result).__name__},
                         issues=[f"Classification failed: {str(result)}"],
@@ -402,15 +412,15 @@ class Classifier:
                     )
                 )
             else:
-                (processed_results and processed_results.append(result)
+                processed_results.append(result)
 
         return processed_results
 
-    def def _update_statistics(
+    def _update_statistics(
         self,
         execution_time: float,
         success: bool,
-        error: Optional[Optional[Exception]] = None,
+        error: Optional[Exception] = None,
     ) -> None:
         """
         Update classifier statistics.
@@ -434,11 +444,12 @@ class Classifier:
         )
 
         # Update additional classifier-specific statistics
-        self.(_state_manager and _state_manager.set_metadata("last_execution_time", execution_time)
+        if self._state_manager:
+            self._state_manager.set_metadata("last_execution_time", execution_time)
 
-        max_time = self.(_state_manager and _state_manager.get_metadata("max_execution_time", 0)
-        if execution_time > max_time:
-            self.(_state_manager and _state_manager.set_metadata("max_execution_time", execution_time)
+            max_time = self._state_manager.get_metadata("max_execution_time", 0)
+            if execution_time > max_time:
+                self._state_manager.set_metadata("max_execution_time", execution_time)
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -465,17 +476,49 @@ class Classifier:
         """
         return {
             "name": self._name,
-            "execution_count": self.(_state_manager and _state_manager.get("execution_count", 0),
-            "success_count": self.(_state_manager and _state_manager.get_metadata("success_count", 0),
-            "failure_count": self.(_state_manager and _state_manager.get_metadata("failure_count", 0),
-            "error_count": self.(_state_manager and _state_manager.get_metadata("error_count", 0),
-            "avg_execution_time": self.(_state_manager and _state_manager.get_metadata("avg_execution_time", 0),
-            "max_execution_time": self.(_state_manager and _state_manager.get_metadata("max_execution_time", 0),
-            "last_execution_time": self.(_state_manager and _state_manager.get_metadata("last_execution_time", 0),
-            "last_error": self.(_state_manager and _state_manager.get_metadata("last_error", None),
-            "last_error_time": self.(_state_manager and _state_manager.get_metadata("last_error_time", None),
-            "cache_size": len(self.(_state_manager and _state_manager.get("result_cache", {})),
-            "label_stats": self.(_state_manager and _state_manager.get_metadata("label_stats", {}),
+            "execution_count": (
+                self._state_manager.get("execution_count", 0) if self._state_manager else 0
+            ),
+            "success_count": (
+                self._state_manager.get_metadata("success_count", 0) if self._state_manager else 0
+            ),
+            "failure_count": (
+                self._state_manager.get_metadata("failure_count", 0) if self._state_manager else 0
+            ),
+            "error_count": (
+                self._state_manager.get_metadata("error_count", 0) if self._state_manager else 0
+            ),
+            "avg_execution_time": (
+                self._state_manager.get_metadata("avg_execution_time", 0)
+                if self._state_manager
+                else 0
+            ),
+            "max_execution_time": (
+                self._state_manager.get_metadata("max_execution_time", 0)
+                if self._state_manager
+                else 0
+            ),
+            "last_execution_time": (
+                self._state_manager.get_metadata("last_execution_time", 0)
+                if self._state_manager
+                else 0
+            ),
+            "last_error": (
+                self._state_manager.get_metadata("last_error", None)
+                if self._state_manager
+                else None
+            ),
+            "last_error_time": (
+                self._state_manager.get_metadata("last_error_time", None)
+                if self._state_manager
+                else None
+            ),
+            "cache_size": (
+                len(self._state_manager.get("result_cache", {})) if self._state_manager else 0
+            ),
+            "label_stats": (
+                self._state_manager.get_metadata("label_stats", {}) if self._state_manager else {}
+            ),
         }
 
     def clear_cache(self) -> None:
@@ -485,8 +528,9 @@ class Classifier:
         This method removes all cached classification results, which can be
         useful when changing configuration or when memory usage needs to be reduced.
         """
-        self.(_state_manager and _state_manager.update("result_cache", {})
-        (logger and logger.debug("Classifier cache cleared")
+        if self._state_manager:
+            self._state_manager.update("result_cache", {})
+        logger.debug("Classifier cache cleared")
 
     def reset_state(self) -> None:
         """
@@ -500,15 +544,16 @@ class Classifier:
         configuration, for example when running a new batch of classifications
         that should not be influenced by previous runs.
         """
-        self.(_state_manager and _state_manager.reset()
+        if self._state_manager:
+            self._state_manager.reset()
 
-        # Re-initialize state
-        self.(_state_manager and _state_manager.update("name", self._name)
-        self.(_state_manager and _state_manager.update("description", self._description)
-        self.(_state_manager and _state_manager.update("implementation", self._implementation)
-        self.(_state_manager and _state_manager.update("config", self._config)
-        self.(_state_manager and _state_manager.update("initialized", True)
-        self.(_state_manager and _state_manager.update("execution_count", 0)
-        self.(_state_manager and _state_manager.update("result_cache", {})
+            # Re-initialize state
+            self._state_manager.update("name", self._name)
+            self._state_manager.update("description", self._description)
+            self._state_manager.update("implementation", self._implementation)
+            self._state_manager.update("config", self._config)
+            self._state_manager.update("initialized", True)
+            self._state_manager.update("execution_count", 0)
+            self._state_manager.update("result_cache", {})
 
-        (logger and logger.debug("Classifier state reset")
+        logger.debug("Classifier state reset")

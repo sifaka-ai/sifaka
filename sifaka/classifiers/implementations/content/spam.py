@@ -93,7 +93,7 @@ from typing import ClassVar, List, Optional, Dict, Any
 from pydantic import PrivateAttr
 from sifaka.classifiers.classifier import Classifier
 from sifaka.core.results import ClassificationResult
-from sifaka.utils.config and config.classifiers import ClassifierConfig
+from sifaka.utils.config.classifiers import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
 
@@ -178,7 +178,7 @@ class SpamClassifier(Classifier):
     # State management
     _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
-    def def __init__(
+    def __init__(
         self,
         name: str = "spam_classifier",
         description: str = "Detects spam content in text",
@@ -204,9 +204,9 @@ class SpamClassifier(Classifier):
         if config is None:
             # Extract model path and features from kwargs
             model_params = {
-                "model_path": (kwargs and kwargs.pop("model_path", None),
-                "max_features": (kwargs and kwargs.pop("max_features", 1000),
-                "use_bigrams": (kwargs and kwargs.pop("use_bigrams", True),
+                "model_path": kwargs.pop("model_path", None) if kwargs else None,
+                "max_features": kwargs.pop("max_features", 1000) if kwargs else 1000,
+                "use_bigrams": kwargs.pop("use_bigrams", True) if kwargs else True,
             }
 
             # Create config with remaining kwargs
@@ -218,9 +218,9 @@ class SpamClassifier(Classifier):
         super().__init__(name=name, description=description, config=config)
 
         # Try to load model if path is provided
-        model_path = self.config and config and config and config and config and config and config and config and config and config and config.(params and params.get("model_path")
-        if model_path and os.(path and path.exists(model_path):
-            (self and self.warm_up()
+        model_path = self.config.params.get("model_path") if hasattr(self.config, "params") else None
+        if model_path and os.path.exists(model_path):
+            self.warm_up()
 
     def _load_dependencies(self) -> bool:
         """
@@ -240,16 +240,16 @@ class SpamClassifier(Classifier):
         """
         try:
             # Import necessary scikit-learn modules
-            cache = self.(_state_manager and _state_manager.get("cache", {})
-            cache["sklearn_feature_extraction_text"] = (importlib and importlib.import_module(
+            cache = self._state_manager.get("cache", {})
+            cache["sklearn_feature_extraction_text"] = importlib.import_module(
                 "sklearn.feature_extraction.text"
             )
-            cache["sklearn_naive_bayes"] = (importlib and importlib.import_module("sklearn.naive_bayes")
-            cache["sklearn_pipeline"] = (importlib and importlib.import_module("sklearn.pipeline")
-            self.(_state_manager and _state_manager.update("cache", cache)
+            cache["sklearn_naive_bayes"] = importlib.import_module("sklearn.naive_bayes")
+            cache["sklearn_pipeline"] = importlib.import_module("sklearn.pipeline")
+            self._state_manager.update("cache", cache)
 
             # Mark dependencies as loaded
-            self.(_state_manager and _state_manager.update("dependencies_loaded", True)
+            self._state_manager.update("dependencies_loaded", True)
             return True
         except ImportError:
             raise ImportError(
@@ -279,50 +279,48 @@ class SpamClassifier(Classifier):
             ImportError: If required packages are not installed
             RuntimeError: If model initialization or loading fails
         """
-        if not self.(_state_manager and _state_manager.get("initialized", False):
+        if not self._state_manager.get("initialized", False):
             # Load dependencies
-            (self and self._load_dependencies()
+            self._load_dependencies()
 
-            model_path = self.config and config and config and config and config and config and config and config and config and config and config.(params and params.get("model_path")
-            if model_path and os.(path and path.exists(model_path):
-                (self and self._load_model(model_path)
+            model_path = self.config.params.get("model_path") if hasattr(self.config, "params") else None
+            if model_path and os.path.exists(model_path):
+                self._load_model(model_path)
             else:
                 # Get parameters from config
-                max_features = self.config and config and config and config and config and config and config and config and config and config and config.(params and params.get("max_features", 1000)
-                use_bigrams = self.config and config and config and config and config and config and config and config and config and config and config.(params and params.get("use_bigrams", True)
+                max_features = self.config.params.get("max_features", 1000) if hasattr(self.config, "params") else 1000
+                use_bigrams = self.config.params.get("use_bigrams", True) if hasattr(self.config, "params") else True
 
                 # Get scikit-learn modules from state
-                cache = self.(_state_manager and _state_manager.get("cache", {})
+                cache = self._state_manager.get("cache", {})
                 sklearn_feature_extraction_text = cache["sklearn_feature_extraction_text"]
                 sklearn_naive_bayes = cache["sklearn_naive_bayes"]
                 sklearn_pipeline = cache["sklearn_pipeline"]
 
                 # Create TF-IDF vectorizer
                 ngram_range = (1, 2) if use_bigrams else (1, 1)
-                vectorizer = (sklearn_feature_extraction_text and sklearn_feature_extraction_text.TfidfVectorizer(
+                vectorizer = sklearn_feature_extraction_text.TfidfVectorizer(
                     max_features=max_features,
                     stop_words="english",
                     ngram_range=ngram_range,
                 )
 
                 # Create Naive Bayes model
-                model = (sklearn_naive_bayes and sklearn_naive_bayes.MultinomialNB()
+                model = sklearn_naive_bayes.MultinomialNB()
 
                 # Create pipeline
-                pipeline = (sklearn_pipeline and sklearn_pipeline.Pipeline(
-                    [
-                        ("vectorizer", vectorizer),
-                        ("classifier", model),
-                    ]
-                )
+                pipeline = sklearn_pipeline.Pipeline([
+                    ("vectorizer", vectorizer),
+                    ("classifier", model),
+                ])
 
                 # Store in state
-                self.(_state_manager and _state_manager.update("vectorizer", vectorizer)
-                self.(_state_manager and _state_manager.update("model", model)
-                self.(_state_manager and _state_manager.update("pipeline", pipeline)
+                self._state_manager.update("vectorizer", vectorizer)
+                self._state_manager.update("model", model)
+                self._state_manager.update("pipeline", pipeline)
 
             # Mark as initialized
-            self.(_state_manager and _state_manager.update("initialized", True)
+            self._state_manager.update("initialized", True)
 
     def _save_model(self, path: str) -> None:
         """
@@ -341,10 +339,12 @@ class SpamClassifier(Classifier):
         """
         try:
             with open(path, "wb") as f:
-                (pickle and pickle.dump(self.(_state_manager and _state_manager.get("pipeline"), f)
-            (logger and logger.info(f"Model saved to {path}")
+                pickle.dump(self._state_manager.get("pipeline"), f)
+            if logger:
+                logger.info(f"Model saved to {path}")
         except Exception as e:
-            (logger and logger.error(f"Failed to save model: {e}")
+            if logger:
+                logger.error(f"Failed to save model: {e}")
 
     def _load_model(self, path: str) -> None:
         """
@@ -363,14 +363,16 @@ class SpamClassifier(Classifier):
         """
         try:
             with open(path, "rb") as f:
-                pipeline = (pickle and pickle.load(f)
-                self.(_state_manager and _state_manager.update("pipeline", pipeline)
+                pipeline = pickle.load(f)
+                self._state_manager.update("pipeline", pipeline)
                 # Extract vectorizer and model from pipeline
-                self.(_state_manager and _state_manager.update("vectorizer", pipeline.named_steps["vectorizer"])
-                self.(_state_manager and _state_manager.update("model", pipeline.named_steps["classifier"])
-            (logger and logger.info(f"Model loaded from {path}")
+                self._state_manager.update("vectorizer", pipeline.named_steps["vectorizer"])
+                self._state_manager.update("model", pipeline.named_steps["classifier"])
+            if logger:
+                logger.info(f"Model loaded from {path}")
         except Exception as e:
-            (logger and logger.error(f"Failed to load model: {e}")
+            if logger:
+                logger.error(f"Failed to load model: {e}")
             raise RuntimeError(f"Failed to load model: {e}")
 
     def fit(self, texts: List[str], labels: List[str]) -> "SpamClassifier":
@@ -397,24 +399,24 @@ class SpamClassifier(Classifier):
         if len(texts) != len(labels):
             raise ValueError("Number of texts and labels must match")
 
-        if not all(label in self.config and config and config and config and config and config and config and config.labels for label in labels):
-            raise ValueError(f"Labels must be one of {self.config and config and config and config and config and config and config and config.labels}")
+        if not all(label in self.config.labels for label in labels):
+            raise ValueError(f"Labels must be one of {self.config.labels}")
 
         # Convert string labels to integers for scikit-learn
-        label_indices = [self.config and config and config and config and config and config and config and config.(labels and labels.index(label) for label in labels]
+        label_indices = [self.config.labels.index(label) for label in labels]
 
         # Ensure model is initialized
-        (self and self.warm_up()
+        self.warm_up()
 
         # Fit the pipeline
-        pipeline = self.(_state_manager and _state_manager.get("pipeline")
-        (pipeline and pipeline.fit(texts, label_indices)
-        self.(_state_manager and _state_manager.update("pipeline", pipeline)
+        pipeline = self._state_manager.get("pipeline")
+        pipeline.fit(texts, label_indices)
+        self._state_manager.update("pipeline", pipeline)
 
         # Save the model if path is provided
-        model_path = self.config and config and config and config and config and config and config and config and config and config and config.(params and params.get("model_path")
+        model_path = self.config.params.get("model_path")
         if model_path:
-            (self and self._save_model(model_path)
+            self._save_model(model_path)
 
         return self
 
@@ -440,43 +442,43 @@ class SpamClassifier(Classifier):
         Raises:
             RuntimeError: If the model is not initialized
         """
-        if not self.(_state_manager and _state_manager.get("initialized", False):
-            (self and self.warm_up()
+        if not self._state_manager.get("initialized", False):
+            self.warm_up()
 
         try:
             # Get prediction probabilities
-            pipeline = self.(_state_manager and _state_manager.get("pipeline")
-            proba = (pipeline and pipeline.predict_proba([text])[0]
+            pipeline = self._state_manager.get("pipeline")
+            proba = pipeline.predict_proba([text])[0]
 
             # Get predicted label index and confidence
-            label_idx = (proba and proba.argmax()
+            label_idx = proba.argmax()
             confidence = float(proba[label_idx])
 
             # Get label from index
-            label = self.config and config and config and config and config and config and config and config.labels[label_idx]
+            label = self.config.labels[label_idx]
 
             result = ClassificationResult[str, Any](
                 label=label,
                 confidence=confidence,
                 metadata={
-                    "probabilities": {l: float(p) for l, p in zip(self.config and config and config and config and config and config and config and config.labels, proba)}
+                    "probabilities": {l: float(p) for l, p in zip(self.config.labels, proba)}
                 },
             )
 
             # Track statistics
-            stats = self.(_state_manager and _state_manager.get("statistics", {})
-            stats[label] = (stats and stats.get(label, 0) + 1
-            self.(_state_manager and _state_manager.update("statistics", stats)
+            stats = self._state_manager.get("statistics", {})
+            stats[label] = stats.get(label, 0) + 1
+            self._state_manager.update("statistics", stats)
 
             return result
         except Exception as e:
-            (logger and logger.error(f"Failed to classify text: {e}")
+            logger.error(f"Failed to classify text: {e}")
 
             # Track errors in state
             error_info = {"error": str(e), "type": type(e).__name__}
-            errors = self.(_state_manager and _state_manager.get("errors", [])
-            (errors and errors.append(error_info)
-            self.(_state_manager and _state_manager.update("errors", errors)
+            errors = self._state_manager.get("errors", [])
+            errors.append(error_info)
+            self._state_manager.update("errors", errors)
 
             return ClassificationResult[str, Any](
                 label="unknown",
@@ -506,42 +508,42 @@ class SpamClassifier(Classifier):
             RuntimeError: If the model is not initialized
             ValueError: If an empty list is provided
         """
-        (self and self.validate_batch_input(texts)
+        self.validate_batch_input(texts)
 
-        if not self.(_state_manager and _state_manager.get("initialized", False):
-            (self and self.warm_up()
+        if not self._state_manager.get("initialized", False):
+            self.warm_up()
 
         try:
             # Predict probabilities for all texts
-            pipeline = self.(_state_manager and _state_manager.get("pipeline")
-            probas = (pipeline and pipeline.predict_proba(texts)
+            pipeline = self._state_manager.get("pipeline")
+            probas = pipeline.predict_proba(texts)
 
             results = []
             for proba in probas:
-                label_idx = (proba and proba.argmax()
+                label_idx = proba.argmax()
                 confidence = float(proba[label_idx])
-                label = self.config and config and config and config and config and config and config and config.labels[label_idx]
+                label = self.config.labels[label_idx]
 
-                (results and results.append(
+                results.append(
                     ClassificationResult[str, Any](
                         label=label,
                         confidence=confidence,
                         metadata={
                             "probabilities": {
-                                l: float(p) for l, p in zip(self.config and config and config and config and config and config and config and config.labels, proba)
+                                l: float(p) for l, p in zip(self.config.labels, proba)
                             }
                         },
                     )
                 )
 
                 # Track statistics
-                stats = self.(_state_manager and _state_manager.get("statistics", {})
-                stats[label] = (stats and stats.get(label, 0) + 1
-                self.(_state_manager and _state_manager.update("statistics", stats)
+                stats = self._state_manager.get("statistics", {})
+                stats[label] = stats.get(label, 0) + 1
+                self._state_manager.update("statistics", stats)
 
             return results
         except Exception as e:
-            (logger and logger.error(f"Failed to batch classify texts: {e}")
+            logger.error(f"Failed to batch classify texts: {e}")
 
             # Track errors in state
             error_info = {"error": str(e), "type": type(e).__name__, "batch_size": len(texts)}
@@ -590,7 +592,7 @@ class SpamClassifier(Classifier):
             # Model information
             "model_path": self.config and config and config and config and config and config and config and config and config and config and config.(params and params.get("model_path"),
             "max_features": self.config and config and config and config and config and config and config and config and config and config and config.(params and params.get("max_features", 1000),
-        }
+        )
 
         # Add cache entries count if caching is enabled
         if self.config and config.cache_enabled:
@@ -669,7 +671,7 @@ class SpamClassifier(Classifier):
         return (classifier and classifier.fit(texts, labels)
 
 
-def def create_spam_classifier(
+def create_spam_classifier(
     name: str = "spam_classifier",
     description: str = "Detects spam content in text",
     model_path: Optional[Optional[str]] = None,

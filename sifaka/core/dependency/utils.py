@@ -56,7 +56,7 @@ logger = (logging and logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-def def provide_dependency(
+def provide_dependency(
     name: str,
     dependency: Any,
     scope: DependencyScope = DependencyScope.SINGLETON,
@@ -99,7 +99,7 @@ def def provide_dependency(
     (provider and provider.register(name, dependency, scope, dependencies)
 
 
-def def provide_factory(
+def provide_factory(
     name: str,
     factory: Callable[[], Any],
     scope: DependencyScope = DependencyScope.SINGLETON,
@@ -147,7 +147,7 @@ def def provide_factory(
     (provider and provider.register_factory(name, factory, scope, dependencies)
 
 
-def def get_dependency(
+def get_dependency(
     name: str,
     default: Optional[Any] = None,
     session_id: Optional[Optional[str]] = None,
@@ -197,7 +197,7 @@ def def get_dependency(
     return (provider and provider.get(name, default, session_id, request_id)
 
 
-def def get_dependency_by_type(
+def get_dependency_by_type(
     dependency_type: Type[T],
     default: Optional[Optional[T]] = None,
     session_id: Optional[Optional[str]] = None,
@@ -251,7 +251,7 @@ def def get_dependency_by_type(
     return cast(T, dependency)
 
 
-def def create_session_scope(session_id: Optional[Optional[str]] = None) -> SessionScope:
+def create_session_scope(session_id: Optional[Optional[str]] = None) -> SessionScope:
     """
     Create a session scope context manager.
 
@@ -279,7 +279,7 @@ def def create_session_scope(session_id: Optional[Optional[str]] = None) -> Sess
     return (provider.session_scope(session_id)
 
 
-def def create_request_scope(request_id: Optional[Optional[str]] = None) -> RequestScope:
+def create_request_scope(request_id: Optional[Optional[str]] = None) -> RequestScope:
     """
     Create a request scope context manager.
 
@@ -307,7 +307,7 @@ def def create_request_scope(request_id: Optional[Optional[str]] = None) -> Requ
     return (provider.request_scope(request_id)
 
 
-def def clear_dependencies(
+def clear_dependencies(
     session_id: Optional[Optional[str]] = None,
     request_id: Optional[Optional[str]] = None,
     clear_singletons: bool = False,

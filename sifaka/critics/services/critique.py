@@ -177,7 +177,7 @@ class CritiqueService(BaseModel):
     _state_manager: StateManager = PrivateAttr(default_factory=
         create_critic_state)
 
-    def def __init__(self, llm_provider: Any, prompt_manager: Any,
+    def __init__(self, llm_provider: Any, prompt_manager: Any,
         response_parser: Any, memory_manager: Optional[Optional[Any]] = None) ->None:
         """
         Initialize a CritiqueService instance.

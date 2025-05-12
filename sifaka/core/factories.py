@@ -148,7 +148,7 @@ AdapterType = TypeVar("AdapterType")
 ModelProviderType = TypeVar("ModelProviderType")
 
 
-def def create_chain(
+def create_chain(
     chain_type: str = "simple",
     model: Optional[Any] = None,
     rules: Optional[Optional[List[Any]]] = None,
@@ -287,7 +287,7 @@ def def create_chain(
         )
 
 
-def def create_critic(
+def create_critic(
     critic_type: str,
     model_provider: Optional[Any] = None,
     name: Optional[Optional[str]] = None,
@@ -415,7 +415,7 @@ def def create_critic(
         raise ValueError(f"Invalid critic type: {critic_type}")
 
 
-def def create_rule(
+def create_rule(
     rule_type: str,
     name: Optional[Optional[str]] = None,
     description: Optional[Optional[str]] = None,
@@ -542,7 +542,7 @@ def def create_rule(
         )
 
 
-def def create_classifier(
+def create_classifier(
     classifier_type: str,
     name: Optional[Optional[str]] = None,
     description: Optional[Optional[str]] = None,
@@ -614,7 +614,7 @@ def def create_classifier(
         raise ValueError(f"Invalid classifier type: {classifier_type}")
 
 
-def def create_retriever(
+def create_retriever(
     retriever_type: str = "simple",
     documents: Optional[Dict[str, str]] = None,
     corpus: Optional[Optional[str]] = None,
@@ -670,7 +670,7 @@ def def create_retriever(
         raise ValueError(f"Invalid retriever type: {retriever_type}")
 
 
-def def create_adapter(
+def create_adapter(
     adapter_type: str,
     adaptee: Optional[Any] = None,
     name: Optional[Optional[str]] = None,
@@ -752,7 +752,7 @@ def def create_adapter(
     )
 
 
-def def create_model_provider(
+def create_model_provider(
     provider_type: str,
     model_name: str,
     api_key: Optional[Optional[str]] = None,

@@ -84,7 +84,7 @@ class TokenCounterManager(Generic[T]):
         ```
     """
 
-    def def __init__(self, model_name: str, token_counter: Optional[Optional[T]] = None):
+    def __init__(self, model_name: str, token_counter: Optional[Optional[T]] = None):
         """
         Initialize a TokenCounterManager instance.
 

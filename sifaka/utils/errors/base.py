@@ -212,7 +212,7 @@ class ComponentError(SifakaError):
         metadata (Dict[str, Any]): Additional error context and details
     """
 
-    def def __init__(
+    def __init__(
         self,
         message: str,
         component_name: Optional[Optional[str]] = None,

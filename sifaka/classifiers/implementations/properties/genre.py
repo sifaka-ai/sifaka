@@ -119,7 +119,7 @@ class GenreClassifier(Classifier):
                 ),
                 "ensemble": (importlib and importlib.import_module("sklearn.ensemble"),
                 "pipeline": (importlib and importlib.import_module("sklearn.pipeline"),
-            }
+            )
             return sklearn_modules
         except ImportError:
             raise ImportError(
@@ -179,7 +179,7 @@ class GenreClassifier(Classifier):
                     [
                         ("vectorizer", state.vectorizer),
                         ("classifier", state.model),
-                    ]
+                    )
                 )
 
             # Mark as initialized
@@ -295,7 +295,7 @@ class GenreClassifier(Classifier):
         unique_labels = sorted(set(labels))
 
         # Create label mapping
-        label_mapping = {label: i for i, label in enumerate(unique_labels)}
+        label_mapping = {label: i for i, label in enumerate(unique_labels))
         numeric_labels = [label_mapping[label] for label in labels]
 
         # Store custom labels in state cache
@@ -353,7 +353,7 @@ class GenreClassifier(Classifier):
                 # For RandomForest, we need to extract class-specific importances differently
                 # Here we use the overall feature importance as a simplification
                 top_indices = (importances and importances.argsort()[-20:][::-1]
-                top_features[label] = {feature_names[j]: float(importances[j]) for j in top_indices}
+                top_features[label] = {feature_names[j]: float(importances[j]) for j in top_indices)
 
             return top_features
         except Exception as e:
@@ -400,7 +400,7 @@ class GenreClassifier(Classifier):
         confidence = float(proba[dominant_class_idx])
 
         # Create metadata
-        all_probs = {self._config and config and config and config and config and config and config and config and config and config and config.labels[i]: float(prob) for i, prob in enumerate(proba)}
+        all_probs = {self._config and config and config and config and config and config and config and config and config and config and config.labels[i]: float(prob) for i, prob in enumerate(proba))
 
         # Get top features for explanation
         top_features = {}
@@ -463,7 +463,7 @@ class GenreClassifier(Classifier):
             dominant_class_idx = (proba and proba.argmax()
             confidence = float(proba[dominant_class_idx])
 
-            all_probs = {self._config and config and config and config and config and config and config and config and config and config and config.labels[i]: float(prob) for i, prob in enumerate(proba)}
+            all_probs = {self._config and config and config and config and config and config and config and config and config and config and config.labels[i]: float(prob) for i, prob in enumerate(proba))
 
             # Get top features for explanation
             top_features = {}
@@ -559,7 +559,7 @@ class GenreClassifier(Classifier):
         return (classifier and classifier.fit(texts, labels)
 
 
-def def create_genre_classifier(
+def create_genre_classifier(
     name: str = "genre_classifier",
     description: str = "Classifies text into different genres",
     labels: Optional[Optional[List[str]]] = None,

@@ -71,7 +71,7 @@ print(f"Topic: {result.label}, Confidence: {result.confidence:.2f}")
 # Access topic details
 for topic, details in result.metadata['all_topics'].items():
     print(f"{topic}: {details['probability']:.2f}")
-    print(f"Words: {', '.join(details['words'])}")
+    print(f"Words: {', '.join(details['words']))")
 ```
 
 ## Error Handling
@@ -176,7 +176,7 @@ class TopicClassifier(Classifier):
     # Access topic details
     for topic, details in result.metadata['all_topics'].items():
         print(f"{topic}: {details['probability']:.2f}")
-        print(f"Words: {', '.join(details['words'])}")
+        print(f"Words: {', '.join(details['words']))")
     ```
 
     ## Configuration Options
@@ -209,7 +209,7 @@ class TopicClassifier(Classifier):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def def __init__(
+    def __init__(
         self,
         name: str = "topic_classifier",
         description: str = "Classifies text by topic",
@@ -236,7 +236,7 @@ class TopicClassifier(Classifier):
 
             # Create config with remaining kwargs
             config = ClassifierConfig(
-                labels=[f"topic_{i}" for i in range(num_topics)],
+                labels=[f"topic_{i}" for i in range(num_topics)),
                 cost=self.DEFAULT_COST,
                 min_confidence=min_confidence,
                 params=params,
@@ -285,7 +285,7 @@ class TopicClassifier(Classifier):
                     "sklearn.feature_extraction.text"
                 ),
                 "decomposition": (importlib and importlib.import_module("sklearn.decomposition"),
-            }
+            )
             return sklearn_modules
         except ImportError:
             raise ImportError(
@@ -372,7 +372,7 @@ class TopicClassifier(Classifier):
         state["cache"]["topic_words"] = topic_words
 
         # Update labels with meaningful topic names
-        labels = [f"topic_{i}_{'+'.join(words[:3])}" for i, words in enumerate(topic_words)]
+        labels = [f"topic_{i}_{'+'.join(words[:3]))" for i, words in enumerate(topic_words))
         self.config = ClassifierConfig(
             labels=labels,
             cost=self.config and config.cost,
@@ -433,7 +433,7 @@ class TopicClassifier(Classifier):
             all_topics[labels[i]] = {
                 "probability": float(prob),
                 "words": topic_words[i][: self.top_words_per_topic] if i < len(topic_words) else [],
-            }
+            )
 
         metadata = {
             "all_topics": all_topics,
@@ -441,7 +441,7 @@ class TopicClassifier(Classifier):
                 topic_words[dominant_topic_idx] if dominant_topic_idx < len(topic_words) else []
             ),
             "topic_distribution": (topic_distribution and topic_distribution.tolist(),
-        }
+        )
 
         return ClassificationResult(
             label=labels[dominant_topic_idx],
@@ -500,7 +500,7 @@ class TopicClassifier(Classifier):
                     "words": (
                         topic_words[j][: self.top_words_per_topic] if j < len(topic_words) else []
                     ),
-                }
+                )
 
             metadata = {
                 "all_topics": all_topics,
@@ -508,7 +508,7 @@ class TopicClassifier(Classifier):
                     topic_words[dominant_topic_idx] if dominant_topic_idx < len(topic_words) else []
                 ),
                 "topic_distribution": (distribution and distribution.tolist(),
-            }
+            )
 
             (results and results.append(
                 ClassificationResult(
@@ -563,7 +563,7 @@ class TopicClassifier(Classifier):
 
             # Create config with standardized approach
             config = standardize_classifier_config(
-                labels=[f"topic_{i}" for i in range(num_topics)],
+                labels=[f"topic_{i}" for i in range(num_topics)),
                 cost=cls.DEFAULT_COST,
                 min_confidence=min_confidence,
                 params={
@@ -680,7 +680,7 @@ def create_topic_classifier(
     # Use standardize_classifier_config to handle different config formats
     classifier_config = standardize_classifier_config(
         config=config,
-        labels=[f"topic_{i}" for i in range(num_topics)],
+        labels=[f"topic_{i}" for i in range(num_topics)),
         min_confidence=min_confidence,
         cost=cost,
         cache_size=cache_size,

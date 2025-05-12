@@ -219,7 +219,7 @@ class ToxicityClassifier(Classifier):
     DEFAULT_THREAT_THRESHOLD: ClassVar[float] = 0.7
     DEFAULT_GENERAL_THRESHOLD: ClassVar[float] = 0.5
 
-    def def __init__(
+    def __init__(
         self,
         name: str = "toxicity_classifier",
         description: str = "Detects toxic content using Detoxify",
@@ -257,7 +257,7 @@ class ToxicityClassifier(Classifier):
                         "threat_threshold", self.DEFAULT_THREAT_THRESHOLD
                     ),
                     "model_name": (kwargs and kwargs.pop("model_name", "original"),
-                }
+                )
             )
 
             # Create config
@@ -352,7 +352,7 @@ class ToxicityClassifier(Classifier):
                     "threat_threshold": self.config and config and config and config and config and config and config and config and config and config and config and config and config.params and params and params and params and params and params and params and params and params and (params and params.get(
                         "threat_threshold", self.DEFAULT_THREAT_THRESHOLD
                     ),
-                }
+                )
                 self.(_state_manager and _state_manager.update("cache", cache)
 
                 # Store model name in state cache
@@ -389,7 +389,7 @@ class ToxicityClassifier(Classifier):
             "threat_threshold": self.config and config and config and config and config and config and config and config and config and config and config and config and config.params and params and params and params and params and params and params and params and params and (params and params.get(
                 "threat_threshold", self.DEFAULT_THREAT_THRESHOLD
             ),
-        }
+        )
 
     def _get_toxicity_label(self, scores: Dict[str, float]) -> Tuple[str, float]:
         """
@@ -471,7 +471,7 @@ class ToxicityClassifier(Classifier):
             # Get toxicity scores from Detoxify
             model = self.(_state_manager and _state_manager.get("model")
             scores = (model and model.predict(text)
-            scores = {k: float(v) for k, v in (scores and scores.items()}
+            scores = {k: float(v) for k, v in (scores and scores.items())
 
             # Determine toxicity label and confidence
             label, confidence = (self and self._get_toxicity_label(scores)
@@ -506,9 +506,9 @@ class ToxicityClassifier(Classifier):
                     "error": str(e),
                     "error_type": type(e).__name__,
                     "reason": "classification_error",
-                },
+                ),
                 passed=False,
-                message=f"Classification failed: {str(e)}",
+                message=f"Classification failed: {str(e))",
             )
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
@@ -573,7 +573,7 @@ class ToxicityClassifier(Classifier):
 
             # Process each non-empty text
             for i in range(len(non_empty_texts)):
-                scores = {k: float(v[i]) for k, v in (batch_scores and batch_scores.items()}
+                scores = {k: float(v[i]) for k, v in (batch_scores and batch_scores.items())
                 label, confidence = (self and self._get_toxicity_label(scores)
 
                 (non_empty_results and non_empty_results.append(
@@ -614,12 +614,12 @@ class ToxicityClassifier(Classifier):
                         "error": str(e),
                         "error_type": type(e).__name__,
                         "reason": "batch_classification_error",
-                    },
+                    ),
                     passed=False,
-                    message=f"Classification failed: {str(e)}",
+                    message=f"Classification failed: {str(e))",
                 )
                 for _ in non_empty_texts
-            ]
+            )
 
             # Merge error results in the original order
             final_results = [None] * len(texts)
@@ -657,7 +657,7 @@ class ToxicityClassifier(Classifier):
             "model_name": self.(_state_manager and _state_manager.get("cache", {}).get(
                 "model_name", self.config and config and config and config and config and config and config and config and config and config and config and config and config.params and params and params and params and params and params and params and params and params and (params and params.get("model_name", "original")
             ),
-        }
+        )
 
         # Add thresholds information
         thresholds = (self and self._get_thresholds()
@@ -688,11 +688,11 @@ class ToxicityClassifier(Classifier):
 
         # Keep the model, thresholds, and model_name in cache
         cache = self.(_state_manager and _state_manager.get("cache", {})
-        preserved_cache = {k: v for k, v in (cache and cache.items() if k in ("thresholds", "model_name")}
+        preserved_cache = {k: v for k, v in (cache and cache.items() if k in ("thresholds", "model_name"))
         self.(_state_manager and _state_manager.update("cache", preserved_cache)
 
     @classmethod
-    def def create(
+    def create(
         cls: Type[T],
         name: str = "toxicity_classifier",
         description: str = "Detects toxic content using Detoxify",
@@ -775,7 +775,7 @@ class ToxicityClassifier(Classifier):
         """
         # Validate model first
         if not isinstance(model, ToxicityModel):
-            raise ValueError(f"Model must implement ToxicityModel protocol, got {type(model)}")
+            raise ValueError(f"Model must implement ToxicityModel protocol, got {type(model))")
 
         # Create instance with extracted parameters and kwargs
         instance = cls(

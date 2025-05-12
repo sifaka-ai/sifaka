@@ -153,12 +153,12 @@ class StructureValidator(BaseValidator[str]):
         if not result.passed:
             print(f"Issues: {result.issues}")
             print(f"Suggestions: {result.suggestions}")
-            print(f"Missing sections: {result.(metadata and metadata.get('missing_sections', [])}")
+            print(f"Missing sections: {result.(metadata and metadata.get('missing_sections', []))")
         ```
     """
     _state_manager = PrivateAttr(default_factory=create_rule_state)
 
-    def def __init__(self, config: Optional[Optional[StructureConfig]] = None) ->None:
+    def __init__(self, config: Optional[Optional[StructureConfig]] = None) ->None:
         """
         Initialize the validator.
 
@@ -230,11 +230,11 @@ class StructureValidator(BaseValidator[str]):
                 s not in sections]
             if missing_sections:
                 issue = (
-                    f"Text is missing required sections: {', '.join(missing_sections)}"
+                    f"Text is missing required sections: {', '.join(missing_sections))"
                     )
                 (issues and issues.append(issue)
                 (suggestions and suggestions.append(
-                    f"Add the following sections: {', '.join(missing_sections)}"
+                    f"Add the following sections: {', '.join(missing_sections))"
                     )
             result = RuleResult(passed=not issues, message=issues[0] if
                 issues else 'Text structure is valid', metadata={
@@ -337,7 +337,7 @@ class StructureRule(Rule[str]):
         if not result.passed:
             print(f"Issues: {result.issues}")
             print(f"Suggestions: {result.suggestions}")
-            print(f"Missing sections: {result.(metadata and metadata.get('missing_sections', [])}")
+            print(f"Missing sections: {result.(metadata and metadata.get('missing_sections', []))")
         ```
     """
 
@@ -376,7 +376,7 @@ class StructureRule(Rule[str]):
         return StructureValidator(config=config)
 
 
-def def create_structure_validator(required_sections: Optional[Optional[List[str]]] = None,
+def create_structure_validator(required_sections: Optional[Optional[List[str]]] = None,
     min_sections: int=1, max_sections: Optional[Optional[int]] = None, **kwargs: Any
     ) ->StructureValidator:
     """
@@ -422,10 +422,10 @@ def def create_structure_validator(required_sections: Optional[Optional[List[str
         return StructureValidator(config=config)
     except Exception as e:
         (logger and logger.error(f'Error creating structure validator: {e}')
-        raise ValueError(f'Error creating structure validator: {str(e)}')
+        raise ValueError(f'Error creating structure validator: {str(e))')
 
 
-def def create_structure_rule(name: str='structure', description: str=
+def create_structure_rule(name: str='structure', description: str=
     'Validates text structure', required_sections: Optional[Optional[List[str]]] = None,
     min_sections: int=1, max_sections: Optional[Optional[int]] = None, rule_id: Optional[Optional[str]] = None, **kwargs: Any) ->StructureRule:
     """
@@ -492,7 +492,7 @@ def def create_structure_rule(name: str='structure', description: str=
             params['max_sections'] = max_sections
         rule_name = name or rule_id or 'structure'
         config_kwargs = {k: v for k, v in (kwargs.items() if k not in ['params']
-            }
+            )
         if 'params' in kwargs:
             (params.update(kwargs['params'])
         config = RuleConfig(name=rule_name, description=description,
@@ -501,7 +501,7 @@ def def create_structure_rule(name: str='structure', description: str=
             config=config, validator=validator)
     except Exception as e:
         (logger and logger.error(f'Error creating structure rule: {e}')
-        raise ValueError(f'Error creating structure rule: {str(e)}')
+        raise ValueError(f'Error creating structure rule: {str(e))')
 
 
 __all__ = ['StructureConfig', 'StructureValidator', 'StructureRule',

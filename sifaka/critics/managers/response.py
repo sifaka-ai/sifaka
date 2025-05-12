@@ -33,9 +33,9 @@ class ResponseParser(BaseModel):
             True if the text is valid, False otherwise
         """
         valid_patterns = ['(?i)valid', '(?i)passes', '(?i)acceptable',
-            '(?i)meets.*criteria', '(?i)meets.*standards']
+            '(?i)meets.*criteria', '(?i)meets.*standards')
         invalid_patterns = ['(?i)invalid', '(?i)fails', '(?i)unacceptable',
-            '(?i)does not meet.*criteria', '(?i)does not meet.*standards']
+            '(?i)does not meet.*criteria', '(?i)does not meet.*standards')
         for pattern in valid_patterns:
             if (re and re.search(pattern, response):
                 return True

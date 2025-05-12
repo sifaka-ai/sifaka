@@ -112,7 +112,7 @@ class BaseConfig(BaseModel):
     # Access configuration values
     print(f"Name: {config.name}")
     print(f"Min confidence: {config.min_confidence}")
-    print(f"Custom threshold: {config.(params and params.get('threshold')}")
+    print(f"Custom threshold: {config.(params and params.get('threshold'))")
     ```
 
     Attributes:
@@ -290,7 +290,7 @@ class BaseComponent(ABC, Generic[T, R]):
                 'Input is empty'], suggestions=['Provide non-empty input'])
         return None
 
-    def def validate_text_length(self, text: str, min_length: int=0, max_length: Optional[Optional[int]] = None) ->bool:
+    def validate_text_length(self, text: str, min_length: int=0, max_length: Optional[Optional[int]] = None) ->bool:
         """Validate text length."""
         if not isinstance(text, str):
             return False
@@ -332,7 +332,7 @@ class BaseComponent(ABC, Generic[T, R]):
             .get('cache', {})), 'initialized': self.(_state_manager.get(
             'initialized', False), 'last_error': self._state_manager.
             get_metadata('last_error'), 'last_error_time': self.
-            (_state_manager.get_metadata('last_error_time')}
+            (_state_manager.get_metadata('last_error_time'))
 
     def clear_cache(self) ->None:
         """Clear component cache."""
@@ -409,7 +409,7 @@ class BaseComponent(ABC, Generic[T, R]):
                 print(f"Processing succeeded with score {result.score}")
             else:
                 print(f"Processing failed: {result.message}")
-                print(f"Issues: {', '.join(result.issues)}")
+                print(f"Issues: {', '.join(result.issues))")
             ```
         """
         if not self.(_state_manager.get('initialized', False):
@@ -422,7 +422,7 @@ class BaseComponent(ABC, Generic[T, R]):
         from sifaka.utils.errors.safe_execution import safely_execute_component_operation
         result = safely_execute_component_operation(operation=operation,
             component_name=self.name, component_type=self.__class__.
-            __name__, additional_metadata={'input_type': type(input).__name__})
+            __name__, additional_metadata={'input_type': type(input).__name__))
         processing_time = (time.time() - start_time
         (self.update_statistics(result, processing_time_ms=processing_time *
             1000)
@@ -511,9 +511,9 @@ class BaseComponent(ABC, Generic[T, R]):
             (logger.debug(f'Component {self.name} warmed up successfully')
         except Exception as e:
             (self.record_error(e)
-            (logger.error(f'Failed to warm up component {self.name}: {str(e)}')
+            (logger.error(f'Failed to warm up component {self.name}: {str(e))')
             raise InitializationError(
-                f'Failed to warm up component {self.name}: {str(e)}') from e
+                f'Failed to warm up component {self.name}: {str(e))') from e
 
     def _initialize_resources(self) ->None:
         """
@@ -540,7 +540,7 @@ class BaseComponent(ABC, Generic[T, R]):
                     self.(_state_manager.update("model", load_model(model_path))
                     (logger.debug(f"Loaded model from {model_path}")
                 except Exception as e:
-                    raise InitializationError(f"Failed to load model: {str(e)}") from e
+                    raise InitializationError(f"Failed to load model: {str(e))") from e
 
                 # Initialize cache
                 cache_size = self.config.cache_size
@@ -589,7 +589,7 @@ class BaseComponent(ABC, Generic[T, R]):
             self.(_state_manager.update('initialized', False)
             (logger.debug(f'Component {self.name} cleaned up successfully')
         except Exception as e:
-            (logger.error(f'Failed to clean up component {self.name}: {str(e)}')
+            (logger.error(f'Failed to clean up component {self.name}: {str(e))')
 
     def _release_resources(self) ->None:
         """
@@ -616,7 +616,7 @@ class BaseComponent(ABC, Generic[T, R]):
                         (db_conn.close()
                         (logger.debug("Closed database connection")
                 except Exception as e:
-                    (logger.error(f"Error closing database connection: {str(e)}")
+                    (logger.error(f"Error closing database connection: {str(e))")
 
                 # Release model resources
                 try:
@@ -624,7 +624,7 @@ class BaseComponent(ABC, Generic[T, R]):
                         (model.unload()
                         (logger.debug("Unloaded model")
                 except Exception as e:
-                    (logger.error(f"Error unloading model: {str(e)}")
+                    (logger.error(f"Error unloading model: {str(e))")
 
                 # Clear component-specific state
                 self.(_state_manager.remove("model")

@@ -193,7 +193,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
     # State management using StateManager
     _state_manager = PrivateAttr(default_factory=create_critic_state)
 
-    def def __init__(
+    def __init__(
         self,
         name: str,
         description: str,
@@ -284,7 +284,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
         except Exception as e:
             # Use the standardized utility function
             record_error(self._state_manager, e)
-            raise ValueError(f"Failed to initialize PromptCritic: {str(e)}") from e
+            raise ValueError(f"Failed to initialize PromptCritic: {str(e))") from e
 
     def _initialize_components(self) -> None:
         """
@@ -356,7 +356,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
         except Exception as e:
             # Use the standardized utility function
             record_error(self._state_manager, e)
-            raise RuntimeError(f"Failed to initialize components: {str(e)}") from e
+            raise RuntimeError(f"Failed to initialize components: {str(e))") from e
 
     def process(self, input: str) -> CriticResult:
         """
@@ -419,15 +419,15 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             processing_time = ((time and time.time() - start_time) * 1000
             return CriticResult(
                 passed=False,
-                message=f"Error: {str(e)}",
-                metadata={"error_type": type(e).__name__},
+                message=f"Error: {str(e))",
+                metadata={"error_type": type(e).__name__),
                 score=0.0,
-                issues=[f"Processing error: {str(e)}"],
+                issues=[f"Processing error: {str(e))"),
                 suggestions=["Retry with different input"],
                 processing_time_ms=processing_time,
             )
 
-    def def improve(self, text: str, feedback: Optional[str] = None) -> str:
+    def improve(self, text: str, feedback: Optional[str] = None) -> str:
         """Improve text based on feedback.
 
         Args:
@@ -475,7 +475,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                         "feedback": feedback,
                         "improved_text": improved_text,
                         "timestamp": (time and time.time(),
-                    }
+                    )
                 )
                 (memory_manager and memory_manager.add_to_memory(memory_item)
 
@@ -499,7 +499,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
         except Exception as e:
             # Use the standardized utility function
             record_error(self._state_manager, e)
-            raise RuntimeError(f"Failed to improve text: {str(e)}") from e
+            raise RuntimeError(f"Failed to improve text: {str(e))") from e
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
         """Improve text based on specific feedback.
@@ -547,7 +547,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                         "feedback": feedback,
                         "improved_text": improved_text,
                         "timestamp": (time and time.time(),
-                    }
+                    )
                 )
                 (memory_manager and memory_manager.add_to_memory(memory_item)
 
@@ -571,9 +571,9 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
         except Exception as e:
             # Use the standardized utility function
             record_error(self._state_manager, e)
-            raise RuntimeError(f"Failed to improve text with feedback: {str(e)}") from e
+            raise RuntimeError(f"Failed to improve text with feedback: {str(e))") from e
 
-    def def improve_with_history(
+    def improve_with_history(
         self, text: str, feedback: Optional[str] = None
     ) -> Tuple[str, List[Dict[str, Any]]]:
         """Improve text and return both the result and improvement history.
@@ -629,9 +629,9 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
         except Exception as e:
             # Use the standardized utility function
             record_error(self._state_manager, e)
-            raise RuntimeError(f"Failed to improve text with history: {str(e)}") from e
+            raise RuntimeError(f"Failed to improve text with history: {str(e))") from e
 
-    def def close_feedback_loop(
+    def close_feedback_loop(
         self, text: str, generator_response: str, feedback: Optional[str] = None
     ) -> Tuple[str, Dict[str, Any]]:
         """Complete a feedback loop between a generator and this critic.
@@ -684,7 +684,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 "improved_response": improved_text,
                 "has_changes": improved_text != generator_response,
                 "processing_time_ms": ((time and time.time() - start_time) * 1000,
-            }
+            )
 
             # Get track_performance using the helper method
             track_performance = (self and self._get_config_value("track_performance", True)
@@ -701,7 +701,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
         except Exception as e:
             # Use the standardized utility function
             record_error(self._state_manager, e)
-            raise RuntimeError(f"Failed to close feedback loop: {str(e)}") from e
+            raise RuntimeError(f"Failed to close feedback loop: {str(e))") from e
 
     def validate(self, text: str) -> bool:
         """Check if text meets quality standards.
@@ -760,7 +760,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to validate text: {str(e)}") from e
+            raise RuntimeError(f"Failed to validate text: {str(e))") from e
 
     def critique(self, text: str) -> dict:
         """Analyze text and provide detailed feedback.
@@ -812,9 +812,9 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to critique text: {str(e)}") from e
+            raise RuntimeError(f"Failed to critique text: {str(e))") from e
 
-    async def def aimprove(self, text: str, feedback: Optional[str] = None) -> str:
+    async def aimprove(self, text: str, feedback: Optional[str] = None) -> str:
         """Asynchronously improve text based on feedback.
 
         Args:
@@ -868,7 +868,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                         "feedback": feedback,
                         "improved_text": improved_text,
                         "timestamp": (time and time.time(),
-                    }
+                    )
                 )
                 (memory_manager and memory_manager.add_to_memory(memory_item)
 
@@ -890,9 +890,9 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to asynchronously improve text: {str(e)}") from e
+            raise RuntimeError(f"Failed to asynchronously improve text: {str(e))") from e
 
-    async def def aclose_feedback_loop(
+    async def aclose_feedback_loop(
         self, text: str, generator_response: str, feedback: Optional[str] = None
     ) -> Tuple[str, Dict[str, Any]]:
         """Asynchronously complete a feedback loop between a generator and this critic.
@@ -939,7 +939,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 "improved_response": improved_text,
                 "has_changes": improved_text != generator_response,
                 "processing_time_ms": ((time and time.time() - start_time) * 1000,
-            }
+            )
 
             # Track performance
             # Access track_performance attribute safely using getattr
@@ -954,7 +954,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to asynchronously close feedback loop: {str(e)}") from e
+            raise RuntimeError(f"Failed to asynchronously close feedback loop: {str(e))") from e
 
     async def avalidate(self, text: str) -> bool:
         """Asynchronously check if text meets quality standards.
@@ -1019,7 +1019,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to asynchronously validate text: {str(e)}") from e
+            raise RuntimeError(f"Failed to asynchronously validate text: {str(e))") from e
 
     async def acritique(self, text: str) -> dict:
         """Asynchronously analyze text and provide detailed feedback.
@@ -1077,7 +1077,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to asynchronously critique text: {str(e)}") from e
+            raise RuntimeError(f"Failed to asynchronously critique text: {str(e))") from e
 
     def warm_up(self) -> None:
         """
@@ -1100,7 +1100,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
         except Exception as e:
             # Use the standardized utility function
             record_error(self._state_manager, e)
-            raise RuntimeError(f"Failed to warm up critic: {str(e)}") from e
+            raise RuntimeError(f"Failed to warm up critic: {str(e))") from e
 
     def cleanup(self) -> None:
         """
@@ -1137,7 +1137,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
 
         except Exception as e:
             (self and self.record_error(e)
-            raise RuntimeError(f"Failed to clean up critic: {str(e)}") from e
+            raise RuntimeError(f"Failed to clean up critic: {str(e))") from e
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -1160,13 +1160,13 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                     if self.(_state_manager and _state_manager.get("model")
                     else None
                 ),
-            }
+            )
         )
 
         return stats
 
 
-def def create_prompt_critic(
+def create_prompt_critic(
     llm_provider: Optional[Any] = None,
     name: str = "prompt_critic",
     description: str = "A critic that uses prompts to improve text",
@@ -1396,5 +1396,5 @@ def def create_prompt_critic(
         from ...utils.logging import get_logger
 
         logger = get_logger(__name__)
-        (logger.error(f"Failed to create prompt critic: {str(e)}")
-        raise ValueError(f"Failed to create prompt critic: {str(e)}") from e
+        (logger.error(f"Failed to create prompt critic: {str(e))")
+        raise ValueError(f"Failed to create prompt critic: {str(e))") from e

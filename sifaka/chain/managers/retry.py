@@ -32,7 +32,7 @@ def generate():
     return (model and model.generate(prompt)
 
 def validate(output):
-    return [(validator and validator.validate(output) for validator in validators]
+    return [(validator and validator.validate(output) for validator in validators)
 
 def improve(output, results):
     return (improver and improver.improve(output, results) if improver else output
@@ -70,6 +70,7 @@ The retry manager handles errors gracefully:
 The retry manager can be configured with the following options:
 - max_attempts: Maximum number of retry attempts (default: 3)
 """
+
 from typing import Callable, List, Optional, Any
 import time
 from ...utils.state import StateManager
@@ -77,6 +78,7 @@ from ...utils.logging import get_logger
 from ...utils.errors import ChainError
 from sifaka.interfaces.chain.models import ValidationResult
 from ...core.results import ChainResult
+
 logger = get_logger(__name__)
 
 
@@ -119,7 +121,7 @@ class RetryManager:
     # Execute with retries
     result = (retry_manager and retry_manager.execute_with_retries(
         generate_func=lambda: (model and model.generate(prompt),
-        validate_func=lambda output: [(validator and validator.validate(output) for validator in validators],
+        validate_func=lambda output: [(validator and validator.validate(output) for validator in validators),
         improve_func=lambda output, results: (improver and improver.improve(output, results),
         prompt=prompt,
         create_result_func=create_result
@@ -127,7 +129,7 @@ class RetryManager:
     ```
     """
 
-    def __init__(self, state_manager: StateManager, max_attempts: int=3):
+    def __init__(self, state_manager: StateManager, max_attempts: int = 3):
         """
         Initialize the retry manager.
 
@@ -155,12 +157,12 @@ class RetryManager:
         """
         self._state_manager = state_manager
         self._max_attempts = max_attempts
-        self.(_state_manager and _state_manager.set_metadata('component_type', 'retry_manager')
-        self.(_state_manager and _state_manager.set_metadata('creation_time', (time and time.time())
-        self.(_state_manager and _state_manager.set_metadata('max_attempts', max_attempts)
+        self._state_manager.set_metadata("component_type", "retry_manager")
+        self._state_manager.set_metadata("creation_time", time.time())
+        self._state_manager.set_metadata("max_attempts", max_attempts)
 
     @property
-    def max_attempts(self) ->Any:
+    def max_attempts(self) -> Any:
         """
         Get the maximum number of retry attempts.
 
@@ -174,11 +176,14 @@ class RetryManager:
         """
         return self._max_attempts
 
-    def execute_with_retries(self, generate_func: Callable[[], str],
+    def execute_with_retries(
+        self,
+        generate_func: Callable[[], str],
         validate_func: Callable[[str], List[ValidationResult]],
-        improve_func: Callable[[str, List[ValidationResult]], str], prompt:
-        str, create_result_func: Callable[[str, str, List[ValidationResult],
-        int], ChainResult]) ->Any:
+        improve_func: Callable[[str, List[ValidationResult]], str],
+        prompt: str,
+        create_result_func: Callable[[str, str, List[ValidationResult], int], ChainResult],
+    ) -> Any:
         """
         Execute with retries.
 
@@ -206,7 +211,7 @@ class RetryManager:
             ```python
             result = (retry_manager and retry_manager.execute_with_retries(
                 generate_func=lambda: (model and model.generate(prompt),
-                validate_func=lambda output: [(validator and validator.validate(output) for validator in validators],
+                validate_func=lambda output: [(validator and validator.validate(output) for validator in validators),
                 improve_func=lambda output, results: (improver and improver.improve(output, results),
                 prompt=prompt,
                 create_result_func=lambda p, o, r, a: ChainResult(
@@ -216,29 +221,25 @@ class RetryManager:
             ```
         """
         for attempt in range(1, self._max_attempts + 1):
-            self.(_state_manager and _state_manager.update('attempt', attempt)
-            (logger and logger.debug(f'Attempt {attempt}/{self._max_attempts}')
+            self._state_manager.update("attempt", attempt)
+            logger.debug(f"Attempt {attempt}/{self._max_attempts}")
             output = generate_func()
-            self.(_state_manager and _state_manager.update('output', output)
+            self._state_manager.update("output", output)
             validation_results = validate_func(output)
-            self.(_state_manager and _state_manager.update('validation_results', validation_results
-                )
+            self._state_manager.update("validation_results", validation_results)
             all_passed = all(r.passed for r in validation_results)
-            self.(_state_manager and _state_manager.update('all_passed', all_passed)
+            self._state_manager.update("all_passed", all_passed)
             if all_passed:
-                return create_result_func(prompt, output,
-                    validation_results, attempt)
+                return create_result_func(prompt, output, validation_results, attempt)
             if attempt < self._max_attempts:
                 improved_output = improve_func(output, validation_results)
                 output = improved_output
-                self.(_state_manager and _state_manager.update('output', output)
+                self._state_manager.update("output", output)
             else:
-                return create_result_func(prompt, output,
-                    validation_results, attempt)
-        raise ChainError(
-            f'Execution failed after {self._max_attempts} attempts')
+                return create_result_func(prompt, output, validation_results, attempt)
+        raise ChainError(f"Execution failed after {self._max_attempts} attempts")
 
-    def get_retry_stats(self) ->Any:
+    def get_retry_stats(self) -> Any:
         """
         Get retry statistics.
 
@@ -259,6 +260,8 @@ class RetryManager:
             print(f"All validations passed: {stats['all_passed']}")
             ```
         """
-        return {'max_attempts': self._max_attempts, 'current_attempt': self
-            .(_state_manager and _state_manager.get('attempt', 0), 'all_passed': self.
-            (_state_manager and _state_manager.get('all_passed', False)}
+        return {
+            "max_attempts": self._max_attempts,
+            "current_attempt": self._state_manager.get("attempt", 0),
+            "all_passed": self._state_manager.get("all_passed", False),
+        }

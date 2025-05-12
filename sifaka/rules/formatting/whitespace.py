@@ -316,7 +316,7 @@ class WhitespaceRule(Rule[str]):
         ```
     """
 
-    def def __init__(self, name: str='whitespace_rule', description: str=
+    def __init__(self, name: str='whitespace_rule', description: str=
         'Validates text whitespace', config: Optional[Optional[RuleConfig]] = None,
         validator: Optional[Optional[WhitespaceValidator]] = None, **kwargs) ->None:
         """
@@ -354,7 +354,7 @@ class WhitespaceRule(Rule[str]):
         return DefaultWhitespaceValidator(config)
 
 
-def def create_whitespace_validator(allow_leading_whitespace: bool=False,
+def create_whitespace_validator(allow_leading_whitespace: bool=False,
     allow_trailing_whitespace: bool=False, allow_multiple_spaces: bool=
     False, allow_tabs: bool=False, allow_newlines: bool=True, max_newlines: Optional[Optional[int]] = None, normalize_whitespace: bool=False, **kwargs
     ) ->WhitespaceValidator:
@@ -405,7 +405,7 @@ def def create_whitespace_validator(allow_leading_whitespace: bool=False,
     return DefaultWhitespaceValidator(config)
 
 
-def def create_whitespace_rule(allow_leading_whitespace: bool=False,
+def create_whitespace_rule(allow_leading_whitespace: bool=False,
     allow_trailing_whitespace: bool=False, allow_multiple_spaces: bool=
     False, allow_tabs: bool=False, allow_newlines: bool=True, max_newlines: Optional[Optional[int]] = None, normalize_whitespace: bool=False, name: str=
     'whitespace_rule', description: str='Validates text whitespace',

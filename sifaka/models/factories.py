@@ -69,7 +69,7 @@ T = TypeVar("T", bound="ModelProviderProtocol")
 logger = get_logger(__name__)
 
 
-def def create_model_provider(
+def create_model_provider(
     provider_type: Type[T],
     model_name: str,
     api_key: Optional[Optional[str]] = None,
@@ -149,7 +149,7 @@ def def create_model_provider(
         raise RuntimeError(f"Failed to create {provider_type.__name__}: {e}") from e
 
 
-def def create_openai_provider(
+def create_openai_provider(
     model_name: str,
     api_key: Optional[Optional[str]] = None,
     temperature: float = 0.7,
@@ -212,7 +212,7 @@ def def create_openai_provider(
     )
 
 
-def def create_anthropic_provider(
+def create_anthropic_provider(
     model_name: str,
     api_key: Optional[Optional[str]] = None,
     temperature: float = 0.7,
@@ -275,7 +275,7 @@ def def create_anthropic_provider(
     )
 
 
-def def create_gemini_provider(
+def create_gemini_provider(
     model_name: str,
     api_key: Optional[Optional[str]] = None,
     temperature: float = 0.7,

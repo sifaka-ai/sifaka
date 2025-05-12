@@ -62,7 +62,7 @@ class RetryStrategy(Protocol):
         """
 
     @abstractmethod
-    def def should_retry(
+    def should_retry(
         self, attempt: int, result: Any, error: Optional[Optional[Exception]] = None
     ) -> bool:
         """

@@ -115,7 +115,7 @@ class BaseClassifier(BaseComponent[T, ClassificationResult], Generic[T, L]):
     ```
     """
 
-    def def __init__(
+    def __init__(
         self,
         config: Optional[Optional[ClassifierConfig]] = None,
         name: str = "classifier",
@@ -304,7 +304,7 @@ class BaseClassifierImplementation(ABC, Generic[L]):
     ```
     """
 
-    def def __init__(
+    def __init__(
         self,
         config: Optional[Optional[ClassifierConfig]] = None,
         state_manager: Optional[Optional[StateManager]] = None,
@@ -461,7 +461,7 @@ class BaseClassifierImplementation(ABC, Generic[L]):
         return (self and self._classify_impl_uncached(text)
 
 
-def def create_base_classification_result(
+def create_base_classification_result(
     label: Any,
     confidence: float = 1.0,
     metadata: Optional[Dict[str, Any]] = None,
@@ -519,14 +519,14 @@ def safely_classify(
         return operation()
     except Exception as e:
         (logger and logger.error(
-            f"Classification error in {component_name} ({classifier_name}): {str(e)}",
+            f"Classification error in {component_name} ({classifier_name}): {str(e))",
             exc_info=True,
         )
 
         # Wrap in ClassifierError if not already
         if not isinstance(e, ClassifierError):
             error = ClassifierError(
-                f"Classification failed in {component_name} ({classifier_name}): {str(e)}"
+                f"Classification failed in {component_name} ({classifier_name}): {str(e))"
             )
             error.__cause__ = e
             raise error

@@ -56,7 +56,7 @@ def create_model_state() -> StateManager:
     return state_manager
 
 
-def def get_state(provider: 'ModelProviderCore', key: str, default: Optional[Optional[Any]] = None) -> Any:
+def get_state(provider: 'ModelProviderCore', key: str, default: Optional[Optional[Any]] = None) -> Any:
     """
     Get a value from the provider's state.
 
@@ -102,7 +102,7 @@ def set_metadata(provider: 'ModelProviderCore', key: str, value: Any) -> None:
     provider.(_state_manager and _state_manager.set_metadata(key, value)
 
 
-def def get_metadata(provider: 'ModelProviderCore', key: str, default: Optional[Optional[Any]] = None) -> Any:
+def get_metadata(provider: 'ModelProviderCore', key: str, default: Optional[Optional[Any]] = None) -> Any:
     """
     Get metadata from the provider's state.
 

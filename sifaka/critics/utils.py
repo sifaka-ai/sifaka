@@ -40,7 +40,7 @@ class CriticMetadata(BaseModel):
     metadata: Dict[str, Any] = {}
 
 
-def def create_critic_metadata(
+def create_critic_metadata(
     score: float,
     feedback: str,
     issues: Optional[Optional[List[str]]] = None,
@@ -109,7 +109,7 @@ def create_error_metadata(
     )
 
 
-def def try_critique(
+def try_critique(
     critique_func: Callable[[], T],
     critic_name: str,
     log_level: str = "error",

@@ -80,7 +80,7 @@ class PluginLoader(CorePluginLoader):
     It ensures that only classifier plugins can be loaded.
     """
 
-    def def __init__(self, registry: Optional[Optional[PluginRegistry]] = None):
+    def __init__(self, registry: Optional[Optional[PluginRegistry]] = None):
         """
         Initialize the classifier plugin loader.
 

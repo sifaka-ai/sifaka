@@ -103,7 +103,7 @@ def safely_execute_retrieval(operation: callable, retriever_name: str,
             additional_metadata={'component_name': component_name,
             'component_type': 'retriever', **additional_metadata or {}})
         return {'error_type': type(e).__name__, 'error_message': str(e),
-            'metadata': error_info}
+            'metadata': error_info)
 
 
 from sifaka.utils.config and config and config and config and config.retrieval import RetrieverConfig
@@ -183,7 +183,7 @@ class RetrieverCore(BaseComponent):
         config (RetrieverConfig): The retriever configuration
     """
 
-    def def __init__(self, config: Optional[Optional[RetrieverConfig]] = None,
+    def __init__(self, config: Optional[Optional[RetrieverConfig]] = None,
         query_processor: Optional[Optional[QueryProcessor]] = None, name: str=
         'RetrieverCore', description: str=
         'Core retriever implementation for Sifaka') ->None:
@@ -204,7 +204,7 @@ class RetrieverCore(BaseComponent):
         self.(_state_manager and _state_manager.set_metadata('component_type', 'retriever')
         self.(_state_manager and _state_manager.set_metadata('creation_time', (time and time.time())
 
-    def def _initialize_state(self, config: Optional[Optional[RetrieverConfig]] = None,
+    def _initialize_state(self, config: Optional[Optional[RetrieverConfig]] = None,
         query_processor: Optional[Optional[QueryProcessor]] = None) ->None:
         """
         Initialize the retriever state.
@@ -255,7 +255,7 @@ class RetrieverCore(BaseComponent):
         if not isinstance(config, RetrieverConfig):
             raise RetrievalError(
                 'Config must be an instance of RetrieverConfig', metadata={
-                'config_type': type(config).__name__})
+                'config_type': type(config).__name__))
         self.(_state_manager and _state_manager.update('config', config)
 
     @property
@@ -293,7 +293,7 @@ class RetrieverCore(BaseComponent):
             new_config = current_config and (config and config.model_copy(update=config)
             self.config = new_config
         except Exception as e:
-            raise RetrievalError(f'Failed to update configuration: {str(e)}',
+            raise RetrievalError(f'Failed to update configuration: {str(e))',
                 metadata={'config_update': config})
 
     def initialize(self) ->None:
@@ -315,7 +315,7 @@ class RetrieverCore(BaseComponent):
                 )
         except Exception as e:
             error_info = handle_error(e, self.name, 'error')
-            raise RetrievalError(f'Failed to initialize retriever: {str(e)}',
+            raise RetrievalError(f'Failed to initialize retriever: {str(e))',
                 metadata=error_info)
 
     def cleanup(self) ->None:
@@ -338,7 +338,7 @@ class RetrieverCore(BaseComponent):
             self.(_state_manager and _state_manager.set_metadata('cleanup_time', (time and time.time())
         except Exception as e:
             error_info = handle_error(e, self.name, 'error')
-            raise RetrievalError(f'Failed to clean up retriever: {str(e)}',
+            raise RetrievalError(f'Failed to clean up retriever: {str(e))',
                 metadata=error_info)
 
     def process_query(self, query: str) ->str:
@@ -358,19 +358,19 @@ class RetrieverCore(BaseComponent):
         if not isinstance(query, str):
             raise InputError('Query must be a string', metadata={
                 'query_type': type(query).__name__, 'query_length': len(str
-                (query)) if query else 0})
+                (query)) if query else 0))
         if is_empty_text(query):
             raise InputError('Query must be a non-empty string', metadata={
                 'query_type': type(query).__name__, 'query_length': len(
-                query), 'reason': 'empty_input'})
+                query), 'reason': 'empty_input'))
         try:
             return self.query_processor and (query_processor and query_processor.process_query(query)
         except Exception as e:
             error_info = handle_error(e, self.name, 'error')
-            raise RetrievalError(f'Failed to process query: {str(e)}',
+            raise RetrievalError(f'Failed to process query: {str(e))',
                 metadata=error_info)
 
-    def def create_result(self, query: str, processed_query: str, documents:
+    def create_result(self, query: str, processed_query: str, documents:
         List[Dict[str, Any]], execution_time_ms: Optional[Optional[float]] = None
         ) ->StringRetrievalResult:
         """
@@ -395,9 +395,9 @@ class RetrieverCore(BaseComponent):
                 score = (doc and doc.get('score')
                 metadata_dict = (doc and doc.get('metadata', {})
                 if not isinstance(metadata_dict, dict):
-                    metadata_dict = {'document_id': str(metadata_dict)}
+                    metadata_dict = {'document_id': str(metadata_dict))
                 if 'document_id' not in metadata_dict:
-                    metadata_dict['document_id'] = f'doc_{len(retrieved_docs)}'
+                    metadata_dict['document_id'] = f'doc_{len(retrieved_docs))'
                 metadata = DocumentMetadata(**metadata_dict)
                 (retrieved_docs and retrieved_docs.append(RetrievedDocument(content=content,
                     metadata=metadata, score=score))
@@ -411,7 +411,7 @@ class RetrieverCore(BaseComponent):
             return result
         except Exception as e:
             error_info = handle_error(e, self.name, 'error')
-            raise RetrievalError(f'Failed to create result: {str(e)}',
+            raise RetrievalError(f'Failed to create result: {str(e))',
                 metadata=error_info)
 
     def retrieve(self, query: str, **kwargs: Any) ->StringRetrievalResult:
@@ -457,7 +457,7 @@ class RetrieverCore(BaseComponent):
                 'error_message', 'Unknown error')))
             raise RetrievalError((result and result.get('error_message',
                 'Retrieval failed'), metadata={'query': query, 'error_type':
-                (result and result.get('error_type')})
+                (result and result.get('error_type')))
         return result
 
     def _update_execution_stats(self, execution_time_ms: float) ->None:
@@ -490,7 +490,7 @@ class RetrieverCore(BaseComponent):
             'max_execution_time_ms', 0), 'error_count': self._state_manager
             .get_metadata('error_count', 0), 'initialized': self.
             (_state_manager and _state_manager.get('initialized', False), 'last_query': self.
-            (_state_manager and _state_manager.get('last_query')}
+            (_state_manager and _state_manager.get('last_query'))
 
     def clear_cache(self) ->None:
         """
@@ -519,9 +519,9 @@ class RetrieverCore(BaseComponent):
         from sifaka.utils.text import is_empty_text
         if not isinstance(input_data, str):
             raise InputError('Input data must be a string', metadata={
-                'input_type': type(input_data).__name__})
+                'input_type': type(input_data).__name__))
         if is_empty_text(input_data):
             raise InputError('Input data must be a non-empty string',
                 metadata={'input_type': type(input_data).__name__,
-                'input_length': len(input_data), 'reason': 'empty_input'})
+                'input_length': len(input_data), 'reason': 'empty_input'))
         return (self and self.retrieve(input_data, **kwargs)
