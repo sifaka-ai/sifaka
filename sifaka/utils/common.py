@@ -239,8 +239,9 @@ def update_statistics(
     state_manager.update("total_execution_time_ms", total_time + (execution_time * 1000))
 
     # Calculate and store average time
-    avg_time = (total_time + (execution_time * 1000)) / execution_count
-    state_manager.set_metadata("avg_execution_time_ms", avg_time)
+    if execution_count > 0:
+        avg_time = (total_time + (execution_time * 1000)) / execution_count
+        state_manager.set_metadata("avg_execution_time_ms", avg_time)
 
 
 def clear_component_statistics(state_manager: StateManager) -> None:

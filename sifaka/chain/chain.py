@@ -171,12 +171,18 @@ class Chain:
         self._config = config or ChainConfig(max_attempts=max_attempts)
 
         # Create state manager using the standardized state management
-        self._state_manager = create_chain_state()
+        self.__state_manager = create_chain_state()
 
-        # Create engine
+        # Create engine with EngineConfig
+        from sifaka.utils.config import EngineConfig
+
+        engine_config = EngineConfig(
+            max_attempts=self._config.max_attempts, params=self._config.params
+        )
+
         self._engine = Engine(
             state_manager=self._state_manager,
-            config=self._config,
+            config=engine_config,
         )
 
         # Initialize the chain
@@ -316,7 +322,7 @@ class Chain:
         Returns:
             StateManager: The state manager instance
         """
-        return self._state_manager
+        return self.__state_manager
 
     def update_config(self, config: ChainConfig) -> None:
         """

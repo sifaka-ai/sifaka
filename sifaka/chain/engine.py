@@ -74,6 +74,7 @@ from ..utils.logging import get_logger
 from ..core.results import ChainResult
 from ..utils.config import EngineConfig
 from ..utils.errors import ChainError, safely_execute_chain
+
 from .managers.cache import CacheManager
 from .managers.retry import RetryManager
 
@@ -360,7 +361,9 @@ class Engine(BaseModel):
                 additional_metadata={
                     "method": "validate",
                     "validator_type": validator.__class__.__name__,
-                    "output_length": len(output),
+                    "output_length": (
+                        len(output.output) if hasattr(output, "output") else len(output)
+                    ),
                 },
             )
 
@@ -403,19 +406,38 @@ class Engine(BaseModel):
         if not improver:
             return output
 
-        def improve_operation():
-            return improver.improve(output, validation_results)
+        # Extract text from output if it's a GenerationResult
+        output_text = output.output if hasattr(output, "output") else output
 
-        return safely_execute_chain(
+        def improve_operation():
+            return improver.improve(output_text, validation_results)
+
+        # Get the improved text
+        improved_text = safely_execute_chain(
             operation=improve_operation,
             component_name="improver",
             additional_metadata={
                 "method": "improve",
                 "improver_type": improver.__class__.__name__,
-                "output_length": len(output),
+                "output_length": len(output_text),
                 "validation_results_count": len(validation_results),
             },
         )
+
+        # If the output was a GenerationResult, create a new GenerationResult with the improved text
+        if hasattr(output, "output") and hasattr(output, "metadata"):
+            from sifaka.models.result import GenerationResult
+
+            # Create a new GenerationResult with the improved text
+            return GenerationResult(
+                output=improved_text,
+                prompt_tokens=getattr(output, "prompt_tokens", 0),
+                completion_tokens=getattr(output, "completion_tokens", 0),
+                metadata=getattr(output, "metadata", {}),
+            )
+
+        # Otherwise, just return the improved text
+        return improved_text
 
     def _create_result(
         self,
@@ -455,14 +477,31 @@ class Engine(BaseModel):
         execution_time = time.time() - start_time if start_time else 0
 
         # Create result
+        # Handle case where output is a GenerationResult object
+        output_text = output.output if hasattr(output, "output") else output
+
+        # Check if all validations passed
+        all_passed = (
+            all(result.passed for result in validation_results) if validation_results else True
+        )
+
         result = ChainResult(
-            output=output,
+            output=output_text,
             validation_results=validation_results,
             prompt=prompt,
             execution_time=execution_time,
             attempt_count=attempt_count,
+            passed=all_passed,
+            message=(
+                "Chain execution completed successfully"
+                if all_passed
+                else "Chain execution completed with validation failures"
+            ),
             metadata={
-                "engine_config": self._config.model_dump(),
+                "engine_config": {
+                    "max_attempts": self.config.max_attempts,
+                    "params": self.config.params,
+                },
                 "execution_count": self._state_manager.get("execution_count"),
             },
         )
@@ -481,7 +520,9 @@ class Engine(BaseModel):
                     additional_metadata={
                         "method": "format",
                         "formatter_type": formatter.__class__.__name__,
-                        "output_length": len(output),
+                        "output_length": (
+                            len(output.output) if hasattr(output, "output") else len(output)
+                        ),
                         "validation_results_count": len(validation_results),
                     },
                 )
@@ -494,9 +535,9 @@ class Engine(BaseModel):
                 logger.warning(f"Result formatting failed: {str(e)}")
 
         # Cache result if caching is enabled
-        if self._config.params.get("cache_enabled", True):
+        if self.config.params.get("cache_enabled", True):
             cache = self._state_manager.get("result_cache", {})
-            cache_size = self._config.params.get("cache_size", 100)
+            cache_size = self.config.params.get("cache_size", 100)
 
             # If cache is full, remove oldest entry
             if len(cache) >= cache_size:

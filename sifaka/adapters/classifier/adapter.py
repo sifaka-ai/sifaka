@@ -489,9 +489,11 @@ class ClassifierRule(Rule):
             "confidence": confidence,
             "threshold": self._classifier_config.threshold,
             "valid_labels": self._classifier_config.valid_labels,
-            "classification_result": (
-                result.model_dump() if hasattr(result, "model_dump") else result
-            ),
+            "classification_result": {
+                "label": result.label,
+                "confidence": result.confidence,
+                "metadata": getattr(result, "metadata", {}),
+            },
             "rule_id": self._rule_id,
             "severity": self._severity,
         }

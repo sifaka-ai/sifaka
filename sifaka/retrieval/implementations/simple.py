@@ -60,7 +60,7 @@ from sifaka.utils.logging import get_logger
 from sifaka.utils.common import record_error
 
 from ..core import RetrieverCore
-from sifaka.utils.config import RetrieverConfig
+from sifaka.utils.config import RetrieverConfig, RankingConfig
 from ..result import StringRetrievalResult
 from ..strategies.ranking import SimpleRankingStrategy
 
@@ -154,8 +154,9 @@ class SimpleRetriever(RetrieverCore):
         # Initialize empty document collection
         self._state_manager.update("documents", {})
 
-        # Initialize ranking strategy
-        self._state_manager.update("ranking_strategy", SimpleRankingStrategy(self.config.ranking))
+        # Initialize ranking strategy using top_k from config
+        ranking_config = RankingConfig(top_k=self.config.top_k)
+        self._state_manager.update("ranking_strategy", SimpleRankingStrategy(ranking_config))
 
         # Load documents
         try:
@@ -237,6 +238,19 @@ class SimpleRetriever(RetrieverCore):
             InputError: If query is empty
             RetrievalError: If retrieval fails
         """
+        # Handle empty query case
+        if not query:
+            from sifaka.core.results import create_retrieval_result
+
+            return create_retrieval_result(
+                query=query,
+                documents=[],
+                processed_query=query,
+                passed=True,
+                message="Empty query provided",
+                processing_time_ms=0,
+            )
+
         # Call parent method to handle state tracking and initialization
         super().retrieve(query, **kwargs)
 

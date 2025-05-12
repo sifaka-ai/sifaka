@@ -232,8 +232,8 @@ class DefaultLengthValidator(LengthValidator):
         ```
     """
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_rule_state)
+    # Declare the private attribute but don't use default_factory
+    _state_manager: "StateManager" = PrivateAttr()
 
     def __init__(self, config: LengthConfig):
         """
@@ -243,6 +243,9 @@ class DefaultLengthValidator(LengthValidator):
             config: Length validation configuration
         """
         super().__init__(config)
+
+        # Initialize the state manager explicitly for Pydantic v2 compatibility
+        object.__setattr__(self, "_state_manager", create_rule_state())
 
         # Initialize state
         self._state_manager.update("config", config)
@@ -464,8 +467,8 @@ class LengthRule(Rule[str]):
         ```
     """
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_rule_state)
+    # Declare the private attribute but don't use default_factory
+    _state_manager: "StateManager" = PrivateAttr()
 
     def __init__(
         self,
@@ -502,9 +505,13 @@ class LengthRule(Rule[str]):
         # Store the validator for reference
         self._length_validator = validator
 
-        # Initialize additional state
+        # Initialize additional state (state_manager is already initialized in super().__init__)
         self._state_manager.update("validator", validator)
         self._state_manager.update("validator_adapter", validator_adapter)
+
+        # Store the validator's config in the state manager
+        if hasattr(validator, "config"):
+            self._state_manager.update("config", validator.config)
 
         # Set metadata
         self._state_manager.set_metadata("rule_type", "length")
@@ -734,7 +741,8 @@ def create_length_rule(
         rule_name = name or rule_id or "length_rule"
 
         # Create rule description if not provided
-        if description is None:
+        rule_description = description
+        if rule_description is None:
             char_range = (
                 f"{min_chars}-{max_chars}"
                 if min_chars is not None or max_chars is not None
@@ -745,12 +753,12 @@ def create_length_rule(
                 if min_words is not None or max_words is not None
                 else "any"
             )
-            description = f"Validates text length (chars: {char_range}, words: {word_range})"
+            rule_description = f"Validates text length (chars: {char_range}, words: {word_range})"
 
         # Create rule config
         config = RuleConfig(
             name=rule_name,
-            description=description,
+            description=rule_description,
             rule_id=rule_id or rule_name,
             **kwargs,
         )
@@ -759,7 +767,7 @@ def create_length_rule(
         rule = LengthRule(
             validator=validator,
             name=rule_name,
-            description=description,
+            description=rule_description,
             config=config,
         )
 

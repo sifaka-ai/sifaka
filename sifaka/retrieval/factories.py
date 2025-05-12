@@ -66,8 +66,8 @@ def create_simple_retriever(
     try:
         # Create configuration
         config = RetrieverConfig(
-            retriever_type="simple",
-            ranking={"top_k": max_results},
+            top_k=max_results,
+            max_results=max_results,
             **kwargs,
         )
 
@@ -128,8 +128,9 @@ def create_threshold_retriever(
     try:
         # Create configuration
         config = RetrieverConfig(
-            retriever_type="threshold",
-            ranking={"top_k": max_results, "score_threshold": threshold},
+            top_k=max_results,
+            max_results=max_results,
+            score_threshold=threshold,
             **kwargs,
         )
 

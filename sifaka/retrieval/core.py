@@ -247,7 +247,14 @@ class RetrieverCore(BaseComponent):
         super()._initialize_state()
 
         config = config or RetrieverConfig()
-        query_processor = query_processor or QueryManager(config.query_processing)
+
+        # Create a default QueryProcessingConfig if query_processor is not provided
+        # This handles the case where config.query_processing doesn't exist
+        if query_processor is None:
+            from sifaka.utils.config import QueryProcessingConfig
+
+            query_processing_config = QueryProcessingConfig()
+            query_processor = QueryManager(query_processing_config)
 
         self._state_manager.update("config", config)
         self._state_manager.update("query_processor", query_processor)
@@ -256,6 +263,10 @@ class RetrieverCore(BaseComponent):
         self._state_manager.update("result_cache", {})
         self._state_manager.update("last_query", None)
         self._state_manager.update("last_result", None)
+
+        # Store config values in state manager for tests and consistency
+        self._state_manager.update("max_results", getattr(config, "max_results", 5))
+        self._state_manager.update("min_score", getattr(config, "min_score", 0.0))
 
     @property
     def config(self) -> RetrieverConfig:
@@ -457,12 +468,18 @@ class RetrieverCore(BaseComponent):
                     )
                 )
 
-            result = StringRetrievalResult(
+            # Import the create_retrieval_result function
+            from sifaka.core.results import create_retrieval_result
+
+            # Create the result using the factory function
+            result = create_retrieval_result(
                 documents=retrieved_docs,
                 query=query,
                 processed_query=processed_query,
                 total_results=len(retrieved_docs),
-                execution_time_ms=execution_time_ms,
+                passed=True,
+                message="Retrieval completed successfully",
+                processing_time_ms=execution_time_ms,
             )
 
             # Store the result in state

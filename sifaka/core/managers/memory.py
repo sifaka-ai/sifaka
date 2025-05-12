@@ -705,9 +705,6 @@ class BufferMemoryManager:
        - Logs final status
     """
 
-    # State management
-    _state_manager = PrivateAttr(default_factory=StateManager)
-
     def __init__(self, buffer_size: int = 5):
         """
         Initialize a BufferMemoryManager instance.
@@ -723,6 +720,9 @@ class BufferMemoryManager:
             RuntimeError: If initialization fails
         """
         buffer_size = max(1, buffer_size)
+
+        # Initialize state manager
+        self._state_manager = StateManager()
 
         # Initialize state
         self._state_manager.update("buffer_size", buffer_size)

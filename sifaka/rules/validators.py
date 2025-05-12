@@ -92,8 +92,8 @@ class BaseValidator(Generic[T]):
         3. Result: Return standardized validation results
     """
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_rule_state)
+    # Declare the private attribute but don't use default_factory
+    _state_manager: "StateManager" = PrivateAttr()
 
     def __init__(self, validation_type: Type[T] = str):
         """
@@ -103,6 +103,11 @@ class BaseValidator(Generic[T]):
             validation_type: The type this validator can validate
         """
         self._validation_type = validation_type
+
+        # Initialize the state manager explicitly for Pydantic v2 compatibility
+        object.__setattr__(self, "_state_manager", create_rule_state())
+
+        # Initialize state
         self._initialize_state()
 
     def _initialize_state(self) -> None:

@@ -92,7 +92,7 @@ from sifaka.core.base import (
 )
 from sifaka.utils.errors import safely_execute_rule
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import create_rule_state
+from sifaka.utils.state import create_rule_state, StateManager
 
 from .validators import RuleValidator, FunctionValidator, BaseValidator
 
@@ -217,8 +217,8 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
     ```
     """
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_rule_state)
+    # Declare the private attribute but don't use default_factory
+    _state_manager: StateManager = PrivateAttr()
 
     def __init__(
         self,
@@ -273,11 +273,19 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
         super().__init__(name, description, config or RuleConfig(**kwargs))
         self._validator = validator or self._create_default_validator()
 
+        # Initialize the state manager explicitly for Pydantic v2 compatibility
+        object.__setattr__(self, "_state_manager", create_rule_state())
+
         # Initialize rule-specific state
         self._state_manager.set_metadata("rule_type", self.__class__.__name__)
         self._state_manager.set_metadata("rule_id", getattr(config, "rule_id", None) or name)
         self._state_manager.set_metadata(
-            "validator_type", getattr(self._validator, "__class__", {}).get("__name__", "Unknown")
+            "validator_type",
+            (
+                self._validator.__class__.__name__
+                if hasattr(self._validator, "__class__")
+                else "Unknown"
+            ),
         )
 
     @abstractmethod
@@ -290,7 +298,7 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
         """
         ...
 
-    def validate(self, input: T) -> RuleResult:
+    def model_validate(self, input: T) -> RuleResult:
         """
         Validate the input using the rule's validator.
 
@@ -387,8 +395,7 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
         # Use the standardized safely_execute_rule function
         result = safely_execute_rule(
             operation=validation_operation,
-            rule_name=self.name,
-            component_name=self.__class__.__name__,
+            component_name=self.name,
             additional_metadata={
                 "rule_id": rule_id,
                 "rule_type": self.__class__.__name__,
@@ -428,7 +435,7 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
         Process the input through the rule pipeline.
 
         This method is required by the BaseComponent interface.
-        For rules, it simply delegates to validate.
+        For rules, it simply delegates to model_validate.
 
         Args:
             input: The input to process
@@ -436,7 +443,21 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
         Returns:
             Processing result (same as validation result)
         """
-        return self.validate(input)
+        return self.model_validate(input)
+
+    def validate(self, input: T) -> RuleResult:
+        """
+        Validate the input using the rule's validator (alias for model_validate).
+
+        This method is maintained for backward compatibility.
+
+        Args:
+            input: The input to validate
+
+        Returns:
+            Validation result
+        """
+        return self.model_validate(input)
 
 
 class FunctionRule(Rule[T]):

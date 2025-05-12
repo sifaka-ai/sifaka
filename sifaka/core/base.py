@@ -240,8 +240,8 @@ class BaseComponent(ABC, Generic[T, R]):
     description: str = Field(description="Component description", min_length=1)
     config: BaseConfig
 
-    # Add state manager as a private attribute
-    _state_manager = PrivateAttr(default_factory=StateManager)
+    # Declare the private attribute but don't use default_factory
+    _state_manager: StateManager = PrivateAttr()
 
     def __init__(
         self, name: str, description: str, config: Optional[BaseConfig] = None, **kwargs: Any
@@ -250,8 +250,13 @@ class BaseComponent(ABC, Generic[T, R]):
         # Store name and description as instance variables
         self._name = name
         self._description = description
-        # Initialize state first
+
+        # Initialize the state manager explicitly for Pydantic v2 compatibility
+        object.__setattr__(self, "_state_manager", StateManager())
+
+        # Initialize state
         self._initialize_state()
+
         # Then set config (which might need state to be initialized)
         self._config = config or BaseConfig(name=name, description=description, **kwargs)
 
@@ -423,7 +428,9 @@ class BaseComponent(ABC, Generic[T, R]):
 
     def record_error(self, error: Exception) -> None:
         """Record an error occurrence."""
-        if self.config.track_errors:
+        # Use getattr to safely access the attribute with a default value
+        track_errors = getattr(self.config, "track_errors", True)
+        if track_errors:
             # Use the standardized utility function
             record_error(self._state_manager, error)
 

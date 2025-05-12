@@ -251,7 +251,8 @@ class RetryManager:
 
             # If not last attempt, improve output and retry
             if attempt < self._max_attempts:
-                output = improve_func(output, validation_results)
+                improved_output = improve_func(output, validation_results)
+                output = improved_output
                 self._state_manager.update("output", output)
             else:
                 # Last attempt, return result even if validations failed

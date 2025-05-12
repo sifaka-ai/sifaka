@@ -251,7 +251,13 @@ class StringRetrievalResult(RetrievalResult[str]):
         for doc in self.documents:
             item = {
                 "content": doc.content,
-                "metadata": doc.metadata.model_dump(),
+                "metadata": {
+                    "document_id": doc.metadata.document_id,
+                    "source": doc.metadata.source,
+                    "created_at": doc.metadata.created_at,
+                    "updated_at": doc.metadata.updated_at,
+                    "additional_metadata": doc.metadata.additional_metadata,
+                },
             }
             if include_scores and doc.score is not None:
                 item["score"] = doc.score

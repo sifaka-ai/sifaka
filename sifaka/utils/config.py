@@ -290,12 +290,17 @@ class ModelConfig(BaseConfig):
     allowing model-specific options through the params dictionary.
 
     Attributes:
+        model: Model name to use
         temperature: Temperature for text generation (0.0 to 1.0)
         max_tokens: Maximum number of tokens to generate
         api_key: Optional API key for the model provider
         trace_enabled: Whether to enable tracing
     """
 
+    model: str = Field(
+        default="",
+        description="Model name to use",
+    )
     temperature: float = Field(
         default=0.7,
         ge=0.0,
@@ -655,6 +660,9 @@ class CriticConfig(BaseConfig):
         cache_size: Size of the critic's result cache
         cost: Computational cost of the critic
         trace_enabled: Whether to enable tracing
+        system_prompt: System prompt for the critic
+        temperature: Temperature for text generation
+        max_tokens: Maximum number of tokens to generate
     """
 
     min_confidence: float = Field(
@@ -681,6 +689,21 @@ class CriticConfig(BaseConfig):
     trace_enabled: bool = Field(
         default=False,
         description="Whether to enable tracing",
+    )
+    system_prompt: str = Field(
+        default="You are a helpful critic that evaluates text quality.",
+        description="System prompt for the critic",
+    )
+    temperature: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Temperature for text generation",
+    )
+    max_tokens: int = Field(
+        default=1000,
+        ge=1,
+        description="Maximum number of tokens to generate",
     )
 
 
@@ -729,6 +752,10 @@ class PromptCriticConfig(CriticConfig):
         system_prompt (str): System prompt for the critic
         temperature (float): Temperature for text generation
         max_tokens (int): Maximum number of tokens to generate
+        eager_initialization (bool): Whether to initialize components eagerly
+        memory_buffer_size (int): Size of the memory buffer
+        track_performance (bool): Whether to track performance
+        track_errors (bool): Whether to track errors
     """
 
     system_prompt: str = Field(
@@ -745,6 +772,23 @@ class PromptCriticConfig(CriticConfig):
         default=1000,
         ge=1,
         description="Maximum number of tokens to generate",
+    )
+    eager_initialization: bool = Field(
+        default=False,
+        description="Whether to initialize components eagerly",
+    )
+    memory_buffer_size: int = Field(
+        default=10,
+        ge=0,
+        description="Size of the memory buffer",
+    )
+    track_performance: bool = Field(
+        default=True,
+        description="Whether to track performance",
+    )
+    track_errors: bool = Field(
+        default=True,
+        description="Whether to track errors",
     )
 
 
@@ -1273,6 +1317,7 @@ class ChainConfig(BaseConfig):
         trace_enabled: Whether to enable execution tracing
         async_enabled: Whether to enable async execution
         timeout: Timeout for chain operations in seconds
+        retry_delay: Delay between retry attempts in seconds
     """
 
     max_attempts: int = Field(
@@ -1296,6 +1341,11 @@ class ChainConfig(BaseConfig):
         default=60.0,
         ge=0.0,
         description="Timeout for chain operations in seconds",
+    )
+    retry_delay: float = Field(
+        default=1.0,
+        ge=0.0,
+        description="Delay between retry attempts in seconds",
     )
 
 
@@ -1643,6 +1693,9 @@ class RetrieverConfig(BaseConfig):
         cache_size: Size of the retriever's result cache
         rerank_results: Whether to rerank results
         include_metadata: Whether to include metadata in results
+        max_results: Maximum number of results to return
+        min_score: Minimum score for results to be included
+        ranking: Dictionary of ranking configuration options
     """
 
     top_k: int = Field(
@@ -1666,6 +1719,21 @@ class RetrieverConfig(BaseConfig):
     include_metadata: bool = Field(
         default=True,
         description="Whether to include metadata in results",
+    )
+    max_results: int = Field(
+        default=5,
+        ge=1,
+        description="Maximum number of results to return",
+    )
+    min_score: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Minimum score for results to be included",
+    )
+    ranking: Dict[str, Any] = Field(
+        default_factory=lambda: {"top_k": 3},
+        description="Dictionary of ranking configuration options",
     )
 
 
@@ -1827,6 +1895,8 @@ class QueryProcessingConfig(BaseConfig):
         max_query_length (int): Maximum length of the query
         remove_stopwords (bool): Whether to remove stopwords
         apply_stemming (bool): Whether to apply stemming
+        preprocessing_steps (List[str]): List of preprocessing steps to apply
+        expansion_method (Optional[str]): Method to use for query expansion
     """
 
     expand_query: bool = Field(
@@ -1845,6 +1915,14 @@ class QueryProcessingConfig(BaseConfig):
     apply_stemming: bool = Field(
         default=False,
         description="Whether to apply stemming",
+    )
+    preprocessing_steps: List[str] = Field(
+        default_factory=lambda: ["lowercase", "remove_punctuation"],
+        description="List of preprocessing steps to apply",
+    )
+    expansion_method: Optional[str] = Field(
+        default=None,
+        description="Method to use for query expansion",
     )
 
 

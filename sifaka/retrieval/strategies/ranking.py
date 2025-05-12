@@ -343,7 +343,11 @@ class SimpleRankingStrategy(RankingStrategy):
                 return []
 
             # Get top_k from kwargs or config
-            top_k = kwargs.get("top_k", self.config.top_k)
+            # Handle the case where config might be a dict
+            if isinstance(self.config, dict):
+                top_k = kwargs.get("top_k", self.config.get("top_k", 5))
+            else:
+                top_k = kwargs.get("top_k", getattr(self.config, "top_k", 5))
 
             # Extract keywords from query
             keywords = self._extract_keywords(query)
@@ -622,7 +626,11 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
             threshold = kwargs.get("threshold", self.threshold)
 
             # Get top_k from kwargs or config
-            top_k = kwargs.get("top_k", self.config.top_k)
+            # Handle the case where config might be a dict
+            if isinstance(self.config, dict):
+                top_k = kwargs.get("top_k", self.config.get("top_k", 5))
+            else:
+                top_k = kwargs.get("top_k", getattr(self.config, "top_k", 5))
 
             # Use the base strategy to rank documents
             ranked_docs = self.base_strategy.rank(query, documents, **kwargs)
