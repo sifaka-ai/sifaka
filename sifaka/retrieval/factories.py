@@ -35,9 +35,9 @@ from .strategies.ranking import SimpleRankingStrategy, ScoreThresholdRankingStra
 logger = get_logger(__name__)
 
 
-def create_simple_retriever(
+def def create_simple_retriever(
     documents: Optional[Dict[str, str]] = None,
-    corpus: Optional[str] = None,
+    corpus: Optional[Optional[str]] = None,
     max_results: int = 3,
     name: str = "SimpleRetriever",
     description: str = "Simple retriever for in-memory document collections",
@@ -82,7 +82,7 @@ def create_simple_retriever(
             corpus=corpus,
         )
 
-        logger.debug(f"Created simple retriever with {len(retriever.documents)} documents")
+        (logger and logger.debug(f"Created simple retriever with {len(retriever.documents)} documents")
         return retriever
 
     except FileNotFoundError:
@@ -94,9 +94,9 @@ def create_simple_retriever(
         raise RetrievalError(f"Failed to create simple retriever: {str(e)}", metadata=error_info)
 
 
-def create_threshold_retriever(
+def def create_threshold_retriever(
     documents: Optional[Dict[str, str]] = None,
-    corpus: Optional[str] = None,
+    corpus: Optional[Optional[str]] = None,
     max_results: int = 3,
     threshold: float = 0.5,
     name: str = "ThresholdRetriever",
@@ -154,9 +154,9 @@ def create_threshold_retriever(
         )
 
         # Update the ranking strategy in state
-        retriever._state_manager.update("ranking_strategy", threshold_strategy)
+        retriever.(_state_manager and _state_manager.update("ranking_strategy", threshold_strategy)
 
-        logger.debug(
+        (logger and logger.debug(
             f"Created threshold retriever with {len(retriever.documents)} documents "
             f"and threshold {threshold}"
         )

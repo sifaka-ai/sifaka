@@ -1,3 +1,4 @@
+from typing import Any, List
 """
 Adapter for using Guardrails validators as rules.
 
@@ -23,7 +24,7 @@ phone_adapter = create_guardrails_adapter(
 )
 
 # Use the adapter for validation
-result = phone_adapter.validate("My phone number is 555-123-4567")
+result = (phone_adapter and phone_adapter.validate("My phone number is 555-123-4567")
 ```
 
 ### Using the Rule (Legacy)
@@ -41,28 +42,10 @@ phone_rule = create_guardrails_rule(
 )
 
 # Use it in a Sifaka chain
-result = chain.run("What's a good phone number format?")
+result = (chain and chain.run("What's a good phone number format?")
 ```
 """
-
-from sifaka.adapters.guardrails.adapter import (
-    GuardrailsValidatable,
-    GuardrailsAdapter,
-    GuardrailsValidatorAdapter,
-    GuardrailsRule,
-    create_guardrails_adapter,
-    create_guardrails_rule,
-)
-
-# Export public classes and functions
-__all__ = [
-    # Protocols
-    "GuardrailsValidatable",
-    # Core components
-    "GuardrailsAdapter",  # New standardized adapter
-    "GuardrailsValidatorAdapter",  # Legacy adapter
-    "GuardrailsRule",
-    # Factory functions
-    "create_guardrails_adapter",  # New standardized factory
-    "create_guardrails_rule",  # Legacy factory
-]
+from sifaka.adapters.guardrails.adapter import GuardrailsValidatable, GuardrailsAdapter, GuardrailsValidatorAdapter, GuardrailsRule, create_guardrails_adapter, create_guardrails_rule
+__all__: List[Any] = ['GuardrailsValidatable', 'GuardrailsAdapter',
+    'GuardrailsValidatorAdapter', 'GuardrailsRule',
+    'create_guardrails_adapter', 'create_guardrails_rule']

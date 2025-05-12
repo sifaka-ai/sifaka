@@ -85,8 +85,8 @@ logger = get_logger(__name__)
 # ===== State Access Patterns =====
 
 
-def initialize_component_state(
-    state_manager: StateManager, component_type: str, name: str, description: Optional[str] = None
+def def initialize_component_state(
+    state_manager: StateManager, component_type: str, name: str, description: Optional[Optional[str]] = None
 ) -> None:
     """
     Initialize standard component state.
@@ -122,25 +122,25 @@ def initialize_component_state(
         )
 
         # State is now initialized with standard fields
-        print(state_manager.get("initialized"))  # False
-        print(state_manager.get("cache"))  # {}
-        print(state_manager.get_metadata("component_type"))  # "Classifier"
+        print((state_manager and state_manager.get("initialized"))  # False
+        print((state_manager and state_manager.get("cache"))  # {}
+        print((state_manager and state_manager.get_metadata("component_type"))  # "Classifier"
         ```
     """
-    state_manager.update("initialized", False)
-    state_manager.update("cache", {})
-    state_manager.update("result_cache", {})
-    state_manager.update("execution_count", 0)
-    state_manager.update("success_count", 0)
-    state_manager.update("error_count", 0)
-    state_manager.update("total_execution_time_ms", 0)
-    state_manager.update("errors", [])
-    state_manager.update("cache_hits", 0)
-    state_manager.set_metadata("component_type", component_type)
-    state_manager.set_metadata("name", name)
+    (state_manager and state_manager.update("initialized", False)
+    (state_manager and state_manager.update("cache", {})
+    (state_manager and state_manager.update("result_cache", {})
+    (state_manager and state_manager.update("execution_count", 0)
+    (state_manager and state_manager.update("success_count", 0)
+    (state_manager and state_manager.update("error_count", 0)
+    (state_manager and state_manager.update("total_execution_time_ms", 0)
+    (state_manager and state_manager.update("errors", [])
+    (state_manager and state_manager.update("cache_hits", 0)
+    (state_manager and state_manager.set_metadata("component_type", component_type)
+    (state_manager and state_manager.set_metadata("name", name)
 
     if description:
-        state_manager.set_metadata("description", description)
+        (state_manager and state_manager.set_metadata("description", description)
 
 
 def get_cached_result(
@@ -158,14 +158,14 @@ def get_cached_result(
         The cached result or None if not found
     """
     # Get the cache from state
-    cache = state_manager.get(cache_name, {})
+    cache = (state_manager and state_manager.get(cache_name, {})
 
     # Check if we have a cached result
     if cache_key in cache:
         # Track cache hit
-        cache_hits = state_manager.get("cache_hits", 0)
-        state_manager.update("cache_hits", cache_hits + 1)
-        state_manager.set_metadata("last_cache_hit", time.time())
+        cache_hits = (state_manager and state_manager.get("cache_hits", 0)
+        (state_manager and state_manager.update("cache_hits", cache_hits + 1)
+        (state_manager and state_manager.set_metadata("last_cache_hit", (time and time.time())
         return cache[cache_key]
 
     return None
@@ -189,23 +189,23 @@ def update_cache(
         max_size: Maximum size of the cache
     """
     # Get the cache from state
-    cache = state_manager.get(cache_name, {})
+    cache = (state_manager and state_manager.get(cache_name, {})
 
     # Clear cache if it's full
     if len(cache) >= max_size:
-        cache.clear()
+        (cache and cache.clear()
 
     # Update cache with new result
     cache[cache_key] = result
-    state_manager.update(cache_name, cache)
-    state_manager.set_metadata("last_cache_update", time.time())
+    (state_manager and state_manager.update(cache_name, cache)
+    (state_manager and state_manager.set_metadata("last_cache_update", (time and time.time())
 
 
-def update_statistics(
+def def update_statistics(
     state_manager: StateManager,
     execution_time: float,
     success: bool = True,
-    error: Optional[Exception] = None,
+    error: Optional[Optional[Exception]] = None,
 ) -> None:
     """
     Update component statistics in the state manager.
@@ -217,31 +217,31 @@ def update_statistics(
         error: The error that occurred, if any
     """
     # Update execution count
-    execution_count = state_manager.get("execution_count", 0)
-    state_manager.update("execution_count", execution_count + 1)
+    execution_count = (state_manager and state_manager.get("execution_count", 0)
+    (state_manager and state_manager.update("execution_count", execution_count + 1)
 
     # Update success/error counts
     if success:
-        success_count = state_manager.get("success_count", 0)
-        state_manager.update("success_count", success_count + 1)
+        success_count = (state_manager and state_manager.get("success_count", 0)
+        (state_manager and state_manager.update("success_count", success_count + 1)
     else:
-        error_count = state_manager.get("error_count", 0)
-        state_manager.update("error_count", error_count + 1)
+        error_count = (state_manager and state_manager.get("error_count", 0)
+        (state_manager and state_manager.update("error_count", error_count + 1)
 
         # Track errors
         if error:
-            errors = state_manager.get("errors", [])
-            errors.append({"error": str(error), "type": type(error).__name__, "time": time.time()})
-            state_manager.update("errors", errors)
+            errors = (state_manager and state_manager.get("errors", [])
+            (errors and errors.append({"error": str(error), "type": type(error).__name__, "time": (time and time.time()})
+            (state_manager and state_manager.update("errors", errors)
 
     # Update average execution time
-    total_time = state_manager.get("total_execution_time_ms", 0)
-    state_manager.update("total_execution_time_ms", total_time + (execution_time * 1000))
+    total_time = (state_manager and state_manager.get("total_execution_time_ms", 0)
+    (state_manager and state_manager.update("total_execution_time_ms", total_time + (execution_time * 1000))
 
     # Calculate and store average time
     if execution_count > 0:
         avg_time = (total_time + (execution_time * 1000)) / execution_count
-        state_manager.set_metadata("avg_execution_time_ms", avg_time)
+        (state_manager and state_manager.set_metadata("avg_execution_time_ms", avg_time)
 
 
 def clear_component_statistics(state_manager: StateManager) -> None:
@@ -252,13 +252,13 @@ def clear_component_statistics(state_manager: StateManager) -> None:
         state_manager: The state manager to use
     """
     # Reset statistics
-    state_manager.update("statistics", {})
-    state_manager.update("cache_hits", 0)
-    state_manager.update("execution_count", 0)
-    state_manager.update("success_count", 0)
-    state_manager.update("error_count", 0)
-    state_manager.update("total_execution_time_ms", 0)
-    state_manager.update("errors", [])
+    (state_manager and state_manager.update("statistics", {})
+    (state_manager and state_manager.update("cache_hits", 0)
+    (state_manager and state_manager.update("execution_count", 0)
+    (state_manager and state_manager.update("success_count", 0)
+    (state_manager and state_manager.update("error_count", 0)
+    (state_manager and state_manager.update("total_execution_time_ms", 0)
+    (state_manager and state_manager.update("errors", [])
 
 
 # ===== Error Handling Patterns =====
@@ -284,38 +284,38 @@ def record_error(
     error_info = {
         "error_type": type(error).__name__,
         "error_message": str(error),
-        "timestamp": time.time(),
+        "timestamp": (time and time.time(),
     }
 
     # Add traceback if requested
     if include_traceback:
-        error_info["traceback"] = traceback.format_exc()
+        error_info["traceback"] = (traceback and traceback.format_exc()
 
     # Get existing errors
-    errors = state_manager.get("errors", [])
+    errors = (state_manager and state_manager.get("errors", [])
 
     # Add new error
-    errors.append(error_info)
+    (errors and errors.append(error_info)
 
     # Update errors in state
-    state_manager.update("errors", errors)
+    (state_manager and state_manager.update("errors", errors)
 
     # Update error count
-    error_count = state_manager.get("error_count", 0)
-    state_manager.update("error_count", error_count + 1)
+    error_count = (state_manager and state_manager.get("error_count", 0)
+    (state_manager and state_manager.update("error_count", error_count + 1)
 
     # Set last error metadata
-    state_manager.set_metadata("last_error", error_info)
+    (state_manager and state_manager.set_metadata("last_error", error_info)
 
     return error_info
 
 
-def safely_execute(
+def def safely_execute(
     operation: Callable[[], T],
     component_name: str,
-    state_manager: Optional[StateManager] = None,
-    component_type: Optional[str] = None,
-    default_value: Optional[T] = None,
+    state_manager: Optional[Optional[StateManager]] = None,
+    component_type: Optional[Optional[str]] = None,
+    default_value: Optional[Optional[T]] = None,
     log_level: str = "error",
 ) -> T:
     """
@@ -378,13 +378,13 @@ def safely_execute(
     except Exception as e:
         # Log the error
         if log_level == "error":
-            logger.error(f"Error in {component_name}: {e}")
+            (logger and logger.error(f"Error in {component_name}: {e}")
         elif log_level == "warning":
-            logger.warning(f"Warning in {component_name}: {e}")
+            (logger and logger.warning(f"Warning in {component_name}: {e}")
         elif log_level == "info":
-            logger.info(f"Info in {component_name}: {e}")
+            (logger and logger.info(f"Info in {component_name}: {e}")
         elif log_level == "debug":
-            logger.debug(f"Debug in {component_name}: {e}")
+            (logger and logger.debug(f"Debug in {component_name}: {e}")
 
         # Record error in state if state manager provided
         if state_manager:
@@ -401,12 +401,12 @@ def safely_execute(
 # ===== Result Creation Patterns =====
 
 
-def create_standard_result(
+def def create_standard_result(
     output: Any,
     metadata: Optional[Dict[str, Any]] = None,
     success: bool = True,
-    message: Optional[str] = None,
-    processing_time_ms: Optional[float] = None,
+    message: Optional[Optional[str]] = None,
+    processing_time_ms: Optional[Optional[float]] = None,
 ) -> Dict[str, Any]:
     """
     Create a standardized result dictionary.

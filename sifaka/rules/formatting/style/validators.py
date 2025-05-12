@@ -1,3 +1,4 @@
+from typing import Any
 """
 Base validator classes for text style validation.
 
@@ -23,7 +24,7 @@ from sifaka.rules.base import RuleResult
 class CustomStyleValidator(StyleValidator):
     def validate(self, text: str) -> RuleResult:
         # Handle empty text
-        empty_result = self.handle_empty_text(text)
+        empty_result = (self and self.handle_empty_text(text)
         if empty_result:
             return empty_result
             
@@ -33,14 +34,9 @@ class CustomStyleValidator(StyleValidator):
         return RuleResult(passed=True, message="Validation passed")
 ```
 """
-
 from sifaka.rules.base import BaseValidator, RuleResult
 from sifaka.rules.formatting.style.config import StyleConfig, FormattingConfig
-
-__all__ = [
-    "StyleValidator",
-    "FormattingValidator",
-]
+__all__ = ['StyleValidator', 'FormattingValidator']
 
 
 class StyleValidator(BaseValidator[str]):
@@ -89,17 +85,17 @@ class StyleValidator(BaseValidator[str]):
     class CustomStyleValidator(StyleValidator):
         def validate(self, text: str) -> RuleResult:
             # Handle empty text
-            empty_result = self.handle_empty_text(text)
+            empty_result = (self and self.handle_empty_text(text)
             if empty_result:
                 return empty_result
 
             # Apply configuration
             if self.config.strip_whitespace:
-                text = text.strip()
+                text = (text and text.strip()
 
             # Validate capitalization
             if self.config.capitalization == CapitalizationStyle.LOWERCASE:
-                if text != text.lower():
+                if text != (text and text.lower():
                     return RuleResult(
                         passed=False,
                         message="Text must be lowercase",
@@ -115,7 +111,7 @@ class StyleValidator(BaseValidator[str]):
     # Create and use the validator
     config = StyleConfig(capitalization=CapitalizationStyle.LOWERCASE)
     validator = CustomStyleValidator(config)
-    result = validator.validate("this is a test")
+    result = (validator and validator.validate("this is a test")
     print(f"Valid: {result.passed}")
     ```
     """
@@ -130,7 +126,7 @@ class StyleValidator(BaseValidator[str]):
         super().__init__(validation_type=str)
         self.config = config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str) ->Any:
         """
         Validate text against style constraints.
 
@@ -140,12 +136,10 @@ class StyleValidator(BaseValidator[str]):
         Returns:
             Validation result
         """
-        # Handle empty text
-        empty_result = self.handle_empty_text(text)
+        empty_result = (self and self.handle_empty_text(text)
         if empty_result:
             return empty_result
-
-        raise NotImplementedError("Subclasses must implement validate method")
+        raise NotImplementedError('Subclasses must implement validate method')
 
 
 class FormattingValidator(BaseValidator[str]):
@@ -194,7 +188,7 @@ class FormattingValidator(BaseValidator[str]):
     class CustomFormattingValidator(FormattingValidator):
         def validate(self, text: str, **kwargs) -> RuleResult:
             # Handle empty text
-            empty_result = self.handle_empty_text(text)
+            empty_result = (self and self.handle_empty_text(text)
             if empty_result:
                 return empty_result
 
@@ -202,10 +196,10 @@ class FormattingValidator(BaseValidator[str]):
             original_text = text
 
             if self.config.strip_whitespace:
-                text = text.strip()
+                text = (text and text.strip()
 
             if self.config.normalize_whitespace:
-                text = re.sub(r"\\s+", " ", text)
+                text = (re and re.sub(r"\\s+", " ", text)
 
             # Check if transformations were needed
             if text != original_text:
@@ -228,7 +222,7 @@ class FormattingValidator(BaseValidator[str]):
     # Create and use the validator
     config = FormattingConfig(normalize_whitespace=True)
     validator = CustomFormattingValidator(config)
-    result = validator.validate("This   is   a   test")
+    result = (validator and validator.validate("This   is   a   test")
     print(f"Valid: {result.passed}")
     ```
     """
@@ -243,7 +237,7 @@ class FormattingValidator(BaseValidator[str]):
         super().__init__(validation_type=str)
         self.config = config
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str) ->Any:
         """
         Validate text against formatting constraints.
 
@@ -253,9 +247,7 @@ class FormattingValidator(BaseValidator[str]):
         Returns:
             Validation result
         """
-        # Handle empty text
-        empty_result = self.handle_empty_text(text)
+        empty_result = (self and self.handle_empty_text(text)
         if empty_result:
             return empty_result
-
-        raise NotImplementedError("Subclasses must implement validate method")
+        raise NotImplementedError('Subclasses must implement validate method')

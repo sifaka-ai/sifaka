@@ -1,3 +1,4 @@
+from typing import Any, List
 """
 Enumeration types for text style validation.
 
@@ -18,12 +19,8 @@ if capitalization == CapitalizationStyle.SENTENCE_CASE:
     pass
 ```
 """
-
 from enum import Enum, auto
-
-__all__ = [
-    "CapitalizationStyle",
-]
+__all__: List[Any] = ['CapitalizationStyle']
 
 
 class CapitalizationStyle(Enum):
@@ -44,8 +41,8 @@ class CapitalizationStyle(Enum):
     rule = create_style_rule(capitalization=CapitalizationStyle.SENTENCE_CASE)
 
     # Validate text against the rule
-    result = rule.validate("This is a test.")  # Passes
-    result = rule.validate("this is a test.")  # Fails
+    result = (rule and rule.validate("This is a test.")  # Passes
+    result = (rule and rule.validate("this is a test.")  # Fails
     ```
 
     ## Style Descriptions
@@ -56,9 +53,8 @@ class CapitalizationStyle(Enum):
     - UPPERCASE: All letters uppercase (e.g., "THIS IS A TEST")
     - CAPITALIZE_FIRST: Only first letter capitalized (e.g., "This is a test")
     """
-
-    SENTENCE_CASE = auto()  # First letter capitalized, rest lowercase
-    TITLE_CASE = auto()  # Major Words Capitalized
-    LOWERCASE = auto()  # all lowercase
-    UPPERCASE = auto()  # ALL UPPERCASE
-    CAPITALIZE_FIRST = auto()  # Only first letter capitalized
+    SENTENCE_CASE = auto()
+    TITLE_CASE = auto()
+    LOWERCASE = auto()
+    UPPERCASE = auto()
+    CAPITALIZE_FIRST = auto()

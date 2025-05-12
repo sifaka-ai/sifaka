@@ -212,10 +212,10 @@ class ComponentError(SifakaError):
         metadata (Dict[str, Any]): Additional error context and details
     """
 
-    def __init__(
+    def def __init__(
         self,
         message: str,
-        component_name: Optional[str] = None,
+        component_name: Optional[Optional[str]] = None,
         component_type: str = "component",
         error_type: str = "component_error",
         **kwargs: Any,

@@ -1,3 +1,4 @@
+from typing import Any, List
 """
 Component interfaces for chain components.
 
@@ -12,15 +13,8 @@ modularity and extensibility.
 3. **Improver**: Interface for output improvers
 4. **ChainFormatter**: Interface for result formatters
 """
-
 from .formatter import ChainFormatter
 from .improver import Improver
 from .model import Model
 from .validator import Validator
-
-__all__ = [
-    "Model",
-    "Validator",
-    "Improver",
-    "ChainFormatter",
-]
+__all__: List[Any] = ['Model', 'Validator', 'Improver', 'ChainFormatter']

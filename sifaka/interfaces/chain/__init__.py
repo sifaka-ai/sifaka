@@ -1,3 +1,4 @@
+from typing import Any, List
 """
 Chain interfaces for Sifaka.
 
@@ -54,42 +55,14 @@ The interfaces support execution tracking:
 - Success/failure tracking
 - Performance statistics
 """
-
 from .async_chain import AsyncChain
-
-# Base interfaces
 from .base import ChainComponent
-
-# Chain interfaces
 from .chain import Chain
-
-# Component interfaces
 from .components import ChainFormatter, Improver, Model, Validator
-
-# Manager interfaces
 from .managers import PromptManager, ResultFormatter, RetryStrategy, ValidationManager
-
-# Models
 from .models import ValidationResult
 from .plugin import ChainPlugin
-
-__all__ = [
-    # Base interfaces
-    "ChainComponent",
-    "ChainPlugin",
-    # Chain interfaces
-    "Chain",
-    "AsyncChain",
-    # Manager interfaces
-    "PromptManager",
-    "ValidationManager",
-    "RetryStrategy",
-    "ResultFormatter",
-    # Component interfaces
-    "Model",
-    "Validator",
-    "Improver",
-    "ChainFormatter",
-    # Models
-    "ValidationResult",
-]
+__all__: List[Any] = ['ChainComponent', 'ChainPlugin', 'Chain',
+    'AsyncChain', 'PromptManager', 'ValidationManager', 'RetryStrategy',
+    'ResultFormatter', 'Model', 'Validator', 'Improver', 'ChainFormatter',
+    'ValidationResult']

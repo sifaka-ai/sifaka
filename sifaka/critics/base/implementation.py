@@ -25,7 +25,7 @@ critic = Critic(
 
 # Process text
 text = "This is a test text."
-result = critic.process(text)
+result = (critic and critic.process(text)
 
 # Check results
 print(f"Score: {result.score:.2f}")
@@ -90,7 +90,7 @@ class Critic(BaseCritic[str]):
 
     # Process text
     text = "This is a test text."
-    result = critic.process(text)
+    result = (critic and critic.process(text)
 
     # Check results
     print(f"Score: {result.score:.2f}")
@@ -118,22 +118,22 @@ class Critic(BaseCritic[str]):
         Returns:
             True if text is valid, False otherwise
         """
-        if not self.is_valid_text(text):
+        if not (self and self.is_valid_text(text):
             return False
 
         # Basic validation rules using shared validation methods
-        if not self.validate_text_length(text, min_length=10):
+        if not (self and self.validate_text_length(text, min_length=10):
             return False
-        if not self.validate_text_contains(text, [".", "!", "?"]):
+        if not (self and self.validate_text_contains(text, [".", "!", "?"]):
             return False
-        if not self.validate_text_pattern(text, r"[A-Z]"):
+        if not (self and self.validate_text_pattern(text, r"[A-Z]"):
             return False
-        if not self.validate_text_pattern(text, r"[a-z]"):
+        if not (self and self.validate_text_pattern(text, r"[a-z]"):
             return False
 
         return True
 
-    def improve(self, text: str, feedback: Optional[str] = None) -> str:
+    def def improve(self, text: str, feedback: Optional[Optional[str]] = None) -> str:
         """
         Improve text based on feedback.
 
@@ -144,19 +144,19 @@ class Critic(BaseCritic[str]):
         Returns:
             The improved text
         """
-        if not self.is_valid_text(text):
+        if not (self and self.is_valid_text(text):
             return text
 
         improved = text
 
         # Apply improvements based on feedback
         if feedback:
-            if "too short" in feedback.lower():
+            if "too short" in feedback and feedback and feedback and (feedback and feedback.lower():
                 improved += " Additional content to increase length."
-            if "capitalization" in feedback.lower():
-                improved = improved.capitalize()
-            if "punctuation" in feedback.lower():
-                if not improved.endswith((".", "!", "?")):
+            if "capitalization" in feedback and feedback and feedback and (feedback and feedback.lower():
+                improved = (improved and improved.capitalize()
+            if "punctuation" in feedback and feedback and feedback and (feedback and feedback.lower():
+                if not (improved and improved.endswith((".", "!", "?")):
                     improved += "."
 
         return improved
@@ -172,22 +172,22 @@ class Critic(BaseCritic[str]):
         Returns:
             The improved text
         """
-        if not self.is_valid_text(text):
+        if not (self and self.is_valid_text(text):
             return text
 
         improved = text
 
         # Apply improvements based on violations
         for violation in violations:
-            rule_id = violation.get("rule_id", "unknown")
-            message = violation.get("message", "")
+            rule_id = (violation and violation.get("rule_id", "unknown")
+            message = (violation and violation.get("message", "")
 
             if rule_id == "length" and "too_short" in message:
                 improved += " Additional content to increase length."
             elif rule_id == "style" and "capitalization" in message:
-                improved = improved.capitalize()
+                improved = (improved and improved.capitalize()
             elif rule_id == "grammar" and "missing_punctuation" in message:
-                if not improved.endswith((".", "!", "?")):
+                if not (improved and improved.endswith((".", "!", "?")):
                     improved += "."
 
         return improved
@@ -202,7 +202,7 @@ class Critic(BaseCritic[str]):
         Returns:
             BaseResult containing the critique details
         """
-        if not self.is_valid_text(text):
+        if not (self and self.is_valid_text(text):
             return BaseResult(
                 passed=False,
                 message="Invalid text",
@@ -213,10 +213,10 @@ class Critic(BaseCritic[str]):
             )
 
         # Analyze text quality using shared validation methods
-        word_count = len(text.split())
-        has_punctuation = self.validate_text_contains(text, [".", "!", "?"])
-        has_capitalization = self.validate_text_pattern(text, r"[A-Z]")
-        has_lowercase = self.validate_text_pattern(text, r"[a-z]")
+        word_count = len((text and text.split())
+        has_punctuation = (self and self.validate_text_contains(text, [".", "!", "?"])
+        has_capitalization = (self and self.validate_text_pattern(text, r"[A-Z]")
+        has_lowercase = (self and self.validate_text_pattern(text, r"[a-z]")
 
         # Calculate score based on metrics
         score = 0.0
@@ -234,17 +234,17 @@ class Critic(BaseCritic[str]):
         suggestions = []
 
         if word_count < 10:
-            issues.append("Text is too short")
-            suggestions.append("Add more content")
+            (issues and issues.append("Text is too short")
+            (suggestions and suggestions.append("Add more content")
         if not has_punctuation:
-            issues.append("Missing punctuation")
-            suggestions.append("Add appropriate punctuation")
+            (issues and issues.append("Missing punctuation")
+            (suggestions and suggestions.append("Add appropriate punctuation")
         if not has_capitalization:
-            issues.append("Missing capitalization")
-            suggestions.append("Capitalize appropriate words")
+            (issues and issues.append("Missing capitalization")
+            (suggestions and suggestions.append("Capitalize appropriate words")
         if not has_lowercase:
-            issues.append("All uppercase text")
-            suggestions.append("Use lowercase where appropriate")
+            (issues and issues.append("All uppercase text")
+            (suggestions and suggestions.append("Use lowercase where appropriate")
 
         feedback = "Good text quality" if score >= 0.8 else "Text needs improvement"
 

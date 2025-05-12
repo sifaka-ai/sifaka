@@ -220,7 +220,7 @@ class AsyncModelProviderProtocol(Protocol):
 
 
 # Type variable for the return type of language models
-R = TypeVar("R")
+R = TypeVar("R", covariant=True)
 
 
 @runtime_checkable

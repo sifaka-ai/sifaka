@@ -69,10 +69,10 @@ T = TypeVar("T", bound="ModelProviderProtocol")
 logger = get_logger(__name__)
 
 
-def create_model_provider(
+def def create_model_provider(
     provider_type: Type[T],
     model_name: str,
-    api_key: Optional[str] = None,
+    api_key: Optional[Optional[str]] = None,
     temperature: float = 0.7,
     max_tokens: int = 1000,
     trace_enabled: bool = False,
@@ -139,7 +139,7 @@ def create_model_provider(
         max_tokens=max_tokens,
         api_key=api_key,
         trace_enabled=trace_enabled,
-        params=kwargs.pop("params", {}),
+        params=(kwargs and kwargs.pop("params", {}),
     )
 
     # Create provider
@@ -149,9 +149,9 @@ def create_model_provider(
         raise RuntimeError(f"Failed to create {provider_type.__name__}: {e}") from e
 
 
-def create_openai_provider(
+def def create_openai_provider(
     model_name: str,
-    api_key: Optional[str] = None,
+    api_key: Optional[Optional[str]] = None,
     temperature: float = 0.7,
     max_tokens: int = 1000,
     **kwargs: Any,
@@ -195,7 +195,7 @@ def create_openai_provider(
         )
 
         # Use the provider
-        response = provider.generate("Hello, world!")
+        response = (provider and provider.generate("Hello, world!")
         print(response.text)
         ```
     """
@@ -212,9 +212,9 @@ def create_openai_provider(
     )
 
 
-def create_anthropic_provider(
+def def create_anthropic_provider(
     model_name: str,
-    api_key: Optional[str] = None,
+    api_key: Optional[Optional[str]] = None,
     temperature: float = 0.7,
     max_tokens: int = 1000,
     **kwargs: Any,
@@ -258,7 +258,7 @@ def create_anthropic_provider(
         )
 
         # Use the provider
-        response = provider.generate("Hello, world!")
+        response = (provider and provider.generate("Hello, world!")
         print(response.text)
         ```
     """
@@ -275,9 +275,9 @@ def create_anthropic_provider(
     )
 
 
-def create_gemini_provider(
+def def create_gemini_provider(
     model_name: str,
-    api_key: Optional[str] = None,
+    api_key: Optional[Optional[str]] = None,
     temperature: float = 0.7,
     max_tokens: int = 1000,
     **kwargs: Any,
@@ -321,7 +321,7 @@ def create_gemini_provider(
         )
 
         # Use the provider
-        response = provider.generate("Hello, world!")
+        response = (provider and provider.generate("Hello, world!")
         print(response.text)
         ```
     """
@@ -385,7 +385,7 @@ def create_mock_provider(
         )
 
         # Use the provider
-        response = provider.generate("Hello")
+        response = (provider and provider.generate("Hello")
         assert response.text == "World"
         ```
     """

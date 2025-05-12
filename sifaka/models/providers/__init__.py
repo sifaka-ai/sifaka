@@ -1,3 +1,4 @@
+from typing import Any, List
 """
 Model provider implementations for Sifaka.
 
@@ -7,15 +8,9 @@ This package provides model provider implementations for different LLM services:
 - GeminiProvider: Provider for Google Gemini models
 - MockProvider: Provider for testing
 """
-
 from .openai import OpenAIProvider
 from .anthropic import AnthropicProvider
 from .gemini import GeminiProvider
 from .mock import MockProvider
-
-__all__ = [
-    "OpenAIProvider",
-    "AnthropicProvider",
-    "GeminiProvider",
-    "MockProvider",
-]
+__all__: List[Any] = ['OpenAIProvider', 'AnthropicProvider',
+    'GeminiProvider', 'MockProvider']

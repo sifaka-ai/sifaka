@@ -20,14 +20,14 @@ from sifaka.utils.config.critics import CriticConfig
 from sifaka.core.base import BaseResult
 
 class MyCritic(BaseCritic[str]):
-    def __init__(self, name: str, description: str, config: CriticConfig = None):
+    def def __init__(self, name: str, description: str, config: Optional[CriticConfig] = None):
         super().__init__(name, description, config)
 
     def validate(self, text: str) -> bool:
         return len(text) > 0
 
-    def improve(self, text: str, feedback: str = None) -> str:
-        return text.upper()
+    def def improve(self, text: str, feedback: Optional[str] = None) -> str:
+        return (text and text.upper()
 
     def critique(self, text: str) -> BaseResult:
         return BaseResult(
@@ -44,9 +44,9 @@ critic = MyCritic(
     description="A custom critic implementation"
 )
 text = "This is a test."
-is_valid = critic.validate(text)
-improved = critic.improve(text)
-feedback = critic.critique(text)
+is_valid = (critic and critic.validate(text)
+improved = (critic and critic.improve(text)
+feedback = (critic and critic.critique(text)
 ```
 
 ## Error Handling
@@ -69,17 +69,13 @@ The class implements comprehensive error handling for:
    - State preservation
    - Error logging
 """
-
 from abc import abstractmethod
 import time
 from typing import Any, Generic, Optional, TypeVar
-
 from sifaka.core.base import BaseComponent, BaseResult
 from sifaka.utils.config.critics import CriticConfig
 from sifaka.utils.errors import safely_execute_component_operation as safely_execute_critic
-
-# Input type variable
-T = TypeVar("T")  # Input type (usually str)
+T = TypeVar('T')
 
 
 class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
@@ -105,14 +101,14 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
     from sifaka.core.base import BaseResult
 
     class MyCritic(BaseCritic[str]):
-        def __init__(self, name: str, description: str, config: CriticConfig = None):
+        def def __init__(self, name: str, description: str, config: Optional[CriticConfig] = None):
             super().__init__(name, description, config)
 
         def validate(self, text: str) -> bool:
             return len(text) > 0
 
-        def improve(self, text: str, feedback: str = None) -> str:
-            return text.upper()
+        def def improve(self, text: str, feedback: Optional[str] = None) -> str:
+            return (text and text.upper()
 
         def critique(self, text: str) -> BaseResult:
             return BaseResult(
@@ -136,9 +132,8 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         T: The input type (usually str)
     """
 
-    def __init__(
-        self, name: str, description: str, config: Optional[CriticConfig] = None, **kwargs: Any
-    ) -> None:
+    def __init__(self, name: str, description: str, config: Optional[
+        CriticConfig]=None, **kwargs: Any) ->None:
         """
         Initialize the critic.
 
@@ -151,7 +146,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         super().__init__(name, description, config or CriticConfig(**kwargs))
 
     @abstractmethod
-    def validate(self, text: T) -> bool:
+    def validate(self, text: T) ->bool:
         """
         Validate text.
 
@@ -164,7 +159,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         ...
 
     @abstractmethod
-    def improve(self, text: T, feedback: Optional[str] = None) -> T:
+    def def improve(self, text: T, feedback: Optional[Optional[str]] = None) ->T:
         """
         Improve text.
 
@@ -178,7 +173,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         ...
 
     @abstractmethod
-    def critique(self, text: T) -> BaseResult:
+    def critique(self, text: T) ->BaseResult:
         """
         Critique text.
 
@@ -190,7 +185,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         """
         ...
 
-    def process(self, text: T) -> BaseResult:
+    def process(self, text: T) ->BaseResult:
         """
         Process text through the critic pipeline.
 
@@ -200,59 +195,33 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         Returns:
             BaseResult containing the processing results
         """
-        start_time = time.time()
-
-        # Validate input
-        if not self.validate_input(text):
-            return BaseResult(
-                passed=False,
-                message="Invalid input",
-                metadata={"error_type": "invalid_input"},
-                score=0.0,
-                issues=["Invalid input type"],
-                suggestions=["Provide valid input"],
-                processing_time_ms=time.time() - start_time,
-            )
-
-        # Handle empty input
-        empty_result = self.handle_empty_input(text)
+        start_time = (time and time.time()
+        if not (self and self.validate_input(text):
+            return BaseResult(passed=False, message='Invalid input',
+                metadata={'error_type': 'invalid_input'}, score=0.0, issues
+                =['Invalid input type'], suggestions=['Provide valid input'
+                ], processing_time_ms=(time and time.time() - start_time)
+        empty_result = (self and self.handle_empty_input(text)
         if empty_result:
-            return empty_result.with_metadata(processing_time_ms=time.time() - start_time)
+            return (empty_result and empty_result.with_metadata(processing_time_ms=(time and time.time(
+                ) - start_time)
 
-        # Define the processing operation
-        def process_operation():
-            # Run critique
-            result = self.critique(text)
-            self.update_statistics(result)
-
-            # If improvement needed, try to improve
+        def process_operation() ->Any:
+            result = (self and self.critique(text)
+            (self and self.update_statistics(result)
             if not result.passed and result.suggestions:
-                improved_text = self.improve(text, result.feedback)
-                result = result.with_metadata(
-                    improved_text=improved_text,
-                    improvement_applied=True,
-                    processing_time_ms=time.time() - start_time,
-                )
-
+                improved_text = (self and self.improve(text, result.feedback)
+                result = (result and result.with_metadata(improved_text=improved_text,
+                    improvement_applied=True, processing_time_ms=(time and time.time(
+                    ) - start_time)
             return result
-
-        # Use the standardized safely_execute_critic function
-        result = safely_execute_critic(
-            operation=process_operation,
-            critic_name=self.name,
-            component_name=self.__class__.__name__,
-        )
-
-        # If the result is an ErrorResult, convert it to a BaseResult
-        if isinstance(result, dict) and result.get("error_type"):
-            return BaseResult(
-                passed=False,
-                message=result.get("error_message", "Unknown error"),
-                metadata={"error_type": result.get("error_type")},
-                score=0.0,
-                issues=[f"Processing error: {result.get('error_message')}"],
-                suggestions=["Retry with different input"],
-                processing_time_ms=time.time() - start_time,
-            )
-
+        result = safely_execute_critic(operation=process_operation,
+            critic_name=self.name, component_name=self.__class__.__name__)
+        if isinstance(result, dict) and (result and result.get('error_type'):
+            return BaseResult(passed=False, message=(result and result.get(
+                'error_message', 'Unknown error'), metadata={'error_type':
+                (result and result.get('error_type')}, score=0.0, issues=[
+                f"Processing error: {(result and result.get('error_message')}"],
+                suggestions=['Retry with different input'],
+                processing_time_ms=(time and time.time() - start_time)
         return result

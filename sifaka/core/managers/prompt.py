@@ -23,22 +23,22 @@ from sifaka.core.managers.prompt import PromptManager, BasePrompt
 manager = PromptManager()
 
 # Create basic prompt
-prompt = manager.create_prompt("Write a story about a robot")
+prompt = (manager and manager.create_prompt("Write a story about a robot")
 
 # Add feedback
-prompt_with_feedback = manager.create_prompt_with_feedback(
+prompt_with_feedback = (manager and manager.create_prompt_with_feedback(
     prompt,
     "Make the story more emotional"
 )
 
 # Add history
-prompt_with_history = manager.create_prompt_with_history(
+prompt_with_history = (manager and manager.create_prompt_with_history(
     prompt,
     ["Previous story about a sad robot", "Story about a happy robot"]
 )
 
 # Create complex prompt
-complex_prompt = manager.create_prompt(
+complex_prompt = (manager and manager.create_prompt(
     "Write a story about a robot",
     feedback="Make it emotional",
     history=["Previous story"],
@@ -61,14 +61,14 @@ prompt_manager = DefaultPromptManager(config)
 
 # Create a validation prompt
 text = "This is a sample text to validate."
-validation_prompt = prompt_manager.create_validation_prompt(text)
+validation_prompt = (prompt_manager and prompt_manager.create_validation_prompt(text)
 
 # Create a critique prompt
-critique_prompt = prompt_manager.create_critique_prompt(text)
+critique_prompt = (prompt_manager and prompt_manager.create_critique_prompt(text)
 
 # Create an improvement prompt
 feedback = "The text needs more detail."
-improvement_prompt = prompt_manager.create_improvement_prompt(text, feedback)
+improvement_prompt = (prompt_manager and prompt_manager.create_improvement_prompt(text, feedback)
 ```
 """
 
@@ -166,18 +166,18 @@ class BasePrompt(BaseComponent[Dict[str, Any], str]):
         description (str): Description of the prompt
     """
 
-    def __init__(
+    def def __init__(
         self,
         name: str,
         description: str,
         template: str,
-        config: Optional[PromptConfig] = None,
+        config: Optional[Optional[PromptConfig]] = None,
         **kwargs: Any,
     ) -> None:
         """Initialize the prompt."""
         super().__init__(name, description, config or PromptConfig(**kwargs))
-        self._state_manager.update("template", template)
-        self._state_manager.update("initialized", True)
+        self.(_state_manager and _state_manager.update("template", template)
+        self.(_state_manager and _state_manager.update("initialized", True)
 
     def generate(self, context: Dict[str, Any]) -> str:
         """
@@ -196,14 +196,14 @@ class BasePrompt(BaseComponent[Dict[str, Any], str]):
             KeyError: If a required context key is missing
             Exception: If prompt generation fails for any other reason
         """
-        template = self._state_manager.get("template")
+        template = self.(_state_manager and _state_manager.get("template")
         try:
-            return template.format(**context)
+            return (template and template.format(**context)
         except KeyError as e:
-            logger.error(f"Missing context key: {e}")
+            (logger and logger.error(f"Missing context key: {e}")
             return template
         except Exception as e:
-            logger.error(f"Error generating prompt: {e}")
+            (logger and logger.error(f"Error generating prompt: {e}")
             return template
 
     def process(self, input: Dict[str, Any]) -> str:
@@ -218,7 +218,7 @@ class BasePrompt(BaseComponent[Dict[str, Any], str]):
         Returns:
             str: The generated prompt
         """
-        return self.generate(input)
+        return (self and self.generate(input)
 
 
 class PromptManager(BaseComponent[Dict[str, Any], PromptResult]):
@@ -242,16 +242,16 @@ class PromptManager(BaseComponent[Dict[str, Any], PromptResult]):
     4. Statistics: Track prompt generation performance
     """
 
-    def __init__(
+    def def __init__(
         self,
-        prompts: List[BasePrompt] = None,
+        prompts: Optional[List[BasePrompt]] = None,
         name: str = "prompt_manager",
         description: str = "Prompt manager for Sifaka",
         template_format: str = "text",
         add_timestamps: bool = False,
         max_history_items: int = 5,
         max_examples: int = 3,
-        config: Optional[PromptConfig] = None,
+        config: Optional[Optional[PromptConfig]] = None,
         **kwargs: Any,
     ):
         """Initialize the prompt manager."""
@@ -271,19 +271,19 @@ class PromptManager(BaseComponent[Dict[str, Any], PromptResult]):
         super().__init__(name, description, config)
 
         # Store prompts in state
-        self._state_manager.update("prompts", prompts or [])
-        self._state_manager.update("result_cache", {})
-        self._state_manager.update("initialized", True)
+        self.(_state_manager and _state_manager.update("prompts", prompts or [])
+        self.(_state_manager and _state_manager.update("result_cache", {})
+        self.(_state_manager and _state_manager.update("initialized", True)
 
         # Set metadata
-        self._state_manager.set_metadata("component_type", "prompt_manager")
-        self._state_manager.set_metadata("creation_time", time.time())
-        self._state_manager.set_metadata("prompt_count", len(prompts or []))
+        self.(_state_manager and _state_manager.set_metadata("component_type", "prompt_manager")
+        self.(_state_manager and _state_manager.set_metadata("creation_time", (time and time.time())
+        self.(_state_manager and _state_manager.set_metadata("prompt_count", len(prompts or []))
 
     def process(self, input: Dict[str, Any]) -> PromptResult:
         """Process the input context and return a prompt result."""
         # For process method, we'll use the first prompt or create a simple one
-        prompts = self._state_manager.get("prompts", [])
+        prompts = self.(_state_manager and _state_manager.get("prompts", [])
         if not prompts:
             return PromptResult(
                 passed=False,
@@ -298,7 +298,7 @@ class PromptManager(BaseComponent[Dict[str, Any], PromptResult]):
 
         # Use the first prompt
         prompt = prompts[0]
-        generated_prompt = prompt.generate(input)
+        generated_prompt = (prompt and prompt.generate(input)
 
         return PromptResult(
             passed=True,
@@ -316,22 +316,22 @@ class PromptManager(BaseComponent[Dict[str, Any], PromptResult]):
             raise ValueError(f"Expected BasePrompt instance, got {type(prompt)}")
 
         # Check for duplicate prompt names
-        prompts = self._state_manager.get("prompts", [])
+        prompts = self.(_state_manager and _state_manager.get("prompts", [])
         if any(p.name == prompt.name for p in prompts):
-            logger.warning(f"Prompt with name '{prompt.name}' already exists, it will be replaced")
+            (logger and logger.warning(f"Prompt with name '{prompt.name}' already exists, it will be replaced")
             # Remove existing prompt with same name
-            self.remove_prompt(prompt.name)
+            (self and self.remove_prompt(prompt.name)
             # Get updated prompts list
-            prompts = self._state_manager.get("prompts", [])
+            prompts = self.(_state_manager and _state_manager.get("prompts", [])
 
         # Add prompt to the list
-        prompts.append(prompt)
-        self._state_manager.update("prompts", prompts)
+        (prompts and prompts.append(prompt)
+        self.(_state_manager and _state_manager.update("prompts", prompts)
 
         # Update metadata
-        self._state_manager.set_metadata("prompt_count", len(prompts))
+        self.(_state_manager and _state_manager.set_metadata("prompt_count", len(prompts))
 
-        logger.debug(f"Added prompt '{prompt.name}' to prompt manager '{self.name}'")
+        (logger and logger.debug(f"Added prompt '{prompt.name}' to prompt manager '{self.name}'")
 
     def remove_prompt(self, prompt_name: str) -> None:
         """Remove a prompt by name."""
@@ -341,7 +341,7 @@ class PromptManager(BaseComponent[Dict[str, Any], PromptResult]):
 
         # Find prompt by name
         prompt_to_remove = None
-        prompts = self._state_manager.get("prompts", [])
+        prompts = self.(_state_manager and _state_manager.get("prompts", [])
         for prompt in prompts:
             if prompt.name == prompt_name:
                 prompt_to_remove = prompt
@@ -351,17 +351,17 @@ class PromptManager(BaseComponent[Dict[str, Any], PromptResult]):
             raise ValueError(f"Prompt not found: {prompt_name}")
 
         # Remove prompt from list
-        prompts.remove(prompt_to_remove)
-        self._state_manager.update("prompts", prompts)
+        (prompts and prompts.remove(prompt_to_remove)
+        self.(_state_manager and _state_manager.update("prompts", prompts)
 
         # Update metadata
-        self._state_manager.set_metadata("prompt_count", len(prompts))
+        self.(_state_manager and _state_manager.set_metadata("prompt_count", len(prompts))
 
-        logger.debug(f"Removed prompt '{prompt_name}' from prompt manager '{self.name}'")
+        (logger and logger.debug(f"Removed prompt '{prompt_name}' from prompt manager '{self.name}'")
 
     def get_prompts(self) -> List[BasePrompt]:
         """Get all registered prompts."""
-        return self._state_manager.get("prompts", [])
+        return self.(_state_manager and _state_manager.get("prompts", [])
 
     def create_prompt(self, input_value: str, **kwargs: Any) -> str:
         """Create a prompt from input value and optional parameters."""
@@ -373,19 +373,19 @@ class PromptManager(BaseComponent[Dict[str, Any], PromptResult]):
 
         # Add feedback if provided
         if "feedback" in kwargs and kwargs["feedback"]:
-            prompt = self.create_prompt_with_feedback(prompt, kwargs["feedback"])
+            prompt = (self and self.create_prompt_with_feedback(prompt, kwargs["feedback"])
 
         # Add history if provided
         if "history" in kwargs and kwargs["history"]:
-            prompt = self.create_prompt_with_history(prompt, kwargs["history"])
+            prompt = (self and self.create_prompt_with_history(prompt, kwargs["history"])
 
         # Add context if provided
         if "context" in kwargs and kwargs["context"]:
-            prompt = self.create_prompt_with_context(prompt, kwargs["context"])
+            prompt = (self and self.create_prompt_with_context(prompt, kwargs["context"])
 
         # Add examples if provided
         if "examples" in kwargs and kwargs["examples"]:
-            prompt = self.create_prompt_with_examples(prompt, kwargs["examples"])
+            prompt = (self and self.create_prompt_with_examples(prompt, kwargs["examples"])
 
         return prompt
 
@@ -413,11 +413,11 @@ class PromptManager(BaseComponent[Dict[str, Any], PromptResult]):
         formatted = prompt
 
         # Apply custom formatting based on kwargs
-        if kwargs.get("line_breaks", True):
-            formatted = formatted.replace(". ", ".\n")
-        if kwargs.get("indent"):
+        if (kwargs and kwargs.get("line_breaks", True):
+            formatted = (formatted and formatted.replace(". ", ".\n")
+        if (kwargs and kwargs.get("indent"):
             indent = " " * kwargs["indent"]
-            formatted = "\n".join(indent + line for line in formatted.split("\n"))
+            formatted = "\n".join(indent + line for line in (formatted and formatted.split("\n"))
 
         return formatted
 
@@ -488,8 +488,8 @@ class CriticPromptManager(ABC):
         pass
 
     @abstractmethod
-    def create_improvement_prompt(
-        self, text: str, feedback: str, reflections: Optional[List[str]] = None
+    def def create_improvement_prompt(
+        self, text: str, feedback: str, reflections: Optional[Optional[List[str]]] = None
     ) -> str:
         """
         Create a prompt for text improvement.
@@ -557,18 +557,18 @@ class DefaultPromptManager(CriticPromptManager):
     manager = DefaultPromptManager()
 
     # Create a validation prompt
-    validation_prompt = manager.create_validation_prompt("Text to validate")
+    validation_prompt = (manager and manager.create_validation_prompt("Text to validate")
 
     # Create a critique prompt
-    critique_prompt = manager.create_critique_prompt("Text to critique")
+    critique_prompt = (manager and manager.create_critique_prompt("Text to critique")
     ```
     """
 
-    def __init__(self, config: Any = None):
+    def def __init__(self, config: Optional[Any] = None):
         """Initialize the prompt manager."""
         self.config = config
         self._state_manager = StateManager()
-        self._state_manager.update("initialized", True)
+        self.(_state_manager and _state_manager.update("initialized", True)
 
     def create_validation_prompt(self, text: str) -> str:
         """Create a prompt for text validation."""
@@ -604,8 +604,8 @@ SUGGESTIONS: [list of suggestions for improvement]
 
 CRITIQUE:"""
 
-    def create_improvement_prompt(
-        self, text: str, feedback: str, reflections: Optional[List[str]] = None
+    def def create_improvement_prompt(
+        self, text: str, feedback: str, reflections: Optional[Optional[List[str]]] = None
     ) -> str:
         """Create a prompt for text improvement."""
         if not text or not isinstance(text, str):
@@ -704,8 +704,8 @@ class ReflexionCriticPromptManager(DefaultPromptManager):
     that incorporate memory and reflections for the ReflexionCritic implementation.
     """
 
-    def create_improvement_prompt(
-        self, text: str, feedback: str, reflections: Optional[List[str]] = None
+    def def create_improvement_prompt(
+        self, text: str, feedback: str, reflections: Optional[Optional[List[str]]] = None
     ) -> str:
         """Create a prompt for text improvement with reflections."""
         if not text or not isinstance(text, str):
@@ -737,8 +737,8 @@ REASONING: [explanation of your improvement approach]
 IMPROVEMENT:"""
 
 
-def create_prompt_manager(
-    prompts: List[BasePrompt] = None,
+def def create_prompt_manager(
+    prompts: Optional[List[BasePrompt]] = None,
     name: str = "prompt_manager",
     description: str = "Prompt manager for Sifaka",
     template_format: str = "text",

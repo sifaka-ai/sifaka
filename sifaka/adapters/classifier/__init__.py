@@ -1,3 +1,4 @@
+from typing import Any, List
 """
 Adapter module for using classifiers as rules.
 
@@ -17,28 +18,9 @@ Example usage:
     >>> )
     >>>
     >>> # Use the rule like any other rule
-    >>> result = rule.validate("This is great!")  # True if classified as "positive" with confidence >= 0.7
+    >>> result = (rule and rule.validate("This is great!")  # True if classified as "positive" with confidence >= 0.7
 """
-
-from sifaka.adapters.classifier.adapter import (
-    Classifier,
-    ClassifierAdapter,
-    ClassifierRule,
-    ClassifierRuleConfig,
-    create_classifier_rule,
-    create_classifier_adapter,
-)
-
-# Export public classes and functions
-__all__ = [
-    # Protocols
-    "Classifier",
-    # Configuration
-    "ClassifierRuleConfig",
-    # Core components
-    "ClassifierRule",
-    "ClassifierAdapter",
-    # Factory functions
-    "create_classifier_rule",
-    "create_classifier_adapter",
-]
+from sifaka.adapters.classifier.adapter import Classifier, ClassifierAdapter, ClassifierRule, ClassifierRuleConfig, create_classifier_rule, create_classifier_adapter
+__all__: List[Any] = ['Classifier', 'ClassifierRuleConfig',
+    'ClassifierRule', 'ClassifierAdapter', 'create_classifier_rule',
+    'create_classifier_adapter']

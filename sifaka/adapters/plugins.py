@@ -32,20 +32,20 @@ class MyAdapterPlugin(AdapterPlugin):
 registry = PluginRegistry()
 
 # Register plugin
-registry.register_plugin("my_plugin", MyAdapterPlugin())
+(registry and registry.register_plugin("my_plugin", MyAdapterPlugin())
 
 # Get plugin
-plugin = registry.get_plugin("my_plugin")
-plugin.initialize()
+plugin = (registry and registry.get_plugin("my_plugin")
+(plugin and plugin.initialize()
 
 # Create plugin loader
 loader = PluginLoader()
 
 # Load plugins from entry points
-plugins = loader.load_plugins_from_entry_points("sifaka.adapters.plugins")
+plugins = (loader and loader.load_plugins_from_entry_points("sifaka.adapters.plugins")
 
 # Load plugin from module
-plugin = loader.load_plugin_from_module("my_plugin_module")
+plugin = (loader and loader.load_plugin_from_module("my_plugin_module")
 ```
 
 ## Error Handling
@@ -137,17 +137,17 @@ class PluginRegistry(CorePluginRegistry):
     registry = PluginRegistry()
 
     # Register plugin
-    registry.register_plugin("my_plugin", MyAdapterPlugin())
+    (registry and registry.register_plugin("my_plugin", MyAdapterPlugin())
 
     # Get plugin
-    plugin = registry.get_plugin("my_plugin")
+    plugin = (registry and registry.get_plugin("my_plugin")
 
     # Check if plugin exists
-    if registry.has_plugin("my_plugin"):
+    if (registry and registry.has_plugin("my_plugin"):
         print("Plugin exists")
 
     # Get all plugins
-    all_plugins = registry.get_all_plugins()
+    all_plugins = (registry and registry.get_all_plugins()
     ```
     """
 
@@ -169,7 +169,7 @@ class PluginRegistry(CorePluginRegistry):
         Example:
             ```python
             registry = PluginRegistry()
-            registry.register_plugin("my_plugin", MyAdapterPlugin())
+            (registry and registry.register_plugin("my_plugin", MyAdapterPlugin())
             ```
         """
         # Ensure the plugin is an adapter plugin
@@ -211,17 +211,17 @@ class PluginLoader(CorePluginLoader):
     loader = PluginLoader(registry)
 
     # Load plugins from entry points
-    plugins = loader.load_plugins_from_entry_points("sifaka.adapters.plugins")
+    plugins = (loader and loader.load_plugins_from_entry_points("sifaka.adapters.plugins")
 
     # Load plugin from module
-    plugin = loader.load_plugin_from_module("my_plugin_module")
+    plugin = (loader and loader.load_plugin_from_module("my_plugin_module")
 
     # Get registry with loaded plugins
-    registry = loader.get_registry()
+    registry = (loader and loader.get_registry()
     ```
     """
 
-    def __init__(self, registry: Optional[PluginRegistry] = None):
+    def def __init__(self, registry: Optional[Optional[PluginRegistry]] = None):
         """
         Initialize the adapter plugin loader.
 
@@ -260,10 +260,10 @@ class PluginLoader(CorePluginLoader):
         Example:
             ```python
             loader = PluginLoader()
-            registry = loader.get_registry()
+            registry = (loader and loader.get_registry()
 
             # Use the registry
-            plugin = registry.get_plugin("my_plugin")
+            plugin = (registry and registry.get_plugin("my_plugin")
             ```
         """
         # Cast the core registry to an adapter registry

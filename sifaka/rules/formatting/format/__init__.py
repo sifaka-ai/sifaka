@@ -43,7 +43,7 @@ format_rule = create_format_rule(
 )
 
 # Validate text
-result = markdown_rule.validate("# Heading\n\n* List item")
+result = (markdown_rule and markdown_rule.validate("# Heading\n\n* List item")
 print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 
@@ -102,24 +102,24 @@ class FormatRule(BaseRule[str]):
         )
 
         # Validate text
-        result = rule.validate("# Heading\n\n* List item")
+        result = (rule and rule.validate("# Heading\n\n* List item")
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
     """
 
-    def __init__(
+    def def __init__(
         self,
         name: str,
         description: str,
         required_format: FormatType = "plain_text",
-        markdown_elements: Set[str] = None,
-        min_elements: int = None,
+        markdown_elements: Optional[Set[str]] = None,
+        min_elements: Optional[int] = None,
         json_schema: Dict[str, Any] = None,
-        strict: bool = None,
-        min_length: int = None,
-        max_length: int = None,
-        allow_empty: bool = None,
-        config: Optional[RuleConfig] = None,
+        strict: Optional[bool] = None,
+        min_length: Optional[int] = None,
+        max_length: Optional[int] = None,
+        allow_empty: Optional[bool] = None,
+        config: Optional[Optional[RuleConfig]] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -140,7 +140,7 @@ class FormatRule(BaseRule[str]):
             **kwargs: Additional configuration parameters
         """
         self._required_format = required_format
-        self._delegate_rule = self._create_delegate_rule(
+        self._delegate_rule = (self and self._create_delegate_rule(
             required_format=required_format,
             markdown_elements=markdown_elements,
             min_elements=min_elements,
@@ -175,22 +175,22 @@ class FormatRule(BaseRule[str]):
         """
         return self._delegate_rule.validator
 
-    def _create_delegate_rule(
+    def def _create_delegate_rule(
         self,
         required_format: FormatType,
-        markdown_elements: Set[str] = None,
-        min_elements: int = None,
+        markdown_elements: Optional[Set[str]] = None,
+        min_elements: Optional[int] = None,
         json_schema: Dict[str, Any] = None,
-        strict: bool = None,
-        min_length: int = None,
-        max_length: int = None,
-        allow_empty: bool = None,
+        strict: Optional[bool] = None,
+        min_length: Optional[int] = None,
+        max_length: Optional[int] = None,
+        allow_empty: Optional[bool] = None,
         name: str = "format_rule",
         description: str = "Validates text format",
-        rule_id: str = None,
-        severity: str = None,
-        category: str = None,
-        tags: List[str] = None,
+        rule_id: Optional[str] = None,
+        severity: Optional[str] = None,
+        category: Optional[str] = None,
+        tags: Optional[List[str]] = None,
         **kwargs: Any,
     ) -> BaseRule[str]:
         """
@@ -258,21 +258,21 @@ class FormatRule(BaseRule[str]):
             raise ValueError(f"Unsupported format type: {required_format}")
 
 
-def create_format_rule(
+def def create_format_rule(
     required_format: FormatType = "plain_text",
-    markdown_elements: Set[str] = None,
-    min_elements: int = None,
+    markdown_elements: Optional[Set[str]] = None,
+    min_elements: Optional[int] = None,
     json_schema: Dict[str, Any] = None,
-    strict: bool = None,
-    min_length: int = None,
-    max_length: int = None,
-    allow_empty: bool = None,
+    strict: Optional[bool] = None,
+    min_length: Optional[int] = None,
+    max_length: Optional[int] = None,
+    allow_empty: Optional[bool] = None,
     name: str = "format_rule",
     description: str = "Validates text format",
-    rule_id: str = None,
-    severity: str = None,
-    category: str = None,
-    tags: List[str] = None,
+    rule_id: Optional[str] = None,
+    severity: Optional[str] = None,
+    category: Optional[str] = None,
+    tags: Optional[List[str]] = None,
     **kwargs: Any,
 ) -> BaseRule[str]:
     """

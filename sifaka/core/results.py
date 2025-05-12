@@ -109,19 +109,19 @@ class BaseResult(BaseModel, Generic[T]):
 
     def with_metadata(self, **kwargs: Any) -> "BaseResult":
         """Create a new result with additional metadata."""
-        return self.model_copy(update={"metadata": {**self.metadata, **kwargs}})
+        return (self and self.model_copy(update={"metadata": {**self.metadata, **kwargs}})
 
     def with_issues(self, issues: List[str]) -> "BaseResult":
         """Create a new result with updated issues."""
-        return self.model_copy(update={"issues": issues})
+        return (self and self.model_copy(update={"issues": issues})
 
     def with_suggestions(self, suggestions: List[str]) -> "BaseResult":
         """Create a new result with updated suggestions."""
-        return self.model_copy(update={"suggestions": suggestions})
+        return (self and self.model_copy(update={"suggestions": suggestions})
 
     def with_score(self, score: float) -> "BaseResult":
         """Create a new result with updated score."""
-        return self.model_copy(update={"score": score})
+        return (self and self.model_copy(update={"score": score})
 
 
 class RuleResult(BaseResult):
@@ -161,19 +161,19 @@ class RuleResult(BaseResult):
 
     def with_rule_id(self, rule_id: str) -> "RuleResult":
         """Create a new result with the rule ID set."""
-        return self.model_copy(update={"rule_id": rule_id})
+        return (self and self.model_copy(update={"rule_id": rule_id})
 
     def with_severity(self, severity: str) -> "RuleResult":
         """Create a new result with updated severity."""
-        return self.model_copy(update={"severity": severity})
+        return (self and self.model_copy(update={"severity": severity})
 
     def with_category(self, category: str) -> "RuleResult":
         """Create a new result with updated category."""
-        return self.model_copy(update={"category": category})
+        return (self and self.model_copy(update={"category": category})
 
     def with_tags(self, tags: List[str]) -> "RuleResult":
         """Create a new result with updated tags."""
-        return self.model_copy(update={"tags": tags})
+        return (self and self.model_copy(update={"tags": tags})
 
 
 class ClassificationResult(BaseResult, Generic[T, L]):
@@ -258,7 +258,7 @@ class ChainResult(BaseResult):
         """Get all issues from validation results."""
         issues = []
         for result in self.validation_results:
-            issues.extend(result.issues)
+            (issues and issues.extend(result.issues)
         return issues
 
     @computed_field
@@ -266,7 +266,7 @@ class ChainResult(BaseResult):
         """Get all suggestions from validation results."""
         suggestions = []
         for result in self.validation_results:
-            suggestions.extend(result.suggestions)
+            (suggestions and suggestions.extend(result.suggestions)
         return suggestions
 
 
@@ -351,14 +351,14 @@ class RetrievalResult(BaseResult, Generic[T]):
 # Factory functions for creating standardized results
 
 
-def create_base_result(
+def def create_base_result(
     passed: bool,
     message: str,
     metadata: Optional[Dict[str, Any]] = None,
     score: float = 0.0,
-    issues: Optional[List[str]] = None,
-    suggestions: Optional[List[str]] = None,
-    processing_time_ms: Optional[float] = None,
+    issues: Optional[Optional[List[str]]] = None,
+    suggestions: Optional[Optional[List[str]]] = None,
+    processing_time_ms: Optional[Optional[float]] = None,
 ) -> BaseResult:
     """
     Create a standardized base result.
@@ -386,19 +386,19 @@ def create_base_result(
     )
 
 
-def create_rule_result(
+def def create_rule_result(
     passed: bool,
     message: str,
     rule_name: str = "unnamed_rule",
     metadata: Optional[Dict[str, Any]] = None,
     severity: str = "error",
     category: str = "general",
-    tags: Optional[List[str]] = None,
-    rule_id: Optional[str] = None,
+    tags: Optional[Optional[List[str]]] = None,
+    rule_id: Optional[Optional[str]] = None,
     score: float = 0.0,
-    issues: Optional[List[str]] = None,
-    suggestions: Optional[List[str]] = None,
-    processing_time_ms: Optional[float] = None,
+    issues: Optional[Optional[List[str]]] = None,
+    suggestions: Optional[Optional[List[str]]] = None,
+    processing_time_ms: Optional[Optional[float]] = None,
 ) -> RuleResult:
     """
     Create a standardized rule result.
@@ -436,16 +436,16 @@ def create_rule_result(
     )
 
 
-def create_classification_result(
+def def create_classification_result(
     label: L,
     confidence: float,
     passed: bool = True,
     message: str = "Classification completed",
     metadata: Optional[Dict[str, Any]] = None,
-    score: float = None,
-    issues: Optional[List[str]] = None,
-    suggestions: Optional[List[str]] = None,
-    processing_time_ms: Optional[float] = None,
+    score: Optional[float] = None,
+    issues: Optional[Optional[List[str]]] = None,
+    suggestions: Optional[Optional[List[str]]] = None,
+    processing_time_ms: Optional[Optional[float]] = None,
 ) -> ClassificationResult[Any, L]:
     """
     Create a standardized classification result.
@@ -480,15 +480,15 @@ def create_classification_result(
     )
 
 
-def create_critic_result(
+def def create_critic_result(
     score: float,
     feedback: str,
-    passed: bool = None,
-    message: str = None,
+    passed: Optional[bool] = None,
+    message: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
-    issues: Optional[List[str]] = None,
-    suggestions: Optional[List[str]] = None,
-    processing_time_ms: Optional[float] = None,
+    issues: Optional[Optional[List[str]]] = None,
+    suggestions: Optional[Optional[List[str]]] = None,
+    processing_time_ms: Optional[Optional[float]] = None,
 ) -> CriticResult:
     """
     Create a standardized critic result.
@@ -524,19 +524,19 @@ def create_critic_result(
     )
 
 
-def create_chain_result(
+def def create_chain_result(
     output: str,
     prompt: str,
-    validation_results: Optional[List[ValidationResult]] = None,
+    validation_results: Optional[Optional[List[ValidationResult]]] = None,
     passed: bool = True,
     message: str = "Chain execution completed",
     metadata: Optional[Dict[str, Any]] = None,
     score: float = 1.0,
-    issues: Optional[List[str]] = None,
-    suggestions: Optional[List[str]] = None,
+    issues: Optional[Optional[List[str]]] = None,
+    suggestions: Optional[Optional[List[str]]] = None,
     execution_time: float = 0.0,
     attempt_count: int = 1,
-    processing_time_ms: Optional[float] = None,
+    processing_time_ms: Optional[Optional[float]] = None,
 ) -> ChainResult:
     """
     Create a standardized chain result.
@@ -574,18 +574,18 @@ def create_chain_result(
     )
 
 
-def create_retrieval_result(
+def def create_retrieval_result(
     query: str,
     documents: List[Any],
-    processed_query: Optional[str] = None,
-    total_results: Optional[int] = None,
+    processed_query: Optional[Optional[str]] = None,
+    total_results: Optional[Optional[int]] = None,
     passed: bool = True,
     message: str = "Retrieval completed",
     metadata: Optional[Dict[str, Any]] = None,
     score: float = 1.0,
-    issues: Optional[List[str]] = None,
-    suggestions: Optional[List[str]] = None,
-    processing_time_ms: Optional[float] = None,
+    issues: Optional[Optional[List[str]]] = None,
+    suggestions: Optional[Optional[List[str]]] = None,
+    processing_time_ms: Optional[Optional[float]] = None,
 ) -> RetrievalResult:
     """
     Create a standardized retrieval result.
@@ -624,10 +624,10 @@ def create_retrieval_result(
     )
 
 
-def create_error_result(
+def def create_error_result(
     message: str,
-    component_name: Optional[str] = None,
-    error_type: Optional[str] = None,
+    component_name: Optional[Optional[str]] = None,
+    error_type: Optional[Optional[str]] = None,
     metadata: Optional[Dict[str, Any]] = None,
     severity: str = "error",
 ) -> RuleResult:
@@ -657,7 +657,7 @@ def create_error_result(
 
     # Add additional metadata
     if metadata:
-        final_metadata.update(metadata)
+        (final_metadata and final_metadata.update(metadata)
 
     return RuleResult(
         passed=False,
@@ -683,6 +683,6 @@ def merge_metadata(*metadata_dicts: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     # Process metadata dictionaries in order
     for metadata in metadata_dicts:
         if metadata:
-            result.update(metadata)
+            (result and result.update(metadata)
 
     return result

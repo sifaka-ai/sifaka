@@ -28,7 +28,7 @@ config = RuleConfig(
 
 # Access configuration values
 print(f"Priority: {config.priority}")
-print(f"Min length: {config.params.get('min_length')}")
+print(f"Min length: {config.(params and params.get('min_length')}")
 
 # Use standardization function
 config = standardize_rule_config(
@@ -46,15 +46,11 @@ configuration values are valid and properly typed. If invalid configuration
 is provided, Pydantic will raise validation errors with detailed information
 about the validation failure.
 """
-
 from enum import Enum
 from typing import Any, Dict, Optional, Type, TypeVar, Union, cast
 from pydantic import Field
-
 from .base import BaseConfig
-
-# Type variables for generic configuration handling
-T = TypeVar("T", bound="RuleConfig")
+T = TypeVar('T', bound='RuleConfig')
 
 
 class RulePriority(str, Enum):
@@ -86,11 +82,10 @@ class RulePriority(str, Enum):
         HIGH: High priority
         CRITICAL: Critical priority
     """
-
-    LOW = "LOW"
-    MEDIUM = "MEDIUM"
-    HIGH = "HIGH"
-    CRITICAL = "CRITICAL"
+    LOW = 'LOW'
+    MEDIUM = 'MEDIUM'
+    HIGH = 'HIGH'
+    CRITICAL = 'CRITICAL'
 
 
 class RuleConfig(BaseConfig):
@@ -134,13 +129,13 @@ class RuleConfig(BaseConfig):
     # Access configuration values
     print(f"Name: {config.name}")
     print(f"Priority: {config.priority}")
-    print(f"Min length: {config.params.get('min_length')}")
+    print(f"Min length: {config.(params and params.get('min_length')}")
 
     # Create a new configuration with updated options
-    updated_config = config.with_options(priority=RulePriority.MEDIUM)
+    updated_config = (config and config.with_options(priority=RulePriority.MEDIUM)
 
     # Create a new configuration with updated params
-    updated_config = config.with_params(min_length=20, max_length=200)
+    updated_config = (config and config.with_params(min_length=20, max_length=200)
     ```
 
     Attributes:
@@ -151,39 +146,21 @@ class RuleConfig(BaseConfig):
         rule_id: Unique identifier for the rule
         cost: Computational cost of the rule
     """
-
-    priority: RulePriority = Field(
-        default=RulePriority.MEDIUM,
-        description="Rule priority level",
-    )
-    severity: str = Field(
-        default="info",
-        description="Rule severity level",
-    )
-    category: str = Field(
-        default="",
-        description="Rule category",
-    )
-    tags: list[str] = Field(
-        default_factory=list,
-        description="List of tags for the rule",
-    )
-    rule_id: str = Field(
-        default="",
-        description="Unique identifier for the rule",
-    )
-    cost: Optional[float] = Field(
-        default=None,
-        description="Computational cost of the rule",
-    )
+    priority: RulePriority = Field(default=RulePriority.MEDIUM, description
+        ='Rule priority level')
+    severity: str = Field(default='info', description='Rule severity level')
+    category: str = Field(default='', description='Rule category')
+    tags: list[str] = Field(default_factory=list, description=
+        'List of tags for the rule')
+    rule_id: str = Field(default='', description=
+        'Unique identifier for the rule')
+    cost: Optional[float] = Field(default=None, description=
+        'Computational cost of the rule')
 
 
-def standardize_rule_config(
-    config: Optional[Union[Dict[str, Any], RuleConfig]] = None,
-    params: Optional[Dict[str, Any]] = None,
-    config_class: Type[T] = RuleConfig,
-    **kwargs: Any,
-) -> T:
+def standardize_rule_config(config: Optional[Union[Dict[str, Any],
+    RuleConfig]]=None, params: Optional[Dict[str, Any]]=None, config_class:
+    Type[T]=RuleConfig, **kwargs: Any) ->Any:
     """
     Standardize rule configuration.
 
@@ -249,50 +226,27 @@ def standardize_rule_config(
         )
         ```
     """
-    # Start with empty params dictionary
     final_params: Dict[str, Any] = {}
-
-    # If params is provided, use it as the base
     if params:
-        final_params.update(params)
-
-    # If config is a dictionary
+        (final_params and final_params.update(params)
     if isinstance(config, dict):
-        # Extract params from the dictionary
-        dict_params = config.pop("params", {}) if config else {}
-        final_params.update(dict_params)
-
-        # Handle priority conversion if it's a string
-        if "priority" in config and isinstance(config["priority"], str):
+        dict_params = (config and config.pop('params', {}) if config else {}
+        (final_params and final_params.update(dict_params)
+        if 'priority' in config and isinstance(config['priority'], str):
             try:
-                config["priority"] = RulePriority(config["priority"])
+                config['priority'] = RulePriority(config['priority'])
             except ValueError:
-                # Default to MEDIUM if invalid priority
-                config["priority"] = RulePriority.MEDIUM
-
-        # Create config with the remaining options and the merged params
-        return cast(
-            T, config_class(**({} if config is None else config), params=final_params, **kwargs)
-        )
-
-    # If config is a RuleConfig
+                config['priority'] = RulePriority.MEDIUM
+        return cast(T, config_class(**{} if config is None else config,
+            params=final_params, **kwargs))
     elif isinstance(config, RuleConfig):
-        # Merge the existing params with the new params
-        final_params.update(config.params)
-
-        # Create a new config with the updated params
-        config_dict = {**config.model_dump(), "params": final_params, **kwargs}
+        (final_params and final_params.update(config.params)
+        config_dict = {**(config and config.model_dump(), 'params': final_params, **kwargs}
         return cast(T, config_class(**config_dict))
-
-    # If no config is provided
     else:
-        # Handle priority conversion if it's a string
-        if "priority" in kwargs and isinstance(kwargs["priority"], str):
+        if 'priority' in kwargs and isinstance(kwargs['priority'], str):
             try:
-                kwargs["priority"] = RulePriority(kwargs["priority"])
+                kwargs['priority'] = RulePriority(kwargs['priority'])
             except ValueError:
-                # Default to MEDIUM if invalid priority
-                kwargs["priority"] = RulePriority.MEDIUM
-
-        # Create a new config with the params and kwargs
+                kwargs['priority'] = RulePriority.MEDIUM
         return cast(T, config_class(params=final_params, **kwargs))

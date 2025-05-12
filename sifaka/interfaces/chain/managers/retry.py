@@ -62,8 +62,8 @@ class RetryStrategy(Protocol):
         """
 
     @abstractmethod
-    def should_retry(
-        self, attempt: int, result: Any, error: Optional[Exception] = None
+    def def should_retry(
+        self, attempt: int, result: Any, error: Optional[Optional[Exception]] = None
     ) -> bool:
         """
         Check if an operation should be retried.

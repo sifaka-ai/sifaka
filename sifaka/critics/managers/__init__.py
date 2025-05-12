@@ -1,3 +1,4 @@
+from typing import Any, List
 """
 Managers for critics.
 
@@ -105,32 +106,19 @@ response_parser = create_response_parser()  # Use factory function
 
 # Use managers together
 text = "Sample text to process"
-prompt = prompt_manager.create_critique_prompt(text)
-response = model_provider.generate(prompt)
-critique = response_parser.parse_critique_response(response)
-memory_manager.add_to_memory(critique["feedback"])
+prompt = (prompt_manager and prompt_manager.create_critique_prompt(text)
+response = (model_provider and model_provider.generate(prompt)
+critique = (response_parser and response_parser.parse_critique_response(response)
+(memory_manager and memory_manager.add_to_memory(critique["feedback"])
 
 # Get memory items
-recent_items = memory_manager.get_memory(max_items=2)
+recent_items = (memory_manager and memory_manager.get_memory(max_items=2)
 print(f"Recent feedback: {recent_items}")
 ```
 """
-
 from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
-from sifaka.core.managers.prompt import (
-    DefaultPromptManager,
-    CriticPromptManager as PromptManager,
-    PromptCriticPromptManager,
-    ReflexionCriticPromptManager,
-)
+from sifaka.core.managers.prompt import DefaultPromptManager, CriticPromptManager as PromptManager, PromptCriticPromptManager, ReflexionCriticPromptManager
 from sifaka.core.managers.response import ResponseParser, create_response_parser
-
-__all__ = [
-    "MemoryManager",
-    "PromptManager",
-    "DefaultPromptManager",
-    "PromptCriticPromptManager",
-    "ReflexionCriticPromptManager",
-    "ResponseParser",
-    "create_response_parser",
-]
+__all__: List[Any] = ['MemoryManager', 'PromptManager',
+    'DefaultPromptManager', 'PromptCriticPromptManager',
+    'ReflexionCriticPromptManager', 'ResponseParser', 'create_response_parser']

@@ -29,7 +29,7 @@ sentiment_rule = create_sentiment_rule(
 )
 
 # Validate text
-result = sentiment_rule.validate("This is a great test!")
+result = (sentiment_rule and sentiment_rule.validate("This is a great test!")
 print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 print(f"Sentiment: {result.metadata['sentiment']}")
 print(f"Confidence: {result.metadata['confidence']}")
@@ -41,28 +41,14 @@ print(f"Confidence: {result.metadata['confidence']}")
 - Detailed validation results with metadata for debugging
 - Caching for performance optimization
 """
-
 import time
 from typing import Any, List, Optional
-
 from pydantic import BaseModel, Field, ConfigDict
-
-from sifaka.rules.base import (
-    BaseValidator,
-    Rule,
-    RuleConfig,
-    RuleResult,
-)
+from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
 from sifaka.utils.logging import get_logger
 from sifaka.utils.errors.handling import try_operation
-from sifaka.utils.results import (
-    create_classification_result,
-    create_unknown_result,
-    create_rule_result,
-    create_error_result,
-)
+from sifaka.utils.results import create_classification_result, create_unknown_result, create_rule_result, create_error_result
 from sifaka.utils.state import create_rule_state
-
 logger = get_logger(__name__)
 
 
@@ -107,34 +93,16 @@ class SentimentConfig(BaseModel):
     )
     ```
     """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    threshold: float = Field(
-        default=0.6,
-        ge=0.0,
-        le=1.0,
-        description="Threshold for sentiment detection",
-    )
-    valid_labels: List[str] = Field(
-        default=["positive", "neutral"],
-        description="List of valid sentiment labels",
-    )
-    cache_size: int = Field(
-        default=100,
-        ge=1,
-        description="Size of the validation cache",
-    )
-    priority: int = Field(
-        default=1,
-        ge=0,
-        description="Priority of the rule",
-    )
-    cost: float = Field(
-        default=1.0,
-        ge=0.0,
-        description="Cost of running the rule",
-    )
+    model_config = ConfigDict(frozen=True, extra='forbid')
+    threshold: float = Field(default=0.6, ge=0.0, le=1.0, description=
+        'Threshold for sentiment detection')
+    valid_labels: List[str] = Field(default=['positive', 'neutral'],
+        description='List of valid sentiment labels')
+    cache_size: int = Field(default=100, ge=1, description=
+        'Size of the validation cache')
+    priority: int = Field(default=1, ge=0, description='Priority of the rule')
+    cost: float = Field(default=1.0, ge=0.0, description=
+        'Cost of running the rule')
 
 
 class SimpleSentimentClassifier:
@@ -169,12 +137,12 @@ class SimpleSentimentClassifier:
     classifier = SimpleSentimentClassifier()
 
     # Classify text
-    result = classifier.classify("This is a great test!")
+    result = (classifier and classifier.classify("This is a great test!")
     print(f"Label: {result.label}, Confidence: {result.confidence}")
     ```
     """
 
-    def classify(self, text: str):
+    def classify(self, text: str) ->Any:
         """
         Classify text sentiment.
 
@@ -190,62 +158,44 @@ class SimpleSentimentClassifier:
         from sifaka.utils.errors.handling import try_operation
         from sifaka.utils.results import create_classification_result, create_unknown_result
         from sifaka.utils.text import handle_empty_text_for_classifier
-
-        # Handle empty text
         empty_result = handle_empty_text_for_classifier(text)
         if empty_result:
             return empty_result
 
-        # Use try_operation to handle potential errors
-        def _classify():
-            # Simple sentiment detection based on keywords
-            positive_words = ["good", "great", "excellent", "happy", "positive"]
-            negative_words = ["bad", "terrible", "awful", "sad", "negative"]
-
-            text_lower = text.lower()
-
-            # Count positive and negative words
-            positive_count = sum(1 for word in positive_words if word in text_lower)
-            negative_count = sum(1 for word in negative_words if word in text_lower)
-
-            # Determine sentiment
+        def _classify() ->Any:
+            positive_words = ['good', 'great', 'excellent', 'happy', 'positive'
+                ]
+            negative_words = ['bad', 'terrible', 'awful', 'sad', 'negative']
+            text_lower = (text and text.lower()
+            positive_count = sum(1 for word in positive_words if word in
+                text_lower)
+            negative_count = sum(1 for word in negative_words if word in
+                text_lower)
             if positive_count > negative_count:
-                return create_classification_result(
-                    label="positive",
-                    confidence=0.8,
-                    component_name="SimpleSentimentClassifier",
-                    metadata={"positive_words": positive_count, "negative_words": negative_count},
-                )
+                return create_classification_result(label='positive',
+                    confidence=0.8, component_name=
+                    'SimpleSentimentClassifier', metadata={'positive_words':
+                    positive_count, 'negative_words': negative_count})
             elif negative_count > positive_count:
-                return create_classification_result(
-                    label="negative",
-                    confidence=0.8,
-                    component_name="SimpleSentimentClassifier",
-                    metadata={"positive_words": positive_count, "negative_words": negative_count},
-                )
+                return create_classification_result(label='negative',
+                    confidence=0.8, component_name=
+                    'SimpleSentimentClassifier', metadata={'positive_words':
+                    positive_count, 'negative_words': negative_count})
             else:
-                return create_classification_result(
-                    label="neutral",
-                    confidence=0.6,
-                    component_name="SimpleSentimentClassifier",
-                    metadata={"positive_words": positive_count, "negative_words": negative_count},
-                )
-
-        # Execute the classification with error handling
-        return try_operation(
-            _classify,
-            component_name="SimpleSentimentClassifier",
-            default_value=create_unknown_result(
-                component_name="SimpleSentimentClassifier",
-                reason="classification_error",
-            ),
-        )
+                return create_classification_result(label='neutral',
+                    confidence=0.6, component_name=
+                    'SimpleSentimentClassifier', metadata={'positive_words':
+                    positive_count, 'negative_words': negative_count})
+        return try_operation(_classify, component_name=
+            'SimpleSentimentClassifier', default_value=
+            create_unknown_result(component_name=
+            'SimpleSentimentClassifier', reason='classification_error'))
 
 
 class SentimentAnalyzer:
     """Analyzer for sentiment detection."""
 
-    def __init__(self, config: SentimentConfig) -> None:
+    def __init__(self, config: SentimentConfig) ->None:
         """Initialize with configuration.
 
         Args:
@@ -256,7 +206,7 @@ class SentimentAnalyzer:
         self._valid_labels = config.valid_labels
         self._classifier = SimpleSentimentClassifier()
 
-    def analyze(self, text: str) -> RuleResult:
+    def analyze(self, text: str) ->RuleResult:
         """Analyze text for sentiment.
 
         Args:
@@ -268,42 +218,22 @@ class SentimentAnalyzer:
         from sifaka.utils.errors.handling import try_operation
         from sifaka.utils.results import create_rule_result, create_error_result
 
-        # Use try_operation to handle potential errors
-        def _analyze():
-            # Use the classifier to detect sentiment
-            result = self._classifier.classify(text)
+        def _analyze() ->Any:
+            result = self.(_classifier and _classifier.classify(text)
+            is_valid = (result.label in self._valid_labels and result.
+                confidence >= self._threshold)
+            return create_rule_result(passed=is_valid, message=
+                f"Sentiment '{result.label}' with confidence {result.confidence:.2f} {'meets' if is_valid else 'does not meet'} criteria"
+                , component_name='SentimentAnalyzer', metadata={'sentiment':
+                result.label, 'confidence': result.confidence, 'threshold':
+                self._threshold, 'valid_labels': self._valid_labels,
+                'classifier_metadata': result.metadata})
+        return try_operation(_analyze, component_name='SentimentAnalyzer',
+            default_value=create_error_result(message=
+            'Error analyzing sentiment', component_name='SentimentAnalyzer',
+            error_type='ProcessingError'))
 
-            # Determine if the text passes validation
-            is_valid = result.label in self._valid_labels and result.confidence >= self._threshold
-
-            return create_rule_result(
-                passed=is_valid,
-                message=(
-                    f"Sentiment '{result.label}' with confidence {result.confidence:.2f} "
-                    f"{'meets' if is_valid else 'does not meet'} criteria"
-                ),
-                component_name="SentimentAnalyzer",
-                metadata={
-                    "sentiment": result.label,
-                    "confidence": result.confidence,
-                    "threshold": self._threshold,
-                    "valid_labels": self._valid_labels,
-                    "classifier_metadata": result.metadata,
-                },
-            )
-
-        # Execute the analysis with error handling
-        return try_operation(
-            _analyze,
-            component_name="SentimentAnalyzer",
-            default_value=create_error_result(
-                message="Error analyzing sentiment",
-                component_name="SentimentAnalyzer",
-                error_type="ProcessingError",
-            ),
-        )
-
-    def can_analyze(self, text: str) -> bool:
+    def can_analyze(self, text: str) ->bool:
         """Check if this analyzer can analyze the given text."""
         return isinstance(text, str)
 
@@ -334,12 +264,12 @@ class SentimentValidator(BaseValidator[str]):
         validator = SentimentValidator(config)
 
         # Validate text
-        result = validator.validate("This is a great test!")
+        result = (validator and validator.validate("This is a great test!")
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
     """
 
-    def __init__(self, config: SentimentConfig) -> None:
+    def __init__(self, config: SentimentConfig) ->None:
         """
         Initialize with configuration.
 
@@ -347,26 +277,23 @@ class SentimentValidator(BaseValidator[str]):
             config: The configuration for the validator
         """
         super().__init__(validation_type=str)
-
-        # Store configuration in state
-        self._state_manager.update("config", config)
-        self._state_manager.update("analyzer", SentimentAnalyzer(config))
-
-        # Set metadata
-        self._state_manager.set_metadata("validator_type", self.__class__.__name__)
-        self._state_manager.set_metadata("creation_time", time.time())
+        self.(_state_manager and _state_manager.update('config', config)
+        self.(_state_manager and _state_manager.update('analyzer', SentimentAnalyzer(config))
+        self.(_state_manager and _state_manager.set_metadata('validator_type', self.__class__.
+            __name__)
+        self.(_state_manager and _state_manager.set_metadata('creation_time', (time and time.time())
 
     @property
-    def config(self) -> SentimentConfig:
+    def config(self) ->SentimentConfig:
         """
         Get the validator configuration.
 
         Returns:
             The sentiment configuration
         """
-        return self._state_manager.get("config")
+        return self.(_state_manager and _state_manager.get('config')
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str) ->RuleResult:
         """
         Validate the given text for sentiment.
 
@@ -376,63 +303,38 @@ class SentimentValidator(BaseValidator[str]):
         Returns:
             Validation result
         """
-        start_time = time.time()
-
-        # Handle empty text
-        empty_result = self.handle_empty_text(text)
+        start_time = (time and time.time()
+        empty_result = (self and self.handle_empty_text(text)
         if empty_result:
             return empty_result
-
         try:
-            # Get analyzer from state
-            analyzer = self._state_manager.get("analyzer")
-
-            # Delegate to analyzer
-            result = analyzer.analyze(text)
-
-            # Add additional metadata
-            result = result.with_metadata(
-                validator_type=self.__class__.__name__, processing_time_ms=time.time() - start_time
-            )
-
-            # Update statistics
-            self.update_statistics(result)
-
-            # Update validation count in metadata
-            validation_count = self._state_manager.get_metadata("validation_count", 0)
-            self._state_manager.set_metadata("validation_count", validation_count + 1)
-
-            # Cache result if caching is enabled
+            analyzer = self.(_state_manager and _state_manager.get('analyzer')
+            result = (analyzer and analyzer.analyze(text)
+            result = (result and result.with_metadata(validator_type=self.__class__.
+                __name__, processing_time_ms=(time and time.time() - start_time)
+            (self and self.update_statistics(result)
+            validation_count = self.(_state_manager and _state_manager.get_metadata(
+                'validation_count', 0)
+            self.(_state_manager and _state_manager.set_metadata('validation_count', 
+                validation_count + 1)
             if self.config.cache_size > 0:
-                cache = self._state_manager.get("cache", {})
+                cache = self.(_state_manager and _state_manager.get('cache', {})
                 if len(cache) >= self.config.cache_size:
-                    # Clear cache if it's full
                     cache = {}
                 cache[text] = result
-                self._state_manager.update("cache", cache)
-
+                self.(_state_manager and _state_manager.update('cache', cache)
             return result
-
         except Exception as e:
-            self.record_error(e)
-            logger.error(f"Sentiment validation failed: {e}")
-
-            error_message = f"Error validating sentiment: {str(e)}"
-            result = RuleResult(
-                passed=False,
-                message=error_message,
-                metadata={
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "validator_type": self.__class__.__name__,
-                },
-                score=0.0,
-                issues=[error_message],
-                suggestions=["Check input format and try again"],
-                processing_time_ms=time.time() - start_time,
-            )
-
-            self.update_statistics(result)
+            (self and self.record_error(e)
+            (logger and logger.error(f'Sentiment validation failed: {e}')
+            error_message = f'Error validating sentiment: {str(e)}'
+            result = RuleResult(passed=False, message=error_message,
+                metadata={'error': str(e), 'error_type': type(e).__name__,
+                'validator_type': self.__class__.__name__}, score=0.0,
+                issues=[error_message], suggestions=[
+                'Check input format and try again'], processing_time_ms=
+                (time and time.time() - start_time)
+            (self and self.update_statistics(result)
             return result
 
 
@@ -469,19 +371,14 @@ class SentimentRule(Rule[str]):
         )
 
         # Validate text
-        result = rule.validate("This is a great test!")
+        result = (rule and rule.validate("This is a great test!")
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
     """
 
-    def __init__(
-        self,
-        name: str = "sentiment_rule",
-        description: str = "Validates text sentiment",
-        config: Optional[RuleConfig] = None,
-        validator: Optional[SentimentValidator] = None,
-        **kwargs,
-    ) -> None:
+    def def __init__(self, name: str='sentiment_rule', description: str=
+        'Validates text sentiment', config: Optional[Optional[RuleConfig]] = None,
+        validator: Optional[Optional[SentimentValidator]] = None, **kwargs) ->None:
         """
         Initialize the sentiment rule.
 
@@ -492,52 +389,33 @@ class SentimentRule(Rule[str]):
             validator: Optional validator implementation
             **kwargs: Additional keyword arguments for the rule
         """
-        super().__init__(
-            name=name,
-            description=description,
-            config=config
-            or RuleConfig(
-                name=name, description=description, rule_id=kwargs.pop("rule_id", name), **kwargs
-            ),
-            validator=validator,
-        )
+        super().__init__(name=name, description=description, config=config or
+            RuleConfig(name=name, description=description, rule_id=kwargs.
+            pop('rule_id', name), **kwargs), validator=validator)
+        sentiment_validator = validator or (self and self._create_default_validator()
+        self.(_state_manager and _state_manager.update('sentiment_validator', sentiment_validator)
+        self.(_state_manager and _state_manager.set_metadata('rule_type', 'SentimentRule')
+        self.(_state_manager and _state_manager.set_metadata('creation_time', (time and time.time())
 
-        # Store validator in state
-        sentiment_validator = validator or self._create_default_validator()
-        self._state_manager.update("sentiment_validator", sentiment_validator)
-
-        # Set additional metadata
-        self._state_manager.set_metadata("rule_type", "SentimentRule")
-        self._state_manager.set_metadata("creation_time", time.time())
-
-    def _create_default_validator(self) -> SentimentValidator:
+    def _create_default_validator(self) ->SentimentValidator:
         """
         Create a default validator from config.
 
         Returns:
             A configured SentimentValidator
         """
-        # Extract sentiment specific params
         params = self.config.params
-        config = SentimentConfig(
-            threshold=params.get("threshold", 0.6),
-            valid_labels=params.get("valid_labels", ["positive", "neutral"]),
-            cache_size=self.config.cache_size,
-            priority=self.config.priority,
-            cost=self.config.cost,
-        )
-
-        # Store config in state for reference
-        self._state_manager.update("validator_config", config)
-
+        config = SentimentConfig(threshold=(params and params.get('threshold', 0.6),
+            valid_labels=(params and params.get('valid_labels', ['positive', 'neutral']
+            ), cache_size=self.config.cache_size, priority=self.config.
+            priority, cost=self.config.cost)
+        self.(_state_manager and _state_manager.update('validator_config', config)
         return SentimentValidator(config)
 
 
-def create_sentiment_validator(
-    threshold: Optional[float] = None,
-    valid_labels: Optional[List[str]] = None,
-    **kwargs: Any,
-) -> SentimentValidator:
+def def create_sentiment_validator(threshold: Optional[Optional[float]] = None,
+    valid_labels: Optional[Optional[List[str]]] = None, **kwargs: Any
+    ) ->SentimentValidator:
     """
     Create a sentiment validator.
 
@@ -567,35 +445,23 @@ def create_sentiment_validator(
         ```
     """
     try:
-        # Create config with default or provided values
         config_params = {}
         if threshold is not None:
-            config_params["threshold"] = threshold
+            config_params['threshold'] = threshold
         if valid_labels is not None:
-            config_params["valid_labels"] = valid_labels
-
-        # Add any remaining config parameters
-        config_params.update(kwargs)
-
-        # Create config
+            config_params['valid_labels'] = valid_labels
+        (config_params.update(kwargs)
         config = SentimentConfig(**config_params)
-
-        # Create and return the validator
         return SentimentValidator(config)
-
     except Exception as e:
-        logger.error(f"Error creating sentiment validator: {e}")
-        raise ValueError(f"Error creating sentiment validator: {str(e)}")
+        (logger and logger.error(f'Error creating sentiment validator: {e}')
+        raise ValueError(f'Error creating sentiment validator: {str(e)}')
 
 
-def create_sentiment_rule(
-    name: str = "sentiment_rule",
-    description: str = "Validates text sentiment",
-    threshold: Optional[float] = None,
-    valid_labels: Optional[List[str]] = None,
-    rule_id: Optional[str] = None,
-    **kwargs: Any,
-) -> SentimentRule:
+def def create_sentiment_rule(name: str='sentiment_rule', description: str=
+    'Validates text sentiment', threshold: Optional[Optional[float]] = None,
+    valid_labels: Optional[Optional[List[str]]] = None, rule_id: Optional[Optional[str]] = None, **
+    kwargs: Any) ->SentimentRule:
     """
     Create a sentiment rule.
 
@@ -640,54 +506,22 @@ def create_sentiment_rule(
         ```
     """
     try:
-        # Create validator using the validator factory
-        validator = create_sentiment_validator(
-            threshold=threshold,
-            valid_labels=valid_labels,
-        )
-
-        # Create params dictionary for RuleConfig
+        validator = create_sentiment_validator(threshold=threshold,
+            valid_labels=valid_labels)
         params = {}
         if threshold is not None:
-            params["threshold"] = threshold
+            params['threshold'] = threshold
         if valid_labels is not None:
-            params["valid_labels"] = valid_labels
-
-        # Determine rule name
-        rule_name = name or rule_id or "sentiment_rule"
-
-        # Create RuleConfig
-        config = RuleConfig(
-            name=rule_name,
-            description=description,
-            rule_id=rule_id or rule_name,
-            params=params,
-            **kwargs,
-        )
-
-        # Create and return the rule
-        return SentimentRule(
-            name=rule_name,
-            description=description,
-            config=config,
-            validator=validator,
-        )
-
+            params['valid_labels'] = valid_labels
+        rule_name = name or rule_id or 'sentiment_rule'
+        config = RuleConfig(name=rule_name, description=description,
+            rule_id=rule_id or rule_name, params=params, **kwargs)
+        return SentimentRule(name=rule_name, description=description,
+            config=config, validator=validator)
     except Exception as e:
-        logger.error(f"Error creating sentiment rule: {e}")
-        raise ValueError(f"Error creating sentiment rule: {str(e)}")
+        (logger and logger.error(f'Error creating sentiment rule: {e}')
+        raise ValueError(f'Error creating sentiment rule: {str(e)}')
 
 
-__all__ = [
-    # Config classes
-    "SentimentConfig",
-    # Analyzer classes
-    "SentimentAnalyzer",
-    # Validator classes
-    "SentimentValidator",
-    # Rule classes
-    "SentimentRule",
-    # Factory functions
-    "create_sentiment_validator",
-    "create_sentiment_rule",
-]
+__all__ = ['SentimentConfig', 'SentimentAnalyzer', 'SentimentValidator',
+    'SentimentRule', 'create_sentiment_validator', 'create_sentiment_rule']

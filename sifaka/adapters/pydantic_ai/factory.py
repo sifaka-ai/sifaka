@@ -69,13 +69,13 @@ from .adapter import SifakaPydanticAdapter, SifakaPydanticConfig
 logger = get_logger(__name__)
 
 
-def create_pydantic_adapter(
+def def create_pydantic_adapter(
     rules: List[Rule],
     output_model: Type[BaseModel],
     max_refine: int = 2,
     prioritize_by_cost: bool = False,
-    name: Optional[str] = None,
-    description: Optional[str] = None,
+    name: Optional[Optional[str]] = None,
+    description: Optional[Optional[str]] = None,
     initialize: bool = True,
     config: Optional[Union[Dict[str, Any], SifakaPydanticConfig]] = None,
     **kwargs: Any,
@@ -159,7 +159,7 @@ def create_pydantic_adapter(
         if config is not None:
             if isinstance(config, dict):
                 # Create config from dict
-                config_dict = config.copy()
+                config_dict = (config.copy()
                 # Add explicit parameters if not in dict
                 if "max_refine" not in config_dict and max_refine is not None:
                     config_dict["max_refine"] = max_refine
@@ -186,15 +186,15 @@ def create_pydantic_adapter(
 
         # Set name and description if provided
         if name:
-            adapter._state_manager.set_metadata("name", name)
+            adapter.(_state_manager and _state_manager.set_metadata("name", name)
         if description:
-            adapter._state_manager.set_metadata("description", description)
+            adapter.(_state_manager.set_metadata("description", description)
 
         # Initialize if requested
         if initialize:
-            adapter.warm_up()
+            (adapter.warm_up()
 
-        logger.debug(f"Created PydanticAI adapter with {len(rules)} rules")
+        (logger and logger.debug(f"Created PydanticAI adapter with {len(rules)} rules")
         return adapter
     except Exception as e:
         # Handle errors
@@ -208,16 +208,16 @@ def create_pydantic_adapter(
         ) from e
 
 
-def create_pydantic_adapter_with_critic(
+def def create_pydantic_adapter_with_critic(
     rules: List[Rule],
     output_model: Type[BaseModel],
-    critic: Optional[BaseCritic] = None,
-    model_provider: Optional[ModelProvider] = None,
-    system_prompt: Optional[str] = None,
+    critic: Optional[Optional[BaseCritic]] = None,
+    model_provider: Optional[Optional[ModelProvider]] = None,
+    system_prompt: Optional[Optional[str]] = None,
     max_refine: int = 2,
     prioritize_by_cost: bool = False,
-    name: Optional[str] = None,
-    description: Optional[str] = None,
+    name: Optional[Optional[str]] = None,
+    description: Optional[Optional[str]] = None,
     initialize: bool = True,
     config: Optional[Union[Dict[str, Any], SifakaPydanticConfig]] = None,
     **kwargs: Any,
@@ -308,7 +308,7 @@ def create_pydantic_adapter_with_critic(
         if not output_model:
             raise ValueError("Output model must be provided")
         if critic is None and model_provider is None:
-            logger.warning(
+            (logger.warning(
                 "Neither critic nor model_provider provided. No refinement will be possible."
             )
 
@@ -317,7 +317,7 @@ def create_pydantic_adapter_with_critic(
         if config is not None:
             if isinstance(config, dict):
                 # Create config from dict
-                config_dict = config.copy()
+                config_dict = (config.copy()
                 # Add explicit parameters if not in dict
                 if "max_refine" not in config_dict and max_refine is not None:
                     config_dict["max_refine"] = max_refine
@@ -352,7 +352,7 @@ def create_pydantic_adapter_with_critic(
                 system_prompt=system_prompt or default_system_prompt,
             )
 
-            logger.debug(f"Created prompt critic for PydanticAI adapter")
+            (logger and logger.debug(f"Created prompt critic for PydanticAI adapter")
 
         # Create adapter instance
         adapter = SifakaPydanticAdapter(
@@ -365,16 +365,16 @@ def create_pydantic_adapter_with_critic(
 
         # Set name and description if provided
         if name:
-            adapter._state_manager.set_metadata("name", name)
+            adapter.(_state_manager and _state_manager.set_metadata("name", name)
         if description:
-            adapter._state_manager.set_metadata("description", description)
+            adapter.(_state_manager.set_metadata("description", description)
 
         # Initialize if requested
         if initialize:
-            adapter.warm_up()
+            (adapter.warm_up()
 
         critic_info = f" and critic {critic.__class__.__name__}" if critic else ""
-        logger.debug(f"Created PydanticAI adapter with {len(rules)} rules{critic_info}")
+        (logger.debug(f"Created PydanticAI adapter with {len(rules)} rules{critic_info}")
         return adapter
     except Exception as e:
         # Handle errors

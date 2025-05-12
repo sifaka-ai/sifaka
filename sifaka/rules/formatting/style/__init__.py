@@ -1,3 +1,4 @@
+from typing import Any, List
 """
 Style validation rules for text.
 
@@ -33,63 +34,20 @@ rule = create_style_rule(
 )
 
 # Validate text
-result = rule.validate("This is a test.")
+result = (rule and rule.validate("This is a test.")
 print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 """
-
-# Enums
 from sifaka.rules.formatting.style.enums import CapitalizationStyle
-
-# Config classes
 from sifaka.rules.formatting.style.config import StyleConfig, FormattingConfig
-
-# Validator classes
 from sifaka.rules.formatting.style.validators import StyleValidator, FormattingValidator
-from sifaka.rules.formatting.style.implementations import (
-    DefaultStyleValidator,
-    DefaultFormattingValidator,
-)
-
-# Rule classes
+from sifaka.rules.formatting.style.implementations import DefaultStyleValidator, DefaultFormattingValidator
 from sifaka.rules.formatting.style.rules import StyleRule, FormattingRule
-
-# Factory functions
-from sifaka.rules.formatting.style.factories import (
-    create_style_validator,
-    create_style_rule,
-    create_formatting_validator,
-    create_formatting_rule,
-)
-
-# Internal helpers (exported for testing and advanced usage)
-from sifaka.rules.formatting.style.analyzers import (
-    _CapitalizationAnalyzer,
-    _EndingAnalyzer,
-    _CharAnalyzer,
-)
-
-__all__ = [
-    # Enums
-    "CapitalizationStyle",
-    # Config classes
-    "StyleConfig",
-    "FormattingConfig",
-    # Validator classes
-    "StyleValidator",
-    "DefaultStyleValidator",
-    "FormattingValidator",
-    "DefaultFormattingValidator",
-    # Rule classes
-    "StyleRule",
-    "FormattingRule",
-    # Factory functions
-    "create_style_validator",
-    "create_style_rule",
-    "create_formatting_validator",
-    "create_formatting_rule",
-    # Internal helpers
-    "_CapitalizationAnalyzer",
-    "_EndingAnalyzer",
-    "_CharAnalyzer",
-]
+from sifaka.rules.formatting.style.factories import create_style_validator, create_style_rule, create_formatting_validator, create_formatting_rule
+from sifaka.rules.formatting.style.analyzers import _CapitalizationAnalyzer, _EndingAnalyzer, _CharAnalyzer
+__all__: List[Any] = ['CapitalizationStyle', 'StyleConfig',
+    'FormattingConfig', 'StyleValidator', 'DefaultStyleValidator',
+    'FormattingValidator', 'DefaultFormattingValidator', 'StyleRule',
+    'FormattingRule', 'create_style_validator', 'create_style_rule',
+    'create_formatting_validator', 'create_formatting_rule',
+    '_CapitalizationAnalyzer', '_EndingAnalyzer', '_CharAnalyzer']

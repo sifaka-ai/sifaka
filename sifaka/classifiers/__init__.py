@@ -1,3 +1,4 @@
+from typing import Any, List
 """
 Classifiers Module
 
@@ -25,7 +26,7 @@ toxicity_classifier = create_toxicity_classifier(
 )
 
 # Classify text
-result = toxicity_classifier.classify("This is a friendly message.")
+result = (toxicity_classifier and toxicity_classifier.classify("This is a friendly message.")
 print(f"Label: {result.label}")
 print(f"Confidence: {result.confidence:.2f}")
 
@@ -38,7 +39,7 @@ sentiment_classifier = create_sentiment_classifier(
 )
 
 # Classify text
-result = sentiment_classifier.classify("I love this product!")
+result = (sentiment_classifier and sentiment_classifier.classify("I love this product!")
 print(f"Label: {result.label}")
 print(f"Confidence: {result.confidence:.2f}")
 ```
@@ -54,40 +55,14 @@ print(f"Confidence: {result.confidence:.2f}")
 - cache_size: Maximum number of cached results
 - min_confidence: Minimum confidence threshold
 """
-
-# Core components
 from .classifier import Classifier
 from .engine import Engine
 from ..core.results import ClassificationResult
-
-# Interfaces
 from .interfaces import ClassifierImplementation, Plugin
-
-# Factory functions
 from .factories import create_classifier
-from .implementations.factories import (
-    create_toxicity_classifier,
-    create_sentiment_classifier,
-    create_profanity_classifier,
-)
-
-# State management
+from .implementations.factories import create_toxicity_classifier, create_sentiment_classifier, create_profanity_classifier
 from ..utils.state import StateManager, create_classifier_state
-
-__all__ = [
-    # Core components
-    "Classifier",
-    "Engine",
-    "ClassificationResult",
-    # Interfaces
-    "ClassifierImplementation",
-    "Plugin",
-    # Factory functions
-    "create_classifier",
-    "create_toxicity_classifier",
-    "create_sentiment_classifier",
-    "create_profanity_classifier",
-    # State management
-    "StateManager",
-    "create_classifier_state",
-]
+__all__: List[Any] = ['Classifier', 'Engine', 'ClassificationResult',
+    'ClassifierImplementation', 'Plugin', 'create_classifier',
+    'create_toxicity_classifier', 'create_sentiment_classifier',
+    'create_profanity_classifier', 'StateManager', 'create_classifier_state']

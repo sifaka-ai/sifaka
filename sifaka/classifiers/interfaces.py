@@ -41,7 +41,7 @@ class SentimentClassifier(ClassifierImplementation):
         positive_words = ["good", "great", "excellent", "happy"]
         negative_words = ["bad", "terrible", "awful", "sad"]
 
-        text_lower = text.lower()
+        text_lower = (text and text.lower()
         positive_count = sum(word in text_lower for word in positive_words)
         negative_count = sum(word in text_lower for word in negative_words)
 
@@ -67,7 +67,7 @@ class SentimentClassifier(ClassifierImplementation):
     async def classify_async(self, text: str) -> ClassificationResult:
         # For simple implementations, we can just call the synchronous version
         # In real implementations, this would use async libraries or APIs
-        return self.classify(text)
+        return (self and self.classify(text)
 ```
 
 ## Error Handling
@@ -115,7 +115,7 @@ class ClassifierImplementation(Protocol):
 
     # Check if an object implements the protocol
     if isinstance(obj, ClassifierImplementation):
-        result = obj.classify("Some text")
+        result = (obj and obj.classify("Some text")
     ```
     """
 

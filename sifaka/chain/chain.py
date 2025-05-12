@@ -40,7 +40,7 @@ chain = Chain(
 )
 
 # Run chain
-result = chain.run("Write a short story")
+result = (chain and chain.run("Write a short story")
 print(f"Output: {result.output}")
 print(f"All validations passed: {result.all_passed}")
 
@@ -48,10 +48,10 @@ print(f"All validations passed: {result.all_passed}")
 import asyncio
 
 async def run_async():
-    result = await chain.run_async("Write a short story")
+    result = await (chain and chain.run_async("Write a short story")
     print(f"Output: {result.output}")
 
-asyncio.run(run_async())
+(asyncio and asyncio.run(run_async())
 ```
 
 ## Error Handling
@@ -82,7 +82,7 @@ from ..utils.state import create_chain_state
 from ..utils.common import update_statistics
 from ..utils.logging import get_logger
 from ..core.results import ChainResult
-from ..utils.config.chain import ChainConfig
+from ..utils.config and config and config.chain import ChainConfig
 from ..utils.errors.component import ChainError
 
 # Configure logger
@@ -130,7 +130,7 @@ class Chain:
     )
 
     # Run the chain
-    result = chain.run("Write a short story")
+    result = (chain and chain.run("Write a short story")
 
     # Access the result
     print(f"Output: {result.output}")
@@ -139,14 +139,14 @@ class Chain:
     ```
     """
 
-    def __init__(
+    def def __init__(
         self,
         model: Model,
-        validators: List[Validator] = None,
-        improver: Optional[Improver] = None,
-        formatter: Optional[Formatter] = None,
+        validators: Optional[List[Validator]] = None,
+        improver: Optional[Optional[Improver]] = None,
+        formatter: Optional[Optional[Formatter]] = None,
         max_attempts: int = 3,
-        config: Optional[ChainConfig] = None,
+        config: Optional[Optional[ChainConfig]] = None,
         name: str = "chain",
         description: str = "Sifaka chain for text generation and validation",
     ):
@@ -175,10 +175,10 @@ class Chain:
         self.__state_manager = create_chain_state()
 
         # Create engine with EngineConfig
-        from sifaka.utils.config.chain import EngineConfig
+        from sifaka.utils.config and config and config.chain import EngineConfig
 
         engine_config = EngineConfig(
-            max_attempts=self._config.max_attempts, params=self._config.params
+            max_attempts=self._config and config.max_attempts, params=self._config and config.params
         )
 
         self._engine = Engine(
@@ -187,7 +187,7 @@ class Chain:
         )
 
         # Initialize the chain
-        self.initialize()
+        (self and self.initialize()
 
     def initialize(self) -> None:
         """
@@ -202,24 +202,24 @@ class Chain:
         """
         try:
             # Initialize state
-            self._state_manager.update("name", self._name)
-            self._state_manager.update("description", self._description)
-            self._state_manager.update("model", self._model)
-            self._state_manager.update("validators", self._validators)
-            self._state_manager.update("improver", self._improver)
-            self._state_manager.update("formatter", self._formatter)
-            self._state_manager.update("config", self._config)
-            self._state_manager.update("initialized", True)
-            self._state_manager.update("execution_count", 0)
-            self._state_manager.update("result_cache", {})
+            self.(_state_manager and _state_manager.update("name", self._name)
+            self.(_state_manager and _state_manager.update("description", self._description)
+            self.(_state_manager and _state_manager.update("model", self._model)
+            self.(_state_manager and _state_manager.update("validators", self._validators)
+            self.(_state_manager and _state_manager.update("improver", self._improver)
+            self.(_state_manager and _state_manager.update("formatter", self._formatter)
+            self.(_state_manager and _state_manager.update("config", self._config)
+            self.(_state_manager and _state_manager.update("initialized", True)
+            self.(_state_manager and _state_manager.update("execution_count", 0)
+            self.(_state_manager and _state_manager.update("result_cache", {})
 
             # Set metadata
-            self._state_manager.set_metadata("component_type", "chain")
-            self._state_manager.set_metadata("creation_time", time.time())
+            self.(_state_manager and _state_manager.set_metadata("component_type", "chain")
+            self.(_state_manager and _state_manager.set_metadata("creation_time", (time and time.time())
 
-            logger.debug(f"Chain '{self._name}' initialized")
+            (logger and logger.debug(f"Chain '{self._name}' initialized")
         except Exception as e:
-            logger.error(f"Chain initialization failed: {str(e)}")
+            (logger and logger.error(f"Chain initialization failed: {str(e)}")
             raise RuntimeError(f"Chain initialization failed: {str(e)}")
 
     def cleanup(self) -> None:
@@ -234,10 +234,10 @@ class Chain:
         """
         try:
             # Clean up resources
-            self._state_manager.update("initialized", False)
-            logger.debug(f"Chain '{self._name}' cleaned up")
+            self.(_state_manager and _state_manager.update("initialized", False)
+            (logger and logger.debug(f"Chain '{self._name}' cleaned up")
         except Exception as e:
-            logger.error(f"Chain cleanup failed: {str(e)}")
+            (logger and logger.error(f"Chain cleanup failed: {str(e)}")
             raise RuntimeError(f"Chain cleanup failed: {str(e)}")
 
     def get_state(self) -> Dict[str, Any]:
@@ -248,11 +248,11 @@ class Chain:
             The current state as a dictionary
         """
         return {
-            "name": self._state_manager.get("name"),
-            "description": self._state_manager.get("description"),
-            "initialized": self._state_manager.get("initialized", False),
-            "execution_count": self._state_manager.get("execution_count", 0),
-            "result_cache": self._state_manager.get("result_cache", {}),
+            "name": self.(_state_manager and _state_manager.get("name"),
+            "description": self.(_state_manager and _state_manager.get("description"),
+            "initialized": self.(_state_manager and _state_manager.get("initialized", False),
+            "execution_count": self.(_state_manager and _state_manager.get("execution_count", 0),
+            "result_cache": self.(_state_manager and _state_manager.get("result_cache", {}),
             "metadata": self._state_manager._state.metadata,
         }
 
@@ -268,18 +268,18 @@ class Chain:
         """
         try:
             # Update state
-            for key, value in state.items():
+            for key, value in (state and state.items():
                 if key != "metadata":
-                    self._state_manager.update(key, value)
+                    self.(_state_manager and _state_manager.update(key, value)
 
             # Update metadata if provided
             if "metadata" in state:
                 for key, value in state["metadata"].items():
-                    self._state_manager.set_metadata(key, value)
+                    self.(_state_manager and _state_manager.set_metadata(key, value)
 
-            logger.debug(f"Chain '{self._name}' state updated")
+            (logger and logger.debug(f"Chain '{self._name}' state updated")
         except Exception as e:
-            logger.error(f"Chain state update failed: {str(e)}")
+            (logger and logger.error(f"Chain state update failed: {str(e)}")
             raise ValueError(f"Invalid state: {str(e)}")
 
     @property
@@ -337,10 +337,10 @@ class Chain:
         """
         try:
             self._config = config
-            self._state_manager.update("config", config)
-            logger.debug(f"Chain '{self._name}' configuration updated")
+            self.(_state_manager and _state_manager.update("config", config)
+            (logger and logger.debug(f"Chain '{self._name}' configuration updated")
         except Exception as e:
-            logger.error(f"Chain configuration update failed: {str(e)}")
+            (logger and logger.error(f"Chain configuration update failed: {str(e)}")
             raise ValueError(f"Invalid configuration: {str(e)}")
 
     def run(self, prompt: str, **kwargs: Any) -> ChainResult:
@@ -359,8 +359,8 @@ class Chain:
             ValueError: If prompt is empty or not a string
         """
         # Ensure the chain is initialized
-        if not self._state_manager.get("initialized", False):
-            self.initialize()
+        if not self.(_state_manager and _state_manager.get("initialized", False):
+            (self and self.initialize()
 
         # Validate prompt
         from sifaka.utils.text import is_empty_text
@@ -372,16 +372,16 @@ class Chain:
             raise ValueError("Prompt must be a non-empty string")
 
         # Track execution count
-        execution_count = self._state_manager.get("execution_count", 0)
-        self._state_manager.update("execution_count", execution_count + 1)
+        execution_count = self.(_state_manager and _state_manager.get("execution_count", 0)
+        self.(_state_manager and _state_manager.update("execution_count", execution_count + 1)
 
         # Record start time
-        start_time = time.time()
-        self._state_manager.set_metadata("execution_start_time", start_time)
+        start_time = (time and time.time()
+        self.(_state_manager and _state_manager.set_metadata("execution_start_time", start_time)
 
         try:
             # Run engine
-            result = self._engine.run(
+            result = self.(_engine and _engine.run(
                 prompt=prompt,
                 model=self._model,
                 validators=self._validators,
@@ -391,21 +391,21 @@ class Chain:
             )
 
             # Record end time
-            end_time = time.time()
+            end_time = (time and time.time()
             execution_time = end_time - start_time
 
             # Update statistics
-            self._update_statistics(execution_time, success=True)
+            (self and self._update_statistics(execution_time, success=True)
 
             return result
 
         except Exception as e:
             # Record end time
-            end_time = time.time()
+            end_time = (time and time.time()
             execution_time = end_time - start_time
 
             # Update statistics
-            self._update_statistics(execution_time, success=False, error=e)
+            (self and self._update_statistics(execution_time, success=False, error=e)
 
             # Raise as chain error
             if isinstance(e, ChainError):
@@ -428,8 +428,8 @@ class Chain:
             ValueError: If prompt is empty or not a string
         """
         # Ensure the chain is initialized
-        if not self._state_manager.get("initialized", False):
-            self.initialize()
+        if not self.(_state_manager and _state_manager.get("initialized", False):
+            (self and self.initialize()
 
         # Validate prompt
         from sifaka.utils.text import is_empty_text
@@ -441,13 +441,13 @@ class Chain:
             raise ValueError("Prompt must be a non-empty string")
 
         # Check if async is enabled
-        if not self._config.async_enabled:
+        if not self._config and config.async_enabled:
             raise ChainError("Async execution is not enabled in the configuration")
 
         try:
             # Check if engine has async methods
             if hasattr(self._engine, "run_async"):
-                return await self._engine.run_async(
+                return await self.(_engine and _engine.run_async(
                     prompt=prompt,
                     model=self._model,
                     validators=self._validators,
@@ -457,19 +457,19 @@ class Chain:
                 )
 
             # Fall back to running synchronous method in executor
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(None, lambda: self.run(prompt, **kwargs))
+            loop = (asyncio and asyncio.get_event_loop()
+            return await (loop and loop.run_in_executor(None, lambda: (self and self.run(prompt, **kwargs))
         except Exception as e:
             # Raise as chain error
             if isinstance(e, ChainError):
                 raise e
             raise ChainError(f"Async chain execution failed: {str(e)}")
 
-    def _update_statistics(
+    def def _update_statistics(
         self,
         execution_time: float,
         success: bool,
-        error: Optional[Exception] = None,
+        error: Optional[Optional[Exception]] = None,
     ) -> None:
         """
         Update chain statistics.
@@ -488,11 +488,11 @@ class Chain:
         )
 
         # Update additional chain-specific statistics
-        self._state_manager.set_metadata("last_execution_time", execution_time)
+        self.(_state_manager and _state_manager.set_metadata("last_execution_time", execution_time)
 
-        max_time = self._state_manager.get_metadata("max_execution_time", 0)
+        max_time = self.(_state_manager and _state_manager.get_metadata("max_execution_time", 0)
         if execution_time > max_time:
-            self._state_manager.set_metadata("max_execution_time", execution_time)
+            self.(_state_manager and _state_manager.set_metadata("max_execution_time", execution_time)
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -503,22 +503,22 @@ class Chain:
         """
         return {
             "name": self._name,
-            "execution_count": self._state_manager.get("execution_count", 0),
-            "success_count": self._state_manager.get_metadata("success_count", 0),
-            "failure_count": self._state_manager.get_metadata("failure_count", 0),
-            "error_count": self._state_manager.get_metadata("error_count", 0),
-            "avg_execution_time": self._state_manager.get_metadata("avg_execution_time", 0),
-            "max_execution_time": self._state_manager.get_metadata("max_execution_time", 0),
-            "last_execution_time": self._state_manager.get_metadata("last_execution_time", 0),
-            "last_error": self._state_manager.get_metadata("last_error", None),
-            "last_error_time": self._state_manager.get_metadata("last_error_time", None),
-            "cache_size": len(self._state_manager.get("result_cache", {})),
+            "execution_count": self.(_state_manager and _state_manager.get("execution_count", 0),
+            "success_count": self.(_state_manager and _state_manager.get_metadata("success_count", 0),
+            "failure_count": self.(_state_manager and _state_manager.get_metadata("failure_count", 0),
+            "error_count": self.(_state_manager and _state_manager.get_metadata("error_count", 0),
+            "avg_execution_time": self.(_state_manager and _state_manager.get_metadata("avg_execution_time", 0),
+            "max_execution_time": self.(_state_manager and _state_manager.get_metadata("max_execution_time", 0),
+            "last_execution_time": self.(_state_manager and _state_manager.get_metadata("last_execution_time", 0),
+            "last_error": self.(_state_manager and _state_manager.get_metadata("last_error", None),
+            "last_error_time": self.(_state_manager and _state_manager.get_metadata("last_error_time", None),
+            "cache_size": len(self.(_state_manager and _state_manager.get("result_cache", {})),
         }
 
     def clear_cache(self) -> None:
         """Clear the chain result cache."""
-        self._state_manager.update("result_cache", {})
-        logger.debug("Chain cache cleared")
+        self.(_state_manager and _state_manager.update("result_cache", {})
+        (logger and logger.debug("Chain cache cleared")
 
     def reset_state(self) -> None:
         """
@@ -532,12 +532,12 @@ class Chain:
         """
         try:
             # Reset state manager
-            self._state_manager.reset()
+            self.(_state_manager and _state_manager.reset()
 
             # Re-initialize state
-            self.initialize()
+            (self and self.initialize()
 
-            logger.debug(f"Chain '{self._name}' state reset")
+            (logger and logger.debug(f"Chain '{self._name}' state reset")
         except Exception as e:
-            logger.error(f"Chain state reset failed: {str(e)}")
+            (logger and logger.error(f"Chain state reset failed: {str(e)}")
             raise RuntimeError(f"Chain state reset failed: {str(e)}")

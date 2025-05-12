@@ -49,7 +49,7 @@ class MyClassifier(ClassifierProtocol[str, str]):
         return ClassificationResult(label="example", confidence=0.8)
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
-        return [self.classify(text) for text in texts]
+        return [(self and self.classify(text) for text in texts]
 ```
 
 ## Error Handling
@@ -62,8 +62,8 @@ class MyClassifier(ClassifierProtocol[str, str]):
 from typing import Any, Dict, List, Protocol, TypeVar, runtime_checkable, TYPE_CHECKING
 
 # Type variables for generic protocols
-T = TypeVar("T")  # Input type
-R = TypeVar("R")  # Result label type
+T = TypeVar("T", contravariant=True)  # Input type
+R = TypeVar("R", covariant=True)  # Result label type
 
 # Forward reference for ClassificationResult to avoid circular imports
 if TYPE_CHECKING:
@@ -162,8 +162,8 @@ class ClassifierProtocol(Protocol[T, R]):
     - Provide statistics through get_statistics()
     """
 
-    def classify(self, text: T) -> "ClassificationResult[R]": ...
-    def batch_classify(self, texts: List[T]) -> List["ClassificationResult[R]"]: ...
+    def classify(self, text: T) -> "ClassificationResult[R, Any]": ...
+    def batch_classify(self, texts: List[T]) -> List["ClassificationResult[R, Any]"]: ...
     @property
     def name(self) -> str: ...
     @property

@@ -1,3 +1,4 @@
+from typing import Any, List
 """
 Dependency Injection Module
 
@@ -43,49 +44,14 @@ component = MyComponent()  # Dependencies automatically injected
 - Raises DependencyError for missing dependencies
 - Raises ConfigurationError for circular dependencies
 """
-
-# Import from provider module
 from .provider import DependencyProvider
-
-# Import from scopes module
 from .scopes import DependencyScope, SessionScope, RequestScope
-
-# Import from injector module
 from .injector import DependencyInjector, inject_dependencies
-
-# Import from utils module
-from .utils import (
-    provide_dependency,
-    provide_factory,
-    get_dependency,
-    get_dependency_by_type,
-    create_session_scope,
-    create_request_scope,
-    clear_dependencies,
-)
-
-# Import error classes
+from .utils import provide_dependency, provide_factory, get_dependency, get_dependency_by_type, create_session_scope, create_request_scope, clear_dependencies
 from sifaka.utils.errors.base import DependencyError, ConfigurationError
-
-# Define public API
-__all__ = [
-    # Classes
-    "DependencyScope",
-    "DependencyProvider",
-    "SessionScope",
-    "RequestScope",
-    "DependencyInjector",
-    # Decorators
-    "inject_dependencies",
-    # Functions
-    "provide_dependency",
-    "provide_factory",
-    "get_dependency",
-    "get_dependency_by_type",
-    "create_session_scope",
-    "create_request_scope",
-    "clear_dependencies",
-    # Errors
-    "DependencyError",
-    "ConfigurationError",
-]
+__all__: List[Any] = ['DependencyScope', 'DependencyProvider',
+    'SessionScope', 'RequestScope', 'DependencyInjector',
+    'inject_dependencies', 'provide_dependency', 'provide_factory',
+    'get_dependency', 'get_dependency_by_type', 'create_session_scope',
+    'create_request_scope', 'clear_dependencies', 'DependencyError',
+    'ConfigurationError']

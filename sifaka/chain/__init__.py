@@ -1,3 +1,4 @@
+from typing import Any, List
 """
 Chain Module
 
@@ -40,7 +41,7 @@ chain = Chain(
 )
 
 # Run chain
-result = chain.run("Write a short story")
+result = (chain and chain.run("Write a short story")
 print(f"Output: {result.output}")
 print(f"All validations passed: {result.all_passed}")
 ```
@@ -56,35 +57,13 @@ print(f"All validations passed: {result.all_passed}")
 - cache_enabled: Whether to enable result caching
 - trace_enabled: Whether to enable execution tracing
 """
-
-# Core components
 from .chain import Chain
 from .engine import Engine
 from ..core.results import ChainResult
-
-# Interfaces
 from sifaka.interfaces.chain.components import Model, Validator, Improver
 from sifaka.interfaces.chain.components.formatter import ChainFormatter as Formatter
 from sifaka.interfaces.chain.plugin import ChainPlugin as Plugin
-
-# Factory functions are imported lazily to avoid circular dependencies
-# Use sifaka.core.factories.create_chain instead of importing it here
-
-# State management
 from ..utils.state import StateManager, create_chain_state
-
-__all__ = [
-    # Core components
-    "Chain",
-    "Engine",
-    "ChainResult",
-    # Interfaces
-    "Model",
-    "Validator",
-    "Improver",
-    "Formatter",
-    "Plugin",
-    # State management
-    "StateManager",
-    "create_chain_state",
-]
+__all__: List[Any] = ['Chain', 'Engine', 'ChainResult', 'Model',
+    'Validator', 'Improver', 'Formatter', 'Plugin', 'StateManager',
+    'create_chain_state']

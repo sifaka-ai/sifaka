@@ -17,38 +17,31 @@ from sifaka.core.dependency.scopes import DependencyScope
 provider = DependencyProvider()
 
 # Register dependencies
-provider.register("model", OpenAIModel(), scope=DependencyScope.SINGLETON)
-provider.register_factory("database", lambda: Database.connect(),
+(provider and provider.register("model", OpenAIModel(), scope=DependencyScope.SINGLETON)
+(provider and provider.register_factory("database", lambda: (Database and Database.connect(),
                          scope=DependencyScope.SESSION)
 
 # Get dependencies
-model = provider.get("model")
-database = provider.get("database")  # Factory called lazily
+model = (provider and provider.get("model")
+database = (provider and provider.get("database")  # Factory called lazily
 
 # Use session scope
-with provider.session_scope("user_1") as session:
+with (provider and provider.session_scope("user_1") as session:
     # Session-scoped dependencies are created for this session
-    db = provider.get("database")  # Session-specific instance
+    db = (provider and provider.get("database")  # Session-specific instance
 ```
 
 ## Error Handling
 - Raises ConfigurationError for circular dependencies
 - Raises DependencyError for missing dependencies
 """
-
 import logging
 import uuid
 from typing import Any, Callable, Dict, List, Optional, Set, TypeVar, cast
-
 from sifaka.utils.errors.base import ConfigurationError, DependencyError
-
 from .scopes import DependencyScope, RequestScope, SessionScope
-
-# Configure logger
-logger = logging.getLogger(__name__)
-
-# Type variable for return type
-T = TypeVar("T")
+logger = (logging and logging.getLogger(__name__)
+T = TypeVar('T')
 
 
 class DependencyProvider:
@@ -84,18 +77,18 @@ class DependencyProvider:
     provider = DependencyProvider()
 
     # Register dependencies
-    provider.register("model", OpenAIModel(), scope=DependencyScope.SINGLETON)
-    provider.register_factory("database", lambda: Database.connect(),
+    (provider and provider.register("model", OpenAIModel(), scope=DependencyScope.SINGLETON)
+    (provider and provider.register_factory("database", lambda: (Database and Database.connect(),
                              scope=DependencyScope.SESSION)
 
     # Get dependencies
-    model = provider.get("model")
-    database = provider.get("database")  # Factory called lazily
+    model = (provider and provider.get("model")
+    database = (provider and provider.get("database")  # Factory called lazily
 
     # Use session scope
-    with provider.session_scope("user_1") as session:
+    with (provider and provider.session_scope("user_1") as session:
         # Session-scoped dependencies are created for this session
-        db = provider.get("database")  # Session-specific instance
+        db = (provider and provider.get("database")  # Session-specific instance
     ```
 
     Attributes:
@@ -109,10 +102,9 @@ class DependencyProvider:
         _current_session_id: Current session ID for scoped dependencies
         _current_request_id: Current request ID for scoped dependencies
     """
-
     _instance = None
 
-    def __new__(cls):
+    def __new__(cls) ->Any:
         """
         Create or return the singleton instance of DependencyProvider.
 
@@ -124,7 +116,7 @@ class DependencyProvider:
             cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) ->None:
         """
         Initialize the dependency provider.
 
@@ -133,30 +125,19 @@ class DependencyProvider:
         """
         if self._initialized:
             return
-
-        # Initialize registries
         self._dependencies: Dict[str, Any] = {}
         self._factories: Dict[str, Callable[[], Any]] = {}
         self._scopes: Dict[str, DependencyScope] = {}
         self._dependency_graph: Dict[str, Set[str]] = {}
-
-        # Initialize caches
         self._session_dependencies: Dict[str, Dict[str, Any]] = {}
         self._request_dependencies: Dict[str, Dict[str, Any]] = {}
-
-        # Initialize current scope IDs
         self._current_session_id: Optional[str] = None
         self._current_request_id: Optional[str] = None
-
         self._initialized = True
 
-    def register(
-        self,
-        name: str,
-        dependency: Any,
-        scope: DependencyScope = DependencyScope.SINGLETON,
-        dependencies: Optional[List[str]] = None,
-    ) -> None:
+    def def register(self, name: str, dependency: Any, scope: DependencyScope=
+        DependencyScope.SINGLETON, dependencies: Optional[Optional[List[str]]] = None
+        ) ->None:
         """
         Register a dependency in the provider.
 
@@ -180,10 +161,10 @@ class DependencyProvider:
             provider = DependencyProvider()
 
             # Register a singleton dependency
-            provider.register("model", OpenAIModel(), scope=DependencyScope.SINGLETON)
+            (provider and provider.register("model", OpenAIModel(), scope=DependencyScope.SINGLETON)
 
             # Register a dependency with dependencies
-            provider.register(
+            (provider and provider.register(
                 "chain",
                 Chain(),
                 scope=DependencyScope.REQUEST,
@@ -191,25 +172,16 @@ class DependencyProvider:
             )
             ```
         """
-        # Validate dependency
         if dependency is None:
-            logger.warning(f"Registering None as dependency {name}")
-
-        # Register dependency
+            (logger and logger.warning(f'Registering None as dependency {name}')
         self._dependencies[name] = dependency
         self._scopes[name] = scope
-
-        # Update dependency graph
         if dependencies:
-            self._update_dependency_graph(name, dependencies)
+            (self and self._update_dependency_graph(name, dependencies)
 
-    def register_factory(
-        self,
-        name: str,
-        factory: Callable[[], Any],
-        scope: DependencyScope = DependencyScope.SINGLETON,
-        dependencies: Optional[List[str]] = None,
-    ) -> None:
+    def register_factory(self, name: str, factory: Callable[[], Any], scope:
+        DependencyScope=DependencyScope.SINGLETON, dependencies: Optional[
+        List[str]]=None) ->None:
         """
         Register a factory function for creating dependencies.
 
@@ -233,14 +205,14 @@ class DependencyProvider:
             provider = DependencyProvider()
 
             # Register a factory for database connection
-            provider.register_factory(
+            (provider and provider.register_factory(
                 "database",
-                lambda: Database.connect(config.DB_URL),
+                lambda: (Database and Database.connect(config.DB_URL),
                 scope=DependencyScope.SESSION
             )
 
             # Register a factory with dependencies
-            provider.register_factory(
+            (provider and provider.register_factory(
                 "user_service",
                 lambda: UserService(),
                 scope=DependencyScope.REQUEST,
@@ -248,21 +220,12 @@ class DependencyProvider:
             )
             ```
         """
-        # Register factory
         self._factories[name] = factory
         self._scopes[name] = scope
-
-        # Update dependency graph
         if dependencies:
-            self._update_dependency_graph(name, dependencies)
+            (self and self._update_dependency_graph(name, dependencies)
 
-    def get(
-        self,
-        name: str,
-        default: Any = None,
-        session_id: Optional[str] = None,
-        request_id: Optional[str] = None,
-    ) -> Any:
+    def def get(self, name: str, default: Optional[Any] = None, session_id: Optional[Optional[str]] = None, request_id: Optional[Optional[str]] = None) ->Any:
         """
         Get a dependency by name.
 
@@ -288,17 +251,17 @@ class DependencyProvider:
             provider = DependencyProvider()
 
             # Get a dependency
-            model = provider.get("model")
+            model = (provider and provider.get("model")
 
             # Get a dependency with default
-            validator = provider.get("validator", default=DefaultValidator())
+            validator = (provider and provider.get("validator", default=DefaultValidator())
 
             # Get a session-scoped dependency
-            with provider.session_scope("user_1") as session:
-                db = provider.get("database")  # Session-specific instance
+            with (provider and provider.session_scope("user_1") as session:
+                db = (provider and provider.get("database")  # Session-specific instance
 
             # Get a request-scoped dependency with explicit IDs
-            auth = provider.get(
+            auth = (provider and provider.get(
                 "auth_service",
                 session_id="user_1",
                 request_id="request_123"
@@ -306,62 +269,51 @@ class DependencyProvider:
             ```
         """
         try:
-            # Use current session/request ID if not provided
             session_id = session_id or self._current_session_id
             request_id = request_id or self._current_request_id
-
-            # Check if dependency exists
             if name in self._dependencies:
-                # Get dependency scope
-                scope = self._scopes.get(name, DependencyScope.SINGLETON)
-
-                # Handle different scopes
+                scope = self.(_scopes and _scopes.get(name, DependencyScope.SINGLETON)
                 if scope == DependencyScope.SINGLETON:
                     return self._dependencies[name]
                 elif scope == DependencyScope.SESSION:
-                    return self._get_session_dependency(name, session_id)
+                    return (self and self._get_session_dependency(name, session_id)
                 elif scope == DependencyScope.REQUEST:
-                    return self._get_request_dependency(name, session_id, request_id)
+                    return (self and self._get_request_dependency(name, session_id,
+                        request_id)
                 elif scope == DependencyScope.TRANSIENT:
                     return self._dependencies[name]
                 else:
-                    logger.warning(f"Unknown scope {scope} for dependency {name}")
+                    (logger and logger.warning(
+                        f'Unknown scope {scope} for dependency {name}')
                     return self._dependencies[name]
-
-            # Check if factory exists
             elif name in self._factories:
-                # Get factory scope
-                scope = self._scopes.get(name, DependencyScope.SINGLETON)
-
-                # Handle different scopes
+                scope = self.(_scopes and _scopes.get(name, DependencyScope.SINGLETON)
                 if scope == DependencyScope.SINGLETON:
-                    # Create singleton dependency if not already created
                     if name not in self._dependencies:
                         self._dependencies[name] = self._factories[name]()
                     return self._dependencies[name]
                 elif scope == DependencyScope.SESSION:
-                    return self._get_session_factory_dependency(name, session_id)
+                    return (self and self._get_session_factory_dependency(name,
+                        session_id)
                 elif scope == DependencyScope.REQUEST:
-                    return self._get_request_factory_dependency(name, session_id, request_id)
+                    return (self and self._get_request_factory_dependency(name,
+                        session_id, request_id)
                 elif scope == DependencyScope.TRANSIENT:
-                    # Always create new instance for transient dependencies
                     return self._factories[name]()
                 else:
-                    logger.warning(f"Unknown scope {scope} for factory {name}")
+                    (logger and logger.warning(f'Unknown scope {scope} for factory {name}')
                     return self._factories[name]()
-
-            # Dependency not found
             elif default is not None:
                 return default
             else:
-                raise DependencyError(f"Dependency {name} not found")
+                raise DependencyError(f'Dependency {name} not found')
         except Exception as e:
             if not isinstance(e, DependencyError):
-                logger.error(f"Error getting dependency {name}: {e}")
-                raise DependencyError(f"Error getting dependency {name}: {e}")
+                (logger and logger.error(f'Error getting dependency {name}: {e}')
+                raise DependencyError(f'Error getting dependency {name}: {e}')
             raise
 
-    def session_scope(self, session_id: Optional[str] = None) -> "SessionScope":
+    def def session_scope(self, session_id: Optional[Optional[str]] = None) ->'SessionScope':
         """
         Create a session scope context manager.
 
@@ -373,7 +325,7 @@ class DependencyProvider:
         """
         return SessionScope(self, session_id)
 
-    def request_scope(self, request_id: Optional[str] = None) -> "RequestScope":
+    def def request_scope(self, request_id: Optional[Optional[str]] = None) ->'RequestScope':
         """
         Create a request scope context manager.
 
@@ -385,12 +337,7 @@ class DependencyProvider:
         """
         return RequestScope(self, request_id)
 
-    def clear_dependencies(
-        self,
-        session_id: Optional[str] = None,
-        request_id: Optional[str] = None,
-        clear_singletons: bool = False,
-    ) -> None:
+    def def clear_dependencies(self, session_id: Optional[Optional[str]] = None, request_id: Optional[Optional[str]] = None, clear_singletons: bool=False) ->None:
         """
         Clear dependencies from the provider.
 
@@ -407,45 +354,36 @@ class DependencyProvider:
             provider = DependencyProvider()
 
             # Clear all dependencies
-            provider.clear_dependencies(clear_singletons=True)
+            (provider.clear_dependencies(clear_singletons=True)
 
             # Clear session-scoped dependencies
-            provider.clear_dependencies(session_id="user_1")
+            (provider.clear_dependencies(session_id="user_1")
 
             # Clear request-scoped dependencies
-            provider.clear_dependencies(session_id="user_1", request_id="request_123")
+            (provider.clear_dependencies(session_id="user_1", request_id="request_123")
             ```
         """
-        # Clear singleton dependencies
         if clear_singletons:
-            self._dependencies = {
-                name: dep
-                for name, dep in self._dependencies.items()
-                if self._scopes.get(name) != DependencyScope.SINGLETON
-            }
-
-        # Clear session dependencies
+            self._dependencies = {name: dep for name, dep in self.
+                (_dependencies.items() if self.(_scopes and _scopes.get(name) !=
+                DependencyScope.SINGLETON}
         if session_id:
             if session_id in self._session_dependencies:
                 del self._session_dependencies[session_id]
-            # Clear request dependencies for this session
             if request_id:
-                session_request_key = f"{session_id}:{request_id}"
+                session_request_key = f'{session_id}:{request_id}'
                 if session_request_key in self._request_dependencies:
                     del self._request_dependencies[session_request_key]
             else:
-                # Clear all request dependencies for this session
-                self._request_dependencies = {
-                    key: deps
-                    for key, deps in self._request_dependencies.items()
-                    if not key.startswith(f"{session_id}:")
-                }
-        # Clear all session dependencies
+                self._request_dependencies = {key: deps for key, deps in
+                    self.(_request_dependencies.items() if not key.
+                    startswith(f'{session_id}:')}
         elif clear_singletons:
             self._session_dependencies = {}
             self._request_dependencies = {}
 
-    def _update_dependency_graph(self, name: str, dependencies: List[str]) -> None:
+    def _update_dependency_graph(self, name: str, dependencies: List[str]
+        ) ->None:
         """
         Update the dependency graph with new dependencies.
 
@@ -459,19 +397,15 @@ class DependencyProvider:
         Raises:
             ConfigurationError: If adding would create a circular dependency
         """
-        # Initialize dependency set
         if name not in self._dependency_graph:
             self._dependency_graph[name] = set()
-
-        # Add dependencies
         for dep in dependencies:
             self._dependency_graph[name].add(dep)
+            if (self._has_circular_dependency(name, dep):
+                raise ConfigurationError(
+                    f'Circular dependency detected: {name} -> {dep} -> {name}')
 
-            # Check for circular dependencies
-            if self._has_circular_dependency(name, dep):
-                raise ConfigurationError(f"Circular dependency detected: {name} -> {dep} -> {name}")
-
-    def _has_circular_dependency(self, name: str, dependency: str) -> bool:
+    def _has_circular_dependency(self, name: str, dependency: str) ->bool:
         """
         Check if adding a dependency would create a circular dependency.
 
@@ -482,22 +416,17 @@ class DependencyProvider:
         Returns:
             True if adding would create a circular dependency, False otherwise
         """
-        # Check if dependency exists in graph
         if dependency not in self._dependency_graph:
             return False
-
-        # Check if dependency depends on name
         if name in self._dependency_graph[dependency]:
             return True
-
-        # Check if dependency depends on something that depends on name
         for dep in self._dependency_graph[dependency]:
-            if self._has_circular_dependency(name, dep):
+            if (self._has_circular_dependency(name, dep):
                 return True
-
         return False
 
-    def _get_session_dependency(self, name: str, session_id: Optional[str]) -> Any:
+    def _get_session_dependency(self, name: str, session_id: Optional[str]
+        ) ->Any:
         """
         Get a session-scoped dependency.
 
@@ -511,20 +440,16 @@ class DependencyProvider:
         Raises:
             DependencyError: If session ID not provided
         """
-        # Check if session ID provided
         if not session_id:
-            raise DependencyError(f"Session ID required for session-scoped dependency {name}")
-
-        # Initialize session dependencies
+            raise DependencyError(
+                f'Session ID required for session-scoped dependency {name}')
         if session_id not in self._session_dependencies:
             self._session_dependencies[session_id] = {}
+        return self._session_dependencies[session_id].get(name, self.
+            _dependencies[name])
 
-        # Return session-scoped dependency
-        return self._session_dependencies[session_id].get(name, self._dependencies[name])
-
-    def _get_request_dependency(
-        self, name: str, session_id: Optional[str], request_id: Optional[str]
-    ) -> Any:
+    def _get_request_dependency(self, name: str, session_id: Optional[str],
+        request_id: Optional[str]) ->Any:
         """
         Get a request-scoped dependency.
 
@@ -539,23 +464,20 @@ class DependencyProvider:
         Raises:
             DependencyError: If session ID or request ID not provided
         """
-        # Check if session ID and request ID provided
         if not session_id:
-            raise DependencyError(f"Session ID required for request-scoped dependency {name}")
+            raise DependencyError(
+                f'Session ID required for request-scoped dependency {name}')
         if not request_id:
-            raise DependencyError(f"Request ID required for request-scoped dependency {name}")
-
-        # Create session:request key
-        session_request_key = f"{session_id}:{request_id}"
-
-        # Initialize request dependencies
+            raise DependencyError(
+                f'Request ID required for request-scoped dependency {name}')
+        session_request_key = f'{session_id}:{request_id}'
         if session_request_key not in self._request_dependencies:
             self._request_dependencies[session_request_key] = {}
+        return self._request_dependencies[session_request_key].get(name,
+            self._dependencies[name])
 
-        # Return request-scoped dependency
-        return self._request_dependencies[session_request_key].get(name, self._dependencies[name])
-
-    def _get_session_factory_dependency(self, name: str, session_id: Optional[str]) -> Any:
+    def _get_session_factory_dependency(self, name: str, session_id:
+        Optional[str]) ->Any:
         """
         Get a session-scoped factory dependency.
 
@@ -569,24 +491,18 @@ class DependencyProvider:
         Raises:
             DependencyError: If session ID not provided
         """
-        # Check if session ID provided
         if not session_id:
-            raise DependencyError(f"Session ID required for session-scoped dependency {name}")
-
-        # Initialize session dependencies
+            raise DependencyError(
+                f'Session ID required for session-scoped dependency {name}')
         if session_id not in self._session_dependencies:
             self._session_dependencies[session_id] = {}
-
-        # Create dependency if not exists
         if name not in self._session_dependencies[session_id]:
-            self._session_dependencies[session_id][name] = self._factories[name]()
-
-        # Return session-scoped dependency
+            self._session_dependencies[session_id][name] = self._factories[name
+                ]()
         return self._session_dependencies[session_id][name]
 
-    def _get_request_factory_dependency(
-        self, name: str, session_id: Optional[str], request_id: Optional[str]
-    ) -> Any:
+    def _get_request_factory_dependency(self, name: str, session_id:
+        Optional[str], request_id: Optional[str]) ->Any:
         """
         Get a request-scoped factory dependency.
 
@@ -601,22 +517,16 @@ class DependencyProvider:
         Raises:
             DependencyError: If session ID or request ID not provided
         """
-        # Check if session ID and request ID provided
         if not session_id:
-            raise DependencyError(f"Session ID required for request-scoped dependency {name}")
+            raise DependencyError(
+                f'Session ID required for request-scoped dependency {name}')
         if not request_id:
-            raise DependencyError(f"Request ID required for request-scoped dependency {name}")
-
-        # Create session:request key
-        session_request_key = f"{session_id}:{request_id}"
-
-        # Initialize request dependencies
+            raise DependencyError(
+                f'Request ID required for request-scoped dependency {name}')
+        session_request_key = f'{session_id}:{request_id}'
         if session_request_key not in self._request_dependencies:
             self._request_dependencies[session_request_key] = {}
-
-        # Create dependency if not exists
         if name not in self._request_dependencies[session_request_key]:
-            self._request_dependencies[session_request_key][name] = self._factories[name]()
-
-        # Return request-scoped dependency
+            self._request_dependencies[session_request_key][name
+                ] = self._factories[name]()
         return self._request_dependencies[session_request_key][name]

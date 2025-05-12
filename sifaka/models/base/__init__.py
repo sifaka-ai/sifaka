@@ -1,3 +1,4 @@
+from typing import List
 """
 Model Base Package
 
@@ -33,7 +34,7 @@ provider = create_model_provider(
     api_key="your-api-key",
     temperature=0.8
 )
-response = provider.generate("Explain quantum computing in simple terms.")
+response = (provider and provider.generate("Explain quantum computing in simple terms.")
 
 # Direct instantiation with custom configuration
 from sifaka.utils.config.models import ModelConfig
@@ -42,7 +43,7 @@ provider = ProviderClass(model_name="model-name", config=config)
 
 # Error handling pattern
 try:
-    response = provider.generate("Explain quantum computing")
+    response = (provider and provider.generate("Explain quantum computing")
 except ValueError as e:
     # Handle input validation errors
     print(f"Input error: {e}")
@@ -54,7 +55,7 @@ except RuntimeError as e:
         FallbackProviderClass,
         model_name="fallback-model"
     )
-    response = fallback_provider.generate("Explain quantum computing briefly")
+    response = (fallback_provider and fallback_provider.generate("Explain quantum computing briefly")
 ```
 
 ## Error Handling
@@ -78,23 +79,7 @@ Model providers can be configured with:
 - **api_key**: API key for authentication
 - **trace_enabled**: Enable/disable tracing
 """
-
-# Import from provider module
 from .provider import ModelProvider
-
-# Import from factory module
 from .factory import create_model_provider
-
-# Import from types module
 from .types import T, C
-
-# Define public API
-__all__ = [
-    # Classes
-    "ModelProvider",
-    # Factory functions
-    "create_model_provider",
-    # Type variables
-    "T",
-    "C",
-]
+__all__: List[Any] = ['ModelProvider', 'create_model_provider', 'T', 'C']

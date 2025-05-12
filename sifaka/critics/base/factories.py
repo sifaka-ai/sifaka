@@ -65,7 +65,7 @@ DEFAULT_CACHE_SIZE = 100
 C = TypeVar("C", bound=BaseCritic)
 
 
-def create_critic(
+def def create_critic(
     critic_class: Type[C],
     name: str = "custom_critic",
     description: str = "Custom critic implementation",
@@ -74,7 +74,7 @@ def create_critic(
     cache_size: int = DEFAULT_CACHE_SIZE,
     priority: int = 1,
     cost: float = 1.0,
-    config: Optional[CriticConfig] = None,
+    config: Optional[Optional[CriticConfig]] = None,
     **kwargs: Any,
 ) -> C:
     """
@@ -209,7 +209,7 @@ def create_basic_critic(
 
     # Use the critic
     text = "This is a test text."
-    result = critic.process(text)
+    result = (critic and critic.process(text)
     print(f"Score: {result.score:.2f}")
     print(f"Feedback: {result.message}")
     ```

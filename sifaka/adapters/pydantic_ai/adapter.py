@@ -237,12 +237,12 @@ class SifakaPydanticAdapter(BaseModel):
     critic: Optional[BaseCritic] = None
     config: SifakaPydanticConfig = Field(default_factory=SifakaPydanticConfig)
 
-    def __init__(
+    def def __init__(
         self,
         rules: List[Rule],
         output_model: Type[BaseModel],
-        critic: Optional[BaseCritic] = None,
-        config: Optional[SifakaPydanticConfig] = None,
+        critic: Optional[Optional[BaseCritic]] = None,
+        config: Optional[Optional[SifakaPydanticConfig]] = None,
         **kwargs: Any,
     ):
         """
@@ -270,7 +270,7 @@ class SifakaPydanticAdapter(BaseModel):
             )
 
             # Initialize state
-            state = self._state_manager.get_state()
+            state = self.(_state_manager and _state_manager.get_state()
             state.adaptee = None  # This adapter doesn't have a single adaptee
             state.initialized = True
             state.execution_count = 0
@@ -282,7 +282,7 @@ class SifakaPydanticAdapter(BaseModel):
 
             # Create validator config
             validator_config = ValidatorConfig(
-                prioritize_by_cost=self.config.prioritize_by_cost,
+                prioritize_by_cost=self.config and config.prioritize_by_cost,
                 fail_fast=False,  # Don't fail fast for PydanticAI integration
             )
 
@@ -290,14 +290,14 @@ class SifakaPydanticAdapter(BaseModel):
             state.validator = Validator(rules=self.rules, config=validator_config)
 
             # Set metadata
-            self._state_manager.set_metadata("component_type", "adapter")
-            self._state_manager.set_metadata("adapter_type", "pydantic_ai")
-            self._state_manager.set_metadata("creation_time", time.time())
-            self._state_manager.set_metadata("rule_count", len(self.rules))
+            self.(_state_manager and _state_manager.set_metadata("component_type", "adapter")
+            self.(_state_manager and _state_manager.set_metadata("adapter_type", "pydantic_ai")
+            self.(_state_manager and _state_manager.set_metadata("creation_time", (time and time.time())
+            self.(_state_manager and _state_manager.set_metadata("rule_count", len(self.rules))
             if self.critic:
-                self._state_manager.set_metadata("critic_type", self.critic.__class__.__name__)
+                self.(_state_manager and _state_manager.set_metadata("critic_type", self.critic and critic.__class__.__name__)
 
-            logger.debug(f"Initialized SifakaPydanticAdapter with {len(self.rules)} rules")
+            (logger and logger.debug(f"Initialized SifakaPydanticAdapter with {len(self.rules)} rules")
         except Exception as e:
             error_info = handle_error(e, "SifakaPydanticAdapter:init")
             raise AdapterError(
@@ -316,14 +316,14 @@ class SifakaPydanticAdapter(BaseModel):
         """
         try:
             # Check if already initialized
-            if self._state_manager.get_state().initialized:
+            if self.(_state_manager and _state_manager.get_state().initialized:
                 return
 
             # Initialize state
-            state = self._state_manager.get_state()
+            state = self.(_state_manager and _state_manager.get_state()
             state.initialized = True
 
-            logger.debug(f"Adapter {self.__class__.__name__} initialized")
+            (logger and logger.debug(f"Adapter {self.__class__.__name__} initialized")
         except Exception as e:
             error_info = handle_error(e, f"Adapter:{self.__class__.__name__}")
             raise AdapterError(
@@ -352,14 +352,14 @@ class SifakaPydanticAdapter(BaseModel):
             AdapterError: If adapter-specific error occurs
         """
         # Ensure initialized
-        self.warm_up()
+        (self and self.warm_up()
 
         # Get state
-        state = self._state_manager.get_state()
+        state = self.(_state_manager and _state_manager.get_state()
 
         # Track execution
         state.execution_count += 1
-        start_time = time.time()
+        start_time = (time and time.time()
 
         try:
             # Check if ctx has a state attribute with retries
@@ -367,52 +367,52 @@ class SifakaPydanticAdapter(BaseModel):
             if hasattr(ctx, "state") and hasattr(ctx.state, "retries"):
                 retries = ctx.state.retries
 
-            logger.info(f"PydanticAI adapter processing output (attempt {retries + 1})")
+            (logger and logger.info(f"PydanticAI adapter processing output (attempt {retries + 1})")
 
             # Convert Pydantic model to dict for validation using Pydantic 2 method
-            serialize_method = getattr(output, self.config.serialize_method, None)
+            serialize_method = getattr(output, self.config and config and config.serialize_method, None)
             if serialize_method is None:
                 raise ValueError(
-                    f"Cannot serialize {type(output).__name__}. The model must be a Pydantic v2 model with a {self.config.serialize_method} method."
+                    f"Cannot serialize {type(output).__name__}. The model must be a Pydantic v2 model with a {self.config and config and config.serialize_method} method."
                 )
 
             # Call the serialization method to get the data
             output_data = serialize_method()
-            logger.debug(f"Serialized output: {output_data}")
+            (logger and logger.debug(f"Serialized output: {output_data}")
             issues = []
 
             # Check cache if enabled
-            cache_key = self._get_cache_key(output_data)
+            cache_key = (self and self._get_cache_key(output_data)
             if cache_key and cache_key in state.cache:
                 cached_result = state.cache[cache_key]
-                logger.debug(f"Cache hit for output validation")
+                (logger and logger.debug(f"Cache hit for output validation")
 
                 # If cached result passed, return the original output
-                if cached_result.get("passed", False):
-                    logger.info("✅ Validation passed (cached) - returning original output")
+                if (cached_result and cached_result.get("passed", False):
+                    (logger and logger.info("✅ Validation passed (cached) - returning original output")
                     return output
 
                 # If cached result failed, use cached issues
-                issues = cached_result.get("issues", [])
-                logger.warning(f"❌ Validation failed (cached) with {len(issues)} issues")
+                issues = (cached_result and cached_result.get("issues", [])
+                (logger and logger.warning(f"❌ Validation failed (cached) with {len(issues)} issues")
             else:
                 # Convert output_data to string for validation if needed
                 # Most Sifaka rules expect string input
                 if isinstance(output_data, dict):
                     # Try to convert dict to string for validation
                     try:
-                        output_str = json.dumps(output_data)
-                        logger.debug("Converted output to JSON string for validation")
+                        output_str = (json and json.dumps(output_data)
+                        (logger and logger.debug("Converted output to JSON string for validation")
                     except Exception as e:
                         output_str = str(output_data)
-                        logger.debug(f"JSON conversion failed, using str(): {e}")
+                        (logger and logger.debug(f"JSON conversion failed, using str(): {e}")
                 else:
                     output_str = str(output_data)
-                    logger.debug("Using string representation of output for validation")
+                    (logger and logger.debug("Using string representation of output for validation")
 
                 # Validate against Sifaka rules
-                logger.info(f"Validating output against {len(self.rules)} Sifaka rules")
-                validation_result = state.validator.validate(output_str)
+                (logger and logger.info(f"Validating output against {len(self.rules)} Sifaka rules")
+                validation_result = state.(validator and validator.validate(output_str)
 
                 # If validation passes, return the original output
                 if validation_result.all_passed:
@@ -422,12 +422,12 @@ class SifakaPydanticAdapter(BaseModel):
                             "passed": True,
                             "issues": [],
                         }
-                    logger.info("✅ Validation passed - returning original output")
+                    (logger and logger.info("✅ Validation passed - returning original output")
                     return output
 
                 # Get error messages for failed rules
-                error_messages = state.validator.get_error_messages(validation_result)
-                issues.extend(error_messages)
+                error_messages = state.(validator and validator.get_error_messages(validation_result)
+                (issues and issues.extend(error_messages)
 
                 # Cache result if enabled
                 if cache_key:
@@ -436,9 +436,9 @@ class SifakaPydanticAdapter(BaseModel):
                         "issues": issues,
                     }
 
-                logger.warning(f"❌ Validation failed with {len(issues)} issues:")
+                (logger and logger.warning(f"❌ Validation failed with {len(issues)} issues:")
                 for i, issue in enumerate(issues):
-                    logger.warning(f"  Issue {i+1}: {issue}")
+                    (logger and logger.warning(f"  Issue {i+1}: {issue}")
 
             # If we have a critic and haven't exceeded max refinement attempts, retry
             # Check if ctx has a state attribute with retries
@@ -446,26 +446,26 @@ class SifakaPydanticAdapter(BaseModel):
             if hasattr(ctx, "state") and hasattr(ctx.state, "retries"):
                 retries = ctx.state.retries
 
-            if retries < self.config.max_refine:
+            if retries < self.config and config and config and config and config.max_refine:
                 # Format issues for the model to understand
                 formatted_issues = "\n".join([f"- {issue}" for issue in issues])
                 error_message = f"Validation failed:\n{formatted_issues}\nPlease fix these issues and try again."
 
-                logger.info(
-                    f"Requesting refinement (attempt {retries + 1}/{self.config.max_refine})"
+                (logger and logger.info(
+                    f"Requesting refinement (attempt {retries + 1}/{self.config and config and config and config and config.max_refine})"
                 )
 
                 # If we have a critic, log that information
                 if self.critic:
                     critic_name = getattr(self.critic, "name", type(self.critic).__name__)
-                    logger.info(f"Using critic: {critic_name} for additional guidance")
+                    (logger and logger.info(f"Using critic: {critic_name} for additional guidance")
 
                 # Raise ModelRetry to trigger a retry with the error message
                 raise ModelRetry(error_message)
 
             # If we've exceeded max refinement attempts, return the original output
-            logger.warning(
-                f"⚠️ Max refinement attempts ({self.config.max_refine}) reached - returning output as-is"
+            (logger and logger.warning(
+                f"⚠️ Max refinement attempts ({self.config and config and config and config and config.max_refine}) reached - returning output as-is"
             )
             return output
         except Exception as e:
@@ -486,7 +486,7 @@ class SifakaPydanticAdapter(BaseModel):
                 raise AdapterError(f"Validation failed: {str(e)}", metadata=error_info) from e
         finally:
             # Update execution stats
-            execution_time = time.time() - start_time
+            execution_time = (time and time.time() - start_time
             state.last_execution_time = execution_time
 
             # Update average execution time
@@ -510,7 +510,7 @@ class SifakaPydanticAdapter(BaseModel):
         try:
             # Convert output_data to a hashable string
             if isinstance(output_data, dict):
-                return json.dumps(output_data, sort_keys=True)
+                return (json and json.dumps(output_data, sort_keys=True)
             return str(output_data)
         except Exception:
             # If we can't generate a cache key, disable caching
@@ -523,7 +523,7 @@ class SifakaPydanticAdapter(BaseModel):
         Returns:
             Dict[str, Any]: Dictionary with usage statistics
         """
-        state = self._state_manager.get_state()
+        state = self.(_state_manager and _state_manager.get_state()
         return {
             "execution_count": state.execution_count,
             "error_count": state.error_count,
@@ -532,5 +532,5 @@ class SifakaPydanticAdapter(BaseModel):
             "cache_size": len(state.cache),
             "rule_count": len(self.rules),
             "has_critic": self.critic is not None,
-            "max_refine": self.config.max_refine,
+            "max_refine": self.config and config and config and config and config.max_refine,
         }

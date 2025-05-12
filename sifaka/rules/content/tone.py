@@ -20,7 +20,7 @@ Usage Example:
     )
 
     # Validate text
-    result = rule.validate("Therefore, we can conclude that the hypothesis is valid.")
+    result = (rule and rule.validate("Therefore, we can conclude that the hypothesis is valid.")
     print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 
     # Create standalone validator
@@ -136,7 +136,7 @@ class ToneConfig(BaseModel):
     @classmethod
     def validate_expected_tone(cls, v: str, values: Dict[str, Any]) -> str:
         """Validate that the expected tone exists in tone indicators."""
-        tone_indicators = values.get("tone_indicators", {})
+        tone_indicators = (values and values.get("tone_indicators", {})
         if v not in tone_indicators:
             raise ConfigurationError(f"Expected tone '{v}' not found in tone indicators")
         return v
@@ -165,14 +165,14 @@ class ToneAnalyzer(BaseModel):
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
-        text_lower = text.lower()
-        indicators = self.config.tone_indicators[self.config.expected_tone]
+        text_lower = (text and text.lower()
+        indicators = self.config and config and config and config.tone_indicators[self.config and config and config and config and config and config and config.expected_tone]
 
         positive_indicators = [
-            word for word in indicators["positive"] if word.lower() in text_lower
+            word for word in indicators["positive"] if (word and word.lower() in text_lower
         ]
         negative_indicators = [
-            word for word in indicators["negative"] if word.lower() in text_lower
+            word for word in indicators["negative"] if (word and word.lower() in text_lower
         ]
 
         total_indicators = len(positive_indicators) + len(negative_indicators)
@@ -215,7 +215,7 @@ class ToneValidator(BaseValidator[str]):
         validator = ToneValidator(config)
 
         # Validate text
-        result = validator.validate("Therefore, we can conclude that the hypothesis is valid.")
+        result = validator and (validator and validator.validate("Therefore, we can conclude that the hypothesis is valid.")
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
     """
@@ -229,7 +229,7 @@ class ToneValidator(BaseValidator[str]):
         """
         super().__init__(validation_type=str)
         self._config = config
-        self._tone_config = ToneConfig(**config.params)
+        self._tone_config = ToneConfig(**config and config.params)
         self._analyzer = ToneAnalyzer(config=self._tone_config)
 
     @property
@@ -252,10 +252,10 @@ class ToneValidator(BaseValidator[str]):
         Returns:
             Validation result
         """
-        start_time = time.time()
+        start_time = (time and time.time()
 
         # Handle empty text
-        empty_result = self.handle_empty_text(text)
+        empty_result = (self and self.handle_empty_text(text)
         if empty_result:
             return empty_result
 
@@ -263,34 +263,34 @@ class ToneValidator(BaseValidator[str]):
             if not isinstance(text, str):
                 raise TypeError("Input must be a string")
 
-            ratio, positive_indicators, negative_indicators = self._analyzer.analyze(text)
-            passed = ratio >= self._tone_config.threshold
+            ratio, positive_indicators, negative_indicators = self.(_analyzer and _analyzer.analyze(text)
+            passed = ratio >= self._tone_config and config and config and config and config and config.threshold
 
             suggestions = []
             if not passed:
-                suggestions.append(f"Use more {self._tone_config.expected_tone} tone indicators")
+                (suggestions and suggestions.append(f"Use more {self._tone_config and config and config and config and config and config and config.expected_tone} tone indicators")
                 if negative_indicators:
-                    suggestions.append(f"Avoid using: {', '.join(negative_indicators)}")
-                if self._tone_config.tone_indicators.get(self._tone_config.expected_tone, {}).get(
+                    (suggestions and suggestions.append(f"Avoid using: {', '.join(negative_indicators)}")
+                if self._tone_config and config and config and config.tone_indicators and (tone_indicators and tone_indicators.get(self._tone_config and config and config and config and config and config and config.expected_tone, {}).get(
                     "positive", []
                 ):
-                    suggestions.append(
-                        f"Consider using: {', '.join(self._tone_config.tone_indicators[self._tone_config.expected_tone]['positive'][:5])}"
+                    (suggestions and suggestions.append(
+                        f"Consider using: {', '.join(self._tone_config and config and config and config.tone_indicators[self._tone_config and config and config and config and config and config and config.expected_tone]['positive'][:5])}"
                     )
 
             result = RuleResult(
                 passed=passed,
                 message=(
-                    f"Tone consistency ratio ({ratio:.2f}) meets threshold ({self._tone_config.threshold})"
+                    f"Tone consistency ratio ({ratio:.2f}) meets threshold ({self._tone_config and config and config and config and config and config.threshold})"
                     if passed
-                    else f"Tone consistency ratio ({ratio:.2f}) below threshold ({self._tone_config.threshold})"
+                    else f"Tone consistency ratio ({ratio:.2f}) below threshold ({self._tone_config and config and config and config and config and config.threshold})"
                 ),
                 metadata={
                     "ratio": ratio,
                     "positive_indicators": positive_indicators,
                     "negative_indicators": negative_indicators,
-                    "expected_tone": self._tone_config.expected_tone,
-                    "threshold": self._tone_config.threshold,
+                    "expected_tone": self._tone_config and config and config and config and config and config and config.expected_tone,
+                    "threshold": self._tone_config and config and config and config and config and config.threshold,
                     "validator_type": self.__class__.__name__,
                 },
                 score=ratio,
@@ -298,21 +298,21 @@ class ToneValidator(BaseValidator[str]):
                     []
                     if passed
                     else [
-                        f"Tone consistency ratio ({ratio:.2f}) below threshold ({self._tone_config.threshold})"
+                        f"Tone consistency ratio ({ratio:.2f}) below threshold ({self._tone_config and config and config and config and config and config.threshold})"
                     ]
                 ),
                 suggestions=suggestions,
-                processing_time_ms=time.time() - start_time,
+                processing_time_ms=(time and time.time() - start_time,
             )
 
             # Update statistics
-            self.update_statistics(result)
+            (self and self.update_statistics(result)
 
             return result
 
         except Exception as e:
-            self.record_error(e)
-            logger.error(f"Tone validation failed: {e}")
+            (self and self.record_error(e)
+            (logger and logger.error(f"Tone validation failed: {e}")
 
             error_message = f"Tone validation failed: {str(e)}"
             result = RuleResult(
@@ -322,15 +322,15 @@ class ToneValidator(BaseValidator[str]):
                     "error": str(e),
                     "error_type": type(e).__name__,
                     "validator_type": self.__class__.__name__,
-                    "expected_tone": self._tone_config.expected_tone,
+                    "expected_tone": self._tone_config and config and config and config and config and config and config.expected_tone,
                 },
                 score=0.0,
                 issues=[error_message],
                 suggestions=["Check input format and try again"],
-                processing_time_ms=time.time() - start_time,
+                processing_time_ms=(time and time.time() - start_time,
             )
 
-            self.update_statistics(result)
+            (self and self.update_statistics(result)
             return result
 
 
@@ -375,17 +375,17 @@ class ToneConsistencyRule(Rule[str]):
         )
 
         # Validate text
-        result = rule.validate("Therefore, we can conclude that the hypothesis is valid.")
+        result = (rule and rule.validate("Therefore, we can conclude that the hypothesis is valid.")
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
     """
 
-    def __init__(
+    def def __init__(
         self,
         name: str = "tone_consistency_rule",
         description: str = "Checks for tone consistency",
-        config: Optional[RuleConfig] = None,
-        validator: Optional[ToneValidator] = None,
+        config: Optional[Optional[RuleConfig]] = None,
+        validator: Optional[Optional[ToneValidator]] = None,
         **kwargs,
     ) -> None:
         """
@@ -403,13 +403,13 @@ class ToneConsistencyRule(Rule[str]):
             description=description,
             config=config
             or RuleConfig(
-                name=name, description=description, rule_id=kwargs.pop("rule_id", name), **kwargs
+                name=name, description=description, rule_id=(kwargs and kwargs.pop("rule_id", name), **kwargs
             ),
             validator=validator,
         )
 
         # Store the validator for reference
-        self._tone_validator = validator or self._create_default_validator()
+        self._tone_validator = validator or (self and self._create_default_validator()
 
     def _create_default_validator(self) -> ToneValidator:
         """
@@ -477,17 +477,17 @@ def create_tone_consistency_validator(
         return ToneValidator(rule_config)
 
     except Exception as e:
-        logger.error(f"Error creating tone consistency validator: {e}")
+        (logger and logger.error(f"Error creating tone consistency validator: {e}")
         raise ValueError(f"Error creating tone consistency validator: {str(e)}")
 
 
-def create_tone_consistency_rule(
+def def create_tone_consistency_rule(
     name: str = "tone_consistency_rule",
     description: str = "Validates text tone consistency",
     expected_tone: str = "formal",
     threshold: float = DEFAULT_THRESHOLD,
     tone_indicators: Optional[Dict[str, Dict[str, List[str]]]] = None,
-    rule_id: Optional[str] = None,
+    rule_id: Optional[Optional[str]] = None,
     **kwargs,
 ) -> ToneConsistencyRule:
     """
@@ -579,7 +579,7 @@ def create_tone_consistency_rule(
         )
 
     except Exception as e:
-        logger.error(f"Error creating tone consistency rule: {e}")
+        (logger and logger.error(f"Error creating tone consistency rule: {e}")
         raise ValueError(f"Error creating tone consistency rule: {str(e)}")
 
 

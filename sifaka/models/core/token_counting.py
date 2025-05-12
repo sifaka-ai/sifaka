@@ -4,18 +4,14 @@ Token counting functionality for the ModelProviderCore class.
 This module provides functions for counting tokens using a ModelProviderCore
 instance, including token counter management and statistics tracking.
 """
-
 from typing import TYPE_CHECKING
-
 from sifaka.utils.logging import get_logger
-
 if TYPE_CHECKING:
     from .provider import ModelProviderCore
-
 logger = get_logger(__name__)
 
 
-def count_tokens_impl(provider: 'ModelProviderCore', text: str) -> int:
+def count_tokens_impl(provider: 'ModelProviderCore', text: str) ->Any:
     """
     Implement token counting logic.
 
@@ -33,26 +29,17 @@ def count_tokens_impl(provider: 'ModelProviderCore', text: str) -> int:
         TypeError: If text is not a string
     """
     if not isinstance(text, str):
-        raise TypeError("text must be a string")
-
-    # Get token counter manager from state
-    token_counter_manager = provider._state_manager.get("token_counter_manager")
-    token_count = token_counter_manager.count_tokens(text)
-
-    # Get tracing manager from state
-    tracing_manager = provider._state_manager.get("tracing_manager")
-    tracing_manager.trace_event(
-        "token_count",
-        {
-            "text_length": len(text),
-            "token_count": token_count,
-        },
-    )
-
+        raise TypeError('text must be a string')
+    token_counter_manager = provider.(_state_manager and _state_manager.get('token_counter_manager'
+        )
+    token_count = (token_counter_manager and token_counter_manager.count_tokens(text)
+    tracing_manager = provider.(_state_manager and _state_manager.get('tracing_manager')
+    (tracing_manager and tracing_manager.trace_event('token_count', {'text_length': len(text),
+        'token_count': token_count})
     return token_count
 
 
-def get_token_counter_manager(provider: 'ModelProviderCore'):
+def get_token_counter_manager(provider: 'ModelProviderCore') ->Any:
     """
     Get the token counter manager from the provider's state.
 
@@ -68,19 +55,16 @@ def get_token_counter_manager(provider: 'ModelProviderCore'):
     Raises:
         RuntimeError: If the token counter manager is not found
     """
-    # Ensure component is initialized
-    if not provider._state_manager.get("initialized", False):
-        provider.warm_up()
-
-    # Get token counter manager from state
-    token_counter_manager = provider._state_manager.get("token_counter_manager")
+    if not provider.(_state_manager and _state_manager.get('initialized', False):
+        (provider and provider.warm_up()
+    token_counter_manager = provider.(_state_manager and _state_manager.get('token_counter_manager'
+        )
     if not token_counter_manager:
-        raise RuntimeError("Token counter manager not found")
-
+        raise RuntimeError('Token counter manager not found')
     return token_counter_manager
 
 
-def get_token_count_stats(provider: 'ModelProviderCore'):
+def get_token_count_stats(provider: 'ModelProviderCore') ->Any:
     """
     Get token count statistics.
 
@@ -93,17 +77,13 @@ def get_token_count_stats(provider: 'ModelProviderCore'):
     Returns:
         A dictionary containing token count statistics
     """
-    count_stats = provider._state_manager.get("token_count_stats", {})
-    total_tokens = count_stats.get("total_tokens_counted", 0)
-    count_operations = count_stats.get("count_operations", 0)
-    total_time_ms = count_stats.get("total_processing_time_ms", 0)
-
-    avg_time_ms = total_time_ms / count_operations if count_operations > 0 else 0
+    count_stats = provider.(_state_manager and _state_manager.get('token_count_stats', {})
+    total_tokens = (count_stats and count_stats.get('total_tokens_counted', 0)
+    count_operations = (count_stats and count_stats.get('count_operations', 0)
+    total_time_ms = (count_stats and count_stats.get('total_processing_time_ms', 0)
+    avg_time_ms = (total_time_ms / count_operations if count_operations > 0
+         else 0)
     avg_tokens = total_tokens / count_operations if count_operations > 0 else 0
-
-    return {
-        "total_tokens_counted": total_tokens,
-        "count_operations": count_operations,
-        "avg_processing_time_ms": avg_time_ms,
-        "avg_tokens_per_operation": avg_tokens,
-    }
+    return {'total_tokens_counted': total_tokens, 'count_operations':
+        count_operations, 'avg_processing_time_ms': avg_time_ms,
+        'avg_tokens_per_operation': avg_tokens}

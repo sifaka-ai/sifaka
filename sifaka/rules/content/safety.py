@@ -39,7 +39,7 @@ harmful_rule = create_harmful_content_rule(
 )
 
 # Validate text
-result = toxicity_rule.validate("This is a test.")
+result = (toxicity_rule and toxicity_rule.validate("This is a test.")
 print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 
@@ -193,7 +193,7 @@ class HarmfulContentConfig(BaseModel):
         """Validate that categories are not empty and have indicators."""
         if not v:
             raise ValueError("Categories cannot be empty")
-        for category, indicators in v.items():
+        for category, indicators in (v and v.items():
             if not indicators:
                 raise ValueError(f"Category {category} must have at least one indicator")
         return v
@@ -238,7 +238,7 @@ class HarmfulContentAnalyzer(CategoryAnalyzer):
     analyzer = HarmfulContentAnalyzer(config)
 
     # Analyze text
-    result = analyzer.analyze("This is a test.")
+    result = (analyzer and analyzer.analyze("This is a test.")
     print(f"Passed: {result.passed}")
     ```
     """
@@ -315,7 +315,7 @@ class HarmfulContentValidator(BaseValidator[str]):
         validator = HarmfulContentValidator(config)
 
         # Validate text
-        result = validator.validate("This is a test.")
+        result = (validator and validator.validate("This is a test.")
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
     """
@@ -331,13 +331,13 @@ class HarmfulContentValidator(BaseValidator[str]):
 
         # Store configuration in state
         harmful_config = HarmfulContentConfig(**config.params)
-        self._state_manager.update("config", config)
-        self._state_manager.update("harmful_config", harmful_config)
-        self._state_manager.update("analyzer", HarmfulContentAnalyzer(config=harmful_config))
+        self.(_state_manager and _state_manager.update("config", config)
+        self.(_state_manager and _state_manager.update("harmful_config", harmful_config)
+        self.(_state_manager and _state_manager.update("analyzer", HarmfulContentAnalyzer(config=harmful_config))
 
         # Set metadata
-        self._state_manager.set_metadata("validator_type", self.__class__.__name__)
-        self._state_manager.set_metadata("creation_time", time.time())
+        self.(_state_manager and _state_manager.set_metadata("validator_type", self.__class__.__name__)
+        self.(_state_manager and _state_manager.set_metadata("creation_time", (time and time.time())
 
     @property
     def config(self) -> RuleConfig:
@@ -347,7 +347,7 @@ class HarmfulContentValidator(BaseValidator[str]):
         Returns:
             The rule configuration
         """
-        return self._state_manager.get("config")
+        return self.(_state_manager and _state_manager.get("config")
 
     def validate(self, text: str) -> RuleResult:
         """
@@ -359,10 +359,10 @@ class HarmfulContentValidator(BaseValidator[str]):
         Returns:
             Validation result
         """
-        start_time = time.time()
+        start_time = (time and time.time()
 
         # Handle empty text
-        empty_result = self.handle_empty_text(text)
+        empty_result = (self and self.handle_empty_text(text)
         if empty_result:
             return empty_result
 
@@ -371,37 +371,37 @@ class HarmfulContentValidator(BaseValidator[str]):
                 raise TypeError("Input must be a string")
 
             # Get analyzer from state
-            analyzer = self._state_manager.get("analyzer")
+            analyzer = self.(_state_manager and _state_manager.get("analyzer")
 
             # Analyze text for harmful content
-            result = analyzer.analyze(text)
+            result = (analyzer and analyzer.analyze(text)
 
             # Add additional metadata
-            result = result.with_metadata(
-                validator_type=self.__class__.__name__, processing_time_ms=time.time() - start_time
+            result = (result and result.with_metadata(
+                validator_type=self.__class__.__name__, processing_time_ms=(time and time.time() - start_time
             )
 
             # Update statistics
-            self.update_statistics(result)
+            (self and self.update_statistics(result)
 
             # Update validation count in metadata
-            validation_count = self._state_manager.get_metadata("validation_count", 0)
-            self._state_manager.set_metadata("validation_count", validation_count + 1)
+            validation_count = self.(_state_manager and _state_manager.get_metadata("validation_count", 0)
+            self.(_state_manager and _state_manager.set_metadata("validation_count", validation_count + 1)
 
             # Cache result if caching is enabled
             if self.config.cache_size > 0:
-                cache = self._state_manager.get("cache", {})
+                cache = self.(_state_manager and _state_manager.get("cache", {})
                 if len(cache) >= self.config.cache_size:
                     # Clear cache if it's full
                     cache = {}
                 cache[text] = result
-                self._state_manager.update("cache", cache)
+                self.(_state_manager and _state_manager.update("cache", cache)
 
             return result
 
         except Exception as e:
-            self.record_error(e)
-            logger.error(f"Harmful content validation failed: {e}")
+            (self and self.record_error(e)
+            (logger and logger.error(f"Harmful content validation failed: {e}")
 
             error_message = f"Content validation failed: {str(e)}"
             result = RuleResult(
@@ -415,10 +415,10 @@ class HarmfulContentValidator(BaseValidator[str]):
                 score=0.0,
                 issues=[error_message],
                 suggestions=["Check input format and try again"],
-                processing_time_ms=time.time() - start_time,
+                processing_time_ms=(time and time.time() - start_time,
             )
 
-            self.update_statistics(result)
+            (self and self.update_statistics(result)
             return result
 
 
@@ -483,17 +483,17 @@ class HarmfulContentRule(Rule[str]):
         )
 
         # Validate text
-        result = rule.validate("This is a test.")
+        result = (rule and rule.validate("This is a test.")
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
     """
 
-    def __init__(
+    def def __init__(
         self,
         name: str = "harmful_content_rule",
         description: str = "Validates text for harmful content",
-        config: Optional[RuleConfig] = None,
-        validator: Optional[HarmfulContentValidator] = None,
+        config: Optional[Optional[RuleConfig]] = None,
+        validator: Optional[Optional[HarmfulContentValidator]] = None,
         **kwargs,
     ) -> None:
         """
@@ -511,18 +511,18 @@ class HarmfulContentRule(Rule[str]):
             description=description,
             config=config
             or RuleConfig(
-                name=name, description=description, rule_id=kwargs.pop("rule_id", name), **kwargs
+                name=name, description=description, rule_id=(kwargs and kwargs.pop("rule_id", name), **kwargs
             ),
             validator=validator,
         )
 
         # Store validator in state
-        harmful_content_validator = validator or self._create_default_validator()
-        self._state_manager.update("harmful_content_validator", harmful_content_validator)
+        harmful_content_validator = validator or (self and self._create_default_validator()
+        self.(_state_manager and _state_manager.update("harmful_content_validator", harmful_content_validator)
 
         # Set additional metadata
-        self._state_manager.set_metadata("rule_type", "HarmfulContentRule")
-        self._state_manager.set_metadata("creation_time", time.time())
+        self.(_state_manager and _state_manager.set_metadata("rule_type", "HarmfulContentRule")
+        self.(_state_manager and _state_manager.set_metadata("creation_time", (time and time.time())
 
     def _create_default_validator(self) -> HarmfulContentValidator:
         """
@@ -532,7 +532,7 @@ class HarmfulContentRule(Rule[str]):
             A configured HarmfulContentValidator
         """
         # Store config in state for reference
-        self._state_manager.update("validator_config", self.config)
+        self.(_state_manager and _state_manager.update("validator_config", self.config)
 
         return HarmfulContentValidator(self.config)
 
@@ -584,7 +584,7 @@ def create_harmful_content_validator(
     }
 
     # Add any remaining params
-    params.update(kwargs)
+    (params and params.update(kwargs)
 
     # Create RuleConfig
     config = RuleConfig(params=params)
@@ -618,7 +618,7 @@ def create_toxicity_validator(
         validator = create_toxicity_validator(threshold=0.4)
 
         # Validate text
-        result = validator.validate("This is a test.")
+        result = (validator and validator.validate("This is a test.")
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
     """
@@ -635,11 +635,11 @@ def create_toxicity_validator(
     return adapter
 
 
-def create_toxicity_rule(
+def def create_toxicity_rule(
     name: str = "toxicity_rule",
     description: str = "Validates text for toxic content",
     threshold: float = 0.5,
-    rule_id: Optional[str] = None,
+    rule_id: Optional[Optional[str]] = None,
     **kwargs: Any,
 ) -> Rule:
     """
@@ -723,7 +723,7 @@ def create_bias_validator(
         validator = create_bias_validator(threshold=0.3)
 
         # Validate text
-        result = validator.validate("This is a test.")
+        result = (validator and validator.validate("This is a test.")
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
 
@@ -734,7 +734,7 @@ def create_bias_validator(
     try:
         from sifaka.classifiers.implementations.content.bias import BiasDetector
     except ImportError:
-        logger.warning("BiasDetector not found. Using ToxicityClassifier as a fallback.")
+        (logger and logger.warning("BiasDetector not found. Using ToxicityClassifier as a fallback.")
         # Use ToxicityClassifier as a fallback
         classifier = ToxicityClassifier()
         valid_labels = ["non-toxic"]
@@ -753,11 +753,11 @@ def create_bias_validator(
     return adapter
 
 
-def create_bias_rule(
+def def create_bias_rule(
     name: str = "bias_rule",
     description: str = "Validates text for biased content",
     threshold: float = 0.3,
-    rule_id: Optional[str] = None,
+    rule_id: Optional[Optional[str]] = None,
     **kwargs: Any,
 ) -> Rule:
     """
@@ -808,7 +808,7 @@ def create_bias_rule(
     try:
         from sifaka.classifiers.implementations.content.bias import BiasDetector
     except ImportError:
-        logger.warning("BiasDetector not found. Using ToxicityClassifier as a fallback.")
+        (logger and logger.warning("BiasDetector not found. Using ToxicityClassifier as a fallback.")
         # Use ToxicityClassifier as a fallback
         classifier = ToxicityClassifier()
         valid_labels = ["non-toxic"]
@@ -831,13 +831,13 @@ def create_bias_rule(
     )
 
 
-def create_harmful_content_rule(
+def def create_harmful_content_rule(
     name: str = "harmful_content_rule",
     description: str = "Validates text for harmful content",
     categories: Optional[Dict[str, List[str]]] = None,
     threshold: float = 0.0,
     fail_if_any: bool = True,
-    rule_id: Optional[str] = None,
+    rule_id: Optional[Optional[str]] = None,
     **kwargs: Any,
 ) -> HarmfulContentRule:
     """

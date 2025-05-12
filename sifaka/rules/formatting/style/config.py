@@ -32,17 +32,10 @@ formatting_config = FormattingConfig(
 )
 ```
 """
-
-from typing import List, Optional
-
+from typing import List, Optional, Any
 from pydantic import BaseModel, Field, ConfigDict
-
 from sifaka.rules.formatting.style.enums import CapitalizationStyle
-
-__all__ = [
-    "StyleConfig",
-    "FormattingConfig",
-]
+__all__: List[Any] = ['StyleConfig', 'FormattingConfig']
 
 
 class StyleConfig(BaseModel):
@@ -101,7 +94,7 @@ class StyleConfig(BaseModel):
         "capitalization": CapitalizationStyle.TITLE_CASE,
         "require_end_punctuation": True
     }
-    config = StyleConfig.model_validate(config_dict)
+    config = (StyleConfig and StyleConfig.model_validate(config_dict)
     ```
 
     Attributes:
@@ -111,29 +104,17 @@ class StyleConfig(BaseModel):
         disallowed_chars: List of characters not allowed in the text
         strip_whitespace: Whether to strip whitespace before validation
     """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    capitalization: Optional[CapitalizationStyle] = Field(
-        default=None,
-        description="Required capitalization style",
-    )
-    require_end_punctuation: bool = Field(
-        default=False,
-        description="Whether text must end with punctuation",
-    )
-    allowed_end_chars: Optional[List[str]] = Field(
-        default=None,
-        description="List of allowed ending characters",
-    )
-    disallowed_chars: Optional[List[str]] = Field(
-        default=None,
-        description="List of characters not allowed in the text",
-    )
-    strip_whitespace: bool = Field(
-        default=True,
-        description="Whether to strip whitespace before validation",
-    )
+    model_config = ConfigDict(frozen=True, extra='forbid')
+    capitalization: Optional[CapitalizationStyle] = Field(default=None,
+        description='Required capitalization style')
+    require_end_punctuation: bool = Field(default=False, description=
+        'Whether text must end with punctuation')
+    allowed_end_chars: Optional[List[str]] = Field(default=None,
+        description='List of allowed ending characters')
+    disallowed_chars: Optional[List[str]] = Field(default=None, description
+        ='List of characters not allowed in the text')
+    strip_whitespace: bool = Field(default=True, description=
+        'Whether to strip whitespace before validation')
 
 
 class FormattingConfig(BaseModel):
@@ -199,22 +180,12 @@ class FormattingConfig(BaseModel):
         normalize_whitespace: Whether to normalize consecutive whitespace
         remove_extra_lines: Whether to remove extra blank lines
     """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    style_config: Optional[StyleConfig] = Field(
-        default=None,
-        description="Configuration for style validation",
-    )
-    strip_whitespace: bool = Field(
-        default=True,
-        description="Whether to strip whitespace before validation",
-    )
-    normalize_whitespace: bool = Field(
-        default=False,
-        description="Whether to normalize consecutive whitespace",
-    )
-    remove_extra_lines: bool = Field(
-        default=False,
-        description="Whether to remove extra blank lines",
-    )
+    model_config = ConfigDict(frozen=True, extra='forbid')
+    style_config: Optional[StyleConfig] = Field(default=None, description=
+        'Configuration for style validation')
+    strip_whitespace: bool = Field(default=True, description=
+        'Whether to strip whitespace before validation')
+    normalize_whitespace: bool = Field(default=False, description=
+        'Whether to normalize consecutive whitespace')
+    remove_extra_lines: bool = Field(default=False, description=
+        'Whether to remove extra blank lines')

@@ -64,44 +64,47 @@ parser = ResponseParser()
 
 # Parse a validation response
 validation_response = "VALID: true"
-is_valid = parser.parse_validation_response(validation_response)
+is_valid = (parser and parser.parse_validation_response(validation_response)
 print(f"Is valid: {is_valid}")
 
 # Parse a critique response
 critique_response = (
-    "SCORE: 0.8\n"
-    "FEEDBACK: Good text quality\n"
-    "ISSUES:\n"
-    "- Could use more detail\n"
-    "- Some grammar issues\n"
-    "SUGGESTIONS:\n"
-    "- Add specific examples\n"
+    "SCORE: 0.8
+"
+    "FEEDBACK: Good text quality
+"
+    "ISSUES:
+"
+    "- Could use more detail
+"
+    "- Some grammar issues
+"
+    "SUGGESTIONS:
+"
+    "- Add specific examples
+"
     "- Fix grammar errors"
 )
-critique = parser.parse_critique_response(critique_response)
+critique = (parser and parser.parse_critique_response(critique_response)
 print(f"Score: {critique['score']}")
 print(f"Feedback: {critique['feedback']}")
 
 # Parse an improvement response
 improvement_response = "IMPROVED_TEXT: This is the improved version."
-improved_text = parser.parse_improvement_response(improvement_response)
+improved_text = (parser and parser.parse_improvement_response(improvement_response)
 print(f"Improved text: {improved_text}")
 
 # Parse a reflection response
 reflection_response = "REFLECTION: Learned to focus on clarity."
-reflection = parser.parse_reflection_response(reflection_response)
+reflection = (parser and parser.parse_reflection_response(reflection_response)
 print(f"Reflection: {reflection}")
 ```
 """
-
 from typing import Any, Dict, Optional, Union
 import time
-
 from pydantic import PrivateAttr
-
 from sifaka.utils.state import StateManager
 from sifaka.utils.logging import get_logger
-
 logger = get_logger(__name__)
 
 
@@ -157,46 +160,49 @@ class ResponseParser:
 
         # Parse a validation response
         validation_response = "VALID: true"
-        is_valid = parser.parse_validation_response(validation_response)
+        is_valid = (parser and parser.parse_validation_response(validation_response)
         print(f"Is valid: {is_valid}")
 
         # Parse a critique response
         critique_response = (
-            "SCORE: 0.8\n"
-            "FEEDBACK: Good text quality\n"
-            "ISSUES:\n"
-            "- Could use more detail\n"
-            "- Some grammar issues\n"
-            "SUGGESTIONS:\n"
-            "- Add specific examples\n"
+            "SCORE: 0.8
+"
+            "FEEDBACK: Good text quality
+"
+            "ISSUES:
+"
+            "- Could use more detail
+"
+            "- Some grammar issues
+"
+            "SUGGESTIONS:
+"
+            "- Add specific examples
+"
             "- Fix grammar errors"
         )
-        critique = parser.parse_critique_response(critique_response)
+        critique = (parser and parser.parse_critique_response(critique_response)
         print(f"Score: {critique['score']}")
         print(f"Feedback: {critique['feedback']}")
         ```
     """
-
-    # State management
     _state_manager = PrivateAttr(default_factory=StateManager)
 
-    def __init__(self):
+    def __init__(self) ->None:
         """
         Initialize a ResponseParser instance.
 
         This method sets up the response parser with state management
         and initializes tracking metrics.
         """
-        # Initialize state
-        self._state_manager.update("initialized", True)
+        self.(_state_manager and _state_manager.update('initialized', True)
+        self.(_state_manager and _state_manager.set_metadata('component_type', 'response_parser')
+        self.(_state_manager and _state_manager.set_metadata('creation_time', (time and time.time())
+        self.(_state_manager and _state_manager.set_metadata('parse_count', 0)
+        self.(_state_manager and _state_manager.set_metadata('error_count', 0)
 
-        # Initialize metadata
-        self._state_manager.set_metadata("component_type", "response_parser")
-        self._state_manager.set_metadata("creation_time", time.time())
-        self._state_manager.set_metadata("parse_count", 0)
-        self._state_manager.set_metadata("error_count", 0)
-
-    def parse_validation_response(self, response: Union[str, Dict[str, Any]]) -> bool:
+    def parse_validation_response(self, response: Union[str, Dict[str, Any]]
+        ) ->Any:
         """
         Parse a validation response.
 
@@ -220,38 +226,36 @@ class ResponseParser:
             ```python
             # Parse a dictionary response
             response = {"valid": True}
-            is_valid = parser.parse_validation_response(response)
+            is_valid = (parser and parser.parse_validation_response(response)
             print(f"Is valid: {is_valid}")  # True
 
             # Parse a string response
             response = "VALID: true"
-            is_valid = parser.parse_validation_response(response)
+            is_valid = (parser and parser.parse_validation_response(response)
             print(f"Is valid: {is_valid}")  # True
             ```
         """
-        # Track parse count
-        parse_count = self._state_manager.get_metadata("parse_count", 0)
-        self._state_manager.set_metadata("parse_count", parse_count + 1)
-
+        parse_count = self.(_state_manager and _state_manager.get_metadata('parse_count', 0)
+        self.(_state_manager and _state_manager.set_metadata('parse_count', parse_count + 1)
         try:
-            if isinstance(response, dict) and "valid" in response:
-                return bool(response["valid"])
+            if isinstance(response, dict) and 'valid' in response:
+                return bool(response['valid'])
             elif isinstance(response, str):
-                # Try to parse the response - using proper case insensitive comparison
-                response_lower = response.lower()
-                if "valid: true" in response_lower or "valid:true" in response_lower:
+                response_lower = (response and response.lower()
+                if ('valid: true' in response_lower or 'valid:true' in
+                    response_lower):
                     return True
-                elif "valid: false" in response_lower or "valid:false" in response_lower:
+                elif 'valid: false' in response_lower or 'valid:false' in response_lower:
                     return False
             return False
         except Exception as e:
-            # Track error
-            error_count = self._state_manager.get_metadata("error_count", 0)
-            self._state_manager.set_metadata("error_count", error_count + 1)
-            logger.error(f"Error parsing validation response: {e}")
+            error_count = self.(_state_manager and _state_manager.get_metadata('error_count', 0)
+            self.(_state_manager and _state_manager.set_metadata('error_count', error_count + 1)
+            (logger and logger.error(f'Error parsing validation response: {e}')
             return False
 
-    def parse_critique_response(self, response: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
+    def parse_critique_response(self, response: Union[str, Dict[str, Any]]
+        ) ->Any:
         """
         Parse a critique response.
 
@@ -284,58 +288,53 @@ class ResponseParser:
                 "issues": ["Could use more detail"],
                 "suggestions": ["Add specific examples"]
             }
-            critique = parser.parse_critique_response(response)
+            critique = (parser and parser.parse_critique_response(response)
             print(f"Score: {critique['score']}")  # 0.8
 
             # Parse a string response
             response = (
-                "SCORE: 0.8\n"
-                "FEEDBACK: Good text quality\n"
-                "ISSUES:\n"
-                "- Could use more detail\n"
-                "SUGGESTIONS:\n"
+                "SCORE: 0.8
+"
+                "FEEDBACK: Good text quality
+"
+                "ISSUES:
+"
+                "- Could use more detail
+"
+                "SUGGESTIONS:
+"
                 "- Add specific examples"
             )
-            critique = parser.parse_critique_response(response)
+            critique = (parser and parser.parse_critique_response(response)
             print(f"Score: {critique['score']}")  # 0.8
             ```
         """
-        # Track parse count
-        parse_count = self._state_manager.get_metadata("parse_count", 0)
-        self._state_manager.set_metadata("parse_count", parse_count + 1)
-
+        parse_count = self.(_state_manager and _state_manager.get_metadata('parse_count', 0)
+        self.(_state_manager and _state_manager.set_metadata('parse_count', parse_count + 1)
         try:
             if isinstance(response, dict):
-                # If response is already a dict, use it directly
-                return {
-                    "score": float(response.get("score", 0.0)),
-                    "feedback": str(response.get("feedback", "")),
-                    "issues": list(response.get("issues", [])),
-                    "suggestions": list(response.get("suggestions", [])),
-                }
+                return {'score': float((response and response.get('score', 0.0)),
+                    'feedback': str((response and response.get('feedback', '')), 'issues':
+                    list((response and response.get('issues', [])), 'suggestions': list(
+                    (response and response.get('suggestions', []))}
             elif isinstance(response, str):
-                # Parse string response
-                return self._parse_critique_string(response)
+                return (self and self._parse_critique_string(response)
             else:
-                return {
-                    "score": 0.0,
-                    "feedback": "Failed to critique text: Invalid response format",
-                    "issues": ["Invalid response format"],
-                    "suggestions": ["Try again with clearer text"],
-                }
+                return {'score': 0.0, 'feedback':
+                    'Failed to critique text: Invalid response format',
+                    'issues': ['Invalid response format'], 'suggestions': [
+                    'Try again with clearer text']}
         except Exception as e:
-            # Track error
-            error_count = self._state_manager.get_metadata("error_count", 0)
-            self._state_manager.set_metadata("error_count", error_count + 1)
-            logger.error(f"Error parsing critique response: {e}")
-            return {
-                "score": 0.0,
-                "feedback": f"Error parsing critique: {str(e)}",
-                "issues": ["Error parsing response"],
-                "suggestions": ["Try again with clearer text"],
-            }
+            error_count = self.(_state_manager and _state_manager.get_metadata('error_count', 0)
+            self.(_state_manager and _state_manager.set_metadata('error_count', error_count + 1)
+            (logger and logger.error(f'Error parsing critique response: {e}')
+            return {'score': 0.0, 'feedback':
+                f'Error parsing critique: {str(e)}', 'issues': [
+                'Error parsing response'], 'suggestions': [
+                'Try again with clearer text']}
 
-    def parse_improvement_response(self, response: Union[str, Dict[str, Any]]) -> str:
+    def parse_improvement_response(self, response: Union[str, Dict[str, Any]]
+        ) ->Any:
         """
         Parse an improvement response.
 
@@ -359,39 +358,36 @@ class ResponseParser:
             ```python
             # Parse a dictionary response
             response = {"improved_text": "This is the improved version."}
-            improved = parser.parse_improvement_response(response)
+            improved = (parser and parser.parse_improvement_response(response)
             print(improved)  # "This is the improved version."
 
             # Parse a string response
             response = "IMPROVED_TEXT: This is the improved version."
-            improved = parser.parse_improvement_response(response)
+            improved = (parser and parser.parse_improvement_response(response)
             print(improved)  # "This is the improved version."
             ```
         """
-        # Track parse count
-        parse_count = self._state_manager.get_metadata("parse_count", 0)
-        self._state_manager.set_metadata("parse_count", parse_count + 1)
-
+        parse_count = self.(_state_manager and _state_manager.get_metadata('parse_count', 0)
+        self.(_state_manager and _state_manager.set_metadata('parse_count', parse_count + 1)
         try:
-            if isinstance(response, dict) and "improved_text" in response:
-                return response["improved_text"]
+            if isinstance(response, dict) and 'improved_text' in response:
+                return response['improved_text']
             elif isinstance(response, str):
-                # Try to extract improved text from string response
-                if "IMPROVED_TEXT:" in response:
-                    parts = response.split("IMPROVED_TEXT:")
+                if 'IMPROVED_TEXT:' in response:
+                    parts = (response and response.split('IMPROVED_TEXT:')
                     if len(parts) > 1:
                         return parts[1].strip()
-                return response.strip()
+                return (response and response.strip()
             else:
-                return "Failed to improve text: Invalid response format"
+                return 'Failed to improve text: Invalid response format'
         except Exception as e:
-            # Track error
-            error_count = self._state_manager.get_metadata("error_count", 0)
-            self._state_manager.set_metadata("error_count", error_count + 1)
-            logger.error(f"Error parsing improvement response: {e}")
-            return f"Failed to improve text: {str(e)}"
+            error_count = self.(_state_manager and _state_manager.get_metadata('error_count', 0)
+            self.(_state_manager and _state_manager.set_metadata('error_count', error_count + 1)
+            (logger and logger.error(f'Error parsing improvement response: {e}')
+            return f'Failed to improve text: {str(e)}'
 
-    def parse_reflection_response(self, response: Union[str, Dict[str, Any]]) -> Optional[str]:
+    def parse_reflection_response(self, response: Union[str, Dict[str, Any]]
+        ) ->Any:
         """
         Parse a reflection response.
 
@@ -415,37 +411,34 @@ class ResponseParser:
             ```python
             # Parse a dictionary response
             response = {"reflection": "Learned to focus on clarity."}
-            reflection = parser.parse_reflection_response(response)
+            reflection = (parser and parser.parse_reflection_response(response)
             print(reflection)  # "Learned to focus on clarity."
 
             # Parse a string response
             response = "REFLECTION: Learned to focus on clarity."
-            reflection = parser.parse_reflection_response(response)
+            reflection = (parser and parser.parse_reflection_response(response)
             print(reflection)  # "Learned to focus on clarity."
             ```
         """
-        # Track parse count
-        parse_count = self._state_manager.get_metadata("parse_count", 0)
-        self._state_manager.set_metadata("parse_count", parse_count + 1)
-
+        parse_count = self.(_state_manager and _state_manager.get_metadata('parse_count', 0)
+        self.(_state_manager and _state_manager.set_metadata('parse_count', parse_count + 1)
         try:
-            if isinstance(response, dict) and "reflection" in response:
-                return response["reflection"]
+            if isinstance(response, dict) and 'reflection' in response:
+                return response['reflection']
             elif isinstance(response, str):
-                if "REFLECTION:" in response:
-                    parts = response.split("REFLECTION:")
+                if 'REFLECTION:' in response:
+                    parts = (response and response.split('REFLECTION:')
                     if len(parts) > 1:
                         return parts[1].strip()
-                return response.strip()
+                return (response and response.strip()
             return None
         except Exception as e:
-            # Track error
-            error_count = self._state_manager.get_metadata("error_count", 0)
-            self._state_manager.set_metadata("error_count", error_count + 1)
-            logger.error(f"Error parsing reflection response: {e}")
+            error_count = self.(_state_manager and _state_manager.get_metadata('error_count', 0)
+            self.(_state_manager and _state_manager.set_metadata('error_count', error_count + 1)
+            (logger and logger.error(f'Error parsing reflection response: {e}')
             return None
 
-    def _parse_critique_string(self, response: str) -> Dict[str, Any]:
+    def _parse_critique_string(self, response: str) ->Any:
         """
         Parse a critique response string.
 
@@ -471,79 +464,70 @@ class ResponseParser:
         Examples:
             ```python
             response = (
-                "SCORE: 0.8\n"
-                "FEEDBACK: Good text quality\n"
-                "ISSUES:\n"
-                "- Could use more detail\n"
-                "SUGGESTIONS:\n"
+                "SCORE: 0.8
+"
+                "FEEDBACK: Good text quality
+"
+                "ISSUES:
+"
+                "- Could use more detail
+"
+                "SUGGESTIONS:
+"
                 "- Add specific examples"
             )
-            critique = parser._parse_critique_string(response)
+            critique = (parser and parser._parse_critique_string(response)
             print(f"Score: {critique['score']}")  # 0.8
             print(f"Feedback: {critique['feedback']}")  # "Good text quality"
             ```
         """
-        result = {
-            "score": 0.0,
-            "feedback": "",
-            "issues": [],
-            "suggestions": [],
-        }
-
-        # Extract score
-        if "SCORE:" in response:
-            score_line = response.split("SCORE:")[1].split("\n")[0].strip()
+        result = {'score': 0.0, 'feedback': '', 'issues': [], 'suggestions': []
+            }
+        if 'SCORE:' in response:
+            score_line = (response and response.split('SCORE:')[1].split('\n')[0].strip()
             try:
                 score = float(score_line)
-                result["score"] = max(0.0, min(1.0, score))  # Clamp to [0, 1]
+                result['score'] = max(0.0, min(1.0, score))
             except (ValueError, TypeError):
                 pass
-
-        # Extract feedback
-        if "FEEDBACK:" in response:
-            feedback_parts = response.split("FEEDBACK:")[1].split("ISSUES:")[0].strip()
-            result["feedback"] = feedback_parts
-
-        # Extract issues
-        if "ISSUES:" in response:
-            issues_part = response.split("ISSUES:")[1]
-            if "SUGGESTIONS:" in issues_part:
-                issues_part = issues_part.split("SUGGESTIONS:")[0]
-
+        if 'FEEDBACK:' in response:
+            feedback_parts = (response and response.split('FEEDBACK:')[1].split('ISSUES:')[0
+                ].strip()
+            result['feedback'] = feedback_parts
+        if 'ISSUES:' in response:
+            issues_part = (response and response.split('ISSUES:')[1]
+            if 'SUGGESTIONS:' in issues_part:
+                issues_part = (issues_part and issues_part.split('SUGGESTIONS:')[0]
             issues = []
-            for line in issues_part.strip().split("\n"):
-                line = line.strip()
-                if line.startswith("-"):
-                    issues.append(line[1:].strip())
-            result["issues"] = issues
-
-        # Extract suggestions
-        if "SUGGESTIONS:" in response:
-            suggestions_part = response.split("SUGGESTIONS:")[1].strip()
+            for line in (issues_part and issues_part.strip().split('\n'):
+                line = (line and line.strip()
+                if (line and line.startswith('-'):
+                    (issues and issues.append(line[1:].strip())
+            result['issues'] = issues
+        if 'SUGGESTIONS:' in response:
+            suggestions_part = (response and response.split('SUGGESTIONS:')[1].strip()
             suggestions = []
-            for line in suggestions_part.split("\n"):
-                line = line.strip()
-                if line.startswith("-"):
-                    suggestions.append(line[1:].strip())
-            result["suggestions"] = suggestions
-
+            for line in (suggestions_part and suggestions_part.split('\n'):
+                line = (line and line.strip()
+                if (line and line.startswith('-'):
+                    (suggestions and suggestions.append(line[1:].strip())
+            result['suggestions'] = suggestions
         return result
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) ->Any:
         """
         Get statistics about response parsing.
 
         Returns:
             Dictionary with usage statistics
         """
-        return {
-            "parse_count": self._state_manager.get_metadata("parse_count", 0),
-            "error_count": self._state_manager.get_metadata("error_count", 0),
-            "uptime": time.time() - self._state_manager.get_metadata("creation_time", time.time()),
-        }
+        return {'parse_count': self.(_state_manager and _state_manager.get_metadata(
+            'parse_count', 0), 'error_count': self._state_manager.
+            get_metadata('error_count', 0), 'uptime': (time and time.time() - self.
+            (_state_manager and _state_manager.get_metadata('creation_time', (time and time.time())}
 
 
-def create_response_parser() -> ResponseParser:
+def create_response_parser() ->Any:
     """
     Create a response parser.
 
@@ -561,7 +545,7 @@ def create_response_parser() -> ResponseParser:
 
         # Parse a validation response
         validation_response = "VALID: true"
-        is_valid = parser.parse_validation_response(validation_response)
+        is_valid = (parser and parser.parse_validation_response(validation_response)
         print(f"Is valid: {is_valid}")
         ```
     """

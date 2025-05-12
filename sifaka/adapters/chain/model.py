@@ -7,8 +7,7 @@ to the Model interface from the chain system.
 
 import asyncio
 import time
-from typing import Any
-
+from typing import Any, Optional
 from sifaka.interfaces.chain.components import Model
 from sifaka.utils.errors.component import ModelError
 from sifaka.utils.errors.safe_execution import safely_execute_component_operation
@@ -48,7 +47,9 @@ class ModelAdapter(Model):
         _state_manager (StateManager): The state manager for the adapter
     """
 
-    def __init__(self, model: Any, name: str = None, description: str = None):
+    def __init__(
+        self, model: Any, name: Optional[str] = None, description: Optional[str] = None
+    ) -> None:
         """
         Initialize the model adapter.
 
@@ -57,27 +58,17 @@ class ModelAdapter(Model):
             name: Optional name for the adapter
             description: Optional description for the adapter
         """
-        # Store model
         self._model = model
-
-        # Set name and description
         self._name = name or f"{type(model).__name__}Adapter"
         self._description = description or f"Adapter for {type(model).__name__}"
-
-        # Create state manager
         self._state_manager = create_adapter_state()
-
-        # Initialize state
         self._initialize_state()
 
     def _initialize_state(self) -> None:
         """Initialize adapter state."""
-        # Update state with initial values
         self._state_manager.update("adaptee", self._model)
         self._state_manager.update("initialized", True)
         self._state_manager.update("cache", {})
-
-        # Set metadata
         self._state_manager.set_metadata("component_type", "model_adapter")
         self._state_manager.set_metadata("adaptee_type", type(self._model).__name__)
         self._state_manager.set_metadata("creation_time", time.time())
@@ -105,17 +96,13 @@ class ModelAdapter(Model):
         Raises:
             ModelError: If text generation fails
         """
-        # Ensure adapter is initialized
         if not self._state_manager.get("initialized", False):
             self._initialize_state()
 
-        # Record start time
         start_time = time.time()
-
         try:
 
-            def generate_operation():
-                # Check for different model provider interfaces
+            def generate_operation() -> Any:
                 if hasattr(self._model, "invoke"):
                     return self._model.invoke(prompt)
                 elif hasattr(self._model, "generate"):
@@ -127,7 +114,6 @@ class ModelAdapter(Model):
                 else:
                     raise ModelError(f"Unsupported model provider: {type(self._model).__name__}")
 
-            # Execute operation safely
             result = safely_execute_component_operation(
                 operation=generate_operation,
                 component_name=self.name,
@@ -135,34 +121,26 @@ class ModelAdapter(Model):
                 error_class=ModelError,
             )
 
-            # Update statistics
             end_time = time.time()
             execution_time = end_time - start_time
-
-            # Update generation count
             generation_count = self._state_manager.get_metadata("generation_count", 0)
             self._state_manager.set_metadata("generation_count", generation_count + 1)
-
-            # Update average execution time
             avg_time = self._state_manager.get_metadata("avg_execution_time", 0)
-            new_avg = ((avg_time * generation_count) + execution_time) / (generation_count + 1)
+            new_avg = (avg_time * generation_count + execution_time) / (generation_count + 1)
             self._state_manager.set_metadata("avg_execution_time", new_avg)
-
-            # Update max execution time if needed
             max_time = self._state_manager.get_metadata("max_execution_time", 0)
+
             if execution_time > max_time:
                 self._state_manager.set_metadata("max_execution_time", execution_time)
 
             return result
 
         except Exception as e:
-            # Update error statistics
             error_count = self._state_manager.get_metadata("error_count", 0)
             self._state_manager.set_metadata("error_count", error_count + 1)
             self._state_manager.set_metadata("last_error", str(e))
             self._state_manager.set_metadata("last_error_time", time.time())
 
-            # Re-raise as ModelError
             if isinstance(e, ModelError):
                 raise e
             raise ModelError(f"Model generation failed: {str(e)}")
@@ -180,15 +158,11 @@ class ModelAdapter(Model):
         Raises:
             ModelError: If text generation fails
         """
-        # Ensure adapter is initialized
         if not self._state_manager.get("initialized", False):
             self._initialize_state()
 
-        # Record start time
         start_time = time.time()
-
         try:
-            # Check if model has async methods
             if hasattr(self._model, "invoke_async"):
                 result = await self._model.invoke_async(prompt)
             elif hasattr(self._model, "generate_async"):
@@ -198,40 +172,30 @@ class ModelAdapter(Model):
             elif hasattr(self._model, "process_async"):
                 result = await self._model.process_async(prompt)
             else:
-                # Fall back to running synchronous method in executor
                 loop = asyncio.get_event_loop()
                 result = await loop.run_in_executor(None, self.generate, prompt)
-                # Return early since statistics are updated in the synchronous method
                 return result
 
-            # Update statistics
             end_time = time.time()
             execution_time = end_time - start_time
-
-            # Update generation count
             generation_count = self._state_manager.get_metadata("generation_count", 0)
             self._state_manager.set_metadata("generation_count", generation_count + 1)
-
-            # Update average execution time
             avg_time = self._state_manager.get_metadata("avg_execution_time", 0)
-            new_avg = ((avg_time * generation_count) + execution_time) / (generation_count + 1)
+            new_avg = (avg_time * generation_count + execution_time) / (generation_count + 1)
             self._state_manager.set_metadata("avg_execution_time", new_avg)
-
-            # Update max execution time if needed
             max_time = self._state_manager.get_metadata("max_execution_time", 0)
+
             if execution_time > max_time:
                 self._state_manager.set_metadata("max_execution_time", execution_time)
 
             return result
 
         except Exception as e:
-            # Update error statistics
             error_count = self._state_manager.get_metadata("error_count", 0)
             self._state_manager.set_metadata("error_count", error_count + 1)
             self._state_manager.set_metadata("last_error", str(e))
             self._state_manager.set_metadata("last_error_time", time.time())
 
-            # Re-raise as ModelError
             if isinstance(e, ModelError):
                 raise e
             raise ModelError(f"Async model generation failed: {str(e)}")

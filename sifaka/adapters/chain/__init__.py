@@ -1,3 +1,4 @@
+from typing import Any, List
 """
 Chain Adapters
 
@@ -32,10 +33,10 @@ validator = ValidatorAdapter(rule)
 improver = ImproverAdapter(critic)
 
 # Use adapters
-output = model.generate("Write a short story")
-validation_result = validator.validate(output)
+output = (model and model.generate("Write a short story")
+validation_result = (validator and validator.validate(output)
 if not validation_result.passed:
-    improved_output = improver.improve(output, [validation_result])
+    improved_output = (improver and improver.improve(output, [validation_result])
 ```
 
 ## Error Handling
@@ -52,15 +53,9 @@ All adapters use the standardized state management pattern:
 - Clear separation of configuration and state
 - Execution tracking for monitoring and debugging
 """
-
 from .model import ModelAdapter
 from .validator import ValidatorAdapter
 from .improver import ImproverAdapter
 from .formatter import FormatterAdapter
-
-__all__ = [
-    "ModelAdapter",
-    "ValidatorAdapter",
-    "ImproverAdapter",
-    "FormatterAdapter",
-]
+__all__: List[Any] = ['ModelAdapter', 'ValidatorAdapter', 'ImproverAdapter',
+    'FormatterAdapter']

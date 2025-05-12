@@ -16,19 +16,19 @@ from sifaka.critics.interfaces import Plugin
 registry = PluginRegistry()
 
 # Register plugin
-registry.register_plugin("my_plugin", MyPlugin())
+(registry and registry.register_plugin("my_plugin", MyPlugin())
 
 # Get plugin
-plugin = registry.get_plugin("my_plugin")
+plugin = (registry and registry.get_plugin("my_plugin")
 
 # Create plugin loader
 loader = PluginLoader()
 
 # Load plugin from entry point
-plugins = loader.load_plugins_from_entry_points("sifaka.critics.plugins")
+plugins = (loader and loader.load_plugins_from_entry_points("sifaka.critics.plugins")
 
 # Load plugin from module
-plugin = loader.load_plugin_from_module("my_plugin_module")
+plugin = (loader and loader.load_plugin_from_module("my_plugin_module")
 ```
 """
 
@@ -90,7 +90,7 @@ class PluginLoader(CorePluginLoader):
     It ensures that only critic plugins can be loaded.
     """
     
-    def __init__(self, registry: Optional[PluginRegistry] = None):
+    def def __init__(self, registry: Optional[Optional[PluginRegistry]] = None):
         """
         Initialize the critic plugin loader.
         

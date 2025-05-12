@@ -53,15 +53,11 @@ configuration values are valid and properly typed. If invalid configuration
 is provided, Pydantic will raise validation errors with detailed information
 about the validation failure.
 """
-
 from typing import Any, Dict, Generic, Optional, Type, TypeVar, Union, cast
 from pydantic import Field
-
 from .base import BaseConfig
-
-# Type variables for generic configuration handling
-T = TypeVar("T", bound="ClassifierConfig")
-R = TypeVar("R")
+T = TypeVar('T', bound='ClassifierConfig')
+R = TypeVar('R')
 
 
 class ClassifierConfig(BaseConfig, Generic[R]):
@@ -104,13 +100,13 @@ class ClassifierConfig(BaseConfig, Generic[R]):
     # Access configuration values
     print(f"Name: {config.name}")
     print(f"Threshold: {config.threshold}")
-    print(f"Model: {config.params.get('model')}")
+    print(f"Model: {config.(params and params.get('model')}")
 
     # Create a new configuration with updated options
-    updated_config = config.with_options(threshold=0.8)
+    updated_config = (config and config.with_options(threshold=0.8)
 
     # Create a new configuration with updated params
-    updated_config = config.with_params(model="gpt-3.5-turbo")
+    updated_config = (config and config.with_params(model="gpt-3.5-turbo")
     ```
 
     Attributes:
@@ -118,22 +114,12 @@ class ClassifierConfig(BaseConfig, Generic[R]):
         cache_size: Size of the result cache
         trace_enabled: Whether to enable tracing
     """
-
-    threshold: float = Field(
-        default=0.7,
-        ge=0.0,
-        le=1.0,
-        description="Classification threshold",
-    )
-    cache_size: int = Field(
-        default=100,
-        ge=0,
-        description="Size of the result cache",
-    )
-    trace_enabled: bool = Field(
-        default=False,
-        description="Whether to enable tracing",
-    )
+    threshold: float = Field(default=0.7, ge=0.0, le=1.0, description=
+        'Classification threshold')
+    cache_size: int = Field(default=100, ge=0, description=
+        'Size of the result cache')
+    trace_enabled: bool = Field(default=False, description=
+        'Whether to enable tracing')
 
 
 class ImplementationConfig(BaseConfig):
@@ -178,10 +164,10 @@ class ImplementationConfig(BaseConfig):
     print(f"Temperature: {config.temperature}")
 
     # Create a new configuration with updated options
-    updated_config = config.with_options(temperature=0.8)
+    updated_config = (config and config.with_options(temperature=0.8)
 
     # Create a new configuration with updated params
-    updated_config = config.with_params(top_p=0.95)
+    updated_config = (config and config.with_params(top_p=0.95)
     ```
 
     Attributes:
@@ -189,25 +175,14 @@ class ImplementationConfig(BaseConfig):
         temperature: Temperature for text generation
         max_tokens: Maximum number of tokens to generate
     """
-
-    model: str = Field(
-        default="",
-        description="Model name to use",
-    )
-    temperature: float = Field(
-        default=0.7,
-        ge=0.0,
-        le=1.0,
-        description="Temperature for text generation",
-    )
-    max_tokens: int = Field(
-        default=1000,
-        ge=1,
-        description="Maximum number of tokens to generate",
-    )
+    model: str = Field(default='', description='Model name to use')
+    temperature: float = Field(default=0.7, ge=0.0, le=1.0, description=
+        'Temperature for text generation')
+    max_tokens: int = Field(default=1000, ge=1, description=
+        'Maximum number of tokens to generate')
 
 
-def extract_classifier_config_params(config: Dict[str, Any]) -> Dict[str, Any]:
+def extract_classifier_config_params(config: Dict[str, Any]) ->Any:
     """
     Extract classifier configuration parameters from a dictionary.
 
@@ -235,19 +210,15 @@ def extract_classifier_config_params(config: Dict[str, Any]) -> Dict[str, Any]:
         # classifier_params = {"threshold": 0.7, "cache_size": 100}
         ```
     """
-    classifier_fields = set(ClassifierConfig.__annotations__.keys())
-    base_fields = set(BaseConfig.__annotations__.keys())
-    all_fields = classifier_fields.union(base_fields)
+    classifier_fields = set(ClassifierConfig.(__annotations__ and __annotations__.keys())
+    base_fields = set(BaseConfig.(__annotations__ and __annotations__.keys())
+    all_fields = (classifier_fields and classifier_fields.union(base_fields)
+    return {k: v for k, v in (config and config.items() if k in all_fields}
 
-    return {k: v for k, v in config.items() if k in all_fields}
 
-
-def standardize_classifier_config(
-    config: Optional[Union[Dict[str, Any], ClassifierConfig]] = None,
-    params: Optional[Dict[str, Any]] = None,
-    config_class: Type[T] = ClassifierConfig,
-    **kwargs: Any,
-) -> T:
+def standardize_classifier_config(config: Optional[Union[Dict[str, Any],
+    ClassifierConfig]]=None, params: Optional[Dict[str, Any]]=None,
+    config_class: Type[T]=ClassifierConfig, **kwargs: Any) ->Any:
     """
     Standardize classifier configuration.
 
@@ -301,34 +272,17 @@ def standardize_classifier_config(
         config = standardize_classifier_config(config=dict_config)
         ```
     """
-    # Start with empty params dictionary
     final_params: Dict[str, Any] = {}
-
-    # If params is provided, use it as the base
     if params:
-        final_params.update(params)
-
-    # If config is a dictionary
+        (final_params and final_params.update(params)
     if isinstance(config, dict):
-        # Extract params from the dictionary
-        dict_params = config.pop("params", {}) if config else {}
-        final_params.update(dict_params)
-
-        # Create config with the remaining options and the merged params
-        return cast(
-            T, config_class(**({} if config is None else config), params=final_params, **kwargs)
-        )
-
-    # If config is a ClassifierConfig
+        dict_params = (config and config.pop('params', {}) if config else {}
+        (final_params and final_params.update(dict_params)
+        return cast(T, config_class(**{} if config is None else config,
+            params=final_params, **kwargs))
     elif isinstance(config, ClassifierConfig):
-        # Merge the existing params with the new params
-        final_params.update(config.params)
-
-        # Create a new config with the updated params
-        config_dict = {**config.model_dump(), "params": final_params, **kwargs}
+        (final_params and final_params.update(config.params)
+        config_dict = {**(config and config.model_dump(), 'params': final_params, **kwargs}
         return cast(T, config_class(**config_dict))
-
-    # If no config is provided
     else:
-        # Create a new config with the params and kwargs
         return cast(T, config_class(params=final_params, **kwargs))

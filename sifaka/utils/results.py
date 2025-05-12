@@ -101,15 +101,15 @@ from sifaka.utils.common import create_standard_result
 R = TypeVar("R")
 
 
-def create_generic_result(
+def def create_generic_result(
     component_type: str,
     passed: bool,
     message: str,
     metadata: Optional[Dict[str, Any]] = None,
     score: float = 0.0,
-    issues: Optional[List[str]] = None,
-    suggestions: Optional[List[str]] = None,
-    processing_time_ms: Optional[float] = None,
+    issues: Optional[Optional[List[str]]] = None,
+    suggestions: Optional[Optional[List[str]]] = None,
+    processing_time_ms: Optional[Optional[float]] = None,
     **kwargs: Any,
 ) -> BaseResult:
     """
@@ -186,11 +186,11 @@ def create_generic_result(
             issues=issues or [],
             suggestions=suggestions or [],
             processing_time_ms=processing_time_ms or 0.0,
-            output=kwargs.get("output", ""),
-            prompt=kwargs.get("prompt", ""),
-            validation_results=kwargs.get("validation_results", []),
-            execution_time=kwargs.get("execution_time", 0.0),
-            attempt_count=kwargs.get("attempt_count", 1),
+            output=(kwargs and kwargs.get("output", ""),
+            prompt=(kwargs and kwargs.get("prompt", ""),
+            validation_results=(kwargs and kwargs.get("validation_results", []),
+            execution_time=(kwargs and kwargs.get("execution_time", 0.0),
+            attempt_count=(kwargs and kwargs.get("attempt_count", 1),
         )
     elif component_type == "classifier":
         return ClassificationResult(
@@ -201,8 +201,8 @@ def create_generic_result(
             issues=issues or [],
             suggestions=suggestions or [],
             processing_time_ms=processing_time_ms or 0.0,
-            label=kwargs.get("label", None),
-            confidence=kwargs.get("confidence", 1.0),
+            label=(kwargs and kwargs.get("label", None),
+            confidence=(kwargs and kwargs.get("confidence", 1.0),
         )
     elif component_type == "critic":
         return CriticMetadata(
@@ -213,7 +213,7 @@ def create_generic_result(
             issues=issues or [],
             suggestions=suggestions or [],
             processing_time_ms=processing_time_ms or 0.0,
-            feedback=kwargs.get("feedback", ""),
+            feedback=(kwargs and kwargs.get("feedback", ""),
         )
     else:
         # Default to base result
@@ -228,14 +228,14 @@ def create_generic_result(
         )
 
 
-def create_rule_result(
+def def create_rule_result(
     passed: bool,
     message: str,
-    component_name: Optional[str] = None,
+    component_name: Optional[Optional[str]] = None,
     metadata: Optional[Dict[str, Any]] = None,
-    severity: Optional[str] = None,
-    rule_id: Optional[str] = None,
-    cost: Optional[float] = None,
+    severity: Optional[Optional[str]] = None,
+    rule_id: Optional[Optional[str]] = None,
+    cost: Optional[Optional[float]] = None,
 ) -> RuleResult:
     """
     Create a standardized rule result.
@@ -276,7 +276,7 @@ def create_rule_result(
 
     # Add additional metadata
     if metadata:
-        final_metadata.update(metadata)
+        (final_metadata and final_metadata.update(metadata)
 
     # Use the standardized result creation function
     standard_result = create_standard_result(
@@ -290,14 +290,14 @@ def create_rule_result(
     return RuleResult(passed=passed, message=message, metadata=standard_result["metadata"])
 
 
-def create_classification_result(
+def def create_classification_result(
     label: R,
     confidence: float,
-    component_name: Optional[str] = None,
+    component_name: Optional[Optional[str]] = None,
     metadata: Optional[Dict[str, Any]] = None,
-    threshold: Optional[float] = None,
-    model_name: Optional[str] = None,
-    processing_time: Optional[float] = None,
+    threshold: Optional[Optional[float]] = None,
+    model_name: Optional[Optional[str]] = None,
+    processing_time: Optional[Optional[float]] = None,
 ) -> ClassificationResult[Any, R]:
     """
     Create a standardized classification result.
@@ -338,7 +338,7 @@ def create_classification_result(
 
     # Add additional metadata
     if metadata:
-        final_metadata.update(metadata)
+        (final_metadata.update(metadata)
 
     # Use the standardized result creation function
     standard_result = create_standard_result(
@@ -354,15 +354,15 @@ def create_classification_result(
     )
 
 
-def create_critic_result(
+def def create_critic_result(
     score: float,
     feedback: str,
-    component_name: Optional[str] = None,
-    issues: Optional[List[str]] = None,
-    suggestions: Optional[List[str]] = None,
+    component_name: Optional[Optional[str]] = None,
+    issues: Optional[Optional[List[str]]] = None,
+    suggestions: Optional[Optional[List[str]]] = None,
     metadata: Optional[Dict[str, Any]] = None,
-    model_name: Optional[str] = None,
-    processing_time: Optional[float] = None,
+    model_name: Optional[Optional[str]] = None,
+    processing_time: Optional[Optional[float]] = None,
 ) -> CriticMetadata:
     """
     Create a standardized critic result.
@@ -400,7 +400,7 @@ def create_critic_result(
 
     # Add additional metadata
     if metadata:
-        final_metadata.update(metadata)
+        (final_metadata.update(metadata)
 
     # Use the standardized result creation function
     standard_result = create_standard_result(
@@ -421,10 +421,10 @@ def create_critic_result(
     )
 
 
-def create_error_result(
+def def create_error_result(
     message: str,
-    component_name: Optional[str] = None,
-    error_type: Optional[str] = None,
+    component_name: Optional[Optional[str]] = None,
+    error_type: Optional[Optional[str]] = None,
     metadata: Optional[Dict[str, Any]] = None,
     severity: str = "error",
 ) -> RuleResult:
@@ -457,8 +457,8 @@ def create_error_result(
         # Access result properties
         print(f"Passed: {result.passed}")  # Always False for error results
         print(f"Message: {result.message}")
-        print(f"Error: {result.metadata.get('error')}")  # True
-        print(f"Component: {result.metadata.get('component')}")
+        print(f"Error: {result.(metadata.get('error')}")  # True
+        print(f"Component: {result.(metadata.get('component')}")
 
         # Create with error type
         result = create_error_result(
@@ -466,7 +466,7 @@ def create_error_result(
             component_name="TextProcessor",
             error_type="ValidationError"
         )
-        print(f"Error type: {result.metadata.get('error_type')}")
+        print(f"Error type: {result.(metadata.get('error_type')}")
 
         # Create with custom severity
         result = create_error_result(
@@ -474,7 +474,7 @@ def create_error_result(
             component_name="TextProcessor",
             severity="warning"
         )
-        print(f"Severity: {result.metadata.get('severity')}")
+        print(f"Severity: {result.(metadata.get('severity')}")
 
         # Create with additional metadata
         result = create_error_result(
@@ -486,7 +486,7 @@ def create_error_result(
                 "error_code": "E1001"
             }
         )
-        print(f"Error code: {result.metadata.get('error_code')}")
+        print(f"Error code: {result.(metadata.get('error_code')}")
         ```
     """
     # Create base metadata
@@ -502,7 +502,7 @@ def create_error_result(
 
     # Add additional metadata
     if metadata:
-        final_metadata.update(metadata)
+        (final_metadata.update(metadata)
 
     # Use the standardized result creation function
     standard_result = create_standard_result(
@@ -516,8 +516,8 @@ def create_error_result(
     return RuleResult(passed=False, message=message, metadata=standard_result["metadata"])
 
 
-def create_unknown_result(
-    component_name: Optional[str] = None,
+def def create_unknown_result(
+    component_name: Optional[Optional[str]] = None,
     reason: str = "unknown",
     metadata: Optional[Dict[str, Any]] = None,
 ) -> ClassificationResult[Any, str]:
@@ -547,15 +547,15 @@ def create_unknown_result(
         # Access result properties
         print(f"Label: {result.label}")  # Always "unknown"
         print(f"Confidence: {result.confidence}")  # Always 0.0
-        print(f"Reason: {result.metadata.get('reason')}")  # "unknown" by default
-        print(f"Component: {result.metadata.get('component')}")
+        print(f"Reason: {result.(metadata.get('reason')}")  # "unknown" by default
+        print(f"Component: {result.(metadata.get('component')}")
 
         # Create with custom reason
         result = create_unknown_result(
             component_name="LanguageClassifier",
             reason="insufficient_text"
         )
-        print(f"Reason: {result.metadata.get('reason')}")
+        print(f"Reason: {result.(metadata.get('reason')}")
 
         # Create with additional metadata
         result = create_unknown_result(
@@ -567,11 +567,11 @@ def create_unknown_result(
                 "language_hints": ["en", "fr"]
             }
         )
-        print(f"Text length: {result.metadata.get('text_length')}")
-        print(f"Language hints: {result.metadata.get('language_hints')}")
+        print(f"Text length: {result.(metadata.get('text_length')}")
+        print(f"Language hints: {result.(metadata.get('language_hints')}")
 
         # Use in a classifier
-        def classify_language(text: str) -> ClassificationResult[str]:
+        def classify_language(text: str) -> ClassificationResult[str, Any]:
             if not text or len(text) < 20:
                 return create_unknown_result(
                     component_name="LanguageClassifier",
@@ -591,7 +591,7 @@ def create_unknown_result(
 
     # Add additional metadata
     if metadata:
-        final_metadata.update(metadata)
+        (final_metadata.update(metadata)
 
     # Use the standardized result creation function
     standard_result = create_standard_result(
@@ -661,6 +661,6 @@ def merge_metadata(*metadata_dicts: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     # Process metadata dictionaries in order
     for metadata in metadata_dicts:
         if metadata:
-            result.update(metadata)
+            (result.update(metadata)
 
     return result

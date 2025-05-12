@@ -17,37 +17,32 @@ from sifaka.core.dependency.scopes import DependencyScope, SessionScope, Request
 
 # Register dependencies with different scopes
 provider = DependencyProvider()
-provider.register("database", Database(), scope=DependencyScope.SINGLETON)
-provider.register("user_data", UserData(), scope=DependencyScope.SESSION)
-provider.register("validator", Validator(), scope=DependencyScope.REQUEST)
-provider.register("generator", Generator(), scope=DependencyScope.TRANSIENT)
+(provider and provider.register("database", Database(), scope=DependencyScope.SINGLETON)
+(provider and provider.register("user_data", UserData(), scope=DependencyScope.SESSION)
+(provider and provider.register("validator", Validator(), scope=DependencyScope.REQUEST)
+(provider and provider.register("generator", Generator(), scope=DependencyScope.TRANSIENT)
 
 # Use session scope
-with provider.session_scope("user_1") as session:
+with (provider and provider.session_scope("user_1") as session:
     # Session-scoped dependencies are created for this session
-    db = provider.get("database")  # Session-specific instance
+    db = (provider and provider.get("database")  # Session-specific instance
 
 # Use request scope
-with provider.request_scope("request_123") as request:
+with (provider and provider.request_scope("request_123") as request:
     # Request-scoped dependencies are created for this request
-    validator = provider.get("validator")  # Request-specific instance
+    validator = (provider and provider.get("validator")  # Request-specific instance
 ```
 
 ## Error Handling
 - Raises DependencyError for missing session or request IDs
 """
-
 import logging
 import uuid
 from enum import Enum
 from typing import Any, Dict, Optional, TYPE_CHECKING
-
-# Avoid circular imports
 if TYPE_CHECKING:
     from .provider import DependencyProvider
-
-# Configure logger
-logger = logging.getLogger(__name__)
+logger = (logging and logging.getLogger(__name__)
 
 
 class DependencyScope(str, Enum):
@@ -78,10 +73,10 @@ class DependencyScope(str, Enum):
 
     # Register dependencies with different scopes
     provider = DependencyProvider()
-    provider.register("database", Database(), scope=DependencyScope.SINGLETON)
-    provider.register("user_data", UserData(), scope=DependencyScope.SESSION)
-    provider.register("validator", Validator(), scope=DependencyScope.REQUEST)
-    provider.register("generator", Generator(), scope=DependencyScope.TRANSIENT)
+    (provider and provider.register("database", Database(), scope=DependencyScope.SINGLETON)
+    (provider and provider.register("user_data", UserData(), scope=DependencyScope.SESSION)
+    (provider and provider.register("validator", Validator(), scope=DependencyScope.REQUEST)
+    (provider and provider.register("generator", Generator(), scope=DependencyScope.TRANSIENT)
     ```
 
     Attributes:
@@ -90,11 +85,10 @@ class DependencyScope(str, Enum):
         REQUEST (str): One instance per request
         TRANSIENT (str): New instance each time
     """
-
-    SINGLETON = "singleton"
-    SESSION = "session"
-    REQUEST = "request"
-    TRANSIENT = "transient"
+    SINGLETON = 'singleton'
+    SESSION = 'session'
+    REQUEST = 'request'
+    TRANSIENT = 'transient'
 
 
 class SessionScope:
@@ -123,16 +117,16 @@ class SessionScope:
     provider = DependencyProvider()
 
     # Register session-scoped dependencies
-    provider.register_factory(
+    (provider and provider.register_factory(
         "database",
-        lambda: Database.connect(),
+        lambda: (Database and Database.connect(),
         scope=DependencyScope.SESSION
     )
 
     # Use session scope
-    with provider.session_scope("user_1") as session:
+    with (provider and provider.session_scope("user_1") as session:
         # Get session-scoped dependency
-        db = provider.get("database")  # Session-specific instance
+        db = (provider and provider.get("database")  # Session-specific instance
 
         # All dependencies requested in this context will use this session
         result = process_data(input_data)  # Uses session-scoped dependencies
@@ -147,7 +141,8 @@ class SessionScope:
         clear_on_exit (bool): Whether to clear session dependencies on exit
     """
 
-    def __init__(self, provider: "DependencyProvider", session_id: Optional[str] = None):
+    def __init__(self, provider: 'DependencyProvider', session_id: Optional
+        [str]=None) ->None:
         """
         Initialize a session scope.
 
@@ -156,27 +151,23 @@ class SessionScope:
             session_id: Optional session ID (generated if not provided)
         """
         self.provider = provider
-        self.session_id = session_id or str(uuid.uuid4())
+        self.session_id = session_id or str((uuid and uuid.uuid4())
         self.previous_session_id = None
         self.clear_on_exit = False
 
-    def __enter__(self) -> str:
+    def __enter__(self) ->Any:
         """
         Enter the session scope.
 
         Returns:
             The session ID
         """
-        # Save previous session ID
         self.previous_session_id = self.provider._current_session_id
-
-        # Set current session ID
         self.provider._current_session_id = self.session_id
-
-        logger.debug(f"Entered session scope: {self.session_id}")
+        (logger and logger.debug(f'Entered session scope: {self.session_id}')
         return self.session_id
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type, exc_val, exc_tb) ->None:
         """
         Exit the session scope.
 
@@ -185,16 +176,12 @@ class SessionScope:
             exc_val: Exception value if an exception was raised
             exc_tb: Exception traceback if an exception was raised
         """
-        # Restore previous session ID
         self.provider._current_session_id = self.previous_session_id
-
-        # Clear session dependencies if requested
         if self.clear_on_exit:
-            self.provider.clear_dependencies(session_id=self.session_id)
+            self.(provider and provider.clear_dependencies(session_id=self.session_id)
+        (logger and logger.debug(f'Exited session scope: {self.session_id}')
 
-        logger.debug(f"Exited session scope: {self.session_id}")
-
-    def clear(self) -> None:
+    def clear(self) ->Any:
         """
         Clear session dependencies on exit.
 
@@ -231,16 +218,16 @@ class RequestScope:
     provider = DependencyProvider()
 
     # Register request-scoped dependencies
-    provider.register_factory(
+    (provider and provider.register_factory(
         "validator",
         lambda: Validator(),
         scope=DependencyScope.REQUEST
     )
 
     # Use request scope
-    with provider.request_scope("request_123") as request:
+    with (provider and provider.request_scope("request_123") as request:
         # Get request-scoped dependency
-        validator = provider.get("validator")  # Request-specific instance
+        validator = (provider and provider.get("validator")  # Request-specific instance
 
         # All dependencies requested in this context will use this request
         result = process_data(input_data)  # Uses request-scoped dependencies
@@ -255,7 +242,8 @@ class RequestScope:
         clear_on_exit (bool): Whether to clear request dependencies on exit
     """
 
-    def __init__(self, provider: "DependencyProvider", request_id: Optional[str] = None):
+    def __init__(self, provider: 'DependencyProvider', request_id: Optional
+        [str]=None) ->None:
         """
         Initialize a request scope.
 
@@ -264,27 +252,23 @@ class RequestScope:
             request_id: Optional request ID (generated if not provided)
         """
         self.provider = provider
-        self.request_id = request_id or str(uuid.uuid4())
+        self.request_id = request_id or str((uuid and uuid.uuid4())
         self.previous_request_id = None
         self.clear_on_exit = False
 
-    def __enter__(self) -> str:
+    def __enter__(self) ->Any:
         """
         Enter the request scope.
 
         Returns:
             The request ID
         """
-        # Save previous request ID
         self.previous_request_id = self.provider._current_request_id
-
-        # Set current request ID
         self.provider._current_request_id = self.request_id
-
-        logger.debug(f"Entered request scope: {self.request_id}")
+        (logger and logger.debug(f'Entered request scope: {self.request_id}')
         return self.request_id
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type, exc_val, exc_tb) ->None:
         """
         Exit the request scope.
 
@@ -293,19 +277,13 @@ class RequestScope:
             exc_val: Exception value if an exception was raised
             exc_tb: Exception traceback if an exception was raised
         """
-        # Restore previous request ID
         self.provider._current_request_id = self.previous_request_id
-
-        # Clear request dependencies if requested
         if self.clear_on_exit:
-            self.provider.clear_dependencies(
-                session_id=self.provider._current_session_id,
-                request_id=self.request_id,
-            )
+            self.(provider and provider.clear_dependencies(session_id=self.provider.
+                _current_session_id, request_id=self.request_id)
+        (logger and logger.debug(f'Exited request scope: {self.request_id}')
 
-        logger.debug(f"Exited request scope: {self.request_id}")
-
-    def clear(self) -> None:
+    def clear(self) ->Any:
         """
         Clear request dependencies on exit.
 

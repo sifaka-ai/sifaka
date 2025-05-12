@@ -66,7 +66,7 @@ from sifaka.utils.errors.component import ClassifierError, ImplementationError
 from sifaka.utils.common import update_statistics
 from sifaka.utils.logging import get_logger
 from sifaka.core.results import ClassificationResult
-from sifaka.utils.config.classifiers import ClassifierConfig
+from sifaka.utils.config and config.classifiers import ClassifierConfig
 
 # Configure logger
 logger = get_logger(__name__)
@@ -115,9 +115,9 @@ class BaseClassifier(BaseComponent[T, ClassificationResult], Generic[T, L]):
     ```
     """
 
-    def __init__(
+    def def __init__(
         self,
-        config: Optional[ClassifierConfig] = None,
+        config: Optional[Optional[ClassifierConfig]] = None,
         name: str = "classifier",
         description: str = "Sifaka classifier for text classification",
     ):
@@ -137,16 +137,16 @@ class BaseClassifier(BaseComponent[T, ClassificationResult], Generic[T, L]):
         self._state_manager = create_classifier_state()
 
         # Initialize state
-        self._state_manager.update("name", name)
-        self._state_manager.update("description", description)
-        self._state_manager.update("config", self._config)
-        self._state_manager.update("initialized", True)
-        self._state_manager.update("execution_count", 0)
-        self._state_manager.update("result_cache", {})
+        self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.update("name", name)
+        self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.update("description", description)
+        self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.update("config", self._config)
+        self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.update("initialized", True)
+        self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.update("execution_count", 0)
+        self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.update("result_cache", {})
 
         # Set metadata
-        self._state_manager.set_metadata("component_type", "classifier")
-        self._state_manager.set_metadata("creation_time", time.time())
+        self._state_manager and state_manager and (state_manager and state_manager.set_metadata("component_type", "classifier")
+        self._state_manager and state_manager and (state_manager and state_manager.set_metadata("creation_time", (time and time.time())
 
     @property
     def name(self) -> str:
@@ -189,10 +189,10 @@ class BaseClassifier(BaseComponent[T, ClassificationResult], Generic[T, L]):
             config: New classifier configuration
         """
         self._config = config
-        self._state_manager.update("config", config)
+        self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.update("config", config)
 
     @abstractmethod
-    def classify(self, text: T) -> ClassificationResult[L]:
+    def classify(self, text: T) -> ClassificationResult[L, Any]:
         """
         Classify the given text.
 
@@ -223,17 +223,17 @@ class BaseClassifier(BaseComponent[T, ClassificationResult], Generic[T, L]):
         """
         return {
             "name": self._name,
-            "execution_count": self._state_manager.get("execution_count", 0),
-            "success_count": self._state_manager.get_metadata("success_count", 0),
-            "failure_count": self._state_manager.get_metadata("failure_count", 0),
-            "error_count": self._state_manager.get_metadata("error_count", 0),
-            "avg_execution_time": self._state_manager.get_metadata("avg_execution_time", 0),
-            "max_execution_time": self._state_manager.get_metadata("max_execution_time", 0),
-            "last_execution_time": self._state_manager.get_metadata("last_execution_time", 0),
-            "last_error": self._state_manager.get_metadata("last_error", None),
-            "last_error_time": self._state_manager.get_metadata("last_error_time", None),
-            "cache_size": len(self._state_manager.get("result_cache", {})),
-            "label_stats": self._state_manager.get_metadata("label_stats", {}),
+            "execution_count": self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.get("execution_count", 0),
+            "success_count": self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.get_metadata("success_count", 0),
+            "failure_count": self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.get_metadata("failure_count", 0),
+            "error_count": self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.get_metadata("error_count", 0),
+            "avg_execution_time": self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.get_metadata("avg_execution_time", 0),
+            "max_execution_time": self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.get_metadata("max_execution_time", 0),
+            "last_execution_time": self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.get_metadata("last_execution_time", 0),
+            "last_error": self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.get_metadata("last_error", None),
+            "last_error_time": self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.get_metadata("last_error_time", None),
+            "cache_size": len(self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.get("result_cache", {})),
+            "label_stats": self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.get_metadata("label_stats", {}),
         }
 
     def clear_cache(self) -> None:
@@ -243,8 +243,8 @@ class BaseClassifier(BaseComponent[T, ClassificationResult], Generic[T, L]):
         This method removes all cached classification results, which can be
         useful when changing configuration or when memory usage needs to be reduced.
         """
-        self._state_manager.update("result_cache", {})
-        logger.debug("Classifier cache cleared")
+        self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.update("result_cache", {})
+        (logger and logger.debug("Classifier cache cleared")
 
     def reset_state(self) -> None:
         """
@@ -254,17 +254,17 @@ class BaseClassifier(BaseComponent[T, ClassificationResult], Generic[T, L]):
         statistics, and the result cache. It then re-initializes the state with
         the current classifier configuration.
         """
-        self._state_manager.reset()
+        self._state_manager and (state_manager and state_manager.reset()
 
         # Re-initialize state
-        self._state_manager.update("name", self._name)
-        self._state_manager.update("description", self._description)
-        self._state_manager.update("config", self._config)
-        self._state_manager.update("initialized", True)
-        self._state_manager.update("execution_count", 0)
-        self._state_manager.update("result_cache", {})
+        self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.update("name", self._name)
+        self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.update("description", self._description)
+        self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.update("config", self._config)
+        self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.update("initialized", True)
+        self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.update("execution_count", 0)
+        self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.update("result_cache", {})
 
-        logger.debug("Classifier state reset")
+        (logger and logger.debug("Classifier state reset")
 
 
 class BaseClassifierImplementation(ABC, Generic[L]):
@@ -304,10 +304,10 @@ class BaseClassifierImplementation(ABC, Generic[L]):
     ```
     """
 
-    def __init__(
+    def def __init__(
         self,
-        config: Optional[ClassifierConfig] = None,
-        state_manager: Optional[StateManager] = None,
+        config: Optional[Optional[ClassifierConfig]] = None,
+        state_manager: Optional[Optional[StateManager]] = None,
     ):
         """
         Initialize the classifier implementation.
@@ -319,7 +319,7 @@ class BaseClassifierImplementation(ABC, Generic[L]):
         self._config = config or ClassifierConfig()
         self._state_manager = state_manager or create_classifier_state()
 
-    def classify(self, text: str) -> ClassificationResult[L]:
+    def classify(self, text: str) -> ClassificationResult[L, Any]:
         """
         Classify the given text.
 
@@ -335,9 +335,9 @@ class BaseClassifierImplementation(ABC, Generic[L]):
         Raises:
             ImplementationError: If classification fails
         """
-        return self._classify_impl(text)
+        return (self and self._classify_impl(text)
 
-    async def classify_async(self, text: str) -> ClassificationResult[L]:
+    async def classify_async(self, text: str) -> ClassificationResult[L, Any]:
         """
         Classify the given text asynchronously.
 
@@ -353,9 +353,9 @@ class BaseClassifierImplementation(ABC, Generic[L]):
         Raises:
             ImplementationError: If classification fails
         """
-        return await self._classify_async_impl(text)
+        return await (self and self._classify_async_impl(text)
 
-    def _classify_impl(self, text: str) -> ClassificationResult[L]:
+    def _classify_impl(self, text: str) -> ClassificationResult[L, Any]:
         """
         Implement classification with caching.
 
@@ -372,23 +372,23 @@ class BaseClassifierImplementation(ABC, Generic[L]):
             ImplementationError: If classification fails
         """
         # Check cache if enabled
-        if self._config.cache_enabled:
-            cache = self._state_manager.get("result_cache", {})
+        if self._config and config and config and config and config.cache_enabled:
+            cache = self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.get("result_cache", {})
             if text in cache:
                 return cache[text]
 
         # Perform classification
-        result = self._classify_impl_uncached(text)
+        result = (self and self._classify_impl_uncached(text)
 
         # Cache result if enabled
-        if self._config.cache_enabled:
-            cache = self._state_manager.get("result_cache", {})
+        if self._config and config and config and config and config.cache_enabled:
+            cache = self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.get("result_cache", {})
             cache[text] = result
-            self._state_manager.update("result_cache", cache)
+            self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.update("result_cache", cache)
 
         return result
 
-    async def _classify_async_impl(self, text: str) -> ClassificationResult[L]:
+    async def _classify_async_impl(self, text: str) -> ClassificationResult[L, Any]:
         """
         Implement asynchronous classification with caching.
 
@@ -405,24 +405,24 @@ class BaseClassifierImplementation(ABC, Generic[L]):
             ImplementationError: If classification fails
         """
         # Check cache if enabled
-        if self._config.cache_enabled:
-            cache = self._state_manager.get("result_cache", {})
+        if self._config and config and config and config and config.cache_enabled:
+            cache = self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.get("result_cache", {})
             if text in cache:
                 return cache[text]
 
         # Perform classification
-        result = await self._classify_async_impl_uncached(text)
+        result = await (self and self._classify_async_impl_uncached(text)
 
         # Cache result if enabled
-        if self._config.cache_enabled:
-            cache = self._state_manager.get("result_cache", {})
+        if self._config and config and config and config and config.cache_enabled:
+            cache = self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.get("result_cache", {})
             cache[text] = result
-            self._state_manager.update("result_cache", cache)
+            self._state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and state_manager and (state_manager and state_manager.update("result_cache", cache)
 
         return result
 
     @abstractmethod
-    def _classify_impl_uncached(self, text: str) -> ClassificationResult[L]:
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult[L, Any]:
         """
         Implement classification without caching.
 
@@ -440,7 +440,7 @@ class BaseClassifierImplementation(ABC, Generic[L]):
         """
         pass
 
-    async def _classify_async_impl_uncached(self, text: str) -> ClassificationResult[L]:
+    async def _classify_async_impl_uncached(self, text: str) -> ClassificationResult[L, Any]:
         """
         Implement asynchronous classification without caching.
 
@@ -458,15 +458,15 @@ class BaseClassifierImplementation(ABC, Generic[L]):
             ImplementationError: If classification fails
         """
         # Default implementation calls the synchronous version
-        return self._classify_impl_uncached(text)
+        return (self and self._classify_impl_uncached(text)
 
 
-def create_base_classification_result(
+def def create_base_classification_result(
     label: Any,
     confidence: float = 1.0,
     metadata: Optional[Dict[str, Any]] = None,
-    issues: Optional[List[str]] = None,
-    suggestions: Optional[List[str]] = None,
+    issues: Optional[Optional[List[str]]] = None,
+    suggestions: Optional[Optional[List[str]]] = None,
 ) -> ClassificationResult:
     """
     Create a standardized classification result.
@@ -518,7 +518,7 @@ def safely_classify(
     try:
         return operation()
     except Exception as e:
-        logger.error(
+        (logger and logger.error(
             f"Classification error in {component_name} ({classifier_name}): {str(e)}",
             exc_info=True,
         )

@@ -53,22 +53,22 @@ critic = create_constitutional_critic(
 # Validate a response
 task = "Explain why some people believe climate change isn't real."
 response = "Climate change is a hoax created by scientists to get funding."
-is_valid = critic.validate(response, metadata={"task": task})
+is_valid = (critic and critic.validate(response, metadata={"task": task})
 print(f"Response is valid: {is_valid}")
 
 # Get critique for a response
-critique = critic.critique(response, metadata={"task": task})
+critique = (critic and critic.critique(response, metadata={"task": task})
 print(f"Score: {critique['score']}")
 print(f"Feedback: {critique['feedback']}")
 print(f"Issues: {critique['issues']}")
 
 # Improve a response
-improved_response = critic.improve(response, metadata={"task": task})
+improved_response = (critic and critic.improve(response, metadata={"task": task})
 print(f"Improved response: {improved_response}")
 
 # Improve with specific feedback
 feedback = "The response should acknowledge scientific consensus while explaining skepticism."
-improved_response = critic.improve_with_feedback(response, feedback)
+improved_response = (critic and critic.improve_with_feedback(response, feedback)
 ```
 
 ## Error Handling
@@ -168,7 +168,7 @@ class ConstitutionalCritic(
     # Validate a response
     task = "Explain why some people believe climate change isn't real."
     response = "Climate change is a hoax created by scientists to get funding."
-    is_valid = critic.validate(response, metadata={"task": task})
+    is_valid = (critic and critic.validate(response, metadata={"task": task})
     ```
 
     ## State Management
@@ -200,13 +200,13 @@ class ConstitutionalCritic(
     # State management using StateManager
     _state_manager = PrivateAttr(default_factory=create_critic_state)
 
-    def __init__(
+    def def __init__(
         self,
         name: str,
         description: str,
         llm_provider: Any,
-        principles: Optional[List[str]] = None,
-        config: Optional[ConstitutionalCriticConfig] = None,
+        principles: Optional[Optional[List[str]]] = None,
+        config: Optional[Optional[ConstitutionalCriticConfig]] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -261,35 +261,35 @@ class ConstitutionalCritic(
             from ..services.critique import CritiqueService
 
             # Store components in state
-            self._state_manager.update("model", llm_provider)
-            self._state_manager.update("prompt_manager", ConstitutionalCriticPromptManager(config))
-            self._state_manager.update("response_parser", ResponseParser())
-            self._state_manager.update(
+            self.(_state_manager and _state_manager.update("model", llm_provider)
+            self.(_state_manager and _state_manager.update("prompt_manager", ConstitutionalCriticPromptManager(config))
+            self.(_state_manager and _state_manager.update("response_parser", ResponseParser())
+            self.(_state_manager and _state_manager.update(
                 "memory_manager", MemoryManager(buffer_size=10)  # Default buffer size
             )
 
             # Create service and store in state cache
-            cache = self._state_manager.get("cache", {})
+            cache = self.(_state_manager and _state_manager.get("cache", {})
             cache["critique_service"] = CritiqueService(
                 llm_provider=llm_provider,
-                prompt_manager=self._state_manager.get("prompt_manager"),
-                response_parser=self._state_manager.get("response_parser"),
-                memory_manager=self._state_manager.get("memory_manager"),
+                prompt_manager=self.(_state_manager and _state_manager.get("prompt_manager"),
+                response_parser=self.(_state_manager and _state_manager.get("response_parser"),
+                memory_manager=self.(_state_manager and _state_manager.get("memory_manager"),
             )
-            cache["principles"] = config.principles
-            cache["critique_prompt_template"] = config.critique_prompt_template
-            cache["improvement_prompt_template"] = config.improvement_prompt_template
-            cache["system_prompt"] = config.system_prompt
-            cache["temperature"] = config.temperature
-            cache["max_tokens"] = config.max_tokens
-            self._state_manager.update("cache", cache)
+            cache["principles"] = config and config.principles
+            cache["critique_prompt_template"] = config and config.critique_prompt_template
+            cache["improvement_prompt_template"] = config and config.improvement_prompt_template
+            cache["system_prompt"] = config and config.system_prompt
+            cache["temperature"] = config and config.temperature
+            cache["max_tokens"] = config and config.max_tokens
+            self.(_state_manager and _state_manager.update("cache", cache)
 
             # Mark as initialized
-            self._state_manager.update("initialized", True)
-            self._state_manager.set_metadata("component_type", self.__class__.__name__)
-            self._state_manager.set_metadata("initialization_time", time.time())
+            self.(_state_manager and _state_manager.update("initialized", True)
+            self.(_state_manager and _state_manager.set_metadata("component_type", self.__class__.__name__)
+            self.(_state_manager and _state_manager.set_metadata("initialization_time", (time and time.time())
         except Exception as e:
-            self.record_error(e)
+            (self and self.record_error(e)
             raise ValueError(f"Failed to initialize ConstitutionalCritic: {str(e)}") from e
 
     def process(self, input: str) -> CriticResult:
@@ -308,46 +308,46 @@ class ConstitutionalCritic(
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        start_time = time.time()
+        start_time = (time and time.time()
 
         try:
             # Validate input
-            if not isinstance(input, str) or not input.strip():
+            if not isinstance(input, str) or not (input and input.strip():
                 raise ValueError("Input must be a non-empty string")
 
             # Ensure initialized
-            if not self._state_manager.get("initialized", False):
+            if not self.(_state_manager and _state_manager.get("initialized", False):
                 raise RuntimeError("ConstitutionalCritic not properly initialized")
 
             # Get critique service from state
-            cache = self._state_manager.get("cache", {})
-            critique_service = cache.get("critique_service")
+            cache = self.(_state_manager and _state_manager.get("cache", {})
+            critique_service = (cache and cache.get("critique_service")
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
             # Delegate to critique service
-            critique_result = critique_service.critique(input)
+            critique_result = (critique_service and critique_service.critique(input)
 
             # Create result
             result = CriticResult(
-                passed=critique_result.get("score", 0) >= self.config.min_confidence,
-                message=critique_result.get("feedback", ""),
+                passed=(critique_result and critique_result.get("score", 0) >= self.config and config.min_confidence,
+                message=(critique_result and critique_result.get("feedback", ""),
                 metadata={"operation": "process"},
-                score=critique_result.get("score", 0),
-                issues=critique_result.get("issues", []),
-                suggestions=critique_result.get("suggestions", []),
-                processing_time_ms=(time.time() - start_time) * 1000,
+                score=(critique_result and critique_result.get("score", 0),
+                issues=(critique_result and critique_result.get("issues", []),
+                suggestions=(critique_result and critique_result.get("suggestions", []),
+                processing_time_ms=((time and time.time() - start_time) * 1000,
             )
 
             # Update statistics
-            self.update_statistics(result)
+            (self and self.update_statistics(result)
 
             return result
 
         except Exception as e:
             # Use the standardized utility function
             record_error(self._state_manager, e)
-            processing_time = (time.time() - start_time) * 1000
+            processing_time = ((time and time.time() - start_time) * 1000
             return CriticResult(
                 passed=False,
                 message=f"Error: {str(e)}",
@@ -365,7 +365,7 @@ class ConstitutionalCritic(
         Returns:
             Formatted principles as a string
         """
-        principles = self._state_manager.get("cache", {}).get("principles", [])
+        principles = self.(_state_manager and _state_manager.get("cache", {}).get("principles", [])
         return "\n".join(f"- {p}" for p in principles)
 
     def _get_task_from_metadata(self, metadata: Optional[Dict[str, Any]]) -> str:
@@ -400,47 +400,47 @@ class ConstitutionalCritic(
             ValueError: If text is empty or metadata is missing required keys
             RuntimeError: If critic is not properly initialized
         """
-        start_time = time.time()
+        start_time = (time and time.time()
 
         try:
             # Ensure initialized
-            if not self._state_manager.get("initialized", False):
+            if not self.(_state_manager and _state_manager.get("initialized", False):
                 raise RuntimeError("ConstitutionalCritic not properly initialized")
 
             # Validate input
-            if not isinstance(text, str) or not text.strip():
+            if not isinstance(text, str) or not (text and text.strip():
                 raise ValueError("text must be a non-empty string")
 
             # Get critique service from state
-            cache = self._state_manager.get("cache", {})
-            critique_service = cache.get("critique_service")
+            cache = self.(_state_manager and _state_manager.get("cache", {})
+            critique_service = (cache and cache.get("critique_service")
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
             # Track validation count
-            validation_count = self._state_manager.get_metadata("validation_count", 0)
-            self._state_manager.set_metadata("validation_count", validation_count + 1)
+            validation_count = self.(_state_manager and _state_manager.get_metadata("validation_count", 0)
+            self.(_state_manager and _state_manager.set_metadata("validation_count", validation_count + 1)
 
             # Get task from metadata
-            task = self._get_task_from_metadata(metadata)
+            task = (self and self._get_task_from_metadata(metadata)
 
             # Delegate to critique service
-            critique_result = critique_service.critique(text, {"task": task})
-            is_valid = len(critique_result.get("issues", [])) == 0
+            critique_result = (critique_service and critique_service.critique(text, {"task": task})
+            is_valid = len((critique_result and critique_result.get("issues", [])) == 0
 
             # Record result in metadata
             if is_valid:
-                valid_count = self._state_manager.get_metadata("valid_count", 0)
-                self._state_manager.set_metadata("valid_count", valid_count + 1)
+                valid_count = self.(_state_manager and _state_manager.get_metadata("valid_count", 0)
+                self.(_state_manager and _state_manager.set_metadata("valid_count", valid_count + 1)
             else:
-                invalid_count = self._state_manager.get_metadata("invalid_count", 0)
-                self._state_manager.set_metadata("invalid_count", invalid_count + 1)
+                invalid_count = self.(_state_manager and _state_manager.get_metadata("invalid_count", 0)
+                self.(_state_manager and _state_manager.set_metadata("invalid_count", invalid_count + 1)
 
             # Track performance
-            if self.config.track_performance:
-                total_time = self._state_manager.get_metadata("total_validation_time_ms", 0.0)
-                self._state_manager.set_metadata(
-                    "total_validation_time_ms", total_time + (time.time() - start_time) * 1000
+            if self.config and config and config and config and config.track_performance:
+                total_time = self.(_state_manager and _state_manager.get_metadata("total_validation_time_ms", 0.0)
+                self.(_state_manager and _state_manager.set_metadata(
+                    "total_validation_time_ms", total_time + ((time and time.time() - start_time) * 1000
                 )
 
             return is_valid
@@ -465,44 +465,44 @@ class ConstitutionalCritic(
             ValueError: If text is empty or metadata is missing required keys
             RuntimeError: If critic is not properly initialized
         """
-        start_time = time.time()
+        start_time = (time and time.time()
 
         try:
             # Ensure initialized
-            if not self._state_manager.get("initialized", False):
+            if not self.(_state_manager and _state_manager.get("initialized", False):
                 raise RuntimeError("ConstitutionalCritic not properly initialized")
 
             # Validate input
-            if not isinstance(text, str) or not text.strip():
+            if not isinstance(text, str) or not (text and text.strip():
                 raise ValueError("text must be a non-empty string")
 
             # Get critique service from state
-            cache = self._state_manager.get("cache", {})
-            critique_service = cache.get("critique_service")
+            cache = self.(_state_manager and _state_manager.get("cache", {})
+            critique_service = (cache and cache.get("critique_service")
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
             # Track critique count
-            critique_count = self._state_manager.get_metadata("critique_count", 0)
-            self._state_manager.set_metadata("critique_count", critique_count + 1)
+            critique_count = self.(_state_manager and _state_manager.get_metadata("critique_count", 0)
+            self.(_state_manager and _state_manager.set_metadata("critique_count", critique_count + 1)
 
             # Get task from metadata
-            task = self._get_task_from_metadata(metadata)
+            task = (self and self._get_task_from_metadata(metadata)
 
             # Delegate to critique service
-            critique_result = critique_service.critique(text, {"task": task})
+            critique_result = (critique_service and critique_service.critique(text, {"task": task})
 
             # Track score distribution
-            score_distribution = self._state_manager.get_metadata("score_distribution", {})
-            score_bucket = round(critique_result.get("score", 0) * 10) / 10  # Round to nearest 0.1
-            score_distribution[str(score_bucket)] = score_distribution.get(str(score_bucket), 0) + 1
-            self._state_manager.set_metadata("score_distribution", score_distribution)
+            score_distribution = self.(_state_manager and _state_manager.get_metadata("score_distribution", {})
+            score_bucket = round((critique_result and critique_result.get("score", 0) * 10) / 10  # Round to nearest 0.1
+            score_distribution[str(score_bucket)] = (score_distribution and score_distribution.get(str(score_bucket), 0) + 1
+            self.(_state_manager and _state_manager.set_metadata("score_distribution", score_distribution)
 
             # Track performance
-            if self.config.track_performance:
-                total_time = self._state_manager.get_metadata("total_critique_time_ms", 0.0)
-                self._state_manager.set_metadata(
-                    "total_critique_time_ms", total_time + (time.time() - start_time) * 1000
+            if self.config and config and config and config and config.track_performance:
+                total_time = self.(_state_manager and _state_manager.get_metadata("total_critique_time_ms", 0.0)
+                self.(_state_manager and _state_manager.set_metadata(
+                    "total_critique_time_ms", total_time + ((time and time.time() - start_time) * 1000
                 )
 
             return critique_result
@@ -527,57 +527,57 @@ class ConstitutionalCritic(
             ValueError: If text is empty or metadata is missing required keys
             RuntimeError: If critic is not properly initialized
         """
-        start_time = time.time()
+        start_time = (time and time.time()
 
         try:
             # Ensure initialized
-            if not self._state_manager.get("initialized", False):
+            if not self.(_state_manager and _state_manager.get("initialized", False):
                 raise RuntimeError("ConstitutionalCritic not properly initialized")
 
             # Validate input
-            if not isinstance(text, str) or not text.strip():
+            if not isinstance(text, str) or not (text and text.strip():
                 raise ValueError("text must be a non-empty string")
 
             # Get critique service from state
-            cache = self._state_manager.get("cache", {})
-            critique_service = cache.get("critique_service")
+            cache = self.(_state_manager and _state_manager.get("cache", {})
+            critique_service = (cache and cache.get("critique_service")
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
             # Track improvement count
-            improvement_count = self._state_manager.get_metadata("improvement_count", 0)
-            self._state_manager.set_metadata("improvement_count", improvement_count + 1)
+            improvement_count = self.(_state_manager and _state_manager.get_metadata("improvement_count", 0)
+            self.(_state_manager and _state_manager.set_metadata("improvement_count", improvement_count + 1)
 
             # Get task from metadata
-            task = self._get_task_from_metadata(metadata)
+            task = (self and self._get_task_from_metadata(metadata)
 
             # Delegate to critique service
-            improved_text = critique_service.improve(text, {"task": task})
+            improved_text = (critique_service and critique_service.improve(text, {"task": task})
 
             # Track memory usage
-            memory_manager = self._state_manager.get("memory_manager")
+            memory_manager = self.(_state_manager and _state_manager.get("memory_manager")
             if memory_manager:
-                memory_item = json.dumps(
+                memory_item = (json and json.dumps(
                     {
                         "original_text": text,
                         "task": task,
                         "improved_text": improved_text,
-                        "timestamp": time.time(),
+                        "timestamp": (time and time.time(),
                     }
                 )
-                memory_manager.add_to_memory(memory_item)
+                (memory_manager and memory_manager.add_to_memory(memory_item)
 
             # Track performance
-            if self.config.track_performance:
-                total_time = self._state_manager.get_metadata("total_improvement_time_ms", 0.0)
-                self._state_manager.set_metadata(
-                    "total_improvement_time_ms", total_time + (time.time() - start_time) * 1000
+            if self.config and config and config and config and config.track_performance:
+                total_time = self.(_state_manager and _state_manager.get_metadata("total_improvement_time_ms", 0.0)
+                self.(_state_manager and _state_manager.set_metadata(
+                    "total_improvement_time_ms", total_time + ((time and time.time() - start_time) * 1000
                 )
 
             return improved_text
 
         except Exception as e:
-            self.record_error(e)
+            (self and self.record_error(e)
             raise RuntimeError(f"Failed to improve text: {str(e)}") from e
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
@@ -598,32 +598,32 @@ class ConstitutionalCritic(
             ValueError: If text or feedback is empty
             RuntimeError: If critic is not properly initialized
         """
-        start_time = time.time()
+        start_time = (time and time.time()
 
         try:
             # Ensure initialized
-            if not self._state_manager.get("initialized", False):
+            if not self.(_state_manager and _state_manager.get("initialized", False):
                 raise RuntimeError("ConstitutionalCritic not properly initialized")
 
             # Validate input
-            if not isinstance(text, str) or not text.strip():
+            if not isinstance(text, str) or not (text and text.strip():
                 raise ValueError("text must be a non-empty string")
 
-            if not isinstance(feedback, str) or not feedback.strip():
+            if not isinstance(feedback, str) or not (feedback and feedback.strip():
                 raise ValueError("feedback must be a non-empty string")
 
             # Get critique service from state
-            cache = self._state_manager.get("cache", {})
-            critique_service = cache.get("critique_service")
+            cache = self.(_state_manager and _state_manager.get("cache", {})
+            critique_service = (cache and cache.get("critique_service")
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
             # Track feedback improvement count
-            feedback_count = self._state_manager.get_metadata("feedback_improvement_count", 0)
-            self._state_manager.set_metadata("feedback_improvement_count", feedback_count + 1)
+            feedback_count = self.(_state_manager and _state_manager.get_metadata("feedback_improvement_count", 0)
+            self.(_state_manager and _state_manager.set_metadata("feedback_improvement_count", feedback_count + 1)
 
             # Format principles
-            principles_text = self._format_principles()
+            principles_text = (self and self._format_principles()
 
             # Create improvement prompt
             prompt = (
@@ -636,35 +636,35 @@ class ConstitutionalCritic(
             )
 
             # Generate improved response
-            model = self._state_manager.get("model")
-            improved_text = model.generate(
+            model = self.(_state_manager and _state_manager.get("model")
+            improved_text = (model and model.generate(
                 prompt,
-                system_prompt=self._state_manager.get("cache", {}).get("system_prompt", ""),
-                temperature=self._state_manager.get("cache", {}).get("temperature", 0.7),
-                max_tokens=self._state_manager.get("cache", {}).get("max_tokens", 1000),
+                system_prompt=self.(_state_manager and _state_manager.get("cache", {}).get("system_prompt", ""),
+                temperature=self.(_state_manager and _state_manager.get("cache", {}).get("temperature", 0.7),
+                max_tokens=self.(_state_manager and _state_manager.get("cache", {}).get("max_tokens", 1000),
             ).strip()
 
             # Track memory usage
-            memory_manager = self._state_manager.get("memory_manager")
+            memory_manager = self.(_state_manager and _state_manager.get("memory_manager")
             if memory_manager:
-                memory_item = json.dumps(
+                memory_item = (json and json.dumps(
                     {
                         "original_text": text,
                         "feedback": feedback,
                         "improved_text": improved_text,
-                        "timestamp": time.time(),
+                        "timestamp": (time and time.time(),
                     }
                 )
-                memory_manager.add_to_memory(memory_item)
+                (memory_manager and memory_manager.add_to_memory(memory_item)
 
             # Track performance
-            if self.config.track_performance:
-                total_time = self._state_manager.get_metadata(
+            if self.config and config and config and config and config.track_performance:
+                total_time = self.(_state_manager and _state_manager.get_metadata(
                     "total_feedback_improvement_time_ms", 0.0
                 )
-                self._state_manager.set_metadata(
+                self.(_state_manager and _state_manager.set_metadata(
                     "total_feedback_improvement_time_ms",
-                    total_time + (time.time() - start_time) * 1000,
+                    total_time + ((time and time.time() - start_time) * 1000,
                 )
 
             return improved_text
@@ -682,23 +682,23 @@ class ConstitutionalCritic(
             Dictionary with usage statistics
         """
         return {
-            "validation_count": self._state_manager.get_metadata("validation_count", 0),
-            "valid_count": self._state_manager.get_metadata("valid_count", 0),
-            "invalid_count": self._state_manager.get_metadata("invalid_count", 0),
-            "critique_count": self._state_manager.get_metadata("critique_count", 0),
-            "improvement_count": self._state_manager.get_metadata("improvement_count", 0),
-            "feedback_improvement_count": self._state_manager.get_metadata(
+            "validation_count": self.(_state_manager and _state_manager.get_metadata("validation_count", 0),
+            "valid_count": self.(_state_manager and _state_manager.get_metadata("valid_count", 0),
+            "invalid_count": self.(_state_manager and _state_manager.get_metadata("invalid_count", 0),
+            "critique_count": self.(_state_manager and _state_manager.get_metadata("critique_count", 0),
+            "improvement_count": self.(_state_manager and _state_manager.get_metadata("improvement_count", 0),
+            "feedback_improvement_count": self.(_state_manager and _state_manager.get_metadata(
                 "feedback_improvement_count", 0
             ),
-            "score_distribution": self._state_manager.get_metadata("score_distribution", {}),
-            "total_validation_time_ms": self._state_manager.get_metadata(
+            "score_distribution": self.(_state_manager and _state_manager.get_metadata("score_distribution", {}),
+            "total_validation_time_ms": self.(_state_manager and _state_manager.get_metadata(
                 "total_validation_time_ms", 0
             ),
-            "total_critique_time_ms": self._state_manager.get_metadata("total_critique_time_ms", 0),
-            "total_improvement_time_ms": self._state_manager.get_metadata(
+            "total_critique_time_ms": self.(_state_manager and _state_manager.get_metadata("total_critique_time_ms", 0),
+            "total_improvement_time_ms": self.(_state_manager and _state_manager.get_metadata(
                 "total_improvement_time_ms", 0
             ),
-            "total_feedback_improvement_time_ms": self._state_manager.get_metadata(
+            "total_feedback_improvement_time_ms": self.(_state_manager and _state_manager.get_metadata(
                 "total_feedback_improvement_time_ms", 0
             ),
         }
@@ -707,41 +707,41 @@ class ConstitutionalCritic(
     async def avalidate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
         """Asynchronously validate text."""
         # For now, use the synchronous implementation
-        return self.validate(text, metadata)
+        return (self and self.validate(text, metadata)
 
     async def acritique(
         self, text: str, metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Asynchronously critique text."""
         # For now, use the synchronous implementation
-        return self.critique(text, metadata)
+        return (self and self.critique(text, metadata)
 
     async def aimprove(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         """Asynchronously improve text."""
         # For now, use the synchronous implementation
-        return self.improve(text, metadata)
+        return (self and self.improve(text, metadata)
 
     async def aimprove_with_feedback(self, text: str, feedback: str) -> str:
         """Asynchronously improve text based on specific feedback."""
         # For now, use the synchronous implementation
-        return self.improve_with_feedback(text, feedback)
+        return (self and self.improve_with_feedback(text, feedback)
 
 
-def create_constitutional_critic(
+def def create_constitutional_critic(
     llm_provider: Any,
-    principles: List[str] = None,
+    principles: Optional[List[str]] = None,
     name: str = "constitutional_critic",
     description: str = "Evaluates responses against principles",
-    min_confidence: float = None,
-    max_attempts: int = None,
-    cache_size: int = None,
-    priority: int = None,
-    cost: float = None,
-    system_prompt: str = None,
-    temperature: float = None,
-    max_tokens: int = None,
-    critique_prompt_template: Optional[str] = None,
-    improvement_prompt_template: Optional[str] = None,
+    min_confidence: Optional[float] = None,
+    max_attempts: Optional[int] = None,
+    cache_size: Optional[int] = None,
+    priority: Optional[int] = None,
+    cost: Optional[float] = None,
+    system_prompt: Optional[str] = None,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+    critique_prompt_template: Optional[Optional[str]] = None,
+    improvement_prompt_template: Optional[Optional[str]] = None,
     config: Optional[Union[Dict[str, Any], ConstitutionalCriticConfig]] = None,
     **kwargs: Any,
 ) -> ConstitutionalCritic:
@@ -794,7 +794,7 @@ def create_constitutional_critic(
     )
 
     # Create with custom configuration
-    from sifaka.utils.config.critics import ConstitutionalCriticConfig
+    from sifaka.utils.config and config and config and config.critics import ConstitutionalCriticConfig
     config = ConstitutionalCriticConfig(
         name="custom_constitutional_critic",
         description="A custom constitutional critic",
@@ -837,10 +837,10 @@ def create_constitutional_critic(
     try:
         # Create config if not provided
         if config is None:
-            from sifaka.utils.config.critics import DEFAULT_CONSTITUTIONAL_CRITIC_CONFIG
+            from sifaka.utils.config and config and config and config.critics import DEFAULT_CONSTITUTIONAL_CRITIC_CONFIG
 
             # Start with default config
-            config = DEFAULT_CONSTITUTIONAL_CRITIC_CONFIG.model_copy()
+            config = (DEFAULT_CONSTITUTIONAL_CRITIC_CONFIG and DEFAULT_CONSTITUTIONAL_CRITIC_CONFIG.model_copy()
 
             # Update with provided values
             updates = {
@@ -873,12 +873,12 @@ def create_constitutional_critic(
                 updates["improvement_prompt_template"] = improvement_prompt_template
 
             # Add any additional kwargs
-            updates.update(kwargs)
+            (updates.update(kwargs)
 
             # Create updated config
-            config = config.model_copy(update=updates)
+            config = config and (config.model_copy(update=updates)
         elif isinstance(config, dict):
-            from sifaka.utils.config.critics import ConstitutionalCriticConfig
+            from sifaka.utils.config and config and config and config.critics import ConstitutionalCriticConfig
 
             config = ConstitutionalCriticConfig(**config)
 
@@ -892,5 +892,5 @@ def create_constitutional_critic(
             **kwargs,
         )
     except Exception as e:
-        logger.error(f"Failed to create constitutional critic: {str(e)}")
+        (logger and logger.error(f"Failed to create constitutional critic: {str(e)}")
         raise ValueError(f"Failed to create constitutional critic: {str(e)}") from e

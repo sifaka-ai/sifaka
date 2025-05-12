@@ -75,27 +75,17 @@ normalized_text = replace_pattern(
 is_email = match_pattern("user@example.com", EMAIL_PATTERN)
 ```
 """
-
 import fnmatch
 import re
 from functools import lru_cache
 from typing import Any, Dict, List, Mapping, Optional, Pattern, Set, Tuple, Union, cast
-
 from sifaka.utils.errors.base import ValidationError
-
-
-# Pattern cache for compiled regex patterns
 _pattern_cache: Dict[str, Pattern] = {}
 
 
-def compile_pattern(
-    pattern: str,
-    case_sensitive: bool = True,
-    multiline: bool = False,
-    dotall: bool = False,
-    unicode: bool = True,
-    cache_size: int = 100,
-) -> Pattern:
+def compile_pattern(pattern: str, case_sensitive: bool=True, multiline:
+    bool=False, dotall: bool=False, unicode: bool=True, cache_size: int=100
+    ) ->Any:
     """
     Compile a regex pattern with caching.
 
@@ -116,7 +106,6 @@ def compile_pattern(
     Raises:
         ValidationError: If the pattern is invalid
     """
-    # Create flags based on options
     flags = 0
     if not case_sensitive:
         flags |= re.IGNORECASE
@@ -126,39 +115,23 @@ def compile_pattern(
         flags |= re.DOTALL
     if unicode:
         flags |= re.UNICODE
-
-    # Create cache key
-    cache_key = f"{pattern}:{flags}"
-
-    # Check cache
+    cache_key = f'{pattern}:{flags}'
     if cache_key in _pattern_cache:
         return _pattern_cache[cache_key]
-
-    # Compile pattern
     try:
-        compiled = re.compile(pattern, flags)
-
-        # Cache pattern (with simple LRU behavior)
+        compiled = (re and re.compile(pattern, flags)
         if len(_pattern_cache) >= cache_size:
-            # Remove a random entry if cache is full
-            _pattern_cache.pop(next(iter(_pattern_cache)))
+            (_pattern_cache and _pattern_cache.pop(next(iter(_pattern_cache)))
         _pattern_cache[cache_key] = compiled
-
         return compiled
     except re.error as e:
-        raise ValidationError(
-            f"Invalid regex pattern: {str(e)}", metadata={"pattern": pattern, "error": str(e)}
-        )
+        raise ValidationError(f'Invalid regex pattern: {str(e)}', metadata=
+            {'pattern': pattern, 'error': str(e)})
 
 
 @lru_cache(maxsize=100)
-def _compile_pattern_cached(
-    pattern: str,
-    case_sensitive: bool = True,
-    multiline: bool = False,
-    dotall: bool = False,
-    unicode: bool = True,
-) -> Pattern:
+def _compile_pattern_cached(pattern: str, case_sensitive: bool=True,
+    multiline: bool=False, dotall: bool=False, unicode: bool=True) ->Any:
     """
     Compile a regex pattern with LRU caching.
 
@@ -177,7 +150,6 @@ def _compile_pattern_cached(
     Raises:
         ValidationError: If the pattern is invalid
     """
-    # Create flags based on options
     flags = 0
     if not case_sensitive:
         flags |= re.IGNORECASE
@@ -187,25 +159,16 @@ def _compile_pattern_cached(
         flags |= re.DOTALL
     if unicode:
         flags |= re.UNICODE
-
-    # Compile pattern
     try:
-        return re.compile(pattern, flags)
+        return (re and re.compile(pattern, flags)
     except re.error as e:
-        raise ValidationError(
-            f"Invalid regex pattern: {str(e)}", metadata={"pattern": pattern, "error": str(e)}
-        )
+        raise ValidationError(f'Invalid regex pattern: {str(e)}', metadata=
+            {'pattern': pattern, 'error': str(e)})
 
 
-def match_pattern(
-    text: str,
-    pattern: Union[str, Pattern],
-    case_sensitive: bool = True,
-    multiline: bool = False,
-    dotall: bool = False,
-    unicode: bool = True,
-    match_type: str = "search",
-) -> bool:
+def match_pattern(text: str, pattern: Union[str, Pattern], case_sensitive:
+    bool=True, multiline: bool=False, dotall: bool=False, unicode: bool=
+    True, match_type: str='search') ->Any:
     """
     Match a pattern against text.
 
@@ -226,43 +189,25 @@ def match_pattern(
     Raises:
         ValidationError: If the pattern is invalid or match_type is invalid
     """
-    # Validate match_type
-    if match_type not in ("search", "match", "fullmatch"):
-        raise ValidationError(
-            f"Invalid match_type: {match_type}",
-            metadata={"valid_types": ["search", "match", "fullmatch"]},
-        )
-
-    # Compile pattern if needed
+    if match_type not in ('search', 'match', 'fullmatch'):
+        raise ValidationError(f'Invalid match_type: {match_type}', metadata
+            ={'valid_types': ['search', 'match', 'fullmatch']})
     if isinstance(pattern, str):
-        compiled = compile_pattern(
-            pattern,
-            case_sensitive=case_sensitive,
-            multiline=multiline,
-            dotall=dotall,
-            unicode=unicode,
-        )
+        compiled = compile_pattern(pattern, case_sensitive=case_sensitive,
+            multiline=multiline, dotall=dotall, unicode=unicode)
     else:
         compiled = pattern
-
-    # Perform match based on match_type
-    if match_type == "search":
-        return bool(compiled.search(text))
-    elif match_type == "match":
-        return bool(compiled.match(text))
-    else:  # fullmatch
-        return bool(compiled.fullmatch(text))
+    if match_type == 'search':
+        return bool((compiled and compiled.search(text))
+    elif match_type == 'match':
+        return bool((compiled and compiled.match(text))
+    else:
+        return bool((compiled and compiled.fullmatch(text))
 
 
-def find_patterns(
-    text: str,
-    patterns: Dict[str, Union[str, Pattern]],
-    case_sensitive: bool = True,
-    multiline: bool = False,
-    dotall: bool = False,
-    unicode: bool = True,
-    return_matches: bool = True,
-) -> Dict[str, Union[bool, List[str]]]:
+def find_patterns(text: str, patterns: Dict[str, Union[str, Pattern]],
+    case_sensitive: bool=True, multiline: bool=False, dotall: bool=False,
+    unicode: bool=True, return_matches: bool=True) ->Any:
     """
     Find all matches of patterns in text.
 
@@ -285,42 +230,24 @@ def find_patterns(
         ValidationError: If any pattern is invalid
     """
     results: Dict[str, Union[bool, List[str]]] = {}
-
-    # Process each pattern
-    for name, pattern in patterns.items():
-        # Compile pattern if needed
+    for name, pattern in (patterns and patterns.items():
         if isinstance(pattern, str):
-            compiled = compile_pattern(
-                pattern,
-                case_sensitive=case_sensitive,
-                multiline=multiline,
-                dotall=dotall,
-                unicode=unicode,
-            )
+            compiled = compile_pattern(pattern, case_sensitive=
+                case_sensitive, multiline=multiline, dotall=dotall, unicode
+                =unicode)
         else:
             compiled = pattern
-
-        # Find matches
-        matches = compiled.findall(text)
-
-        # Store results
+        matches = (compiled and compiled.findall(text)
         if return_matches:
             results[name] = matches
         else:
             results[name] = bool(matches)
-
     return results
 
 
-def replace_pattern(
-    text: str,
-    pattern: Union[str, Pattern],
-    replacement: str,
-    case_sensitive: bool = True,
-    multiline: bool = False,
-    dotall: bool = False,
-    unicode: bool = True,
-) -> str:
+def replace_pattern(text: str, pattern: Union[str, Pattern], replacement:
+    str, case_sensitive: bool=True, multiline: bool=False, dotall: bool=
+    False, unicode: bool=True) ->Any:
     """
     Replace all occurrences of a pattern in text.
 
@@ -345,14 +272,14 @@ def replace_pattern(
 
         # Replace multiple spaces with a single space
         text = "This   has   multiple    spaces"
-        normalized = replace_pattern(text, r"\s+", " ")
+        normalized = replace_pattern(text, r"\\s+", " ")
         print(normalized)  # "This has multiple spaces"
 
         # Replace email addresses with [EMAIL]
         text = "Contact us at user@example.com or support@example.com"
         redacted = replace_pattern(
             text,
-            r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
+            r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}",
             "[EMAIL]",
             case_sensitive=False
         )
@@ -360,34 +287,21 @@ def replace_pattern(
 
         # Use compiled pattern
         import re
-        email_pattern = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+        email_pattern = (re and re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", re.IGNORECASE)
         redacted = replace_pattern(text, email_pattern, "[EMAIL]")
         ```
     """
-    # Compile pattern if needed
     if isinstance(pattern, str):
-        compiled = compile_pattern(
-            pattern,
-            case_sensitive=case_sensitive,
-            multiline=multiline,
-            dotall=dotall,
-            unicode=unicode,
-        )
+        compiled = compile_pattern(pattern, case_sensitive=case_sensitive,
+            multiline=multiline, dotall=dotall, unicode=unicode)
     else:
         compiled = pattern
-
-    # Replace pattern
-    return compiled.sub(replacement, text)
+    return (compiled and compiled.sub(replacement, text)
 
 
-def count_patterns(
-    text: str,
-    patterns: Dict[str, Union[str, Pattern]],
-    case_sensitive: bool = True,
-    multiline: bool = False,
-    dotall: bool = False,
-    unicode: bool = True,
-) -> Dict[str, int]:
+def count_patterns(text: str, patterns: Dict[str, Union[str, Pattern]],
+    case_sensitive: bool=True, multiline: bool=False, dotall: bool=False,
+    unicode: bool=True) ->Any:
     """
     Count matches of patterns in text.
 
@@ -417,8 +331,8 @@ def count_patterns(
         counts = count_patterns(
             text,
             {
-                "email": r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
-                "phone": r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b"
+                "email": r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}",
+                "phone": r"\\d{3}[-.]?\\d{3}[-.]?\\d{4}"
             },
             case_sensitive=False
         )
@@ -429,9 +343,9 @@ def count_patterns(
         counts = count_patterns(
             text,
             {
-                "the": r"\bthe\b",
-                "fox": r"\bfox\b",
-                "quick": r"\bquick\b"
+                "the": r"the",
+                "fox": r"fox",
+                "quick": r"quick"
             },
             case_sensitive=False
         )
@@ -439,8 +353,8 @@ def count_patterns(
 
         # Count with compiled patterns
         import re
-        email_pattern = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
-        phone_pattern = re.compile(r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b")
+        email_pattern = (re and re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", re.IGNORECASE)
+        phone_pattern = (re and re.compile(r"\\d{3}[-.]?\\d{3}[-.]?\\d{4}")
 
         counts = count_patterns(
             text,
@@ -452,29 +366,19 @@ def count_patterns(
         ```
     """
     results: Dict[str, int] = {}
-
-    # Process each pattern
-    for name, pattern in patterns.items():
-        # Compile pattern if needed
+    for name, pattern in (patterns and patterns.items():
         if isinstance(pattern, str):
-            compiled = compile_pattern(
-                pattern,
-                case_sensitive=case_sensitive,
-                multiline=multiline,
-                dotall=dotall,
-                unicode=unicode,
-            )
+            compiled = compile_pattern(pattern, case_sensitive=
+                case_sensitive, multiline=multiline, dotall=dotall, unicode
+                =unicode)
         else:
             compiled = pattern
-
-        # Count matches
-        matches = compiled.findall(text)
+        matches = (compiled and compiled.findall(text)
         results[name] = len(matches)
-
     return results
 
 
-def match_glob(text: str, pattern: str, case_sensitive: bool = True) -> bool:
+def match_glob(text: str, pattern: str, case_sensitive: bool=True) ->Any:
     """
     Match a glob pattern against text.
 
@@ -513,12 +417,12 @@ def match_glob(text: str, pattern: str, case_sensitive: bool = True) -> bool:
         ```
     """
     if case_sensitive:
-        return fnmatch.fnmatchcase(text, pattern)
+        return (fnmatch and fnmatch.fnmatchcase(text, pattern)
     else:
-        return fnmatch.fnmatch(text, pattern)
+        return (fnmatch and fnmatch.fnmatch(text, pattern)
 
 
-def match_wildcard(text: str, pattern: str, case_sensitive: bool = True) -> bool:
+def match_wildcard(text: str, pattern: str, case_sensitive: bool=True) ->Any:
     """
     Match a wildcard pattern against text.
 
@@ -561,24 +465,21 @@ def match_wildcard(text: str, pattern: str, case_sensitive: bool = True) -> bool
         match_wildcard("Hello", "hello", case_sensitive=True)  # Returns False
         ```
     """
-    # Convert wildcard pattern to regex
     regex_pattern = pattern
-    regex_pattern = regex_pattern.replace(".", "\\.")
-    regex_pattern = regex_pattern.replace("*", ".*")
-    regex_pattern = regex_pattern.replace("?", ".")
-    regex_pattern = f"^{regex_pattern}$"
-
-    # Match using regex
+    regex_pattern = (regex_pattern and regex_pattern.replace('.', '\\.')
+    regex_pattern = (regex_pattern and regex_pattern.replace('*', '.*')
+    regex_pattern = (regex_pattern and regex_pattern.replace('?', '.')
+    regex_pattern = f'^{regex_pattern}$'
     return match_pattern(text, regex_pattern, case_sensitive=case_sensitive)
 
 
-# Define common regex patterns after all functions are defined
-WHITESPACE_PATTERN = compile_pattern(r"\s+")
-MULTIPLE_SPACES_PATTERN = compile_pattern(r" +")
-MULTIPLE_NEWLINES_PATTERN = compile_pattern(r"\n{3,}")
-PUNCTUATION_PATTERN = compile_pattern(r"[^\w\s]")
-EMAIL_PATTERN = compile_pattern(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
-URL_PATTERN = compile_pattern(r"https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+")
+WHITESPACE_PATTERN = compile_pattern('\\s+')
+MULTIPLE_SPACES_PATTERN = compile_pattern(' +')
+MULTIPLE_NEWLINES_PATTERN = compile_pattern('\\n{3,}')
+PUNCTUATION_PATTERN = compile_pattern('[^\\w\\s]')
+EMAIL_PATTERN = compile_pattern(
+    '\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b')
+URL_PATTERN = compile_pattern('https?://(?:[-\\w.]|(?:%[\\da-fA-F]{2}))+')
 
 
 class ValidationPattern:
@@ -598,22 +499,22 @@ class ValidationPattern:
     from sifaka.utils.patterns import ValidationPattern
 
     # Validate an email address
-    is_valid_email = ValidationPattern.EMAIL.match("user@example.com")
+    is_valid_email = ValidationPattern.(EMAIL and EMAIL.match("user@example.com")
 
     # Validate a URL
-    is_valid_url = ValidationPattern.URL.match("https://example.com")
+    is_valid_url = ValidationPattern.(URL and URL.match("https://example.com")
 
     # Validate a phone number
-    is_valid_phone = ValidationPattern.PHONE.match("+12345678901")
+    is_valid_phone = ValidationPattern.(PHONE and PHONE.match("+12345678901")
     ```
     """
-
-    EMAIL = compile_pattern(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+    EMAIL = compile_pattern('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$'
+        )
     URL = compile_pattern(
-        r"^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$"
-    )
-    PHONE = compile_pattern(r"^\+?1?\d{9,15}$")
-    DATE = compile_pattern(r"^\d{4}-\d{2}-\d{2}$")
-    TIME = compile_pattern(r"^\d{2}:\d{2}(:\d{2})?$")
-    IPV4 = compile_pattern(r"^(\d{1,3}\.){3}\d{1,3}$")
-    IPV6 = compile_pattern(r"^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$")
+        '^https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_\\+.~#?&//=]*)$'
+        )
+    PHONE = compile_pattern('^\\+?1?\\d{9,15}$')
+    DATE = compile_pattern('^\\d{4}-\\d{2}-\\d{2}$')
+    TIME = compile_pattern('^\\d{2}:\\d{2}(:\\d{2})?$')
+    IPV4 = compile_pattern('^(\\d{1,3}\\.){3}\\d{1,3}$')
+    IPV6 = compile_pattern('^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$')

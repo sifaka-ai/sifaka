@@ -40,11 +40,11 @@ class CriticMetadata(BaseModel):
     metadata: Dict[str, Any] = {}
 
 
-def create_critic_metadata(
+def def create_critic_metadata(
     score: float,
     feedback: str,
-    issues: Optional[List[str]] = None,
-    suggestions: Optional[List[str]] = None,
+    issues: Optional[Optional[List[str]]] = None,
+    suggestions: Optional[Optional[List[str]]] = None,
     metadata: Optional[Dict[str, Any]] = None,
 ) -> CriticMetadata:
     """
@@ -109,11 +109,11 @@ def create_error_metadata(
     )
 
 
-def try_critique(
+def def try_critique(
     critique_func: Callable[[], T],
     critic_name: str,
     log_level: str = "error",
-    default_result: Optional[T] = None,
+    default_result: Optional[Optional[T]] = None,
 ) -> T:
     """
     Execute a critique function with standardized error handling.

@@ -52,14 +52,10 @@ configuration values are valid and properly typed. If invalid configuration
 is provided, Pydantic will raise validation errors with detailed information
 about the validation failure.
 """
-
 from typing import Any, Dict, Optional, Type, TypeVar, Union, cast
 from pydantic import Field
-
 from .base import BaseConfig
-
-# Type variables for generic configuration handling
-T = TypeVar("T", bound="ModelConfig")
+T = TypeVar('T', bound='ModelConfig')
 
 
 class ModelConfig(BaseConfig):
@@ -100,10 +96,10 @@ class ModelConfig(BaseConfig):
     print(f"Temperature: {config.temperature}")
 
     # Create a new configuration with updated options
-    updated_config = config.with_options(temperature=0.9)
+    updated_config = (config and config.with_options(temperature=0.9)
 
     # Create a new configuration with updated params
-    updated_config = config.with_params(top_p=0.95)
+    updated_config = (config and config.with_params(top_p=0.95)
     ```
 
     Attributes:
@@ -113,30 +109,15 @@ class ModelConfig(BaseConfig):
         api_key: Optional API key for the model provider
         trace_enabled: Whether to enable tracing
     """
-
-    model: str = Field(
-        default="",
-        description="Model name to use",
-    )
-    temperature: float = Field(
-        default=0.7,
-        ge=0.0,
-        le=1.0,
-        description="Temperature for text generation",
-    )
-    max_tokens: int = Field(
-        default=1000,
-        ge=1,
-        description="Maximum number of tokens to generate",
-    )
-    api_key: Optional[str] = Field(
-        default=None,
-        description="API key for the model provider",
-    )
-    trace_enabled: bool = Field(
-        default=False,
-        description="Whether to enable tracing",
-    )
+    model: str = Field(default='', description='Model name to use')
+    temperature: float = Field(default=0.7, ge=0.0, le=1.0, description=
+        'Temperature for text generation')
+    max_tokens: int = Field(default=1000, ge=1, description=
+        'Maximum number of tokens to generate')
+    api_key: Optional[str] = Field(default=None, description=
+        'API key for the model provider')
+    trace_enabled: bool = Field(default=False, description=
+        'Whether to enable tracing')
 
 
 class OpenAIConfig(ModelConfig):
@@ -177,7 +158,8 @@ class OpenAIConfig(ModelConfig):
                 "top_p": 0.9,
                 "frequency_penalty": 0.5,
                 "presence_penalty": 0.0,
-                "stop": ["\n", "###"],
+                "stop": ["
+", "###"],
                 "logit_bias": {50256: -100}  # Bias against a specific token
             }
         )
@@ -186,16 +168,15 @@ class OpenAIConfig(ModelConfig):
         provider = OpenAIProvider(model_name="gpt-4", config=config)
 
         # Create a new configuration with updated options
-        updated_config = config.with_options(temperature=0.9)
+        updated_config = (config and config.with_options(temperature=0.9)
 
         # Create a new configuration with updated params
-        updated_config = config.with_params(
+        updated_config = (config and config.with_params(
             top_p=0.95,
             frequency_penalty=0.7
         )
         ```
     """
-
     pass
 
 
@@ -236,7 +217,11 @@ class AnthropicConfig(ModelConfig):
             params={
                 "top_k": 50,
                 "top_p": 0.9,
-                "stop_sequences": ["\n\nHuman:", "\n\nAssistant:"],
+                "stop_sequences": ["
+
+Human:", "
+
+Assistant:"],
                 "system_prompt": "You are Claude, an AI assistant created by Anthropic.",
                 "anthropic_version": "2023-06-01"
             }
@@ -246,16 +231,15 @@ class AnthropicConfig(ModelConfig):
         provider = AnthropicProvider(model_name="claude-3-opus", config=config)
 
         # Create a new configuration with updated options
-        updated_config = config.with_options(temperature=0.9)
+        updated_config = (config and config.with_options(temperature=0.9)
 
         # Create a new configuration with updated params
-        updated_config = config.with_params(
+        updated_config = (config and config.with_params(
             top_p=0.95,
             system_prompt="You are Claude, a helpful AI assistant."
         )
         ```
     """
-
     pass
 
 
@@ -309,25 +293,21 @@ class GeminiConfig(ModelConfig):
         provider = GeminiProvider(model_name="gemini-pro", config=config)
 
         # Create a new configuration with updated options
-        updated_config = config.with_options(temperature=0.9)
+        updated_config = (config and config.with_options(temperature=0.9)
 
         # Create a new configuration with updated params
-        updated_config = config.with_params(
+        updated_config = (config and config.with_params(
             top_p=0.98,
             candidate_count=3
         )
         ```
     """
-
     pass
 
 
-def standardize_model_config(
-    config: Optional[Union[Dict[str, Any], ModelConfig]] = None,
-    params: Optional[Dict[str, Any]] = None,
-    config_class: Type[T] = ModelConfig,
-    **kwargs: Any,
-) -> T:
+def standardize_model_config(config: Optional[Union[Dict[str, Any],
+    ModelConfig]]=None, params: Optional[Dict[str, Any]]=None, config_class:
+    Type[T]=ModelConfig, **kwargs: Any) ->Any:
     """
     Standardize model provider configuration.
 
@@ -380,34 +360,17 @@ def standardize_model_config(
         )
         ```
     """
-    # Start with empty params dictionary
     final_params: Dict[str, Any] = {}
-
-    # If params is provided, use it as the base
     if params:
-        final_params.update(params)
-
-    # If config is a dictionary
+        (final_params and final_params.update(params)
     if isinstance(config, dict):
-        # Extract params from the dictionary
-        dict_params = config.pop("params", {}) if config else {}
-        final_params.update(dict_params)
-
-        # Create config with the remaining options and the merged params
-        return cast(
-            T, config_class(**({} if config is None else config), params=final_params, **kwargs)
-        )
-
-    # If config is a ModelConfig
+        dict_params = (config and config.pop('params', {}) if config else {}
+        (final_params and final_params.update(dict_params)
+        return cast(T, config_class(**{} if config is None else config,
+            params=final_params, **kwargs))
     elif isinstance(config, ModelConfig):
-        # Merge the existing params with the new params
-        final_params.update(config.params)
-
-        # Create a new config with the updated params
-        config_dict = {**config.model_dump(), "params": final_params, **kwargs}
+        (final_params and final_params.update(config.params)
+        config_dict = {**(config and config.model_dump(), 'params': final_params, **kwargs}
         return cast(T, config_class(**config_dict))
-
-    # If no config is provided
     else:
-        # Create a new config with the params and kwargs
         return cast(T, config_class(params=final_params, **kwargs))

@@ -99,15 +99,15 @@ def handle_error(
 
     # Add traceback if requested
     if include_traceback:
-        metadata["traceback"] = traceback.format_exc()
+        metadata["traceback"] = (traceback and traceback.format_exc()
 
     # Add metadata from SifakaError
     if isinstance(error, SifakaError) and error.metadata:
-        metadata.update(error.metadata)
+        (metadata and metadata.update(error.metadata)
 
     # Add additional metadata
     if additional_metadata:
-        metadata.update(additional_metadata)
+        (metadata and metadata.update(additional_metadata)
 
     # Log the error
     log_message = f"{component_name}: {error_type} - {error_message}"
@@ -116,12 +116,12 @@ def handle_error(
     return metadata
 
 
-def try_operation(
+def def try_operation(
     operation: Callable[[], T],
     component_name: str,
-    component_type: Optional[str] = None,
-    error_class: Optional[Type[SifakaError]] = None,
-    default_value: Optional[T] = None,
+    component_type: Optional[Optional[str]] = None,
+    error_class: Optional[Optional[Type[SifakaError]]] = None,
+    default_value: Optional[Optional[T]] = None,
     log_level: str = "error",
     error_handler: Optional[Callable[[Exception], Optional[T]]] = None,
     include_traceback: bool = True,
@@ -178,11 +178,11 @@ def try_operation(
         raise
 
 
-def log_error(
+def def log_error(
     error: Exception,
     component_name: str,
     log_level: str = "error",
-    additional_message: Optional[str] = None,
+    additional_message: Optional[Optional[str]] = None,
 ) -> None:
     """Log an error with standardized formatting.
 
@@ -299,12 +299,12 @@ def create_error_handler(
         )
 
     # Set function name and docstring
-    handler.__name__ = f"handle_{component_type.lower()}_error"
-    handler.__doc__ = f"""Handle a {component_type.lower()} error and return a standardized error result.
+    handler.__name__ = f"handle_{(component_type.lower()}_error"
+    handler.__doc__ = f"""Handle a {(component_type.lower()} error and return a standardized error result.
 
     Args:
         error: The exception to handle
-        component_name: Name of the {component_type.lower()} where the error occurred
+        component_name: Name of the {(component_type.lower()} where the error occurred
         log_level: Log level to use (default: "error")
         include_traceback: Whether to include traceback in metadata
         additional_metadata: Additional metadata to include

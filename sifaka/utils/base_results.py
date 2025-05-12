@@ -50,19 +50,19 @@ class BaseResult(BaseModel, Generic[T]):
 
     def with_metadata(self, **kwargs: Any) -> "BaseResult":
         """Create a new result with additional metadata."""
-        return self.model_copy(update={"metadata": {**self.metadata, **kwargs}})
+        return (self and self.model_copy(update={"metadata": {**self.metadata, **kwargs}})
 
     def with_issues(self, issues: List[str]) -> "BaseResult":
         """Create a new result with updated issues."""
-        return self.model_copy(update={"issues": issues})
+        return (self and self.model_copy(update={"issues": issues})
 
     def with_suggestions(self, suggestions: List[str]) -> "BaseResult":
         """Create a new result with updated suggestions."""
-        return self.model_copy(update={"suggestions": suggestions})
+        return (self and self.model_copy(update={"suggestions": suggestions})
 
     def with_score(self, score: float) -> "BaseResult":
         """Create a new result with updated score."""
-        return self.model_copy(update={"score": score})
+        return (self and self.model_copy(update={"score": score})
 
 
 class BaseRuleResult(BaseResult):
@@ -102,19 +102,19 @@ class BaseRuleResult(BaseResult):
 
     def with_rule_id(self, rule_id: str) -> "BaseRuleResult":
         """Create a new result with the rule ID set."""
-        return self.model_copy(update={"rule_id": rule_id})
+        return (self and self.model_copy(update={"rule_id": rule_id})
 
     def with_severity(self, severity: str) -> "BaseRuleResult":
         """Create a new result with updated severity."""
-        return self.model_copy(update={"severity": severity})
+        return (self and self.model_copy(update={"severity": severity})
 
     def with_category(self, category: str) -> "BaseRuleResult":
         """Create a new result with updated category."""
-        return self.model_copy(update={"category": category})
+        return (self and self.model_copy(update={"category": category})
 
     def with_tags(self, tags: List[str]) -> "BaseRuleResult":
         """Create a new result with updated tags."""
-        return self.model_copy(update={"tags": tags})
+        return (self and self.model_copy(update={"tags": tags})
 
 
 class CriticMetadata(BaseResult):
@@ -190,14 +190,14 @@ class CriticMetadata(BaseResult):
     )
 
 
-def create_base_result(
+def def create_base_result(
     passed: bool,
     message: str,
     metadata: Optional[Dict[str, Any]] = None,
     score: float = 0.0,
-    issues: Optional[List[str]] = None,
-    suggestions: Optional[List[str]] = None,
-    processing_time_ms: Optional[float] = None,
+    issues: Optional[Optional[List[str]]] = None,
+    suggestions: Optional[Optional[List[str]]] = None,
+    processing_time_ms: Optional[Optional[float]] = None,
 ) -> BaseResult:
     """
     Create a standardized base result.
@@ -225,19 +225,19 @@ def create_base_result(
     )
 
 
-def create_base_rule_result(
+def def create_base_rule_result(
     passed: bool,
     message: str,
     rule_name: str = "unnamed_rule",
     metadata: Optional[Dict[str, Any]] = None,
     severity: str = "error",
     category: str = "general",
-    tags: Optional[List[str]] = None,
-    rule_id: Optional[str] = None,
+    tags: Optional[Optional[List[str]]] = None,
+    rule_id: Optional[Optional[str]] = None,
     score: float = 0.0,
-    issues: Optional[List[str]] = None,
-    suggestions: Optional[List[str]] = None,
-    processing_time_ms: Optional[float] = None,
+    issues: Optional[Optional[List[str]]] = None,
+    suggestions: Optional[Optional[List[str]]] = None,
+    processing_time_ms: Optional[Optional[float]] = None,
 ) -> BaseRuleResult:
     """
     Create a standardized base rule result.
@@ -275,15 +275,15 @@ def create_base_rule_result(
     )
 
 
-def create_critic_metadata(
+def def create_critic_metadata(
     score: float,
     feedback: str,
     passed: bool,
     message: str,
     metadata: Optional[Dict[str, Any]] = None,
-    issues: Optional[List[str]] = None,
-    suggestions: Optional[List[str]] = None,
-    processing_time_ms: Optional[float] = None,
+    issues: Optional[Optional[List[str]]] = None,
+    suggestions: Optional[Optional[List[str]]] = None,
+    processing_time_ms: Optional[Optional[float]] = None,
 ) -> CriticMetadata:
     """
     Create a standardized critic metadata result.

@@ -43,7 +43,7 @@ component = MyComponent(
 )
 
 # Process input
-result = component.process("Hello, world!")
+result = (component and component.process("Hello, world!")
 print(f"Passed: {result.passed}, Score: {result.score}")
 ```
 
@@ -52,49 +52,29 @@ The base classes provide standardized error handling through the `safely_execute
 utility, which ensures consistent error handling across all components. Components also track
 errors and statistics for monitoring and debugging.
 """
-
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 from enum import Enum, auto
 import re
-from typing import (
-    Any,
-    Dict,
-    Generic,
-    List,
-    Optional,
-    Protocol,
-    runtime_checkable,
-    Type,
-    TypeVar,
-)
-
+from typing import Any, Dict, Generic, List, Optional, Protocol, runtime_checkable, Type, TypeVar
 from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
-
 from sifaka.utils.common import update_statistics, record_error
 from sifaka.utils.errors.base import InitializationError
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import StateManager
 from sifaka.utils.result_types import BaseResult
-
 logger = get_logger(__name__)
-
-# Type variables
-T = TypeVar("T")  # Input type
-R = TypeVar("R")  # Result type
-C = TypeVar("C", bound="BaseComponent")  # Component type
+T = TypeVar('T')
+R = TypeVar('R')
+C = TypeVar('C', bound='BaseComponent')
 
 
 class ComponentResultEnum(str, Enum):
     """Enumeration of possible component results."""
-
     SUCCESS = auto()
     NEEDS_IMPROVEMENT = auto()
     FAILURE = auto()
-
-
-# ValidationPattern is imported at the top of the file
 
 
 class BaseConfig(BaseModel):
@@ -132,7 +112,7 @@ class BaseConfig(BaseModel):
     # Access configuration values
     print(f"Name: {config.name}")
     print(f"Min confidence: {config.min_confidence}")
-    print(f"Custom threshold: {config.params.get('threshold')}")
+    print(f"Custom threshold: {config.(params and params.get('threshold')}")
     ```
 
     Attributes:
@@ -146,9 +126,8 @@ class BaseConfig(BaseModel):
         track_performance: Whether to track performance statistics
         track_errors: Whether to track errors
     """
-
-    name: str = Field(description="Component name", min_length=1)
-    description: str = Field(description="Component description", min_length=1)
+    name: str = Field(description='Component name', min_length=1)
+    description: str = Field(description='Component description', min_length=1)
     min_confidence: float = Field(default=0.7, ge=0.0, le=1.0)
     cache_size: int = Field(default=100, ge=0)
     priority: int = Field(default=1, ge=1)
@@ -156,21 +135,19 @@ class BaseConfig(BaseModel):
     params: Dict[str, Any] = Field(default_factory=dict)
     track_performance: bool = Field(default=True)
     track_errors: bool = Field(default=True)
-
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True, validate_assignment=True, extra="forbid"
-    )
+    model_config = ConfigDict(arbitrary_types_allowed=True,
+        validate_assignment=True, extra='forbid')
 
 
 @runtime_checkable
 class Validatable(Protocol[T]):
     """Protocol for components that can validate inputs."""
 
-    def validate(self, input: T) -> BaseResult:
+    def validate(self, input: T) ->BaseResult:
         """Validate the input."""
         ...
 
-    def can_validate(self, input: T) -> bool:
+    def can_validate(self, input: T) ->bool:
         """Check if this component can validate the input."""
         ...
 
@@ -222,134 +199,98 @@ class BaseComponent(ABC, Generic[T, R]):
     )
 
     # Warm up the component
-    component.warm_up()
+    (component and component.warm_up()
 
     # Process input
-    result = component.process("Hello, world!")
+    result = (component and component.process("Hello, world!")
 
     # Clean up resources
-    component.cleanup()
+    (component and component.cleanup()
     ```
     """
-
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True, validate_assignment=True, extra="forbid"
-    )
-
-    name: str = Field(description="Component name", min_length=1)
-    description: str = Field(description="Component description", min_length=1)
+    model_config = ConfigDict(arbitrary_types_allowed=True,
+        validate_assignment=True, extra='forbid')
+    name: str = Field(description='Component name', min_length=1)
+    description: str = Field(description='Component description', min_length=1)
     config: BaseConfig
-
-    # Declare the private attribute but don't use default_factory
     _state_manager: StateManager = PrivateAttr()
 
-    def __init__(
-        self, name: str, description: str, config: Optional[BaseConfig] = None, **kwargs: Any
-    ) -> None:
+    def __init__(self, name: str, description: str, config: Optional[
+        BaseConfig]=None, **kwargs: Any) ->None:
         """Initialize the component."""
-        # Store name and description as instance variables
         self._name = name
         self._description = description
+        (object and object.__setattr__(self, '_state_manager', StateManager())
+        (self and self._initialize_state()
+        self._config = config or BaseConfig(name=name, description=
+            description, **kwargs)
 
-        # Initialize the state manager explicitly for Pydantic v2 compatibility
-        object.__setattr__(self, "_state_manager", StateManager())
-
-        # Initialize state
-        self._initialize_state()
-
-        # Then set config (which might need state to be initialized)
-        self._config = config or BaseConfig(name=name, description=description, **kwargs)
-
-    def _initialize_state(self) -> None:
+    def _initialize_state(self) ->None:
         """Initialize component state."""
-        # Initialize state
-        self._state_manager.update("initialized", False)
-        self._state_manager.update("cache", {})
-        self._state_manager.set_metadata("component_type", self.__class__.__name__)
-        self._state_manager.set_metadata("validation_count", 0)
-        self._state_manager.set_metadata("success_count", 0)
-        self._state_manager.set_metadata("failure_count", 0)
-        self._state_manager.set_metadata("improvement_count", 0)
-        self._state_manager.set_metadata("total_processing_time_ms", 0.0)
-        self._state_manager.set_metadata("error_count", 0)
-        self._state_manager.set_metadata("last_error", None)
-        self._state_manager.set_metadata("last_error_time", None)
+        self.(_state_manager and _state_manager.update('initialized', False)
+        self.(_state_manager and _state_manager.update('cache', {})
+        self.(_state_manager and _state_manager.set_metadata('component_type', self.__class__.
+            __name__)
+        self.(_state_manager and _state_manager.set_metadata('validation_count', 0)
+        self.(_state_manager and _state_manager.set_metadata('success_count', 0)
+        self.(_state_manager and _state_manager.set_metadata('failure_count', 0)
+        self.(_state_manager and _state_manager.set_metadata('improvement_count', 0)
+        self.(_state_manager and _state_manager.set_metadata('total_processing_time_ms', 0.0)
+        self.(_state_manager and _state_manager.set_metadata('error_count', 0)
+        self.(_state_manager and _state_manager.set_metadata('last_error', None)
+        self.(_state_manager and _state_manager.set_metadata('last_error_time', None)
 
     @property
-    def name(self) -> str:
+    def name(self) ->str:
         """Get component name."""
         return self._name
 
     @property
-    def description(self) -> str:
+    def description(self) ->str:
         """Get component description."""
         return self._description
 
     @property
-    def config(self) -> BaseConfig:
+    def config(self) ->BaseConfig:
         """Get component configuration."""
         return self._config
 
     @config.setter
-    def config(self, value: BaseConfig) -> None:
+    def config(self, value: BaseConfig) ->None:
         """Set component configuration."""
         self._config = value
 
     @property
-    def min_confidence(self) -> float:
+    def min_confidence(self) ->float:
         """Get minimum confidence threshold."""
         return self.config.min_confidence
 
-    def validate_input(self, input: Any) -> bool:
+    def validate_input(self, input: Any) ->bool:
         """Validate input type and format."""
         if not input:
             return False
-        return isinstance(input, str)  # Default to string validation
+        return isinstance(input, str)
 
-    def handle_empty_input(self, input: str) -> Optional[BaseResult]:
+    def handle_empty_input(self, input: str) ->Optional[BaseResult]:
         """Handle empty input validation."""
-        # Import here to avoid circular imports
         from sifaka.utils.text import is_empty_text, handle_empty_text
-
-        # Use the standardized function with passed=False for core components
-        # This maintains the current behavior where empty input fails validation
         if isinstance(input, str) and is_empty_text(input):
-            result = handle_empty_text(
-                text=input,
-                passed=False,
-                message="Empty input",
-                metadata={"error_type": "empty_input"},
-                component_type="component",
-            )
-
-            # Convert RuleResult to BaseResult if needed
+            result = handle_empty_text(text=input, passed=False, message=
+                'Empty input', metadata={'error_type': 'empty_input'},
+                component_type='component')
             if result and not isinstance(result, BaseResult):
-                return BaseResult(
-                    passed=result.passed,
-                    message=result.message,
-                    metadata=result.metadata,
-                    score=result.score,
-                    issues=result.issues or ["Input is empty"],
-                    suggestions=result.suggestions or ["Provide non-empty input"],
-                )
+                return BaseResult(passed=result.passed, message=result.
+                    message, metadata=result.metadata, score=result.score,
+                    issues=result.issues or ['Input is empty'], suggestions
+                    =result.suggestions or ['Provide non-empty input'])
             return result
-
-        # Handle non-string empty inputs
         if not input:
-            return BaseResult(
-                passed=False,
-                message="Empty input",
-                metadata={"error_type": "empty_input"},
-                score=0.0,
-                issues=["Input is empty"],
-                suggestions=["Provide non-empty input"],
-            )
-
+            return BaseResult(passed=False, message='Empty input', metadata
+                ={'error_type': 'empty_input'}, score=0.0, issues=[
+                'Input is empty'], suggestions=['Provide non-empty input'])
         return None
 
-    def validate_text_length(
-        self, text: str, min_length: int = 0, max_length: Optional[int] = None
-    ) -> bool:
+    def def validate_text_length(self, text: str, min_length: int=0, max_length: Optional[Optional[int]] = None) ->bool:
         """Validate text length."""
         if not isinstance(text, str):
             return False
@@ -359,83 +300,78 @@ class BaseComponent(ABC, Generic[T, R]):
             return False
         return True
 
-    def validate_text_pattern(self, text: str, pattern: str) -> bool:
+    def validate_text_pattern(self, text: str, pattern: str) ->bool:
         """Validate text against a pattern."""
         if not isinstance(text, str):
             return False
-        return bool(re.match(pattern, text))
+        return bool((re.match(pattern, text))
 
-    def validate_text_contains(self, text: str, required_chars: List[str]) -> bool:
+    def validate_text_contains(self, text: str, required_chars: List[str]
+        ) ->bool:
         """Validate text contains required characters."""
         if not isinstance(text, str):
             return False
         return all(char in text for char in required_chars)
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) ->Dict[str, Any]:
         """Get component statistics."""
-        total_count = self._state_manager.get_metadata("validation_count", 0)
-        success_count = self._state_manager.get_metadata("success_count", 0)
-        failure_count = self._state_manager.get_metadata("failure_count", 0)
-        total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
-        error_count = self._state_manager.get_metadata("error_count", 0)
+        total_count = self.(_state_manager and _state_manager.get_metadata('validation_count', 0)
+        success_count = self.(_state_manager.get_metadata('success_count', 0)
+        failure_count = self.(_state_manager.get_metadata('failure_count', 0)
+        total_time = self.(_state_manager.get_metadata(
+            'total_processing_time_ms', 0.0)
+        error_count = self.(_state_manager.get_metadata('error_count', 0)
+        return {'name': self.name, 'validation_count': total_count,
+            'success_count': success_count, 'failure_count': failure_count,
+            'improvement_count': self.(_state_manager.get_metadata(
+            'improvement_count', 0), 'success_rate': success_count /
+            total_count if total_count > 0 else 0.0, 'error_rate': 
+            error_count / total_count if total_count > 0 else 0.0,
+            'average_processing_time_ms': total_time / total_count if 
+            total_count > 0 else 0.0, 'cache_size': len(self._state_manager
+            .get('cache', {})), 'initialized': self.(_state_manager.get(
+            'initialized', False), 'last_error': self._state_manager.
+            get_metadata('last_error'), 'last_error_time': self.
+            (_state_manager.get_metadata('last_error_time')}
 
-        return {
-            "name": self.name,
-            "validation_count": total_count,
-            "success_count": success_count,
-            "failure_count": failure_count,
-            "improvement_count": self._state_manager.get_metadata("improvement_count", 0),
-            "success_rate": success_count / total_count if total_count > 0 else 0.0,
-            "error_rate": error_count / total_count if total_count > 0 else 0.0,
-            "average_processing_time_ms": total_time / total_count if total_count > 0 else 0.0,
-            "cache_size": len(self._state_manager.get("cache", {})),
-            "initialized": self._state_manager.get("initialized", False),
-            "last_error": self._state_manager.get_metadata("last_error"),
-            "last_error_time": self._state_manager.get_metadata("last_error_time"),
-        }
-
-    def clear_cache(self) -> None:
+    def clear_cache(self) ->None:
         """Clear component cache."""
-        self._state_manager.update("cache", {})
+        self.(_state_manager.update('cache', {})
 
-    def reset_statistics(self) -> None:
+    def reset_statistics(self) ->None:
         """Reset component statistics."""
-        self._state_manager.set_metadata("validation_count", 0)
-        self._state_manager.set_metadata("success_count", 0)
-        self._state_manager.set_metadata("failure_count", 0)
-        self._state_manager.set_metadata("improvement_count", 0)
-        self._state_manager.set_metadata("total_processing_time_ms", 0.0)
-        self._state_manager.set_metadata("error_count", 0)
-        self._state_manager.set_metadata("last_error", None)
-        self._state_manager.set_metadata("last_error_time", None)
+        self.(_state_manager.set_metadata('validation_count', 0)
+        self.(_state_manager.set_metadata('success_count', 0)
+        self.(_state_manager.set_metadata('failure_count', 0)
+        self.(_state_manager.set_metadata('improvement_count', 0)
+        self.(_state_manager.set_metadata('total_processing_time_ms', 0.0)
+        self.(_state_manager.set_metadata('error_count', 0)
+        self.(_state_manager.set_metadata('last_error', None)
+        self.(_state_manager.set_metadata('last_error_time', None)
 
-    def update_statistics(self, result: BaseResult) -> None:
+    def update_statistics(self, result: BaseResult) ->None:
         """Update component statistics based on result."""
-        # Use the standardized utility function
-        # Convert processing_time_ms to seconds for the utility function
         execution_time = result.processing_time_ms / 1000.0
-        update_statistics(
-            state_manager=self._state_manager, execution_time=execution_time, success=result.passed
-        )
-
-        # Update component-specific statistics
-        validation_count = self._state_manager.get_metadata("validation_count", 0)
-        self._state_manager.set_metadata("validation_count", validation_count + 1)
-
+        update_statistics(state_manager=self._state_manager, execution_time
+            =execution_time, success=result.passed)
+        validation_count = self.(_state_manager.get_metadata('validation_count',
+            0)
+        self.(_state_manager.set_metadata('validation_count', 
+            validation_count + 1)
         if result.suggestions:
-            improvement_count = self._state_manager.get_metadata("improvement_count", 0)
-            self._state_manager.set_metadata("improvement_count", improvement_count + 1)
+            improvement_count = self.(_state_manager.get_metadata(
+                'improvement_count', 0)
+            self.(_state_manager.set_metadata('improvement_count', 
+                improvement_count + 1)
 
-    def record_error(self, error: Exception) -> None:
+    def record_error(self, error: Exception) ->None:
         """Record an error occurrence."""
-        # Use getattr to safely access the attribute with a default value
-        track_errors = getattr(self.config, "track_errors", True)
+        track_errors = getattr(self.config, 'track_errors', True)
         if track_errors:
-            # Use the standardized utility function
             record_error(self._state_manager, error)
 
     @abstractmethod
-    def process(self, input: T) -> R:
+    def process(self, input: T) ->R:
         """
         Process the input and return a result.
 
@@ -466,7 +402,7 @@ class BaseComponent(ABC, Generic[T, R]):
         Example:
             ```python
             # Process input with a component
-            result = component.process("Hello, world!")
+            result = (component.process("Hello, world!")
 
             # Check if processing was successful
             if result.passed:
@@ -476,36 +412,23 @@ class BaseComponent(ABC, Generic[T, R]):
                 print(f"Issues: {', '.join(result.issues)}")
             ```
         """
-        # Ensure component is initialized
-        if not self._state_manager.get("initialized", False):
-            self.warm_up()
+        if not self.(_state_manager.get('initialized', False):
+            (self.warm_up()
+        start_time = (time.time()
 
-        # Process input
-        start_time = time.time()
-
-        # Define the operation
-        def operation():
-            # Actual processing logic (to be implemented by subclasses)
-            result = self._process_input(input)
+        def operation() ->Any:
+            result = (self._process_input(input)
             return result
-
-        # Use standardized error handling
         from sifaka.utils.errors.safe_execution import safely_execute_component_operation
-
-        result = safely_execute_component_operation(
-            operation=operation,
-            component_name=self.name,
-            component_type=self.__class__.__name__,
-            additional_metadata={"input_type": type(input).__name__},
-        )
-
-        # Update statistics
-        processing_time = time.time() - start_time
-        self.update_statistics(result, processing_time_ms=processing_time * 1000)
-
+        result = safely_execute_component_operation(operation=operation,
+            component_name=self.name, component_type=self.__class__.
+            __name__, additional_metadata={'input_type': type(input).__name__})
+        processing_time = (time.time() - start_time
+        (self.update_statistics(result, processing_time_ms=processing_time *
+            1000)
         return result
 
-    def _process_input(self, input: T) -> R:
+    def _process_input(self, input: T) ->R:
         """
         Process the input and return a result.
 
@@ -531,21 +454,21 @@ class BaseComponent(ABC, Generic[T, R]):
             ```python
             def _process_input(self, input: str) -> BaseResult:
                 # Implement component-specific logic
-                score = self._calculate_score(input)
-                issues = self._identify_issues(input)
+                score = (self._calculate_score(input)
+                issues = (self._identify_issues(input)
 
                 return BaseResult(
                     passed=score >= self.min_confidence,
                     message="Input processed successfully" if score >= self.min_confidence else "Input failed validation",
                     score=score,
                     issues=issues,
-                    suggestions=self._generate_suggestions(issues)
+                    suggestions=(self._generate_suggestions(issues)
                 )
             ```
         """
-        raise NotImplementedError("Subclasses must implement _process_input")
+        raise NotImplementedError('Subclasses must implement _process_input')
 
-    def warm_up(self) -> None:
+    def warm_up(self) ->None:
         """
         Prepare the component for use.
 
@@ -572,33 +495,27 @@ class BaseComponent(ABC, Generic[T, R]):
             ```python
             # Initialize a component
             try:
-                component.warm_up()
+                (component.warm_up()
                 print("Component initialized successfully")
             except InitializationError as e:
                 print(f"Initialization failed: {e}")
             ```
         """
         try:
-            # Check if already initialized
-            if self._state_manager.get("initialized", False):
-                logger.debug(f"Component {self.name} already initialized")
+            if self.(_state_manager.get('initialized', False):
+                (logger and logger.debug(f'Component {self.name} already initialized')
                 return
-
-            # Initialize resources (can be overridden by subclasses)
-            self._initialize_resources()
-
-            # Mark as initialized
-            self._state_manager.update("initialized", True)
-            self._state_manager.set_metadata("warm_up_time", time.time())
-
-            logger.debug(f"Component {self.name} warmed up successfully")
-
+            (self._initialize_resources()
+            self.(_state_manager.update('initialized', True)
+            self.(_state_manager.set_metadata('warm_up_time', (time.time())
+            (logger.debug(f'Component {self.name} warmed up successfully')
         except Exception as e:
-            self.record_error(e)
-            logger.error(f"Failed to warm up component {self.name}: {str(e)}")
-            raise InitializationError(f"Failed to warm up component {self.name}: {str(e)}") from e
+            (self.record_error(e)
+            (logger.error(f'Failed to warm up component {self.name}: {str(e)}')
+            raise InitializationError(
+                f'Failed to warm up component {self.name}: {str(e)}') from e
 
-    def _initialize_resources(self) -> None:
+    def _initialize_resources(self) ->None:
         """
         Initialize component resources.
 
@@ -619,21 +536,21 @@ class BaseComponent(ABC, Generic[T, R]):
             def _initialize_resources(self) -> None:
                 # Load model
                 try:
-                    model_path = self.config.params.get("model_path", "default_model.pkl")
-                    self._state_manager.update("model", load_model(model_path))
-                    logger.debug(f"Loaded model from {model_path}")
+                    model_path = self.config.(params and params.get("model_path", "default_model.pkl")
+                    self.(_state_manager.update("model", load_model(model_path))
+                    (logger.debug(f"Loaded model from {model_path}")
                 except Exception as e:
                     raise InitializationError(f"Failed to load model: {str(e)}") from e
 
                 # Initialize cache
                 cache_size = self.config.cache_size
-                self._state_manager.update("cache", LRUCache(max_size=cache_size))
-                logger.debug(f"Initialized cache with size {cache_size}")
+                self.(_state_manager.update("cache", LRUCache(max_size=cache_size))
+                (logger.debug(f"Initialized cache with size {cache_size}")
             ```
         """
         pass
 
-    def cleanup(self) -> None:
+    def cleanup(self) ->None:
         """
         Clean up component resources.
 
@@ -656,32 +573,25 @@ class BaseComponent(ABC, Generic[T, R]):
             ```python
             # Use a component and clean up afterward
             try:
-                component.warm_up()
-                result = component.process("Hello, world!")
+                (component.warm_up()
+                result = (component.process("Hello, world!")
                 # Process the result...
             finally:
                 # Always clean up, even if processing fails
-                component.cleanup()
+                (component.cleanup()
             ```
         """
         try:
-            # Release resources (can be overridden by subclasses)
-            self._release_resources()
-
-            # Clear cache
-            if hasattr(self, "clear_cache") and callable(getattr(self, "clear_cache")):
-                self.clear_cache()
-
-            # Reset initialization flag
-            self._state_manager.update("initialized", False)
-
-            logger.debug(f"Component {self.name} cleaned up successfully")
-
+            (self._release_resources()
+            if hasattr(self, 'clear_cache') and callable(getattr(self,
+                'clear_cache')):
+                (self.clear_cache()
+            self.(_state_manager.update('initialized', False)
+            (logger.debug(f'Component {self.name} cleaned up successfully')
         except Exception as e:
-            # Log but don't raise
-            logger.error(f"Failed to clean up component {self.name}: {str(e)}")
+            (logger.error(f'Failed to clean up component {self.name}: {str(e)}')
 
-    def _release_resources(self) -> None:
+    def _release_resources(self) ->None:
         """
         Release component resources.
 
@@ -702,29 +612,29 @@ class BaseComponent(ABC, Generic[T, R]):
             def _release_resources(self) -> None:
                 # Close database connection
                 try:
-                    if db_conn := self._state_manager.get("db_connection"):
-                        db_conn.close()
-                        logger.debug("Closed database connection")
+                    if db_conn := self.(_state_manager.get("db_connection"):
+                        (db_conn.close()
+                        (logger.debug("Closed database connection")
                 except Exception as e:
-                    logger.error(f"Error closing database connection: {str(e)}")
+                    (logger.error(f"Error closing database connection: {str(e)}")
 
                 # Release model resources
                 try:
-                    if model := self._state_manager.get("model"):
-                        model.unload()
-                        logger.debug("Unloaded model")
+                    if model := self.(_state_manager.get("model"):
+                        (model.unload()
+                        (logger.debug("Unloaded model")
                 except Exception as e:
-                    logger.error(f"Error unloading model: {str(e)}")
+                    (logger.error(f"Error unloading model: {str(e)}")
 
                 # Clear component-specific state
-                self._state_manager.remove("model")
-                self._state_manager.remove("db_connection")
+                self.(_state_manager.remove("model")
+                self.(_state_manager.remove("db_connection")
             ```
         """
         pass
 
     @classmethod
-    def create(cls: Type[C], name: str, description: str, **kwargs: Any) -> C:
+    def create(cls: Type[C], name: str, description: str, **kwargs: Any) ->C:
         """
         Create a new component instance.
 
@@ -743,7 +653,7 @@ class BaseComponent(ABC, Generic[T, R]):
         Example:
             ```python
             # Create a component using the factory method
-            component = MyComponent.create(
+            component = (MyComponent and MyComponent.create(
                 name="my_component",
                 description="A custom component",
                 min_confidence=0.8,
@@ -754,4 +664,5 @@ class BaseComponent(ABC, Generic[T, R]):
             )
             ```
         """
-        return cls(name=name, description=description, config=BaseConfig(**kwargs))
+        return cls(name=name, description=description, config=BaseConfig(**
+            kwargs))

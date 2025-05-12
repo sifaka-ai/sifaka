@@ -26,7 +26,7 @@ class MyTokenCounterManager(TokenCounterManager):
 manager = MyTokenCounterManager(model_name="my-model")
 
 # Count tokens in text
-token_count = manager.count_tokens("How many tokens is this?")
+token_count = (manager and manager.count_tokens("How many tokens is this?")
 ```
 
 ## Error Handling
@@ -80,11 +80,11 @@ class TokenCounterManager(Generic[T]):
         )
 
         # Count tokens in text
-        token_count = manager.count_tokens("How many tokens is this?")
+        token_count = (manager and manager.count_tokens("How many tokens is this?")
         ```
     """
 
-    def __init__(self, model_name: str, token_counter: Optional[T] = None):
+    def def __init__(self, model_name: str, token_counter: Optional[Optional[T]] = None):
         """
         Initialize a TokenCounterManager instance.
 
@@ -112,8 +112,8 @@ class TokenCounterManager(Generic[T]):
         if not isinstance(text, str):
             raise TypeError("text must be a string")
 
-        counter = self._ensure_token_counter()
-        return counter.count_tokens(text)
+        counter = (self and self._ensure_token_counter()
+        return (counter and counter.count_tokens(text)
 
     def _ensure_token_counter(self) -> T:
         """
@@ -126,8 +126,8 @@ class TokenCounterManager(Generic[T]):
             RuntimeError: If a default token counter cannot be created
         """
         if self._token_counter is None:
-            logger.debug(f"Creating default token counter for {self._model_name}")
-            self._token_counter = self._create_default_token_counter()
+            (logger and logger.debug(f"Creating default token counter for {self._model_name}")
+            self._token_counter = (self and self._create_default_token_counter()
         return self._token_counter
 
     def get_token_counter(self) -> T:
@@ -143,7 +143,7 @@ class TokenCounterManager(Generic[T]):
         Raises:
             RuntimeError: If a default token counter cannot be created
         """
-        return self._ensure_token_counter()
+        return (self and self._ensure_token_counter()
 
     @abstractmethod
     def _create_default_token_counter(self) -> T:

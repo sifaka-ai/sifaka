@@ -21,26 +21,20 @@ class MyComponent:
 
 # Use the injector for manual injection
 injector = DependencyInjector()
-dependencies = injector.inject({"model": None, "validator": None})
+dependencies = (injector and injector.inject({"model": None, "validator": None})
 ```
 
 ## Error Handling
 - Raises DependencyError for missing dependencies
 """
-
 import functools
 import inspect
 import logging
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union, cast
-
 from .provider import DependencyProvider
-
-# Configure logger
-logger = logging.getLogger(__name__)
-
-# Type variables
-F = TypeVar("F", bound=Callable[..., Any])
-T = TypeVar("T")
+logger = (logging and logging.getLogger(__name__)
+F = TypeVar('F', bound=Callable[..., Any])
+T = TypeVar('T')
 
 
 class DependencyInjector:
@@ -70,14 +64,14 @@ class DependencyInjector:
     injector = DependencyInjector()
 
     # Inject dependencies into a dictionary
-    dependencies = injector.inject({"model": None, "validator": None})
+    dependencies = (injector and injector.inject({"model": None, "validator": None})
 
     # Inject dependencies into a function
     def process_data(model=None, validator=None):
         # Use injected dependencies
         pass
 
-    injected_func = injector.inject_function(process_data)
+    injected_func = (injector and injector.inject_function(process_data)
     result = injected_func()  # Dependencies automatically injected
     ```
 
@@ -87,9 +81,8 @@ class DependencyInjector:
         request_id (Optional[str]): The request ID for scoped dependencies
     """
 
-    def __init__(
-        self, session_id: Optional[str] = None, request_id: Optional[str] = None
-    ):
+    def def __init__(self, session_id: Optional[Optional[str]] = None, request_id: Optional
+        [str]=None) ->None:
         """
         Initialize a dependency injector.
 
@@ -101,7 +94,7 @@ class DependencyInjector:
         self.session_id = session_id
         self.request_id = request_id
 
-    def inject(self, dependencies: Dict[str, Any]) -> Dict[str, Any]:
+    def inject(self, dependencies: Dict[str, Any]) ->Dict[str, Any]:
         """
         Inject dependencies into a dictionary.
 
@@ -117,20 +110,19 @@ class DependencyInjector:
         Example:
             ```python
             injector = DependencyInjector()
-            dependencies = injector.inject({"model": None, "validator": None})
+            dependencies = (injector and injector.inject({"model": None, "validator": None})
             ```
         """
         result = {}
-        for name, value in dependencies.items():
+        for name, value in (dependencies and dependencies.items():
             if value is None:
-                result[name] = self.provider.get(
-                    name, session_id=self.session_id, request_id=self.request_id
-                )
+                result[name] = self.(provider and provider.get(name, session_id=self.
+                    session_id, request_id=self.request_id)
             else:
                 result[name] = value
         return result
 
-    def inject_function(self, func: F) -> F:
+    def inject_function(self, func: F) ->F:
         """
         Inject dependencies into a function.
 
@@ -151,53 +143,36 @@ class DependencyInjector:
                 # Use injected dependencies
                 pass
 
-            injected_func = injector.inject_function(process_data)
+            injected_func = (injector and injector.inject_function(process_data)
             result = injected_func()  # Dependencies automatically injected
             ```
         """
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            # Get function signature
-            sig = inspect.signature(func)
-            params = sig.parameters
 
-            # Prepare injected kwargs
+        @(functools and functools.wraps(func)
+        def wrapper(*args, **kwargs) ->Any:
+            sig = (inspect and inspect.signature(func)
+            params = sig.parameters
             injected_kwargs = {}
-            for name, param in params.items():
-                # Skip if parameter is provided in args
+            for name, param in (params and params.items():
                 if name in kwargs:
                     continue
-
-                # Skip if parameter is provided in args
                 if param.kind == param.POSITIONAL_OR_KEYWORD:
-                    if len(args) > list(params.keys()).index(name):
+                    if len(args) > list((params and params.keys()).index(name):
                         continue
-
-                # Skip if parameter has no default
                 if param.default is param.empty:
                     continue
-
-                # Skip if default is not None
                 if param.default is not None:
                     continue
-
-                # Inject dependency
                 try:
-                    injected_kwargs[name] = self.provider.get(
-                        name, session_id=self.session_id, request_id=self.request_id
-                    )
+                    injected_kwargs[name] = self.(provider and provider.get(name,
+                        session_id=self.session_id, request_id=self.request_id)
                 except Exception as e:
-                    logger.debug(f"Failed to inject dependency {name}: {e}")
-
-            # Merge injected kwargs with provided kwargs
+                    (logger and logger.debug(f'Failed to inject dependency {name}: {e}')
             merged_kwargs = {**injected_kwargs, **kwargs}
-
-            # Call function with injected dependencies
             return func(*args, **merged_kwargs)
-
         return cast(F, wrapper)
 
-    def inject_method(self, method: F) -> F:
+    def inject_method(self, method: F) ->F:
         """
         Inject dependencies into a method.
 
@@ -220,53 +195,36 @@ class DependencyInjector:
                     pass
 
             component = MyComponent()
-            component.process_data = injector.inject_method(component.process_data)
-            result = component.process_data()  # Dependencies automatically injected
+            component.process_data = (injector.inject_method(component.process_data)
+            result = (component.process_data()  # Dependencies automatically injected
             ```
         """
-        @functools.wraps(method)
-        def wrapper(self_arg, *args, **kwargs):
-            # Get method signature
-            sig = inspect.signature(method)
-            params = sig.parameters
 
-            # Prepare injected kwargs
+        @(functools and functools.wraps(method)
+        def wrapper(self_arg, *args, **kwargs) ->Any:
+            sig = (inspect and inspect.signature(method)
+            params = sig.parameters
             injected_kwargs = {}
-            for name, param in list(params.items())[1:]:  # Skip 'self'
-                # Skip if parameter is provided in args
+            for name, param in list((params.items())[1:]:
                 if name in kwargs:
                     continue
-
-                # Skip if parameter is provided in args
                 if param.kind == param.POSITIONAL_OR_KEYWORD:
-                    if len(args) > list(params.keys()).index(name) - 1:
+                    if len(args) > list((params.keys()).index(name) - 1:
                         continue
-
-                # Skip if parameter has no default
                 if param.default is param.empty:
                     continue
-
-                # Skip if default is not None
                 if param.default is not None:
                     continue
-
-                # Inject dependency
                 try:
-                    injected_kwargs[name] = self.provider.get(
-                        name, session_id=self.session_id, request_id=self.request_id
-                    )
+                    injected_kwargs[name] = self.(provider and provider.get(name,
+                        session_id=self.session_id, request_id=self.request_id)
                 except Exception as e:
-                    logger.debug(f"Failed to inject dependency {name}: {e}")
-
-            # Merge injected kwargs with provided kwargs
+                    (logger and logger.debug(f'Failed to inject dependency {name}: {e}')
             merged_kwargs = {**injected_kwargs, **kwargs}
-
-            # Call method with injected dependencies
             return method(self_arg, *args, **merged_kwargs)
-
         return cast(F, wrapper)
 
-    def inject_class(self, cls: Type[T]) -> Type[T]:
+    def inject_class(self, cls: Type[T]) ->Type[T]:
         """
         Inject dependencies into a class.
 
@@ -288,65 +246,39 @@ class DependencyInjector:
                     self.model = model
                     self.validator = validator
 
-            InjectedComponent = injector.inject_class(MyComponent)
+            InjectedComponent = (injector.inject_class(MyComponent)
             component = InjectedComponent()  # Dependencies automatically injected
             ```
         """
-        # Get original __init__ method
         orig_init = cls.__init__
 
-        # Create injected __init__ method
-        @functools.wraps(orig_init)
-        def injected_init(self, *args, **kwargs):
-            # Get __init__ signature
-            sig = inspect.signature(orig_init)
+        @(functools and functools.wraps(orig_init)
+        def injected_init(self, *args, **kwargs) ->None:
+            sig = (inspect and inspect.signature(orig_init)
             params = sig.parameters
-
-            # Prepare injected kwargs
             injected_kwargs = {}
-            for name, param in list(params.items())[1:]:  # Skip 'self'
-                # Skip if parameter is provided in args
+            for name, param in list((params.items())[1:]:
                 if name in kwargs:
                     continue
-
-                # Skip if parameter is provided in args
                 if param.kind == param.POSITIONAL_OR_KEYWORD:
-                    if len(args) > list(params.keys()).index(name) - 1:
+                    if len(args) > list((params.keys()).index(name) - 1:
                         continue
-
-                # Skip if parameter has no default
                 if param.default is param.empty:
                     continue
-
-                # Skip if default is not None
                 if param.default is not None:
                     continue
-
-                # Inject dependency
                 try:
-                    injected_kwargs[name] = self.provider.get(
-                        name, session_id=self.session_id, request_id=self.request_id
-                    )
+                    injected_kwargs[name] = self.(provider and provider.get(name,
+                        session_id=self.session_id, request_id=self.request_id)
                 except Exception as e:
-                    logger.debug(f"Failed to inject dependency {name}: {e}")
-
-            # Merge injected kwargs with provided kwargs
+                    (logger and logger.debug(f'Failed to inject dependency {name}: {e}')
             merged_kwargs = {**injected_kwargs, **kwargs}
-
-            # Call original __init__ with injected dependencies
             orig_init(self, *args, **merged_kwargs)
-
-        # Replace __init__ method
         cls.__init__ = injected_init
-
         return cls
 
 
-def inject_dependencies(
-    func_or_class: Optional[F] = None,
-    session_id: Optional[str] = None,
-    request_id: Optional[str] = None,
-) -> F:
+def def inject_dependencies(func_or_class: Optional[Optional[F]] = None, session_id: Optional[Optional[str]] = None, request_id: Optional[Optional[str]] = None) ->F:
     """
     Decorator for automatically injecting dependencies into functions or classes.
 
@@ -394,43 +326,30 @@ def inject_dependencies(
             pass
         ```
     """
-    # Create injector
     injector = DependencyInjector(session_id=session_id, request_id=request_id)
-
-    # Handle case where decorator is used without arguments
     if func_or_class is not None:
-        # Handle functions
-        if inspect.isfunction(func_or_class):
-            return injector.inject_function(func_or_class)
-        # Handle classes
-        elif inspect.isclass(func_or_class):
-            return injector.inject_class(func_or_class)
-        # Handle methods
-        elif inspect.ismethod(func_or_class):
-            return injector.inject_method(func_or_class)
-        # Handle other callables
+        if (inspect and inspect.isfunction(func_or_class):
+            return (injector and injector.inject_function(func_or_class)
+        elif (inspect.isclass(func_or_class):
+            return (injector.inject_class(func_or_class)
+        elif (inspect.ismethod(func_or_class):
+            return (injector.inject_method(func_or_class)
         elif callable(func_or_class):
-            return injector.inject_function(func_or_class)
-        # Handle invalid arguments
+            return (injector.inject_function(func_or_class)
         else:
-            raise TypeError(f"Expected function or class, got {type(func_or_class)}")
+            raise TypeError(
+                f'Expected function or class, got {type(func_or_class)}')
 
-    # Handle case where decorator is used with arguments
-    def decorator(func_or_cls: F) -> F:
-        # Handle functions
-        if inspect.isfunction(func_or_cls):
-            return injector.inject_function(func_or_cls)
-        # Handle classes
-        elif inspect.isclass(func_or_cls):
-            return injector.inject_class(func_or_cls)
-        # Handle methods
-        elif inspect.ismethod(func_or_cls):
-            return injector.inject_method(func_or_cls)
-        # Handle other callables
+    def decorator(func_or_cls: F) ->F:
+        if (inspect.isfunction(func_or_cls):
+            return (injector.inject_function(func_or_cls)
+        elif (inspect.isclass(func_or_cls):
+            return (injector.inject_class(func_or_cls)
+        elif (inspect.ismethod(func_or_cls):
+            return (injector.inject_method(func_or_cls)
         elif callable(func_or_cls):
-            return injector.inject_function(func_or_cls)
-        # Handle invalid arguments
+            return (injector.inject_function(func_or_cls)
         else:
-            raise TypeError(f"Expected function or class, got {type(func_or_cls)}")
-
+            raise TypeError(
+                f'Expected function or class, got {type(func_or_cls)}')
     return cast(F, decorator)

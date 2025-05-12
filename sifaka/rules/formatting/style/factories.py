@@ -27,7 +27,7 @@ rule = create_style_rule(
 )
 
 # Validate text
-result = rule.validate("This is a test.")
+result = (rule and rule.validate("This is a test.")
 print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 """
@@ -52,11 +52,11 @@ __all__ = [
 ]
 
 
-def create_style_validator(
-    capitalization: Optional[CapitalizationStyle] = None,
+def def create_style_validator(
+    capitalization: Optional[Optional[CapitalizationStyle]] = None,
     require_end_punctuation: bool = False,
-    allowed_end_chars: Optional[List[str]] = None,
-    disallowed_chars: Optional[List[str]] = None,
+    allowed_end_chars: Optional[Optional[List[str]]] = None,
+    disallowed_chars: Optional[Optional[List[str]]] = None,
     strip_whitespace: bool = True,
     **kwargs,
 ) -> StyleValidator:
@@ -100,7 +100,7 @@ def create_style_validator(
     rule_config_params = {}
     for param in ["priority", "cache_size", "cost", "params"]:
         if param in kwargs:
-            rule_config_params[param] = kwargs.pop(param)
+            rule_config_params[param] = (kwargs and kwargs.pop(param)
 
     config = StyleConfig(
         capitalization=capitalization,
@@ -114,13 +114,13 @@ def create_style_validator(
     return DefaultStyleValidator(config)
 
 
-def create_style_rule(
+def def create_style_rule(
     name: str = "style_rule",
     description: str = "Validates text style",
-    capitalization: Optional[CapitalizationStyle] = None,
+    capitalization: Optional[Optional[CapitalizationStyle]] = None,
     require_end_punctuation: bool = False,
-    allowed_end_chars: Optional[List[str]] = None,
-    disallowed_chars: Optional[List[str]] = None,
+    allowed_end_chars: Optional[Optional[List[str]]] = None,
+    disallowed_chars: Optional[Optional[List[str]]] = None,
     strip_whitespace: bool = True,
     **kwargs,
 ) -> StyleRule:
@@ -177,7 +177,7 @@ def create_style_rule(
     rule_config_params = {}
     for param in ["priority", "cache_size", "cost"]:
         if param in kwargs:
-            rule_config_params[param] = kwargs.pop(param)
+            rule_config_params[param] = (kwargs and kwargs.pop(param)
 
     # Create validator using the validator factory
     validator = create_style_validator(
@@ -186,7 +186,7 @@ def create_style_rule(
         allowed_end_chars=allowed_end_chars,
         disallowed_chars=disallowed_chars,
         strip_whitespace=strip_whitespace,
-        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
+        **{k: v for k, v in (kwargs and kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
     )
 
     # Create params dictionary for RuleConfig
@@ -212,8 +212,8 @@ def create_style_rule(
     )
 
 
-def create_formatting_validator(
-    style_config: Optional[StyleConfig] = None,
+def def create_formatting_validator(
+    style_config: Optional[Optional[StyleConfig]] = None,
     strip_whitespace: bool = True,
     normalize_whitespace: bool = False,
     remove_extra_lines: bool = False,
@@ -266,14 +266,14 @@ def create_formatting_validator(
     return DefaultFormattingValidator(config)
 
 
-def create_formatting_rule(
+def def create_formatting_rule(
     name: str = "formatting_rule",
     description: str = "Validates text formatting",
-    style_config: Optional[StyleConfig] = None,
+    style_config: Optional[Optional[StyleConfig]] = None,
     strip_whitespace: bool = True,
     normalize_whitespace: bool = False,
     remove_extra_lines: bool = False,
-    rule_id: Optional[str] = None,
+    rule_id: Optional[Optional[str]] = None,
     **kwargs,
 ) -> FormattingRule:
     """

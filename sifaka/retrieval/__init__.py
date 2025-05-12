@@ -1,3 +1,4 @@
+from typing import Any, List
 """
 Retrieval module for Sifaka.
 
@@ -47,64 +48,22 @@ documents = {
 retriever = create_simple_retriever(documents=documents, max_results=3)
 
 # Retrieve information based on a query
-result = retriever.retrieve("How does quantum computing work?")
-print(result.get_formatted_results())
+result = (retriever and retriever.retrieve("How does quantum computing work?")
+print((result and result.get_formatted_results())
 ```
 """
-
-# Import interfaces
-from sifaka.interfaces import (
-    Retriever,
-    AsyncRetriever,
-    DocumentStore,
-    IndexManager,
-    QueryProcessor,
-)
-
-# Import core components
+from sifaka.interfaces import Retriever, AsyncRetriever, DocumentStore, IndexManager, QueryProcessor
 from .core import RetrieverCore
 from sifaka.utils.config.retrieval import RetrieverConfig
 from ..core.results import RetrievalResult
 from .result import StringRetrievalResult, RetrievedDocument
-
-# Import implementations
 from .implementations.simple import SimpleRetriever
-
-# Import managers
 from .managers.query import QueryManager
-
-# Import strategies
-from .strategies.ranking import (
-    RankingStrategy,
-    SimpleRankingStrategy,
-    ScoreThresholdRankingStrategy,
-)
-
-# Import factory functions
+from .strategies.ranking import RankingStrategy, SimpleRankingStrategy, ScoreThresholdRankingStrategy
 from .factories import create_simple_retriever, create_threshold_retriever
-
-__all__ = [
-    # Interfaces
-    "Retriever",
-    "AsyncRetriever",
-    "DocumentStore",
-    "IndexManager",
-    "QueryProcessor",
-    # Core components
-    "RetrieverCore",
-    "RetrieverConfig",
-    "RetrievalResult",
-    "StringRetrievalResult",
-    "RetrievedDocument",
-    # Implementations
-    "SimpleRetriever",
-    # Managers
-    "QueryManager",
-    # Strategies
-    "RankingStrategy",
-    "SimpleRankingStrategy",
-    "ScoreThresholdRankingStrategy",
-    # Factory functions
-    "create_simple_retriever",
-    "create_threshold_retriever",
-]
+__all__: List[Any] = ['Retriever', 'AsyncRetriever', 'DocumentStore',
+    'IndexManager', 'QueryProcessor', 'RetrieverCore', 'RetrieverConfig',
+    'RetrievalResult', 'StringRetrievalResult', 'RetrievedDocument',
+    'SimpleRetriever', 'QueryManager', 'RankingStrategy',
+    'SimpleRankingStrategy', 'ScoreThresholdRankingStrategy',
+    'create_simple_retriever', 'create_threshold_retriever']

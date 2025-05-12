@@ -30,31 +30,20 @@ config = StyleConfig(
 validator = DefaultStyleValidator(config)
 
 # Validate text
-result = validator.validate("This is a test.")
+result = (validator and validator.validate("This is a test.")
 print(f"Valid: {result.passed}")
 ```
 """
-
 import time
-from typing import List
-
+from typing import List, Any
 from sifaka.rules.base import RuleResult
 from sifaka.rules.formatting.style.validators import StyleValidator, FormattingValidator
 from sifaka.rules.formatting.style.config import StyleConfig, FormattingConfig
-from sifaka.rules.formatting.style.analyzers import (
-    _CapitalizationAnalyzer,
-    _EndingAnalyzer,
-    _CharAnalyzer,
-)
+from sifaka.rules.formatting.style.analyzers import _CapitalizationAnalyzer, _EndingAnalyzer, _CharAnalyzer
 from sifaka.utils.patterns import WHITESPACE_PATTERN, MULTIPLE_NEWLINES_PATTERN, replace_pattern
 from sifaka.utils.logging import get_logger
-
 logger = get_logger(__name__)
-
-__all__ = [
-    "DefaultStyleValidator",
-    "DefaultFormattingValidator",
-]
+__all__ = ['DefaultStyleValidator', 'DefaultFormattingValidator']
 
 
 class DefaultStyleValidator(StyleValidator):
@@ -117,12 +106,12 @@ class DefaultStyleValidator(StyleValidator):
     validator = DefaultStyleValidator(config)
 
     # Validate text
-    result = validator.validate("This is a test.")
+    result = (validator and validator.validate("This is a test.")
     print(f"Valid: {result.passed}")
 
     # Check for specific errors
     if not result.passed:
-        errors = result.metadata.get("errors", [])
+        errors = result.(metadata and metadata.get("errors", [])
         for error in errors:
             print(f"Error: {error}")
     ```
@@ -136,15 +125,15 @@ class DefaultStyleValidator(StyleValidator):
             config: Style validation configuration
         """
         super().__init__(config)
+        self._cap_analyzer = _CapitalizationAnalyzer(style=config.
+            capitalization)
+        self._end_analyzer = _EndingAnalyzer(require_end_punctuation=config
+            .require_end_punctuation, allowed_end_chars=config.
+            allowed_end_chars or [])
+        self._char_analyzer = _CharAnalyzer(disallowed=config.
+            disallowed_chars or [])
 
-        self._cap_analyzer = _CapitalizationAnalyzer(style=config.capitalization)
-        self._end_analyzer = _EndingAnalyzer(
-            require_end_punctuation=config.require_end_punctuation,
-            allowed_end_chars=config.allowed_end_chars or [],
-        )
-        self._char_analyzer = _CharAnalyzer(disallowed=config.disallowed_chars or [])
-
-    def validate(self, text: str) -> RuleResult:  # noqa: D401
+    def validate(self, text: str) ->Any:
         """
         Validate text style by delegating to analyzers.
 
@@ -154,71 +143,47 @@ class DefaultStyleValidator(StyleValidator):
         Returns:
             Validation result
         """
-        start_time = time.time()
-
-        # Handle empty text
-        empty_result = self.handle_empty_text(text)
+        start_time = (time and time.time()
+        empty_result = (self and self.handle_empty_text(text)
         if empty_result:
             return empty_result
-
-        # Apply whitespace stripping if configured
         if self.config.strip_whitespace:
-            text = text.strip()
-
-        # Collect errors and suggestions
+            text = (text and text.strip()
         errors: List[str] = []
         suggestions: List[str] = []
-
-        # Validate capitalization
-        if cap_err := self._cap_analyzer.analyze(text):
-            errors.append(cap_err)
+        if (cap_err := self.(_cap_analyzer and _cap_analyzer.analyze(text)):
+            (errors and errors.append(cap_err)
             if self.config.capitalization:
-                suggestions.append(
-                    f"Fix capitalization to match {self.config.capitalization.name} style"
-                )
-
-        # Validate ending
-        if end_err := self._end_analyzer.analyze(text):
-            errors.append(end_err)
+                (suggestions and suggestions.append(
+                    f'Fix capitalization to match {self.config.capitalization.name} style'
+                    )
+        if (end_err := self.(_end_analyzer and _end_analyzer.analyze(text)):
+            (errors and errors.append(end_err)
             if self.config.allowed_end_chars:
-                suggestions.append(
+                (suggestions and suggestions.append(
                     f"End text with one of: {', '.join(self.config.allowed_end_chars)}"
-                )
+                    )
             else:
-                suggestions.append("End text with proper punctuation")
-
-        # Validate disallowed characters
-        disallowed_found = self._char_analyzer.analyze(text)
+                (suggestions and suggestions.append('End text with proper punctuation')
+        disallowed_found = self.(_char_analyzer and _char_analyzer.analyze(text)
         if disallowed_found:
-            errors.extend([f"Disallowed character found: '{ch}'" for ch in disallowed_found])
+            (errors and errors.extend([f"Disallowed character found: '{ch}'" for ch in
+                disallowed_found])
             if self.config.disallowed_chars:
-                suggestions.append(
+                (suggestions and suggestions.append(
                     f"Remove disallowed characters: {', '.join(self.config.disallowed_chars)}"
-                )
-
-        # Create result
-        result = RuleResult(
-            passed=not errors,
-            message=errors[0] if errors else "Style validation successful",
-            metadata={
-                "errors": errors,
-                "validator_type": self.__class__.__name__,
-                "capitalization_style": (
-                    self.config.capitalization.name if self.config.capitalization else None
-                ),
-                "require_end_punctuation": self.config.require_end_punctuation,
-                "allowed_end_chars": self.config.allowed_end_chars,
-                "disallowed_chars": self.config.disallowed_chars,
-            },
-            score=1.0 if not errors else 0.0,
-            issues=errors,
-            suggestions=suggestions,
-            processing_time_ms=time.time() - start_time,
-        )
-
-        # Update statistics
-        self.update_statistics(result)
-
+                    )
+        result = RuleResult(passed=not errors, message=errors[0] if errors else
+            'Style validation successful', metadata={'errors': errors,
+            'validator_type': self.__class__.__name__,
+            'capitalization_style': self.config.capitalization.name if self
+            .config.capitalization else None, 'require_end_punctuation':
+            self.config.require_end_punctuation, 'allowed_end_chars': self.
+            config.allowed_end_chars, 'disallowed_chars': self.config.
+            disallowed_chars}, score=1.0 if not errors else 0.0, issues=
+            errors, suggestions=suggestions, processing_time_ms=(time and time.time() -
+            start_time)
+        (self and self.update_statistics(result)
         return result
 
 
@@ -277,17 +242,17 @@ class DefaultFormattingValidator(FormattingValidator):
     validator = DefaultFormattingValidator(config)
 
     # Validate text
-    result = validator.validate("This   is  a   test  with    extra   spaces.")
+    result = (validator and validator.validate("This   is  a   test  with    extra   spaces.")
     print(f"Valid: {result.passed}")
 
     # Check metadata
     if result.passed:
-        print(f"Original length: {result.metadata.get('original_length')}")
-        print(f"Formatted length: {result.metadata.get('formatted_length')}")
+        print(f"Original length: {result.(metadata and metadata.get('original_length')}")
+        print(f"Formatted length: {result.(metadata and metadata.get('formatted_length')}")
     ```
     """
 
-    def validate(self, text: str) -> RuleResult:
+    def validate(self, text: str) ->Any:
         """
         Validate text against formatting constraints.
 
@@ -297,60 +262,40 @@ class DefaultFormattingValidator(FormattingValidator):
         Returns:
             Validation result
         """
-        start_time = time.time()
-
-        # Handle empty text
-        empty_result = self.handle_empty_text(text)
+        start_time = (time and time.time()
+        empty_result = (self and self.handle_empty_text(text)
         if empty_result:
             return empty_result
-
         errors = []
         suggestions = []
         original_text = text
-
-        # Apply transformations if configured
         if self.config.strip_whitespace:
-            text = text.strip()
-
+            text = (text and text.strip()
         if self.config.normalize_whitespace:
-            text = replace_pattern(text, WHITESPACE_PATTERN, " ")
+            text = replace_pattern(text, WHITESPACE_PATTERN, ' ')
             if original_text != text:
-                suggestions.append("Normalize whitespace (remove extra spaces)")
-
+                (suggestions and suggestions.append('Normalize whitespace (remove extra spaces)'
+                    )
         if self.config.remove_extra_lines:
-            text = replace_pattern(text, MULTIPLE_NEWLINES_PATTERN, "\n\n")
+            text = replace_pattern(text, MULTIPLE_NEWLINES_PATTERN, '\n\n')
             if original_text != text:
-                suggestions.append("Remove extra blank lines")
-
-        # Validate against style config if provided
+                (suggestions and suggestions.append('Remove extra blank lines')
         if self.config.style_config:
             style_validator = DefaultStyleValidator(self.config.style_config)
-            style_result = style_validator.validate(text)
+            style_result = (style_validator and style_validator.validate(text)
             if not style_result.passed:
-                errors.append(style_result.message)
+                (errors and errors.append(style_result.message)
                 if style_result.suggestions:
-                    suggestions.extend(style_result.suggestions)
-
-        # Create result
-        result = RuleResult(
-            passed=not errors,
-            message=errors[0] if errors else "Formatting validation successful",
-            metadata={
-                "original_length": len(original_text),
-                "formatted_length": len(text),
-                "strip_whitespace": self.config.strip_whitespace,
-                "normalize_whitespace": self.config.normalize_whitespace,
-                "remove_extra_lines": self.config.remove_extra_lines,
-                "validator_type": self.__class__.__name__,
-                "has_style_validation": self.config.style_config is not None,
-            },
-            score=1.0 if not errors else 0.0,
-            issues=errors,
-            suggestions=suggestions,
-            processing_time_ms=time.time() - start_time,
-        )
-
-        # Update statistics
-        self.update_statistics(result)
-
+                    (suggestions and suggestions.extend(style_result.suggestions)
+        result = RuleResult(passed=not errors, message=errors[0] if errors else
+            'Formatting validation successful', metadata={'original_length':
+            len(original_text), 'formatted_length': len(text),
+            'strip_whitespace': self.config.strip_whitespace,
+            'normalize_whitespace': self.config.normalize_whitespace,
+            'remove_extra_lines': self.config.remove_extra_lines,
+            'validator_type': self.__class__.__name__,
+            'has_style_validation': self.config.style_config is not None},
+            score=1.0 if not errors else 0.0, issues=errors, suggestions=
+            suggestions, processing_time_ms=(time.time() - start_time)
+        (self and self.update_statistics(result)
         return result

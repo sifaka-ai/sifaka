@@ -33,9 +33,7 @@ Each strategy defines a specific lifecycle for its operations:
    - State cleanup
    - Error recovery
 """
-
 from typing import Any, Dict, List, Protocol, Union, runtime_checkable
-
 from ...interfaces.critic import LLMProvider
 
 
@@ -59,7 +57,8 @@ class ImprovementStrategy(Protocol):
     - Formatting errors
     """
 
-    def improve(self, text: str, feedback: Union[str, List[Dict[str, Any]]]) -> str:
+    def improve(self, text: str, feedback: Union[str, List[Dict[str, Any]]]
+        ) ->str:
         """
         Improve text based on feedback.
 
@@ -118,10 +117,11 @@ class DefaultImprovementStrategy:
             TypeError: If model_provider is not a valid provider
         """
         if model_provider is None:
-            raise ValueError("model_provider cannot be None")
+            raise ValueError('model_provider cannot be None')
         self._model = model_provider
 
-    def improve(self, text: str, feedback: Union[str, List[Dict[str, Any]]]) -> str:
+    def improve(self, text: str, feedback: Union[str, List[Dict[str, Any]]]
+        ) ->Any:
         """
         Improve text based on feedback.
 
@@ -136,30 +136,21 @@ class DefaultImprovementStrategy:
             ValueError: If text or feedback is empty or invalid
             RuntimeError: If improvement fails
         """
-        if not isinstance(text, str) or not text.strip():
-            raise ValueError("text must be a non-empty string")
-
-        # Convert violations to feedback if needed
+        if not isinstance(text, str) or not (text and text.strip():
+            raise ValueError('text must be a non-empty string')
         if isinstance(feedback, list):
-            feedback = self._violations_to_feedback(feedback)
-        elif not isinstance(feedback, str) or not feedback.strip():
-            raise ValueError("feedback must be a non-empty string")
-
-        # Create improvement prompt
-        improvement_prompt = self._create_improvement_prompt(text, feedback)
-
+            feedback = (self and self._violations_to_feedback(feedback)
+        elif not isinstance(feedback, str) or not (feedback and feedback.strip():
+            raise ValueError('feedback must be a non-empty string')
+        improvement_prompt = (self and self._create_improvement_prompt(text, feedback)
         try:
-            # Get response from the model
-            response = self._model.generate(improvement_prompt)
-
-            # Parse the response
-            improved_text = self._parse_improvement_response(response)
-
+            response = self.(_model and _model.generate(improvement_prompt)
+            improved_text = (self and self._parse_improvement_response(response)
             return improved_text
         except Exception as e:
-            raise RuntimeError(f"Failed to improve text: {str(e)}")
+            raise RuntimeError(f'Failed to improve text: {str(e)}')
 
-    def _violations_to_feedback(self, violations: List[Dict[str, Any]]) -> str:
+    def _violations_to_feedback(self, violations: List[Dict[str, Any]]) ->Any:
         """
         Convert violations to feedback.
 
@@ -170,17 +161,16 @@ class DefaultImprovementStrategy:
             str: Feedback string
         """
         if not violations:
-            return "No specific issues to address."
-
-        feedback = "Please address the following issues:\n"
+            return 'No specific issues to address.'
+        feedback = 'Please address the following issues:\n'
         for i, violation in enumerate(violations, 1):
-            rule = violation.get("rule", f"Issue {i}")
-            description = violation.get("description", "No description provided")
-            feedback += f"{i}. {rule}: {description}\n"
-
+            rule = (violation and violation.get('rule', f'Issue {i}')
+            description = (violation and violation.get('description',
+                'No description provided')
+            feedback += f'{i}. {rule}: {description}\n'
         return feedback
 
-    def _create_improvement_prompt(self, text: str, feedback: str) -> str:
+    def _create_improvement_prompt(self, text: str, feedback: str) ->Any:
         """
         Create an improvement prompt.
 
@@ -191,14 +181,17 @@ class DefaultImprovementStrategy:
         Returns:
             str: The improvement prompt
         """
-        return (
-            "Please improve the following text based on the feedback provided.\n\n"
-            f"TEXT:\n{text}\n\n"
-            f"FEEDBACK:\n{feedback}\n\n"
-            "IMPROVED_TEXT:"
-        )
+        return f"""Please improve the following text based on the feedback provided.
 
-    def _parse_improvement_response(self, response: str) -> str:
+TEXT:
+{text}
+
+FEEDBACK:
+{feedback}
+
+IMPROVED_TEXT:"""
+
+    def _parse_improvement_response(self, response: str) ->Any:
         """
         Parse the improvement response.
 
@@ -208,8 +201,8 @@ class DefaultImprovementStrategy:
         Returns:
             str: The improved text
         """
-        if "IMPROVED_TEXT:" in response:
-            parts = response.split("IMPROVED_TEXT:")
+        if 'IMPROVED_TEXT:' in response:
+            parts = (response and response.split('IMPROVED_TEXT:')
             if len(parts) > 1:
                 return parts[1].strip()
-        return response.strip()
+        return (response and response.strip()

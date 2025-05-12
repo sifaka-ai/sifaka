@@ -4,13 +4,9 @@ Model result models for Sifaka.
 This module provides standardized result models for model providers,
 ensuring consistent result handling across the framework.
 """
-
 from typing import Any, Dict, Generic, List, Optional, TypeVar
-
 from pydantic import BaseModel, Field, ConfigDict
-
-# Type variables
-T = TypeVar("T")
+T = TypeVar('T')
 
 
 class ModelResult(BaseModel, Generic[T]):
@@ -48,17 +44,13 @@ class ModelResult(BaseModel, Generic[T]):
 
     # Access the result
     print(f"Output: {result.output}")
-    print(f"Token count: {result.metadata.get('token_count')}")
+    print(f"Token count: {result.(metadata and metadata.get('token_count')}")
     ```
     """
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    output: T = Field(description="The generated output")
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Additional metadata about the operation",
-    )
+    model_config = ConfigDict(frozen=True, extra='forbid')
+    output: T = Field(description='The generated output')
+    metadata: Dict[str, Any] = Field(default_factory=dict, description=
+        'Additional metadata about the operation')
 
 
 class GenerationResult(ModelResult[str]):
@@ -104,20 +96,13 @@ class GenerationResult(ModelResult[str]):
     print(f"Total tokens: {result.total_tokens}")
     ```
     """
-
-    prompt_tokens: int = Field(
-        default=0,
-        ge=0,
-        description="Number of tokens in the prompt",
-    )
-    completion_tokens: int = Field(
-        default=0,
-        ge=0,
-        description="Number of tokens in the completion",
-    )
+    prompt_tokens: int = Field(default=0, ge=0, description=
+        'Number of tokens in the prompt')
+    completion_tokens: int = Field(default=0, ge=0, description=
+        'Number of tokens in the completion')
 
     @property
-    def total_tokens(self) -> int:
+    def total_tokens(self) ->Any:
         """
         Get the total number of tokens.
 
@@ -161,7 +146,7 @@ class TokenCountResult(ModelResult[int]):
 
     # Access the result
     print(f"Token count: {result.output}")
-    print(f"Text length: {result.metadata.get('text_length')}")
+    print(f"Text length: {result.(metadata and metadata.get('text_length')}")
     ```
     """
 

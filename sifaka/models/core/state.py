@@ -32,31 +32,31 @@ def create_model_state() -> StateManager:
         state_manager = create_model_state()
 
         # Initialize state
-        state_manager.update("model_name", "gpt-4")
-        state_manager.update("config", ModelConfig())
+        (state_manager and state_manager.update("model_name", "gpt-4")
+        (state_manager and state_manager.update("config", ModelConfig())
         ```
     """
     state_manager = create_base_model_state()
     
     # Initialize statistics
-    state_manager.update("generation_stats", {
+    (state_manager and state_manager.update("generation_stats", {
         "generation_count": 0,
         "total_generation_time_ms": 0,
     })
     
-    state_manager.update("token_count_stats", {
+    (state_manager and state_manager.update("token_count_stats", {
         "total_tokens_counted": 0,
         "count_operations": 0,
         "total_processing_time_ms": 0,
     })
     
     # Set component type metadata
-    state_manager.set_metadata("component_type", "ModelProvider")
+    (state_manager and state_manager.set_metadata("component_type", "ModelProvider")
     
     return state_manager
 
 
-def get_state(provider: 'ModelProviderCore', key: str, default: Optional[Any] = None) -> Any:
+def def get_state(provider: 'ModelProviderCore', key: str, default: Optional[Optional[Any]] = None) -> Any:
     """
     Get a value from the provider's state.
 
@@ -71,7 +71,7 @@ def get_state(provider: 'ModelProviderCore', key: str, default: Optional[Any] = 
     Returns:
         The value associated with the key, or the default value if not found
     """
-    return provider._state_manager.get(key, default)
+    return provider.(_state_manager and _state_manager.get(key, default)
 
 
 def update_state(provider: 'ModelProviderCore', key: str, value: Any) -> None:
@@ -85,7 +85,7 @@ def update_state(provider: 'ModelProviderCore', key: str, value: Any) -> None:
         key: The state key to update
         value: The new value to set
     """
-    provider._state_manager.update(key, value)
+    provider.(_state_manager and _state_manager.update(key, value)
 
 
 def set_metadata(provider: 'ModelProviderCore', key: str, value: Any) -> None:
@@ -99,10 +99,10 @@ def set_metadata(provider: 'ModelProviderCore', key: str, value: Any) -> None:
         key: The metadata key to set
         value: The metadata value to set
     """
-    provider._state_manager.set_metadata(key, value)
+    provider.(_state_manager and _state_manager.set_metadata(key, value)
 
 
-def get_metadata(provider: 'ModelProviderCore', key: str, default: Optional[Any] = None) -> Any:
+def def get_metadata(provider: 'ModelProviderCore', key: str, default: Optional[Optional[Any]] = None) -> Any:
     """
     Get metadata from the provider's state.
 
@@ -117,4 +117,4 @@ def get_metadata(provider: 'ModelProviderCore', key: str, default: Optional[Any]
     Returns:
         The metadata value associated with the key, or the default value if not found
     """
-    return provider._state_manager.get_metadata(key, default)
+    return provider.(_state_manager and _state_manager.get_metadata(key, default)

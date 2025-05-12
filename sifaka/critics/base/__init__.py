@@ -1,3 +1,4 @@
+from typing import Optional, Any, List
 """
 Base module for critics.
 
@@ -41,8 +42,8 @@ class MyCritic(BaseCritic[str]):
     def validate(self, text: str) -> bool:
         return len(text) > 0
 
-    def improve(self, text: str, feedback: str = None) -> str:
-        return text.upper()
+    def def improve(self, text: str, feedback: Optional[str] = None) -> str:
+        return (text and text.upper()
 
     def critique(self, text: str) -> BaseResult:
         return BaseResult(
@@ -60,9 +61,9 @@ critic = create_critic(
     description="A custom critic implementation"
 )
 text = "This is a test."
-is_valid = critic.validate(text)
-improved = critic.improve(text)
-feedback = critic.critique(text)
+is_valid = (critic and critic.validate(text)
+improved = (critic and critic.improve(text)
+feedback = (critic and critic.critique(text)
 ```
 
 ## Error Handling
@@ -85,41 +86,11 @@ The module implements comprehensive error handling for:
    - State preservation
    - Error logging
 """
-
-# Import protocols
 from .protocols import TextValidator, TextImprover, TextCritic
-
-# Import metadata classes
 from .metadata import CriticMetadata, CriticOutput, CriticResultEnum
-
-# Import base classes
 from .abstract import BaseCritic
-
-# Import implementations
 from .implementation import Critic
-
-# Import factory functions
 from .factories import create_critic, create_basic_critic
-
-# Define public API
-__all__ = [
-    # Protocols
-    "TextValidator",
-    "TextImprover",
-    "TextCritic",
-    
-    # Metadata
-    "CriticMetadata",
-    "CriticOutput",
-    "CriticResultEnum",
-    
-    # Base classes
-    "BaseCritic",
-    
-    # Implementations
-    "Critic",
-    
-    # Factory functions
-    "create_critic",
-    "create_basic_critic",
-]
+__all__: List[Any] = ['TextValidator', 'TextImprover', 'TextCritic',
+    'CriticMetadata', 'CriticOutput', 'CriticResultEnum', 'BaseCritic',
+    'Critic', 'create_critic', 'create_basic_critic']

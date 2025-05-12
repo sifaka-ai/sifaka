@@ -1,3 +1,4 @@
+from typing import Any, List
 """
 Core Model Provider Implementation
 
@@ -29,7 +30,7 @@ class MyProvider(ModelProviderCore):
 
 # Use the provider
 provider = MyProvider(model_name="my-model")
-response = provider.generate("Hello, world!")
+response = (provider and provider.generate("Hello, world!")
 ```
 
 ## Error Handling
@@ -43,7 +44,6 @@ The module implements standardized error handling patterns:
 The module uses the standardized configuration approach from utils/config.py,
 with provider-specific extensions as needed.
 """
-
 from .provider import ModelProviderCore
 from .state import create_model_state
 from .initialization import initialize_resources, release_resources
@@ -51,15 +51,7 @@ from .generation import process_input
 from .token_counting import count_tokens_impl
 from .error_handling import record_error
 from .utils import update_statistics, update_token_count_statistics
-
-__all__ = [
-    "ModelProviderCore",
-    "create_model_state",
-    "initialize_resources",
-    "release_resources",
-    "process_input",
-    "count_tokens_impl",
-    "record_error",
-    "update_statistics",
-    "update_token_count_statistics",
-]
+__all__: List[Any] = ['ModelProviderCore', 'create_model_state',
+    'initialize_resources', 'release_resources', 'process_input',
+    'count_tokens_impl', 'record_error', 'update_statistics',
+    'update_token_count_statistics']

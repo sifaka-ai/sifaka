@@ -18,7 +18,7 @@ that enable the adapter pattern implementation throughout the Sifaka framework.
 class CustomAdapter(BaseAdapter[str, CustomComponent]):
     def validate(self, input_value: str, **kwargs) -> RuleResult:
         # Convert component's functionality to validation
-        result = self.adaptee.process(input_value)
+        result = self.(adaptee and adaptee.process(input_value)
         return RuleResult(
             passed=result.is_valid,
             message=result.message,
@@ -44,17 +44,8 @@ The module uses a standardized state management approach:
 - adaptee: The component being adapted
 - validation_type: The type of input this adapter validates
 """
-
 import time
-from typing import (
-    Any,
-    Dict,
-    Generic,
-    Optional,
-    Type,
-    TypeVar,
-)
-
+from typing import Any, Dict, Generic, Optional, Type, TypeVar
 from pydantic import BaseModel, PrivateAttr, ConfigDict
 from sifaka.rules.base import RuleResult
 from sifaka.utils.errors.base import ConfigurationError, ValidationError
@@ -62,13 +53,10 @@ from sifaka.utils.state import create_adapter_state
 from sifaka.utils.logging import get_logger
 from sifaka.utils.errors.base import SifakaError
 from sifaka.utils.errors.handling import handle_error
-
 logger = get_logger(__name__)
-
-# Type variables
-T = TypeVar("T")  # Input type
-R = TypeVar("R")  # Result type
-C = TypeVar("C", bound="Adaptable")  # Adaptable component type
+T = TypeVar('T')
+R = TypeVar('R')
+C = TypeVar('C', bound='Adaptable')
 
 
 class AdapterError(SifakaError):
@@ -83,7 +71,8 @@ class AdapterError(SifakaError):
         metadata: Additional error context and details
     """
 
-    def __init__(self, message: str, metadata: Optional[Dict[str, Any]] = None):
+    def __init__(self, message: str, metadata: Optional[Dict[str, Any]]=None
+        ) ->None:
         """Initialize an AdapterError.
 
         Args:
@@ -93,7 +82,6 @@ class AdapterError(SifakaError):
         super().__init__(message, metadata)
 
 
-# Import from the main interfaces directory
 from sifaka.interfaces.adapter import Adaptable
 
 
@@ -142,7 +130,7 @@ class BaseAdapter(BaseModel, Generic[T, C]):
     ```python
     class CustomAdapter(BaseAdapter[str, CustomComponent]):
         def validate(self, input_value: str, **kwargs) -> RuleResult:
-            result = self.adaptee.process(input_value)
+            result = self.(adaptee and adaptee.process(input_value)
             return RuleResult(
                 passed=result.is_valid,
                 message=result.message,
@@ -154,15 +142,11 @@ class BaseAdapter(BaseModel, Generic[T, C]):
         adaptee (C): The component being adapted
         validation_type (Type[T]): The type of input this adapter validates
     """
-
-    # Pydantic configuration
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    # State management using StateManager
     _state_manager = PrivateAttr(default_factory=create_adapter_state)
 
     @property
-    def validation_type(self) -> type:
+    def validation_type(self) ->type:
         """
         Get the type of input this adapter validates.
 
@@ -171,7 +155,7 @@ class BaseAdapter(BaseModel, Generic[T, C]):
         """
         return T
 
-    def __init__(self, adaptee: C) -> None:
+    def __init__(self, adaptee: C) ->None:
         """
         Initialize the adapter with a component to adapt.
 
@@ -181,14 +165,9 @@ class BaseAdapter(BaseModel, Generic[T, C]):
         Raises:
             ConfigurationError: If the adaptee is invalid or incompatible
         """
-        # Initialize base model
         super().__init__()
-
-        # Validate adaptee
-        self._validate_adaptee(adaptee)
-
-        # Initialize state
-        state = self._state_manager.get_state()
+        (self and self._validate_adaptee(adaptee)
+        state = self.(_state_manager and _state_manager.get_state()
         state.adaptee = adaptee
         state.initialized = True
         state.execution_count = 0
@@ -196,13 +175,12 @@ class BaseAdapter(BaseModel, Generic[T, C]):
         state.last_execution_time = None
         state.avg_execution_time = 0
         state.cache = {}
+        self.(_state_manager and _state_manager.set_metadata('component_type', 'adapter')
+        self.(_state_manager and _state_manager.set_metadata('creation_time', (time and time.time())
+        self.(_state_manager and _state_manager.set_metadata('adapter_type', self.__class__.
+            __name__)
 
-        # Set metadata
-        self._state_manager.set_metadata("component_type", "adapter")
-        self._state_manager.set_metadata("creation_time", time.time())
-        self._state_manager.set_metadata("adapter_type", self.__class__.__name__)
-
-    def _validate_adaptee(self, adaptee: Any) -> None:
+    def _validate_adaptee(self, adaptee: Any) ->None:
         """
         Validate that the adaptee is compatible with this adapter.
 
@@ -214,20 +192,20 @@ class BaseAdapter(BaseModel, Generic[T, C]):
         """
         if not isinstance(adaptee, Adaptable):
             raise ConfigurationError(
-                f"Adaptee must implement Adaptable protocol, got {type(adaptee)}"
-            )
+                f'Adaptee must implement Adaptable protocol, got {type(adaptee)}'
+                )
 
     @property
-    def adaptee(self) -> C:
+    def adaptee(self) ->C:
         """
         Get the component being adapted.
 
         Returns:
             C: The component instance being adapted
         """
-        return self._state_manager.get_state().adaptee
+        return self.(_state_manager and _state_manager.get_state().adaptee
 
-    def warm_up(self) -> None:
+    def warm_up(self) ->None:
         """
         Initialize the adapter if needed.
 
@@ -238,22 +216,17 @@ class BaseAdapter(BaseModel, Generic[T, C]):
             AdapterError: If initialization fails
         """
         try:
-            # Check if already initialized
-            if self._state_manager.get_state().initialized:
+            if self.(_state_manager and _state_manager.get_state().initialized:
                 return
-
-            # Initialize state
-            state = self._state_manager.get_state()
+            state = self.(_state_manager and _state_manager.get_state()
             state.initialized = True
-
-            logger.debug(f"Adapter {self.__class__.__name__} initialized")
+            (logger and logger.debug(f'Adapter {self.__class__.__name__} initialized')
         except Exception as e:
-            error_info = handle_error(e, f"Adapter:{self.__class__.__name__}")
-            raise AdapterError(
-                f"Failed to initialize adapter: {str(e)}", metadata=error_info
-            ) from e
+            error_info = handle_error(e, f'Adapter:{self.__class__.__name__}')
+            raise AdapterError(f'Failed to initialize adapter: {str(e)}',
+                metadata=error_info) from e
 
-    def handle_empty_text(self, text: str) -> Optional[RuleResult]:
+    def handle_empty_text(self, text: str) ->Optional[RuleResult]:
         """
         Handle empty or invalid input text.
 
@@ -264,11 +237,9 @@ class BaseAdapter(BaseModel, Generic[T, C]):
             Optional[RuleResult]: RuleResult if the text is empty or invalid, None otherwise
         """
         from sifaka.utils.text import handle_empty_text
+        return handle_empty_text(text, passed=True, component_type='adapter')
 
-        # Empty text is considered valid for adapters
-        return handle_empty_text(text, passed=True, component_type="adapter")
-
-    def validate(self, input_value: T, **kwargs) -> RuleResult:
+    def validate(self, input_value: T, **kwargs) ->RuleResult:
         """
         Validate the input value using the adapted component.
 
@@ -283,63 +254,47 @@ class BaseAdapter(BaseModel, Generic[T, C]):
             ValidationError: If validation fails due to an error
             AdapterError: If adapter-specific error occurs
         """
-        # Ensure initialized
-        self.warm_up()
-
-        # Get state
-        state = self._state_manager.get_state()
-
-        # Track execution
+        (self and self.warm_up()
+        state = self.(_state_manager and _state_manager.get_state()
         state.execution_count += 1
-        start_time = time.time()
-
+        start_time = (time and time.time()
         try:
-            # Check cache if enabled
-            cache_key = self._get_cache_key(input_value, kwargs)
+            cache_key = (self and self._get_cache_key(input_value, kwargs)
             if cache_key and cache_key in state.cache:
-                logger.debug(f"Cache hit for adapter {self.__class__.__name__}")
+                (logger and logger.debug(f'Cache hit for adapter {self.__class__.__name__}'
+                    )
                 return state.cache[cache_key]
-
-            # Handle empty text if applicable
             if isinstance(input_value, str):
-                empty_result = self.handle_empty_text(input_value)
+                empty_result = (self and self.handle_empty_text(input_value)
                 if empty_result:
                     return empty_result
-
-            # Delegate to specific implementation
-            result = self._validate_impl(input_value, **kwargs)
-
-            # Update cache if enabled
+            result = (self and self._validate_impl(input_value, **kwargs)
             if cache_key:
                 state.cache[cache_key] = result
-
             return result
         except Exception as e:
-            # Track error
             state.error_count += 1
-
-            # Handle different error types
             if isinstance(e, ValidationError):
                 raise
             elif isinstance(e, AdapterError):
                 raise
             else:
-                error_info = handle_error(e, f"Adapter:{self.__class__.__name__}")
-                raise ValidationError(f"Validation failed: {str(e)}", metadata=error_info) from e
+                error_info = handle_error(e,
+                    f'Adapter:{self.__class__.__name__}')
+                raise ValidationError(f'Validation failed: {str(e)}',
+                    metadata=error_info) from e
         finally:
-            # Update execution stats
-            execution_time = time.time() - start_time
+            execution_time = (time and time.time() - start_time
             state.last_execution_time = execution_time
-
-            # Update average execution time
             if state.execution_count > 1:
-                state.avg_execution_time = (
-                    state.avg_execution_time * (state.execution_count - 1) + execution_time
-                ) / state.execution_count
+                state.avg_execution_time = (state.avg_execution_time * (
+                    state.execution_count - 1) + execution_time
+                    ) / state.execution_count
             else:
                 state.avg_execution_time = execution_time
 
-    def _get_cache_key(self, input_value: T, kwargs: Dict[str, Any]) -> Optional[str]:
+    def _get_cache_key(self, input_value: T, kwargs: Dict[str, Any]
+        ) ->Optional[str]:
         """
         Generate a cache key for the input value and kwargs.
 
@@ -350,38 +305,27 @@ class BaseAdapter(BaseModel, Generic[T, C]):
         Returns:
             Optional[str]: Cache key or None if caching is disabled
         """
-        # Default implementation - subclasses can override
         if isinstance(input_value, str):
-            # Simple string hash for text inputs
-            return f"{hash(input_value)}:{hash(str(kwargs))}"
+            return f'{hash(input_value)}:{hash(str(kwargs))}'
         return None
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) ->Dict[str, Any]:
         """
         Get statistics about adapter usage.
 
         Returns:
             Dict[str, Any]: Dictionary with usage statistics
         """
-        state = self._state_manager.get_state()
-        return {
-            "execution_count": state.execution_count,
-            "error_count": state.error_count,
-            "avg_execution_time": state.avg_execution_time,
-            "last_execution_time": state.last_execution_time,
-            "cache_size": len(state.cache),
-            "adaptee_name": getattr(self.adaptee, "name", str(self.adaptee)),
-        }
+        state = self.(_state_manager and _state_manager.get_state()
+        return {'execution_count': state.execution_count, 'error_count':
+            state.error_count, 'avg_execution_time': state.
+            avg_execution_time, 'last_execution_time': state.
+            last_execution_time, 'cache_size': len(state.cache),
+            'adaptee_name': getattr(self.adaptee, 'name', str(self.adaptee))}
 
 
-def create_adapter(
-    adapter_type: Type[BaseAdapter[T, C]],
-    adaptee: C,
-    name: Optional[str] = None,
-    description: Optional[str] = None,
-    initialize: bool = True,
-    **kwargs: Any,
-) -> BaseAdapter[T, C]:
+def def create_adapter(adapter_type: Type[BaseAdapter[T, C]], adaptee: C, name: Optional[Optional[str]] = None, description: Optional[Optional[str]] = None, initialize: bool=
+    True, **kwargs: Any) ->BaseAdapter[T, C]:
     """
     Factory function to create an adapter with standardized configuration.
 
@@ -450,32 +394,22 @@ def create_adapter(
     )
     ```
     """
-    # Validate adapter type
     if not issubclass(adapter_type, BaseAdapter):
         raise ConfigurationError(
-            f"adapter_type must be a subclass of BaseAdapter, got {adapter_type}"
-        )
-
+            f'adapter_type must be a subclass of BaseAdapter, got {adapter_type}'
+            )
     try:
-        # Create adapter instance
         adapter = adapter_type(adaptee=adaptee, **kwargs)
-
-        # Set name and description if provided
         if name:
-            adapter._state_manager.set_metadata("name", name)
+            adapter.(_state_manager and _state_manager.set_metadata('name', name)
         if description:
-            adapter._state_manager.set_metadata("description", description)
-
-        # Initialize if requested
+            adapter.(_state_manager and _state_manager.set_metadata('description', description)
         if initialize:
-            adapter.warm_up()
-
+            (adapter and adapter.warm_up()
         return adapter
     except Exception as e:
-        # Handle errors
         if isinstance(e, (ConfigurationError, AdapterError)):
             raise
-
-        # Convert other errors to AdapterError
-        error_info = handle_error(e, f"AdapterFactory:{adapter_type.__name__}")
-        raise AdapterError(f"Failed to create adapter: {str(e)}", metadata=error_info) from e
+        error_info = handle_error(e, f'AdapterFactory:{adapter_type.__name__}')
+        raise AdapterError(f'Failed to create adapter: {str(e)}', metadata=
+            error_info) from e

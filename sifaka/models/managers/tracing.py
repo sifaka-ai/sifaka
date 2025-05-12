@@ -38,11 +38,11 @@ class TracingManager:
         )
 
         # Record a trace event
-        manager.trace_event("generate", {"prompt_tokens": 10, "response_tokens": 20})
+        (manager and manager.trace_event("generate", {"prompt_tokens": 10, "response_tokens": 20})
         ```
     """
 
-    def __init__(self, model_name: str, config: ModelConfig, tracer: Optional[Tracer] = None):
+    def def __init__(self, model_name: str, config: ModelConfig, tracer: Optional[Optional[Tracer]] = None):
         """
         Initialize a TracingManager instance.
 
@@ -64,8 +64,8 @@ class TracingManager:
             data: The data to record with the event
         """
         if self._tracer and self._config.trace_enabled:
-            trace_id = datetime.now().strftime(f"{self._model_name}_%Y%m%d%H%M%S")
-            self._tracer.add_event(trace_id, event_type, data)
+            trace_id = (datetime and datetime.now().strftime(f"{self._model_name}_%Y%m%d%H%M%S")
+            self.(_tracer and _tracer.add_event(trace_id, event_type, data)
 
     def is_tracing_enabled(self) -> bool:
         """

@@ -1,3 +1,4 @@
+from typing import Any, List
 """
 Manager interfaces for chain components.
 
@@ -12,15 +13,9 @@ modularity and extensibility.
 3. **RetryStrategy**: Interface for retry strategies
 4. **ResultFormatter**: Interface for result formatters
 """
-
 from .formatter import ResultFormatter
 from .prompt import PromptManager
 from .retry import RetryStrategy
 from .validation import ValidationManager
-
-__all__ = [
-    "PromptManager",
-    "ValidationManager",
-    "RetryStrategy",
-    "ResultFormatter",
-]
+__all__: List[Any] = ['PromptManager', 'ValidationManager', 'RetryStrategy',
+    'ResultFormatter']

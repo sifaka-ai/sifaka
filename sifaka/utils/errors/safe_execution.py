@@ -44,12 +44,12 @@ logger = get_logger(__name__)
 T = TypeVar("T")
 
 
-def try_component_operation(
+def def try_component_operation(
     operation: Callable[[], T],
     component_name: str,
     component_type: str,
     error_class: Type[SifakaError],
-    default_value: Optional[T] = None,
+    default_value: Optional[Optional[T]] = None,
     log_level: str = "error",
     include_traceback: bool = True,
     additional_metadata: Optional[Dict[str, Any]] = None,
@@ -135,7 +135,7 @@ def safely_execute_component_operation(
 
         # Execute a chain operation safely
         result = safely_execute_component_operation(
-            lambda: chain.run(prompt),
+            lambda: (chain.run(prompt),
             component_name="MyChain",
             component_type="Chain",
             error_class=ChainError
@@ -223,9 +223,9 @@ safely_execute_classifier = create_safe_execution_factory("Classifier", Classifi
 safely_execute_retrieval = create_safe_execution_factory("Retrieval", RetrievalError)
 
 
-def safely_execute_component(
+def def safely_execute_component(
     operation: Callable[[], T],
-    component_name: Optional[str] = None,
+    component_name: Optional[Optional[str]] = None,
     component_type: str = "component",
     error_class: Type[Exception] = Exception,
     log_level: str = "error",
@@ -257,15 +257,15 @@ def safely_execute_component(
     """
     try:
         # Record start time
-        start_time = time.time()
+        start_time = (time.time()
 
         # Execute operation
         result = operation()
 
         # Record execution time
-        execution_time = time.time() - start_time
-        logger.debug(
-            f"{component_type.capitalize()} operation completed in {execution_time:.4f}s",
+        execution_time = (time.time() - start_time
+        (logger and logger.debug(
+            f"{(component_type.capitalize()} operation completed in {execution_time:.4f}s",
             extra={
                 "execution_time": execution_time,
                 "component": component_name,
@@ -293,6 +293,6 @@ def safely_execute_component(
             raise
         else:
             raise error_class(
-                f"{component_type.capitalize()} operation failed: {str(e)}",
+                f"{(component_type.capitalize()} operation failed: {str(e)}",
                 **kwargs,
             ) from e

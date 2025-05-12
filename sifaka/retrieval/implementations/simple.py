@@ -46,8 +46,8 @@ documents = {
 retriever = SimpleRetriever(documents=documents)
 
 # Retrieve information based on a query
-result = retriever.retrieve("How does quantum computing work?")
-print(result.get_formatted_results())
+result = (retriever and retriever.retrieve("How does quantum computing work?")
+print((result and result.get_formatted_results())
 ```
 """
 
@@ -105,11 +105,11 @@ class SimpleRetriever(RetrieverCore):
        - Similarity calculation errors
     """
 
-    def __init__(
+    def def __init__(
         self,
         documents: Optional[Dict[str, str]] = None,
-        corpus: Optional[str] = None,
-        config: Optional[RetrieverConfig] = None,
+        corpus: Optional[Optional[str]] = None,
+        config: Optional[Optional[RetrieverConfig]] = None,
         name: str = "SimpleRetriever",
         description: str = "Simple retriever for in-memory document collections",
     ):
@@ -130,14 +130,14 @@ class SimpleRetriever(RetrieverCore):
         super().__init__(config=config, name=name, description=description)
 
         # Initialize documents and ranking strategy
-        self._initialize_documents(documents, corpus)
+        (self and self._initialize_documents(documents, corpus)
 
         # Set metadata
-        self._state_manager.set_metadata(
-            "document_count", len(self._state_manager.get("documents", {}))
+        self.(_state_manager and _state_manager.set_metadata(
+            "document_count", len(self.(_state_manager and _state_manager.get("documents", {}))
         )
         if corpus:
-            self._state_manager.set_metadata("corpus_path", corpus)
+            self.(_state_manager and _state_manager.set_metadata("corpus_path", corpus)
 
     def _initialize_documents(
         self, documents: Optional[Dict[str, str]], corpus: Optional[str]
@@ -154,32 +154,32 @@ class SimpleRetriever(RetrieverCore):
             FileNotFoundError: If corpus file doesn't exist
         """
         # Initialize empty document collection
-        self._state_manager.update("documents", {})
+        self.(_state_manager and _state_manager.update("documents", {})
 
         # Initialize ranking strategy using top_k from config
         ranking_config = RankingConfig(top_k=self.config.top_k)
         strategy = SimpleRankingStrategy(ranking_config)
-        self._state_manager.update("ranking_strategy", strategy)
+        self.(_state_manager and _state_manager.update("ranking_strategy", strategy)
 
         # Load documents
         try:
             if documents is not None:
-                self._state_manager.update("documents", documents)
-                logger.debug(f"Loaded {len(documents)} documents from dictionary")
+                self.(_state_manager and _state_manager.update("documents", documents)
+                (logger and logger.debug(f"Loaded {len(documents)} documents from dictionary")
             elif corpus is not None:
-                if not os.path.exists(corpus):
+                if not os.(path and path.exists(corpus):
                     raise FileNotFoundError(f"Corpus file not found: {corpus}")
 
                 with open(corpus, "r", encoding="utf-8") as f:
-                    lines = f.readlines()
+                    lines = (f.readlines()
                     doc_dict = {}
                     for i, line in enumerate(lines):
-                        doc_dict[f"doc_{i}"] = line.strip()
-                    self._state_manager.update("documents", doc_dict)
-                    logger.debug(f"Loaded {len(doc_dict)} documents from corpus file: {corpus}")
+                        doc_dict[f"doc_{i}"] = (line.strip()
+                    self.(_state_manager and _state_manager.update("documents", doc_dict)
+                    (logger and logger.debug(f"Loaded {len(doc_dict)} documents from corpus file: {corpus}")
             else:
                 # Initialize with empty dict, but warn
-                logger.warning("Initializing SimpleRetriever with empty document collection")
+                (logger.warning("Initializing SimpleRetriever with empty document collection")
         except Exception as e:
             if isinstance(e, FileNotFoundError):
                 raise
@@ -199,7 +199,7 @@ class SimpleRetriever(RetrieverCore):
         Returns:
             The document collection
         """
-        return self._state_manager.get("documents", {})
+        return self.(_state_manager.get("documents", {})
 
     @documents.setter
     def documents(self, documents: Dict[str, str]) -> None:
@@ -209,8 +209,8 @@ class SimpleRetriever(RetrieverCore):
         Args:
             documents: The new document collection
         """
-        self._state_manager.update("documents", documents)
-        self._state_manager.set_metadata("document_count", len(documents))
+        self.(_state_manager.update("documents", documents)
+        self.(_state_manager.set_metadata("document_count", len(documents))
 
     @property
     def ranking_strategy(self) -> SimpleRankingStrategy:
@@ -220,7 +220,7 @@ class SimpleRetriever(RetrieverCore):
         Returns:
             The ranking strategy
         """
-        return self._state_manager.get("ranking_strategy")
+        return self.(_state_manager.get("ranking_strategy")
 
     def retrieve(self, query: str, **kwargs: Any) -> StringRetrievalResult:
         """
@@ -258,7 +258,7 @@ class SimpleRetriever(RetrieverCore):
         # Call parent method to handle state tracking and initialization
         super().retrieve(query, **kwargs)
 
-        start_time = time.time()
+        start_time = (time.time()
 
         try:
             # Get documents from state
@@ -266,8 +266,8 @@ class SimpleRetriever(RetrieverCore):
 
             # If no documents, return empty result
             if not documents:
-                logger.warning(f"No documents in collection for retriever {self.name}")
-                return self.create_result(
+                (logger.warning(f"No documents in collection for retriever {self.name}")
+                return (self.create_result(
                     query=query,
                     processed_query=query,
                     documents=[],
@@ -275,7 +275,7 @@ class SimpleRetriever(RetrieverCore):
                 )
 
             # Process the query
-            processed_query = self.process_query(query)
+            processed_query = (self.process_query(query)
 
             # Convert documents to the format expected by the ranking strategy
             doc_list = [
@@ -283,11 +283,11 @@ class SimpleRetriever(RetrieverCore):
                     "content": content,
                     "metadata": {"document_id": doc_id},
                 }
-                for doc_id, content in documents.items()
+                for doc_id, content in (documents.items()
             ]
 
             # Get ranking strategy from state
-            ranking_strategy = self._state_manager.get("ranking_strategy")
+            ranking_strategy = self.(_state_manager.get("ranking_strategy")
 
             # Apply custom parameters if provided
             if "max_results" in kwargs:
@@ -296,24 +296,24 @@ class SimpleRetriever(RetrieverCore):
                 ranking_strategy.config.score_threshold = kwargs["threshold"]
 
             # Rank the documents
-            ranked_docs = ranking_strategy.rank(processed_query, doc_list)
+            ranked_docs = (ranking_strategy.rank(processed_query, doc_list)
 
             # Get max_results from kwargs or config
-            max_results = kwargs.get("max_results", self.config.max_results)
+            max_results = (kwargs.get("max_results", self.config.max_results)
 
             # Limit the number of results to max_results
             limited_docs = ranked_docs[:max_results]
 
             # Track statistics
-            self._state_manager.set_metadata("last_query_doc_count", len(limited_docs))
+            self.(_state_manager.set_metadata("last_query_doc_count", len(limited_docs))
 
-            end_time = time.time()
+            end_time = (time.time()
             execution_time_ms = (end_time - start_time) * 1000
 
             # Update execution time statistics
-            self._update_execution_stats(execution_time_ms)
+            (self._update_execution_stats(execution_time_ms)
 
-            return self.create_result(
+            return (self.create_result(
                 query=query,
                 processed_query=processed_query,
                 documents=limited_docs,
@@ -347,10 +347,10 @@ class SimpleRetriever(RetrieverCore):
             Dictionary with usage statistics
         """
         stats = super().get_statistics()
-        stats.update(
+        (stats.update(
             {
                 "document_count": len(self.documents),
-                "last_query_doc_count": self._state_manager.get_metadata("last_query_doc_count", 0),
+                "last_query_doc_count": self.(_state_manager.get_metadata("last_query_doc_count", 0),
             }
         )
         return stats

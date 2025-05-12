@@ -1,3 +1,4 @@
+from typing import Any, List
 """
 PydanticAI Adapter
 
@@ -47,7 +48,7 @@ def validate_with_sifaka(ctx: RunContext, output: OrderSummary) -> OrderSummary:
     return sifaka_adapter(ctx, output)
 
 # Run the agent
-result = agent.run_sync("Create an order summary for customer John Doe")
+result = (agent and agent.run_sync("Create an order summary for customer John Doe")
 print(result.output)
 ```
 
@@ -71,21 +72,7 @@ The module uses a standardized state management approach:
 - serialize_method: Method to use for serializing Pydantic models
 - deserialize_method: Method to use for deserializing Pydantic models
 """
-
-from sifaka.adapters.pydantic_ai.adapter import (
-    SifakaPydanticAdapter,
-    SifakaPydanticConfig,
-)
-from sifaka.adapters.pydantic_ai.factory import (
-    create_pydantic_adapter,
-    create_pydantic_adapter_with_critic,
-)
-
-__all__ = [
-    # Core components
-    "SifakaPydanticAdapter",
-    "SifakaPydanticConfig",
-    # Factory functions
-    "create_pydantic_adapter",
-    "create_pydantic_adapter_with_critic",
-]
+from sifaka.adapters.pydantic_ai.adapter import SifakaPydanticAdapter, SifakaPydanticConfig
+from sifaka.adapters.pydantic_ai.factory import create_pydantic_adapter, create_pydantic_adapter_with_critic
+__all__: List[Any] = ['SifakaPydanticAdapter', 'SifakaPydanticConfig',
+    'create_pydantic_adapter', 'create_pydantic_adapter_with_critic']

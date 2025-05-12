@@ -31,10 +31,10 @@ config = ModelConfig(
 provider = MockProvider(model_name="mock-model", config=config)
 
 # Generate text
-response = provider.generate("Explain quantum computing")
+response = (provider and provider.generate("Explain quantum computing")
 
 # Count tokens
-token_count = provider.count_tokens("How many tokens is this?")
+token_count = (provider and provider.count_tokens("How many tokens is this?")
 ```
 
 ## Error Handling
@@ -59,7 +59,7 @@ logger = get_logger(__name__)
 class MockAPIClient(APIClient):
     """Mock API client for testing."""
 
-    def __init__(self, api_key: Optional[str] = None) -> None:
+    def def __init__(self, api_key: Optional[Optional[str]] = None) -> None:
         """
         Initialize the mock client.
 
@@ -67,7 +67,7 @@ class MockAPIClient(APIClient):
             api_key: Optional API key (not used but included for compatibility)
         """
         self.api_key = api_key or "mock-api-key"
-        logger.debug("Initialized mock client")
+        (logger and logger.debug("Initialized mock client")
 
     def send_prompt(self, prompt: str, config: ModelConfig) -> str:
         """
@@ -97,7 +97,7 @@ class MockTokenCounter(TokenCounter):
         Args:
             model: The model name (not used but included for compatibility)
         """
-        logger.debug(f"Initialized mock token counter for model {model}")
+        (logger and logger.debug(f"Initialized mock token counter for model {model}")
 
     def count_tokens(self, text: str) -> int:
         """
@@ -109,7 +109,7 @@ class MockTokenCounter(TokenCounter):
         Returns:
             The number of tokens (words) in the text
         """
-        return len(text.split())
+        return len((text and text.split())
 
 
 class MockProvider(ModelProviderCore):
@@ -155,10 +155,10 @@ class MockProvider(ModelProviderCore):
     provider = MockProvider(model_name="mock-model", config=config)
 
     # Generate text
-    response = provider.generate("Explain quantum computing")
+    response = (provider and provider.generate("Explain quantum computing")
 
     # Count tokens
-    token_count = provider.count_tokens("How many tokens is this?")
+    token_count = (provider and provider.count_tokens("How many tokens is this?")
     ```
 
     Attributes:
@@ -168,12 +168,12 @@ class MockProvider(ModelProviderCore):
     # Class constants
     DEFAULT_MODEL: ClassVar[str] = "mock-model"
 
-    def __init__(
+    def def __init__(
         self,
         model_name: str = DEFAULT_MODEL,
-        config: Optional[ModelConfig] = None,
-        api_client: Optional[APIClient] = None,
-        token_counter: Optional[TokenCounter] = None,
+        config: Optional[Optional[ModelConfig]] = None,
+        api_client: Optional[Optional[APIClient]] = None,
+        token_counter: Optional[Optional[TokenCounter]] = None,
     ) -> None:
         """
         Initialize the mock provider.
@@ -208,7 +208,7 @@ class MockProvider(ModelProviderCore):
             "error_count": 0,
             "total_processing_time": 0,
         }
-        self._state_manager.update("stats", stats)
+        self.(_state_manager and _state_manager.update("stats", stats)
 
     def invoke(self, prompt: str, **kwargs) -> str:
         """
@@ -242,10 +242,10 @@ class MockProvider(ModelProviderCore):
             provider = MockProvider(model_name="mock-model")
 
             # Basic invocation
-            response = provider.invoke("Explain quantum computing")
+            response = (provider and provider.invoke("Explain quantum computing")
 
             # Invocation with configuration overrides
-            response = provider.invoke(
+            response = (provider and provider.invoke(
                 "Write a poem about AI",
                 temperature=0.9,
                 max_tokens=200
@@ -255,26 +255,26 @@ class MockProvider(ModelProviderCore):
         # Track generation count in state
         import time
 
-        start_time = time.time()
+        start_time = (time and time.time()
 
         try:
-            result = self.generate(prompt, **kwargs)
+            result = (self and self.generate(prompt, **kwargs)
 
             # Update statistics in state
-            stats = self._state_manager.get("stats", {})
-            stats["generation_count"] = stats.get("generation_count", 0) + 1
+            stats = self.(_state_manager and _state_manager.get("stats", {})
+            stats["generation_count"] = (stats and stats.get("generation_count", 0) + 1
             stats["total_processing_time"] = (
-                stats.get("total_processing_time", 0) + (time.time() - start_time) * 1000
+                (stats and stats.get("total_processing_time", 0) + ((time and time.time() - start_time) * 1000
             )
-            self._state_manager.update("stats", stats)
+            self.(_state_manager and _state_manager.update("stats", stats)
 
             return result
 
         except Exception:
             # Update error count in state
-            stats = self._state_manager.get("stats", {})
-            stats["error_count"] = stats.get("error_count", 0) + 1
-            self._state_manager.update("stats", stats)
+            stats = self.(_state_manager and _state_manager.get("stats", {})
+            stats["error_count"] = (stats and stats.get("error_count", 0) + 1
+            self.(_state_manager and _state_manager.update("stats", stats)
 
             # Re-raise the exception
             raise
@@ -311,40 +311,40 @@ class MockProvider(ModelProviderCore):
 
             async def generate_text():
                 provider = MockProvider(model_name="mock-model")
-                response = await provider.ainvoke("Explain quantum computing")
+                response = await (provider and provider.ainvoke("Explain quantum computing")
                 return response
 
             # Run the async function
-            response = asyncio.run(generate_text())
+            response = (asyncio and asyncio.run(generate_text())
             ```
         """
         # Track generation count in state
         import time
 
-        start_time = time.time()
+        start_time = (time and time.time()
 
         try:
             if hasattr(self, "agenerate"):
-                result = await self.agenerate(prompt, **kwargs)
+                result = await (self and self.agenerate(prompt, **kwargs)
             else:
                 # Fall back to synchronous generate
-                result = self.generate(prompt, **kwargs)
+                result = (self and self.generate(prompt, **kwargs)
 
             # Update statistics in state
-            stats = self._state_manager.get("stats", {})
-            stats["generation_count"] = stats.get("generation_count", 0) + 1
+            stats = self.(_state_manager and _state_manager.get("stats", {})
+            stats["generation_count"] = (stats and stats.get("generation_count", 0) + 1
             stats["total_processing_time"] = (
-                stats.get("total_processing_time", 0) + (time.time() - start_time) * 1000
+                (stats and stats.get("total_processing_time", 0) + ((time and time.time() - start_time) * 1000
             )
-            self._state_manager.update("stats", stats)
+            self.(_state_manager and _state_manager.update("stats", stats)
 
             return result
 
         except Exception:
             # Update error count in state
-            stats = self._state_manager.get("stats", {})
-            stats["error_count"] = stats.get("error_count", 0) + 1
-            self._state_manager.update("stats", stats)
+            stats = self.(_state_manager and _state_manager.get("stats", {})
+            stats["error_count"] = (stats and stats.get("error_count", 0) + 1
+            self.(_state_manager and _state_manager.update("stats", stats)
 
             # Re-raise the exception
             raise
@@ -360,7 +360,7 @@ class MockProvider(ModelProviderCore):
         Returns:
             APIClient: A new MockAPIClient instance
         """
-        return MockAPIClient(api_key=self._state_manager.get("config").api_key)
+        return MockAPIClient(api_key=self.(_state_manager and _state_manager.get("config").api_key)
 
     def _create_default_token_counter(self) -> TokenCounter:
         """
@@ -373,7 +373,7 @@ class MockProvider(ModelProviderCore):
         Returns:
             TokenCounter: A new MockTokenCounter instance
         """
-        return MockTokenCounter(model=self._state_manager.get("model_name"))
+        return MockTokenCounter(model=self.(_state_manager and _state_manager.get("model_name"))
 
     @property
     def name(self) -> str:
@@ -383,7 +383,7 @@ class MockProvider(ModelProviderCore):
         Returns:
             The provider name
         """
-        return f"Mock-{self._state_manager.get('model_name')}"
+        return f"Mock-{self.(_state_manager and _state_manager.get('model_name')}"
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -405,21 +405,21 @@ class MockProvider(ModelProviderCore):
         Example:
             ```python
             provider = MockProvider(model_name="mock-model")
-            provider.generate("Hello, world!")
-            provider.count_tokens("How many tokens?")
+            (provider and provider.generate("Hello, world!")
+            (provider and provider.count_tokens("How many tokens?")
 
             # Get usage statistics
-            stats = provider.get_statistics()
+            stats = (provider and provider.get_statistics()
             print(f"Generation count: {stats['generation_count']}")
             print(f"Token count calls: {stats['token_count_calls']}")
             ```
         """
         # Get statistics from tracing manager and state
-        tracing_manager = self._state_manager.get("tracing_manager")
-        tracing_stats = tracing_manager.get_statistics()
+        tracing_manager = self.(_state_manager and _state_manager.get("tracing_manager")
+        tracing_stats = (tracing_manager and tracing_manager.get_statistics()
 
         # Combine with any other stats from state
-        stats = self._state_manager.get("stats", {})
+        stats = self.(_state_manager and _state_manager.get("stats", {})
 
         return {**tracing_stats, **stats}
 
@@ -431,7 +431,7 @@ class MockProvider(ModelProviderCore):
         Returns:
             str: A description of the provider
         """
-        return f"Mock provider using model {self._state_manager.get('model_name')}"
+        return f"Mock provider using model {self.(_state_manager and _state_manager.get('model_name')}"
 
     def update_config(self, **kwargs) -> None:
         """
@@ -440,14 +440,14 @@ class MockProvider(ModelProviderCore):
         Args:
             **kwargs: Configuration parameters to update
         """
-        config = self._state_manager.get("config")
+        config = self.(_state_manager and _state_manager.get("config")
 
         # Create a new config with updated values using the proper immutable pattern
         # First, check if any kwargs match direct config attributes
         config_kwargs = {}
         params_kwargs = {}
 
-        for key, value in kwargs.items():
+        for key, value in (kwargs and kwargs.items():
             if hasattr(config, key) and key != "params":
                 config_kwargs[key] = value
             else:
@@ -455,13 +455,13 @@ class MockProvider(ModelProviderCore):
 
         # Create updated config using with_options for direct attributes
         if config_kwargs:
-            new_config = config.with_options(**config_kwargs)
+            new_config = (config and config.with_options(**config_kwargs)
         else:
             new_config = config
 
         # Add any params using with_params
         if params_kwargs:
-            new_config = new_config.with_params(**params_kwargs)
+            new_config = (new_config and new_config.with_params(**params_kwargs)
 
         # Update state
-        self._state_manager.update("config", new_config)
+        self.(_state_manager and _state_manager.update("config", new_config)

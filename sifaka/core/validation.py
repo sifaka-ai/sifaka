@@ -34,7 +34,7 @@ validator = Validator(
 )
 
 # Validate output
-result = validator.validate(
+result = (validator and validator.validate(
     input_value="What is the capital of France?",
     output_value="Paris is the capital of France."
 )
@@ -99,7 +99,7 @@ class ValidatorConfig(BaseModel):
     # Access configuration
     print(f"Rules: {len(config.rules)}")
     print(f"Fail fast: {config.fail_fast}")
-    print(f"Threshold: {config.params.get('threshold')}")
+    print(f"Threshold: {config.(params and params.get('threshold')}")
     ```
 
     Attributes:
@@ -166,8 +166,8 @@ class ValidationResult(Generic[OutputType]):
     else:
         print("Validation failed")
         for rule_result in result.rule_results:
-            if not rule_result.get("passed"):
-                print(f"- Failed rule: {rule_result.get('rule')}")
+            if not (rule_result and rule_result.get("passed"):
+                print(f"- Failed rule: {(rule_result and rule_result.get('rule')}")
     ```
 
     Attributes:
@@ -224,7 +224,7 @@ class Validator(Generic[InputType, OutputType]):
     )
 
     # Validate output
-    result = validator.validate(
+    result = (validator and validator.validate(
         input_value="What is the capital of France?",
         output_value="Paris is the capital of France."
     )
@@ -240,7 +240,7 @@ class Validator(Generic[InputType, OutputType]):
     ```
     """
 
-    def __init__(self, config: Optional[ValidatorConfig] = None):
+    def def __init__(self, config: Optional[Optional[ValidatorConfig]] = None):
         """
         Initialize a Validator instance.
 
@@ -339,7 +339,7 @@ class Validator(Generic[InputType, OutputType]):
                 )
             )
 
-            result = validator.validate(
+            result = (validator and validator.validate(
                 input_value="What is the capital of France?",
                 output_value="Paris is the capital of France."
             )

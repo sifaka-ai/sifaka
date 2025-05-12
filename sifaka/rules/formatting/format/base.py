@@ -40,19 +40,14 @@ config = FormatConfig(
 validator = CustomFormatValidator(config)
 
 # Validate text
-result = validator.validate("Sample text")
+result = (validator and validator.validate("Sample text")
 print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 """
-
-from typing import Any, Dict, Literal, Optional, Protocol, Set, runtime_checkable
-
+from typing import Any, Dict, Literal, Optional, Protocol, Set, runtime_checkable, List
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-
 from sifaka.rules.base import RuleResult
-
-# Define format types
-FormatType = Literal["markdown", "plain_text", "json"]
+FormatType = Literal['markdown', 'plain_text', 'json']
 
 
 @runtime_checkable
@@ -60,9 +55,11 @@ class FormatValidator(Protocol):
     """Protocol for format validation components."""
 
     @property
-    def config(self) -> "FormatConfig": ...
+    def config(self) ->'FormatConfig':
+        ...
 
-    def validate(self, text: str, **kwargs) -> RuleResult: ...
+    def validate(self, text: str, **kwargs) ->RuleResult:
+        ...
 
 
 class FormatConfig(BaseModel):
@@ -109,67 +106,42 @@ class FormatConfig(BaseModel):
         )
         ```
     """
+    model_config = ConfigDict(frozen=True, extra='forbid')
+    required_format: FormatType = Field(default='plain_text', description=
+        'The required format type')
+    markdown_elements: Set[str] = Field(default_factory=lambda : {'headers',
+        'lists', 'code_blocks'}, description=
+        'Set of required markdown elements')
+    json_schema: Dict[str, Any] = Field(default_factory=dict, description=
+        'JSON schema for validation')
+    min_length: int = Field(default=1, ge=0, description='Minimum text length')
+    max_length: Optional[int] = Field(default=None, ge=0, description=
+        'Maximum text length')
+    cache_size: int = Field(default=100, ge=1, description=
+        'Size of the validation cache')
+    priority: int = Field(default=1, ge=0, description='Priority of the rule')
+    cost: float = Field(default=1.0, ge=0.0, description=
+        'Cost of running the rule')
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    required_format: FormatType = Field(
-        default="plain_text",
-        description="The required format type",
-    )
-    markdown_elements: Set[str] = Field(
-        default_factory=lambda: {"headers", "lists", "code_blocks"},
-        description="Set of required markdown elements",
-    )
-    json_schema: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="JSON schema for validation",
-    )
-    min_length: int = Field(
-        default=1,
-        ge=0,
-        description="Minimum text length",
-    )
-    max_length: Optional[int] = Field(
-        default=None,
-        ge=0,
-        description="Maximum text length",
-    )
-    cache_size: int = Field(
-        default=100,
-        ge=1,
-        description="Size of the validation cache",
-    )
-    priority: int = Field(
-        default=1,
-        ge=0,
-        description="Priority of the rule",
-    )
-    cost: float = Field(
-        default=1.0,
-        ge=0.0,
-        description="Cost of running the rule",
-    )
-
-    @field_validator("required_format")
+    @field_validator('required_format')
     @classmethod
-    def validate_format_type(cls, v: FormatType) -> FormatType:
+    def validate_format_type(cls, v: FormatType) ->Any:
         """Validate that format type is valid."""
-        if v not in ["markdown", "plain_text", "json"]:
-            raise ValueError(f"required_format must be one of: markdown, plain_text, json, got {v}")
+        if v not in ['markdown', 'plain_text', 'json']:
+            raise ValueError(
+                f'required_format must be one of: markdown, plain_text, json, got {v}'
+                )
         return v
 
-    @field_validator("max_length")
+    @field_validator('max_length')
     @classmethod
-    def validate_lengths(cls, v: Optional[int], info) -> Optional[int]:
+    def validate_lengths(cls, v: Optional[int], info) ->Any:
         """Validate that max_length is greater than min_length if specified."""
-        if (
-            v is not None
-            and hasattr(info, "data")
-            and "min_length" in info.data
-            and v < info.data["min_length"]
-        ):
-            raise ValueError("max_length must be greater than or equal to min_length")
+        if v is not None and hasattr(info, 'data'
+            ) and 'min_length' in info.data and v < info.data['min_length']:
+            raise ValueError(
+                'max_length must be greater than or equal to min_length')
         return v
 
 
-__all__ = ["FormatType", "FormatValidator", "FormatConfig"]
+__all__: List[Any] = ['FormatType', 'FormatValidator', 'FormatConfig']

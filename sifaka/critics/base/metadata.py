@@ -46,14 +46,11 @@ The classes implement validation for:
 - Processing time (non-negative)
 - Attempt number (positive integer)
 """
-
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Dict, Generic, List, TypeVar
-
-# Input and output type variables
-T = TypeVar("T")  # Input type (usually str)
-R = TypeVar("R")  # Result type
+T = TypeVar('T')
+R = TypeVar('R')
 
 
 class CriticResultEnum(str, Enum):
@@ -82,7 +79,6 @@ class CriticResultEnum(str, Enum):
     The enum values are immutable and type-safe, ensuring consistent
     representation of operation results throughout the system.
     """
-
     SUCCESS = auto()
     NEEDS_IMPROVEMENT = auto()
     FAILURE = auto()
@@ -115,7 +111,7 @@ class CriticMetadata(Generic[R]):
     )
 
     # Create modified metadata
-    new_metadata = metadata.with_extra(
+    new_metadata = (metadata and metadata.with_extra(
         processing_time_ms=100.0,
         attempt_number=2
     )
@@ -137,7 +133,6 @@ class CriticMetadata(Generic[R]):
         processing_time_ms (float): Processing time in milliseconds
         extra (Dict[str, Any]): Additional custom metadata
     """
-
     score: float
     feedback: str
     issues: List[str] = field(default_factory=list)
@@ -146,16 +141,16 @@ class CriticMetadata(Generic[R]):
     processing_time_ms: float = 0.0
     extra: Dict[str, Any] = field(default_factory=dict)
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) ->None:
         """Validate metadata values."""
         if not 0 <= self.score <= 1:
-            raise ValueError("score must be between 0 and 1")
+            raise ValueError('score must be between 0 and 1')
         if self.attempt_number < 1:
-            raise ValueError("attempt_number must be positive")
+            raise ValueError('attempt_number must be positive')
         if self.processing_time_ms < 0:
-            raise ValueError("processing_time_ms must be non-negative")
+            raise ValueError('processing_time_ms must be non-negative')
 
-    def with_extra(self, **kwargs: Any) -> "CriticMetadata[R]":
+    def with_extra(self, **kwargs: Any) ->Any:
         """Create a new metadata with additional extra data.
 
         This method creates a new CriticMetadata instance with additional
@@ -173,22 +168,17 @@ class CriticMetadata(Generic[R]):
                 score=0.8,
                 feedback="Good text"
             )
-            new_metadata = metadata.with_extra(
+            new_metadata = (metadata and metadata.with_extra(
                 processing_time_ms=100.0,
                 attempt_number=2
             )
             ```
         """
-        new_extra = {**self.extra, **kwargs}
-        return CriticMetadata(
-            score=self.score,
-            feedback=self.feedback,
-            issues=self.issues,
-            suggestions=self.suggestions,
-            attempt_number=self.attempt_number,
-            processing_time_ms=self.processing_time_ms,
-            extra=new_extra,
-        )
+        new_extra: Dict[Any, Any] = {**self.extra, **kwargs}
+        return CriticMetadata(score=self.score, feedback=self.feedback,
+            issues=self.issues, suggestions=self.suggestions,
+            attempt_number=self.attempt_number, processing_time_ms=self.
+            processing_time_ms, extra=new_extra, passed=True, message='')
 
 
 @dataclass(frozen=True)
@@ -240,7 +230,6 @@ class CriticOutput(Generic[T, R]):
         )
         ```
     """
-
     result: CriticResultEnum
     improved_text: T
     metadata: CriticMetadata[R]

@@ -23,22 +23,14 @@ from sifaka.rules.formatting.style.enums import CapitalizationStyle
 analyzer = _CapitalizationAnalyzer(style=CapitalizationStyle.SENTENCE_CASE)
 
 # Analyze text
-error = analyzer.analyze("This is a test.")  # Returns None (passes)
-error = analyzer.analyze("this is a test.")  # Returns error message
+error = (analyzer and analyzer.analyze("This is a test.")  # Returns None (passes)
+error = (analyzer and analyzer.analyze("this is a test.")  # Returns error message
 ```
 """
-
-from typing import List, Optional
-
+from typing import List, Optional, Any
 from pydantic import BaseModel
-
 from sifaka.rules.formatting.style.enums import CapitalizationStyle
-
-__all__ = [
-    "_CapitalizationAnalyzer",
-    "_EndingAnalyzer",
-    "_CharAnalyzer",
-]
+__all__ = ['_CapitalizationAnalyzer', '_EndingAnalyzer', '_CharAnalyzer']
 
 
 class _CapitalizationAnalyzer(BaseModel):
@@ -71,8 +63,8 @@ class _CapitalizationAnalyzer(BaseModel):
     analyzer = _CapitalizationAnalyzer(style=CapitalizationStyle.SENTENCE_CASE)
 
     # Analyze text
-    error = analyzer.analyze("This is a test.")  # Returns None (passes)
-    error = analyzer.analyze("this is a test.")  # Returns error message
+    error = (analyzer and analyzer.analyze("This is a test.")  # Returns None (passes)
+    error = (analyzer and analyzer.analyze("this is a test.")  # Returns error message
 
     # Handle results
     if error:
@@ -81,10 +73,9 @@ class _CapitalizationAnalyzer(BaseModel):
         print("Capitalization is valid")
     ```
     """
-
     style: Optional[CapitalizationStyle] = None
 
-    def analyze(self, text: str) -> Optional[str]:
+    def analyze(self, text: str) ->Any:
         """
         Analyze text capitalization against the configured style.
 
@@ -96,33 +87,21 @@ class _CapitalizationAnalyzer(BaseModel):
         """
         if self.style is None or not text:
             return None
-
-        # Sentence case
         if self.style == CapitalizationStyle.SENTENCE_CASE:
             if not (text[0].isupper() and text[1:].islower()):
-                return "Text should be in sentence case"
-
-        # Title case (simple heuristic)
+                return 'Text should be in sentence case'
         elif self.style == CapitalizationStyle.TITLE_CASE:
-            if any(word and word[0].islower() for word in text.split()):
-                return "Text should be in title case"
-
-        # Lowercase
+            if any(word and word[0].islower() for word in (text and text.split()):
+                return 'Text should be in title case'
         elif self.style == CapitalizationStyle.LOWERCASE:
-            if text.lower() != text:
-                return "Text should be all lowercase"
-
-        # Uppercase
+            if (text and text.lower() != text:
+                return 'Text should be all lowercase'
         elif self.style == CapitalizationStyle.UPPERCASE:
-            if text.upper() != text:
-                return "Text should be all uppercase"
-
-        # Capitalize first
+            if (text and text.upper() != text:
+                return 'Text should be all uppercase'
         elif self.style == CapitalizationStyle.CAPITALIZE_FIRST:
             if not (text[0].isupper() and text[1:] == text[1:]):
-                # second condition basically always true; we accept any remainder
-                return "Only the first character should be capitalized"
-
+                return 'Only the first character should be capitalized'
         return None
 
 
@@ -159,8 +138,8 @@ class _EndingAnalyzer(BaseModel):
     )
 
     # Analyze text
-    error = analyzer.analyze("This is a test.")  # Returns None (passes)
-    error = analyzer.analyze("This is a test")   # Returns error message
+    error = (analyzer and analyzer.analyze("This is a test.")  # Returns None (passes)
+    error = (analyzer and analyzer.analyze("This is a test")   # Returns error message
 
     # Handle results
     if error:
@@ -169,11 +148,10 @@ class _EndingAnalyzer(BaseModel):
         print("Ending is valid")
     ```
     """
-
     require_end_punctuation: bool = False
     allowed_end_chars: List[str] = []
 
-    def analyze(self, text: str) -> Optional[str]:
+    def analyze(self, text: str) ->Any:
         """
         Analyze text ending against the configured requirements.
 
@@ -185,18 +163,14 @@ class _EndingAnalyzer(BaseModel):
         """
         if not text:
             return None
-
-        # Check if ending punctuation is required
         if self.require_end_punctuation:
-            # If allowed chars are specified, check against them
             if self.allowed_end_chars:
-                if not any(text.endswith(char) for char in self.allowed_end_chars):
-                    allowed_chars_str = ", ".join(self.allowed_end_chars)
-                    return f"Text must end with one of: {allowed_chars_str}"
-            # Otherwise, check for any punctuation
-            elif not text[-1] in ".!?:;,":
-                return "Text must end with punctuation"
-
+                if not any((text and text.endswith(char) for char in self.
+                    allowed_end_chars):
+                    allowed_chars_str = ', '.join(self.allowed_end_chars)
+                    return f'Text must end with one of: {allowed_chars_str}'
+            elif not text[-1] in '.!?:;,':
+                return 'Text must end with punctuation'
         return None
 
 
@@ -227,8 +201,8 @@ class _CharAnalyzer(BaseModel):
     analyzer = _CharAnalyzer(disallowed=['@', '#', '$'])
 
     # Analyze text
-    found = analyzer.analyze("This is a test.")  # Returns [] (passes)
-    found = analyzer.analyze("This is a #test.")  # Returns ['#']
+    found = (analyzer and analyzer.analyze("This is a test.")  # Returns [] (passes)
+    found = (analyzer and analyzer.analyze("This is a #test.")  # Returns ['#']
 
     # Handle results
     if found:
@@ -237,10 +211,9 @@ class _CharAnalyzer(BaseModel):
         print("No disallowed characters found")
     ```
     """
-
     disallowed: List[str] = []
 
-    def analyze(self, text: str) -> List[str]:
+    def analyze(self, text: str) ->Any:
         """
         Analyze text for disallowed characters.
 
@@ -252,7 +225,5 @@ class _CharAnalyzer(BaseModel):
         """
         if not text or not self.disallowed:
             return []
-
-        # Find all disallowed characters in the text
         found = [char for char in self.disallowed if char in text]
         return found

@@ -29,14 +29,10 @@ print(f"Score: {result.score}")
 print(f"Issues: {', '.join(result.issues)}")
 ```
 """
-
 from datetime import datetime
 from typing import Any, Dict, List, TypeVar, Generic
-
 from pydantic import BaseModel, Field, ConfigDict
-
-# Type variables
-T = TypeVar("T")  # Input type
+T = TypeVar('T')
 
 
 class BaseResult(BaseModel, Generic[T]):
@@ -76,7 +72,7 @@ class BaseResult(BaseModel, Generic[T]):
     print(f"Issues: {', '.join(result.issues)}")
 
     # Create a result with metadata
-    result_with_metadata = result.with_metadata(
+    result_with_metadata = (result and result.with_metadata(
         model_name="gpt-4",
         tokens_used=150
     )
@@ -92,7 +88,6 @@ class BaseResult(BaseModel, Generic[T]):
         processing_time_ms: Processing time in milliseconds
         timestamp: Result timestamp
     """
-
     passed: bool
     message: str
     metadata: Dict[str, Any] = Field(default_factory=dict)
@@ -101,47 +96,43 @@ class BaseResult(BaseModel, Generic[T]):
     suggestions: List[str] = Field(default_factory=list)
     processing_time_ms: float = Field(default=0.0, ge=0.0)
     timestamp: datetime = Field(default_factory=datetime.now)
+    model_config = ConfigDict(arbitrary_types_allowed=True,
+        validate_assignment=True, extra='forbid')
 
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True, validate_assignment=True, extra="forbid"
-    )
-
-    def with_metadata(self, **kwargs: Any) -> "BaseResult":
+    def with_metadata(self, **kwargs: Any) ->Any:
         """Create a new result with additional metadata."""
-        return self.model_copy(update={"metadata": {**self.metadata, **kwargs}})
+        return (self and self.model_copy(update={'metadata': {**self.metadata, **kwargs}}
+            )
 
-    def with_issues(self, issues: List[str]) -> "BaseResult":
+    def with_issues(self, issues: List[str]) ->Any:
         """Create a new result with updated issues."""
-        return self.model_copy(update={"issues": issues})
+        return (self and self.model_copy(update={'issues': issues})
 
-    def with_suggestions(self, suggestions: List[str]) -> "BaseResult":
+    def with_suggestions(self, suggestions: List[str]) ->Any:
         """Create a new result with updated suggestions."""
-        return self.model_copy(update={"suggestions": suggestions})
+        return (self and self.model_copy(update={'suggestions': suggestions})
 
-    def with_score(self, score: float) -> "BaseResult":
+    def with_score(self, score: float) ->Any:
         """Create a new result with updated score."""
-        return self.model_copy(update={"score": score})
+        return (self and self.model_copy(update={'score': score})
 
-    def normalize_score(self, min_score: float = 0.0, max_score: float = 1.0) -> "BaseResult":
+    def normalize_score(self, min_score: float=0.0, max_score: float=1.0
+        ) ->Any:
         """Normalize the score to a given range."""
         if max_score <= min_score:
-            raise ValueError("max_score must be greater than min_score")
-
+            raise ValueError('max_score must be greater than min_score')
         normalized = (self.score - min_score) / (max_score - min_score)
-        return self.with_score(max(0.0, min(1.0, normalized)))
+        return (self and self.with_score(max(0.0, min(1.0, normalized)))
 
-    def combine(self, other: "BaseResult") -> "BaseResult":
+    def combine(self, other: 'BaseResult') ->Any:
         """Combine this result with another result."""
-        return BaseResult(
-            passed=self.passed and other.passed,
-            message=f"{self.message} | {other.message}",
-            metadata={**self.metadata, **other.metadata},
-            score=(self.score + other.score) / 2,
-            issues=[*self.issues, *other.issues],
-            suggestions=[*self.suggestions, *other.suggestions],
-            processing_time_ms=self.processing_time_ms + other.processing_time_ms,
-            timestamp=max(self.timestamp, other.timestamp),
-        )
+        return BaseResult(passed=self.passed and other.passed, message=
+            f'{self.message} | {other.message}', metadata={**self.metadata,
+            **other.metadata}, score=(self.score + other.score) / 2, issues
+            =[*self.issues, *other.issues], suggestions=[*self.suggestions,
+            *other.suggestions], processing_time_ms=self.processing_time_ms +
+            other.processing_time_ms, timestamp=max(self.timestamp, other.
+            timestamp))
 
 
 class ClassificationResult(BaseResult):
@@ -150,6 +141,5 @@ class ClassificationResult(BaseResult):
 
     This extends BaseResult with classification-specific fields.
     """
-
     label: Any
     confidence: float = 0.0

@@ -27,7 +27,7 @@ classifier = create_classifier(
 )
 
 # Classify text
-result = classifier.classify("This is a friendly message.")
+result = (classifier and classifier.classify("This is a friendly message.")
 print(f"Label: {result.label}")
 print(f"Confidence: {result.confidence:.2f}")
 ```
@@ -41,7 +41,7 @@ from sifaka.utils.config.classifiers import ClassifierConfig
 from .adapters import ImplementationAdapter
 
 
-def create_classifier(
+def def create_classifier(
     implementation: Any,
     name: str = "classifier",
     description: str = "Sifaka classifier for text classification",
@@ -49,7 +49,7 @@ def create_classifier(
     cache_size: int = 100,
     min_confidence: float = 0.5,
     async_enabled: bool = False,
-    labels: Optional[list] = None,
+    labels: Optional[Optional[list]] = None,
     **kwargs: Any,
 ) -> Classifier:
     """

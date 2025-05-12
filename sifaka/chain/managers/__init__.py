@@ -1,3 +1,4 @@
+from typing import Any, List
 """
 Chain Managers Module
 
@@ -54,21 +55,9 @@ Managers can be configured with various options:
 - Cache settings (size, TTL)
 - Retry settings (attempts, backoff)
 """
-
 from .cache import CacheManager
 from .retry import RetryManager
-from sifaka.core.managers.memory import (
-    KeyValueMemoryManager,
-    BufferMemoryManager,
-    create_key_value_memory_manager,
-    create_buffer_memory_manager,
-)
-
-__all__ = [
-    "CacheManager",
-    "RetryManager",
-    "KeyValueMemoryManager",
-    "BufferMemoryManager",
-    "create_key_value_memory_manager",
-    "create_buffer_memory_manager",
-]
+from sifaka.core.managers.memory import KeyValueMemoryManager, BufferMemoryManager, create_key_value_memory_manager, create_buffer_memory_manager
+__all__: List[Any] = ['CacheManager', 'RetryManager',
+    'KeyValueMemoryManager', 'BufferMemoryManager',
+    'create_key_value_memory_manager', 'create_buffer_memory_manager']
