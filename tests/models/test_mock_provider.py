@@ -4,7 +4,7 @@ Tests for the MockProvider.
 
 import pytest
 from tests.utils.mock_provider import MockProvider
-from sifaka.utils.config import ModelConfig
+from sifaka.utils.config.models import ModelConfig
 
 
 def test_mock_provider_initialization():

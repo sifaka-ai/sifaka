@@ -54,16 +54,26 @@ def test_chain_config():
     assert config.timeout == 30
     assert config.retry_delay == 1.0
 
+    # Test with timeout_seconds parameter
+    config2 = ChainConfig(
+        max_attempts=3,
+        timeout_seconds=45,
+        retry_delay=1.0,
+    )
+
+    assert config2.timeout_seconds == 45
+    assert config2.timeout == 45  # Should access via property
+
     # Test with invalid max_attempts
     with pytest.raises(ValidationError):
         ChainConfig(
             max_attempts=0,  # Max attempts should be positive
         )
 
-    # Test with invalid timeout
+    # Test with invalid timeout_seconds
     with pytest.raises(ValidationError):
         ChainConfig(
-            timeout=-1,  # Timeout should be positive
+            timeout_seconds=-1,  # Timeout should be positive
         )
 
 

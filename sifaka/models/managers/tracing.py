@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 # Import configuration directly to avoid circular dependencies
-from sifaka.utils.config import ModelConfig
+from sifaka.utils.config.models import ModelConfig
 from sifaka.utils.tracing import Tracer
 from sifaka.utils.logging import get_logger
 

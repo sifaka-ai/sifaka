@@ -1,0 +1,20 @@
+[run]
+source = sifaka
+omit =
+    */tests/*
+    */venv/*
+    */env/*
+    */site-packages/*
+    setup.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    pass
+    raise ImportError
+    except ImportError
+    raise ValueError
+    raise TypeError

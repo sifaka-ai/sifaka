@@ -87,10 +87,10 @@ from sifaka.rules.base import (
     Rule,
     RuleConfig,
 )
-from sifaka.utils.errors import ConfigurationError, ValidationError
+from sifaka.utils.errors.base import ConfigurationError, ValidationError
 from sifaka.adapters.base import BaseAdapter, AdapterError
 from sifaka.utils.state import StateManager, create_adapter_state
-from sifaka.utils.errors import handle_error
+from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)

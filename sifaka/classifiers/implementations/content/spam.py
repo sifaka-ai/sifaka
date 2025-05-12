@@ -93,7 +93,7 @@ from typing import ClassVar, List, Optional, Dict, Any
 from pydantic import PrivateAttr
 from sifaka.classifiers.classifier import Classifier
 from sifaka.core.results import ClassificationResult
-from sifaka.utils.config import ClassifierConfig
+from sifaka.utils.config.classifiers import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
 

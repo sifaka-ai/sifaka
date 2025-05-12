@@ -16,7 +16,7 @@ lazy initialization, and provides a consistent interface for client operations.
 ## Usage Examples
 ```python
 from sifaka.models.managers.client import ClientManager
-from sifaka.utils.config import ModelConfig
+from sifaka.utils.config.models import ModelConfig
 
 # Create a client manager
 class MyClientManager(ClientManager):
@@ -53,7 +53,7 @@ from typing import Generic, Optional, TypeVar
 
 # Import interfaces directly to avoid circular dependencies
 from sifaka.interfaces.client import APIClientProtocol as APIClient
-from sifaka.utils.config import ModelConfig
+from sifaka.utils.config.models import ModelConfig
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)

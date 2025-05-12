@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field
 
 from sifaka.utils.logging import get_logger
-from sifaka.utils.errors import CriticError
+from sifaka.utils.errors.component import CriticError
 from sifaka.utils.patterns import compile_pattern, match_pattern, find_patterns
 
 # Configure logger

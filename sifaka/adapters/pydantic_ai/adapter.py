@@ -74,13 +74,13 @@ except ImportError:
     )
 
 # Import Sifaka components
-from sifaka.critics.base import BaseCritic
+from sifaka.critics.base.abstract import BaseCritic
 from sifaka.rules.base import Rule, RuleResult
-from sifaka.utils.errors import ConfigurationError, ValidationError
+from sifaka.utils.errors.base import ConfigurationError, ValidationError
 from sifaka.core.validation import ValidationResult, Validator, ValidatorConfig
 from sifaka.adapters.base import BaseAdapter, AdapterError
 from sifaka.utils.state import StateManager, create_adapter_state
-from sifaka.utils.errors import handle_error
+from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.logging import get_logger
 
 # Type variables

@@ -63,7 +63,7 @@ from sifaka.interfaces import (
 
 # Import core components
 from .core import RetrieverCore
-from sifaka.utils.config import RetrieverConfig
+from sifaka.utils.config.retrieval import RetrieverConfig
 from ..core.results import RetrievalResult
 from .result import StringRetrievalResult, RetrievedDocument
 

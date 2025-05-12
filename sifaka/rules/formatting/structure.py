@@ -45,7 +45,7 @@ from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_rule_state
-from sifaka.utils.errors import try_operation
+from sifaka.utils.errors.handling import try_operation
 
 logger = get_logger(__name__)
 

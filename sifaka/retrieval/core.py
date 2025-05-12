@@ -22,7 +22,7 @@ focus on their unique retrieval logic.
 
 ```python
 from sifaka.retrieval.core import RetrieverCore
-from sifaka.utils.config import RetrieverConfig
+from sifaka.utils.config.retrieval import RetrieverConfig
 
 class MyRetriever(RetrieverCore):
     def __init__(self, config=None, name="MyRetriever", description="Custom retriever"):
@@ -76,7 +76,9 @@ import time
 from typing import Any, Dict, List, Optional
 
 from sifaka.core.base import BaseComponent
-from sifaka.utils.errors import RetrievalError, InputError, handle_error
+from sifaka.utils.errors.component import RetrievalError
+from sifaka.utils.errors.base import InputError
+from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.logging import get_logger
 from sifaka.utils.common import record_error
 
@@ -123,7 +125,7 @@ def safely_execute_retrieval(
         }
 
 
-from sifaka.utils.config import RetrieverConfig
+from sifaka.utils.config.retrieval import RetrieverConfig
 from .result import RetrievedDocument, DocumentMetadata, StringRetrievalResult
 from sifaka.interfaces.retrieval import QueryProcessor
 from .managers.query import QueryManager
@@ -178,7 +180,7 @@ class RetrieverCore(BaseComponent):
 
     ```python
     from sifaka.retrieval.core import RetrieverCore
-    from sifaka.utils.config import RetrieverConfig
+    from sifaka.utils.config.retrieval import RetrieverConfig
 
     # Create a basic retriever
     config = RetrieverConfig(retriever_type="simple")
@@ -251,7 +253,7 @@ class RetrieverCore(BaseComponent):
         # Create a default QueryProcessingConfig if query_processor is not provided
         # This handles the case where config.query_processing doesn't exist
         if query_processor is None:
-            from sifaka.utils.config import QueryProcessingConfig
+            from sifaka.utils.config.retrieval import QueryProcessingConfig
 
             query_processing_config = QueryProcessingConfig()
             query_processor = QueryManager(query_processing_config)

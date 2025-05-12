@@ -3,7 +3,7 @@ Pytest fixtures for critic tests.
 """
 
 import pytest
-from sifaka.utils.config import PromptCriticConfig
+from sifaka.utils.config.critics import PromptCriticConfig
 from tests.utils.mock_provider import MockProvider
 
 

@@ -40,7 +40,7 @@ from typing import (
 )
 from pydantic import PrivateAttr
 
-from sifaka.utils.errors import safely_execute_rule
+from sifaka.utils.errors.safe_execution import safely_execute_rule
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_rule_state
 from sifaka.utils.common import update_statistics, record_error
@@ -49,7 +49,7 @@ from sifaka.utils.text import handle_empty_text
 # Use string type annotations for forward references
 if TYPE_CHECKING:
     from sifaka.core.base import Validatable
-    from sifaka.utils.errors import try_component_operation
+    from sifaka.utils.errors.handling import try_component_operation
     from sifaka.utils.state import StateManager
 
 from ..core.results import RuleResult

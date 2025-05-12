@@ -75,7 +75,7 @@ Usage Example:
 
 from .base import Rule, RuleConfig, FunctionRule
 from ..core.results import RuleResult
-from sifaka.utils.config import RulePriority
+from sifaka.utils.config.rules import RulePriority
 from .factories import create_rule, create_validation_manager
 from sifaka.interfaces import (
     Rule as RuleInterface,

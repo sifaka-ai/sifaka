@@ -73,7 +73,7 @@ from typing import (
 from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 
 from sifaka.utils.common import update_statistics, record_error
-from sifaka.utils.errors import InitializationError
+from sifaka.utils.errors.base import InitializationError
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import StateManager
 from sifaka.utils.result_types import BaseResult
@@ -490,7 +490,7 @@ class BaseComponent(ABC, Generic[T, R]):
             return result
 
         # Use standardized error handling
-        from sifaka.utils.errors import safely_execute_component_operation
+        from sifaka.utils.errors.safe_execution import safely_execute_component_operation
 
         result = safely_execute_component_operation(
             operation=operation,

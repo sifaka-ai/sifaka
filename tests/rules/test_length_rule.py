@@ -4,7 +4,7 @@ Tests for the LengthRule.
 
 import pytest
 from sifaka.rules.formatting.length import LengthRule, create_length_rule
-from sifaka.utils.config import RuleConfig
+from sifaka.utils.config.rules import RuleConfig
 
 
 def test_length_rule_initialization():

@@ -3,7 +3,7 @@ Pytest fixtures for retrieval tests.
 """
 
 import pytest
-from sifaka.utils.config import RetrieverConfig
+from sifaka.utils.config.retrieval import RetrieverConfig
 
 
 @pytest.fixture

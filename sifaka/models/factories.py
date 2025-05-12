@@ -60,7 +60,7 @@ from typing import Any, Optional, Type, TypeVar, TYPE_CHECKING
 
 # Import interfaces directly to avoid circular dependencies
 from sifaka.interfaces.model import ModelProviderProtocol
-from sifaka.utils.config import standardize_model_config
+from sifaka.utils.config.models import standardize_model_config
 from sifaka.utils.logging import get_logger
 
 # Type variables

@@ -56,11 +56,11 @@ from typing import Any, Dict, List, Optional, Type, Union
 
 from pydantic import BaseModel
 
-from sifaka.critics.base import BaseCritic
+from sifaka.critics.base.abstract import BaseCritic
 from sifaka.models.base import ModelProvider
 from sifaka.rules.base import Rule
 from sifaka.adapters.base import AdapterError
-from sifaka.utils.errors import handle_error
+from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.logging import get_logger
 
 from .adapter import SifakaPydanticAdapter, SifakaPydanticConfig

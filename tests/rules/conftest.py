@@ -3,7 +3,7 @@ Pytest fixtures for rule tests.
 """
 
 import pytest
-from sifaka.utils.config import RuleConfig
+from sifaka.utils.config.rules import RuleConfig
 
 
 @pytest.fixture

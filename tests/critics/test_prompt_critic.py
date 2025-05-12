@@ -4,7 +4,7 @@ Tests for the PromptCritic.
 
 import pytest
 from sifaka.critics.implementations.prompt import PromptCritic, create_prompt_critic
-from sifaka.utils.config import PromptCriticConfig
+from sifaka.utils.config.critics import PromptCriticConfig
 from tests.utils.mock_provider import MockProvider
 
 

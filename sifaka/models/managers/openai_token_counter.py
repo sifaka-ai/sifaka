@@ -10,7 +10,7 @@ from typing import Optional
 
 from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
 from sifaka.models.managers.token_counter import TokenCounterManager
-from sifaka.utils.errors import safely_execute_component_operation
+from sifaka.utils.errors.safe_execution import safely_execute_component_operation
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)

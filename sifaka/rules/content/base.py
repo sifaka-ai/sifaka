@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 from pydantic import BaseModel, Field, ConfigDict
 
 from sifaka.rules.base import RuleResult
-from sifaka.utils.errors import ConfigurationError
+from sifaka.utils.errors.base import ConfigurationError
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)

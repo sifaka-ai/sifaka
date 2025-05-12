@@ -83,7 +83,7 @@ from pydantic import Field, PrivateAttr, ConfigDict
 from ...core.base import BaseComponent
 from ...utils.state import create_critic_state
 from ...core.base import BaseResult as CriticResult
-from sifaka.utils.config import FeedbackCriticConfig, ValueCriticConfig, LACCriticConfig
+from sifaka.utils.config.critics import FeedbackCriticConfig, ValueCriticConfig, LACCriticConfig
 from ...interfaces.critic import TextCritic, TextImprover, TextValidator
 
 # Default prompt templates
@@ -1660,7 +1660,7 @@ def create_feedback_critic(
 
             config = config.model_copy(update=updates)
         elif isinstance(config, dict):
-            from sifaka.utils.config import FeedbackCriticConfig
+            from sifaka.utils.config.critics import FeedbackCriticConfig
 
             config = FeedbackCriticConfig(**config)
 
@@ -1792,7 +1792,7 @@ def create_value_critic(
 
             config = config.model_copy(update=updates)
         elif isinstance(config, dict):
-            from sifaka.utils.config import ValueCriticConfig
+            from sifaka.utils.config.critics import ValueCriticConfig
 
             config = ValueCriticConfig(**config)
 
@@ -1923,7 +1923,7 @@ def create_lac_critic(
 
             config = config.model_copy(update=updates)
         elif isinstance(config, dict):
-            from sifaka.utils.config import LACCriticConfig
+            from sifaka.utils.config.critics import LACCriticConfig
 
             config = LACCriticConfig(**config)
 

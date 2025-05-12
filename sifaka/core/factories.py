@@ -221,7 +221,8 @@ def create_chain(
         )
         ```
     """
-    from sifaka.core.dependency import DependencyProvider, DependencyError
+    from sifaka.core.dependency.provider import DependencyProvider
+    from sifaka.utils.errors.base import DependencyError
 
     # Validate chain type
     if chain_type not in ["simple", "backoff"]:
@@ -318,7 +319,8 @@ def create_critic(
         ValueError: If the critic type is invalid or required parameters are missing
         DependencyError: If required dependencies cannot be resolved
     """
-    from sifaka.core.dependency import DependencyProvider, DependencyError
+    from sifaka.core.dependency.provider import DependencyProvider
+    from sifaka.utils.errors.base import DependencyError
 
     # Set default name and description based on critic type
     name = name or f"{critic_type}_critic"
@@ -499,7 +501,7 @@ def create_rule(
             **kwargs,
         )
     elif rule_type == "markdown":
-        from sifaka.rules.formatting.format import create_markdown_rule
+        from sifaka.rules.formatting.format.markdown import create_markdown_rule
 
         return create_markdown_rule(
             name=name,
@@ -507,7 +509,7 @@ def create_rule(
             **kwargs,
         )
     elif rule_type == "json":
-        from sifaka.rules.formatting.format import create_json_rule
+        from sifaka.rules.formatting.format.json import create_json_rule
 
         return create_json_rule(
             name=name,
@@ -515,7 +517,7 @@ def create_rule(
             **kwargs,
         )
     elif rule_type == "plain_text":
-        from sifaka.rules.formatting.format import create_plain_text_rule
+        from sifaka.rules.formatting.format.plain_text import create_plain_text_rule
 
         return create_plain_text_rule(
             name=name,

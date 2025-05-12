@@ -37,7 +37,7 @@ from typing import Any, Dict, Optional
 
 from .classifier import Classifier
 from .interfaces import ClassifierImplementation
-from sifaka.utils.config import ClassifierConfig
+from sifaka.utils.config.classifiers import ClassifierConfig
 from .adapters import ImplementationAdapter
 
 

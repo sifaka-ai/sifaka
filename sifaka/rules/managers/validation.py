@@ -140,7 +140,7 @@ class ValidationManager:
         results = manager.validate("This is a test.")
 
         # Add more rules
-        from sifaka.rules.formatting.format import create_markdown_rule
+        from sifaka.rules.formatting.format.markdown import create_markdown_rule
         markdown_rule = create_markdown_rule(required_elements=["#", "*", "`"])
         manager.add_rule(markdown_rule)
 

@@ -72,7 +72,7 @@ from typing import Any, Dict, List, Optional, Protocol, Type, TypeVar, runtime_c
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
-from sifaka.utils.errors import InitializationError, CleanupError
+from sifaka.utils.errors.base import InitializationError, CleanupError
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import StateManager
 from sifaka.utils.resources import ResourceManager, Resource

@@ -81,8 +81,8 @@ from ..utils.state import create_chain_state
 from ..utils.common import update_statistics
 from ..utils.logging import get_logger
 from ..core.results import ChainResult
-from ..utils.config import ChainConfig
-from ..utils.errors import ChainError
+from ..utils.config.chain import ChainConfig
+from ..utils.errors.component import ChainError
 
 # Configure logger
 logger = get_logger(__name__)
@@ -174,7 +174,7 @@ class Chain:
         self.__state_manager = create_chain_state()
 
         # Create engine with EngineConfig
-        from sifaka.utils.config import EngineConfig
+        from sifaka.utils.config.chain import EngineConfig
 
         engine_config = EngineConfig(
             max_attempts=self._config.max_attempts, params=self._config.params

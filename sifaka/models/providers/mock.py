@@ -17,7 +17,7 @@ simulated token counting, response generation, and execution tracking.
 ## Usage Examples
 ```python
 from sifaka.models.providers.mock import MockProvider
-from sifaka.utils.config import ModelConfig
+from sifaka.utils.config.models import ModelConfig
 
 # Create a provider with default configuration
 provider = MockProvider(model_name="mock-model")
@@ -47,9 +47,9 @@ The provider implements simulated error handling for testing:
 from typing import Dict, Any, Optional, ClassVar
 
 from sifaka.models.base import APIClient, TokenCounter
-from sifaka.utils.config import ModelConfig
+from sifaka.utils.config.models import ModelConfig
 from sifaka.models.core import ModelProviderCore
-from sifaka.utils.errors import handle_error
+from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -140,7 +140,7 @@ class MockProvider(ModelProviderCore):
     ## Examples
     ```python
     from sifaka.models.providers.mock import MockProvider
-    from sifaka.utils.config import ModelConfig
+    from sifaka.utils.config.models import ModelConfig
 
     # Create a provider with default configuration
     provider = MockProvider(model_name="mock-model")

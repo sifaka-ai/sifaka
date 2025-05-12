@@ -113,7 +113,7 @@ from pydantic import ConfigDict, Field, PrivateAttr
 from ...core.base import BaseComponent
 from ...utils.state import create_critic_state
 from ...core.base import BaseResult as CriticResult
-from sifaka.utils.config import SelfRAGCriticConfig
+from sifaka.utils.config.critics import SelfRAGCriticConfig
 from sifaka.interfaces import TextCritic, TextImprover, TextValidator
 from ...retrieval import Retriever
 
@@ -814,7 +814,7 @@ def create_self_rag_critic(
     )
 
     # Create with custom configuration
-    from sifaka.utils.config import SelfRAGCriticConfig
+    from sifaka.utils.config.critics import SelfRAGCriticConfig
     config = SelfRAGCriticConfig(
         name="custom_self_rag_critic",
         description="A custom Self-RAG critic",
@@ -900,7 +900,7 @@ def create_self_rag_critic(
 
             config = config.model_copy(update=updates)
         elif isinstance(config, dict):
-            from sifaka.utils.config import SelfRAGCriticConfig
+            from sifaka.utils.config.critics import SelfRAGCriticConfig
 
             config = SelfRAGCriticConfig(**config)
 

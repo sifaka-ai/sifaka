@@ -5,7 +5,7 @@ Tests for the SimpleRetriever.
 import pytest
 from sifaka.retrieval.implementations.simple import SimpleRetriever
 from sifaka.retrieval.factories import create_simple_retriever, create_threshold_retriever
-from sifaka.utils.config import RetrieverConfig
+from sifaka.utils.config.retrieval import RetrieverConfig
 
 
 def test_simple_retriever_initialization():

@@ -17,7 +17,7 @@ API communication, token counting, response processing, and execution tracking.
 ## Usage Examples
 ```python
 from sifaka.models.providers.openai import OpenAIProvider
-from sifaka.utils.config import ModelConfig
+from sifaka.utils.config.models import ModelConfig
 
 # Create a provider with default configuration
 provider = OpenAIProvider(model_name="gpt-4")
@@ -57,9 +57,9 @@ from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
 from sifaka.interfaces.model import ModelProviderProtocol
 
 # Import utilities
-from sifaka.utils.config import OpenAIConfig
-from sifaka.utils.errors import safely_execute_component_operation
-from sifaka.utils.errors import ModelError
+from sifaka.utils.config.models import OpenAIConfig
+from sifaka.utils.errors.safe_execution import safely_execute_component_operation
+from sifaka.utils.errors.component import ModelError
 from sifaka.utils.common import record_error
 from sifaka.utils.logging import get_logger
 
@@ -98,7 +98,7 @@ class OpenAIProvider(ModelProviderProtocol):
     ## Examples
     ```python
     from sifaka.models.providers.openai import OpenAIProvider
-    from sifaka.utils.config import OpenAIConfig
+    from sifaka.utils.config.models import OpenAIConfig
 
     # Create a provider with default configuration
     provider = OpenAIProvider(model_name="gpt-4")

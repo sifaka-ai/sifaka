@@ -102,7 +102,7 @@ from sifaka.utils.tracing import Tracer
 logger = get_logger(__name__)
 
 # Import configuration from utils/config.py
-from sifaka.utils.config import ModelConfig
+from sifaka.utils.config.models import ModelConfig
 
 # Type variables for generic type definitions
 T = TypeVar("T")  # Generic type for ModelProvider
@@ -187,7 +187,7 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
     from sifaka.interfaces.model import ModelProviderProtocol
     from sifaka.interfaces.client import APIClientProtocol
     from sifaka.interfaces.counter import TokenCounterProtocol
-    from sifaka.utils.config import ModelConfig
+    from sifaka.utils.config.models import ModelConfig
 
     # Basic usage
     provider = ProviderClass(model_name="model-name")
@@ -292,7 +292,7 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         Initialization with custom configuration:
 
         ```python
-        from sifaka.utils.config import ModelConfig
+        from sifaka.utils.config.models import ModelConfig
         from sifaka.interfaces.model import ModelProviderProtocol
 
         # Create a custom configuration

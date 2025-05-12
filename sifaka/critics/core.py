@@ -80,7 +80,7 @@ from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 from pydantic import PrivateAttr
 
 from .base import BaseCritic
-from sifaka.utils.config import CriticConfig, CriticMetadata
+from sifaka.utils.config.critics import CriticConfig, CriticMetadata
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_critic_state
 

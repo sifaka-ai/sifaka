@@ -69,7 +69,7 @@ The module implements:
 from typing import List
 
 from pydantic import Field
-from sifaka.utils.config import CriticConfig
+from sifaka.utils.config.critics import CriticConfig
 
 
 class PromptCriticConfig(CriticConfig):

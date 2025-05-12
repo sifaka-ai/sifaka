@@ -794,7 +794,7 @@ def create_constitutional_critic(
     )
 
     # Create with custom configuration
-    from sifaka.utils.config import ConstitutionalCriticConfig
+    from sifaka.utils.config.critics import ConstitutionalCriticConfig
     config = ConstitutionalCriticConfig(
         name="custom_constitutional_critic",
         description="A custom constitutional critic",
@@ -878,7 +878,7 @@ def create_constitutional_critic(
             # Create updated config
             config = config.model_copy(update=updates)
         elif isinstance(config, dict):
-            from sifaka.utils.config import ConstitutionalCriticConfig
+            from sifaka.utils.config.critics import ConstitutionalCriticConfig
 
             config = ConstitutionalCriticConfig(**config)
 

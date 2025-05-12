@@ -81,7 +81,7 @@ import re
 from functools import lru_cache
 from typing import Any, Dict, List, Mapping, Optional, Pattern, Set, Tuple, Union, cast
 
-from sifaka.utils.errors import ValidationError
+from sifaka.utils.errors.base import ValidationError
 
 
 # Pattern cache for compiled regex patterns

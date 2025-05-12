@@ -27,7 +27,8 @@ result = safely_execute(
 
 from typing import Any, Callable, Optional, Type, TypeVar
 
-from sifaka.utils.errors import ComponentError, safely_execute_component
+from sifaka.utils.errors.base import ComponentError
+from sifaka.utils.errors.safe_execution import safely_execute_component
 
 # Type variables
 T = TypeVar("T")  # Return type

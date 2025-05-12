@@ -17,7 +17,7 @@ response processing, and execution tracking.
 ## Usage Examples
 ```python
 from sifaka.models.providers.gemini import GeminiProvider
-from sifaka.utils.config import ModelConfig
+from sifaka.utils.config.models import ModelConfig
 
 # Create a provider with default configuration
 provider = GeminiProvider(model_name="gemini-pro")
@@ -54,9 +54,9 @@ import importlib.util
 import google.generativeai as genai
 
 from sifaka.models.base import APIClient, TokenCounter
-from sifaka.utils.config import ModelConfig
+from sifaka.utils.config.models import ModelConfig
 from sifaka.models.core import ModelProviderCore
-from sifaka.utils.errors import handle_error
+from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -206,7 +206,7 @@ class GeminiProvider(ModelProviderCore):
     ## Examples
     ```python
     from sifaka.models.providers.gemini import GeminiProvider
-    from sifaka.utils.config import ModelConfig
+    from sifaka.utils.config.models import ModelConfig
 
     # Create a provider with default configuration
     provider = GeminiProvider(model_name="gemini-pro")

@@ -54,7 +54,7 @@ from sifaka.rules.base import (
     RuleResult,
 )
 from sifaka.utils.logging import get_logger
-from sifaka.utils.errors import try_operation
+from sifaka.utils.errors.handling import try_operation
 from sifaka.utils.results import (
     create_classification_result,
     create_unknown_result,
@@ -187,7 +187,7 @@ class SimpleSentimentClassifier:
         Returns:
             ClassificationResult with sentiment label, confidence, and metadata
         """
-        from sifaka.utils.errors import try_operation
+        from sifaka.utils.errors.handling import try_operation
         from sifaka.utils.results import create_classification_result, create_unknown_result
         from sifaka.utils.text import handle_empty_text_for_classifier
 
@@ -265,7 +265,7 @@ class SentimentAnalyzer:
         Returns:
             RuleResult: The result of the analysis
         """
-        from sifaka.utils.errors import try_operation
+        from sifaka.utils.errors.handling import try_operation
         from sifaka.utils.results import create_rule_result, create_error_result
 
         # Use try_operation to handle potential errors

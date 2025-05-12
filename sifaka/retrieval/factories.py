@@ -23,10 +23,11 @@ All factory functions use standardized error handling:
 
 from typing import Any, Dict, Optional
 
-from sifaka.utils.errors import RetrievalError, handle_error
+from sifaka.utils.errors.component import RetrievalError
+from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.logging import get_logger
 from sifaka.interfaces.factories import create_component
-from sifaka.utils.config import RetrieverConfig
+from sifaka.utils.config.retrieval import RetrieverConfig
 
 from .implementations.simple import SimpleRetriever
 from .strategies.ranking import SimpleRankingStrategy, ScoreThresholdRankingStrategy

@@ -727,7 +727,7 @@ def create_reflexion_critic(
     )
 
     # Create with custom configuration
-    from sifaka.utils.config import ReflexionCriticConfig
+    from sifaka.utils.config.critics import ReflexionCriticConfig
     config = ReflexionCriticConfig(
         name="custom_reflexion_critic",
         description="A custom reflexion critic",

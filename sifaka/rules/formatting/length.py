@@ -48,7 +48,7 @@ import time
 from pydantic import Field, ConfigDict, field_validator, BaseModel, PrivateAttr
 
 from sifaka.rules.base import Rule, RuleConfig, RuleResult, BaseValidator
-from sifaka.utils.errors import safely_execute_rule, RuleError
+from sifaka.utils.errors.safe_execution import safely_execute_rule, RuleError
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import StateManager, create_rule_state
 from sifaka.utils.patterns import compile_pattern, match_pattern, find_patterns

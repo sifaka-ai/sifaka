@@ -1,0 +1,157 @@
+# Import Migration Summary
+
+## Files to Update
+
+### Config Imports
+
+- ./sifaka/adapters/__init__.py:from sifaka.utils.config import ClassifierConfig
+- ./sifaka/chain/chain.py:        from sifaka.utils.config import EngineConfig
+- ./sifaka/chain/factories.py:            from sifaka.utils.config import EngineConfig
+- ./sifaka/classifiers/engine.py:    from sifaka.utils.config import ClassifierConfig
+- ./sifaka/classifiers/engine.py:from sifaka.utils.config import ClassifierConfig
+- ./sifaka/classifiers/factories.py:from sifaka.utils.config import ClassifierConfig
+- ./sifaka/classifiers/implementations/content/bias.py:    from sifaka.utils.config import ClassifierConfig
+- ./sifaka/classifiers/implementations/content/bias.py:from sifaka.utils.config import ClassifierConfig
+- ./sifaka/classifiers/implementations/content/bias.py:from sifaka.utils.config import extract_classifier_config_params
+- ./sifaka/classifiers/implementations/content/profanity.py:from sifaka.utils.config import ClassifierConfig
+- ./sifaka/classifiers/implementations/content/sentiment.py:        from sifaka.utils.config import extract_classifier_config_params
+- ./sifaka/classifiers/implementations/content/sentiment.py:from sifaka.utils.config import ClassifierConfig
+- ./sifaka/classifiers/implementations/content/sentiment.py:from sifaka.utils.config import extract_classifier_config_params
+- ./sifaka/classifiers/implementations/content/spam.py:from sifaka.utils.config import ClassifierConfig
+- ./sifaka/classifiers/implementations/content/toxicity.py:        from sifaka.utils.config import extract_classifier_config_params
+- ./sifaka/classifiers/implementations/content/toxicity.py:from sifaka.utils.config import ClassifierConfig
+- ./sifaka/classifiers/implementations/content/toxicity.py:from sifaka.utils.config import extract_classifier_config_params
+- ./sifaka/classifiers/implementations/entities/ner.py:from sifaka.utils.config import ClassifierConfig
+- ./sifaka/classifiers/implementations/entities/ner.py:from sifaka.utils.config import extract_classifier_config_params
+- ./sifaka/classifiers/implementations/properties/genre.py:from sifaka.utils.config import ClassifierConfig, standardize_classifier_config
+- ./sifaka/classifiers/implementations/properties/language.py:from sifaka.utils.config import ClassifierConfig, standardize_classifier_config
+- ./sifaka/classifiers/implementations/properties/readability.py:from sifaka.utils.config import ClassifierConfig, standardize_classifier_config
+- ./sifaka/classifiers/implementations/properties/topic.py:from sifaka.utils.config import ClassifierConfig, standardize_classifier_config
+- ./sifaka/core/managers/prompt_factories.py:from sifaka.utils.config import SelfRefineCriticConfig
+- ./sifaka/critics/__init__.py:from sifaka.utils.config import (
+- ./sifaka/critics/base.py:from sifaka.utils.config import CriticConfig, CriticMetadata
+- ./sifaka/critics/core.py:from sifaka.utils.config import CriticConfig, CriticMetadata
+- ./sifaka/critics/implementations/constitutional.py:            from sifaka.utils.config import ConstitutionalCriticConfig
+- ./sifaka/critics/implementations/constitutional.py:            from sifaka.utils.config import DEFAULT_CONSTITUTIONAL_CONFIG
+- ./sifaka/critics/implementations/constitutional.py:    from sifaka.utils.config import ConstitutionalCriticConfig
+- ./sifaka/critics/implementations/lac.py:            from sifaka.utils.config import DEFAULT_FEEDBACK_CONFIG
+- ./sifaka/critics/implementations/lac.py:            from sifaka.utils.config import DEFAULT_LAC_CONFIG
+- ./sifaka/critics/implementations/lac.py:            from sifaka.utils.config import DEFAULT_VALUE_CONFIG
+- ./sifaka/critics/implementations/lac.py:            from sifaka.utils.config import FeedbackCriticConfig
+- ./sifaka/critics/implementations/lac.py:            from sifaka.utils.config import LACCriticConfig
+- ./sifaka/critics/implementations/lac.py:            from sifaka.utils.config import ValueCriticConfig
+- ./sifaka/critics/implementations/lac.py:from sifaka.utils.config import FeedbackCriticConfig, ValueCriticConfig, LACCriticConfig
+- ./sifaka/critics/implementations/prompt.py:    from sifaka.utils.config import PromptCriticConfig
+- ./sifaka/critics/implementations/reflexion.py:    from sifaka.utils.config import ReflexionCriticConfig
+- ./sifaka/critics/implementations/self_rag.py:            from sifaka.utils.config import DEFAULT_SELF_RAG_CONFIG
+- ./sifaka/critics/implementations/self_rag.py:            from sifaka.utils.config import SelfRAGCriticConfig
+- ./sifaka/critics/implementations/self_rag.py:    from sifaka.utils.config import SelfRAGCriticConfig
+- ./sifaka/critics/implementations/self_rag.py:from sifaka.utils.config import SelfRAGCriticConfig
+- ./sifaka/critics/implementations/self_refine.py:            from sifaka.utils.config import DEFAULT_SELF_REFINE_CONFIG
+- ./sifaka/critics/implementations/self_refine.py:            from sifaka.utils.config import SelfRefineCriticConfig
+- ./sifaka/critics/implementations/self_refine.py:    from sifaka.utils.config import SelfRefineCriticConfig
+- ./sifaka/critics/implementations/self_refine.py:from sifaka.utils.config import SelfRefineCriticConfig
+- ./sifaka/critics/models.py:from sifaka.utils.config import CriticConfig
+- ./sifaka/models/__init__.py:from sifaka.utils.config import ModelConfig
+- ./sifaka/models/base.py:        from sifaka.utils.config import ModelConfig
+- ./sifaka/models/base.py:    from sifaka.utils.config import ModelConfig
+- ./sifaka/models/base.py:from sifaka.utils.config import ModelConfig
+- ./sifaka/models/core.py:            from sifaka.utils.config import ModelConfig
+- ./sifaka/models/core.py:        from sifaka.utils.config import ModelConfig
+- ./sifaka/models/core.py:from sifaka.utils.config import ModelConfig
+- ./sifaka/models/factories.py:from sifaka.utils.config import standardize_model_config
+- ./sifaka/models/managers/anthropic_client.py:from sifaka.utils.config import ModelConfig
+- ./sifaka/models/managers/client.py:from sifaka.utils.config import ModelConfig
+- ./sifaka/models/managers/openai_client.py:from sifaka.utils.config import ModelConfig
+- ./sifaka/models/managers/tracing.py:from sifaka.utils.config import ModelConfig
+- ./sifaka/models/providers/anthropic.py:    from sifaka.utils.config import ModelConfig
+- ./sifaka/models/providers/anthropic.py:from sifaka.utils.config import ModelConfig
+- ./sifaka/models/providers/gemini.py:    from sifaka.utils.config import ModelConfig
+- ./sifaka/models/providers/gemini.py:from sifaka.utils.config import ModelConfig
+- ./sifaka/models/providers/mock.py:    from sifaka.utils.config import ModelConfig
+- ./sifaka/models/providers/mock.py:from sifaka.utils.config import ModelConfig
+- ./sifaka/models/providers/openai.py:    from sifaka.utils.config import OpenAIConfig
+- ./sifaka/models/providers/openai.py:from sifaka.utils.config import ModelConfig
+- ./sifaka/models/providers/openai.py:from sifaka.utils.config import OpenAIConfig
+- ./sifaka/models/services/generation.py:from sifaka.utils.config import ModelConfig
+- ./sifaka/retrieval/__init__.py:from sifaka.utils.config import RetrieverConfig
+- ./sifaka/retrieval/core.py:            from sifaka.utils.config import QueryProcessingConfig
+- ./sifaka/retrieval/core.py:    from sifaka.utils.config import RetrieverConfig
+- ./sifaka/retrieval/core.py:from sifaka.utils.config import RetrieverConfig
+- ./sifaka/retrieval/factories.py:from sifaka.utils.config import RetrieverConfig
+- ./sifaka/retrieval/implementations/simple.py:from sifaka.utils.config import RankingConfig, RetrieverConfig
+- ./sifaka/retrieval/managers/query.py:from sifaka.utils.config import QueryProcessingConfig
+- ./sifaka/retrieval/strategies/ranking.py:from sifaka.utils.config import RankingConfig
+- ./sifaka/rules/__init__.py:from sifaka.utils.config import RulePriority
+- ./sifaka/rules/base.py:from sifaka.utils.config import RuleConfig
+- ./sifaka/rules/factories.py:from sifaka.utils.config import RuleConfig
+- ./sifaka/utils/__init__.py:from sifaka.utils.config import standardize_rule_config
+- ./tests/critics/conftest.py:from sifaka.utils.config import PromptCriticConfig
+- ./tests/critics/test_prompt_critic.py:from sifaka.utils.config import PromptCriticConfig
+- ./tests/models/conftest.py:from sifaka.utils.config import ModelConfig
+- ./tests/models/test_mock_provider.py:from sifaka.utils.config import ModelConfig
+- ./tests/retrieval/conftest.py:from sifaka.utils.config import RetrieverConfig
+- ./tests/retrieval/test_simple_retriever.py:from sifaka.utils.config import RetrieverConfig
+- ./tests/rules/conftest.py:from sifaka.utils.config import RuleConfig
+- ./tests/rules/test_length_rule.py:from sifaka.utils.config import RuleConfig
+- ./tests/utils/conftest.py:from sifaka.utils.config import (
+- ./tests/utils/mock_provider.py:from sifaka.utils.config import ModelConfig
+- ./tests/utils/test_config.py:from sifaka.utils.config import (
+
+### Errors Imports
+
+- ./sifaka/adapters/base.py:from sifaka.utils.errors import ConfigurationError, ValidationError
+- ./sifaka/adapters/base.py:from sifaka.utils.errors import SifakaError, handle_error
+- ./sifaka/adapters/classifier/adapter.py:from sifaka.utils.errors import ConfigurationError, ValidationError
+- ./sifaka/adapters/classifier/adapter.py:from sifaka.utils.errors import handle_error
+- ./sifaka/adapters/guardrails/adapter.py:from sifaka.utils.errors import ConfigurationError, ValidationError
+- ./sifaka/adapters/guardrails/adapter.py:from sifaka.utils.errors import handle_error
+- ./sifaka/adapters/pydantic_ai/adapter.py:from sifaka.utils.errors import ConfigurationError, ValidationError
+- ./sifaka/adapters/pydantic_ai/adapter.py:from sifaka.utils.errors import handle_error
+- ./sifaka/adapters/pydantic_ai/factory.py:from sifaka.utils.errors import handle_error
+- ./sifaka/classifiers/base.py:from sifaka.utils.errors import ClassifierError, ImplementationError
+- ./sifaka/classifiers/errors.py:from sifaka.utils.errors import ComponentError, safely_execute_component
+- ./sifaka/core/base.py:        from sifaka.utils.errors import safely_execute_component_operation
+- ./sifaka/core/base.py:from sifaka.utils.errors import InitializationError
+- ./sifaka/core/dependency/__init__.py:from sifaka.utils.errors import DependencyError, ConfigurationError
+- ./sifaka/core/dependency/provider.py:from sifaka.utils.errors import ConfigurationError, DependencyError
+- ./sifaka/core/initialization.py:from sifaka.utils.errors import InitializationError, CleanupError
+- ./sifaka/critics/base.py:from sifaka.utils.errors import (
+- ./sifaka/critics/managers/response.py:from sifaka.utils.errors import CriticError
+- ./sifaka/critics/utils.py:from sifaka.utils.errors import CriticError, try_operation, create_critic_error_result, ErrorResult
+- ./sifaka/models/core.py:            from sifaka.utils.errors import InitializationError
+- ./sifaka/models/managers/openai_client.py:from sifaka.utils.errors import safely_execute_component_operation
+- ./sifaka/models/managers/openai_token_counter.py:from sifaka.utils.errors import safely_execute_component_operation
+- ./sifaka/models/providers/anthropic.py:from sifaka.utils.errors import ModelError
+- ./sifaka/models/providers/anthropic.py:from sifaka.utils.errors import safely_execute_component_operation
+- ./sifaka/models/providers/gemini.py:from sifaka.utils.errors import handle_error
+- ./sifaka/models/providers/mock.py:from sifaka.utils.errors import handle_error
+- ./sifaka/models/providers/openai.py:from sifaka.utils.errors import ModelError
+- ./sifaka/models/providers/openai.py:from sifaka.utils.errors import safely_execute_component_operation
+- ./sifaka/models/utils.py:from sifaka.utils.errors import ModelError, try_operation, ErrorResult
+- ./sifaka/retrieval/core.py:from sifaka.utils.errors import RetrievalError, InputError, handle_error
+- ./sifaka/retrieval/factories.py:from sifaka.utils.errors import RetrievalError, handle_error
+- ./sifaka/retrieval/implementations/simple.py:from sifaka.utils.errors import InputError, RetrievalError, handle_error
+- ./sifaka/retrieval/managers/query.py:from sifaka.utils.errors import RetrievalError, InputError, handle_error
+- ./sifaka/retrieval/strategies/ranking.py:from sifaka.utils.errors import RetrievalError, InputError, handle_error
+- ./sifaka/rules/base.py:from sifaka.utils.errors import safely_execute_rule
+- ./sifaka/rules/content/base.py:from sifaka.utils.errors import ConfigurationError
+- ./sifaka/rules/content/sentiment.py:        from sifaka.utils.errors import try_operation
+- ./sifaka/rules/content/sentiment.py:from sifaka.utils.errors import try_operation
+- ./sifaka/rules/formatting/length.py:from sifaka.utils.errors import safely_execute_rule, RuleError
+- ./sifaka/rules/formatting/structure.py:from sifaka.utils.errors import try_operation
+- ./sifaka/rules/utils.py:from sifaka.utils.errors import try_operation
+- ./sifaka/rules/validators.py:    from sifaka.utils.errors import try_component_operation
+- ./sifaka/rules/validators.py:from sifaka.utils.errors import safely_execute_rule
+- ./sifaka/utils/errors/handling.py:        from sifaka.utils.errors import handle_error
+- ./sifaka/utils/errors/safe_execution.py:        from sifaka.utils.errors import safely_execute_component_operation, ChainError
+- ./sifaka/utils/patterns.py:from sifaka.utils.errors import ValidationError
+- ./sifaka/utils/resources.py:from sifaka.utils.errors import InitializationError, CleanupError
+- ./tests/utils/test_errors.py:from sifaka.utils.errors import (
+
+### Dependency Imports
+
+- ./sifaka/chain/factories.py:            from sifaka.core.dependency import DependencyProvider, DependencyError
+- ./sifaka/core/dependency/__init__.py:from sifaka.core.dependency import (
+- ./sifaka/core/factories.py:    from sifaka.core.dependency import DependencyProvider, DependencyError
+- ./sifaka/critics/implementations/prompt.py:            from sifaka.core.dependency import DependencyProvider, DependencyError

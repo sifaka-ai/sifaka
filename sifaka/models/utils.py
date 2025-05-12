@@ -10,7 +10,9 @@ from typing import Any, Dict, List, Optional, TypeVar, Callable, cast, Union
 from pydantic import BaseModel
 
 from .result import ModelResult, GenerationResult
-from sifaka.utils.errors import ModelError, try_operation, ErrorResult
+from sifaka.utils.errors.component import ModelError
+from sifaka.utils.errors.handling import try_operation
+from sifaka.utils.errors.results import ErrorResult
 
 
 # Define create_model_error_result function

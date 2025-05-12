@@ -14,7 +14,7 @@ from anthropic import Anthropic
 
 from sifaka.interfaces.client import APIClientProtocol as APIClient
 from sifaka.models.managers.client import ClientManager
-from sifaka.utils.config import ModelConfig
+from sifaka.utils.config.models import ModelConfig
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)

@@ -60,7 +60,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from sifaka.models.base import ModelProvider
 
-from sifaka.utils.config import ModelConfig
+from sifaka.utils.config.models import ModelConfig
 from sifaka.models.managers.client import ClientManager
 from sifaka.models.managers.token_counter import TokenCounterManager
 from sifaka.models.managers.tracing import TracingManager
@@ -158,7 +158,7 @@ class ModelProviderCore(ModelProviderProtocol, Generic[C]):
         response = provider.generate("Hello, world!")
 
         # With custom configuration
-        from sifaka.utils.config import ModelConfig
+        from sifaka.utils.config.models import ModelConfig
         config = ModelConfig(temperature=0.7, max_tokens=2000)
         provider = MyProvider(model_name="my-model", config=config)
 
@@ -208,7 +208,7 @@ class ModelProviderCore(ModelProviderProtocol, Generic[C]):
             provider = ModelProviderCore(model_name="gpt-4")
 
             # With custom configuration
-            from sifaka.utils.config import ModelConfig
+            from sifaka.utils.config.models import ModelConfig
             config = ModelConfig(temperature=0.7, max_tokens=2000)
             provider = ModelProviderCore(model_name="gpt-4", config=config)
 
@@ -667,7 +667,7 @@ class ModelProviderCore(ModelProviderProtocol, Generic[C]):
 
         except Exception as e:
             self._record_error(e)
-            from sifaka.utils.errors import InitializationError
+            from sifaka.utils.errors.base import InitializationError
 
             raise InitializationError(f"Failed to warm up component {self.name}: {str(e)}") from e
 

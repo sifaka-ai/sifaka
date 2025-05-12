@@ -1241,7 +1241,7 @@ def create_prompt_critic(
     )
 
     # Create with custom configuration
-    from sifaka.utils.config import PromptCriticConfig
+    from sifaka.utils.config.critics import PromptCriticConfig
     config = PromptCriticConfig(
         name="custom_critic",
         description="A custom prompt critic",
@@ -1288,7 +1288,7 @@ def create_prompt_critic(
     try:
         # Resolve dependencies if not provided
         if llm_provider is None:
-            from sifaka.core.dependency import DependencyProvider, DependencyError
+            from sifaka.core.dependency.provider import DependencyProvider, DependencyError
 
             # Get dependency provider
             provider = DependencyProvider()
@@ -1308,7 +1308,7 @@ def create_prompt_critic(
 
         # Resolve prompt_factory if not provided
         if prompt_factory is None:
-            from sifaka.core.dependency import DependencyProvider, DependencyError
+            from sifaka.core.dependency.provider import DependencyProvider, DependencyError
 
             # Get dependency provider
             provider = DependencyProvider()

@@ -62,7 +62,7 @@ from pydantic import BaseModel, Field
 
 from sifaka.core.base import BaseComponent
 from sifaka.utils.state import StateManager, create_classifier_state
-from sifaka.utils.errors import ClassifierError, ImplementationError
+from sifaka.utils.errors.component import ClassifierError, ImplementationError
 from sifaka.utils.common import update_statistics
 from sifaka.utils.logging import get_logger
 from .result import ClassificationResult

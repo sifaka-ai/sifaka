@@ -41,7 +41,7 @@ from sifaka.retrieval.implementations import SimpleRetriever
 # Create a simple retriever with a document collection
 documents = {
     "quantum computing": "Quantum computing uses quantum bits or qubits...",
-    "machine learning": "Machine learning is a subset of AI that enables systems to learn..."
+    "machine learning": "Machine learning is a subset of AI that enables systems..."
 }
 retriever = SimpleRetriever(documents=documents)
 
@@ -51,16 +51,18 @@ print(result.get_formatted_results())
 ```
 """
 
-import time
 import os
+import time
 from typing import Any, Dict, Optional
 
-from sifaka.utils.errors import RetrievalError, InputError, handle_error
-from sifaka.utils.logging import get_logger
 from sifaka.utils.common import record_error
+from sifaka.utils.config.retrieval import RankingConfig, RetrieverConfig
+from sifaka.utils.errors.base import InputError
+from sifaka.utils.errors.component import RetrievalError
+from sifaka.utils.errors.handling import handle_error
+from sifaka.utils.logging import get_logger
 
 from ..core import RetrieverCore
-from sifaka.utils.config import RetrieverConfig, RankingConfig
 from ..result import StringRetrievalResult
 from ..strategies.ranking import SimpleRankingStrategy
 
@@ -156,7 +158,8 @@ class SimpleRetriever(RetrieverCore):
 
         # Initialize ranking strategy using top_k from config
         ranking_config = RankingConfig(top_k=self.config.top_k)
-        self._state_manager.update("ranking_strategy", SimpleRankingStrategy(ranking_config))
+        strategy = SimpleRankingStrategy(ranking_config)
+        self._state_manager.update("ranking_strategy", strategy)
 
         # Load documents
         try:
@@ -184,8 +187,9 @@ class SimpleRetriever(RetrieverCore):
             record_error(self._state_manager, e)
             error_info = handle_error(e, self.name, "error")
             raise RetrievalError(
-                f"Failed to initialize document collection: {str(e)}", metadata=error_info
-            )
+                f"Failed to initialize document collection: {str(e)}",
+                metadata=error_info,
+            ) from e
 
     @property
     def documents(self) -> Dict[str, str]:
@@ -294,8 +298,14 @@ class SimpleRetriever(RetrieverCore):
             # Rank the documents
             ranked_docs = ranking_strategy.rank(processed_query, doc_list)
 
+            # Get max_results from kwargs or config
+            max_results = kwargs.get("max_results", self.config.max_results)
+
+            # Limit the number of results to max_results
+            limited_docs = ranked_docs[:max_results]
+
             # Track statistics
-            self._state_manager.set_metadata("last_query_doc_count", len(ranked_docs))
+            self._state_manager.set_metadata("last_query_doc_count", len(limited_docs))
 
             end_time = time.time()
             execution_time_ms = (end_time - start_time) * 1000
@@ -306,7 +316,7 @@ class SimpleRetriever(RetrieverCore):
             return self.create_result(
                 query=query,
                 processed_query=processed_query,
-                documents=ranked_docs,
+                documents=limited_docs,
                 execution_time_ms=execution_time_ms,
             )
 
@@ -322,8 +332,12 @@ class SimpleRetriever(RetrieverCore):
             error_info = handle_error(e, self.name, "error")
             raise RetrievalError(
                 f"Retrieval failed: {str(e)}",
-                metadata={"query": query, "document_count": len(self.documents), **error_info},
-            )
+                metadata={
+                    "query": query,
+                    "document_count": len(self.documents),
+                    **error_info,
+                },
+            ) from e
 
     def get_statistics(self) -> Dict[str, Any]:
         """

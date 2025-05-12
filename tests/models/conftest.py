@@ -3,7 +3,7 @@ Pytest fixtures for model tests.
 """
 
 import pytest
-from sifaka.utils.config import ModelConfig
+from sifaka.utils.config.models import ModelConfig
 
 
 @pytest.fixture

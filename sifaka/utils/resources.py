@@ -119,7 +119,7 @@ from typing import Any, Dict, List, Optional, TypeVar, Generic, Protocol, runtim
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from sifaka.utils.errors import InitializationError, CleanupError
+from sifaka.utils.errors.base import InitializationError, CleanupError
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)

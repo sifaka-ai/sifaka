@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Generic, TypeVar
 
 # Import configuration directly to avoid circular dependencies
-from sifaka.utils.config import ModelConfig
+from sifaka.utils.config.models import ModelConfig
 from sifaka.models.managers.client import ClientManager
 from sifaka.models.managers.token_counter import TokenCounterManager
 from sifaka.models.managers.tracing import TracingManager

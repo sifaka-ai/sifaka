@@ -10,8 +10,8 @@ from typing import Optional
 
 from sifaka.interfaces.client import APIClientProtocol as APIClient
 from sifaka.models.managers.client import ClientManager
-from sifaka.utils.config import ModelConfig
-from sifaka.utils.errors import safely_execute_component_operation
+from sifaka.utils.config.models import ModelConfig
+from sifaka.utils.errors.safe_execution import safely_execute_component_operation
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)

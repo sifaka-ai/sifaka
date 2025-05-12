@@ -204,7 +204,7 @@ def create_simple_chain(
     try:
         # Resolve dependencies if not provided
         if model is None or rules is None or critic is None:
-            from sifaka.core.dependency import DependencyProvider, DependencyError
+            from sifaka.core.dependency.provider import DependencyProvider, DependencyError
 
             # Get dependency provider
             provider = DependencyProvider()
@@ -313,7 +313,7 @@ def create_backoff_chain(
     try:
         # Resolve dependencies if not provided
         if model is None or rules is None or critic is None:
-            from sifaka.core.dependency import DependencyProvider, DependencyError
+            from sifaka.core.dependency.provider import DependencyProvider, DependencyError
 
             # Get dependency provider
             provider = DependencyProvider()
@@ -354,7 +354,7 @@ def create_backoff_chain(
         # Create config if not provided
         config = kwargs.pop("config", None)
         if not config:
-            from sifaka.utils.config import EngineConfig
+            from sifaka.utils.config.chain import EngineConfig
 
             engine_config = EngineConfig(
                 max_attempts=max_attempts,

@@ -111,12 +111,12 @@ from pydantic import ConfigDict
 
 from sifaka.classifiers.classifier import Classifier
 from sifaka.utils.result_types import ClassificationResult
-from sifaka.utils.config import ClassifierConfig
+from sifaka.utils.config.classifiers import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_classifier_state
 from sifaka.utils.common import record_error
 from sifaka.classifiers.implementations.content.toxicity_model import ToxicityModel
-from sifaka.utils.config import extract_classifier_config_params
+from sifaka.utils.config.classifiers import extract_classifier_config_params
 
 logger = get_logger(__name__)
 
@@ -719,7 +719,7 @@ class ToxicityClassifier(Classifier):
         Returns:
             Configured ToxicityClassifier instance
         """
-        from sifaka.utils.config import extract_classifier_config_params
+        from sifaka.utils.config.classifiers import extract_classifier_config_params
 
         # Set up default params with thresholds
         default_params = {

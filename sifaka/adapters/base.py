@@ -57,10 +57,11 @@ from typing import (
 
 from pydantic import BaseModel, PrivateAttr, ConfigDict
 from sifaka.rules.base import RuleResult
-from sifaka.utils.errors import ConfigurationError, ValidationError
+from sifaka.utils.errors.base import ConfigurationError, ValidationError
 from sifaka.utils.state import create_adapter_state
 from sifaka.utils.logging import get_logger
-from sifaka.utils.errors import SifakaError, handle_error
+from sifaka.utils.errors.base import SifakaError
+from sifaka.utils.errors.handling import handle_error
 
 logger = get_logger(__name__)
 

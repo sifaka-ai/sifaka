@@ -27,7 +27,7 @@ The engine follows a layered architecture:
 ## Usage Examples
 ```python
 from sifaka.classifiers.engine import Engine
-from sifaka.utils.config import ClassifierConfig
+from sifaka.utils.config.classifiers import ClassifierConfig
 from sifaka.utils.state import StateManager
 
 # Create engine
@@ -115,7 +115,7 @@ class Engine:
     ## Examples
     ```python
     # Create engine with configuration
-    from sifaka.utils.config import ClassifierConfig
+    from sifaka.utils.config.classifiers import ClassifierConfig
 
     engine = Engine(
         state_manager=StateManager(),
