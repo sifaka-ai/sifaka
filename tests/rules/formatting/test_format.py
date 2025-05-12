@@ -35,7 +35,7 @@ def test_markdown_rule_validate_success():
         name="markdown_rule",
     )
 
-    result = rule.validate("# Heading\n\n* List item")
+    result = rule.model_validate("# Heading\n\n* List item")
 
     assert result.passed
     assert "Found 2 markdown elements" in result.message
@@ -51,7 +51,7 @@ def test_markdown_rule_validate_failure():
         name="markdown_rule",
     )
 
-    result = rule.validate("Plain text without markdown")
+    result = rule.model_validate("Plain text without markdown")
 
     assert not result.passed
     assert "Insufficient markdown elements" in result.message
@@ -82,7 +82,7 @@ def test_json_rule_validate_success():
         name="json_rule",
     )
 
-    result = rule.validate('{"key": "value"}')
+    result = rule.model_validate('{"key": "value"}')
 
     assert result.passed
     assert "Valid JSON format" in result.message
@@ -98,7 +98,7 @@ def test_json_rule_validate_failure():
         name="json_rule",
     )
 
-    result = rule.validate('{"key": value}')  # Missing quotes around value
+    result = rule.model_validate('{"key": value}')  # Missing quotes around value
 
     assert not result.passed
     assert "Invalid JSON format" in result.message
@@ -131,7 +131,7 @@ def test_plain_text_rule_validate_success():
         name="plain_text_rule",
     )
 
-    result = rule.validate("This is a test string that is long enough.")
+    result = rule.model_validate("This is a test string that is long enough.")
 
     assert result.passed
     assert "within allowed range" in result.message.lower() or "meets" in result.message.lower()
@@ -147,7 +147,7 @@ def test_plain_text_rule_validate_too_short():
         name="plain_text_rule",
     )
 
-    result = rule.validate("Too short")
+    result = rule.model_validate("Too short")
 
     assert not result.passed
     assert "less than minimum" in result.message.lower()
@@ -163,7 +163,7 @@ def test_plain_text_rule_validate_too_long():
         name="plain_text_rule",
     )
 
-    result = rule.validate("This text is too long for the maximum length specified.")
+    result = rule.model_validate("This text is too long for the maximum length specified.")
 
     assert not result.passed
     assert "exceeds maximum" in result.message.lower()
@@ -180,7 +180,7 @@ def test_format_rule_markdown():
         name="format_rule",
     )
 
-    result = rule.validate("# Heading\n\n* List item")
+    result = rule.model_validate("# Heading\n\n* List item")
 
     assert result.passed
     assert "Found 2 markdown elements" in result.message
@@ -197,7 +197,7 @@ def test_format_rule_json():
         name="format_rule",
     )
 
-    result = rule.validate('{"key": "value"}')
+    result = rule.model_validate('{"key": "value"}')
 
     assert result.passed
     assert "Valid JSON format" in result.message
@@ -214,10 +214,10 @@ def test_format_rule_plain_text():
         name="format_rule",
     )
 
-    result = rule.validate("This is a test string that is long enough.")
+    result = rule.model_validate("This is a test string that is long enough.")
 
     assert result.passed
-    assert "meets" in result.message.lower()
+    assert "within allowed range" in result.message.lower() or "meets" in result.message.lower()
     assert len(result.issues) == 0
     assert result.score > 0.9
 

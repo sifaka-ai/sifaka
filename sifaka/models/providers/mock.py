@@ -46,9 +46,10 @@ The provider implements simulated error handling for testing:
 
 from typing import Dict, Any, Optional, ClassVar
 
-from sifaka.models.base import APIClient, TokenCounter
+from sifaka.interfaces.client import APIClientProtocol as APIClient
+from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
 from sifaka.utils.config.models import ModelConfig
-from sifaka.models.core import ModelProviderCore
+from sifaka.models.core.provider import ModelProviderCore
 from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.logging import get_logger
 
@@ -421,3 +422,32 @@ class MockProvider(ModelProviderCore):
         stats = self._state_manager.get("stats", {})
 
         return {**tracing_stats, **stats}
+
+    @property
+    def description(self) -> str:
+        """
+        Get a description of the provider.
+
+        Returns:
+            str: A description of the provider
+        """
+        return f"Mock provider using model {self._state_manager.get('model_name')}"
+
+    def update_config(self, **kwargs) -> None:
+        """
+        Update the provider configuration.
+
+        Args:
+            **kwargs: Configuration parameters to update
+        """
+        config = self._state_manager.get("config")
+
+        # Update config with kwargs
+        for key, value in kwargs.items():
+            if hasattr(config, key):
+                setattr(config, key, value)
+            elif hasattr(config, "params"):
+                config.params[key] = value
+
+        # Update state
+        self._state_manager.update("config", config)

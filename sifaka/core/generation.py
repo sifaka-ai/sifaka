@@ -11,7 +11,7 @@ import time
 from pydantic import BaseModel, PrivateAttr
 
 from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
-from sifaka.models.core import ModelProviderCore as BaseModelProvider
+from sifaka.models.core.provider import ModelProviderCore as BaseModelProvider
 from sifaka.utils.state import StateManager
 from sifaka.utils.logging import get_logger
 

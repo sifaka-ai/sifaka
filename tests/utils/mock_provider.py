@@ -7,7 +7,8 @@ without making real API calls.
 
 from typing import Any, Dict, List, Optional
 from pydantic import PrivateAttr
-from sifaka.models.base import APIClient, TokenCounter
+from sifaka.interfaces.client import APIClientProtocol as APIClient
+from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
 from sifaka.models.result import GenerationResult, TokenCountResult
 from sifaka.utils.config.models import ModelConfig
 from sifaka.utils.state import StateManager, create_model_state

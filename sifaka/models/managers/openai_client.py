@@ -11,7 +11,6 @@ from typing import Optional
 from sifaka.interfaces.client import APIClientProtocol as APIClient
 from sifaka.models.managers.client import ClientManager
 from sifaka.utils.config.models import ModelConfig
-from sifaka.utils.errors.safe_execution import safely_execute_component_operation
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -73,33 +72,48 @@ class OpenAIClient(APIClient):
         # Define the generation operation
         def generate_operation():
             # Import OpenAI here to avoid dependency issues
-            import openai
+            from openai import OpenAI
 
-            # Configure client
-            openai.api_key = api_key
+            # Create client
+            client = OpenAI(api_key=api_key)
+
+            # Get model name from config or params
+            model_name = config.params.get("model_name")
+            if not model_name:
+                model_name = getattr(config, "model_name", "gpt-3.5-turbo")
+
+            # Prepare messages
+            messages = [{"role": "user", "content": prompt}]
 
             # Prepare generation parameters
             params = {
-                "model": config.params.get("model_name", "gpt-4"),
-                "prompt": prompt,
+                "model": model_name,
+                "messages": messages,
                 "max_tokens": config.max_tokens,
                 "temperature": config.temperature,
                 "top_p": config.params.get("top_p", 1.0),
                 "frequency_penalty": config.params.get("frequency_penalty", 0.0),
                 "presence_penalty": config.params.get("presence_penalty", 0.0),
-                "stop": config.params.get("stop", None),
             }
 
-            # Generate text
-            response = openai.Completion.create(**params)
-            return response.choices[0].text.strip()
+            # Add stop sequences if provided
+            if config.params.get("stop"):
+                params["stop"] = config.params.get("stop")
 
-        # Use the standardized safely_execute_component_operation function
-        return safely_execute_component_operation(
+            # Generate text
+            response = client.chat.completions.create(**params)
+            return response.choices[0].message.content.strip()
+
+        # Use the standardized safely_execute_component function instead
+        from sifaka.utils.errors.safe_execution import safely_execute_component
+        from sifaka.utils.errors.component import ModelError
+
+        return safely_execute_component(
             operation=generate_operation,
             component_name="OpenAIClient",
             component_type="APIClient",
-            additional_metadata={"model_name": config.params.get("model_name", "gpt-4")},
+            error_class=ModelError,
+            additional_metadata={"model_name": config.params.get("model_name", "gpt-3.5-turbo")},
         )
 
 

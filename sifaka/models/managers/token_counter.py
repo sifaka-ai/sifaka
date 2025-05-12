@@ -130,6 +130,21 @@ class TokenCounterManager(Generic[T]):
             self._token_counter = self._create_default_token_counter()
         return self._token_counter
 
+    def get_token_counter(self) -> T:
+        """
+        Get the token counter, creating a default one if needed.
+
+        This method ensures a token counter is available and returns it.
+        It's a public wrapper around _ensure_token_counter.
+
+        Returns:
+            The token counter to use
+
+        Raises:
+            RuntimeError: If a default token counter cannot be created
+        """
+        return self._ensure_token_counter()
+
     @abstractmethod
     def _create_default_token_counter(self) -> T:
         """

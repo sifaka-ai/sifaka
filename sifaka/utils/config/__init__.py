@@ -64,11 +64,29 @@ is provided, Pydantic will raise validation errors with detailed information
 about the validation failure.
 """
 
-# Re-export standardization functions for backward compatibility
-from sifaka.utils.config.base import BaseConfig
-from sifaka.utils.config.models import ModelConfig, OpenAIConfig, AnthropicConfig, GeminiConfig
-from sifaka.utils.config.rules import RuleConfig, RulePriority
-from sifaka.utils.config.critics import (
+# Import base configuration
+from .base import BaseConfig
+
+# Import chain configurations
+from .chain import (
+    ChainConfig,
+    EngineConfig,
+    ValidatorConfig,
+    ImproverConfig,
+    FormatterConfig,
+    standardize_chain_config,
+)
+
+# Import classifier configurations
+from .classifiers import (
+    ClassifierConfig,
+    ImplementationConfig,
+    standardize_classifier_config,
+    extract_classifier_config_params,
+)
+
+# Import critic configurations
+from .critics import (
     CriticConfig,
     CriticMetadata,
     PromptCriticConfig,
@@ -79,48 +97,62 @@ from sifaka.utils.config.critics import (
     FeedbackCriticConfig,
     ValueCriticConfig,
     LACCriticConfig,
-    DEFAULT_PROMPT_CRITIC_CONFIG as DEFAULT_PROMPT_CONFIG,
-    DEFAULT_REFLEXION_CRITIC_CONFIG as DEFAULT_REFLEXION_CONFIG,
-    DEFAULT_CONSTITUTIONAL_CRITIC_CONFIG as DEFAULT_CONSTITUTIONAL_CONFIG,
-    DEFAULT_SELF_REFINE_CRITIC_CONFIG as DEFAULT_SELF_REFINE_CONFIG,
-    DEFAULT_SELF_RAG_CRITIC_CONFIG as DEFAULT_SELF_RAG_CONFIG,
-    DEFAULT_FEEDBACK_CRITIC_CONFIG as DEFAULT_FEEDBACK_CONFIG,
-    DEFAULT_VALUE_CRITIC_CONFIG as DEFAULT_VALUE_CONFIG,
-    DEFAULT_LAC_CRITIC_CONFIG as DEFAULT_LAC_CONFIG,
+    standardize_critic_config,
 )
-from sifaka.utils.config.chain import ChainConfig, EngineConfig, ValidatorConfig, ImproverConfig
-from sifaka.utils.config.classifiers import ClassifierConfig
-from sifaka.utils.config.retrieval import (
+
+# Import critic default configurations
+from .critics import (
+    DEFAULT_PROMPT_CRITIC_CONFIG,
+    DEFAULT_REFLEXION_CRITIC_CONFIG,
+    DEFAULT_CONSTITUTIONAL_CRITIC_CONFIG,
+    DEFAULT_SELF_REFINE_CRITIC_CONFIG,
+    DEFAULT_SELF_RAG_CRITIC_CONFIG,
+    DEFAULT_FEEDBACK_CRITIC_CONFIG,
+    DEFAULT_VALUE_CRITIC_CONFIG,
+    DEFAULT_LAC_CRITIC_CONFIG,
+)
+
+
+# Import model configurations
+from .models import (
+    ModelConfig,
+    OpenAIConfig,
+    AnthropicConfig,
+    GeminiConfig,
+    standardize_model_config,
+)
+
+# Import retrieval configurations
+from .retrieval import (
     RetrieverConfig,
-    QueryProcessingConfig,
     RankingConfig,
     IndexConfig,
+    QueryProcessingConfig,
+    standardize_retriever_config,
 )
 
+# Import rule configurations
+from .rules import (
+    RuleConfig,
+    standardize_rule_config,
+)
 
-# Additional functions needed for backward compatibility
-def extract_classifier_config_params(*args, **kwargs):
-    """Extract classifier configuration parameters."""
-    from sifaka.utils.config.classifiers import (
-        extract_classifier_config_params as _extract_classifier_config_params,
-    )
-
-    return _extract_classifier_config_params(*args, **kwargs)
-
-
-# Define what symbols to export
 __all__ = [
-    # Base config
+    # Base
     "BaseConfig",
-    # Model configs
-    "ModelConfig",
-    "OpenAIConfig",
-    "AnthropicConfig",
-    "GeminiConfig",
-    # Rule configs
-    "RuleConfig",
-    "RulePriority",
-    # Critic configs
+    # Chain
+    "ChainConfig",
+    "EngineConfig",
+    "ValidatorConfig",
+    "ImproverConfig",
+    "FormatterConfig",
+    "standardize_chain_config",
+    # Classifiers
+    "ClassifierConfig",
+    "ImplementationConfig",
+    "standardize_classifier_config",
+    "extract_classifier_config_params",
+    # Critics
     "CriticConfig",
     "CriticMetadata",
     "PromptCriticConfig",
@@ -131,81 +163,29 @@ __all__ = [
     "FeedbackCriticConfig",
     "ValueCriticConfig",
     "LACCriticConfig",
-    # Chain configs
-    "ChainConfig",
-    "EngineConfig",
-    "ValidatorConfig",
-    "ImproverConfig",
-    # Classifier configs
-    "ClassifierConfig",
-    "extract_classifier_config_params",
-    # Retrieval configs
+    "standardize_critic_config",
+    # Critic default configurations
+    "DEFAULT_PROMPT_CRITIC_CONFIG",
+    "DEFAULT_REFLEXION_CRITIC_CONFIG",
+    "DEFAULT_CONSTITUTIONAL_CRITIC_CONFIG",
+    "DEFAULT_SELF_REFINE_CRITIC_CONFIG",
+    "DEFAULT_SELF_RAG_CRITIC_CONFIG",
+    "DEFAULT_FEEDBACK_CRITIC_CONFIG",
+    "DEFAULT_VALUE_CRITIC_CONFIG",
+    "DEFAULT_LAC_CRITIC_CONFIG",
+    # Models
+    "ModelConfig",
+    "OpenAIConfig",
+    "AnthropicConfig",
+    "GeminiConfig",
+    "standardize_model_config",
+    # Retrieval
     "RetrieverConfig",
-    "QueryProcessingConfig",
     "RankingConfig",
     "IndexConfig",
-    # Default configs
-    "DEFAULT_PROMPT_CONFIG",
-    "DEFAULT_REFLEXION_CONFIG",
-    "DEFAULT_CONSTITUTIONAL_CONFIG",
-    "DEFAULT_SELF_REFINE_CONFIG",
-    "DEFAULT_SELF_RAG_CONFIG",
-    "DEFAULT_FEEDBACK_CONFIG",
-    "DEFAULT_VALUE_CONFIG",
-    "DEFAULT_LAC_CONFIG",
-    # Standardization functions
-    "standardize_rule_config",
-    "standardize_critic_config",
-    "standardize_model_config",
-    "standardize_chain_config",
-    "standardize_classifier_config",
+    "QueryProcessingConfig",
     "standardize_retriever_config",
+    # Rules
+    "RuleConfig",
+    "standardize_rule_config",
 ]
-
-
-# Re-export standardization functions
-# These will need to be implemented in the respective modules
-def standardize_rule_config(*args, **kwargs):
-    """Standardize rule configuration."""
-    from sifaka.utils.config.rules import standardize_rule_config as _standardize_rule_config
-
-    return _standardize_rule_config(*args, **kwargs)
-
-
-def standardize_critic_config(*args, **kwargs):
-    """Standardize critic configuration."""
-    from sifaka.utils.config.critics import standardize_critic_config as _standardize_critic_config
-
-    return _standardize_critic_config(*args, **kwargs)
-
-
-def standardize_model_config(*args, **kwargs):
-    """Standardize model provider configuration."""
-    from sifaka.utils.config.models import standardize_model_config as _standardize_model_config
-
-    return _standardize_model_config(*args, **kwargs)
-
-
-def standardize_chain_config(*args, **kwargs):
-    """Standardize chain configuration."""
-    from sifaka.utils.config.chain import standardize_chain_config as _standardize_chain_config
-
-    return _standardize_chain_config(*args, **kwargs)
-
-
-def standardize_classifier_config(*args, **kwargs):
-    """Standardize classifier configuration."""
-    from sifaka.utils.config.classifiers import (
-        standardize_classifier_config as _standardize_classifier_config,
-    )
-
-    return _standardize_classifier_config(*args, **kwargs)
-
-
-def standardize_retriever_config(*args, **kwargs):
-    """Standardize retriever configuration."""
-    from sifaka.utils.config.retrieval import (
-        standardize_retriever_config as _standardize_retriever_config,
-    )
-
-    return _standardize_retriever_config(*args, **kwargs)

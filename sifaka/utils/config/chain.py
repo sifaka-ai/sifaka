@@ -140,18 +140,6 @@ class ChainConfig(BaseConfig):
         description="Delay between retry attempts in seconds",
     )
 
-    @property
-    def timeout(self) -> float:
-        """
-        Get the timeout in seconds.
-
-        This is an alias for timeout_seconds to maintain backward compatibility.
-
-        Returns:
-            float: Timeout in seconds
-        """
-        return self.timeout_seconds
-
 
 class EngineConfig(BaseConfig):
     """

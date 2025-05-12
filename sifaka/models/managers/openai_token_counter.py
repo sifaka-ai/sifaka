@@ -6,11 +6,9 @@ managing OpenAI token counters for model providers.
 """
 
 import tiktoken
-from typing import Optional
 
 from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
 from sifaka.models.managers.token_counter import TokenCounterManager
-from sifaka.utils.errors.safe_execution import safely_execute_component_operation
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -43,11 +41,15 @@ class OpenAITokenCounter(TokenCounter):
             )
             return self.encoding
 
-        # Use the standardized safely_execute_component_operation function
-        safely_execute_component_operation(
+        # Use the standardized safely_execute_component function instead
+        from sifaka.utils.errors.safe_execution import safely_execute_component
+        from sifaka.utils.errors.component import ModelError
+
+        safely_execute_component(
             operation=init_operation,
             component_name="OpenAITokenCounter",
             component_type="TokenCounter",
+            error_class=ModelError,
             additional_metadata={"model_name": model},
         )
 
@@ -66,11 +68,15 @@ class OpenAITokenCounter(TokenCounter):
         def count_operation():
             return len(self.encoding.encode(text))
 
-        # Use the standardized safely_execute_component_operation function
-        return safely_execute_component_operation(
+        # Use the standardized safely_execute_component function instead
+        from sifaka.utils.errors.safe_execution import safely_execute_component
+        from sifaka.utils.errors.component import ModelError
+
+        return safely_execute_component(
             operation=count_operation,
             component_name="OpenAITokenCounter",
             component_type="TokenCounter",
+            error_class=ModelError,
             additional_metadata={"model_name": "tiktoken"},
         )
 

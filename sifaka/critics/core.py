@@ -89,7 +89,7 @@ if TYPE_CHECKING:
     from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
     from sifaka.core.managers.prompt import DefaultPromptManager, PromptManager
     from sifaka.core.managers.response import ResponseParser
-    from sifaka.models.core import ModelProviderCore
+    from sifaka.models.core.provider import ModelProviderCore
     from .services.critique import CritiqueService
 
 logger = get_logger(__name__)

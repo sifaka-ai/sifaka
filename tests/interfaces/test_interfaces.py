@@ -312,7 +312,7 @@ class TestRuleImplementation(Rule):
         """Get execution statistics."""
         return {"calls": len(self.calls)}
 
-    def validate(self, text: str) -> Dict[str, Any]:
+    def model_validate(self, text: str) -> Dict[str, Any]:
         """Validate the text."""
         self.calls.append(text)
         return {
@@ -400,7 +400,7 @@ def test_rule_interface():
     """Test that the Rule interface works correctly."""
     rule = TestRuleImplementation()
 
-    result = rule.validate("Test text")
+    result = rule.model_validate("Test text")
 
     assert result is not None
     assert "passed" in result

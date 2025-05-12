@@ -92,13 +92,13 @@ To create a new model provider, extend the `ModelProviderCore` class and impleme
 
 ```python
 from sifaka.models.base import APIClient, TokenCounter
-from sifaka.models.core import ModelProviderCore
+from sifaka.models.core.provider import ModelProviderCore
 
 class MyCustomProvider(ModelProviderCore):
     def _create_default_client(self) -> APIClient:
         # Create and return a default API client
         return MyCustomClient(api_key=self.config.api_key)
-        
+
     def _create_default_token_counter(self) -> TokenCounter:
         # Create and return a default token counter
         return MyCustomTokenCounter(model=self.model_name)

@@ -198,7 +198,7 @@ class Rule(Identifiable, Configurable[ConfigType], Protocol[InputType, ResultTyp
         pass
 
     @abstractmethod
-    def validate(self, input_value: InputType) -> ResultType:
+    def model_validate(self, input_value: InputType) -> ResultType:
         """
         Validate an input value against the rule.
 
@@ -291,7 +291,7 @@ class AsyncRule(Protocol[InputType, ResultType]):
         pass
 
     @abstractmethod
-    async def validate(self, input_value: InputType) -> ResultType:
+    async def model_validate(self, input_value: InputType) -> ResultType:
         """
         Validate an input value against the rule asynchronously.
 
@@ -353,7 +353,7 @@ class RuleProtocol(Protocol):
         """
         ...
 
-    def validate(self, text: str, **kwargs: Any) -> Any:
+    def model_validate(self, text: str, **kwargs: Any) -> Any:
         """
         Validate text against the rule.
 

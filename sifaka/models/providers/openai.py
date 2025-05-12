@@ -49,17 +49,15 @@ The provider implements comprehensive error handling:
 
 import time
 import importlib.util
-from typing import Any, Dict, Optional, ClassVar, TYPE_CHECKING
+from typing import Any, Dict, Optional, ClassVar
 
 # Import interfaces directly to avoid circular dependencies
 from sifaka.interfaces.client import APIClientProtocol as APIClient
 from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
-from sifaka.interfaces.model import ModelProviderProtocol
+from sifaka.models.core.provider import ModelProviderCore
 
 # Import utilities
 from sifaka.utils.config.models import OpenAIConfig
-from sifaka.utils.errors.safe_execution import safely_execute_component_operation
-from sifaka.utils.errors.component import ModelError
 from sifaka.utils.common import record_error
 from sifaka.utils.logging import get_logger
 
@@ -69,7 +67,7 @@ from sifaka.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-class OpenAIProvider(ModelProviderProtocol):
+class OpenAIProvider(ModelProviderCore):
     """
     OpenAI model provider implementation.
 
@@ -151,26 +149,22 @@ class OpenAIProvider(ModelProviderProtocol):
         except ImportError:
             raise ImportError("OpenAI package is required. Install with: pip install openai")
 
-        # Initialize state manager
-        from sifaka.utils.state import StateManager
-
-        self._state_manager = StateManager()
-
-        # Initialize state with all dependencies
-        self._state_manager.update("model_name", model_name)
-        self._state_manager.update("config", config or OpenAIConfig())
-        self._state_manager.update("api_client", api_client)
-        self._state_manager.update("token_counter", token_counter)
-        self._state_manager.update("initialized", False)
-        self._state_manager.update(
-            "stats",
-            {
-                "generation_count": 0,
-                "token_count_calls": 0,
-                "error_count": 0,
-                "total_processing_time": 0,
-            },
+        # Initialize with ModelProviderCore
+        super().__init__(
+            model_name=model_name,
+            config=config or OpenAIConfig(),
+            api_client=api_client,
+            token_counter=token_counter,
         )
+
+        # Initialize provider-specific stats
+        stats = {
+            "generation_count": 0,
+            "token_count_calls": 0,
+            "error_count": 0,
+            "total_processing_time": 0,
+        }
+        self._state_manager.update("stats", stats)
 
         logger.info(f"Created OpenAIProvider with model {model_name}")
 
@@ -178,102 +172,145 @@ class OpenAIProvider(ModelProviderProtocol):
         """
         Invoke the model with a prompt (delegates to generate).
 
+        This method sends a prompt to the OpenAI API and returns the generated text.
+        It delegates to the generate method and tracks statistics about the operation.
+        This method is needed for compatibility with the critique service which expects
+        an 'invoke' method.
+
+        The invocation process includes:
+        1. Tracking the start time
+        2. Calling the generate method with the prompt and kwargs
+        3. Updating statistics in the state manager
+        4. Returning the generated text
+
         Args:
-            prompt: The prompt to send to the model
-            **kwargs: Additional keyword arguments to pass to the model
+            prompt (str): The prompt to send to the model
+            **kwargs: Additional keyword arguments to override configuration
+                - temperature (float): Controls randomness (0.0-2.0)
+                - max_tokens (int): Maximum tokens to generate
+                - top_p (float): Nucleus sampling parameter
+                - frequency_penalty (float): Penalizes repeated tokens
+                - presence_penalty (float): Penalizes repeated topics
+                - stop (List[str]): Sequences that stop generation
 
         Returns:
-            The generated text response
+            str: The generated text response
+
+        Raises:
+            RuntimeError: If generation fails due to API issues
+            ValueError: If invalid configuration is provided
         """
         # Ensure component is initialized
         if not self._state_manager.get("initialized", False):
             self.warm_up()
 
-        # Process input
-        start_time = time.time()
-
-        # Define the operation
-        def operation():
-            # Actual processing logic
-            return self.generate(prompt, **kwargs)
-
-        # Use standardized error handling
-        result = safely_execute_component_operation(
-            operation=operation,
-            component_name=self.name,
-            component_type=self.__class__.__name__,
-            additional_metadata={"input_type": "prompt", "method": "invoke"},
-        )
-
-        # Update statistics
-        processing_time = time.time() - start_time
-        stats = self._state_manager.get("stats", {})
-        stats["generation_count"] = stats.get("generation_count", 0) + 1
-        stats["total_processing_time"] = (
-            stats.get("total_processing_time", 0) + processing_time * 1000
-        )
-        self._state_manager.update("stats", stats)
-
-        return result
-
-    async def ainvoke(self, prompt: str, **kwargs) -> str:
-        """
-        Asynchronously invoke the model with a prompt.
-
-        This method delegates to agenerate if it exists, or falls back to
-        synchronous generate.
-
-        Args:
-            prompt: The prompt to send to the model
-            **kwargs: Additional keyword arguments to pass to the model
-
-        Returns:
-            The generated text response
-        """
-        # Ensure component is initialized
-        if not self._state_manager.get("initialized", False):
-            self.warm_up()
-
-        # Process input
+        # Track generation count in state
         start_time = time.time()
 
         try:
-            # Define the async operation
-            async def async_operation():
-                if hasattr(self, "agenerate"):
-                    return await self.agenerate(prompt, **kwargs)
-                else:
-                    # Fall back to synchronous generate
-                    return self.generate(prompt, **kwargs)
+            result = self.generate(prompt, **kwargs)
 
-            # Execute the async operation
-            result = await async_operation()
-
-            # Update statistics
-            processing_time = time.time() - start_time
+            # Update statistics in state
             stats = self._state_manager.get("stats", {})
             stats["generation_count"] = stats.get("generation_count", 0) + 1
             stats["total_processing_time"] = (
-                stats.get("total_processing_time", 0) + processing_time * 1000
+                stats.get("total_processing_time", 0) + (time.time() - start_time) * 1000
             )
             self._state_manager.update("stats", stats)
 
             return result
 
         except Exception as e:
-            # Record the error using standardized error handling
+            # Update error count in state
+            stats = self._state_manager.get("stats", {})
+            stats["error_count"] = stats.get("error_count", 0) + 1
+            self._state_manager.update("stats", stats)
+
+            # Record the error
             self._record_error(e)
 
-            # Raise a standardized error
-            raise ModelError(
-                f"Error in async invocation: {str(e)}",
-                metadata={
-                    "component_name": self.name,
-                    "model_name": self._state_manager.get("model_name"),
-                    "method": "ainvoke",
-                    "error_type": type(e).__name__,
-                },
-            ) from e
+            # Re-raise the exception
+            raise
+
+    async def ainvoke(self, prompt: str, **kwargs) -> str:
+        """
+        Asynchronously invoke the model with a prompt.
+
+        This method provides asynchronous invocation of the model. It delegates to
+        agenerate if it exists, or falls back to synchronous generate. It also tracks
+        statistics about the operation.
+
+        The async invocation process includes:
+        1. Tracking the start time
+        2. Calling agenerate if available, otherwise falling back to generate
+        3. Updating statistics in the state manager
+        4. Returning the generated text
+
+        Args:
+            prompt (str): The prompt to send to the model
+            **kwargs: Additional keyword arguments to override configuration
+                - temperature (float): Controls randomness (0.0-2.0)
+                - max_tokens (int): Maximum tokens to generate
+                - top_p (float): Nucleus sampling parameter
+                - frequency_penalty (float): Penalizes repeated tokens
+                - presence_penalty (float): Penalizes repeated topics
+                - stop (List[str]): Sequences that stop generation
+
+        Returns:
+            str: The generated text response
+
+        Raises:
+            RuntimeError: If generation fails due to API issues
+            ValueError: If invalid configuration is provided
+
+        Example:
+            ```python
+            import asyncio
+
+            async def generate_text():
+                provider = OpenAIProvider(model_name="gpt-4")
+                response = await provider.ainvoke("Explain quantum computing")
+                return response
+
+            # Run the async function
+            response = asyncio.run(generate_text())
+            ```
+        """
+        # Ensure component is initialized
+        if not self._state_manager.get("initialized", False):
+            self.warm_up()
+
+        # Track generation count in state
+        start_time = time.time()
+
+        try:
+            if hasattr(self, "agenerate"):
+                result = await self.agenerate(prompt, **kwargs)
+            else:
+                # Fall back to synchronous generate
+                result = self.generate(prompt, **kwargs)
+
+            # Update statistics in state
+            stats = self._state_manager.get("stats", {})
+            stats["generation_count"] = stats.get("generation_count", 0) + 1
+            stats["total_processing_time"] = (
+                stats.get("total_processing_time", 0) + (time.time() - start_time) * 1000
+            )
+            self._state_manager.update("stats", stats)
+
+            return result
+
+        except Exception as e:
+            # Update error count in state
+            stats = self._state_manager.get("stats", {})
+            stats["error_count"] = stats.get("error_count", 0) + 1
+            self._state_manager.update("stats", stats)
+
+            # Record the error
+            self._record_error(e)
+
+            # Re-raise the exception
+            raise
 
     def _record_error(self, error: Exception) -> None:
         """Record an error in the state manager."""
@@ -473,12 +510,22 @@ class OpenAIProvider(ModelProviderProtocol):
         # Get config from state
         config = self._state_manager.get("config")
 
-        # Update config with kwargs
+        # Create a new config with updated values
+        from copy import deepcopy
+
+        # Create a copy of the config
+        new_config = deepcopy(config)
+
+        # Create a params dictionary if it doesn't exist
+        if not hasattr(new_config, "params"):
+            new_config.params = {}
+
+        # Update the params dictionary with kwargs
         for key, value in kwargs.items():
-            if hasattr(config, key):
-                setattr(config, key, value)
-            elif hasattr(config, "params"):
-                config.params[key] = value
+            new_config.params[key] = value
+
+        # Store the updated config in the state manager
+        self._state_manager.update("config", new_config)
 
         # Send prompt to client
         return client.send_prompt(prompt, config)
@@ -543,6 +590,44 @@ class OpenAIProvider(ModelProviderProtocol):
         # Count tokens
         return token_counter.count_tokens(text)
 
+    def _create_default_client(self) -> APIClient:
+        """
+        Create a default OpenAI client.
+
+        This method creates and returns a new OpenAI API client instance with the API key
+        from the provider's configuration. It's called by the ModelProviderCore
+        when no custom client is provided.
+
+        Returns:
+            APIClient: A new OpenAI API client instance
+
+        Raises:
+            ImportError: If the OpenAI package is not installed
+            ValueError: If no API key is available
+        """
+        from sifaka.models.managers.openai_client import OpenAIClient
+
+        return OpenAIClient(api_key=self._state_manager.get("config").api_key)
+
+    def _create_default_token_counter(self) -> TokenCounter:
+        """
+        Create a default token counter for the current model.
+
+        This method creates and returns a new OpenAI token counter instance for the
+        provider's model. It's called by the ModelProviderCore when no custom
+        token counter is provided.
+
+        Returns:
+            TokenCounter: A new OpenAI token counter instance
+
+        Raises:
+            ImportError: If the tiktoken package is not installed
+            RuntimeError: If token counter initialization fails
+        """
+        from sifaka.models.managers.openai_token_counter import OpenAITokenCounter
+
+        return OpenAITokenCounter(model=self._state_manager.get("model_name"))
+
     def get_statistics(self) -> Dict[str, Any]:
         """
         Get statistics about provider usage.
@@ -580,3 +665,39 @@ class OpenAIProvider(ModelProviderProtocol):
         stats = self._state_manager.get("stats", {})
 
         return {**tracing_stats, **stats}
+
+    @property
+    def description(self) -> str:
+        """
+        Get a description of the provider.
+
+        Returns:
+            str: A description of the provider
+        """
+        return f"OpenAI provider using model {self._state_manager.get('model_name')}"
+
+    def update_config(self, **kwargs) -> None:
+        """
+        Update the provider configuration.
+
+        Args:
+            **kwargs: Configuration parameters to update
+        """
+        config = self._state_manager.get("config")
+
+        # Create a new config with updated values
+        from copy import deepcopy
+
+        # Create a copy of the config
+        new_config = deepcopy(config)
+
+        # Create a params dictionary if it doesn't exist
+        if not hasattr(new_config, "params"):
+            new_config.params = {}
+
+        # Update the params dictionary with kwargs
+        for key, value in kwargs.items():
+            new_config.params[key] = value
+
+        # Update state
+        self._state_manager.update("config", new_config)

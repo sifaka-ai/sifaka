@@ -278,7 +278,7 @@ class ValidationManager:
 
             try:
                 # Validate with the rule
-                result = rule.validate(text, **kwargs)
+                result = rule.model_validate(text, **kwargs)
                 results.append(result)
 
                 # Track pass/fail statistics

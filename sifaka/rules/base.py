@@ -437,25 +437,15 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
         This method is required by the BaseComponent interface.
         For rules, it simply delegates to model_validate.
 
+        Note:
+            Previously, rules had a validate() method which has been removed.
+            Use model_validate() instead for all validation operations.
+
         Args:
             input: The input to process
 
         Returns:
             Processing result (same as validation result)
-        """
-        return self.model_validate(input)
-
-    def validate(self, input: T) -> RuleResult:
-        """
-        Validate the input using the rule's validator (alias for model_validate).
-
-        This method is maintained for backward compatibility.
-
-        Args:
-            input: The input to validate
-
-        Returns:
-            Validation result
         """
         return self.model_validate(input)
 

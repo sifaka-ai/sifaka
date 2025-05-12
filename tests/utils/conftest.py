@@ -3,13 +3,11 @@ Pytest fixtures for utility tests.
 """
 
 import pytest
-from sifaka.utils.config import (
-    ModelConfig,
-    ChainConfig,
-    RuleConfig,
-    CriticConfig,
-    RetrieverConfig,
-)
+from sifaka.utils.config.models import ModelConfig
+from sifaka.utils.config.chain import ChainConfig
+from sifaka.utils.config.rules import RuleConfig
+from sifaka.utils.config.critics import CriticConfig
+from sifaka.utils.config.retrieval import RetrieverConfig
 
 
 @pytest.fixture

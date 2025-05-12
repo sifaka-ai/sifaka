@@ -4,13 +4,11 @@ Tests for the configuration utilities.
 
 import pytest
 from pydantic import ValidationError
-from sifaka.utils.config import (
-    ModelConfig,
-    ChainConfig,
-    RuleConfig,
-    CriticConfig,
-    RetrieverConfig,
-)
+from sifaka.utils.config.models import ModelConfig
+from sifaka.utils.config.chain import ChainConfig
+from sifaka.utils.config.rules import RuleConfig
+from sifaka.utils.config.critics import CriticConfig
+from sifaka.utils.config.retrieval import RetrieverConfig
 
 
 def test_model_config():
@@ -46,12 +44,12 @@ def test_chain_config():
     # Test with valid parameters
     config = ChainConfig(
         max_attempts=3,
-        timeout=30,
+        timeout_seconds=30,
         retry_delay=1.0,
     )
 
     assert config.max_attempts == 3
-    assert config.timeout == 30
+    assert config.timeout_seconds == 30
     assert config.retry_delay == 1.0
 
     # Test with timeout_seconds parameter
@@ -62,7 +60,6 @@ def test_chain_config():
     )
 
     assert config2.timeout_seconds == 45
-    assert config2.timeout == 45  # Should access via property
 
     # Test with invalid max_attempts
     with pytest.raises(ValidationError):

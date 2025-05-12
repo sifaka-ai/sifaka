@@ -195,7 +195,7 @@ class FeedbackCritic(BaseComponent[str, CriticResult], TextValidator, TextImprov
         """
         # Create config if not provided
         if config is None:
-            from sifaka.utils.config import DEFAULT_FEEDBACK_CONFIG
+            from sifaka.utils.config.critics import DEFAULT_FEEDBACK_CONFIG
 
             config = DEFAULT_FEEDBACK_CONFIG.model_copy(
                 update={"name": name, "description": description, **kwargs}
@@ -1000,7 +1000,7 @@ class ValueCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover,
         """
         # Create config if not provided
         if config is None:
-            from sifaka.utils.config import DEFAULT_VALUE_CONFIG
+            from sifaka.utils.config.critics import DEFAULT_VALUE_CONFIG
 
             config = DEFAULT_VALUE_CONFIG.model_copy(
                 update={"name": name, "description": description, **kwargs}
@@ -1303,7 +1303,7 @@ class LACCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, T
         """
         # Create config if not provided
         if config is None:
-            from sifaka.utils.config import DEFAULT_LAC_CONFIG
+            from sifaka.utils.config.critics import DEFAULT_LAC_CONFIG
 
             config = DEFAULT_LAC_CONFIG.model_copy(
                 update={"name": name, "description": description, **kwargs}
@@ -1626,7 +1626,7 @@ def create_feedback_critic(
     try:
         # Create config if not provided
         if config is None:
-            from sifaka.utils.config import DEFAULT_FEEDBACK_CONFIG
+            from sifaka.utils.config.critics import DEFAULT_FEEDBACK_CONFIG
 
             config = DEFAULT_FEEDBACK_CONFIG.model_copy()
 
@@ -1754,7 +1754,7 @@ def create_value_critic(
     try:
         # Create config if not provided
         if config is None:
-            from sifaka.utils.config import DEFAULT_VALUE_CONFIG
+            from sifaka.utils.config.critics import DEFAULT_VALUE_CONFIG
 
             config = DEFAULT_VALUE_CONFIG.model_copy()
 
@@ -1887,7 +1887,7 @@ def create_lac_critic(
     try:
         # Create config if not provided
         if config is None:
-            from sifaka.utils.config import DEFAULT_LAC_CONFIG
+            from sifaka.utils.config.critics import DEFAULT_LAC_CONFIG
 
             config = DEFAULT_LAC_CONFIG.model_copy()
 

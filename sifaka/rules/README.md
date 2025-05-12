@@ -34,7 +34,7 @@ from sifaka.rules.formatting.length import create_length_rule
 rule = create_length_rule(min_chars=10, max_chars=100)
 
 # Validate text
-result = rule.validate("This is a test")
+result = rule.model_validate("This is a test")
 ```
 
 Each rule type provides two factory functions:
@@ -53,7 +53,7 @@ Rules delegate validation work to validators:
 └─────────┘         └────────────┘
 ```
 
-When you call `rule.validate(text)`:
+When you call `rule.model_validate(text)`:
 1. The rule receives the text
 2. The rule delegates to its validator
 3. The validator performs the validation
@@ -83,6 +83,6 @@ See the [Rules and Validators documentation](../../docs/rules_and_validators.md)
 7. **Use type-safe config classes** that extend RuleConfig
 8. **Extract rule-specific parameters** in factory functions
 9. **Delegate validation logic** from rules to validators
-10. **Add rule_id to metadata** in rule.validate method
+10. **Add rule_id to metadata** in rule.model_validate method
 
 For a complete guide on implementing rules and validators, see the [Rules and Validators documentation](../../docs/rules_and_validators.md).

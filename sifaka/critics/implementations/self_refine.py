@@ -190,7 +190,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
         """
         # Create default config if not provided
         if config is None:
-            from sifaka.utils.config import DEFAULT_SELF_REFINE_CONFIG
+            from sifaka.utils.config.critics import DEFAULT_SELF_REFINE_CONFIG
 
             config = DEFAULT_SELF_REFINE_CONFIG.model_copy(
                 update={"name": name, "description": description, **kwargs}
@@ -912,7 +912,7 @@ def create_self_refine_critic(
     try:
         # Create config if not provided
         if config is None:
-            from sifaka.utils.config import DEFAULT_SELF_REFINE_CONFIG
+            from sifaka.utils.config.critics import DEFAULT_SELF_REFINE_CONFIG
 
             # Start with default config
             config = DEFAULT_SELF_REFINE_CONFIG.model_copy()
