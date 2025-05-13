@@ -195,7 +195,7 @@ def create_openai_provider(
         )
 
         # Use the provider
-        response = (provider and provider.generate("Hello, world!")
+        response = provider.generate("Hello, world!") if provider else ""
         print(response.text)
         ```
     """
@@ -258,7 +258,7 @@ def create_anthropic_provider(
         )
 
         # Use the provider
-        response = (provider and provider.generate("Hello, world!")
+        response = provider.generate("Hello, world!") if provider else ""
         print(response.text)
         ```
     """
@@ -321,7 +321,7 @@ def create_gemini_provider(
         )
 
         # Use the provider
-        response = (provider and provider.generate("Hello, world!")
+        response = provider.generate("Hello, world!") if provider else ""
         print(response.text)
         ```
     """
@@ -385,7 +385,7 @@ def create_mock_provider(
         )
 
         # Use the provider
-        response = (provider and provider.generate("Hello")
+        response = provider.generate("Hello") if provider else ""
         assert response.text == "World"
         ```
     """

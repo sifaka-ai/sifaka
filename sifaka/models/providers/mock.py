@@ -31,10 +31,10 @@ config = ModelConfig(
 provider = MockProvider(model_name="mock-model", config=config)
 
 # Generate text
-response = (provider and provider.generate("Explain quantum computing")
+response = provider.generate("Explain quantum computing") if provider else ""
 
 # Count tokens
-token_count = (provider and provider.count_tokens("How many tokens is this?")
+token_count = provider.count_tokens("How many tokens is this?") if provider else ""
 ```
 
 ## Error Handling
@@ -157,10 +157,10 @@ class MockProvider(ModelProviderCore):
     provider = MockProvider(model_name="mock-model", config=config)
 
     # Generate text
-    response = (provider and provider.generate("Explain quantum computing")
+    response = provider.generate("Explain quantum computing") if provider else ""
 
     # Count tokens
-    token_count = (provider and provider.count_tokens("How many tokens is this?")
+    token_count = provider.count_tokens("How many tokens is this?") if provider else ""
     ```
 
     Attributes:
@@ -245,14 +245,14 @@ class MockProvider(ModelProviderCore):
             provider = MockProvider(model_name="mock-model")
 
             # Basic invocation
-            response = (provider and provider.invoke("Explain quantum computing")
+            response = provider.invoke("Explain quantum computing") if provider else ""
 
             # Invocation with configuration overrides
-            response = (provider and provider.invoke(
+            response = provider.invoke(
                 "Write a poem about AI",
                 temperature=0.9,
                 max_tokens=200
-            )
+            ) if provider else ""
             ```
         """
         # Track generation count in state
@@ -318,11 +318,11 @@ class MockProvider(ModelProviderCore):
 
             async def generate_text():
                 provider = MockProvider(model_name="mock-model")
-                response = await (provider and provider.ainvoke("Explain quantum computing")
+                response = await provider.ainvoke("Explain quantum computing") if provider else ""
                 return response
 
             # Run the async function
-            response = (asyncio and asyncio.run(generate_text())
+            response = asyncio.run(generate_text() if asyncio else "")
             ```
         """
         # Track generation count in state
@@ -420,11 +420,11 @@ class MockProvider(ModelProviderCore):
         Example:
             ```python
             provider = MockProvider(model_name="mock-model")
-            (provider and provider.generate("Hello, world!")
-            (provider and provider.count_tokens("How many tokens?")
+            provider.generate("Hello, world!") if provider else ""
+            provider.count_tokens("How many tokens?") if provider else ""
 
             # Get usage statistics
-            stats = (provider and provider.get_statistics()
+            stats = provider.get_statistics() if provider else ""
             print(f"Generation count: {stats['generation_count']}")
             print(f"Token count calls: {stats['token_count_calls']}")
             ```

@@ -11,7 +11,7 @@ creating error loggers, and formatting error logs.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from ..logging import get_logger
 

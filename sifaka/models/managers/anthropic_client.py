@@ -36,32 +36,40 @@ class AnthropicClient(APIClient):
             api_key: Anthropic API key (if None, will try to get from environment)
         """
         # Check for API key in environment if not provided
-        if not api_key:
-            api_key = os.(environ and environ.get("ANTHROPIC_API_KEY")
-            if api_key:
-                (logger and logger.debug(f"Retrieved API key from environment: {api_key[:10]}...")
+        if not api_key and os:
+            api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+            if api_key and logger:
+                logger.debug(f"Retrieved API key from environment: {api_key[:10]}...")
             else:
-                (logger and logger.warning(
-                    "No Anthropic API key provided and ANTHROPIC_API_KEY environment variable not set"
+                (
+                    logger.warning(
+                        "No Anthropic API key provided and ANTHROPIC_API_KEY environment variable not set"
+                    )
+                    if logger
+                    else ""
                 )
 
         # Validate API key format
-        if api_key and not (api_key and api_key.startswith("sk-ant-api"):
-            (logger and logger.warning(
-                f"API key format appears incorrect. Expected to start with 'sk-ant-api', got: {api_key[:10]}..."
+        if api_key and not api_key.startswith("sk-ant-api") if api_key else "":
+            (
+                logger.warning(
+                    f"API key format appears incorrect. Expected to start with 'sk-ant-api', got: {api_key[:10]}..."
+                )
+                if logger
+                else ""
             )
 
         # Initialize client
         try:
             self.client = Anthropic(api_key=api_key)
-            (logger and logger.debug("Initialized Anthropic client")
+            logger.debug("Initialized Anthropic client") if logger else ""
             self._api_key = api_key
             self._request_count = 0
             self._error_count = 0
             self._last_request_time = None
             self._last_response_time = None
         except Exception as e:
-            (logger and logger.error(f"Error initializing Anthropic client: {e}")
+            logger.error(f"Error initializing Anthropic client: {e}") if logger else ""
             raise ValueError(f"Failed to initialize Anthropic client: {str(e)}")
 
     def send_prompt(self, prompt: str, config: ModelConfig) -> str:
@@ -79,7 +87,7 @@ class AnthropicClient(APIClient):
             ValueError: If no API key is provided
             RuntimeError: If the API request fails
         """
-        start_time = (time and time.time()
+        start_time = time.time() if time else ""
         self._last_request_time = start_time
 
         try:
@@ -98,10 +106,12 @@ class AnthropicClient(APIClient):
                 raise ValueError("Prompt must be a non-empty string")
 
             # Get model name from config or use default
-            model_name = config.(params and params.get("model_name", "claude-3-opus-20240229")
+            model_name = "claude-3-opus-20240229"
+            if hasattr(config, "params") and config.params:
+                model_name = config.params.get("model_name", model_name)
 
             # Send request to API
-            response = self.client.(messages and messages.create(
+            response = self.client.messages.create(
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=config.temperature,
@@ -110,26 +120,31 @@ class AnthropicClient(APIClient):
 
             # Update statistics
             self._request_count += 1
-            self._last_response_time = (time and time.time()
+            if time:
+                self._last_response_time = time.time()
 
             # Return response text
             return response.content[0].text
 
         except anthropic.AnthropicError as e:
             self._error_count += 1
-            (logger and logger.error(f"Anthropic API error: {str(e)}")
+            if logger:
+                logger.error(f"Anthropic API error: {str(e)}")
             raise RuntimeError(f"Anthropic API error: {str(e)}")
 
         except Exception as e:
             self._error_count += 1
-            (logger and logger.error(f"Error sending prompt to Anthropic: {e}")
+            if logger:
+                logger.error(f"Error sending prompt to Anthropic: {e}")
             raise RuntimeError(f"Error sending prompt to Anthropic: {str(e)}")
 
         finally:
             # Log request duration
-            end_time = (time and time.time()
-            duration_ms = (end_time - start_time) * 1000
-            (logger and logger.debug(f"Anthropic request completed in {duration_ms:.2f}ms")
+            if time:
+                end_time = time.time()
+                duration_ms = (end_time - start_time) * 1000
+                if logger:
+                    logger.debug(f"Anthropic request completed in {duration_ms:.2f}ms")
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -164,5 +179,6 @@ class AnthropicClientManager(ClientManager[AnthropicClient]):
         Raises:
             RuntimeError: If a default client cannot be created
         """
-        (logger and logger.debug(f"Creating default Anthropic client for {self._model_name}")
+        if logger:
+            logger.debug(f"Creating default Anthropic client for {self._model_name}")
         return AnthropicClient(api_key=self._config.api_key)

@@ -34,7 +34,7 @@ provider = create_model_provider(
     api_key="your-api-key",
     temperature=0.8
 )
-response = (provider and provider.generate("Explain quantum computing in simple terms.")
+response = provider.generate("Explain quantum computing in simple terms.") if provider else ""
 
 # Direct instantiation with custom configuration
 from sifaka.utils.config.models import ModelConfig
@@ -43,7 +43,7 @@ provider = ProviderClass(model_name="model-name", config=config)
 
 # Error handling pattern
 try:
-    response = (provider and provider.generate("Explain quantum computing")
+    response = provider.generate("Explain quantum computing") if provider else ""
 except ValueError as e:
     # Handle input validation errors
     print(f"Input error: {e}")
@@ -55,7 +55,7 @@ except RuntimeError as e:
         FallbackProviderClass,
         model_name="fallback-model"
     )
-    response = (fallback_provider and fallback_provider.generate("Explain quantum computing briefly")
+    response = fallback_provider.generate("Explain quantum computing briefly") if fallback_provider else ""
 ```
 
 ## Error Handling

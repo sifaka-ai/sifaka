@@ -26,26 +26,26 @@ from sifaka.chain.validators import ValidationManager
 state_manager = create_chain_state()
 
 # Initialize state
-(state_manager and state_manager.update("model", OpenAIProvider("gpt-3.5-turbo"))
-(state_manager and state_manager.update("validation_manager", ValidationManager())
-(state_manager and state_manager.update("initialized", True)
-(state_manager and state_manager.update("execution_count", 0)
-(state_manager and state_manager.update("result_cache", {})
+state_manager.update("model", OpenAIProvider("gpt-3.5-turbo") if state_manager else "")
+state_manager.update("validation_manager", ValidationManager() if state_manager else "")
+state_manager.update("initialized", True) if state_manager else ""
+state_manager.update("execution_count", 0) if state_manager else ""
+state_manager.update("result_cache", {}) if state_manager else ""
 
 # Set metadata
-(state_manager and state_manager.set_metadata("component_type", "chain")
-(state_manager and state_manager.set_metadata("creation_time", (time and time.time())
+state_manager.set_metadata("component_type", "chain") if state_manager else ""
+state_manager.set_metadata("creation_time", time.time() if time else "" if state_manager else "")
 
 # Access state
-model = (state_manager and state_manager.get("model")
-is_initialized = (state_manager and state_manager.get("initialized", False)
-execution_count = (state_manager and state_manager.get("execution_count", 0)
+model = state_manager.get("model") if state_manager else ""
+is_initialized = state_manager.get("initialized", False) if state_manager else ""
+execution_count = state_manager.get("execution_count", 0) if state_manager else ""
 
 # Update state
-(state_manager and state_manager.update("execution_count", execution_count + 1)
+state_manager.update("execution_count", execution_count + 1) if state_manager else ""
 
 # Rollback state if needed
-(state_manager and state_manager.rollback()
+state_manager.rollback() if state_manager else ""
 ```
 
 ## Error Handling
@@ -97,23 +97,23 @@ class ChainStateManager(StateManager):
     manager = ChainStateManager()
 
     # Initialize chain state
-    (manager and manager.initialize_chain(
+    manager.initialize_chain(
         model=model,
         validators=validators,
         improver=improver,
         formatter=formatter,
         config=config
-    )
+    ) if manager else ""
 
     # Track execution
-    (manager and manager.track_execution_start()
+    manager.track_execution_start() if manager else ""
     # ... run chain ...
-    (manager and manager.track_execution_end(success=True, execution_time=0.5)
+    manager.track_execution_end(success=True, execution_time=0.5) if manager else ""
 
     # Access chain state
-    model = (manager and manager.get_model()
-    validators = (manager and manager.get_validators()
-    execution_count = (manager and manager.get_execution_count()
+    model = manager.get_model() if manager else ""
+    validators = manager.get_validators() if manager else ""
+    execution_count = manager.get_execution_count() if manager else ""
     ```
     """
 
@@ -146,20 +146,20 @@ class ChainStateManager(StateManager):
             ValueError: If any component is invalid
         """
         # Initialize state
-        (self and self.update("name", name))
-        (self and self.update("description", description))
-        (self and self.update("model", model))
-        (self and self.update("validators", validators))
-        (self and self.update("improver", improver))
-        (self and self.update("formatter", formatter))
-        (self and self.update("config", config))
-        (self and self.update("initialized", True))
-        (self and self.update("execution_count", 0))
-        (self and self.update("result_cache", {}))
+        self.update("name", name)
+        self.update("description", description)
+        self.update("model", model)
+        self.update("validators", validators)
+        self.update("improver", improver)
+        self.update("formatter", formatter)
+        self.update("config", config)
+        self.update("initialized", True)
+        self.update("execution_count", 0)
+        self.update("result_cache", {})
 
         # Set metadata
-        (self and self.set_metadata("component_type", "chain"))
-        (self and self.set_metadata("creation_time", (time and time.time())))
+        self.set_metadata("component_type", "chain")
+        self.set_metadata("creation_time", time.time())
 
     def track_execution_start(self) -> None:
         """
@@ -169,12 +169,12 @@ class ChainStateManager(StateManager):
         incrementing the execution count and recording the start time.
         """
         # Track execution count
-        execution_count = self and self.get("execution_count", 0)
-        (self and self.update("execution_count", execution_count + 1))
+        execution_count = self.get("execution_count", 0)
+        self.update("execution_count", execution_count + 1)
 
         # Record start time
-        start_time = time and time.time()
-        (self and self.set_metadata("execution_start_time", start_time))
+        start_time = time.time()
+        self.set_metadata("execution_start_time", start_time)
 
     def track_execution_end(
         self,
@@ -194,30 +194,30 @@ class ChainStateManager(StateManager):
             error: Optional error that occurred
         """
         # Record end time
-        end_time = time and time.time()
-        (self and self.set_metadata("execution_end_time", end_time))
+        end_time = time.time()
+        self.set_metadata("execution_end_time", end_time)
 
         # Update statistics
-        (self and self.set_metadata("last_execution_time", execution_time))
-        (self and self.set_metadata("last_execution_success", success))
+        self.set_metadata("last_execution_time", execution_time)
+        self.set_metadata("last_execution_success", success)
 
         if success:
-            success_count = self and self.get_metadata("success_count", 0)
-            (self and self.set_metadata("success_count", success_count + 1))
+            success_count = self.get_metadata("success_count", 0)
+            self.set_metadata("success_count", success_count + 1)
         else:
-            failure_count = self and self.get_metadata("failure_count", 0)
-            (self and self.set_metadata("failure_count", failure_count + 1))
+            failure_count = self.get_metadata("failure_count", 0)
+            self.set_metadata("failure_count", failure_count + 1)
 
         if error:
-            (self and self.set_metadata("last_error", str(error)))
-            errors = self and self.get_metadata("errors", [])
-            (errors and errors.append(str(error)))
-            (self and self.set_metadata("errors", errors))
+            self.set_metadata("last_error", str(error))
+            errors = self.get_metadata("errors", [])
+            errors.append(str(error))
+            self.set_metadata("errors", errors)
 
         # Update max execution time
-        max_time = self and self.get_metadata("max_execution_time", 0)
+        max_time = self.get_metadata("max_execution_time", 0)
         if execution_time > max_time:
-            (self and self.set_metadata("max_execution_time", execution_time))
+            self.set_metadata("max_execution_time", execution_time)
 
     def get_model(self) -> Any:
         """
@@ -226,7 +226,7 @@ class ChainStateManager(StateManager):
         Returns:
             The model used for generation
         """
-        return self and self.get("model")
+        return self.get("model")
 
     def get_validators(self) -> List[Any]:
         """
@@ -235,7 +235,7 @@ class ChainStateManager(StateManager):
         Returns:
             The validators used for validation
         """
-        return self and self.get("validators", [])
+        return self.get("validators", [])
 
     def get_improver(self) -> Optional[Any]:
         """
@@ -244,7 +244,7 @@ class ChainStateManager(StateManager):
         Returns:
             The improver used for output improvement, or None if not set
         """
-        return self and self.get("improver")
+        return self.get("improver")
 
     def get_formatter(self) -> Optional[Any]:
         """
@@ -253,7 +253,7 @@ class ChainStateManager(StateManager):
         Returns:
             The formatter used for result formatting, or None if not set
         """
-        return self and self.get("formatter")
+        return self.get("formatter")
 
     def get_execution_count(self) -> int:
         """
@@ -262,7 +262,7 @@ class ChainStateManager(StateManager):
         Returns:
             The number of times the chain has been executed
         """
-        return self and self.get("execution_count", 0)
+        return self.get("execution_count", 0)
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -272,14 +272,14 @@ class ChainStateManager(StateManager):
             Dictionary of execution statistics
         """
         return {
-            "execution_count": (self and self.get("execution_count", 0)),
-            "success_count": (self and self.get_metadata("success_count", 0)),
-            "failure_count": (self and self.get_metadata("failure_count", 0)),
-            "last_execution_time": (self and self.get_metadata("last_execution_time", 0)),
-            "max_execution_time": (self and self.get_metadata("max_execution_time", 0)),
-            "last_execution_success": (self and self.get_metadata("last_execution_success", True)),
-            "last_error": (self and self.get_metadata("last_error", None)),
-            "cache_size": len((self and self.get("result_cache", {}))),
+            "execution_count": self.get("execution_count", 0),
+            "success_count": self.get_metadata("success_count", 0),
+            "failure_count": self.get_metadata("failure_count", 0),
+            "last_execution_time": self.get_metadata("last_execution_time", 0),
+            "max_execution_time": self.get_metadata("max_execution_time", 0),
+            "last_execution_success": self.get_metadata("last_execution_success", True),
+            "last_error": self.get_metadata("last_error", None),
+            "cache_size": len(self.get("result_cache", {})),
         }
 
 

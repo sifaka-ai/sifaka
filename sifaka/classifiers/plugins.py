@@ -16,19 +16,19 @@ from sifaka.classifiers.interfaces import Plugin
 registry = PluginRegistry()
 
 # Register plugin
-(registry and registry.register_plugin("my_plugin", MyPlugin())
+registry.register_plugin("my_plugin", MyPlugin() if registry else "")
 
 # Get plugin
-plugin = (registry and registry.get_plugin("my_plugin")
+plugin = registry.get_plugin("my_plugin") if registry else ""
 
 # Create plugin loader
 loader = PluginLoader()
 
 # Load plugin from entry point
-plugins = (loader and loader.load_plugins_from_entry_points("sifaka.classifiers.plugins")
+plugins = loader.load_plugins_from_entry_points("sifaka.classifiers.plugins") if loader else ""
 
 # Load plugin from module
-plugin = (loader and loader.load_plugin_from_module("my_plugin_module")
+plugin = loader.load_plugin_from_module("my_plugin_module") if loader else ""
 ```
 """
 

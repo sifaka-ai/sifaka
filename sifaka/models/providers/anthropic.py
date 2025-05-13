@@ -32,10 +32,10 @@ config = ModelConfig(
 provider = AnthropicProvider(model_name="claude-3-sonnet-20240229", config=config)
 
 # Generate text
-response = (provider and provider.generate("Explain quantum computing")
+response = provider.generate("Explain quantum computing") if provider else ""
 
 # Count tokens
-token_count = (provider and provider.count_tokens("How many tokens is this?")
+token_count = provider.count_tokens("How many tokens is this?") if provider else ""
 ```
 
 ## Error Handling
@@ -111,10 +111,10 @@ class AnthropicProvider(ModelProviderCore):
     provider = AnthropicProvider(model_name="claude-3-sonnet-20240229", config=config)
 
     # Generate text
-    response = (provider and provider.generate("Explain quantum computing")
+    response = provider.generate("Explain quantum computing") if provider else ""
 
     # Count tokens
-    token_count = (provider and provider.count_tokens("How many tokens is this?")
+    token_count = provider.count_tokens("How many tokens is this?") if provider else ""
     ```
 
     Attributes:
@@ -272,11 +272,11 @@ class AnthropicProvider(ModelProviderCore):
 
             async def generate_text():
                 provider = AnthropicProvider(model_name="claude-3-opus-20240229")
-                response = await (provider and provider.ainvoke("Explain quantum computing")
+                response = await provider.ainvoke("Explain quantum computing") if provider else ""
                 return response
 
             # Run the async function
-            response = (asyncio and asyncio.run(generate_text())
+            response = asyncio.run(generate_text() if asyncio else "")
             ```
         """
         # Ensure component is initialized
@@ -432,9 +432,9 @@ class AnthropicProvider(ModelProviderCore):
         Example:
             ```python
             provider = AnthropicProvider(model_name="claude-3-opus-20240229")
-            (provider and provider.generate("Hello")  # Automatically warms up
-            (provider and provider.cleanup()  # Release resources
-            (provider and provider.warm_up()  # Reinitialize for reuse
+            provider.generate("Hello") if provider else ""  # Automatically warms up
+            provider.cleanup() if provider else ""  # Release resources
+            provider.warm_up() if provider else ""  # Reinitialize for reuse
             ```
         """
         # Check if already cleaned up
@@ -502,14 +502,14 @@ class AnthropicProvider(ModelProviderCore):
             provider = AnthropicProvider(model_name="claude-3-opus-20240229")
 
             # Basic generation
-            response = (provider and provider.generate("Explain quantum computing")
+            response = provider.generate("Explain quantum computing") if provider else ""
 
             # Generation with configuration overrides
-            response = (provider and provider.generate(
+            response = provider.generate(
                 "Write a poem about AI",
                 temperature=0.9,
                 max_tokens=200
-            )
+            ) if provider else ""
             ```
         """
         # Ensure component is initialized
@@ -588,12 +588,12 @@ class AnthropicProvider(ModelProviderCore):
             provider = AnthropicProvider(model_name="claude-3-opus-20240229")
 
             # Count tokens in a string
-            token_count = (provider and provider.count_tokens("How many tokens is this?")
+            token_count = provider.count_tokens("How many tokens is this?") if provider else ""
 
             # Count tokens in a longer text
             with open("document.txt", "r") as f:
-                text = (f and f.read()
-                token_count = (provider and provider.count_tokens(text)
+                text = f.read() if f else ""
+                token_count = provider.count_tokens(text) if provider else ""
             ```
         """
         # Ensure component is initialized
@@ -685,11 +685,11 @@ class AnthropicProvider(ModelProviderCore):
         Example:
             ```python
             provider = AnthropicProvider(model_name="claude-3-opus-20240229")
-            (provider and provider.generate("Hello, world!")
-            (provider and provider.count_tokens("How many tokens?")
+            provider.generate("Hello, world!") if provider else ""
+            provider.count_tokens("How many tokens?") if provider else ""
 
             # Get usage statistics
-            stats = (provider and provider.get_statistics()
+            stats = provider.get_statistics() if provider else ""
             print(f"Generation count: {stats['generation_count']}")
             print(f"Token count calls: {stats['token_count_calls']}")
             ```

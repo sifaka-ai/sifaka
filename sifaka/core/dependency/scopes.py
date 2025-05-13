@@ -17,20 +17,20 @@ from sifaka.core.dependency.scopes import DependencyScope, SessionScope, Request
 
 # Register dependencies with different scopes
 provider = DependencyProvider()
-(provider and provider.register("database", Database(), scope=DependencyScope.SINGLETON)
-(provider and provider.register("user_data", UserData(), scope=DependencyScope.SESSION)
-(provider and provider.register("validator", Validator(), scope=DependencyScope.REQUEST)
-(provider and provider.register("generator", Generator(), scope=DependencyScope.TRANSIENT)
+provider.register("database", Database() if provider else "", scope=DependencyScope.SINGLETON)
+provider.register("user_data", UserData() if provider else "", scope=DependencyScope.SESSION)
+provider.register("validator", Validator() if provider else "", scope=DependencyScope.REQUEST)
+provider.register("generator", Generator() if provider else "", scope=DependencyScope.TRANSIENT)
 
 # Use session scope
-with (provider and provider.session_scope("user_1") as session:
+with provider.session_scope("user_1") if provider else "" as session:
     # Session-scoped dependencies are created for this session
-    db = (provider and provider.get("database")  # Session-specific instance
+    db = provider.get("database") if provider else ""  # Session-specific instance
 
 # Use request scope
-with (provider and provider.request_scope("request_123") as request:
+with provider.request_scope("request_123") if provider else "" as request:
     # Request-scoped dependencies are created for this request
-    validator = (provider and provider.get("validator")  # Request-specific instance
+    validator = provider.get("validator") if provider else ""  # Request-specific instance
 ```
 
 ## Error Handling
@@ -75,10 +75,10 @@ class DependencyScope(str, Enum):
 
     # Register dependencies with different scopes
     provider = DependencyProvider()
-    (provider and provider.register("database", Database(), scope=DependencyScope.SINGLETON)
-    (provider and provider.register("user_data", UserData(), scope=DependencyScope.SESSION)
-    (provider and provider.register("validator", Validator(), scope=DependencyScope.REQUEST)
-    (provider and provider.register("generator", Generator(), scope=DependencyScope.TRANSIENT)
+    provider.register("database", Database() if provider else "", scope=DependencyScope.SINGLETON)
+    provider.register("user_data", UserData() if provider else "", scope=DependencyScope.SESSION)
+    provider.register("validator", Validator() if provider else "", scope=DependencyScope.REQUEST)
+    provider.register("generator", Generator() if provider else "", scope=DependencyScope.TRANSIENT)
     ```
 
     Attributes:
@@ -120,16 +120,16 @@ class SessionScope:
     provider = DependencyProvider()
 
     # Register session-scoped dependencies
-    (provider and provider.register_factory(
+    provider.register_factory(
         "database",
-        lambda: (Database and Database.connect(),
+        lambda: (Database and Database.connect() if provider else "",
         scope=DependencyScope.SESSION
     )
 
     # Use session scope
-    with (provider and provider.session_scope("user_1") as session:
+    with provider.session_scope("user_1") if provider else "" as session:
         # Get session-scoped dependency
-        db = (provider and provider.get("database")  # Session-specific instance
+        db = provider.get("database") if provider else ""  # Session-specific instance
 
         # All dependencies requested in this context will use this session
         result = process_data(input_data)  # Uses session-scoped dependencies
@@ -220,16 +220,16 @@ class RequestScope:
     provider = DependencyProvider()
 
     # Register request-scoped dependencies
-    (provider and provider.register_factory(
+    provider.register_factory(
         "validator",
-        lambda: Validator(),
+        lambda: Validator() if provider else "",
         scope=DependencyScope.REQUEST
     )
 
     # Use request scope
-    with (provider and provider.request_scope("request_123") as request:
+    with provider.request_scope("request_123") if provider else "" as request:
         # Get request-scoped dependency
-        validator = (provider and provider.get("validator")  # Request-specific instance
+        validator = provider.get("validator") if provider else ""  # Request-specific instance
 
         # All dependencies requested in this context will use this request
         result = process_data(input_data)  # Uses request-scoped dependencies

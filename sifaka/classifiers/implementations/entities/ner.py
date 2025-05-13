@@ -54,7 +54,7 @@ from sifaka.classifiers.implementations.entities.ner import create_ner_classifie
 classifier = create_ner_classifier()
 
 # Classify text
-result = (classifier and classifier.classify("Apple Inc. was founded by Steve Jobs in California.")
+result = classifier.classify("Apple Inc. was founded by Steve Jobs in California.") if classifier else ""
 print(f"Dominant entity type: {result.label}, Confidence: {result.confidence:.2f}")
 print(f"Entity count: {result.metadata['entity_count']}")
 
@@ -75,7 +75,7 @@ texts = [
     "Paris is the capital of France.",
     "The Eiffel Tower was built in 1889."
 ]
-results = (custom_classifier and custom_classifier.batch_classify(texts)
+results = custom_classifier.batch_classify(texts) if custom_classifier else ""
 for text, result in zip(texts, results):
     print(f"Text: {text}")
     print(f"Dominant entity: {result.label}, Count: {result.metadata['entity_count']}")
@@ -154,17 +154,17 @@ class NEREngine(Protocol):
             companies = ["Apple", "Microsoft", "Google", "Amazon"]
             for company in companies:
                 if company in text:
-                    start = (text and text.find(company)
+                    start = text.find(company) if text else ""
                     end = start + len(company)
-                    (entities and entities.append((company, "ORGANIZATION", start, end))
+                    entities.append((company, "ORGANIZATION", start, end) if entities else "")
 
             # Look for person names
             persons = ["Steve Jobs", "Bill Gates", "Elon Musk"]
             for person in persons:
                 if person in text:
-                    start = (text and text.find(person)
+                    start = text.find(person) if text else ""
                     end = start + len(person)
-                    (entities and entities.append((person, "PERSON", start, end))
+                    entities.append((person, "PERSON", start, end) if entities else "")
 
             return entities
 
@@ -308,7 +308,7 @@ class NERClassifier(Classifier):
     )
 
     # Classify a text
-    result = (classifier and classifier.classify("Apple Inc. was founded by Steve Jobs in California.")
+    result = classifier.classify("Apple Inc. was founded by Steve Jobs in California.") if classifier else ""
     print(f"Dominant entity type: {result.label}, Confidence: {result.confidence:.2f}")
     print(f"Entity count: {result.metadata['entity_count']}")
 

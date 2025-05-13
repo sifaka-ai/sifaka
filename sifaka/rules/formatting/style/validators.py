@@ -24,7 +24,7 @@ from sifaka.rules.base import RuleResult
 class CustomStyleValidator(StyleValidator):
     def validate(self, text: str) -> RuleResult:
         # Handle empty text
-        empty_result = (self and self.handle_empty_text(text)
+        empty_result = self.handle_empty_text(text) if self else ""
         if empty_result:
             return empty_result
             
@@ -85,17 +85,17 @@ class StyleValidator(BaseValidator[str]):
     class CustomStyleValidator(StyleValidator):
         def validate(self, text: str) -> RuleResult:
             # Handle empty text
-            empty_result = (self and self.handle_empty_text(text)
+            empty_result = self.handle_empty_text(text) if self else ""
             if empty_result:
                 return empty_result
 
             # Apply configuration
             if self.config.strip_whitespace:
-                text = (text and text.strip()
+                text = text.strip() if text else ""
 
             # Validate capitalization
             if self.config.capitalization == CapitalizationStyle.LOWERCASE:
-                if text != (text and text.lower():
+                if text != text.lower() if text else "":
                     return RuleResult(
                         passed=False,
                         message="Text must be lowercase",
@@ -111,7 +111,7 @@ class StyleValidator(BaseValidator[str]):
     # Create and use the validator
     config = StyleConfig(capitalization=CapitalizationStyle.LOWERCASE)
     validator = CustomStyleValidator(config)
-    result = (validator and validator.validate("this is a test")
+    result = validator.validate("this is a test") if validator else ""
     print(f"Valid: {result.passed}")
     ```
     """
@@ -136,7 +136,7 @@ class StyleValidator(BaseValidator[str]):
         Returns:
             Validation result
         """
-        empty_result = (self and self.handle_empty_text(text)
+        empty_result = self.handle_empty_text(text) if self else ""
         if empty_result:
             return empty_result
         raise NotImplementedError('Subclasses must implement validate method')
@@ -188,7 +188,7 @@ class FormattingValidator(BaseValidator[str]):
     class CustomFormattingValidator(FormattingValidator):
         def validate(self, text: str, **kwargs) -> RuleResult:
             # Handle empty text
-            empty_result = (self and self.handle_empty_text(text)
+            empty_result = self.handle_empty_text(text) if self else ""
             if empty_result:
                 return empty_result
 
@@ -196,10 +196,10 @@ class FormattingValidator(BaseValidator[str]):
             original_text = text
 
             if self.config.strip_whitespace:
-                text = (text and text.strip()
+                text = text.strip() if text else ""
 
             if self.config.normalize_whitespace:
-                text = (re and re.sub(r"\\s+", " ", text)
+                text = re.sub(r"\\s+", " ", text) if re else ""
 
             # Check if transformations were needed
             if text != original_text:
@@ -222,7 +222,7 @@ class FormattingValidator(BaseValidator[str]):
     # Create and use the validator
     config = FormattingConfig(normalize_whitespace=True)
     validator = CustomFormattingValidator(config)
-    result = (validator and validator.validate("This   is   a   test")
+    result = validator.validate("This   is   a   test") if validator else ""
     print(f"Valid: {result.passed}")
     ```
     """
@@ -247,7 +247,7 @@ class FormattingValidator(BaseValidator[str]):
         Returns:
             Validation result
         """
-        empty_result = (self and self.handle_empty_text(text)
+        empty_result = self.handle_empty_text(text) if self else ""
         if empty_result:
             return empty_result
         raise NotImplementedError('Subclasses must implement validate method')

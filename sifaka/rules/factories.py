@@ -46,7 +46,7 @@ manager = create_validation_manager(
 )
 
 # Validate text
-results = (manager and manager.validate("This is a test.")
+results = manager.validate("This is a test.") if manager else ""
 print(f"Validation passed: {results.passed}")
 ```
 
@@ -174,9 +174,9 @@ def create_rule(
                 rule_id=rule_id,
                 **{
                     k: v
-                    for k, v in (kwargs and kwargs.items()
+                    for k, v in kwargs.items()
                     if k in ["priority", "cache_size", "cost", "severity", "category", "tags"]
-                ),
+                },
             )
 
         # Create and return rule
@@ -187,14 +187,15 @@ def create_rule(
             validator=validator,
             **{
                 k: v
-                for k, v in (kwargs and kwargs.items()
+                for k, v in kwargs.items()
                 if k not in ["priority", "cache_size", "cost", "severity", "category", "tags"]
-            ),
+            },
         )
 
     except Exception as e:
-        (logger and logger.error(f"Error creating rule: {e}")
-        raise ValueError(f"Error creating rule: {str(e))")
+        if logger:
+            logger.error(f"Error creating rule: {e}")
+        raise ValueError(f"Error creating rule: {str(e)}")
 
 
 def create_validation_manager(
@@ -266,18 +267,18 @@ def create_validation_manager(
         )
 
         # Validate text
-        results = (manager and manager.validate("# Heading\n\n* List item")
+        results = manager.validate("# Heading\n\n* List item")
 
         # Check if all validations passed
-        if (results and results.all_passed():
+        if results.all_passed():
             print("All validations passed!")
         else:
             print("Some validations failed:")
-            for result in (results and results.failed_results():
+            for result in results.failed_results():
                 print(f"- {result.rule_id}: {result.message}")
 
         # Get validation statistics
-        stats = (manager and manager.get_statistics()
+        stats = manager.get_statistics()
         print(f"Validation count: {stats['validation_count']}")
         print(f"Average processing time: {stats['avg_processing_time_ms']} ms")
         ```
@@ -291,10 +292,11 @@ def create_validation_manager(
 
         # Log creation
         if rules:
-            (logger and logger.debug(f"Created validation manager with {len(rules)) rules")
+            logger.debug(f"Created validation manager with {len(rules)} rules")
 
         return manager
 
     except Exception as e:
-        (logger and logger.error(f"Error creating validation manager: {e}")
-        raise ValueError(f"Error creating validation manager: {str(e))")
+        if logger:
+            logger.error(f"Error creating validation manager: {e}")
+        raise ValueError(f"Error creating validation manager: {str(e)}")

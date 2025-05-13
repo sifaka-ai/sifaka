@@ -24,7 +24,7 @@ phone_adapter = create_guardrails_adapter(
 )
 
 # Use the adapter for validation
-result = (phone_adapter and phone_adapter.validate("My phone number is 555-123-4567")
+result = phone_adapter.validate("My phone number is 555-123-4567") if phone_adapter else ""
 ```
 
 ### Using the Rule (Legacy)
@@ -42,7 +42,7 @@ phone_rule = create_guardrails_rule(
 )
 
 # Use it in a Sifaka chain
-result = (chain and chain.run("What's a good phone number format?")
+result = chain.run("What's a good phone number format?") if chain else ""
 ```
 """
 from sifaka.adapters.guardrails.adapter import GuardrailsValidatable, GuardrailsAdapter, GuardrailsValidatorAdapter, GuardrailsRule, create_guardrails_adapter, create_guardrails_rule

@@ -40,7 +40,7 @@ chain = Chain(
 )
 
 # Run chain
-result = (chain and chain.run("Write a short story")
+result = chain.run("Write a short story") if chain else ""
 print(f"Output: {result.output}")
 print(f"All validations passed: {result.all_passed}")
 
@@ -48,10 +48,10 @@ print(f"All validations passed: {result.all_passed}")
 import asyncio
 
 async def run_async():
-    result = await (chain and chain.run_async("Write a short story")
+    result = await chain.run_async("Write a short story") if chain else ""
     print(f"Output: {result.output}")
 
-(asyncio and asyncio.run(run_async())
+asyncio.run(run_async() if asyncio else "")
 ```
 
 ## Error Handling
@@ -130,7 +130,7 @@ class Chain:
     )
 
     # Run the chain
-    result = (chain and chain.run("Write a short story")
+    result = chain.run("Write a short story") if chain else ""
 
     # Access the result
     print(f"Output: {result.output}")

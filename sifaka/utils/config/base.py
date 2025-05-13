@@ -125,10 +125,10 @@ class BaseConfig(BaseModel):
             )
 
             # Create a new configuration with updated parameters
-            updated_config = (config and config.with_params(
+            updated_config = config.with_params(
                 threshold=0.8,
                 max_length=100
-            )
+            ) if config else ""
 
             # Original config is unchanged
             assert config.params["threshold"] == 0.7
@@ -168,10 +168,10 @@ class BaseConfig(BaseModel):
             )
 
             # Create a new configuration with updated options
-            updated_config = (config and config.with_options(
+            updated_config = config.with_options(
                 name="new_name",
                 description="Updated description"
-            )
+            ) if config else ""
 
             # Original config is unchanged
             assert config.name == "my_component"

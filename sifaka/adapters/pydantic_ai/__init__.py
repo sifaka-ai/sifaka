@@ -48,7 +48,7 @@ def validate_with_sifaka(ctx: RunContext, output: OrderSummary) -> OrderSummary:
     return sifaka_adapter(ctx, output)
 
 # Run the agent
-result = (agent and agent.run_sync("Create an order summary for customer John Doe")
+result = agent.run_sync("Create an order summary for customer John Doe") if agent else ""
 print(result.output)
 ```
 

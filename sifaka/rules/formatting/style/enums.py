@@ -41,8 +41,8 @@ class CapitalizationStyle(Enum):
     rule = create_style_rule(capitalization=CapitalizationStyle.SENTENCE_CASE)
 
     # Validate text against the rule
-    result = (rule and rule.validate("This is a test.")  # Passes
-    result = (rule and rule.validate("this is a test.")  # Fails
+    result = rule.validate("This is a test.") if rule else ""  # Passes
+    result = rule.validate("this is a test.") if rule else ""  # Fails
     ```
 
     ## Style Descriptions

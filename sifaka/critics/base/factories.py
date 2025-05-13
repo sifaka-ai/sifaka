@@ -209,7 +209,7 @@ def create_basic_critic(
 
     # Use the critic
     text = "This is a test text."
-    result = (critic and critic.process(text)
+    result = critic.process(text) if critic else ""
     print(f"Score: {result.score:.2f}")
     print(f"Feedback: {result.message}")
     ```

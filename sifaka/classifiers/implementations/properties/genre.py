@@ -618,7 +618,7 @@ def create_genre_classifier(
         )
 
         # Classify text
-        result = (classifier and classifier.classify("This is a news article about recent events.")
+        result = classifier.classify("This is a news article about recent events.") if classifier else ""
         print(f"Genre: {result.label}, Confidence: {result.confidence:.2f}")
         ```
     """

@@ -44,7 +44,7 @@ class ModelResult(BaseModel, Generic[T]):
 
     # Access the result
     print(f"Output: {result.output}")
-    print(f"Token count: {result.(metadata and metadata.get('token_count')}")
+    print(f"Token count: {result.metadata.get('token_count') if metadata else ""}")
     ```
     """
     model_config = ConfigDict(frozen=True, extra='forbid')
@@ -146,7 +146,7 @@ class TokenCountResult(ModelResult[int]):
 
     # Access the result
     print(f"Token count: {result.output}")
-    print(f"Text length: {result.(metadata and metadata.get('text_length')}")
+    print(f"Text length: {result.metadata.get('text_length') if metadata else ""}")
     ```
     """
 

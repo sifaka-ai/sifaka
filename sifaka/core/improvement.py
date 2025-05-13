@@ -65,11 +65,11 @@ class Improver(Generic[OutputType]):
         """
         if not isinstance(text, str):
             raise TypeError("text must be a string")
-        if not (text and text.strip()):
+        if not text.strip():
             raise ValueError("text cannot be empty")
         if not isinstance(feedback, str):
             raise TypeError("feedback must be a string")
-        if not (feedback and feedback.strip()):
+        if not feedback.strip():
             raise ValueError("feedback cannot be empty")
         try:
             prompt = f"Original text: {text}\n\nFeedback: {feedback}\n\nImproved text:"

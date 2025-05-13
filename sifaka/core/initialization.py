@@ -356,13 +356,13 @@ class InitializableMixin:
 
         def _validate_configuration(self):
             # Validate component-specific configuration
-            if not self.config and (config and config.get("required_param"):
+            if not self.config and config.get("required_param") if config else "":
                 raise ValueError("Missing required parameter")
 
         def _initialize_resources(self):
             # Initialize component-specific resources
             self._resource = SomeResource()
-            self.(_resource_manager and _resource_manager.register("my_resource", self._resource)
+            self._resource_manager.register("my_resource", self._resource) if _resource_manager else ""
     ```
     """
 
@@ -475,7 +475,7 @@ class InitializableMixin:
             InitializationError: If warm-up fails
         """
         try:
-            if not (self and self.is_initialized()):
+            if self and not self.is_initialized():
                 if logger:
                     logger.warning(
                         f"Component {self.__class__.__name__} not initialized, initializing now"
@@ -600,7 +600,7 @@ class InitializableMixin:
         This method cleans up component resources, releasing any
         resources that were acquired during initialization or use.
 
-        Note: The base implementation already calls (resource_manager and resource_manager.cleanup_all(),
+        Note: The base implementation already calls resource_manager.cleanup_all() if resource_manager else "",
         so subclasses only need to override this method if they have additional
         cleanup operations to perform.
         """
@@ -643,11 +643,11 @@ class BaseInitializable(BaseModel, InitializableMixin):
         def _initialize_resources(self):
             # Initialize component-specific resources
             self._resource = SomeResource(self.timeout)
-            self.(_resource_manager and _resource_manager.register("my_resource", self._resource)
+            self._resource_manager.register("my_resource", self._resource) if _resource_manager else ""
 
     # Create component with validated parameters
     component = MyComponent(name="my_component", description="A sample component", max_attempts=3)
-    (component and component.initialize()
+    component.initialize() if component else ""
     ```
     """
 

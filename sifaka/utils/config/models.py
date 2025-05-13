@@ -98,10 +98,10 @@ class ModelConfig(BaseConfig):
     print(f"Temperature: {config.temperature}")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(temperature=0.9)
+    updated_config = config.with_options(temperature=0.9) if config else ""
 
     # Create a new configuration with updated params
-    updated_config = (config and config.with_params(top_p=0.95)
+    updated_config = config.with_params(top_p=0.95) if config else ""
     ```
 
     Attributes:
@@ -169,13 +169,13 @@ class OpenAIConfig(ModelConfig):
             provider = OpenAIProvider(model_name="gpt-4", config=config)
 
             # Create a new configuration with updated options
-            updated_config = (config and config.with_options(temperature=0.9)
+            updated_config = config.with_options(temperature=0.9) if config else ""
 
             # Create a new configuration with updated params
-            updated_config = (config and config.with_params(
+            updated_config = config.with_params(
                 top_p=0.95,
                 frequency_penalty=0.7
-            )
+            ) if config else ""
             ```
     """
 
@@ -233,13 +233,13 @@ class AnthropicConfig(ModelConfig):
             provider = AnthropicProvider(model_name="claude-3-opus", config=config)
 
             # Create a new configuration with updated options
-            updated_config = (config and config.with_options(temperature=0.9)
+            updated_config = config.with_options(temperature=0.9) if config else ""
 
             # Create a new configuration with updated params
-            updated_config = (config and config.with_params(
+            updated_config = config.with_params(
                 top_p=0.95,
                 system_prompt="You are Claude, a helpful AI assistant."
-            )
+            ) if config else ""
             ```
     """
 
@@ -296,13 +296,13 @@ class GeminiConfig(ModelConfig):
         provider = GeminiProvider(model_name="gemini-pro", config=config)
 
         # Create a new configuration with updated options
-        updated_config = (config and config.with_options(temperature=0.9)
+        updated_config = config.with_options(temperature=0.9) if config else ""
 
         # Create a new configuration with updated params
-        updated_config = (config and config.with_params(
+        updated_config = config.with_params(
             top_p=0.98,
             candidate_count=3
-        )
+        ) if config else ""
         ```
     """
 

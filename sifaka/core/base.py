@@ -43,7 +43,7 @@ component = MyComponent(
 )
 
 # Process input
-result = (component and component.process("Hello, world!")
+result = component.process("Hello, world!") if component else ""
 print(f"Passed: {result.passed}, Score: {result.score}")
 ```
 
@@ -115,7 +115,7 @@ class BaseConfig(BaseModel):
     # Access configuration values
     print(f"Name: {config.name}")
     print(f"Min confidence: {config.min_confidence}")
-    print(f"Custom threshold: {config.(params and params.get('threshold'))")
+    print(f"Custom threshold: {config.params.get('threshold') if params else "")")
     ```
 
     Attributes:
@@ -204,13 +204,13 @@ class BaseComponent(ABC, Generic[T, R]):
     )
 
     # Warm up the component
-    (component and component.warm_up()
+    component.warm_up() if component else ""
 
     # Process input
-    result = (component and component.process("Hello, world!")
+    result = component.process("Hello, world!") if component else ""
 
     # Clean up resources
-    (component and component.cleanup()
+    component.cleanup() if component else ""
     ```
     """
 
@@ -558,7 +558,7 @@ class BaseComponent(ABC, Generic[T, R]):
             def _initialize_resources(self) -> None:
                 # Load model
                 try:
-                    model_path = self.config.(params and params.get("model_path", "default_model.pkl")
+                    model_path = self.config.params.get("model_path", "default_model.pkl") if params else ""
                     self.(_state_manager.update("model", load_model(model_path))
                     (logger.debug(f"Loaded model from {model_path}")
                 except Exception as e:

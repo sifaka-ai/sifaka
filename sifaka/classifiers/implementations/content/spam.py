@@ -50,7 +50,7 @@ from sifaka.classifiers.implementations.content.spam import create_spam_classifi
 classifier = create_spam_classifier()
 
 # Classify text
-result = (classifier and classifier.classify("Buy now! Limited time offer!")
+result = classifier.classify("Buy now! Limited time offer!") if classifier else ""
 print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
 
 # Create a classifier with a pre-trained model
@@ -66,7 +66,7 @@ labels = ["spam", "ham", "spam"]
 trained_classifier = (SpamClassifier and SpamClassifier.create_pretrained(texts, labels)
 
 # Save the trained model
-(trained_classifier and trained_classifier._save_model("/path/to/save/model.pkl")
+trained_classifier._save_model("/path/to/save/model.pkl") if trained_classifier else ""
 ```
 
 ## Error Handling
@@ -151,7 +151,7 @@ class SpamClassifier(Classifier):
     classifier = (SpamClassifier and SpamClassifier.create_pretrained(texts, labels)
 
     # Classify new text
-    result = (classifier and classifier.classify("Limited time offer!")
+    result = classifier.classify("Limited time offer!") if classifier else ""
     print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
 
     # Access prediction probabilities

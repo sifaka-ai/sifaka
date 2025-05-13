@@ -27,21 +27,21 @@ cache_manager = CacheManager(
 )
 
 # Check if result is in cache
-if (cache_manager and cache_manager.has_cached_result(prompt):
-    result = (cache_manager and cache_manager.get_cached_result(prompt)
+if cache_manager.has_cached_result(prompt) if cache_manager else "":
+    result = cache_manager.get_cached_result(prompt) if cache_manager else ""
     print(f"Cache hit: {result.output}")
 else:
     # Generate result and cache it
     result = generate_result(prompt)
-    (cache_manager and cache_manager.cache_result(prompt, result)
+    cache_manager.cache_result(prompt, result) if cache_manager else ""
 
 # Get cache statistics
-stats = (cache_manager and cache_manager.get_cache_stats()
+stats = cache_manager.get_cache_stats() if cache_manager else ""
 print(f"Cache hits: {stats['cache_hits']}")
 print(f"Cache entries: {stats['cache_entries']}")
 
 # Clear cache when needed
-(cache_manager and cache_manager.clear_cache()
+cache_manager.clear_cache() if cache_manager else ""
 ```
 
 ## Error Handling
@@ -100,11 +100,11 @@ class CacheManager:
     )
 
     # Use cache for results
-    if (cache_manager and cache_manager.has_cached_result(prompt):
-        result = (cache_manager and cache_manager.get_cached_result(prompt)
+    if cache_manager.has_cached_result(prompt) if cache_manager else "":
+        result = cache_manager.get_cached_result(prompt) if cache_manager else ""
     else:
         result = generate_result(prompt)
-        (cache_manager and cache_manager.cache_result(prompt, result)
+        cache_manager.cache_result(prompt, result) if cache_manager else ""
     ```
     """
 
@@ -194,8 +194,8 @@ class CacheManager:
 
         Example:
             ```python
-            if (cache_manager and cache_manager.has_cached_result(prompt):
-                result = (cache_manager and cache_manager.get_cached_result(prompt)
+            if cache_manager.has_cached_result(prompt) if cache_manager else "":
+                result = cache_manager.get_cached_result(prompt) if cache_manager else ""
             else:
                 result = generate_result(prompt)
             ```
@@ -224,7 +224,7 @@ class CacheManager:
 
         Example:
             ```python
-            result = (cache_manager and cache_manager.get_cached_result(prompt)
+            result = cache_manager.get_cached_result(prompt) if cache_manager else ""
             if result:
                 print(f"Using cached result: {result.output}")
             else:
@@ -260,7 +260,7 @@ class CacheManager:
         Example:
             ```python
             result = generate_result(prompt)
-            (cache_manager and cache_manager.cache_result(prompt, result)
+            cache_manager.cache_result(prompt, result) if cache_manager else ""
             ```
         """
         if not self._cache_enabled:
@@ -287,7 +287,7 @@ class CacheManager:
         Example:
             ```python
             # Clear the cache when needed
-            (cache_manager and cache_manager.clear_cache()
+            cache_manager.clear_cache() if cache_manager else ""
             ```
         """
         self._state_manager.update("result_cache", {})
@@ -311,7 +311,7 @@ class CacheManager:
 
         Example:
             ```python
-            stats = (cache_manager and cache_manager.get_cache_stats()
+            stats = cache_manager.get_cache_stats() if cache_manager else ""
             print(f"Cache hits: {stats['cache_hits']}")
             print(f"Cache entries: {stats['cache_entries']}")
             print(f"Cache hit rate: {stats['cache_hits'] / (stats['cache_hits'] + stats['cache_misses']):.2f)")

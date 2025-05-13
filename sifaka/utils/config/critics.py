@@ -102,11 +102,11 @@ class CriticMetadata(BaseConfig):
     )
 
     # Update metadata
-    updated_metadata = (metadata and metadata.with_params(
+    updated_metadata = metadata.with_params(
         total_calls=10,
         successful_calls=8,
         average_latency_ms=150.5
-    )
+    ) if metadata else ""
     ```
 
     Attributes:
@@ -164,10 +164,10 @@ class CriticConfig(BaseConfig):
     print(f"Temperature: {config.temperature}")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(min_confidence=0.9)
+    updated_config = config.with_options(min_confidence=0.9) if config else ""
 
     # Create a new configuration with updated params
-    updated_config = (config and config.with_params(top_p=0.95)
+    updated_config = config.with_params(top_p=0.95) if config else ""
     ```
 
     Attributes:
@@ -243,10 +243,10 @@ class PromptCriticConfig(CriticConfig):
     print(f"Temperature: {config.temperature}")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(temperature=0.9)
+    updated_config = config.with_options(temperature=0.9) if config else ""
 
     # Create a new configuration with updated params
-    updated_config = (config and config.with_params(top_p=0.95)
+    updated_config = config.with_params(top_p=0.95) if config else ""
     ```
 
     Attributes:
@@ -305,7 +305,7 @@ class ReflexionCriticConfig(PromptCriticConfig):
     print(f"Reflection prompt template: {config.reflection_prompt_template}")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(reflection_count=5)
+    updated_config = config.with_options(reflection_count=5) if config else ""
     ```
 
     Attributes:
@@ -358,9 +358,9 @@ class ConstitutionalCriticConfig(PromptCriticConfig):
     print(f"Constitution prompt: {config.constitution_prompt}")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(
+    updated_config = config.with_options(
         principles=["Be helpful", "Be accurate", "Be concise", "Be ethical"]
-    )
+    ) if config else ""
     ```
 
     Attributes:
@@ -417,7 +417,7 @@ class SelfRefineCriticConfig(PromptCriticConfig):
     print(f"Refine prompt: {config.refine_prompt}")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(max_iterations=5)
+    updated_config = config.with_options(max_iterations=5) if config else ""
     ```
 
     Attributes:
@@ -473,7 +473,7 @@ class SelfRAGCriticConfig(PromptCriticConfig):
     print(f"Retrieval count: {config.retrieval_count}")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(retrieval_threshold=0.8)
+    updated_config = config.with_options(retrieval_threshold=0.8) if config else ""
     ```
 
     Attributes:
@@ -526,9 +526,9 @@ class FeedbackCriticConfig(PromptCriticConfig):
     print(f"Feedback prompt: {config.feedback_prompt}")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(
+    updated_config = config.with_options(
         feedback_categories=["accuracy", "clarity", "completeness", "relevance"]
-    )
+    ) if config else ""
     ```
 
     Attributes:
@@ -584,9 +584,9 @@ class ValueCriticConfig(PromptCriticConfig):
     print(f"Value prompt: {config.value_prompt}")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(
+    updated_config = config.with_options(
         values=["helpfulness", "accuracy", "harmlessness", "fairness"]
-    )
+    ) if config else ""
     ```
 
     Attributes:
@@ -642,7 +642,7 @@ class LACCriticConfig(PromptCriticConfig):
     print(f"Correction prompt: {config.correction_prompt}")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(max_iterations=5)
+    updated_config = config.with_options(max_iterations=5) if config else ""
     ```
 
     Attributes:

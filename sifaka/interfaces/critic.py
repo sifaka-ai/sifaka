@@ -58,7 +58,7 @@ class MyCritic(Critic[str, str, dict]):
         }
 
     def improve(self, text: str, feedback: Optional[Optional[str]] = None) -> str:
-        return (text and text.strip()
+        return text.strip() if text else ""
 ```
 
 ## Error Handling

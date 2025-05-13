@@ -89,9 +89,11 @@ critiquing, validating, and improving text.
    - Allow configuration changes
    - Enable manual intervention
 """
+
 import time
 from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 from pydantic import BaseModel, PrivateAttr
+
 if TYPE_CHECKING:
     from sifaka.core.managers.memory import BufferMemoryManager as MemoryManager
     from sifaka.core.managers.prompt import CriticPromptManager as PromptManager
@@ -99,6 +101,7 @@ if TYPE_CHECKING:
 from ...utils.logging import get_logger
 from ...utils.errors import safely_execute_component_operation as safely_execute_critic
 from ...utils.state import StateManager, create_critic_state
+
 logger = get_logger(__name__)
 
 
@@ -174,11 +177,16 @@ class CritiqueService(BaseModel):
        - Manages model state
        - Handles error recovery
     """
-    _state_manager: StateManager = PrivateAttr(default_factory=
-        create_critic_state)
 
-    def __init__(self, llm_provider: Any, prompt_manager: Any,
-        response_parser: Any, memory_manager: Optional[Optional[Any]] = None) ->None:
+    _state_manager: StateManager = PrivateAttr(default_factory=create_critic_state)
+
+    def __init__(
+        self,
+        llm_provider: Any,
+        prompt_manager: Any,
+        response_parser: Any,
+        memory_manager: Optional[Optional[Any]] = None,
+    ) -> None:
         """
         Initialize a CritiqueService instance.
 
@@ -202,21 +210,20 @@ class CritiqueService(BaseModel):
             RuntimeError: If initialization fails
         """
         super().__init__()
-        self.(_state_manager and _state_manager.update('model', llm_provider)
-        self.(_state_manager and _state_manager.update('prompt_manager', prompt_manager)
-        self.(_state_manager and _state_manager.update('response_parser', response_parser)
-        self.(_state_manager and _state_manager.update('memory_manager', memory_manager)
-        self.(_state_manager and _state_manager.update('initialized', True)
-        self.(_state_manager and _state_manager.update('critique_count', 0)
-        self.(_state_manager and _state_manager.update('validation_count', 0)
-        self.(_state_manager and _state_manager.update('improvement_count', 0)
-        self.(_state_manager and _state_manager.update('error_count', 0)
-        self.(_state_manager and _state_manager.update('cache', {})
-        self.(_state_manager and _state_manager.set_metadata('component_type', self.__class__.
-            __name__)
-        self.(_state_manager and _state_manager.set_metadata('initialization_time', (time and time.time())
+        self._state_manager.update("model", llm_provider)
+        self._state_manager.update("prompt_manager", prompt_manager)
+        self._state_manager.update("response_parser", response_parser)
+        self._state_manager.update("memory_manager", memory_manager)
+        self._state_manager.update("initialized", True)
+        self._state_manager.update("critique_count", 0)
+        self._state_manager.update("validation_count", 0)
+        self._state_manager.update("improvement_count", 0)
+        self._state_manager.update("error_count", 0)
+        self._state_manager.update("cache", {})
+        self._state_manager.set_metadata("component_type", self.__class__.__name__)
+        self._state_manager.set_metadata("initialization_time", time.time() if time else "")
 
-    def validate(self, text: str) ->bool:
+    def validate(self, text: str) -> bool:
         """
         Validate text against quality standards.
 
@@ -240,37 +247,41 @@ class CritiqueService(BaseModel):
             ValueError: If text is empty
             RuntimeError: If validation fails
         """
-        validation_count = self.(_state_manager and _state_manager.get('validation_count', 0)
-        self.(_state_manager and _state_manager.update('validation_count', validation_count + 1)
+        validation_count = self._state_manager.get("validation_count", 0)
+        self._state_manager.update("validation_count", validation_count + 1)
 
-        def validation_operation() ->Any:
-            if not isinstance(text, str) or not (text and text.strip():
-                raise ValueError('text must be a non-empty string')
-            prompt_manager = self.(_state_manager and _state_manager.get('prompt_manager')
-            model = self.(_state_manager and _state_manager.get('model')
-            response_parser = self.(_state_manager and _state_manager.get('response_parser')
+        def validation_operation() -> Any:
+            if not isinstance(text, str) or not text.strip() if text else "":
+                raise ValueError("text must be a non-empty string")
+            prompt_manager = self._state_manager.get("prompt_manager")
+            model = self._state_manager.get("model")
+            response_parser = self._state_manager.get("response_parser")
             if not prompt_manager or not model or not response_parser:
-                raise RuntimeError('CritiqueService not properly initialized')
-            validation_prompt = (prompt_manager and prompt_manager.create_validation_prompt(text)
-            response = (model and model.invoke(validation_prompt)
-            result = (response_parser and response_parser.parse_validation_response(response)
-            stats = self.(_state_manager and _state_manager.get('stats', {})
-            stats['validation_count'] = (stats and stats.get('validation_count', 0) + 1
-            stats['last_validation_time'] = (time and time.time()
-            self.(_state_manager and _state_manager.update('stats', stats)
+                raise RuntimeError("CritiqueService not properly initialized")
+            validation_prompt = (
+                prompt_manager.create_validation_prompt(text) if prompt_manager else ""
+            )
+            response = model.invoke(validation_prompt) if model else ""
+            result = response_parser.parse_validation_response(response) if response_parser else ""
+            stats = self._state_manager.get("stats", {})
+            stats["validation_count"] = stats.get("validation_count", 0) + 1 if stats else 1
+            stats["last_validation_time"] = time.time() if time else ""
+            self._state_manager.update("stats", stats)
             return result
+
         try:
-            return safely_execute_critic(operation=validation_operation,
-                component_name=self.__class__.__name__, additional_metadata
-                ={'text_length': len(text), 'method': 'validate'})
+            return safely_execute_critic(
+                operation=validation_operation,
+                component_name=self.__class__.__name__,
+                additional_metadata={"text_length": len(text), "method": "validate"},
+            )
         except Exception as e:
-            error_count = self.(_state_manager and _state_manager.get('error_count', 0)
-            self.(_state_manager and _state_manager.update('error_count', error_count + 1)
-            (logger and logger.error(f'Failed to validate text: {str(e)}')
+            error_count = self._state_manager.get("error_count", 0)
+            self._state_manager.update("error_count", error_count + 1)
+            logger.error(f'Failed to validate text: {str(e) if logger else ""}')
             return False
 
-    def critique(self, text: str, metadata: Optional[Dict[str, Any]]=None
-        ) ->Dict[str, Any]:
+    def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Critique text and provide feedback.
 
@@ -295,46 +306,54 @@ class CritiqueService(BaseModel):
             ValueError: If text is empty
             RuntimeError: If critique fails
         """
-        critique_count = self.(_state_manager and _state_manager.get('critique_count', 0)
-        self.(_state_manager and _state_manager.update('critique_count', critique_count + 1)
+        critique_count = self._state_manager.get("critique_count", 0)
+        self._state_manager.update("critique_count", critique_count + 1)
 
-        def critique_operation() ->Any:
-            if not isinstance(text, str) or not (text and text.strip():
-                raise ValueError('text must be a non-empty string')
-            prompt_manager = self.(_state_manager and _state_manager.get('prompt_manager')
-            model = self.(_state_manager and _state_manager.get('model')
-            response_parser = self.(_state_manager and _state_manager.get('response_parser')
+        def critique_operation() -> Any:
+            if not isinstance(text, str) or not text.strip() if text else "":
+                raise ValueError("text must be a non-empty string")
+            prompt_manager = self._state_manager.get("prompt_manager")
+            model = self._state_manager.get("model")
+            response_parser = self._state_manager.get("response_parser")
             if not prompt_manager or not model or not response_parser:
-                raise RuntimeError('CritiqueService not properly initialized')
-            critique_prompt = (prompt_manager and prompt_manager.create_critique_prompt(text)
-            response = (model and model.invoke(critique_prompt)
-            result = (response_parser and response_parser.parse_critique_response(response)
-            stats = self.(_state_manager and _state_manager.get('stats', {})
-            stats['critique_count'] = (stats and stats.get('critique_count', 0) + 1
-            stats['last_critique_time'] = (time and time.time()
-            score_distribution = (stats and stats.get('score_distribution', {})
-            score_bucket = round((result and result.get('score', 0) * 10) / 10
-            score_distribution[str(score_bucket)] = (score_distribution and score_distribution.get(str
-                (score_bucket), 0) + 1
-            stats['score_distribution'] = score_distribution
-            self.(_state_manager and _state_manager.update('stats', stats)
+                raise RuntimeError("CritiqueService not properly initialized")
+            critique_prompt = prompt_manager.create_critique_prompt(text) if prompt_manager else ""
+            response = model.invoke(critique_prompt) if model else ""
+            result = response_parser.parse_critique_response(response) if response_parser else ""
+            stats = self._state_manager.get("stats", {})
+            stats["critique_count"] = stats.get("critique_count", 0) + 1 if stats else 1
+            stats["last_critique_time"] = time.time() if time else ""
+            score_distribution = stats.get("score_distribution", {}) if stats else {}
+            score_bucket = round(result.get("score", 0) * 10) / 10 if result else 0
+            score_distribution[str(score_bucket)] = (
+                score_distribution.get(str(score_bucket), 0) + 1 if score_distribution else 1
+            )
+            stats["score_distribution"] = score_distribution
+            self._state_manager.update("stats", stats)
             return result
-        try:
-            return safely_execute_critic(operation=critique_operation,
-                component_name=self.__class__.__name__, additional_metadata
-                ={'text_length': len(text), 'method': 'critique', **
-                metadata or {}})
-        except Exception as e:
-            error_count = self.(_state_manager and _state_manager.get('error_count', 0)
-            self.(_state_manager and _state_manager.update('error_count', error_count + 1)
-            (logger and logger.error(f'Failed to critique text: {str(e)}')
-            return {'score': 0.0, 'feedback':
-                f'Failed to critique text: {str(e)}', 'issues': [
-                'Critique process failed'], 'suggestions': [
-                'Try again with clearer text']}
 
-    def improve(self, text: str, feedback: Union[str, List[Dict[str, Any]]]
-        ) ->str:
+        try:
+            return safely_execute_critic(
+                operation=critique_operation,
+                component_name=self.__class__.__name__,
+                additional_metadata={
+                    "text_length": len(text),
+                    "method": "critique",
+                    **(metadata or {}),
+                },
+            )
+        except Exception as e:
+            error_count = self._state_manager.get("error_count", 0)
+            self._state_manager.update("error_count", error_count + 1)
+            logger.error(f'Failed to critique text: {str(e) if logger else ""}')
+            return {
+                "score": 0.0,
+                "feedback": f"Failed to critique text: {str(e)}",
+                "issues": ["Critique process failed"],
+                "suggestions": ["Try again with clearer text"],
+            }
+
+    def improve(self, text: str, feedback: Union[str, List[Dict[str, Any]]]) -> str:
         """
         Improve text based on feedback or violations.
 
@@ -360,44 +379,53 @@ class CritiqueService(BaseModel):
             ValueError: If text is empty
             RuntimeError: If improvement fails
         """
-        improvement_count = self.(_state_manager and _state_manager.get('improvement_count', 0)
-        self.(_state_manager and _state_manager.update('improvement_count', improvement_count + 1)
+        improvement_count = self._state_manager.get("improvement_count", 0)
+        self._state_manager.update("improvement_count", improvement_count + 1)
 
-        def improvement_operation() ->Any:
-            if not isinstance(text, str) or not (text and text.strip():
-                raise ValueError('text must be a non-empty string')
-            prompt_manager = self.(_state_manager and _state_manager.get('prompt_manager')
-            model = self.(_state_manager and _state_manager.get('model')
-            response_parser = self.(_state_manager and _state_manager.get('response_parser')
+        def improvement_operation() -> Any:
+            if not isinstance(text, str) or not text.strip() if text else "":
+                raise ValueError("text must be a non-empty string")
+            prompt_manager = self._state_manager.get("prompt_manager")
+            model = self._state_manager.get("model")
+            response_parser = self._state_manager.get("response_parser")
             if not prompt_manager or not model or not response_parser:
-                raise RuntimeError('CritiqueService not properly initialized')
+                raise RuntimeError("CritiqueService not properly initialized")
             processed_feedback = feedback
             if isinstance(feedback, list):
-                processed_feedback = (self and self._violations_to_feedback(feedback)
-            improvement_prompt = (prompt_manager and prompt_manager.create_improvement_prompt(text,
-                processed_feedback, (self and self._get_relevant_reflections())
-            response = (model and model.invoke(improvement_prompt)
-            improved_text = (response_parser and response_parser.parse_improvement_response(response
-                )
-            (self and self._generate_reflection(text, processed_feedback, improved_text)
-            stats = self.(_state_manager and _state_manager.get('stats', {})
-            stats['improvement_count'] = (stats and stats.get('improvement_count', 0) + 1
-            stats['last_improvement_time'] = (time and time.time()
-            self.(_state_manager and _state_manager.update('stats', stats)
+                processed_feedback = self._violations_to_feedback(feedback) if self else ""
+            improvement_prompt = prompt_manager.create_improvement_prompt(
+                text,
+                processed_feedback,
+                self._get_relevant_reflections() if self else "" if prompt_manager else "",
+            )
+            response = model.invoke(improvement_prompt) if model else ""
+            improved_text = (
+                response_parser.parse_improvement_response(response) if response_parser else ""
+            )
+            self._generate_reflection(text, processed_feedback, improved_text) if self else ""
+            stats = self._state_manager.get("stats", {})
+            stats["improvement_count"] = stats.get("improvement_count", 0) + 1 if stats else 1
+            stats["last_improvement_time"] = time.time() if time else ""
+            self._state_manager.update("stats", stats)
             return improved_text
+
         try:
-            return safely_execute_critic(operation=improvement_operation,
-                component_name=self.__class__.__name__, additional_metadata
-                ={'text_length': len(text), 'method': 'improve',
-                'feedback_type': 'list' if isinstance(feedback, list) else
-                'string'})
+            return safely_execute_critic(
+                operation=improvement_operation,
+                component_name=self.__class__.__name__,
+                additional_metadata={
+                    "text_length": len(text),
+                    "method": "improve",
+                    "feedback_type": "list" if isinstance(feedback, list) else "string",
+                },
+            )
         except Exception as e:
-            error_count = self.(_state_manager and _state_manager.get('error_count', 0)
-            self.(_state_manager and _state_manager.update('error_count', error_count + 1)
-            (logger and logger.error(f'Failed to improve text: {str(e)}')
+            error_count = self._state_manager.get("error_count", 0)
+            self._state_manager.update("error_count", error_count + 1)
+            logger.error(f'Failed to improve text: {str(e) if logger else ""}')
             return text
 
-    def _violations_to_feedback(self, violations: List[Dict[str, Any]]) ->str:
+    def _violations_to_feedback(self, violations: List[Dict[str, Any]]) -> str:
         """
         Convert violations to feedback text.
 
@@ -420,16 +448,15 @@ class CritiqueService(BaseModel):
             ValueError: If violations are invalid
         """
         if not violations:
-            return ''
-        feedback = 'The following issues need to be addressed:\n'
+            return ""
+        feedback = "The following issues need to be addressed:\n"
         for violation in violations:
-            rule = (violation and violation.get('rule', 'unknown')
-            message = (violation and violation.get('message', '')
-            feedback += f'- {rule}: {message}\n'
-        return (feedback and feedback.strip()
+            rule = violation.get("rule", "unknown") if violation else ""
+            message = violation.get("message", "") if violation else ""
+            feedback += f"- {rule}: {message}\n"
+        return feedback.strip() if feedback else ""
 
-    def _generate_reflection(self, original_text: str, feedback: str,
-        improved_text: str) ->None:
+    def _generate_reflection(self, original_text: str, feedback: str, improved_text: str) -> None:
         """
         Generate a reflection on the improvement.
 
@@ -452,38 +479,52 @@ class CritiqueService(BaseModel):
         Raises:
             ValueError: If inputs are invalid
         """
-        memory_manager = self.(_state_manager and _state_manager.get('memory_manager')
+        memory_manager = self._state_manager.get("memory_manager")
         if not memory_manager:
             return
 
-        def reflection_operation() ->Any:
-            prompt_manager = self.(_state_manager and _state_manager.get('prompt_manager')
-            model = self.(_state_manager and _state_manager.get('model')
-            response_parser = self.(_state_manager and _state_manager.get('response_parser')
+        def reflection_operation() -> Any:
+            prompt_manager = self._state_manager.get("prompt_manager")
+            model = self._state_manager.get("model")
+            response_parser = self._state_manager.get("response_parser")
             if not prompt_manager or not model or not response_parser:
-                raise RuntimeError('CritiqueService not properly initialized')
-            reflection_prompt = (prompt_manager and prompt_manager.create_reflection_prompt(
-                original_text, feedback, improved_text)
-            response = (model and model.invoke(reflection_prompt)
-            reflection = (response_parser and response_parser.parse_reflection_response(response)
+                raise RuntimeError("CritiqueService not properly initialized")
+            reflection_prompt = (
+                prompt_manager.create_reflection_prompt(original_text, feedback, improved_text)
+                if prompt_manager
+                else ""
+            )
+            response = model.invoke(reflection_prompt) if model else ""
+            reflection = (
+                response_parser.parse_reflection_response(response) if response_parser else ""
+            )
             if reflection:
-                memory_manager and memory_manager and (memory_manager and memory_manager.add_to_memory(reflection)
-            stats = self.(_state_manager and _state_manager.get('stats', {})
-            stats['reflection_count'] = (stats and stats.get('reflection_count', 0) + 1
-            self.(_state_manager and _state_manager.update('stats', stats)
-            return reflection
-        try:
-            safely_execute_critic(operation=reflection_operation,
-                component_name=self.__class__.__name__, additional_metadata
-                ={'method': 'generate_reflection', 'original_text_length':
-                len(original_text), 'improved_text_length': len(improved_text)}
+                (
+                    memory_manager and memory_manager and memory_manager.add_to_memory(reflection)
+                    if memory_manager
+                    else ""
                 )
-        except Exception as e:
-            error_count = self.(_state_manager and _state_manager.get('error_count', 0)
-            self.(_state_manager and _state_manager.update('error_count', error_count + 1)
-            (logger and logger.error(f'Failed to generate reflection: {str(e)}')
+            stats = self._state_manager.get("stats", {})
+            stats["reflection_count"] = stats.get("reflection_count", 0) + 1 if stats else 1
+            self._state_manager.update("stats", stats)
+            return reflection
 
-    def _get_relevant_reflections(self) ->List[str]:
+        try:
+            safely_execute_critic(
+                operation=reflection_operation,
+                component_name=self.__class__.__name__,
+                additional_metadata={
+                    "method": "generate_reflection",
+                    "original_text_length": len(original_text),
+                    "improved_text_length": len(improved_text),
+                },
+            )
+        except Exception as e:
+            error_count = self._state_manager.get("error_count", 0)
+            self._state_manager.update("error_count", error_count + 1)
+            logger.error(f'Failed to generate reflection: {str(e) if logger else ""}')
+
+    def _get_relevant_reflections(self) -> List[str]:
         """
         Get relevant reflections from memory.
 
@@ -497,23 +538,26 @@ class CritiqueService(BaseModel):
         Returns:
             List of relevant reflections
         """
-        memory_manager = self.(_state_manager and _state_manager.get('memory_manager')
+        memory_manager = self._state_manager.get("memory_manager")
         if not memory_manager:
             return []
 
-        def retrieval_operation() ->Any:
-            return memory_manager and (memory_manager and memory_manager.get_memory()
+        def retrieval_operation() -> Any:
+            return memory_manager and memory_manager.get_memory() if memory_manager else ""
+
         try:
-            return safely_execute_critic(operation=retrieval_operation,
-                component_name=self.__class__.__name__, additional_metadata
-                ={'method': 'get_relevant_reflections'})
+            return safely_execute_critic(
+                operation=retrieval_operation,
+                component_name=self.__class__.__name__,
+                additional_metadata={"method": "get_relevant_reflections"},
+            )
         except Exception as e:
-            error_count = self.(_state_manager and _state_manager.get('error_count', 0)
-            self.(_state_manager and _state_manager.update('error_count', error_count + 1)
-            (logger and logger.error(f'Failed to get reflections: {str(e)}')
+            error_count = self._state_manager.get("error_count", 0)
+            self._state_manager.update("error_count", error_count + 1)
+            logger.error(f'Failed to get reflections: {str(e) if logger else ""}')
             return []
 
-    async def avalidate(self, text: str) ->bool:
+    async def avalidate(self, text: str) -> bool:
         """
         Asynchronously validate text against quality standards.
 
@@ -537,17 +581,23 @@ class CritiqueService(BaseModel):
             ValueError: If text is empty
             RuntimeError: If validation fails
         """
-        if not isinstance(text, str) or not (text and text.strip():
-            raise ValueError('text must be a non-empty string')
-        validation_prompt = self.(_prompt_manager and _prompt_manager.create_validation_prompt(text)
+        if not isinstance(text, str) or not text.strip() if text else "":
+            raise ValueError("text must be a non-empty string")
+        validation_prompt = (
+            self._prompt_manager.create_validation_prompt(text) if _prompt_manager else ""
+        )
         try:
-            response = await self.(_model and _model.ainvoke(validation_prompt)
-            return self.(_response_parser and _response_parser.parse_validation_response(response)
+            response = await self._model.ainvoke(validation_prompt) if _model else ""
+            return (
+                self._response_parser.parse_validation_response(response)
+                if _response_parser
+                else ""
+            )
         except Exception as e:
-            (logger and logger.error(f'Failed to validate text: {str(e)}')
+            logger.error(f'Failed to validate text: {str(e) if logger else ""}')
             return False
 
-    async def acritique(self, text: str) ->Dict[str, Any]:
+    async def acritique(self, text: str) -> Dict[str, Any]:
         """
         Asynchronously critique text and provide feedback.
 
@@ -571,21 +621,26 @@ class CritiqueService(BaseModel):
             ValueError: If text is empty
             RuntimeError: If critique fails
         """
-        if not isinstance(text, str) or not (text and text.strip():
-            raise ValueError('text must be a non-empty string')
-        critique_prompt = self.(_prompt_manager and _prompt_manager.create_critique_prompt(text)
+        if not isinstance(text, str) or not text.strip() if text else "":
+            raise ValueError("text must be a non-empty string")
+        critique_prompt = (
+            self._prompt_manager.create_critique_prompt(text) if _prompt_manager else ""
+        )
         try:
-            response = await self.(_model and _model.ainvoke(critique_prompt)
-            return self.(_response_parser and _response_parser.parse_critique_response(response)
+            response = await self._model.ainvoke(critique_prompt) if _model else ""
+            return (
+                self._response_parser.parse_critique_response(response) if _response_parser else ""
+            )
         except Exception as e:
-            (logger and logger.error(f'Failed to critique text: {str(e)}')
-            return {'score': 0.0, 'feedback':
-                f'Failed to critique text: {str(e)}', 'issues': [
-                'Critique process failed'], 'suggestions': [
-                'Try again with clearer text']}
+            logger.error(f'Failed to critique text: {str(e) if logger else ""}')
+            return {
+                "score": 0.0,
+                "feedback": f"Failed to critique text: {str(e)}",
+                "issues": ["Critique process failed"],
+                "suggestions": ["Try again with clearer text"],
+            }
 
-    async def aimprove(self, text: str, feedback: Union[str, List[Dict[str,
-        Any]]]) ->str:
+    async def aimprove(self, text: str, feedback: Union[str, List[Dict[str, Any]]]) -> str:
         """
         Asynchronously improve text based on feedback or violations.
 
@@ -611,25 +666,31 @@ class CritiqueService(BaseModel):
             ValueError: If text is empty
             RuntimeError: If improvement fails
         """
-        if not isinstance(text, str) or not (text and text.strip():
-            raise ValueError('text must be a non-empty string')
+        if not isinstance(text, str) or not text.strip() if text else "":
+            raise ValueError("text must be a non-empty string")
         if isinstance(feedback, list):
-            feedback = (self and self._violations_to_feedback(feedback)
-        improvement_prompt = self.(_prompt_manager and _prompt_manager.create_improvement_prompt(
-            text, feedback, (self and self._get_relevant_reflections())
+            feedback = self._violations_to_feedback(feedback) if self else ""
+        improvement_prompt = self._prompt_manager.create_improvement_prompt(
+            text,
+            feedback,
+            self._get_relevant_reflections() if self else "" if _prompt_manager else "",
+        )
         try:
-            response = await self.(_model and _model.ainvoke(improvement_prompt)
-            improved_text = self.(_response_parser and _response_parser.parse_improvement_response(
-                response)
-            await (self and self._generate_reflection_async(text, feedback, improved_text
-                )
+            response = await self._model.ainvoke(improvement_prompt) if _model else ""
+            improved_text = (
+                self._response_parser.parse_improvement_response(response)
+                if _response_parser
+                else ""
+            )
+            await self._generate_reflection_async(text, feedback, improved_text) if self else ""
             return improved_text
         except Exception as e:
-            (logger and logger.error(f'Failed to improve text: {str(e)}')
+            logger.error(f'Failed to improve text: {str(e) if logger else ""}')
             return text
 
-    async def _generate_reflection_async(self, original_text: str, feedback:
-        str, improved_text: str) ->None:
+    async def _generate_reflection_async(
+        self, original_text: str, feedback: str, improved_text: str
+    ) -> None:
         """
         Asynchronously generate a reflection on the improvement.
 
@@ -654,13 +715,25 @@ class CritiqueService(BaseModel):
         """
         if not self._memory_manager:
             return
-        reflection_prompt = self.(_prompt_manager and _prompt_manager.create_reflection_prompt(
-            original_text, feedback, improved_text)
+        reflection_prompt = (
+            self._prompt_manager.create_reflection_prompt(original_text, feedback, improved_text)
+            if _prompt_manager
+            else ""
+        )
         try:
-            response = await self.(_model and _model.ainvoke(reflection_prompt)
-            reflection = self.(_response_parser and _response_parser.parse_reflection_response(
-                response)
+            response = await self._model.ainvoke(reflection_prompt) if _model else ""
+            reflection = (
+                self._response_parser.parse_reflection_response(response)
+                if _response_parser
+                else ""
+            )
             if reflection:
-                self._memory_manager and memory_manager and (memory_manager and memory_manager.add_to_memory(reflection)
+                (
+                    self._memory_manager
+                    and memory_manager
+                    and memory_manager.add_to_memory(reflection)
+                    if memory_manager
+                    else ""
+                )
         except Exception as e:
-            (logger and logger.error(f'Failed to generate reflection: {str(e)}')
+            logger.error(f'Failed to generate reflection: {str(e) if logger else ""}')

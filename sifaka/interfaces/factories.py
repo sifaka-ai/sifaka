@@ -58,7 +58,7 @@ def create_component(component_class: Type[T], name: str, description: str,
     """
     component = component_class(name=name, description=description, config=
         config or {}, **kwargs)
-    (component and component.initialize()
+    component.initialize() if component else ""
     return component
 
 

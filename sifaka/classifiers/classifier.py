@@ -38,26 +38,26 @@ classifier = Classifier(
 )
 
 # Classify text
-result = (classifier and classifier.classify("This is a friendly message.")
+result = classifier.classify("This is a friendly message.") if classifier else ""
 print(f"Label: {result.label}")
 print(f"Confidence: {result.confidence:.2f}")
 
 # Classify batch of texts
-results = (classifier and classifier.classify_batch([
+results = classifier.classify_batch([
     "This is a friendly message.",
     "This is a toxic message!",
     "This is another friendly message."
-])
+]) if classifier else ""
 for i, result in enumerate(results):
     print(f"Text {i+1}: {result.label} ({result.confidence:.2f})")
 
 # Get classifier statistics
-stats = (classifier and classifier.get_statistics()
+stats = classifier.get_statistics() if classifier else ""
 print(f"Execution count: {stats['execution_count']}")
 print(f"Average execution time: {stats['avg_execution_time']:.2f}s")
 
 # Clear cache
-(classifier and classifier.clear_cache()
+classifier.clear_cache() if classifier else ""
 ```
 
 ## Error Handling
@@ -123,7 +123,7 @@ class Classifier:
     )
 
     # Classify text
-    result = (classifier and classifier.classify("This is a friendly message.")
+    result = classifier.classify("This is a friendly message.") if classifier else ""
 
     # Check result
     if result.confidence > 0.8:

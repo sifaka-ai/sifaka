@@ -34,20 +34,20 @@ kv_memory = create_key_value_memory_manager(
 )
 
 # Store a value
-(kv_memory and kv_memory.store("key1", "value1")
+kv_memory.store("key1", "value1") if kv_memory else ""
 
 # Retrieve a value
-results = (kv_memory and kv_memory.retrieve("key1")
+results = kv_memory.retrieve("key1") if kv_memory else ""
 
 # Create a buffer memory manager
 buffer_memory = create_buffer_memory_manager(buffer_size=10)
 
 # Add items to buffer
-(buffer_memory and buffer_memory.add_to_memory("Item 1")
-(buffer_memory and buffer_memory.add_to_memory("Item 2")
+buffer_memory.add_to_memory("Item 1") if buffer_memory else ""
+buffer_memory.add_to_memory("Item 2") if buffer_memory else ""
 
 # Retrieve items
-items = (buffer_memory and buffer_memory.get_memory()
+items = buffer_memory.get_memory() if buffer_memory else ""
 ```
 
 ## Error Handling

@@ -49,7 +49,7 @@ from sifaka.classifiers.implementations.content.bias import BiasDetector
 detector = BiasDetector()
 
 # Classify text
-result = (detector and detector.classify("Men are better at math than women.")
+result = detector.classify("Men are better at math than women.") if detector else ""
 print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
 
 # Create a detector with custom threshold
@@ -66,16 +66,16 @@ texts = [
     "People of all genders can excel at mathematics.",
     "This product is excellent."
 ]
-results = (custom_detector and custom_detector.batch_classify(texts)
+results = custom_detector.batch_classify(texts) if custom_detector else ""
 for text, result in zip(texts, results):
     print(f"Text: {text}")
     print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
 
 # Access detailed bias information
-result = (detector and detector.classify("Women are too emotional to be leaders.")
+result = detector.classify("Women are too emotional to be leaders.") if detector else ""
 print(f"Bias type: {result.label}")
 print(f"Confidence: {result.confidence:.2f}")
-print(f"Features: {result.(metadata and metadata.get('features', {})}")
+print(f"Features: {result.metadata.get('features', {}) if metadata else ""}")
 ```
 
 ## Error Handling
@@ -193,17 +193,17 @@ class BiasDetector(Classifier):
     detector = BiasDetector()
 
     # Classify text
-    result = (detector and detector.classify("Men are better at math than women.")
+    result = detector.classify("Men are better at math than women.") if detector else ""
     print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
 
     # Train a custom bias detector
     texts = ["Men are better at math", "Women are too emotional", "This is neutral"]
     labels = ["gender", "gender", "neutral"]
     custom_detector = BiasDetector()
-    (custom_detector and custom_detector.fit(texts, labels)
+    custom_detector.fit(texts, labels) if custom_detector else ""
 
     # Save the trained model
-    (custom_detector and custom_detector._save_model("bias_model.pkl")
+    custom_detector._save_model("bias_model.pkl") if custom_detector else ""
 
     # Load a pre-trained model
     loaded_detector = BiasDetector(
@@ -301,9 +301,9 @@ class BiasDetector(Classifier):
                 params["bias_keywords"] = self.DEFAULT_BIAS_KEYWORDS
 
             config = ClassifierConfig(
-                labels=(params and params.get("bias_types", DEFAULT_BIAS_TYPES)),
+                labels=params.get("bias_types", DEFAULT_BIAS_TYPES),
                 cost=self.DEFAULT_COST,
-                min_confidence=(params and params.get("min_confidence", 0.7)),
+                min_confidence=params.get("min_confidence", 0.7),
                 params=params,
             )
 
@@ -328,12 +328,12 @@ class BiasDetector(Classifier):
         try:
             # Import necessary scikit-learn modules
             sklearn_modules = {
-                "feature_extraction_text": (
-                    importlib and importlib.import_module("sklearn.feature_extraction.text")
+                "feature_extraction_text": importlib.import_module(
+                    "sklearn.feature_extraction.text"
                 ),
-                "svm": (importlib and importlib.import_module("sklearn.svm")),
-                "pipeline": (importlib and importlib.import_module("sklearn.pipeline")),
-                "calibration": (importlib and importlib.import_module("sklearn.calibration")),
+                "svm": importlib.import_module("sklearn.svm"),
+                "pipeline": importlib.import_module("sklearn.pipeline"),
+                "calibration": importlib.import_module("sklearn.calibration"),
             }
             return sklearn_modules
         except ImportError:

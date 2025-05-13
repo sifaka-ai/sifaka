@@ -62,14 +62,14 @@ Usage Example:
     )
 
     # Validate and improve content
-    result = (chain and chain.run("Your content here")
+    result = chain.run("Your content here") if chain else ""
 
     # Access validation results
     print(f"Content: {result.content}")
     print(f"Validation passed: {result.passed_validation}")
     if not result.passed_validation:
         print("Failed rules:")
-        for rule_name, rule_result in result.(rule_results and rule_results.items():
+        for rule_name, rule_result in result.rule_results.items() if rule_results else "":
             if not rule_result.passed:
                 print(f"- {rule_name}: {rule_result.message}")
 """

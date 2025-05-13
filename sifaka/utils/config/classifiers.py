@@ -102,13 +102,13 @@ class ClassifierConfig(BaseConfig, Generic[R]):
     # Access configuration values
     print(f"Name: {config.name}")
     print(f"Threshold: {config.threshold}")
-    print(f"Model: {config.(params and params.get('model'))")
+    print(f"Model: {config.params.get('model') if params else "")")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(threshold=0.8)
+    updated_config = config.with_options(threshold=0.8) if config else ""
 
     # Create a new configuration with updated params
-    updated_config = (config and config.with_params(model="gpt-3.5-turbo")
+    updated_config = config.with_params(model="gpt-3.5-turbo") if config else ""
     ```
 
     Attributes:
@@ -164,10 +164,10 @@ class ImplementationConfig(BaseConfig):
     print(f"Temperature: {config.temperature}")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(temperature=0.8)
+    updated_config = config.with_options(temperature=0.8) if config else ""
 
     # Create a new configuration with updated params
-    updated_config = (config and config.with_params(top_p=0.95)
+    updated_config = config.with_params(top_p=0.95) if config else ""
     ```
 
     Attributes:

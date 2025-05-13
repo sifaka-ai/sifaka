@@ -30,7 +30,7 @@ phone_adapter = create_guardrails_adapter(
 )
 
 # Use the adapter for validation
-result = (phone_adapter and phone_adapter.validate("My phone number is 555-123-4567")
+result = phone_adapter.validate("My phone number is 555-123-4567") if phone_adapter else ""
 ```
 
 ## Error Handling
@@ -192,7 +192,7 @@ class GuardrailsAdapter(BaseAdapter[str, GuardrailsValidator]):
     adapter = GuardrailsAdapter(regex_validator)
 
     # Validate text
-    result = (adapter and adapter.validate("My phone number is 555-123-4567")
+    result = adapter.validate("My phone number is 555-123-4567") if adapter else ""
     ```
     """
 

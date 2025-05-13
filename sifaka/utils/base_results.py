@@ -50,19 +50,19 @@ class BaseResult(BaseModel, Generic[T]):
 
     def with_metadata(self, **kwargs: Any) -> "BaseResult":
         """Create a new result with additional metadata."""
-        return (self and self.model_copy(update={"metadata": {**self.metadata, **kwargs}})
+        return self.model_copy(update={"metadata": {**self.metadata, **kwargs}}) if self else ""
 
     def with_issues(self, issues: List[str]) -> "BaseResult":
         """Create a new result with updated issues."""
-        return (self and self.model_copy(update={"issues": issues})
+        return self.model_copy(update={"issues": issues}) if self else ""
 
     def with_suggestions(self, suggestions: List[str]) -> "BaseResult":
         """Create a new result with updated suggestions."""
-        return (self and self.model_copy(update={"suggestions": suggestions})
+        return self.model_copy(update={"suggestions": suggestions}) if self else ""
 
     def with_score(self, score: float) -> "BaseResult":
         """Create a new result with updated score."""
-        return (self and self.model_copy(update={"score": score})
+        return self.model_copy(update={"score": score}) if self else ""
 
 
 class BaseRuleResult(BaseResult):
@@ -102,19 +102,19 @@ class BaseRuleResult(BaseResult):
 
     def with_rule_id(self, rule_id: str) -> "BaseRuleResult":
         """Create a new result with the rule ID set."""
-        return (self and self.model_copy(update={"rule_id": rule_id})
+        return self.model_copy(update={"rule_id": rule_id}) if self else ""
 
     def with_severity(self, severity: str) -> "BaseRuleResult":
         """Create a new result with updated severity."""
-        return (self and self.model_copy(update={"severity": severity})
+        return self.model_copy(update={"severity": severity}) if self else ""
 
     def with_category(self, category: str) -> "BaseRuleResult":
         """Create a new result with updated category."""
-        return (self and self.model_copy(update={"category": category})
+        return self.model_copy(update={"category": category}) if self else ""
 
     def with_tags(self, tags: List[str]) -> "BaseRuleResult":
         """Create a new result with updated tags."""
-        return (self and self.model_copy(update={"tags": tags})
+        return self.model_copy(update={"tags": tags}) if self else ""
 
 
 class CriticMetadata(BaseResult):

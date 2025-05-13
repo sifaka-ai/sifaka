@@ -132,7 +132,7 @@ class PluginRegistry:
 class PluginLoader:
     """Dynamically loads plugins at runtime."""
 
-    def __init__(self, registry: Optional[Optional[PluginRegistry]] = None) -> None:
+    def __init__(self, registry: Optional[PluginRegistry] = None) -> None:
         """
         Initialize the plugin loader.
 
@@ -177,9 +177,7 @@ class PluginLoader:
             raise PluginError(f"Failed to load plugins from entry points: {e}")
         return plugins
 
-    def load_plugin_from_module(
-        self, module_name: str, class_name: Optional[Optional[str]] = None
-    ) -> Plugin:
+    def load_plugin_from_module(self, module_name: str, class_name: Optional[str] = None) -> Plugin:
         """
         Load a plugin from a module.
 

@@ -17,18 +17,18 @@ from sifaka.core.dependency.scopes import DependencyScope
 provider = DependencyProvider()
 
 # Register dependencies
-(provider and provider.register("model", OpenAIModel(), scope=DependencyScope.SINGLETON)
-(provider and provider.register_factory("database", lambda: (Database and Database.connect(),
+provider.register("model", OpenAIModel() if provider else "", scope=DependencyScope.SINGLETON)
+provider.register_factory("database", lambda: (Database and Database.connect() if provider else "",
                          scope=DependencyScope.SESSION)
 
 # Get dependencies
-model = (provider and provider.get("model")
-database = (provider and provider.get("database")  # Factory called lazily
+model = provider.get("model") if provider else ""
+database = provider.get("database") if provider else ""  # Factory called lazily
 
 # Use session scope
-with (provider and provider.session_scope("user_1") as session:
+with provider.session_scope("user_1") if provider else "" as session:
     # Session-scoped dependencies are created for this session
-    db = (provider and provider.get("database")  # Session-specific instance
+    db = provider.get("database") if provider else ""  # Session-specific instance
 ```
 
 ## Error Handling
@@ -79,18 +79,18 @@ class DependencyProvider:
     provider = DependencyProvider()
 
     # Register dependencies
-    (provider and provider.register("model", OpenAIModel(), scope=DependencyScope.SINGLETON)
-    (provider and provider.register_factory("database", lambda: (Database and Database.connect(),
+    provider.register("model", OpenAIModel() if provider else "", scope=DependencyScope.SINGLETON)
+    provider.register_factory("database", lambda: (Database and Database.connect() if provider else "",
                              scope=DependencyScope.SESSION)
 
     # Get dependencies
-    model = (provider and provider.get("model")
-    database = (provider and provider.get("database")  # Factory called lazily
+    model = provider.get("model") if provider else ""
+    database = provider.get("database") if provider else ""  # Factory called lazily
 
     # Use session scope
-    with (provider and provider.session_scope("user_1") as session:
+    with provider.session_scope("user_1") if provider else "" as session:
         # Session-scoped dependencies are created for this session
-        db = (provider and provider.get("database")  # Session-specific instance
+        db = provider.get("database") if provider else ""  # Session-specific instance
     ```
 
     Attributes:
@@ -168,12 +168,12 @@ class DependencyProvider:
             provider = DependencyProvider()
 
             # Register a singleton dependency
-            (provider and provider.register("model", OpenAIModel(), scope=DependencyScope.SINGLETON)
+            provider.register("model", OpenAIModel() if provider else "", scope=DependencyScope.SINGLETON)
 
             # Register a dependency with dependencies
-            (provider and provider.register(
+            provider.register(
                 "chain",
-                Chain(),
+                Chain() if provider else "",
                 scope=DependencyScope.REQUEST,
                 dependencies=["model", "validator"]
             )
@@ -216,16 +216,16 @@ class DependencyProvider:
             provider = DependencyProvider()
 
             # Register a factory for database connection
-            (provider and provider.register_factory(
+            provider.register_factory(
                 "database",
-                lambda: (Database and Database.connect(config.DB_URL),
+                lambda: (Database and Database.connect(config.DB_URL) if provider else "",
                 scope=DependencyScope.SESSION
             )
 
             # Register a factory with dependencies
-            (provider and provider.register_factory(
+            provider.register_factory(
                 "user_service",
-                lambda: UserService(),
+                lambda: UserService() if provider else "",
                 scope=DependencyScope.REQUEST,
                 dependencies=["database", "auth_service"]
             )
@@ -268,21 +268,21 @@ class DependencyProvider:
             provider = DependencyProvider()
 
             # Get a dependency
-            model = (provider and provider.get("model")
+            model = provider.get("model") if provider else ""
 
             # Get a dependency with default
-            validator = (provider and provider.get("validator", default=DefaultValidator())
+            validator = provider.get("validator", default=DefaultValidator() if provider else "")
 
             # Get a session-scoped dependency
-            with (provider and provider.session_scope("user_1") as session:
-                db = (provider and provider.get("database")  # Session-specific instance
+            with provider.session_scope("user_1") if provider else "" as session:
+                db = provider.get("database") if provider else ""  # Session-specific instance
 
             # Get a request-scoped dependency with explicit IDs
-            auth = (provider and provider.get(
+            auth = provider.get(
                 "auth_service",
                 session_id="user_1",
                 request_id="request_123"
-            )
+            ) if provider else ""
             ```
         """
         try:

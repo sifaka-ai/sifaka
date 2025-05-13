@@ -53,22 +53,22 @@ critic = create_constitutional_critic(
 # Validate a response
 task = "Explain why some people believe climate change isn't real."
 response = "Climate change is a hoax created by scientists to get funding."
-is_valid = (critic and critic.validate(response, metadata={"task": task})
+is_valid = critic.validate(response, metadata={"task": task}) if critic else ""
 print(f"Response is valid: {is_valid}")
 
 # Get critique for a response
-critique = (critic and critic.critique(response, metadata={"task": task})
+critique = critic.critique(response, metadata={"task": task}) if critic else ""
 print(f"Score: {critique['score']}")
 print(f"Feedback: {critique['feedback']}")
 print(f"Issues: {critique['issues']}")
 
 # Improve a response
-improved_response = (critic and critic.improve(response, metadata={"task": task})
+improved_response = critic.improve(response, metadata={"task": task}) if critic else ""
 print(f"Improved response: {improved_response}")
 
 # Improve with specific feedback
 feedback = "The response should acknowledge scientific consensus while explaining skepticism."
-improved_response = (critic and critic.improve_with_feedback(response, feedback)
+improved_response = critic.improve_with_feedback(response, feedback) if critic else ""
 ```
 
 ## Error Handling
@@ -168,7 +168,7 @@ class ConstitutionalCritic(
     # Validate a response
     task = "Explain why some people believe climate change isn't real."
     response = "Climate change is a hoax created by scientists to get funding."
-    is_valid = (critic and critic.validate(response, metadata={"task": task})
+    is_valid = critic.validate(response, metadata={"task": task}) if critic else ""
     ```
 
     ## State Management
@@ -292,7 +292,7 @@ class ConstitutionalCritic(
                 "component_type", self.__class__.__name__
             )
             self._state_manager and self._state_manager.set_metadata(
-                "initialization_time", (time and time.time())
+                "initialization_time", time.time() if time else 0
             )
         except Exception as e:
             self and self.record_error(e)
@@ -341,12 +341,12 @@ class ConstitutionalCritic(
                     and critique_result.get("score", 0) >= self.config
                     and self.config.min_confidence
                 ),
-                message=(critique_result and critique_result.get("feedback", "")),
+                message=critique_result.get("feedback", "") if critique_result else "",
                 metadata={"operation": "process"},
-                score=(critique_result and critique_result.get("score", 0)),
-                issues=(critique_result and critique_result.get("issues", [])),
-                suggestions=(critique_result and critique_result.get("suggestions", [])),
-                processing_time_ms=((time and time.time() - start_time) * 1000),
+                score=critique_result.get("score", 0) if critique_result else 0,
+                issues=critique_result.get("issues", []) if critique_result else [],
+                suggestions=critique_result.get("suggestions", []) if critique_result else [],
+                processing_time_ms=((time.time() - start_time) * 1000) if time else 0,
             )
 
             # Update statistics
@@ -357,7 +357,7 @@ class ConstitutionalCritic(
         except Exception as e:
             # Use the standardized utility function
             record_error(self._state_manager, e)
-            processing_time = (time and time.time() - start_time) * 1000
+            processing_time = ((time.time() - start_time) * 1000) if time else 0
             return CriticResult(
                 passed=False,
                 message=f"Error: {str(e)}",
@@ -442,7 +442,7 @@ class ConstitutionalCritic(
 
             # Delegate to critique service
             critique_result = critique_service and critique_service.critique(text, {"task": task})
-            is_valid = len(critique_result and critique_result.get("issues", [])) == 0
+            is_valid = len(critique_result.get("issues", [])) == 0 if critique_result else False
 
             # Record result in metadata
             if is_valid:
@@ -467,7 +467,7 @@ class ConstitutionalCritic(
                 )
                 self._state_manager and self._state_manager.set_metadata(
                     "total_validation_time_ms",
-                    total_time + ((time and time.time() - start_time) * 1000),
+                    total_time + ((time.time() - start_time) * 1000) if time else 0,
                 )
 
             return is_valid
@@ -527,8 +527,8 @@ class ConstitutionalCritic(
             score_distribution = self._state_manager and self._state_manager.get_metadata(
                 "score_distribution", {}
             )
-            score_bucket = round(
-                (critique_result and critique_result.get("score", 0) * 10) / 10
+            score_bucket = (
+                round((critique_result.get("score", 0) if critique_result else 0) * 10) / 10
             )  # Round to nearest 0.1
             score_bucket_str = str(score_bucket)
             if score_distribution:
@@ -545,8 +545,7 @@ class ConstitutionalCritic(
                     "total_critique_time_ms", 0.0
                 )
                 self._state_manager and self._state_manager.set_metadata(
-                    "total_critique_time_ms",
-                    total_time + ((time and time.time() - start_time) * 1000),
+                    "total_critique_time_ms", total_time + (time.time() - start_time) * 1000
                 )
 
             return critique_result
@@ -579,7 +578,7 @@ class ConstitutionalCritic(
                 raise RuntimeError("ConstitutionalCritic not properly initialized")
 
             # Validate input
-            if not isinstance(text, str) or not (text and text.strip()):
+            if not isinstance(text, str) or not (text.strip() if text else ""):
                 raise ValueError("text must be a non-empty string")
 
             # Get critique service from state
@@ -653,10 +652,10 @@ class ConstitutionalCritic(
                 raise RuntimeError("ConstitutionalCritic not properly initialized")
 
             # Validate input
-            if not isinstance(text, str) or not (text and text.strip()):
+            if not isinstance(text, str) or not (text.strip() if text else ""):
                 raise ValueError("text must be a non-empty string")
 
-            if not isinstance(feedback, str) or not (feedback and feedback.strip()):
+            if not isinstance(feedback, str) or not (feedback.strip() if feedback else ""):
                 raise ValueError("feedback must be a non-empty string")
 
             # Get critique service from state

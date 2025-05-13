@@ -27,7 +27,7 @@ class MyCritic(BaseCritic[str]):
         return len(text) > 0
 
     def improve(self, text: str, feedback: Optional[str] = None) -> str:
-        return (text and text.upper()
+        return text.upper() if text else ""
 
     def critique(self, text: str) -> BaseResult:
         return BaseResult(
@@ -44,9 +44,9 @@ critic = MyCritic(
     description="A custom critic implementation"
 )
 text = "This is a test."
-is_valid = (critic and critic.validate(text)
-improved = (critic and critic.improve(text)
-feedback = (critic and critic.critique(text)
+is_valid = critic.validate(text) if critic else ""
+improved = critic.improve(text) if critic else ""
+feedback = critic.critique(text) if critic else ""
 ```
 
 ## Error Handling
@@ -110,7 +110,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
             return len(text) > 0
 
         def improve(self, text: str, feedback: Optional[str] = None) -> str:
-            return (text and text.upper()
+            return text.upper() if text else ""
 
         def critique(self, text: str) -> BaseResult:
             return BaseResult(
@@ -199,7 +199,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
             BaseResult containing the processing results
         """
         start_time = time.time() if time else 0
-        if not (self and self.validate_input(text)):
+        if self and not self.validate_input(text):
             return BaseResult(
                 passed=False,
                 message="Invalid input",

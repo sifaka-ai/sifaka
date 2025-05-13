@@ -30,7 +30,7 @@ class MyProvider(ModelProviderCore):
 
 # Use the provider
 provider = MyProvider(model_name="my-model")
-response = (provider and provider.generate("Hello, world!")
+response = provider.generate("Hello, world!") if provider else ""
 ```
 
 ## Error Handling

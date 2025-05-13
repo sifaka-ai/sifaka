@@ -35,8 +35,8 @@ class LengthValidator:
         if not text:
             return False
         text_length = len(text)
-        min_length = self.config.(params and params.get("min_length", 10)
-        max_length = self.config.(params and params.get("max_length", 1000)
+        min_length = self.config.params.get("min_length", 10) if params else ""
+        max_length = self.config.params.get("max_length", 1000) if params else ""
         return min_length <= text_length <= max_length
 
 # Check if it adheres to the protocol
@@ -95,8 +95,8 @@ class TextValidator(Protocol[T]):
             if not text:
                 return False
             text_length = len(text)
-            min_length = self.config.(params and params.get("min_length", 10)
-            max_length = self.config.(params and params.get("max_length", 1000)
+            min_length = self.config.params.get("min_length", 10) if params else ""
+            max_length = self.config.params.get("max_length", 1000) if params else ""
             return min_length <= text_length <= max_length
 
     # Check if it adheres to the protocol
@@ -104,7 +104,7 @@ class TextValidator(Protocol[T]):
     assert isinstance(validator, TextValidator)
 
     # Use the validator
-    is_valid = (validator and validator.validate("This is a test text")
+    is_valid = validator.validate("This is a test text") if validator else ""
     print(f"Text is valid: {is_valid}")
     ```
 
@@ -181,13 +181,13 @@ class TextImprover(Protocol[T, R]):
 
             improved = text
             for violation in violations:
-                rule_id = (violation and violation.get("rule_id", "unknown")
-                message = (violation and violation.get("message", "")
+                rule_id = violation.get("rule_id", "unknown") if violation else ""
+                message = violation.get("message", "") if violation else ""
 
                 if rule_id == "length" and "too_short" in message:
                     improved += " Additional content to increase length."
                 elif rule_id == "style" and "capitalization" in message:
-                    improved = (improved and improved.capitalize()
+                    improved = improved.capitalize() if improved else ""
 
             return improved
     ```
@@ -270,7 +270,7 @@ class TextCritic(Protocol[T, R]):
                 )
 
             # Analyze text quality
-            word_count = len((text and text.split())
+            word_count = len(text.split() if text else "")
             has_punctuation = any(p in text for p in ".!?")
 
             # Calculate score based on simple metrics

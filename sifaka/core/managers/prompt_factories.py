@@ -26,7 +26,7 @@ config = SelfRefineCriticConfig(
 prompt_manager = SelfRefineCriticPromptManager(config)
 
 # Create a critique prompt
-critique_prompt = (prompt_manager and prompt_manager.create_critique_prompt("This is a test.")
+critique_prompt = prompt_manager.create_critique_prompt("This is a test.") if prompt_manager else ""
 ```
 """
 

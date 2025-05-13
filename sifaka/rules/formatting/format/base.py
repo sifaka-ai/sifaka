@@ -40,7 +40,7 @@ config = FormatConfig(
 validator = CustomFormatValidator(config)
 
 # Validate text
-result = (validator and validator.validate("Sample text")
+result = validator.validate("Sample text") if validator else ""
 print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 """

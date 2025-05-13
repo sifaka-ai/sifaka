@@ -330,7 +330,7 @@ def replace_pattern(
 
         # Use compiled pattern
         import re
-        email_pattern = (re and re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", re.IGNORECASE)
+        email_pattern = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", re.IGNORECASE) if re else ""
         redacted = replace_pattern(text, email_pattern, "[EMAIL]")
         ```
     """
@@ -406,8 +406,8 @@ def count_patterns(
 
         # Count with compiled patterns
         import re
-        email_pattern = (re and re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", re.IGNORECASE)
-        phone_pattern = (re and re.compile(r"\\d{3}[-.]?\\d{3}[-.]?\\d{4}")
+        email_pattern = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", re.IGNORECASE) if re else ""
+        phone_pattern = re.compile(r"\\d{3}[-.]?\\d{3}[-.]?\\d{4}") if re else ""
 
         counts = count_patterns(
             text,

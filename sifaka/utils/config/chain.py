@@ -53,10 +53,12 @@ configuration values are valid and properly typed. If invalid configuration
 is provided, Pydantic will raise validation errors with detailed information
 about the validation failure.
 """
+
 from typing import Any, Dict, Optional, Type, TypeVar, Union, cast
 from pydantic import Field
 from .base import BaseConfig
-T = TypeVar('T', bound='ChainConfig')
+
+T = TypeVar("T", bound="ChainConfig")
 
 
 class ChainConfig(BaseConfig):
@@ -99,13 +101,13 @@ class ChainConfig(BaseConfig):
     print(f"Name: {config.name}")
     print(f"Max attempts: {config.max_attempts}")
     print(f"Timeout: {config.timeout}")
-    print(f"Fail fast: {config.(params and params.get('fail_fast'))")
+    print(f"Fail fast: {config.params.get('fail_fast') if params else "")")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(max_attempts=5)
+    updated_config = config.with_options(max_attempts=5) if config else ""
 
     # Create a new configuration with updated params
-    updated_config = (config and config.with_params(fail_fast=False)
+    updated_config = config.with_params(fail_fast=False) if config else ""
     ```
 
     Attributes:
@@ -115,14 +117,13 @@ class ChainConfig(BaseConfig):
         trace_enabled: Whether to enable tracing
         retry_delay: Delay between retry attempts in seconds
     """
-    max_attempts: int = Field(default=3, ge=1, description=
-        'Maximum number of attempts')
-    timeout_seconds: float = Field(default=30.0, ge=0.0, description=
-        'Timeout in seconds')
-    trace_enabled: bool = Field(default=False, description=
-        'Whether to enable tracing')
-    retry_delay: float = Field(default=1.0, ge=0.0, description=
-        'Delay between retry attempts in seconds')
+
+    max_attempts: int = Field(default=3, ge=1, description="Maximum number of attempts")
+    timeout_seconds: float = Field(default=30.0, ge=0.0, description="Timeout in seconds")
+    trace_enabled: bool = Field(default=False, description="Whether to enable tracing")
+    retry_delay: float = Field(
+        default=1.0, ge=0.0, description="Delay between retry attempts in seconds"
+    )
 
 
 class EngineConfig(BaseConfig):
@@ -167,10 +168,10 @@ class EngineConfig(BaseConfig):
     print(f"Fail fast: {config.fail_fast}")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(max_attempts=5)
+    updated_config = config.with_options(max_attempts=5) if config else ""
 
     # Create a new configuration with updated params
-    updated_config = (config and config.with_params(retry_delay_seconds=2.0)
+    updated_config = config.with_params(retry_delay_seconds=2.0) if config else ""
     ```
 
     Attributes:
@@ -178,12 +179,10 @@ class EngineConfig(BaseConfig):
         timeout_seconds: Timeout in seconds
         fail_fast: Whether to fail fast on validation errors
     """
-    max_attempts: int = Field(default=3, ge=1, description=
-        'Maximum number of attempts')
-    timeout_seconds: float = Field(default=30.0, ge=0.0, description=
-        'Timeout in seconds')
-    fail_fast: bool = Field(default=False, description=
-        'Whether to fail fast on validation errors')
+
+    max_attempts: int = Field(default=3, ge=1, description="Maximum number of attempts")
+    timeout_seconds: float = Field(default=30.0, ge=0.0, description="Timeout in seconds")
+    fail_fast: bool = Field(default=False, description="Whether to fail fast on validation errors")
 
 
 class ValidatorConfig(BaseConfig):
@@ -227,20 +226,23 @@ class ValidatorConfig(BaseConfig):
     print(f"Parallel validation: {config.parallel_validation}")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(parallel_validation=True)
+    updated_config = config.with_options(parallel_validation=True) if config else ""
 
     # Create a new configuration with updated params
-    updated_config = (config and config.with_params(fail_fast=False)
+    updated_config = config.with_params(fail_fast=False) if config else ""
     ```
 
     Attributes:
         prioritize_by_cost: Whether to prioritize rules by cost
         parallel_validation: Whether to run validation in parallel
     """
-    prioritize_by_cost: bool = Field(default=False, description=
-        'Whether to prioritize rules by cost')
-    parallel_validation: bool = Field(default=False, description=
-        'Whether to run validation in parallel')
+
+    prioritize_by_cost: bool = Field(
+        default=False, description="Whether to prioritize rules by cost"
+    )
+    parallel_validation: bool = Field(
+        default=False, description="Whether to run validation in parallel"
+    )
 
 
 class ImproverConfig(BaseConfig):
@@ -281,23 +283,22 @@ class ImproverConfig(BaseConfig):
     # Access configuration values
     print(f"Name: {config.name}")
     print(f"Max attempts: {config.max_attempts}")
-    print(f"Improvement strategy: {config.(params and params.get('improvement_strategy'))")
+    print(f"Improvement strategy: {config.params.get('improvement_strategy') if params else "")")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(max_attempts=5)
+    updated_config = config.with_options(max_attempts=5) if config else ""
 
     # Create a new configuration with updated params
-    updated_config = (config and config.with_params(improvement_strategy="single_pass")
+    updated_config = config.with_params(improvement_strategy="single_pass") if config else ""
     ```
 
     Attributes:
         max_attempts: Maximum number of improvement attempts
         timeout_seconds: Timeout in seconds
     """
-    max_attempts: int = Field(default=3, ge=1, description=
-        'Maximum number of improvement attempts')
-    timeout_seconds: float = Field(default=30.0, ge=0.0, description=
-        'Timeout in seconds')
+
+    max_attempts: int = Field(default=3, ge=1, description="Maximum number of improvement attempts")
+    timeout_seconds: float = Field(default=30.0, ge=0.0, description="Timeout in seconds")
 
 
 class FormatterConfig(BaseConfig):
@@ -341,25 +342,31 @@ class FormatterConfig(BaseConfig):
     print(f"Pretty print: {config.pretty_print}")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(pretty_print=False)
+    updated_config = config.with_options(pretty_print=False) if config else ""
 
     # Create a new configuration with updated params
-    updated_config = (config and config.with_params(format="yaml")
+    updated_config = config.with_params(format="yaml") if config else ""
     ```
 
     Attributes:
         include_metadata: Whether to include metadata in the formatted output
         pretty_print: Whether to pretty-print the formatted output
     """
-    include_metadata: bool = Field(default=False, description=
-        'Whether to include metadata in the formatted output')
-    pretty_print: bool = Field(default=False, description=
-        'Whether to pretty-print the formatted output')
+
+    include_metadata: bool = Field(
+        default=False, description="Whether to include metadata in the formatted output"
+    )
+    pretty_print: bool = Field(
+        default=False, description="Whether to pretty-print the formatted output"
+    )
 
 
-def standardize_chain_config(config: Optional[Union[Dict[str, Any],
-    ChainConfig]]=None, params: Optional[Dict[str, Any]]=None, config_class:
-    Type[T]=ChainConfig, **kwargs: Any) ->Any:
+def standardize_chain_config(
+    config: Optional[Union[Dict[str, Any], ChainConfig]] = None,
+    params: Optional[Dict[str, Any]] = None,
+    config_class: Type[T] = ChainConfig,
+    **kwargs: Any,
+) -> Any:
     """
     Standardize chain configuration.
 
@@ -420,19 +427,21 @@ def standardize_chain_config(config: Optional[Union[Dict[str, Any],
     """
     final_params: Dict[str, Any] = {}
     if params:
-        (final_params and final_params.update(params)
-    if 'timeout' in kwargs and 'timeout_seconds' not in kwargs:
-        kwargs['timeout_seconds'] = (kwargs and kwargs.pop('timeout')
+        final_params.update(params) if final_params else ""
+    if "timeout" in kwargs and "timeout_seconds" not in kwargs:
+        kwargs["timeout_seconds"] = kwargs.pop("timeout") if kwargs else ""
     if isinstance(config, dict):
-        dict_params = (config and config.pop('params', {}) if config else {}
-        (final_params and final_params.update(dict_params)
-        if config and 'timeout' in config and 'timeout_seconds' not in config:
-            config['timeout_seconds'] = (config and config.pop('timeout')
-        return cast(T, config_class(**{} if config is None else config,
-            params=final_params, **kwargs))
+        dict_params = config.pop("params", {}) if config else "" if config else {}
+        final_params.update(dict_params) if final_params else ""
+        if config and "timeout" in config and "timeout_seconds" not in config:
+            config["timeout_seconds"] = config.pop("timeout") if config else ""
+        return cast(
+            T, config_class(**{} if config is None else config, params=final_params, **kwargs)
+        )
     elif isinstance(config, ChainConfig):
-        (final_params and final_params.update(config.params)
-        config_dict = {**(config and config.model_dump(), 'params': final_params, **kwargs)
+        final_params.update(config.params) if final_params else ""
+        model_data = config.model_dump() if config else {}
+        config_dict = {**model_data, "params": final_params, **kwargs}
         return cast(T, config_class(**config_dict))
     else:
         return cast(T, config_class(params=final_params, **kwargs))

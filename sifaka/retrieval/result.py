@@ -117,10 +117,10 @@ class DocumentMetadata(BaseModel):
         Returns:
             A new DocumentMetadata object with the updated source
         """
-        return (self and self.model_copy(update={"source": source})
+        return self.model_copy(update={"source": source})
 
     def with_timestamp(
-        self, created_at: Optional[Optional[str]] = None, updated_at: Optional[Optional[str]] = None
+        self, created_at: Optional[str] = None, updated_at: Optional[str] = None
     ) -> "DocumentMetadata":
         """
         Create a new metadata object with the specified timestamps.
@@ -137,7 +137,7 @@ class DocumentMetadata(BaseModel):
             updates["created_at"] = created_at
         if updated_at is not None:
             updates["updated_at"] = updated_at
-        return (self and self.model_copy(update=updates)
+        return self.model_copy(update=updates)
 
 
 class RetrievedDocument(BaseModel, Generic[T]):
@@ -195,7 +195,7 @@ class RetrievedDocument(BaseModel, Generic[T]):
         Returns:
             A new RetrievedDocument with the updated score
         """
-        return (self.model_copy(update={"score": score})
+        return self.model_copy(update={"score": score})
 
     # RetrievalResult is now imported from sifaka.core.results
 
@@ -221,7 +221,7 @@ class StringRetrievalResult(RetrievalResult[str]):
     )
 
     # Get concatenated content
-    all_text = (result.get_concatenated_content()
+    all_text = result.get_concatenated_content()
     ```
     """
 
@@ -235,7 +235,7 @@ class StringRetrievalResult(RetrievalResult[str]):
         Returns:
             The concatenated content of all retrieved documents
         """
-        return (separator.join((self.get_contents())
+        return separator.join(self.get_contents())
 
     def get_content_with_metadata(self, include_scores: bool = True) -> List[Dict[str, Any]]:
         """
@@ -261,5 +261,5 @@ class StringRetrievalResult(RetrievalResult[str]):
             }
             if include_scores and doc.score is not None:
                 item["score"] = doc.score
-            (result and result.append(item)
+            result.append(item)
         return result

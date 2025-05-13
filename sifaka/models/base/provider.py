@@ -27,8 +27,8 @@ from sifaka.utils.config.models import ModelConfig
 
 # Basic usage
 provider = ProviderClass(model_name="model-name")
-response = (provider and provider.generate("Explain quantum computing")
-token_count = (provider and provider.count_tokens("How many tokens is this?")
+response = provider.generate("Explain quantum computing") if provider else ""
+token_count = provider.count_tokens("How many tokens is this?") if provider else ""
 
 # With custom configuration
 config = ModelConfig().with_temperature(0.9).with_max_tokens(2000)
@@ -43,7 +43,7 @@ class CustomClient:
 class CustomTokenCounter:
     def count_tokens(self, text):
         # Custom implementation
-        return len((text and text.split())
+        return len(text.split() if text else "")
 
 # Verify protocol compliance
 assert isinstance(CustomClient(), APIClientProtocol)

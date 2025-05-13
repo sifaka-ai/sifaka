@@ -32,13 +32,13 @@ engine = Engine(
 )
 
 # Run engine
-result = (engine and engine.run(
+result = engine.run(
     prompt="Write a story",
     model=model,
     validators=validators,
     improver=improver,
     formatter=formatter
-)
+) if engine else ""
 
 # Access result
 print(f"Output: {result.output}")
@@ -115,13 +115,13 @@ class Engine(BaseModel):
     )
 
     # Run engine
-    result = (engine and engine.run(
+    result = engine.run(
         prompt="Write a story",
         model=model,
         validators=validators,
         improver=improver,
         formatter=formatter
-    )
+    ) if engine else ""
     ```
 
     Attributes:
@@ -262,7 +262,7 @@ class Engine(BaseModel):
 
         Example:
             ```python
-            output = (engine and engine._generate_output("Write a story about a robot")
+            output = engine._generate_output("Write a story about a robot") if engine else ""
             ```
         """
         model = self._state_manager.get("model")

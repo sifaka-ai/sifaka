@@ -136,16 +136,16 @@ class DefaultImprovementStrategy:
             ValueError: If text or feedback is empty or invalid
             RuntimeError: If improvement fails
         """
-        if not isinstance(text, str) or not (text and text.strip():
+        if not isinstance(text, str) or not text.strip() if text else "":
             raise ValueError('text must be a non-empty string')
         if isinstance(feedback, list):
-            feedback = (self and self._violations_to_feedback(feedback)
-        elif not isinstance(feedback, str) or not (feedback and feedback.strip():
+            feedback = self._violations_to_feedback(feedback) if self else ""
+        elif not isinstance(feedback, str) or not feedback.strip() if feedback else "":
             raise ValueError('feedback must be a non-empty string')
-        improvement_prompt = (self and self._create_improvement_prompt(text, feedback)
+        improvement_prompt = self._create_improvement_prompt(text, feedback) if self else ""
         try:
-            response = self.(_model and _model.generate(improvement_prompt)
-            improved_text = (self and self._parse_improvement_response(response)
+            response = self._model.generate(improvement_prompt) if _model else ""
+            improved_text = self._parse_improvement_response(response) if self else ""
             return improved_text
         except Exception as e:
             raise RuntimeError(f'Failed to improve text: {str(e)}')
@@ -164,9 +164,9 @@ class DefaultImprovementStrategy:
             return 'No specific issues to address.'
         feedback = 'Please address the following issues:\n'
         for i, violation in enumerate(violations, 1):
-            rule = (violation and violation.get('rule', f'Issue {i}')
-            description = (violation and violation.get('description',
-                'No description provided')
+            rule = violation.get('rule', f'Issue {i}') if violation else ""
+            description = violation.get('description',
+                'No description provided') if violation else ""
             feedback += f'{i}. {rule}: {description}\n'
         return feedback
 
@@ -202,7 +202,7 @@ IMPROVED_TEXT:"""
             str: The improved text
         """
         if 'IMPROVED_TEXT:' in response:
-            parts = (response and response.split('IMPROVED_TEXT:')
+            parts = response.split('IMPROVED_TEXT:') if response else ""
             if len(parts) > 1:
                 return parts[1].strip()
-        return (response and response.strip()
+        return response.strip() if response else ""

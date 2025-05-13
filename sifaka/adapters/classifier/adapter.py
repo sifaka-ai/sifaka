@@ -31,7 +31,7 @@ rule = create_classifier_rule(
 )
 
 # Validate text
-result = (rule and rule.validate("This is a great example!")
+result = rule.validate("This is a great example!") if rule else ""
 print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 
@@ -112,7 +112,7 @@ class Classifier(Protocol):
 
         def classify(self, text: str) -> ClassificationResult:
             # Apply classification logic
-            if "good" in (text and text.lower():
+            if "good" in text.lower() if text else "":
                 return ClassificationResult(
                     label="positive",
                     confidence=0.9,
@@ -126,7 +126,7 @@ class Classifier(Protocol):
                 )
 
         def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
-            return [(self and self.classify(text) for text in texts)
+            return [self.classify(text) if self else "" for text in texts)
     ```
     """
 
@@ -219,7 +219,7 @@ class ClassifierRuleConfig(BaseModel):
     config = ClassifierRuleConfig(
         threshold=0.8,
         valid_labels=["positive", "neutral"],
-        extraction_function=lambda text: (text and text.split(":")[-1] if ":" in text else text
+        extraction_function=lambda text: text.split(":") if text else ""[-1] if ":" in text else text
     )
     ```
 
@@ -281,7 +281,7 @@ class ClassifierRule(Rule):
     )
 
     # Use the rule
-    result = (rule and rule.validate("This is a great example!")
+    result = rule.validate("This is a great example!") if rule else ""
     ```
 
     Attributes:

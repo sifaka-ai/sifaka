@@ -48,8 +48,8 @@ documents = {
 retriever = create_simple_retriever(documents=documents, max_results=3)
 
 # Retrieve information based on a query
-result = (retriever and retriever.retrieve("How does quantum computing work?")
-print((result and result.get_formatted_results())
+result = retriever.retrieve("How does quantum computing work?") if retriever else ""
+print(result.get_formatted_results() if result else "")
 ```
 """
 from sifaka.interfaces import Retriever, AsyncRetriever, DocumentStore, IndexManager, QueryProcessor

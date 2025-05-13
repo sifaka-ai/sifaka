@@ -21,7 +21,7 @@ All factory functions use standardized error handling:
 3. They wrap exceptions in component-specific error types
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from sifaka.utils.errors.component import RetrievalError
 from sifaka.utils.errors.handling import handle_error
@@ -82,7 +82,8 @@ def create_simple_retriever(
             corpus=corpus,
         )
 
-        (logger and logger.debug(f"Created simple retriever with {len(retriever.documents)} documents")
+        if logger:
+            logger.debug(f"Created simple retriever with {len(retriever.documents)} documents")
         return retriever
 
     except FileNotFoundError:
@@ -154,12 +155,13 @@ def create_threshold_retriever(
         )
 
         # Update the ranking strategy in state
-        retriever.(_state_manager and _state_manager.update("ranking_strategy", threshold_strategy)
+        retriever._state_manager.update("ranking_strategy", threshold_strategy)
 
-        (logger and logger.debug(
-            f"Created threshold retriever with {len(retriever.documents)} documents "
-            f"and threshold {threshold}"
-        )
+        if logger:
+            logger.debug(
+                f"Created threshold retriever with {len(retriever.documents)} documents "
+                f"and threshold {threshold}"
+            )
         return retriever
 
     except FileNotFoundError:

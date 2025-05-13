@@ -50,7 +50,7 @@ from sifaka.classifiers.implementations.content.sentiment import create_sentimen
 classifier = create_sentiment_classifier()
 
 # Classify text
-result = (classifier and classifier.classify("I love this product! It's amazing.")
+result = classifier.classify("I love this product! It's amazing.") if classifier else ""
 print(f"Sentiment: {result.label}, Confidence: {result.confidence:.2f}")
 
 # Create a classifier with custom thresholds
@@ -66,14 +66,14 @@ texts = [
     "I'm not sure about this.",
     "This is terrible."
 ]
-results = (custom_classifier and custom_classifier.batch_classify(texts)
+results = custom_classifier.batch_classify(texts) if custom_classifier else ""
 for text, result in zip(texts, results):
     print(f"Text: {text}")
     print(f"Sentiment: {result.label}, Confidence: {result.confidence:.2f}")
     print(f"Compound score: {result.metadata['compound_score']:.2f}")
 
 # Access all sentiment scores
-result = (classifier and classifier.classify("The product is good but the service was terrible.")
+result = classifier.classify("The product is good but the service was terrible.") if classifier else ""
 print(f"Compound score: {result.metadata['compound_score']:.2f}")
 print(f"Positive score: {result.metadata['pos_score']:.2f}")
 print(f"Negative score: {result.metadata['neg_score']:.2f}")
@@ -160,7 +160,7 @@ class SentimentAnalyzer(Protocol):
             positive_words = ["good", "great", "excellent"]
             negative_words = ["bad", "terrible", "awful"]
 
-            text_lower = (text and text.lower()
+            text_lower = text.lower() if text else ""
             pos_count = sum(word in text_lower for word in positive_words)
             neg_count = sum(word in text_lower for word in negative_words)
 
@@ -183,7 +183,7 @@ class SentimentAnalyzer(Protocol):
 
     # Use with SentimentClassifier
     classifier = SentimentClassifier(analyzer=analyzer)
-    result = (classifier and classifier.classify("This is great!")
+    result = classifier.classify("This is great!") if classifier else ""
     ```
     """
 
@@ -240,7 +240,7 @@ class SentimentClassifier(Classifier):
     classifier = create_sentiment_classifier()
 
     # Classify text
-    result = (classifier and classifier.classify("I love this product! It's amazing.")
+    result = classifier.classify("I love this product! It's amazing.") if classifier else ""
     print(f"Sentiment: {result.label}, Confidence: {result.confidence:.2f}")
 
     # Access detailed scores
@@ -251,7 +251,7 @@ class SentimentClassifier(Classifier):
 
     # Batch classify multiple texts
     texts = ["This is great!", "I hate this", "Maybe it's okay"]
-    results = (classifier and classifier.batch_classify(texts)
+    results = classifier.batch_classify(texts) if classifier else ""
     for i, result in enumerate(results):
         print(f"Text {i+1}: {result.label} ({result.confidence:.2f})")
     ```

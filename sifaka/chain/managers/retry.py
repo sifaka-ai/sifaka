@@ -29,13 +29,13 @@ retry_manager = RetryManager(
 
 # Define functions for the retry flow
 def generate():
-    return (model and model.generate(prompt)
+    return model.generate(prompt) if model else ""
 
 def validate(output):
-    return [(validator and validator.validate(output) for validator in validators)
+    return [validator.validate(output) if validator else "" for validator in validators)
 
 def improve(output, results):
-    return (improver and improver.improve(output, results) if improver else output
+    return improver.improve(output, results) if improver else "" if improver else output
 
 def create_result(prompt, output, results, attempt):
     return ChainResult(
@@ -46,16 +46,16 @@ def create_result(prompt, output, results, attempt):
     )
 
 # Execute with retries
-result = (retry_manager and retry_manager.execute_with_retries(
+result = retry_manager.execute_with_retries(
     generate_func=generate,
     validate_func=validate,
     improve_func=improve,
     prompt=prompt,
     create_result_func=create_result
-)
+) if retry_manager else ""
 
 # Get retry statistics
-stats = (retry_manager and retry_manager.get_retry_stats()
+stats = retry_manager.get_retry_stats() if retry_manager else ""
 print(f"Attempts: {stats['current_attempt']}/{stats['max_attempts']}")
 print(f"All validations passed: {stats['all_passed']}")
 ```
@@ -119,10 +119,10 @@ class RetryManager:
     )
 
     # Execute with retries
-    result = (retry_manager and retry_manager.execute_with_retries(
-        generate_func=lambda: (model and model.generate(prompt),
-        validate_func=lambda output: [(validator and validator.validate(output) for validator in validators),
-        improve_func=lambda output, results: (improver and improver.improve(output, results),
+    result = retry_manager.execute_with_retries(
+        generate_func=lambda: model.generate(prompt) if model else "" if retry_manager else "",
+        validate_func=lambda output: [validator.validate(output) if validator else "" for validator in validators),
+        improve_func=lambda output, results: improver.improve(output, results) if improver else "",
         prompt=prompt,
         create_result_func=create_result
     )
@@ -209,10 +209,10 @@ class RetryManager:
 
         Example:
             ```python
-            result = (retry_manager and retry_manager.execute_with_retries(
-                generate_func=lambda: (model and model.generate(prompt),
-                validate_func=lambda output: [(validator and validator.validate(output) for validator in validators),
-                improve_func=lambda output, results: (improver and improver.improve(output, results),
+            result = retry_manager.execute_with_retries(
+                generate_func=lambda: model.generate(prompt) if model else "" if retry_manager else "",
+                validate_func=lambda output: [validator.validate(output) if validator else "" for validator in validators),
+                improve_func=lambda output, results: improver.improve(output, results) if improver else "",
                 prompt=prompt,
                 create_result_func=lambda p, o, r, a: ChainResult(
                     prompt=p, output=o, validation_results=r, attempt_count=a
@@ -255,7 +255,7 @@ class RetryManager:
 
         Example:
             ```python
-            stats = (retry_manager and retry_manager.get_retry_stats()
+            stats = retry_manager.get_retry_stats() if retry_manager else ""
             print(f"Attempts: {stats['current_attempt']}/{stats['max_attempts']}")
             print(f"All validations passed: {stats['all_passed']}")
             ```

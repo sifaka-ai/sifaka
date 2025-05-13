@@ -186,11 +186,11 @@ def create_generic_result(
             issues=issues or [],
             suggestions=suggestions or [],
             processing_time_ms=processing_time_ms or 0.0,
-            output=(kwargs and kwargs.get("output", ""),
-            prompt=(kwargs and kwargs.get("prompt", ""),
-            validation_results=(kwargs and kwargs.get("validation_results", []),
-            execution_time=(kwargs and kwargs.get("execution_time", 0.0),
-            attempt_count=(kwargs and kwargs.get("attempt_count", 1),
+            output=kwargs.get("output", "") if kwargs else "",
+            prompt=kwargs.get("prompt", "") if kwargs else "",
+            validation_results=kwargs.get("validation_results", []) if kwargs else "",
+            execution_time=kwargs.get("execution_time", 0.0) if kwargs else "",
+            attempt_count=kwargs.get("attempt_count", 1) if kwargs else "",
         )
     elif component_type == "classifier":
         return ClassificationResult(
@@ -201,8 +201,8 @@ def create_generic_result(
             issues=issues or [],
             suggestions=suggestions or [],
             processing_time_ms=processing_time_ms or 0.0,
-            label=(kwargs and kwargs.get("label", None),
-            confidence=(kwargs and kwargs.get("confidence", 1.0),
+            label=kwargs.get("label", None) if kwargs else "",
+            confidence=kwargs.get("confidence", 1.0) if kwargs else "",
         )
     elif component_type == "critic":
         return CriticMetadata(
@@ -213,7 +213,7 @@ def create_generic_result(
             issues=issues or [],
             suggestions=suggestions or [],
             processing_time_ms=processing_time_ms or 0.0,
-            feedback=(kwargs and kwargs.get("feedback", ""),
+            feedback=kwargs.get("feedback", "") if kwargs else "",
         )
     else:
         # Default to base result
@@ -276,7 +276,7 @@ def create_rule_result(
 
     # Add additional metadata
     if metadata:
-        (final_metadata and final_metadata.update(metadata)
+        final_metadata.update(metadata) if final_metadata else ""
 
     # Use the standardized result creation function
     standard_result = create_standard_result(
@@ -338,7 +338,7 @@ def create_classification_result(
 
     # Add additional metadata
     if metadata:
-        (final_metadata.update(metadata)
+        final_metadata.update(metadata)
 
     # Use the standardized result creation function
     standard_result = create_standard_result(
@@ -400,7 +400,7 @@ def create_critic_result(
 
     # Add additional metadata
     if metadata:
-        (final_metadata.update(metadata)
+        final_metadata.update(metadata)
 
     # Use the standardized result creation function
     standard_result = create_standard_result(
@@ -502,7 +502,7 @@ def create_error_result(
 
     # Add additional metadata
     if metadata:
-        (final_metadata.update(metadata)
+        final_metadata.update(metadata)
 
     # Use the standardized result creation function
     standard_result = create_standard_result(
@@ -591,7 +591,7 @@ def create_unknown_result(
 
     # Add additional metadata
     if metadata:
-        (final_metadata.update(metadata)
+        final_metadata.update(metadata)
 
     # Use the standardized result creation function
     standard_result = create_standard_result(
@@ -661,6 +661,6 @@ def merge_metadata(*metadata_dicts: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     # Process metadata dictionaries in order
     for metadata in metadata_dicts:
         if metadata:
-            (result.update(metadata)
+            result.update(metadata)
 
     return result

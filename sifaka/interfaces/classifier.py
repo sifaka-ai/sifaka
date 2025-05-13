@@ -49,7 +49,7 @@ class MyClassifier(ClassifierProtocol[str, str]):
         return ClassificationResult(label="example", confidence=0.8)
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
-        return [(self and self.classify(text) for text in texts]
+        return [self.classify(text) if self else "" for text in texts]
 ```
 
 ## Error Handling

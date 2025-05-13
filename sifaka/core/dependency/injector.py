@@ -21,7 +21,7 @@ class MyComponent:
 
 # Use the injector for manual injection
 injector = DependencyInjector()
-dependencies = (injector and injector.inject({"model": None, "validator": None})
+dependencies = injector.inject({"model": None, "validator": None}) if injector else ""
 ```
 
 ## Error Handling
@@ -66,14 +66,14 @@ class DependencyInjector:
     injector = DependencyInjector()
 
     # Inject dependencies into a dictionary
-    dependencies = (injector and injector.inject({"model": None, "validator": None})
+    dependencies = injector.inject({"model": None, "validator": None}) if injector else ""
 
     # Inject dependencies into a function
     def process_data(model=None, validator=None):
         # Use injected dependencies
         pass
 
-    injected_func = (injector and injector.inject_function(process_data)
+    injected_func = injector.inject_function(process_data) if injector else ""
     result = injected_func()  # Dependencies automatically injected
     ```
 
@@ -113,7 +113,7 @@ class DependencyInjector:
         Example:
             ```python
             injector = DependencyInjector()
-            dependencies = (injector and injector.inject({"model": None, "validator": None})
+            dependencies = injector.inject({"model": None, "validator": None}) if injector else ""
             ```
         """
         result = {}
@@ -147,7 +147,7 @@ class DependencyInjector:
                 # Use injected dependencies
                 pass
 
-            injected_func = (injector and injector.inject_function(process_data)
+            injected_func = injector.inject_function(process_data) if injector else ""
             result = injected_func()  # Dependencies automatically injected
             ```
         """

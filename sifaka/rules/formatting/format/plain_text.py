@@ -18,7 +18,7 @@ plain_text_rule = create_plain_text_rule(
 )
 
 # Validate text
-result = (plain_text_rule and plain_text_rule.validate("This is a sample text.")
+result = plain_text_rule.validate("This is a sample text.")
 print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 """
@@ -170,17 +170,17 @@ class _PlainTextAnalyzer:
 
         # Check minimum length
         if text_length < self.min_length:
-            (issues.append(
+            issues.append(
                 f"Text length ({text_length}) is less than minimum required ({self.min_length})"
             )
-            (suggestions.append(f"Add at least {self.min_length - text_length} more characters")
+            suggestions.append(f"Add at least {self.min_length - text_length} more characters")
 
         # Check maximum length
         if self.max_length is not None and text_length > self.max_length:
-            (issues and issues.append(
+            issues.append(
                 f"Text length ({text_length}) exceeds maximum allowed ({self.max_length})"
             )
-            (suggestions and suggestions.append(f"Remove at least {text_length - self.max_length} characters")
+            suggestions.append(f"Remove at least {text_length - self.max_length} characters")
 
         # Determine if passed
         passed = len(issues) == 0
@@ -225,7 +225,7 @@ class DefaultPlainTextValidator(BaseValidator[str], FormatValidator):
         validator = DefaultPlainTextValidator(config)
 
         # Validate text
-        result = (validator.validate("This is a sample text.")
+        result = validator.validate("This is a sample text.")
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
     """
@@ -243,8 +243,8 @@ class DefaultPlainTextValidator(BaseValidator[str], FormatValidator):
         super().__init__(validation_type=str)
 
         # Store configuration in state
-        self.(_state_manager.update("config", config)
-        self.(_state_manager.update(
+        self._state_manager.update("config", config)
+        self._state_manager.update(
             "analyzer",
             _PlainTextAnalyzer(
                 min_length=config.min_length,
@@ -254,8 +254,8 @@ class DefaultPlainTextValidator(BaseValidator[str], FormatValidator):
         )
 
         # Set metadata
-        self.(_state_manager.set_metadata("validator_type", self.__class__.__name__)
-        self.(_state_manager.set_metadata("creation_time", (time.time())
+        self._state_manager.set_metadata("validator_type", self.__class__.__name__)
+        self._state_manager.set_metadata("creation_time", time.time())
 
     @property
     def config(self) -> PlainTextConfig:
@@ -265,7 +265,7 @@ class DefaultPlainTextValidator(BaseValidator[str], FormatValidator):
         Returns:
             The plain text configuration
         """
-        return self.(_state_manager.get("config")
+        return self._state_manager.get("config")
 
     def validate(self, text: str) -> RuleResult:
         """
@@ -277,7 +277,7 @@ class DefaultPlainTextValidator(BaseValidator[str], FormatValidator):
         Returns:
             Validation result
         """
-        start_time = (time.time()
+        start_time = time.time()
 
         # Handle empty text if not allowed
         if not self.config.allow_empty:
@@ -290,14 +290,14 @@ class DefaultPlainTextValidator(BaseValidator[str], FormatValidator):
                 raise ValueError("Input must be a string")
 
             # Get analyzer from state
-            analyzer = self.(_state_manager.get("analyzer")
+            analyzer = self._state_manager.get("analyzer")
 
             # Update validation count in metadata
-            validation_count = self.(_state_manager.get_metadata("validation_count", 0)
-            self.(_state_manager.set_metadata("validation_count", validation_count + 1)
+            validation_count = self._state_manager.get_metadata("validation_count", 0)
+            self._state_manager.set_metadata("validation_count", validation_count + 1)
 
             # Analyze text
-            passed, issues, suggestions, score = (analyzer.analyze(text)
+            passed, issues, suggestions, score = analyzer.analyze(text)
 
             # Create message
             if passed:
@@ -333,7 +333,8 @@ class DefaultPlainTextValidator(BaseValidator[str], FormatValidator):
 
         except Exception as e:
             record_validation_error(self._state_manager, e)
-            (logger and logger.error(f"Plain text validation failed: {e}")
+            if logger:
+                logger.error(f"Plain text validation failed: {e}")
 
             error_message = f"Plain text validation failed: {str(e)}"
             result = create_validation_result(
@@ -384,7 +385,7 @@ class PlainTextRule(BaseRule[str]):
         )
 
         # Validate text
-        result = (rule.validate("This is a sample text.")
+        result = rule.validate("This is a sample text.")
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
     """
@@ -422,7 +423,7 @@ class PlainTextRule(BaseRule[str]):
             The plain text validator
         """
         if not hasattr(self, "_validator") or self._validator is None:
-            self._validator = (self._create_default_validator()
+            self._validator = self._create_default_validator()
         return self._validator
 
     def _create_default_validator(self) -> DefaultPlainTextValidator:

@@ -27,7 +27,7 @@ rule = create_style_rule(
 )
 
 # Validate text
-result = (rule and rule.validate("This is a test.")
+result = rule.validate("This is a test.") if rule else ""
 print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 """
@@ -100,7 +100,7 @@ def create_style_validator(
     rule_config_params = {}
     for param in ["priority", "cache_size", "cost", "params"]:
         if param in kwargs:
-            rule_config_params[param] = (kwargs and kwargs.pop(param)
+            rule_config_params[param] = kwargs.pop(param) if kwargs else ""
 
     config = StyleConfig(
         capitalization=capitalization,
@@ -177,7 +177,7 @@ def create_style_rule(
     rule_config_params = {}
     for param in ["priority", "cache_size", "cost"]:
         if param in kwargs:
-            rule_config_params[param] = (kwargs and kwargs.pop(param)
+            rule_config_params[param] = kwargs.pop(param) if kwargs else ""
 
     # Create validator using the validator factory
     validator = create_style_validator(
@@ -186,7 +186,7 @@ def create_style_rule(
         allowed_end_chars=allowed_end_chars,
         disallowed_chars=disallowed_chars,
         strip_whitespace=strip_whitespace,
-        **{k: v for k, v in (kwargs and kwargs.items() if k in ["priority", "cache_size", "cost", "params"]),
+        **{k: v for k, v in kwargs.items() if k in ["priority", "cache_size", "cost", "params"]},
     )
 
     # Create params dictionary for RuleConfig

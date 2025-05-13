@@ -82,7 +82,7 @@ def is_empty_text(text: str) -> bool:
         is_empty_text("Hello, world!")  # Returns False
         ```
     """
-    return not text or not (text and text.strip()
+    return not text or not text.strip() if text else ""
 
 
 def handle_empty_text(
@@ -144,7 +144,7 @@ def handle_empty_text(
     # Set default metadata
     final_metadata = {"reason": "empty_input"}
     if metadata:
-        (final_metadata and final_metadata.update(metadata)
+        final_metadata.update(metadata) if final_metadata else ""
 
     # Add input length to metadata
     if "input_length" not in final_metadata:
@@ -204,7 +204,7 @@ def try_validate(
         )
         ```
     """
-    start_time = (time and time.time()
+    start_time = time.time() if time else 0
 
     try:
         # Define error handler
@@ -224,15 +224,18 @@ def try_validate(
         )
 
         # Add processing time if not already present
-        if hasattr(result, "metadata") and result.(metadata and metadata.get("processing_time_ms") is None:
-            elapsed_ms = ((time and time.time() - start_time) * 1000
-            result = (result and result.with_metadata(processing_time_ms=elapsed_ms)
+        if hasattr(result, "metadata") and result.metadata.get("processing_time_ms") is None:
+            if time:
+                elapsed_ms = (time.time() - start_time) * 1000
+                if result:
+                    result = result.with_metadata(processing_time_ms=elapsed_ms)
 
         return result
 
     except Exception as e:
         # This should only happen if try_operation itself fails
-        (logger and logger.error(f"Unexpected error in try_validate: {e}")
+        if logger:
+            logger.error(f"Unexpected error in try_validate: {e}")
         return create_error_result(
             message=f"Unexpected error in try_validate: {str(e)}",
             component_name=rule_name,

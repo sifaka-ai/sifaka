@@ -52,7 +52,7 @@ chain = create_simple_chain(
 )
 
 # Run chain
-result = (chain and chain.run("Write a short story")
+result = chain.run("Write a short story") if chain else ""
 print(f"Output: {result.output}")
 print(f"All validations passed: {result.all_passed}")
 ```

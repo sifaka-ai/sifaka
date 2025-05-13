@@ -17,14 +17,14 @@ Usage Example:
     manager = ValidationManager(rules=[length_rule, markdown_rule])
 
     # Validate text
-    results = (manager and manager.validate("# Heading\n\n* List item")
+    results = manager.validate("# Heading\n\n* List item") if manager else ""
 
     # Check results
     for result in results:
         print(f"Rule: {result.rule_name}, Passed: {result.passed}, Message: {result.message}")
 
     # Get validation statistics
-    stats = (manager and manager.get_statistics()
+    stats = manager.get_statistics() if manager else ""
     print(f"Validation count: {stats['validation_count']}")
     ```
 """
@@ -101,10 +101,10 @@ class ValidationConfig(BaseModel):
         Examples:
             ```python
             # Update configuration options
-            updated_config = (config and config.with_options(
+            updated_config = config.with_options(
                 prioritize_by_cost=False,
                 cache_size=500
-            )
+            ) if config else ""
             ```
         """
         return ValidationConfig(**{**self.model_dump(), **kwargs})
@@ -137,15 +137,15 @@ class ValidationManager:
         manager = ValidationManager(rules=[length_rule])
 
         # Validate text
-        results = (manager and manager.validate("This is a test.")
+        results = manager.validate("This is a test.") if manager else ""
 
         # Add more rules
         from sifaka.rules.formatting.format.markdown import create_markdown_rule
         markdown_rule = create_markdown_rule(required_elements=["#", "*", "`"])
-        (manager and manager.add_rule(markdown_rule)
+        manager.add_rule(markdown_rule) if manager else ""
 
         # Get validation statistics
-        stats = (manager and manager.get_statistics()
+        stats = manager.get_statistics() if manager else ""
         print(f"Validation count: {stats['validation_count']}")
         ```
     """
@@ -222,15 +222,15 @@ class ValidationManager:
         Examples:
             ```python
             # Basic validation
-            results = (manager and manager.validate("This is a test.")
+            results = manager.validate("This is a test.") if manager else ""
 
             # Validation with options
-            results = (manager and manager.validate(
+            results = manager.validate(
                 "This is a test.",
                 fail_fast=True,
                 timeout=2.0,
                 include_rules=["length_rule"]
-            )
+            ) if manager else ""
             ```
         """
         # Update validation count
@@ -238,109 +238,123 @@ class ValidationManager:
         self._state_manager.update("validation_count", validation_count + 1)
 
         # Check cache if we've validated this text before
-        cache = self.(_state_manager and _state_manager.get("result_cache", {})
-        cache_key = f"{text[:100]}:{str(kwargs))"
+        cache = self._state_manager.get("result_cache", {})
+        cache_key = f"{text[:100]}:{str(kwargs)}"
 
         if cache_key in cache:
-            self.(_state_manager and _state_manager.set_metadata("cache_hit", True)
-            (logger and logger.debug(f"Cache hit for validation: {cache_key[:30]}...")
+            self._state_manager.set_metadata("cache_hit", True)
+            logger.debug(f"Cache hit for validation: {cache_key[:30]}...") if logger else ""
             return cache[cache_key]
 
         # Mark as cache miss
-        self.(_state_manager and _state_manager.set_metadata("cache_hit", False)
-        (logger and logger.debug(f"Cache miss for validation: {cache_key[:30]}...")
+        self._state_manager.set_metadata("cache_hit", False)
+        logger.debug(f"Cache miss for validation: {cache_key[:30]}...") if logger else ""
 
         # Start timing
-        start_time = (time and time.time()
+        start_time = time.time() if time else ""
 
         # Extract validation options
-        fail_fast = (kwargs and kwargs.pop("fail_fast", False)
-        timeout = (kwargs and kwargs.pop("timeout", None)
-        include_rules = (kwargs and kwargs.pop("include_rules", None)
-        exclude_rules = (kwargs and kwargs.pop("exclude_rules", None)
+        fail_fast = kwargs.pop("fail_fast", False) if kwargs else ""
+        timeout = kwargs.pop("timeout", None) if kwargs else ""
+        include_rules = kwargs.pop("include_rules", None) if kwargs else ""
+        exclude_rules = kwargs.pop("exclude_rules", None) if kwargs else ""
 
         # Filter rules if needed
-        rules_to_validate = (self and self._get_prioritized_rules()
+        rules_to_validate = self._get_prioritized_rules() if self else ""
         if include_rules:
             rules_to_validate = [r for r in rules_to_validate if r.name in include_rules]
         if exclude_rules:
             rules_to_validate = [r for r in rules_to_validate if r.name not in exclude_rules]
 
         # Log validation start
-        (logger and logger.debug(f"Starting validation with {len(rules_to_validate)) rules")
+        logger.debug(f"Starting validation with {len(rules_to_validate)} rules") if logger else None
 
         results = []
         for rule in rules_to_validate:
             # Check timeout
-            if timeout and (time and time.time() - start_time > timeout:
-                (logger and logger.warning(f"Validation timeout after {timeout} seconds")
+            if timeout and time.time() if time else "" - start_time > timeout:
+                logger.warning(f"Validation timeout after {timeout} seconds") if logger else ""
                 break
 
             try:
                 # Validate with the rule
-                result = (rule and rule.model_validate(text, **kwargs)
-                (results and results.append(result)
+                result = rule.model_validate(text, **kwargs) if rule else ""
+                results.append(result) if results else ""
 
                 # Track pass/fail statistics
                 if result.passed:
-                    pass_count = self.(_state_manager and _state_manager.get_metadata("pass_count", 0)
-                    self.(_state_manager and _state_manager.set_metadata("pass_count", pass_count + 1)
+                    pass_count = self._state_manager.get_metadata("pass_count", 0)
+                    self._state_manager.set_metadata("pass_count", pass_count + 1)
                 else:
-                    fail_count = self.(_state_manager and _state_manager.get_metadata("fail_count", 0)
-                    self.(_state_manager and _state_manager.set_metadata("fail_count", fail_count + 1)
+                    fail_count = self._state_manager.get_metadata("fail_count", 0)
+                    self._state_manager.set_metadata("fail_count", fail_count + 1)
 
                     # Track failing rules
-                    failing_rules = self.(_state_manager and _state_manager.get_metadata("failing_rules", {})
-                    failing_rules[rule.name] = (failing_rules and failing_rules.get(rule.name, 0) + 1
-                    self.(_state_manager and _state_manager.set_metadata("failing_rules", failing_rules)
+                    failing_rules = self._state_manager.get_metadata("failing_rules", {})
+                    failing_rules[rule.name] = failing_rules.get(rule.name, 0) + 1
+                    self._state_manager.set_metadata("failing_rules", failing_rules)
 
                     # Stop if fail_fast is enabled
                     if fail_fast:
-                        (logger and logger.debug(f"Stopping validation early due to fail_fast option")
+                        (
+                            logger.debug(f"Stopping validation early due to fail_fast option")
+                            if logger
+                            else ""
+                        )
                         break
 
             except Exception as e:
                 # Handle rule validation errors
-                (logger and logger.error(f"Error validating with rule {rule.name}: {e}")
+                logger.error(f"Error validating with rule {rule.name}: {e}") if logger else ""
 
                 # Create error result
                 from ..utils import create_error_result
 
                 error_result = create_error_result(e, rule.name)
-                (results and results.append(error_result)
+                results.append(error_result) if results else ""
 
                 # Stop if fail_fast is enabled
                 if fail_fast:
-                    (logger and logger.debug(f"Stopping validation early due to error and fail_fast option")
+                    (
+                        logger.debug(f"Stopping validation early due to error and fail_fast option")
+                        if logger
+                        else ""
+                    )
                     break
 
         # Record execution time
-        end_time = (time and time.time()
+        end_time = time.time() if time else ""
         execution_time = end_time - start_time
 
         # Log validation completion
-        (logger and logger.debug(f"Validation completed in {execution_time:.2f}s with {len(results)) results")
+        (
+            logger.debug(
+                f"Validation completed in {execution_time:.2f}s with {len(results)} results"
+            )
+            if logger
+            else None
+        )
 
         # Update average execution time
-        avg_time = self.(_state_manager and _state_manager.get_metadata("avg_execution_time", 0)
-        count = self.(_state_manager and _state_manager.get("validation_count", 1)
+        avg_time = self._state_manager.get_metadata("avg_execution_time", 0)
+        count = self._state_manager.get("validation_count", 1)
         new_avg = ((avg_time * (count - 1)) + execution_time) / count
-        self.(_state_manager and _state_manager.set_metadata("avg_execution_time", new_avg)
+        self._state_manager.set_metadata("avg_execution_time", new_avg)
 
         # Update max execution time if needed
-        max_time = self.(_state_manager and _state_manager.get_metadata("max_execution_time", 0)
+        max_time = self._state_manager.get_metadata("max_execution_time", 0)
         if execution_time > max_time:
-            self.(_state_manager and _state_manager.set_metadata("max_execution_time", execution_time)
+            self._state_manager.set_metadata("max_execution_time", execution_time)
 
         # Cache results (limit cache size)
         cache_size = self.config.cache_size
         if len(cache) >= cache_size:
             # Simple strategy: just clear the cache when it gets full
-            (logger and logger.debug(f"Clearing validation cache (size: {len(cache)))")
+            logger.debug(f"Clearing validation cache (size: {len(cache)})") if logger else None
             cache = {}
 
         cache[cache_key] = results
-        self.(_state_manager and _state_manager.update("result_cache", cache)
+        self._state_manager.update("result_cache", cache)
 
         return results
 
@@ -374,21 +388,25 @@ class ValidationManager:
             rule = create_length_rule(min_length=10, max_length=1000)
 
             # Add the rule to the manager
-            (manager and manager.add_rule(rule)
+            manager.add_rule(rule) if manager else ""
             ```
         """
         # Check if rule already exists
         if any(r.name == rule.name for r in self.rules):
-            (logger and logger.warning(f"Rule with name '{rule.name}' already exists, replacing")
-            (self and self.remove_rule(rule.name)
+            (
+                logger.warning(f"Rule with name '{rule.name}' already exists, replacing")
+                if logger
+                else ""
+            )
+            self.remove_rule(rule.name) if self else ""
 
         # Add the rule
-        self.(rules and rules.append(rule)
-        (logger and logger.debug(f"Added rule '{rule.name}' to validation manager")
+        self.rules.append(rule)
+        logger.debug(f"Added rule '{rule.name}' to validation manager") if logger else ""
 
         # Update state
-        self.(_state_manager and _state_manager.update("rules", self.rules)
-        self.(_state_manager and _state_manager.set_metadata("rule_count", len(self.rules))
+        self._state_manager.update("rules", self.rules)
+        self._state_manager.set_metadata("rule_count", len(self.rules))
 
     def remove_rule(self, rule_name: str) -> None:
         """
@@ -400,7 +418,7 @@ class ValidationManager:
         Examples:
             ```python
             # Remove a rule by name
-            (manager and manager.remove_rule("length_rule")
+            manager.remove_rule("length_rule") if manager else ""
             ```
         """
         original_count = len(self.rules)
@@ -408,13 +426,13 @@ class ValidationManager:
 
         # Check if rule was removed
         if len(self.rules) < original_count:
-            (logger and logger.debug(f"Removed rule '{rule_name}' from validation manager")
+            logger.debug(f"Removed rule '{rule_name}' from validation manager") if logger else ""
         else:
-            (logger and logger.warning(f"Rule '{rule_name}' not found in validation manager")
+            logger.warning(f"Rule '{rule_name}' not found in validation manager") if logger else ""
 
         # Update state
-        self.(_state_manager and _state_manager.update("rules", self.rules)
-        self.(_state_manager and _state_manager.set_metadata("rule_count", len(self.rules))
+        self._state_manager.update("rules", self.rules)
+        self._state_manager.set_metadata("rule_count", len(self.rules))
 
     def get_rule(self, rule_name: str) -> Optional[RuleProtocol]:
         """
@@ -429,7 +447,7 @@ class ValidationManager:
         Examples:
             ```python
             # Get a rule by name
-            rule = (manager and manager.get_rule("length_rule")
+            rule = manager.get_rule("length_rule") if manager else ""
             if rule:
                 print(f"Rule description: {rule.description}")
             ```
@@ -449,38 +467,38 @@ class ValidationManager:
         Examples:
             ```python
             # Get validation statistics
-            stats = (manager and manager.get_statistics()
+            stats = manager.get_statistics() if manager else ""
             print(f"Validation count: {stats['validation_count']}")
             print(f"Pass rate: {stats['pass_count'] / (stats['validation_count'] or 1):.2%)")
             ```
         """
         # Calculate uptime
-        start_time = self.(_state_manager and _state_manager.get("start_time", (time and time.time())
-        uptime_seconds = (time and time.time() - start_time
+        start_time = self._state_manager.get("start_time", time.time())
+        uptime_seconds = time.time() - start_time
 
         # Calculate pass rate
-        validation_count = self.(_state_manager and _state_manager.get("validation_count", 0)
-        pass_count = self.(_state_manager and _state_manager.get_metadata("pass_count", 0)
+        validation_count = self._state_manager.get("validation_count", 0)
+        pass_count = self._state_manager.get_metadata("pass_count", 0)
         pass_rate = pass_count / validation_count if validation_count > 0 else 0
 
         return {
             "validation_count": validation_count,
             "pass_count": pass_count,
-            "fail_count": self.(_state_manager and _state_manager.get_metadata("fail_count", 0),
+            "fail_count": self._state_manager.get_metadata("fail_count", 0),
             "pass_rate": pass_rate,
-            "avg_execution_time": self.(_state_manager and _state_manager.get_metadata("avg_execution_time", 0),
-            "max_execution_time": self.(_state_manager and _state_manager.get_metadata("max_execution_time", 0),
-            "failing_rules": self.(_state_manager and _state_manager.get_metadata("failing_rules", {}),
-            "rule_count": self.(_state_manager and _state_manager.get_metadata("rule_count", 0),
-            "cache_size": len(self.(_state_manager and _state_manager.get("result_cache", {})),
+            "avg_execution_time": self._state_manager.get_metadata("avg_execution_time", 0),
+            "max_execution_time": self._state_manager.get_metadata("max_execution_time", 0),
+            "failing_rules": self._state_manager.get_metadata("failing_rules", {}),
+            "rule_count": self._state_manager.get_metadata("rule_count", 0),
+            "cache_size": len(self._state_manager.get("result_cache", {})),
             "cache_hit_rate": (
-                self.(_state_manager and _state_manager.get_metadata("cache_hit_count", 0) / validation_count
+                self._state_manager.get_metadata("cache_hit_count", 0) / validation_count
                 if validation_count > 0
                 else 0
             ),
             "uptime_seconds": uptime_seconds,
             "rules": [r.name for r in self.rules],
-        )
+        }
 
     def reset_statistics(self) -> None:
         """
@@ -491,18 +509,19 @@ class ValidationManager:
         Examples:
             ```python
             # Reset statistics
-            (manager and manager.reset_statistics()
+            manager.reset_statistics() if manager else ""
             ```
         """
-        (logger and logger.debug("Resetting validation statistics")
-        self.(_state_manager and _state_manager.update("validation_count", 0)
-        self.(_state_manager and _state_manager.update("start_time", (time and time.time())
-        self.(_state_manager and _state_manager.set_metadata("pass_count", 0)
-        self.(_state_manager and _state_manager.set_metadata("fail_count", 0)
-        self.(_state_manager and _state_manager.set_metadata("failing_rules", {})
-        self.(_state_manager and _state_manager.set_metadata("avg_execution_time", 0)
-        self.(_state_manager and _state_manager.set_metadata("max_execution_time", 0)
-        self.(_state_manager and _state_manager.set_metadata("cache_hit_count", 0)
+        if logger:
+            logger.debug("Resetting validation statistics")
+        self._state_manager.update("validation_count", 0)
+        self._state_manager.update("start_time", time.time())
+        self._state_manager.set_metadata("pass_count", 0)
+        self._state_manager.set_metadata("fail_count", 0)
+        self._state_manager.set_metadata("failing_rules", {})
+        self._state_manager.set_metadata("avg_execution_time", 0)
+        self._state_manager.set_metadata("max_execution_time", 0)
+        self._state_manager.set_metadata("cache_hit_count", 0)
 
     def clear_cache(self) -> None:
         """
@@ -513,11 +532,12 @@ class ValidationManager:
         Examples:
             ```python
             # Clear cache
-            (manager and manager.clear_cache()
+            manager.clear_cache() if manager else ""
             ```
         """
-        (logger and logger.debug("Clearing validation cache")
-        self.(_state_manager and _state_manager.update("result_cache", {})
+        if logger:
+            logger.debug("Clearing validation cache")
+        self._state_manager.update("result_cache", {})
 
     def validate_all(self, texts: List[str], **kwargs: Any) -> Dict[str, List[RuleResult]]:
         """
@@ -534,19 +554,23 @@ class ValidationManager:
             ```python
             # Validate multiple texts
             texts = ["Text 1", "Text 2", "Text 3"]
-            results = (manager and manager.validate_all(texts)
+            results = manager.validate_all(texts) if manager else ""
 
             # Check results
-            for text, text_results in (results and results.items():
+            for text, text_results in results.items() if results else "":
                 print(f"Text: {text}")
                 for result in text_results:
                     print(f"  Rule: {result.rule_name}, Passed: {result.passed}")
             ```
         """
-        (logger and logger.debug(f"Validating {len(texts)) texts")
+        if logger:
+            logger.debug(f"Validating {len(texts)} texts")
         results = {}
 
         for text in texts:
-            results[text] = (self and self.validate(text, **kwargs)
+            if self:
+                results[text] = self.validate(text, **kwargs)
+            else:
+                results[text] = []
 
         return results

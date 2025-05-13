@@ -31,7 +31,7 @@ rule = create_prohibited_content_rule(
 )
 
 # Validate text
-result = (rule and rule.validate("This is a test.")
+result = rule.validate("This is a test.") if rule else ""
 print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 """
@@ -147,7 +147,7 @@ class ProhibitedContentConfig(BaseModel):
     validator = DefaultProhibitedContentValidator(config)
 
     # Validate text
-    result = (validator and validator.validate("This is a test.")
+    result = validator.validate("This is a test.") if validator else ""
     print(f"Valid: {result.passed}")
     ```
     """
@@ -242,12 +242,12 @@ class ProhibitedContentAnalyzer:
     analyzer = ProhibitedContentAnalyzer(config)
 
     # Check if text can be analyzed
-    if (analyzer and analyzer.can_analyze("This is a test."):
+    if analyzer.can_analyze("This is a test.") if analyzer else "":
         # Analyze text
-        result = (analyzer and analyzer.analyze("This is a test.")
+        result = analyzer.analyze("This is a test.") if analyzer else ""
         print(f"Valid: {result.passed}")
-        print(f"Confidence: {result.(metadata and metadata.get('confidence')}")
-        print(f"Label: {result.(metadata and metadata.get('label')}")
+        print(f"Confidence: {result.metadata.get('confidence') if metadata else ""}")
+        print(f"Label: {result.metadata.get('label') if metadata else ""}")
     ```
 
     Using with custom terms:
@@ -262,7 +262,7 @@ class ProhibitedContentAnalyzer:
     analyzer = ProhibitedContentAnalyzer(config)
 
     # Analyze text containing custom terms
-    result = (analyzer and analyzer.analyze("This text contains custom_term1.")
+    result = analyzer.analyze("This text contains custom_term1.") if analyzer else ""
     print(f"Valid: {result.passed}")
     ```
     """
@@ -295,7 +295,10 @@ class ProhibitedContentAnalyzer:
             RuleResult: The result of the analysis
         """
         # Use the classifier to detect prohibited content
-        result = self.(_classifier and _classifier.classify(text)
+        if hasattr(self, "_classifier") and self._classifier:
+            result = self._classifier.classify(text)
+        else:
+            raise ValueError("Classifier not initialized")
 
         # Determine if the text passes validation
         is_valid = result.label == "clean"
@@ -370,11 +373,11 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
     validator = DefaultProhibitedContentValidator(config)
 
     # Validate text
-    result = (validator and validator.validate("This is a test.")
+    result = validator.validate("This is a test.") if validator else ""
     print(f"Valid: {result.passed}")
 
     # Handle empty text
-    result = (validator and validator.validate("")
+    result = validator.validate("") if validator else ""
     print(f"Empty text result: {result.passed}")
     print(f"Message: {result.message}")
     ```
@@ -403,12 +406,13 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
         super().__init__(validation_type=str)
 
         # Store configuration in state
-        self.(_state_manager and _state_manager.update("config", config)
-        self.(_state_manager and _state_manager.update("analyzer", ProhibitedContentAnalyzer(config))
+        self._state_manager.update("config", config)
+        self._state_manager.update("analyzer", ProhibitedContentAnalyzer(config))
 
         # Set metadata
-        self.(_state_manager and _state_manager.set_metadata("validator_type", self.__class__.__name__)
-        self.(_state_manager and _state_manager.set_metadata("creation_time", (time and time.time())
+        self._state_manager.set_metadata("validator_type", self.__class__.__name__)
+        if time:
+            self._state_manager.set_metadata("creation_time", time.time())
 
     @property
     def config(self) -> ProhibitedContentConfig:
@@ -418,7 +422,7 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
         Returns:
             The validator configuration
         """
-        return self.(_state_manager and _state_manager.get("config")
+        return self._state_manager.get("config")
 
     def validate(self, text: str) -> RuleResult:
         """
@@ -430,47 +434,55 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
         Returns:
             RuleResult: The result of the validation
         """
-        start_time = (time and time.time()
+        start_time = time.time() if time else ""
 
         # Handle empty text
-        empty_result = (self and self.handle_empty_text(text)
+        empty_result = self.handle_empty_text(text) if self else ""
         if empty_result:
             return empty_result
 
         try:
             # Get analyzer from state
-            analyzer = self.(_state_manager and _state_manager.get("analyzer")
+            analyzer = self._state_manager.get("analyzer")
 
             # Delegate to analyzer
-            result = (analyzer and analyzer.analyze(text)
+            if analyzer:
+                result = analyzer.analyze(text)
 
-            # Add processing time and validator type
-            result = (result and result.with_metadata(
-                processing_time_ms=(time and time.time() - start_time,
-                validator_type=self.__class__.__name__,
-            )
+                # Add processing time and validator type
+                if result and time:
+                    elapsed_ms = (time.time() - start_time) * 1000
+                    result = result.with_metadata(
+                        processing_time_ms=elapsed_ms,
+                        validator_type=self.__class__.__name__,
+                    )
 
-            # Update statistics
-            (self and self.update_statistics(result)
+                # Update statistics
+                if self:
+                    self.update_statistics(result)
 
-            # Update validation count in metadata
-            validation_count = self.(_state_manager and _state_manager.get_metadata("validation_count", 0)
-            self.(_state_manager and _state_manager.set_metadata("validation_count", validation_count + 1)
+                # Update validation count in metadata
+                validation_count = self._state_manager.get_metadata("validation_count", 0)
+                self._state_manager.set_metadata("validation_count", validation_count + 1)
 
-            # Cache result if caching is enabled
-            if self.config.cache_size > 0:
-                cache = self.(_state_manager and _state_manager.get("cache", {})
-                if len(cache) >= self.config.cache_size:
-                    # Clear cache if it's full
-                    cache = {}
-                cache[text] = result
-                self.(_state_manager and _state_manager.update("cache", cache)
+                # Cache result if caching is enabled
+                if self.config.cache_size > 0:
+                    cache = self._state_manager.get("cache", {})
+                    if len(cache) >= self.config.cache_size:
+                        # Clear cache if it's full
+                        cache = {}
+                    cache[text] = result
+                    self._state_manager.update("cache", cache)
 
-            return result
+                return result
+            else:
+                raise ValueError("Analyzer not found in state manager")
 
         except Exception as e:
-            (self and self.record_error(e)
-            (logger and logger.error(f"Error validating text for prohibited content: {e}")
+            if self:
+                self.record_error(e)
+            if logger:
+                logger.error(f"Error validating text for prohibited content: {e}")
 
             return RuleResult(
                 passed=False,
@@ -482,7 +494,7 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
                 score=0.0,
                 issues=[f"Validation error: {str(e)}"],
                 suggestions=["Check the text for problematic content"],
-                processing_time_ms=(time and time.time() - start_time,
+                processing_time_ms=(time.time() - start_time) * 1000 if time else 0,
             )
 
 
@@ -541,11 +553,11 @@ class ProhibitedContentRule(Rule[str]):
     )
 
     # Validate text
-    result = (rule and rule.validate("This is a test.")
+    result = rule.validate("This is a test.") if rule else ""
     print(f"Valid: {result.passed}")
 
     # Check rule identification
-    print(f"Rule ID: {result.(metadata and metadata.get('rule_id')}")
+    print(f"Rule ID: {result.metadata.get('rule_id') if metadata else ""}")
     ```
 
     Using with factory function:
@@ -561,7 +573,7 @@ class ProhibitedContentRule(Rule[str]):
     )
 
     # Validate text
-    result = (rule and rule.validate("This text contains term1.")
+    result = rule.validate("This text contains term1.") if rule else ""
     print(f"Valid: {result.passed}")
     ```
     """
@@ -594,12 +606,14 @@ class ProhibitedContentRule(Rule[str]):
         )
 
         # Store validator in state
-        prohibited_validator = validator or (self and self._create_default_validator()
-        self.(_state_manager and _state_manager.update("prohibited_validator", prohibited_validator)
+        if self:
+            prohibited_validator = validator or self._create_default_validator()
+            self._state_manager.update("prohibited_validator", prohibited_validator)
 
-        # Set additional metadata
-        self.(_state_manager and _state_manager.set_metadata("rule_type", "ProhibitedContentRule")
-        self.(_state_manager and _state_manager.set_metadata("creation_time", (time and time.time())
+            # Set additional metadata
+            self._state_manager.set_metadata("rule_type", "ProhibitedContentRule")
+            if time:
+                self._state_manager.set_metadata("creation_time", time.time())
 
     def _create_default_validator(self) -> DefaultProhibitedContentValidator:
         """
@@ -611,16 +625,16 @@ class ProhibitedContentRule(Rule[str]):
         # Extract prohibited content specific params
         params = self.config.params
         config = ProhibitedContentConfig(
-            terms=(params and params.get("terms", []),
-            threshold=(params and params.get("threshold", 0.5),
-            case_sensitive=(params and params.get("case_sensitive", False),
+            terms=params.get("terms", []) if params else [],
+            threshold=params.get("threshold", 0.5) if params else 0.5,
+            case_sensitive=params.get("case_sensitive", False) if params else False,
             cache_size=self.config.cache_size,
             priority=self.config.priority,
             cost=self.config.cost,
         )
 
         # Store config in state for reference
-        self.(_state_manager and _state_manager.update("validator_config", config)
+        self._state_manager.update("validator_config", config)
 
         return DefaultProhibitedContentValidator(config)
 
@@ -676,7 +690,7 @@ def create_prohibited_content_validator(
     )
 
     # Validate text
-    result = (validator and validator.validate("This is a test.")
+    result = validator.validate("This is a test.") if validator else ""
     print(f"Valid: {result.passed}")
     ```
 
@@ -716,7 +730,7 @@ def create_prohibited_content_validator(
         config_params["case_sensitive"] = case_sensitive
 
     # Add any remaining config parameters
-    (config_params.update(kwargs)
+    config_params.update(kwargs)
 
     # Create config
     config = ProhibitedContentConfig(**config_params)
@@ -786,9 +800,10 @@ def create_prohibited_content_rule(
     )
 
     # Validate text
-    result = (rule.validate("This is a test.")
+    result = rule.validate("This is a test.")
     print(f"Valid: {result.passed}")
-    print(f"Rule ID: {result.(metadata and metadata.get('rule_id')}")
+    if result.metadata:
+        print(f"Rule ID: {result.metadata.get('rule_id')}")
     ```
 
     Using with additional configuration:

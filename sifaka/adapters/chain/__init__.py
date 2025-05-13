@@ -33,10 +33,10 @@ validator = ValidatorAdapter(rule)
 improver = ImproverAdapter(critic)
 
 # Use adapters
-output = (model and model.generate("Write a short story")
-validation_result = (validator and validator.validate(output)
+output = model.generate("Write a short story") if model else ""
+validation_result = validator.validate(output) if validator else ""
 if not validation_result.passed:
-    improved_output = (improver and improver.improve(output, [validation_result])
+    improved_output = improver.improve(output, [validation_result]) if improver else ""
 ```
 
 ## Error Handling

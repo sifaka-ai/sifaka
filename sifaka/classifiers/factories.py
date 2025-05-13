@@ -27,13 +27,13 @@ classifier = create_classifier(
 )
 
 # Classify text
-result = (classifier and classifier.classify("This is a friendly message.")
+result = classifier.classify("This is a friendly message.") if classifier else ""
 print(f"Label: {result.label}")
 print(f"Confidence: {result.confidence:.2f}")
 ```
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from .classifier import Classifier
 from .interfaces import ClassifierImplementation

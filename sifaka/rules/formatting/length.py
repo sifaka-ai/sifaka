@@ -30,7 +30,7 @@ rule = create_length_rule(
 )
 
 # Validate text
-result = (rule and rule.validate("This is a test")
+result = rule.validate("This is a test") if rule else ""
 print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 print(f"Character count: {result.metadata['char_count']}")
 print(f"Word count: {result.metadata['word_count']}")

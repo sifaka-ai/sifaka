@@ -41,7 +41,7 @@ class ChainError(SifakaError):
 
     # Catching chain-specific errors
     try:
-        result = (chain and chain.run(prompt)
+        result = chain.run(prompt) if chain else ""
     except ChainError as e:
         print(f"Chain error: {e.message}")
         print(f"Chain error metadata: {e.metadata}")

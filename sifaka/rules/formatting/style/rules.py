@@ -33,7 +33,7 @@ rule = StyleRule(
 )
 
 # Validate text
-result = (rule and rule.validate("This is a test.")
+result = rule.validate("This is a test.") if rule else ""
 print(f"Valid: {result.passed}")
 ```
 """
@@ -100,11 +100,11 @@ class StyleRule(Rule[str]):
     )
 
     # Validate text
-    result = (rule and rule.validate("This is a test.")
+    result = rule.validate("This is a test.") if rule else ""
     print(f"Valid: {result.passed}")
 
     # Check rule identification
-    print(f"Rule ID: {result.(metadata and metadata.get('rule_id')}")
+    print(f"Rule ID: {result.metadata.get('rule_id') if metadata else ""}")
     ```
 
     Using with custom validator:
@@ -126,7 +126,7 @@ class StyleRule(Rule[str]):
     )
 
     # Validate text
-    result = (rule and rule.validate("This is a test.")
+    result = rule.validate("This is a test.") if rule else ""
     ```
     """
 
@@ -146,7 +146,7 @@ class StyleRule(Rule[str]):
         super().__init__(name=name, description=description, config=config or
             RuleConfig(name=name, description=description, rule_id=kwargs.
             pop('rule_id', name), **kwargs), validator=validator)
-        self._style_validator = validator or (self and self._create_default_validator()
+        self._style_validator = validator or self._create_default_validator() if self else ""
 
     def _create_default_validator(self) ->StyleValidator:
         """
@@ -156,11 +156,11 @@ class StyleRule(Rule[str]):
             A configured StyleValidator
         """
         params = self.config.params
-        config = StyleConfig(capitalization=(params and params.get('capitalization'),
-            require_end_punctuation=(params and params.get('require_end_punctuation', 
-            False), allowed_end_chars=(params and params.get('allowed_end_chars'),
-            disallowed_chars=(params and params.get('disallowed_chars'),
-            strip_whitespace=(params and params.get('strip_whitespace', True))
+        config = StyleConfig(capitalization=params.get('capitalization') if params else "",
+            require_end_punctuation=params.get('require_end_punctuation', 
+            False) if params else "", allowed_end_chars=params.get('allowed_end_chars') if params else "",
+            disallowed_chars=params.get('disallowed_chars') if params else "",
+            strip_whitespace=params.get('strip_whitespace', True) if params else "")
         return DefaultStyleValidator(config)
 
     def validate(self, text: str, **kwargs) ->RuleResult:
@@ -174,8 +174,8 @@ class StyleRule(Rule[str]):
         Returns:
             RuleResult containing validation results
         """
-        result = self.(_validator and _validator.validate(text, **kwargs)
-        return (result and result.with_metadata(rule_id=self._name)
+        result = self._validator.validate(text, **kwargs) if _validator else ""
+        return result.with_metadata(rule_id=self._name) if result else ""
 
 
 class FormattingRule(Rule[str]):
@@ -233,11 +233,11 @@ class FormattingRule(Rule[str]):
     )
 
     # Validate text
-    result = (rule and rule.validate("This   is  a   test  with    extra   spaces.")
+    result = rule.validate("This   is  a   test  with    extra   spaces.") if rule else ""
     print(f"Valid: {result.passed}")
 
     # Check rule identification
-    print(f"Rule ID: {result.(metadata and metadata.get('rule_id')}")
+    print(f"Rule ID: {result.metadata.get('rule_id') if metadata else ""}")
     ```
 
     Using with style configuration:
@@ -267,7 +267,7 @@ class FormattingRule(Rule[str]):
     )
 
     # Validate text
-    result = (rule and rule.validate("this   is  not properly capitalized")
+    result = rule.validate("this   is  not properly capitalized") if rule else ""
     ```
     """
 
@@ -298,8 +298,8 @@ class FormattingRule(Rule[str]):
             A configured FormattingValidator
         """
         params = self.config.params
-        config = FormattingConfig(style_config=(params and params.get('style_config'),
-            strip_whitespace=(params and params.get('strip_whitespace', True),
-            normalize_whitespace=(params and params.get('normalize_whitespace', False),
-            remove_extra_lines=(params and params.get('remove_extra_lines', False))
+        config = FormattingConfig(style_config=params.get('style_config') if params else "",
+            strip_whitespace=params.get('strip_whitespace', True) if params else "",
+            normalize_whitespace=params.get('normalize_whitespace', False) if params else "",
+            remove_extra_lines=params.get('remove_extra_lines', False) if params else "")
         return DefaultFormattingValidator(config)

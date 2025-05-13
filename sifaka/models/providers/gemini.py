@@ -518,11 +518,11 @@ class GeminiProvider(ModelProviderCore):
         Example:
             ```python
             provider = GeminiProvider(model_name="gemini-pro")
-            (provider and provider.generate("Hello, world!")
-            (provider and provider.count_tokens("How many tokens?")
+            provider.generate("Hello, world!") if provider else ""
+            provider.count_tokens("How many tokens?") if provider else ""
 
             # Get usage statistics
-            stats = (provider and provider.get_statistics()
+            stats = provider.get_statistics() if provider else ""
             print(f"Generation count: {stats['generation_count']}")
             print(f"Token count calls: {stats['token_count_calls']}")
             ```

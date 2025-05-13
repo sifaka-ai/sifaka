@@ -41,7 +41,7 @@ class DatabaseResource(Resource):
 
     def cleanup(self):
         if hasattr(self, 'connection') and self.connection:
-            self.(connection and connection.close()
+            self.connection.close() if connection else ""
 
 # Use in a Pydantic component
 class MyComponent(BaseModel):
@@ -52,16 +52,16 @@ class MyComponent(BaseModel):
 
     def initialize(self):
         # Register and initialize resources
-        self.(resource_manager and resource_manager.register("database", DatabaseResource())
-        self.(resource_manager and resource_manager.initialize_all()
+        self.resource_manager.register("database", DatabaseResource() if resource_manager else "")
+        self.resource_manager.initialize_all() if resource_manager else ""
 
     def cleanup(self):
         # Clean up all resources
-        self.(resource_manager and resource_manager.cleanup_all()
+        self.resource_manager.cleanup_all() if resource_manager else ""
 
     def get_database(self):
         # Get initialized resource
-        return self.(resource_manager and resource_manager.get("database")
+        return self.resource_manager.get("database") if resource_manager else ""
 ```
 
 ## Resource Dependencies
@@ -69,20 +69,20 @@ Resources can have dependencies on other resources:
 
 ```python
 # Register resources with dependencies
-(resource_manager and resource_manager.register("database", DatabaseResource())
-(resource_manager and resource_manager.register(
+resource_manager.register("database", DatabaseResource() if resource_manager else "")
+resource_manager.register(
     "cache",
-    CacheResource(),
+    CacheResource() if resource_manager else "",
     dependencies=["database"]
 )
-(resource_manager and resource_manager.register(
+resource_manager.register(
     "api_client",
-    APIClientResource(),
+    APIClientResource() if resource_manager else "",
     dependencies=["database", "cache"]
 )
 
 # Initialize all resources (dependencies will be initialized first)
-(resource_manager and resource_manager.initialize_all()
+resource_manager.initialize_all() if resource_manager else ""
 ```
 
 ## Resource Context
@@ -90,9 +90,9 @@ Resources can be used with a context manager:
 
 ```python
 # Use a resource in a context
-with (resource_manager and resource_manager.resource_context("database") as db:
+with resource_manager.resource_context("database") if resource_manager else "" as db:
     # Use the database
-    result = (db and db.query("SELECT * FROM users")
+    result = db.query("SELECT * FROM users") if db else ""
     # Resource will be cleaned up automatically when the context exits
 ```
 
@@ -192,7 +192,7 @@ class Resource(ABC):
 
         def cleanup(self):
             if hasattr(self, 'connection') and self.connection:
-                self.(connection and connection.close()
+                self.connection.close() if connection else ""
     ```
     """
 
@@ -276,22 +276,22 @@ class ResourceManager:
     resource_manager = ResourceManager()
 
     # Register resources
-    (resource_manager and resource_manager.register("database", DatabaseResource())
-    (resource_manager and resource_manager.register("cache", CacheResource(), dependencies=["database"])
+    resource_manager.register("database", DatabaseResource() if resource_manager else "")
+    resource_manager.register("cache", CacheResource() if resource_manager else "", dependencies=["database"])
 
     # Initialize all resources
-    (resource_manager and resource_manager.initialize_all()
+    resource_manager.initialize_all() if resource_manager else ""
 
     # Get an initialized resource
-    db = (resource_manager and resource_manager.get("database")
+    db = resource_manager.get("database") if resource_manager else ""
 
     # Use a resource in a context
-    with (resource_manager and resource_manager.resource_context("database") as db:
+    with resource_manager.resource_context("database") if resource_manager else "" as db:
         # Use the database
-        result = (db and db.query("SELECT * FROM users")
+        result = db.query("SELECT * FROM users") if db else ""
 
     # Clean up all resources
-    (resource_manager and resource_manager.cleanup_all()
+    resource_manager.cleanup_all() if resource_manager else ""
     ```
     """
 
@@ -322,7 +322,7 @@ class ResourceManager:
             raise ValueError(f'Resource {name} already registered')
         self._resources[name] = ResourceInfo(name=name, resource=resource,
             required=required, dependencies=dependencies or [])
-        (logger and logger.debug(f'Registered resource {name}')
+        logger.debug(f'Registered resource {name}') if logger else ""
 
     def initialize(self, name: str) ->Any:
         """
@@ -342,20 +342,20 @@ class ResourceManager:
             raise ValueError(f'Resource {name} not found')
         resource_info = self._resources[name]
         if resource_info.initialized:
-            (logger and logger.debug(f'Resource {name} already initialized')
+            logger.debug(f'Resource {name} already initialized') if logger else ""
             return resource_info.initialized_value
         try:
             for dependency in resource_info.dependencies:
-                (self and self.initialize(dependency)
-            (logger and logger.debug(f'Initializing resource {name}')
-            initialized_value = resource_info.(resource and resource.initialize()
+                self.initialize(dependency) if self else ""
+            logger.debug(f'Initializing resource {name}') if logger else ""
+            initialized_value = resource_info.resource.initialize() if resource else ""
             resource_info.initialized = True
             resource_info.initialized_value = initialized_value
-            resource_info.initialization_time = (time and time.time()
-            (logger and logger.debug(f'Resource {name} initialized successfully')
+            resource_info.initialization_time = time.time() if time else ""
+            logger.debug(f'Resource {name} initialized successfully') if logger else ""
             return initialized_value
         except Exception as e:
-            (logger and logger.error(f'Failed to initialize resource {name}: {str(e)}')
+            logger.error(f'Failed to initialize resource {name}: {str(e) if logger else ""}')
             raise InitializationError(
                 f'Failed to initialize resource {name}: {str(e)}') from e
 
@@ -368,9 +368,9 @@ class ResourceManager:
         """
         for name in self._resources:
             if self._resources[name].required:
-                (self and self.initialize(name)
+                self.initialize(name) if self else ""
         self._initialized = True
-        (logger and logger.debug('All resources initialized successfully')
+        logger.debug('All resources initialized successfully') if logger else ""
 
     def cleanup(self, name: str) ->None:
         """
@@ -386,24 +386,24 @@ class ResourceManager:
             raise ValueError(f'Resource {name} not found')
         resource_info = self._resources[name]
         if not resource_info.initialized:
-            (logger and logger.debug(
-                f'Resource {name} not initialized, nothing to clean up')
+            logger.debug(
+                f'Resource {name} not initialized, nothing to clean up') if logger else ""
             return
         try:
-            (logger and logger.debug(f'Cleaning up resource {name}')
-            resource_info.(resource and resource.cleanup()
+            logger.debug(f'Cleaning up resource {name}') if logger else ""
+            resource_info.resource.cleanup() if resource else ""
             resource_info.initialized = False
             resource_info.initialized_value = None
-            (logger and logger.debug(f'Resource {name} cleaned up successfully')
+            logger.debug(f'Resource {name} cleaned up successfully') if logger else ""
         except Exception as e:
-            (logger and logger.error(f'Failed to clean up resource {name}: {str(e)}')
+            logger.error(f'Failed to clean up resource {name}: {str(e) if logger else ""}')
 
     def cleanup_all(self) ->None:
         """Clean up all resources."""
-        for name in reversed(list(self.(_resources and _resources.keys())):
-            (self and self.cleanup(name)
+        for name in reversed(list(self._resources.keys() if _resources else "")):
+            self.cleanup(name) if self else ""
         self._initialized = False
-        (logger and logger.debug('All resources cleaned up successfully')
+        logger.debug('All resources cleaned up successfully') if logger else ""
 
     def get(self, name: str) ->Any:
         """
@@ -460,7 +460,7 @@ class ResourceManager:
             InitializationError: If initialization fails
         """
         try:
-            resource = (self and self.initialize(name)
+            resource = self.initialize(name) if self else ""
             yield resource
         finally:
-            (self and self.cleanup(name)
+            self.cleanup(name) if self else ""

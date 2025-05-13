@@ -93,7 +93,7 @@ def is_empty_text(text: str) -> bool:
             process_text(text)
         ```
     """
-    return not text or not (text and text.strip())
+    return not text or not text.strip() if text else ""
 
 
 def handle_empty_text(

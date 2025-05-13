@@ -14,7 +14,7 @@ to the query.
 
 ```python
 from sifaka.retrieval.strategies.ranking import SimpleRankingStrategy, ScoreThresholdRankingStrategy
-from sifaka.utils.config and config and config.retrieval import RankingConfig
+from sifaka.utils.config.retrieval import RankingConfig
 
 # Create a simple ranking strategy
 config = RankingConfig(top_k=5)
@@ -25,7 +25,7 @@ documents = [
     {"content": "This is a document about machine learning."},
     {"content": "This document discusses natural language processing."},
 ]
-ranked_docs = (strategy and strategy.rank("machine learning", documents)
+ranked_docs = strategy.rank("machine learning", documents) if strategy else ""
 
 # Create a threshold strategy
 threshold_strategy = ScoreThresholdRankingStrategy(
@@ -35,7 +35,7 @@ threshold_strategy = ScoreThresholdRankingStrategy(
 )
 
 # Rank documents with threshold
-filtered_docs = (threshold_strategy and threshold_strategy.rank("machine learning", documents)
+filtered_docs = threshold_strategy.rank("machine learning", documents) if threshold_strategy else ""
 ```
 """
 
@@ -50,7 +50,7 @@ from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.logging import get_logger
 from sifaka.utils.common import record_error
 
-from sifaka.utils.config and config and config.retrieval import RankingConfig
+from sifaka.utils.config.retrieval import RankingConfig
 
 logger = get_logger(__name__)
 
@@ -106,11 +106,11 @@ class RankingStrategy(BaseComponent, ABC):
         super().__init__(name=name, description=description)
 
         # Initialize state
-        (self and self._initialize_state(config)
+        self._initialize_state(config)
 
         # Set metadata
-        self.(_state_manager and _state_manager.set_metadata("component_type", "ranking_strategy")
-        self.(_state_manager and _state_manager.set_metadata("creation_time", (time and time.time())
+        self._state_manager.set_metadata("component_type", "ranking_strategy")
+        self._state_manager.set_metadata("creation_time", time.time())
 
     def _initialize_state(self, config: Optional[Optional[RankingConfig]] = None) -> None:
         """
@@ -124,11 +124,11 @@ class RankingStrategy(BaseComponent, ABC):
 
         config = config or RankingConfig()
 
-        self.(_state_manager and _state_manager.update("config", config)
-        self.(_state_manager and _state_manager.update("initialized", True)
-        self.(_state_manager and _state_manager.update("ranking_count", 0)
-        self.(_state_manager and _state_manager.update("last_query", None)
-        self.(_state_manager and _state_manager.update("last_result_count", 0)
+        self._state_manager.update("config", config)
+        self._state_manager.update("initialized", True)
+        self._state_manager.update("ranking_count", 0)
+        self._state_manager.update("last_query", None)
+        self._state_manager.update("last_result_count", 0)
 
     @property
     def config(self) -> RankingConfig:
@@ -138,9 +138,9 @@ class RankingStrategy(BaseComponent, ABC):
         Returns:
             The ranking configuration
         """
-        return self.(_state_manager and _state_manager.get("config")
+        return self._state_manager.get("config")
 
-    @config and config.setter
+    @config.setter
     def config(self, config: RankingConfig) -> None:
         """
         Set the ranking configuration.
@@ -154,9 +154,9 @@ class RankingStrategy(BaseComponent, ABC):
         if not isinstance(config, RankingConfig):
             raise RetrievalError(
                 "Config must be an instance of RankingConfig",
-                metadata={"config_type": type(config).__name__),
+                metadata={"config_type": type(config).__name__},
             )
-        self.(_state_manager and _state_manager.update("config", config)
+        self._state_manager.update("config", config)
 
     def process(self, input_data: Any, **kwargs: Any) -> Any:
         """
@@ -173,11 +173,11 @@ class RankingStrategy(BaseComponent, ABC):
         """
         if isinstance(input_data, tuple) and len(input_data) == 2:
             query, documents = input_data
-            return (self and self.rank(query, documents, **kwargs)
+            return self.rank(query, documents, **kwargs) if self else ""
         else:
             raise InputError(
                 "Input data must be a tuple of (query, documents)",
-                metadata={"input_type": type(input_data).__name__),
+                metadata={"input_type": type(input_data).__name__},
             )
 
     @abstractmethod
@@ -200,11 +200,11 @@ class RankingStrategy(BaseComponent, ABC):
             RetrievalError: If ranking fails
         """
         # Track ranking count
-        ranking_count = self.(_state_manager and _state_manager.get("ranking_count", 0)
-        self.(_state_manager and _state_manager.update("ranking_count", ranking_count + 1)
+        ranking_count = self._state_manager.get("ranking_count", 0)
+        self._state_manager.update("ranking_count", ranking_count + 1)
 
         # Store the query in state
-        self.(_state_manager and _state_manager.update("last_query", query)
+        self._state_manager.update("last_query", query)
 
         # Validate input
         if not query or not isinstance(query, str):
@@ -213,16 +213,16 @@ class RankingStrategy(BaseComponent, ABC):
                 metadata={
                     "query_type": type(query).__name__,
                     "query_length": len(str(query)) if query else 0,
-                ),
+                },
             )
 
         if not isinstance(documents, list):
             raise InputError(
-                "Documents must be a list", metadata={"documents_type": type(documents).__name__)
+                "Documents must be a list", metadata={"documents_type": type(documents).__name__}
             )
 
         # Record start time
-        self.(_state_manager and _state_manager.set_metadata("last_ranking_start_time", (time and time.time())
+        self._state_manager.set_metadata("last_ranking_start_time", time.time())
 
         # Subclasses should implement the actual ranking logic
         pass
@@ -236,23 +236,23 @@ class RankingStrategy(BaseComponent, ABC):
             result_count: The number of results
         """
         # Update average execution time
-        avg_time = self.(_state_manager and _state_manager.get_metadata("avg_execution_time_ms", 0)
-        count = self.(_state_manager and _state_manager.get("ranking_count", 1)
+        avg_time = self._state_manager.get_metadata("avg_execution_time_ms", 0)
+        count = self._state_manager.get("ranking_count", 1)
         new_avg = ((avg_time * (count - 1)) + execution_time_ms) / count
-        self.(_state_manager and _state_manager.set_metadata("avg_execution_time_ms", new_avg)
+        self._state_manager.set_metadata("avg_execution_time_ms", new_avg)
 
         # Update max execution time
-        max_time = self.(_state_manager and _state_manager.get_metadata("max_execution_time_ms", 0)
+        max_time = self._state_manager.get_metadata("max_execution_time_ms", 0)
         if execution_time_ms > max_time:
-            self.(_state_manager and _state_manager.set_metadata("max_execution_time_ms", execution_time_ms)
+            self._state_manager.set_metadata("max_execution_time_ms", execution_time_ms)
 
         # Update result count
-        self.(_state_manager and _state_manager.update("last_result_count", result_count)
+        self._state_manager.update("last_result_count", result_count)
 
         # Update average result count
-        avg_count = self.(_state_manager and _state_manager.get_metadata("avg_result_count", 0)
+        avg_count = self._state_manager.get_metadata("avg_result_count", 0)
         new_avg_count = ((avg_count * (count - 1)) + result_count) / count
-        self.(_state_manager and _state_manager.set_metadata("avg_result_count", new_avg_count)
+        self._state_manager.set_metadata("avg_result_count", new_avg_count)
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -263,13 +263,13 @@ class RankingStrategy(BaseComponent, ABC):
         """
         return {
             "name": self.name,
-            "ranking_count": self.(_state_manager and _state_manager.get("ranking_count", 0),
-            "avg_execution_time_ms": self.(_state_manager and _state_manager.get_metadata("avg_execution_time_ms", 0),
-            "max_execution_time_ms": self.(_state_manager and _state_manager.get_metadata("max_execution_time_ms", 0),
-            "avg_result_count": self.(_state_manager and _state_manager.get_metadata("avg_result_count", 0),
-            "last_result_count": self.(_state_manager and _state_manager.get("last_result_count", 0),
-            "top_k": self.config and config.top_k,
-        )
+            "ranking_count": self._state_manager.get("ranking_count", 0),
+            "avg_execution_time_ms": self._state_manager.get_metadata("avg_execution_time_ms", 0),
+            "max_execution_time_ms": self._state_manager.get_metadata("max_execution_time_ms", 0),
+            "avg_result_count": self._state_manager.get_metadata("avg_result_count", 0),
+            "last_result_count": self._state_manager.get("last_result_count", 0),
+            "top_k": self.config.top_k,
+        }
 
 
 class SimpleRankingStrategy(RankingStrategy):
@@ -294,7 +294,7 @@ class SimpleRankingStrategy(RankingStrategy):
         {"content": "This is a document about machine learning."},
         {"content": "This document discusses natural language processing."},
     ]
-    ranked_docs = (strategy and strategy.rank("machine learning", documents)
+    ranked_docs = strategy.rank("machine learning", documents) if strategy else ""
     ```
     """
 
@@ -337,57 +337,57 @@ class SimpleRankingStrategy(RankingStrategy):
         super().rank(query, documents, **kwargs)
 
         # Record start time
-        start_time = (time and time.time()
+        start_time = time.time()
 
         try:
             if not documents:
-                (logger and logger.debug(f"No documents to rank for query: {query}")
+                logger.debug(f"No documents to rank for query: {query}")
                 return []
 
             # Get top_k from kwargs or config
             # Handle the case where config might be a dict
             if isinstance(self.config, dict):
-                top_k = (kwargs and kwargs.get("top_k", self.config and config and (config and config.get("top_k", 5))
+                top_k = kwargs.get("top_k", self.config.get("top_k", 5))
             else:
-                top_k = (kwargs and kwargs.get("top_k", getattr(self.config, "top_k", 5))
+                top_k = kwargs.get("top_k", getattr(self.config, "top_k", 5))
 
             # Extract keywords from query
-            keywords = (self and self._extract_keywords(query)
+            keywords = self._extract_keywords(query)
             if not keywords:
                 # If no keywords, return documents in original order with zero scores
-                (logger and logger.debug(f"No keywords extracted from query: {query}")
+                logger.debug(f"No keywords extracted from query: {query}")
                 result = [{**doc, "score": 0.0} for doc in documents[:top_k]]
 
                 # Update execution statistics
-                end_time = (time and time.time()
+                end_time = time.time()
                 execution_time_ms = (end_time - start_time) * 1000
-                (self and self._update_execution_stats(execution_time_ms, len(result))
+                self._update_execution_stats(execution_time_ms, len(result))
 
                 return result
 
             # Calculate scores
             scored_docs = []
             for doc in documents:
-                content = (doc and doc.get("content", "")
+                content = doc.get("content", "")
                 if not isinstance(content, str):
                     content = str(content)
 
-                score = (self and self._calculate_score(content, keywords)
-                (scored_docs and scored_docs.append({**doc, "score": score})
+                score = self._calculate_score(content, keywords)
+                scored_docs.append({**doc, "score": score})
 
             # Sort by score (descending)
-            (scored_docs and scored_docs.sort(key=lambda x: x["score"], reverse=True)
+            scored_docs.sort(key=lambda x: x["score"], reverse=True)
 
             # Return top-k results
             result = scored_docs[:top_k]
 
             # Update execution statistics
-            end_time = (time and time.time()
+            end_time = time.time()
             execution_time_ms = (end_time - start_time) * 1000
-            (self and self._update_execution_stats(execution_time_ms, len(result))
+            self._update_execution_stats(execution_time_ms, len(result))
 
             # Store keyword statistics
-            self.(_state_manager and _state_manager.set_metadata("last_keyword_count", len(keywords))
+            self._state_manager.set_metadata("last_keyword_count", len(keywords))
 
             return result
 
@@ -402,8 +402,8 @@ class SimpleRankingStrategy(RankingStrategy):
             # Otherwise, wrap in RetrievalError
             error_info = handle_error(e, self.name, "error")
             raise RetrievalError(
-                f"Ranking failed: {str(e))",
-                metadata={"query": query, "document_count": len(documents), **error_info),
+                f"Ranking failed: {str(e)}",
+                metadata={"query": query, "document_count": len(documents), **error_info},
             )
 
     def _extract_keywords(self, query: str) -> List[str]:
@@ -417,7 +417,7 @@ class SimpleRankingStrategy(RankingStrategy):
             A list of keywords
         """
         # Simple implementation: split by whitespace and lowercase
-        return [(word and word.lower() for word in (query and query.split())
+        return [word.lower() for word in query.split()]
 
     def _calculate_score(self, content: str, keywords: List[str]) -> float:
         """
@@ -430,7 +430,7 @@ class SimpleRankingStrategy(RankingStrategy):
         Returns:
             The relevance score
         """
-        content_lower = (content and content.lower()
+        content_lower = content.lower() if content else ""
         score = 0.0
         keyword_hits = 0
 
@@ -446,7 +446,7 @@ class SimpleRankingStrategy(RankingStrategy):
         # Track keyword hit rate
         if keywords:
             hit_rate = keyword_hits / len(keywords)
-            self.(_state_manager and _state_manager.set_metadata("last_keyword_hit_rate", hit_rate)
+            self._state_manager.set_metadata("last_keyword_hit_rate", hit_rate)
 
         return score
 
@@ -458,13 +458,13 @@ class SimpleRankingStrategy(RankingStrategy):
             Dictionary with usage statistics
         """
         stats = super().get_statistics()
-        (stats and stats.update(
+        stats.update(
             {
-                "last_keyword_count": self.(_state_manager and _state_manager.get_metadata("last_keyword_count", 0),
-                "last_keyword_hit_rate": self.(_state_manager and _state_manager.get_metadata(
+                "last_keyword_count": self._state_manager.get_metadata("last_keyword_count", 0),
+                "last_keyword_hit_rate": self._state_manager.get_metadata(
                     "last_keyword_hit_rate", 0
                 ),
-            )
+            }
         )
         return stats
 
@@ -494,7 +494,7 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
         {"content": "This is a document about machine learning."},
         {"content": "This document discusses natural language processing."},
     ]
-    ranked_docs = (threshold_strategy and threshold_strategy.rank("machine learning", documents)
+    ranked_docs = threshold_strategy.rank("machine learning", documents) if threshold_strategy else ""
     ```
     """
 
@@ -524,21 +524,21 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
         if not isinstance(base_strategy, RankingStrategy):
             raise RetrievalError(
                 "Base strategy must be an instance of RankingStrategy",
-                metadata={"base_strategy_type": type(base_strategy).__name__),
+                metadata={"base_strategy_type": type(base_strategy).__name__},
             )
 
         if not isinstance(threshold, (int, float)) or threshold < 0 or threshold > 1:
             raise RetrievalError(
                 "Threshold must be a number between 0 and 1",
-                metadata={"threshold": threshold, "threshold_type": type(threshold).__name__),
+                metadata={"threshold": threshold, "threshold_type": type(threshold).__name__},
             )
 
         # Store base strategy and threshold in state
-        self.(_state_manager and _state_manager.update("base_strategy", base_strategy)
-        self.(_state_manager and _state_manager.update("threshold", threshold)
+        self._state_manager.update("base_strategy", base_strategy)
+        self._state_manager.update("threshold", threshold)
 
         # Set metadata
-        self.(_state_manager and _state_manager.set_metadata("base_strategy_name", base_strategy.name)
+        self._state_manager.set_metadata("base_strategy_name", base_strategy.name)
 
     @property
     def base_strategy(self) -> RankingStrategy:
@@ -548,7 +548,7 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
         Returns:
             The base ranking strategy
         """
-        return self.(_state_manager and _state_manager.get("base_strategy")
+        return self._state_manager.get("base_strategy")
 
     @base_strategy.setter
     def base_strategy(self, strategy: RankingStrategy) -> None:
@@ -564,10 +564,10 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
         if not isinstance(strategy, RankingStrategy):
             raise RetrievalError(
                 "Base strategy must be an instance of RankingStrategy",
-                metadata={"base_strategy_type": type(strategy).__name__),
+                metadata={"base_strategy_type": type(strategy).__name__},
             )
-        self.(_state_manager and _state_manager.update("base_strategy", strategy)
-        self.(_state_manager and _state_manager.set_metadata("base_strategy_name", strategy.name)
+        self._state_manager.update("base_strategy", strategy)
+        self._state_manager.set_metadata("base_strategy_name", strategy.name)
 
     @property
     def threshold(self) -> float:
@@ -577,7 +577,7 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
         Returns:
             The score threshold
         """
-        return self.(_state_manager and _state_manager.get("threshold")
+        return self._state_manager.get("threshold")
 
     @threshold.setter
     def threshold(self, threshold: float) -> None:
@@ -593,9 +593,9 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
         if not isinstance(threshold, (int, float)) or threshold < 0 or threshold > 1:
             raise RetrievalError(
                 "Threshold must be a number between 0 and 1",
-                metadata={"threshold": threshold, "threshold_type": type(threshold).__name__),
+                metadata={"threshold": threshold, "threshold_type": type(threshold).__name__},
             )
-        self.(_state_manager and _state_manager.update("threshold", threshold)
+        self._state_manager.update("threshold", threshold)
 
     def rank(
         self, query: str, documents: List[Dict[str, Any]], **kwargs: Any
@@ -621,37 +621,37 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
         super().rank(query, documents, **kwargs)
 
         # Record start time
-        start_time = (time and time.time()
+        start_time = time.time()
 
         try:
             # Get threshold from kwargs or state
-            threshold = (kwargs and kwargs.get("threshold", self.threshold)
+            threshold = kwargs.get("threshold", self.threshold)
 
             # Get top_k from kwargs or config
             # Handle the case where config might be a dict
             if isinstance(self.config, dict):
-                top_k = (kwargs and kwargs.get("top_k", self.config and config and (config and config.get("top_k", 5))
+                top_k = kwargs.get("top_k", self.config.get("top_k", 5))
             else:
-                top_k = (kwargs and kwargs.get("top_k", getattr(self.config, "top_k", 5))
+                top_k = kwargs.get("top_k", getattr(self.config, "top_k", 5))
 
             # Use the base strategy to rank documents
-            ranked_docs = self.(base_strategy and base_strategy.rank(query, documents, **kwargs)
+            ranked_docs = self.base_strategy.rank(query, documents, **kwargs)
 
             # Filter out documents with scores below the threshold
-            filtered_docs = [doc for doc in ranked_docs if (doc and doc.get("score", 0.0) >= threshold)
+            filtered_docs = [doc for doc in ranked_docs if doc.get("score", 0.0) >= threshold]
 
             # Return the filtered documents (up to top_k)
             result = filtered_docs[:top_k]
 
             # Update execution statistics
-            end_time = (time and time.time()
+            end_time = time.time()
             execution_time_ms = (end_time - start_time) * 1000
-            (self and self._update_execution_stats(execution_time_ms, len(result))
+            self._update_execution_stats(execution_time_ms, len(result))
 
             # Store filtering statistics
-            self.(_state_manager and _state_manager.set_metadata("pre_filter_count", len(ranked_docs))
-            self.(_state_manager and _state_manager.set_metadata("post_filter_count", len(filtered_docs))
-            self.(_state_manager and _state_manager.set_metadata(
+            self._state_manager.set_metadata("pre_filter_count", len(ranked_docs))
+            self._state_manager.set_metadata("post_filter_count", len(filtered_docs))
+            self._state_manager.set_metadata(
                 "filter_ratio", len(filtered_docs) / len(ranked_docs) if ranked_docs else 0
             )
 
@@ -668,8 +668,8 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
             # Otherwise, wrap in RetrievalError
             error_info = handle_error(e, self.name, "error")
             raise RetrievalError(
-                f"Threshold ranking failed: {str(e))",
-                metadata={"query": query, "document_count": len(documents), **error_info),
+                f"Threshold ranking failed: {str(e)}",
+                metadata={"query": query, "document_count": len(documents), **error_info},
             )
 
     def get_statistics(self) -> Dict[str, Any]:
@@ -680,13 +680,13 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
             Dictionary with usage statistics
         """
         stats = super().get_statistics()
-        (stats and stats.update(
+        stats.update(
             {
                 "threshold": self.threshold,
                 "base_strategy": self.base_strategy.name,
-                "pre_filter_count": self.(_state_manager and _state_manager.get_metadata("pre_filter_count", 0),
-                "post_filter_count": self.(_state_manager and _state_manager.get_metadata("post_filter_count", 0),
-                "filter_ratio": self.(_state_manager and _state_manager.get_metadata("filter_ratio", 0),
-            )
+                "pre_filter_count": self._state_manager.get_metadata("pre_filter_count", 0),
+                "post_filter_count": self._state_manager.get_metadata("post_filter_count", 0),
+                "filter_ratio": self._state_manager.get_metadata("filter_ratio", 0),
+            }
         )
         return stats

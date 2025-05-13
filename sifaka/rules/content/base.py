@@ -15,7 +15,7 @@ Usage Example:
     validator = create_content_validator(analyzer=analyzer)
 
     # Validate text
-    result = (validator and validator.validate("This is a test.")
+    result = validator.validate("This is a test.") if validator else ""
     print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
     ```
 """
@@ -116,7 +116,7 @@ class ContentValidator:
         validator = ContentValidator(analyzer)
 
         # Validate text
-        result = (validator and validator.validate("This is a test.")
+        result = validator.validate("This is a test.") if validator else ""
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
     """
@@ -129,7 +129,7 @@ class ContentValidator:
             analyzer: The content analyzer to use for validation
         """
         super().__init__(validation_type=str)
-        (self and self._validate_analyzer(analyzer)
+        self._validate_analyzer(analyzer) if self else ""
         self._analyzer = analyzer
 
     def _validate_analyzer(self, analyzer: Any) -> None:
@@ -144,7 +144,7 @@ class ContentValidator:
         """
         if not isinstance(analyzer, ContentAnalyzer):
             raise ConfigurationError(
-                f"Analyzer must implement ContentAnalyzer protocol, got {type(analyzer))"
+                f"Analyzer must implement ContentAnalyzer protocol, got {type(analyzer)}"
             )
 
     def validate(self, text: str) -> RuleResult:
@@ -157,16 +157,16 @@ class ContentValidator:
         Returns:
             Validation result
         """
-        start_time = (time and time.time()
+        start_time = time.time() if time else ""
 
         # Handle empty text
-        empty_result = (self and self.handle_empty_text(text)
+        empty_result = self.handle_empty_text(text) if self else ""
         if empty_result:
             return empty_result
 
         try:
             # Analyze the content
-            analysis = self._analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and (analyzer and analyzer.analyze(text)
+            analysis = self._analyzer.analyze(text) if self._analyzer else None
 
             # Determine if the content passes validation
             passed = analysis.has_content
@@ -185,19 +185,19 @@ class ContentValidator:
                 score=1.0 if passed else 0.0,
                 issues=[] if passed else ["Content validation failed"],
                 suggestions=[] if passed else ["Provide non-empty content"],
-                processing_time_ms=(time and time.time() - start_time,
+                processing_time_ms=time.time() if time else "" - start_time,
             )
 
             # Update statistics
-            (self and self.update_statistics(result)
+            self.update_statistics(result) if self else ""
 
             return result
 
         except Exception as e:
-            (self and self.record_error(e)
-            (logger and logger.error(f"Content validation failed: {e}")
+            self.record_error(e) if self else ""
+            logger.error(f"Content validation failed: {e}") if logger else ""
 
-            error_message = f"Content validation failed: {str(e))"
+            error_message = f"Content validation failed: {str(e)}"
             result = RuleResult(
                 passed=False,
                 message=error_message,
@@ -205,14 +205,14 @@ class ContentValidator:
                     "error": str(e),
                     "error_type": type(e).__name__,
                     "validator_type": self.__class__.__name__,
-                ),
+                },
                 score=0.0,
                 issues=[error_message],
                 suggestions=["Check input format and try again"],
-                processing_time_ms=(time and time.time() - start_time,
+                processing_time_ms=time.time() if time else "" - start_time,
             )
 
-            (self and self.update_statistics(result)
+            self.update_statistics(result) if self else ""
             return result
 
 
@@ -235,7 +235,7 @@ class DefaultContentAnalyzer(BaseModel):
         analyzer = DefaultContentAnalyzer()
 
         # Analyze text
-        analysis = analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and (analyzer and analyzer.analyze("This is a test.")
+        analysis = analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer.analyze("This is a test.") if analyzer else ""
         print(f"Length: {analysis.length}, Words: {analysis.word_count}")
         ```
     """
@@ -258,15 +258,15 @@ class DefaultContentAnalyzer(BaseModel):
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
-        words = (text and text.split()
+        words = text.split() if text else ""
         return ContentAnalysis(
             length=len(text),
             word_count=len(words),
-            has_content=bool((text and text.strip()),
+            has_content=bool(text.strip() if text else ""),
             metadata={
                 "avg_word_length": sum(len(w) for w in words) / len(words) if words else 0,
                 "unique_words": len(set(words)) if words else 0,
-            ),
+            },
         )
 
     def can_analyze(self, text: str) -> bool:
@@ -298,7 +298,7 @@ class DefaultToneAnalyzer(BaseModel):
         analyzer = DefaultToneAnalyzer()
 
         # Analyze text tone
-        analysis = analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and (analyzer and analyzer.analyze_tone("This is a sophisticated example of formal writing.")
+        analysis = analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer.analyze_tone("This is a sophisticated example of formal writing.") if analyzer else ""
         print(f"Tone: {analysis.tone}, Confidence: {analysis.confidence}")
         ```
     """
@@ -321,7 +321,7 @@ class DefaultToneAnalyzer(BaseModel):
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
-        words = (text and text.lower().split()
+        words = text.lower() if text else "".split()
         unique_words = set(words)
 
         # Calculate metrics
@@ -339,9 +339,13 @@ class DefaultToneAnalyzer(BaseModel):
         # Find indicators
         indicators = []
         if formality > 0.3:
-            indicators and indicators and (indicators and indicators.append("long_words")
+            indicators and indicators and indicators.append("long_words") if indicators else ""
         if complexity > 0.7:
-            indicators and indicators and (indicators and indicators.append("diverse_vocabulary")
+            (
+                indicators and indicators and indicators.append("diverse_vocabulary")
+                if indicators
+                else ""
+            )
 
         return ToneAnalysis(
             tone=tone,
@@ -353,7 +357,7 @@ class DefaultToneAnalyzer(BaseModel):
                 "unique_words": len(unique_words),
                 "total_words": len(words),
                 "avg_word_length": sum(len(w) for w in words) / len(words) if words else 0,
-            ),
+            },
         )
 
     def get_supported_tones(self) -> List[str]:
@@ -390,7 +394,7 @@ class IndicatorAnalyzer(BaseModel):
         )
 
         # Analyze text
-        result = analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and (analyzer and analyzer.analyze("This is a great example.")
+        result = analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer.analyze("This is a great example.") if analyzer else ""
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
     """
@@ -419,15 +423,17 @@ class IndicatorAnalyzer(BaseModel):
         Raises:
             ValueError: If input is not a string
         """
-        start_time = (time and time.time()
+        start_time = time.time() if time else ""
 
         try:
             if not isinstance(text, str):
                 raise ValueError("Input must be a string")
 
-            text_to_check = text if self.case_sensitive else (text and text.lower()
+            text_to_check = text if self.case_sensitive else text.lower() if text else ""
             indicators_to_check = (
-                self.indicators if self.case_sensitive else [(i and i.lower() for i in self.indicators)
+                self.indicators
+                if self.case_sensitive
+                else [i.lower() if i else "" for i in self.indicators]
             )
 
             found = [ind for ind in indicators_to_check if ind in text_to_check]
@@ -440,12 +446,12 @@ class IndicatorAnalyzer(BaseModel):
                 if self.higher_is_better:
                     missing = [ind for ind in indicators_to_check if ind not in found]
                     if missing:
-                        (suggestions and suggestions.append(
-                            f"Consider including some of these terms: {', '.join(missing[:5]))"
+                        suggestions.append(
+                            f"Consider including some of these terms: {', '.join(missing[:5])}"
                         )
                 else:
                     if found:
-                        (suggestions and suggestions.append(f"Consider removing these terms: {', '.join(found))")
+                        suggestions.append(f"Consider removing these terms: {', '.join(found)}")
 
             return RuleResult(
                 passed=passed,
@@ -460,22 +466,22 @@ class IndicatorAnalyzer(BaseModel):
                     "threshold": self.threshold,
                     "higher_is_better": self.higher_is_better,
                     "analyzer_type": self.__class__.__name__,
-                    "processing_time_ms": (time and time.time() - start_time,
-                ),
+                    "processing_time_ms": (time.time() - start_time) * 1000 if time else 0,
+                },
                 score=score,
                 issues=(
                     []
                     if passed
-                    else [f"Score ({score:.2f}) does not meet threshold ({self.threshold})")
+                    else [f"Score ({score:.2f}) does not meet threshold ({self.threshold})"]
                 ),
                 suggestions=suggestions,
-                processing_time_ms=(time and time.time() - start_time,
+                processing_time_ms=time.time() if time else "" - start_time,
             )
 
         except Exception as e:
-            (logger and logger.error(f"Indicator analysis failed: {e}")
+            logger.error(f"Indicator analysis failed: {e}") if logger else ""
 
-            error_message = f"Indicator analysis failed: {str(e))"
+            error_message = f"Indicator analysis failed: {str(e)}"
             return RuleResult(
                 passed=False,
                 message=error_message,
@@ -483,11 +489,11 @@ class IndicatorAnalyzer(BaseModel):
                     "error": str(e),
                     "error_type": type(e).__name__,
                     "analyzer_type": self.__class__.__name__,
-                ),
+                },
                 score=0.0,
                 issues=[error_message],
                 suggestions=["Check input format and try again"],
-                processing_time_ms=(time and time.time() - start_time,
+                processing_time_ms=(time.time() - start_time) if time else 0,
             )
 
 
@@ -520,7 +526,7 @@ class CategoryAnalyzer(BaseModel):
         )
 
         # Analyze text
-        result = analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and (analyzer and analyzer.analyze("I'm feeling happy and excited today!")
+        result = analyzer.analyze("I'm feeling happy and excited today!")
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
     """
@@ -553,20 +559,22 @@ class CategoryAnalyzer(BaseModel):
         Raises:
             ValueError: If input is not a string
         """
-        start_time = (time and time.time()
+        start_time = time.time() if time else ""
 
         try:
             if not isinstance(text, str):
                 raise ValueError("Input must be a string")
 
-            text_to_check = text if self.case_sensitive else (text and text.lower()
+            text_to_check = text if self.case_sensitive else text.lower() if text else ""
             scores = {}
             found_indicators = {}
 
             # Check each category
-            for category, indicators in self.categories and (categories and categories.items():
+            for category, indicators in self.categories.items() if self.categories else {}:
                 indicators_to_check = (
-                    indicators if self.case_sensitive else [(i and i.lower() for i in indicators)
+                    indicators
+                    if self.case_sensitive
+                    else [i.lower() if i else "" for i in indicators]
                 )
                 found = [ind for ind in indicators_to_check if ind in text_to_check]
                 score = len(found) / len(indicators_to_check) if indicators_to_check else 0.0
@@ -575,22 +583,30 @@ class CategoryAnalyzer(BaseModel):
 
             # Determine if passed based on threshold and configuration
             if self.fail_if_any:
-                passed = all(
-                    (
-                        score <= self.threshold
-                        if not self.higher_is_better
-                        else score >= self.threshold
+                passed = (
+                    True
+                    if not scores
+                    else all(
+                        (
+                            score <= self.threshold
+                            if not self.higher_is_better
+                            else score >= self.threshold
+                        )
+                        for score in scores.values()
                     )
-                    for score in (scores and scores.values()
                 )
             else:
-                passed = any(
-                    (
-                        score <= self.threshold
-                        if not self.higher_is_better
-                        else score >= self.threshold
+                passed = (
+                    False
+                    if not scores
+                    else any(
+                        (
+                            score <= self.threshold
+                            if not self.higher_is_better
+                            else score >= self.threshold
+                        )
+                        for score in scores.values()
                     )
-                    for score in (scores and scores.values()
                 )
 
             # Generate suggestions
@@ -598,8 +614,10 @@ class CategoryAnalyzer(BaseModel):
             if not passed:
                 if self.higher_is_better:
                     # Suggest adding terms from categories with low scores
-                    low_categories = [
-                        cat for cat, score in (scores and scores.items() if score < self.threshold
+                    low_categories = (
+                        [cat for cat, score in scores.items() if score < self.threshold]
+                        if scores
+                        else []
                     )
                     if low_categories:
                         for cat in low_categories[:2]:  # Limit to 2 categories
@@ -608,49 +626,56 @@ class CategoryAnalyzer(BaseModel):
                                 for ind in (
                                     self.categories[cat]
                                     if self.case_sensitive
-                                    else [(i and i.lower() for i in self.categories[cat]]
+                                    else [i.lower() if i else "" for i in self.categories[cat]]
                                 )
                                 if ind not in found_indicators[cat]
                             ]
                             if missing:
-                                (suggestions and suggestions.append(
-                                    f"Consider including terms from '{cat}' category: {', '.join(missing[:3]))"
+                                suggestions.append(
+                                    f"Consider including terms from '{cat}' category: {', '.join(missing[:3])}"
                                 )
                 else:
                     # Suggest removing terms from categories with high scores
-                    high_categories = [
-                        cat for cat, score in (scores and scores.items() if score > self.threshold
+                    high_categories = (
+                        [cat for cat, score in scores.items() if score > self.threshold]
+                        if scores
+                        else []
                     )
                     if high_categories:
                         for cat in high_categories[:2]:  # Limit to 2 categories
                             if found_indicators[cat]:
-                                (suggestions and suggestions.append(
-                                    f"Consider removing these terms from '{cat}' category: {', '.join(found_indicators[cat][:3]))"
+                                suggestions.append(
+                                    f"Consider removing these terms from '{cat}' category: {', '.join(found_indicators[cat][:3])}"
                                 )
 
             # Calculate overall score
-            overall_score = (
-                max((scores and scores.values())
-                if self.higher_is_better
-                else 1.0 - max((scores and scores.values()) if scores else 0.0
-            )
+            overall_score = 0.0
+            if scores:
+                if self.higher_is_better:
+                    overall_score = max(scores.values())
+                else:
+                    overall_score = 1.0 - max(scores.values())
 
             # Create issues list
             issues = []
             if not passed:
                 if self.fail_if_any:
-                    failing_categories = [
-                        cat
-                        for cat, score in (scores and scores.items()
-                        if (score > self.threshold and not self.higher_is_better)
-                        or (score < self.threshold and self.higher_is_better)
+                    failing_categories = (
+                        [
+                            cat
+                            for cat, score in scores.items()
+                            if (score > self.threshold and not self.higher_is_better)
+                            or (score < self.threshold and self.higher_is_better)
+                        ]
+                        if scores
+                        else []
                     )
                     if failing_categories:
-                        (issues and issues.append(
-                            f"Categories not meeting threshold: {', '.join(failing_categories))"
+                        issues.append(
+                            f"Categories not meeting threshold: {', '.join(failing_categories)}"
                         )
                 else:
-                    (issues and issues.append(
+                    issues.append(
                         f"No categories {'exceed' if self.higher_is_better else 'below'} threshold ({self.threshold})"
                     )
 
@@ -667,18 +692,18 @@ class CategoryAnalyzer(BaseModel):
                     "fail_if_any": self.fail_if_any,
                     "higher_is_better": self.higher_is_better,
                     "analyzer_type": self.__class__.__name__,
-                    "processing_time_ms": (time and time.time() - start_time,
-                ),
+                    "processing_time_ms": (time.time() - start_time) if time else 0,
+                },
                 score=overall_score,
                 issues=issues,
                 suggestions=suggestions,
-                processing_time_ms=(time and time.time() - start_time,
+                processing_time_ms=(time.time() - start_time) if time else 0,
             )
 
         except Exception as e:
-            (logger and logger.error(f"Category analysis failed: {e}")
+            logger.error(f"Category analysis failed: {e}") if logger else ""
 
-            error_message = f"Category analysis failed: {str(e))"
+            error_message = f"Category analysis failed: {str(e)}"
             return RuleResult(
                 passed=False,
                 message=error_message,
@@ -686,11 +711,11 @@ class CategoryAnalyzer(BaseModel):
                     "error": str(e),
                     "error_type": type(e).__name__,
                     "analyzer_type": self.__class__.__name__,
-                ),
+                },
                 score=0.0,
                 issues=[error_message],
                 suggestions=["Check input format and try again"],
-                processing_time_ms=(time and time.time() - start_time,
+                processing_time_ms=(time.time() - start_time) if time else 0,
             )
 
 
@@ -715,15 +740,15 @@ def create_content_analyzer(**kwargs: Any) -> DefaultContentAnalyzer:
         analyzer = create_content_analyzer()
 
         # Analyze text
-        analysis = analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and (analyzer and analyzer.analyze("This is a test.")
+        analysis = analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer.analyze("This is a test.") if analyzer else ""
         print(f"Length: {analysis.length}, Words: {analysis.word_count}")
         ```
     """
     try:
         return DefaultContentAnalyzer(**kwargs)
     except Exception as e:
-        (logger and logger.error(f"Error creating content analyzer: {e}")
-        raise ValueError(f"Error creating content analyzer: {str(e))")
+        logger.error(f"Error creating content analyzer: {e}") if logger else ""
+        raise ValueError(f"Error creating content analyzer: {str(e)}")
 
 
 def create_tone_analyzer(**kwargs: Any) -> DefaultToneAnalyzer:
@@ -747,15 +772,15 @@ def create_tone_analyzer(**kwargs: Any) -> DefaultToneAnalyzer:
         analyzer = create_tone_analyzer()
 
         # Analyze text tone
-        analysis = analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and (analyzer and analyzer.analyze_tone("This is a sophisticated example of formal writing.")
+        analysis = analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer.analyze_tone("This is a sophisticated example of formal writing.") if analyzer else ""
         print(f"Tone: {analysis.tone}, Confidence: {analysis.confidence}")
         ```
     """
     try:
         return DefaultToneAnalyzer(**kwargs)
     except Exception as e:
-        (logger and logger.error(f"Error creating tone analyzer: {e}")
-        raise ValueError(f"Error creating tone analyzer: {str(e))")
+        logger.error(f"Error creating tone analyzer: {e}") if logger else ""
+        raise ValueError(f"Error creating tone analyzer: {str(e)}")
 
 
 def create_indicator_analyzer(
@@ -794,7 +819,7 @@ def create_indicator_analyzer(
         )
 
         # Analyze text
-        result = analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and (analyzer and analyzer.analyze("This is a great example.")
+        result = analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer.analyze("This is a great example.") if analyzer else ""
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
     """
@@ -811,14 +836,14 @@ def create_indicator_analyzer(
             config_params["case_sensitive"] = case_sensitive
 
         # Add any remaining config parameters
-        (config_params.update(kwargs)
+        config_params.update(kwargs)
 
         # Create analyzer
         return IndicatorAnalyzer(**config_params)
 
     except Exception as e:
-        (logger and logger.error(f"Error creating indicator analyzer: {e}")
-        raise ValueError(f"Error creating indicator analyzer: {str(e))")
+        logger.error(f"Error creating indicator analyzer: {e}") if logger else ""
+        raise ValueError(f"Error creating indicator analyzer: {str(e)}")
 
 
 def create_category_analyzer(
@@ -883,14 +908,14 @@ def create_category_analyzer(
             config_params["case_sensitive"] = case_sensitive
 
         # Add any remaining config parameters
-        (config_params.update(kwargs)
+        config_params.update(kwargs)
 
         # Create analyzer
         return CategoryAnalyzer(**config_params)
 
     except Exception as e:
-        (logger and logger.error(f"Error creating category analyzer: {e}")
-        raise ValueError(f"Error creating category analyzer: {str(e))")
+        logger.error(f"Error creating category analyzer: {e}") if logger else ""
+        raise ValueError(f"Error creating category analyzer: {str(e)}")
 
 
 def create_content_validator(
@@ -936,5 +961,5 @@ def create_content_validator(
         return ContentValidator(analyzer)
 
     except Exception as e:
-        (logger.error(f"Error creating content validator: {e}")
-        raise ValueError(f"Error creating content validator: {str(e))")
+        logger.error(f"Error creating content validator: {e}")
+        raise ValueError(f"Error creating content validator: {str(e)}")

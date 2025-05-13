@@ -18,7 +18,7 @@ json_rule = create_json_rule(
 )
 
 # Validate text
-result = (json_rule and json_rule.validate('{"key": "value"}')
+result = json_rule.validate('{"key": "value"}') if json_rule else ""
 print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 """
@@ -137,7 +137,7 @@ class _JsonAnalyzer:
         """
         try:
             # Parse JSON
-            parsed = (json and json.loads(text)
+            parsed = json.loads(text) if json else ""
 
             # Check if empty
             if not parsed and not self.allow_empty:
@@ -181,11 +181,23 @@ class _JsonAnalyzer:
             ]
 
             if "Expecting property name" in error_message:
-                (suggestions and suggestions.append("Make sure property names are enclosed in double quotes")
+                (
+                    suggestions.append("Make sure property names are enclosed in double quotes")
+                    if suggestions
+                    else ""
+                )
             elif "Expecting ',' delimiter" in error_message:
-                (suggestions and suggestions.append("Check for missing commas between elements")
+                (
+                    suggestions.append("Check for missing commas between elements")
+                    if suggestions
+                    else ""
+                )
             elif "Expecting ':' delimiter" in error_message:
-                (suggestions and suggestions.append("Check for missing colons between keys and values")
+                (
+                    suggestions.append("Check for missing colons between keys and values")
+                    if suggestions
+                    else ""
+                )
 
             return RuleResult(
                 passed=False,
@@ -229,7 +241,7 @@ class DefaultJsonValidator(BaseValidator[str], FormatValidator):
         validator = DefaultJsonValidator(config)
 
         # Validate text
-        result = (validator and validator.validate('{"key": "value"}')
+        result = validator.validate('{"key": "value"}') if validator else ""
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
     """
@@ -247,14 +259,14 @@ class DefaultJsonValidator(BaseValidator[str], FormatValidator):
         super().__init__(validation_type=str)
 
         # Store configuration in state
-        self.(_state_manager and _state_manager.update("config", config)
-        self.(_state_manager and _state_manager.update(
+        self._state_manager.update("config", config)
+        self._state_manager.update(
             "analyzer", _JsonAnalyzer(strict=config.strict, allow_empty=config.allow_empty)
         )
 
         # Set metadata
-        self.(_state_manager and _state_manager.set_metadata("validator_type", self.__class__.__name__)
-        self.(_state_manager and _state_manager.set_metadata("creation_time", (time and time.time())
+        self._state_manager.set_metadata("validator_type", self.__class__.__name__)
+        self._state_manager.set_metadata("creation_time", time.time() if time else "")
 
     @property
     def config(self) -> JsonConfig:
@@ -264,7 +276,7 @@ class DefaultJsonValidator(BaseValidator[str], FormatValidator):
         Returns:
             The JSON configuration
         """
-        return self.(_state_manager and _state_manager.get("config")
+        return self._state_manager.get("config")
 
     def validate(self, text: str) -> RuleResult:
         """
@@ -276,7 +288,7 @@ class DefaultJsonValidator(BaseValidator[str], FormatValidator):
         Returns:
             Validation result
         """
-        start_time = (time and time.time()
+        start_time = time.time() if time else ""
 
         # Handle empty text
         empty_result = handle_empty_text(text)
@@ -288,17 +300,18 @@ class DefaultJsonValidator(BaseValidator[str], FormatValidator):
                 raise ValueError("Input must be a string")
 
             # Get analyzer from state
-            analyzer = self.(_state_manager and _state_manager.get("analyzer")
+            analyzer = self._state_manager.get("analyzer")
 
             # Update validation count in metadata
-            validation_count = self.(_state_manager and _state_manager.get_metadata("validation_count", 0)
-            self.(_state_manager and _state_manager.set_metadata("validation_count", validation_count + 1)
+            validation_count = self._state_manager.get_metadata("validation_count", 0)
+            self._state_manager.set_metadata("validation_count", validation_count + 1)
 
-            result = (analyzer and analyzer.analyze(text)
+            result = analyzer.analyze(text) if analyzer else ""
 
             # Add additional metadata
-            result = (result and result.with_metadata(
-                validator_type=self.__class__.__name__, processing_time_ms=(time and time.time() - start_time
+            result = result.with_metadata(
+                validator_type=self.__class__.__name__,
+                processing_time_ms=time.time() - start_time if time else "",
             )
 
             # Update statistics
@@ -308,7 +321,7 @@ class DefaultJsonValidator(BaseValidator[str], FormatValidator):
 
         except Exception as e:
             record_validation_error(self._state_manager, e)
-            (logger and logger.error(f"JSON validation failed: {e}")
+            logger.error(f"JSON validation failed: {e}") if logger else ""
 
             error_message = f"JSON validation failed: {str(e)}"
             result = create_validation_result(
@@ -359,7 +372,7 @@ class JsonRule(BaseRule[str]):
         )
 
         # Validate text
-        result = (rule and rule.validate('{"key": "value"}')
+        result = rule.validate('{"key": "value"}') if rule else ""
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
     """
@@ -397,7 +410,7 @@ class JsonRule(BaseRule[str]):
             The JSON validator
         """
         if not hasattr(self, "_validator") or self._validator is None:
-            self._validator = (self and self._create_default_validator()
+            self._validator = self._create_default_validator() if self else ""
         return self._validator
 
     def _create_default_validator(self) -> DefaultJsonValidator:

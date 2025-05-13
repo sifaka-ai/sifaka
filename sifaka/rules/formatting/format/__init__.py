@@ -43,7 +43,7 @@ format_rule = create_format_rule(
 )
 
 # Validate text
-result = (markdown_rule and markdown_rule.validate("# Heading\n\n* List item")
+result = markdown_rule.validate("# Heading\n\n* List item") if markdown_rule else ""
 print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 
@@ -102,7 +102,7 @@ class FormatRule(BaseRule[str]):
         )
 
         # Validate text
-        result = (rule and rule.validate("# Heading\n\n* List item")
+        result = rule.validate("# Heading\n\n* List item") if rule else ""
         print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
         ```
     """
@@ -140,7 +140,7 @@ class FormatRule(BaseRule[str]):
             **kwargs: Additional configuration parameters
         """
         self._required_format = required_format
-        self._delegate_rule = (self and self._create_delegate_rule(
+        self._delegate_rule = self._create_delegate_rule(
             required_format=required_format,
             markdown_elements=markdown_elements,
             min_elements=min_elements,
@@ -152,7 +152,7 @@ class FormatRule(BaseRule[str]):
             name=name,
             description=description,
             **kwargs,
-        )
+        ) if self else ""
         self._validator = None
         super().__init__(name, description, config, None, **kwargs)
 

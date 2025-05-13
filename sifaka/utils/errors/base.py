@@ -19,7 +19,7 @@ standardized error handling functionality.
 - **ComponentError**: Base class for component-specific errors
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 
 class SifakaError(Exception):

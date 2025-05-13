@@ -59,10 +59,12 @@ configuration values are valid and properly typed. If invalid configuration
 is provided, Pydantic will raise validation errors with detailed information
 about the validation failure.
 """
+
 from typing import Any, Dict, List, Optional, Type, TypeVar, Union, cast
 from pydantic import Field
 from .base import BaseConfig
-T = TypeVar('T', bound='RetrieverConfig')
+
+T = TypeVar("T", bound="RetrieverConfig")
 
 
 class RetrieverConfig(BaseConfig):
@@ -109,13 +111,13 @@ class RetrieverConfig(BaseConfig):
     print(f"Name: {config.name}")
     print(f"Top K: {config.top_k}")
     print(f"Max Results: {config.max_results}")
-    print(f"Algorithm: {config.(params and params.get('algorithm'))")
+    print(f"Algorithm: {config.params.get('algorithm')}")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(top_k=20)
+    updated_config = config.with_options(top_k=20)
 
     # Create a new configuration with updated params
-    updated_config = (config and config.with_params(algorithm="tfidf")
+    updated_config = config.with_params(algorithm="tfidf")
     ```
 
     Attributes:
@@ -127,20 +129,18 @@ class RetrieverConfig(BaseConfig):
         trace_enabled: Whether to enable tracing
         ranking: Configuration for ranking strategy
     """
-    top_k: int = Field(default=10, ge=1, description=
-        'Number of results to retrieve')
-    max_results: int = Field(default=5, ge=1, description=
-        'Maximum number of results to return')
-    min_score: float = Field(default=0.0, ge=0.0, le=1.0, description=
-        'Minimum score threshold')
-    score_threshold: Optional[float] = Field(default=None, ge=0.0, le=1.0,
-        description='Threshold for score-based filtering')
-    cache_size: int = Field(default=100, ge=0, description=
-        'Size of the result cache')
-    trace_enabled: bool = Field(default=False, description=
-        'Whether to enable tracing')
-    ranking: Optional[Dict[str, Any]] = Field(default=None, description=
-        'Configuration for ranking strategy')
+
+    top_k: int = Field(default=10, ge=1, description="Number of results to retrieve")
+    max_results: int = Field(default=5, ge=1, description="Maximum number of results to return")
+    min_score: float = Field(default=0.0, ge=0.0, le=1.0, description="Minimum score threshold")
+    score_threshold: Optional[float] = Field(
+        default=None, ge=0.0, le=1.0, description="Threshold for score-based filtering"
+    )
+    cache_size: int = Field(default=100, ge=0, description="Size of the result cache")
+    trace_enabled: bool = Field(default=False, description="Whether to enable tracing")
+    ranking: Optional[Dict[str, Any]] = Field(
+        default=None, description="Configuration for ranking strategy"
+    )
 
 
 class RankingConfig(BaseConfig):
@@ -185,22 +185,24 @@ class RankingConfig(BaseConfig):
     # Access configuration values
     print(f"Name: {config.name}")
     print(f"Algorithm: {config.algorithm}")
-    print(f"Title weight: {config.(weights and weights.get('title'))")
+    print(f"Title weight: {config.weights.get('title')}")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(algorithm="tfidf")
+    updated_config = config.with_options(algorithm="tfidf")
 
     # Create a new configuration with updated params
-    updated_config = (config and config.with_params(k1=1.5, b=0.8)
+    updated_config = config.with_params(k1=1.5, b=0.8)
     ```
 
     Attributes:
         algorithm: Ranking algorithm to use
         weights: Dictionary of field weights
     """
-    algorithm: str = Field(default='', description='Ranking algorithm to use')
-    weights: Dict[str, float] = Field(default_factory=dict, description=
-        'Dictionary of field weights')
+
+    algorithm: str = Field(default="", description="Ranking algorithm to use")
+    weights: Dict[str, float] = Field(
+        default_factory=dict, description="Dictionary of field weights"
+    )
 
 
 class IndexConfig(BaseConfig):
@@ -246,10 +248,10 @@ class IndexConfig(BaseConfig):
     print(f"Chunk size: {config.chunk_size}")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(chunk_size=500)
+    updated_config = config.with_options(chunk_size=500)
 
     # Create a new configuration with updated params
-    updated_config = (config and config.with_params(dimensions=768)
+    updated_config = config.with_params(dimensions=768)
     ```
 
     Attributes:
@@ -257,10 +259,10 @@ class IndexConfig(BaseConfig):
         chunk_size: Size of chunks for indexing
         overlap: Overlap between chunks
     """
-    index_type: str = Field(default='', description='Type of index to use')
-    chunk_size: int = Field(default=1000, ge=1, description=
-        'Size of chunks for indexing')
-    overlap: int = Field(default=0, ge=0, description='Overlap between chunks')
+
+    index_type: str = Field(default="", description="Type of index to use")
+    chunk_size: int = Field(default=1000, ge=1, description="Size of chunks for indexing")
+    overlap: int = Field(default=0, ge=0, description="Overlap between chunks")
 
 
 class QueryProcessingConfig(BaseConfig):
@@ -309,10 +311,10 @@ class QueryProcessingConfig(BaseConfig):
     print(f"Expansion method: {config.expansion_method}")
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(expansion_enabled=False)
+    updated_config = config.with_options(expansion_enabled=False)
 
     # Create a new configuration with updated params
-    updated_config = (config and config.with_params(expansion_model="gpt-3.5-turbo")
+    updated_config = config.with_params(expansion_model="gpt-3.5-turbo")
     ```
 
     Attributes:
@@ -321,19 +323,23 @@ class QueryProcessingConfig(BaseConfig):
         preprocessing_steps: List of preprocessing steps to apply to queries
         expansion_method: Method to use for query expansion
     """
-    expansion_enabled: bool = Field(default=False, description=
-        'Whether to enable query expansion')
-    rewriting_enabled: bool = Field(default=False, description=
-        'Whether to enable query rewriting')
-    preprocessing_steps: List[str] = Field(default_factory=list,
-        description='List of preprocessing steps to apply to queries')
-    expansion_method: Optional[str] = Field(default=None, description=
-        'Method to use for query expansion')
+
+    expansion_enabled: bool = Field(default=False, description="Whether to enable query expansion")
+    rewriting_enabled: bool = Field(default=False, description="Whether to enable query rewriting")
+    preprocessing_steps: List[str] = Field(
+        default_factory=list, description="List of preprocessing steps to apply to queries"
+    )
+    expansion_method: Optional[str] = Field(
+        default=None, description="Method to use for query expansion"
+    )
 
 
-def standardize_retriever_config(config: Optional[Union[Dict[str, Any],
-    RetrieverConfig]]=None, params: Optional[Dict[str, Any]]=None,
-    config_class: Type[T]=RetrieverConfig, **kwargs: Any) ->Any:
+def standardize_retriever_config(
+    config: Optional[Union[Dict[str, Any], RetrieverConfig]] = None,
+    params: Optional[Dict[str, Any]] = None,
+    config_class: Type[T] = RetrieverConfig,
+    **kwargs: Any,
+) -> Any:
     """
     Standardize retriever configuration.
 
@@ -402,15 +408,16 @@ def standardize_retriever_config(config: Optional[Union[Dict[str, Any],
     """
     final_params: Dict[str, Any] = {}
     if params:
-        (final_params and final_params.update(params)
+        final_params.update(params)
     if isinstance(config, dict):
-        dict_params = (config and config.pop('params', {}) if config else {}
-        (final_params and final_params.update(dict_params)
-        return cast(T, config_class(**{} if config is None else config,
-            params=final_params, **kwargs))
+        dict_params = config.pop("params", {}) if config else {}
+        final_params.update(dict_params)
+        return cast(
+            T, config_class(**{} if config is None else config, params=final_params, **kwargs)
+        )
     elif isinstance(config, RetrieverConfig):
-        (final_params and final_params.update(config.params)
-        config_dict = {**(config and config.model_dump(), 'params': final_params, **kwargs)
+        final_params.update(config.params)
+        config_dict = {**config.model_dump(), "params": final_params, **kwargs}
         return cast(T, config_class(**config_dict))
     else:
         return cast(T, config_class(params=final_params, **kwargs))

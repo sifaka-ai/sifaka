@@ -37,19 +37,19 @@ class MyComponent(BaseModel):
     def __init__(self, **data):
         super().__init__(**data)
         # Initialize state
-        self.(_state_manager and _state_manager.update("initialized", False)
-        self.(_state_manager and _state_manager.update("cache", {})
+        self._state_manager.update("initialized", False
+        self._state_manager.update("cache", {}
 
     def process(self, input_data):
         # Access and update state
-        cache = self.(_state_manager and _state_manager.get("cache", {})
+        cache = self._state_manager.get("cache", {}
         if input_data in cache:
             return cache[input_data]
 
         # Process and update cache
-        result = (self and self._process_input(input_data)
+        result = self._process_input(input_data) if self else ""
         cache[input_data] = result
-        self.(_state_manager and _state_manager.update("cache", cache)
+        self._state_manager.update("cache", cache
         return result
 
 # Example 2: Using specialized state managers
@@ -63,11 +63,11 @@ class MyClassifier(BaseModel):
     _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
     def warm_up(self):
-        if not self.(_state_manager and _state_manager.get("initialized"):
+        if not self._state_manager.get("initialized":
             # Initialize classifier-specific state
-            self.(_state_manager and _state_manager.update("model", (self and self._load_model())
-            self.(_state_manager and _state_manager.update("vectorizer", (self and self._load_vectorizer())
-            self.(_state_manager and _state_manager.update("initialized", True)
+            self._state_manager.update("model", self._load_model() if self else ""
+            self._state_manager.update("vectorizer", self._load_vectorizer() if self else ""
+            self._state_manager.update("initialized", True
 ```
 
 ## Error Handling
@@ -143,18 +143,18 @@ class StateManager:
     manager = StateManager()
 
     # Update state
-    (manager and manager.update("initialized", True)
-    (manager and manager.update("cache", {})
+    manager.update("initialized", True) if manager else ""
+    manager.update("cache", {}) if manager else ""
 
     # Get state
-    is_initialized = (manager and manager.get("initialized", False)
-    cache = (manager and manager.get("cache", {})
+    is_initialized = manager.get("initialized", False) if manager else ""
+    cache = manager.get("cache", {}) if manager else ""
 
     # Set metadata
-    (manager and manager.set_metadata("component_type", "Classifier")
+    manager.set_metadata("component_type", "Classifier") if manager else ""
 
     # Rollback to previous state
-    (manager and manager.rollback()
+    manager.rollback() if manager else ""
     ```
     """
 

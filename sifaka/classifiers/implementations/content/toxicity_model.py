@@ -2,15 +2,14 @@
 Protocol for toxicity detection models.
 """
 
-from typing import Dict, List, Protocol, runtime_checkable, Union
-import numpy as np
+from typing import Any, Dict, List, Protocol, runtime_checkable, Union
 
 
 @runtime_checkable
 class ToxicityModel(Protocol):
     """Protocol for toxicity detection models."""
 
-    def predict(self, text: Union[str, List[str]]) -> Dict[str, np.Union[ndarray, float]]:
+    def predict(self, text: Union[str, List[str]]) -> Dict[str, Union[float, Any]]:
         """
         Predict toxicity scores for the given text(s).
 

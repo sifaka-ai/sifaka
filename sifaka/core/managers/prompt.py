@@ -23,28 +23,28 @@ from sifaka.core.managers.prompt import PromptManager, BasePrompt
 manager = PromptManager()
 
 # Create basic prompt
-prompt = (manager and manager.create_prompt("Write a story about a robot")
+prompt = manager.create_prompt("Write a story about a robot") if manager else ""
 
 # Add feedback
-prompt_with_feedback = (manager and manager.create_prompt_with_feedback(
+prompt_with_feedback = manager.create_prompt_with_feedback(
     prompt,
     "Make the story more emotional"
-)
+) if manager else ""
 
 # Add history
-prompt_with_history = (manager and manager.create_prompt_with_history(
+prompt_with_history = manager.create_prompt_with_history(
     prompt,
     ["Previous story about a sad robot", "Story about a happy robot"]
-)
+) if manager else ""
 
 # Create complex prompt
-complex_prompt = (manager and manager.create_prompt(
+complex_prompt = manager.create_prompt(
     "Write a story about a robot",
     feedback="Make it emotional",
     history=["Previous story"],
     context="Set in future",
     examples=["Example story"]
-)
+) if manager else ""
 ```
 
 For critics usage:
@@ -61,14 +61,14 @@ prompt_manager = DefaultPromptManager(config)
 
 # Create a validation prompt
 text = "This is a sample text to validate."
-validation_prompt = (prompt_manager and prompt_manager.create_validation_prompt(text)
+validation_prompt = prompt_manager.create_validation_prompt(text) if prompt_manager else ""
 
 # Create a critique prompt
-critique_prompt = (prompt_manager and prompt_manager.create_critique_prompt(text)
+critique_prompt = prompt_manager.create_critique_prompt(text) if prompt_manager else ""
 
 # Create an improvement prompt
 feedback = "The text needs more detail."
-improvement_prompt = (prompt_manager and prompt_manager.create_improvement_prompt(text, feedback)
+improvement_prompt = prompt_manager.create_improvement_prompt(text, feedback) if prompt_manager else ""
 ```
 """
 
@@ -578,10 +578,10 @@ class DefaultPromptManager(CriticPromptManager):
     manager = DefaultPromptManager()
 
     # Create a validation prompt
-    validation_prompt = (manager and manager.create_validation_prompt("Text to validate")
+    validation_prompt = manager.create_validation_prompt("Text to validate") if manager else ""
 
     # Create a critique prompt
-    critique_prompt = (manager and manager.create_critique_prompt("Text to critique")
+    critique_prompt = manager.create_critique_prompt("Text to critique") if manager else ""
     ```
     """
 

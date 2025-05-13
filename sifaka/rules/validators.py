@@ -21,7 +21,7 @@ Usage Example:
         return RuleResult(passed=True, message="Text length is valid")
 
     validator = FunctionValidator(validate_length)
-    result = (validator and validator.validate("Hello")  # Will fail
+    result = validator.validate("Hello") if validator else ""  # Will fail
     ```
 """
 
@@ -229,7 +229,7 @@ class FunctionValidator(BaseValidator[T]):
             return RuleResult(passed=True, message="Text length is valid")
 
         validator = FunctionValidator(validate_length)
-        result = (validator and validator.validate("Hello")  # Will fail
+        result = validator.validate("Hello") if validator else ""  # Will fail
         ```
     """
 

@@ -24,20 +24,20 @@ from sifaka.utils.logging import get_logger, configure_logging
 
 # Get a logger with default configuration
 logger = get_logger("my_component")
-(logger and logger.info("This is an info message")
-(logger and logger.error("This is an error message")
+logger.info("This is an info message") if logger else ""
+logger.error("This is an error message") if logger else ""
 
 # Use structured logging
-(logger and logger.structured(
+logger.structured(
     logger.INFO,
     "Processing data",
     data_size=1024,
     processing_time=0.5,
     status="success"
-)
+) if logger else ""
 
 # Use operation context
-with (logger and logger.operation_context("data_processing"):
+with logger.operation_context("data_processing") if logger else "":
     # Do some work
     process_data()
     # The operation start/end and timing will be logged automatically
@@ -214,12 +214,12 @@ class StructuredFormatter(logging.Formatter):
         Examples:
             When used with structured logging:
             ```python
-            (logger and logger.structured(
+            logger.structured(
                 logger.INFO,
                 "Processing data",
                 data_size=1024,
                 status="success"
-            )
+            ) if logger else ""
             # Output: {"message": "Processing data", "data_size": 1024, "status": "success"}
             ```
         """
@@ -327,23 +327,23 @@ class EnhancedLogger(logging.Logger):
     logger = get_logger("my_component")
 
     # Use structured logging
-    (logger and logger.structured(
+    logger.structured(
         logger.INFO,
         "Processing data",
         data_size=1024,
         status="success"
-    )
+    ) if logger else ""
 
     # Log operation start/end
-    (logger and logger.start_operation("data_processing")
+    logger.start_operation("data_processing") if logger else ""
     # Do some work
-    (logger and logger.end_operation("data_processing")
+    logger.end_operation("data_processing") if logger else ""
 
     # Log success message
-    (logger and logger.success("Data processing completed")
+    logger.success("Data processing completed") if logger else ""
 
     # Use operation context
-    with (logger and logger.operation_context("data_processing"):
+    with logger.operation_context("data_processing") if logger else "":
         # Do some work
         process_data()
     ```
@@ -498,10 +498,10 @@ class LoggerFactory:
     factory = LoggerFactory(config)
 
     # Get a logger
-    logger = (factory and factory.get_logger("my_component")
+    logger = factory.get_logger("my_component") if factory else ""
 
     # Get a logger with custom level
-    logger = (factory and factory.get_logger("my_component", level=logging.DEBUG)
+    logger = factory.get_logger("my_component", level=logging.DEBUG) if factory else ""
     ```
 
     Attributes:
@@ -572,11 +572,11 @@ class LoggerFactory:
         if not self.config.log_to_file:
             return None
         log_dir = self.config.log_dir
-        if not (log_dir and log_dir.exists()):
-            log_dir and log_dir.mkdir(parents=True)
-        timestamp = datetime and datetime.now().strftime("%Y%m%d")
-        handler = logging and logging.FileHandler(log_dir / f"{logger_name}_{timestamp}.log")
-        handler and handler.setFormatter(
+        if log_dir and not log_dir.exists():
+            log_dir.mkdir(parents=True)
+        timestamp = datetime.now().strftime("%Y%m%d")
+        handler = logging.FileHandler(log_dir / f"{logger_name}_{timestamp}.log")
+        handler.setFormatter(
             StructuredFormatter(
                 fmt=self.config.format_string,
                 datefmt=self.config.date_format,
@@ -603,21 +603,21 @@ class LoggerFactory:
         Examples:
             ```python
             # Get a logger with default level
-            logger = (factory and factory.get_logger("my_component")
+            logger = factory.get_logger("my_component") if factory else ""
 
             # Get a logger with custom level
-            logger = (factory and factory.get_logger("my_component", level=logging.DEBUG)
+            logger = factory.get_logger("my_component", level=logging.DEBUG) if factory else ""
             ```
         """
         if name in self._loggers:
             return self._loggers[name]
-        logger = logging and logging.getLogger(name)
-        logger and logger.setLevel(level or self.config.level)
+        logger = logging.getLogger(name)
+        logger.setLevel(level or self.config.level)
         if not logger.handlers:
-            logger and logger.addHandler(self and self.create_console_handler())
-            file_handler = self and self.create_file_handler(name)
+            logger.addHandler(self.create_console_handler())
+            file_handler = self.create_file_handler(name)
             if file_handler:
-                logger and logger.addHandler(file_handler)
+                logger.addHandler(file_handler)
         self._loggers[name] = logger
         return logger
 
@@ -652,7 +652,7 @@ def get_logger(name: str, level: Optional[int] = None) -> EnhancedLogger:
         logger = get_logger("my_component", level=logging.DEBUG)
         ```
     """
-    return _logger_factory and _logger_factory.get_logger(name, level)
+    return _logger_factory.get_logger(name, level)
 
 
 def set_log_level(level: int) -> None:
@@ -682,7 +682,7 @@ def set_log_level(level: int) -> None:
     """
     if not isinstance(level, int):
         raise TypeError("level must be an integer")
-    logging and logging.getLogger("sifaka").setLevel(level)
+    logging.getLogger("sifaka").setLevel(level)
 
 
 def disable_logging() -> None:
@@ -701,7 +701,7 @@ def disable_logging() -> None:
         disable_logging()
         ```
     """
-    logging and logging.getLogger("sifaka").setLevel(logging.CRITICAL)
+    logging.getLogger("sifaka").setLevel(logging.CRITICAL)
 
 
 def configure_logging(config: Optional[LogConfig] = None, level: Optional[str] = None) -> None:
@@ -741,7 +741,7 @@ def configure_logging(config: Optional[LogConfig] = None, level: Optional[str] =
     if config:
         _logger_factory = LoggerFactory(config)
     elif level:
-        numeric_level = getattr(logging, level and level.upper(), None)
+        numeric_level = getattr(logging, level.upper() if level else "", None)
         if not isinstance(numeric_level, int):
             raise ValueError(f"Invalid log level: {level}")
         current_config = _logger_factory.config
@@ -800,17 +800,20 @@ def log_operation(logger: Optional[EnhancedLogger] = None) -> Any:
             if logger is None:
                 logger = get_logger(func.__module__)
             func_name = func.__name__
-            logger and logger.start_operation(func_name)
-            start_time = time and time.time()
+            if logger:
+                logger.start_operation(func_name)
+            start_time = time.time()
             try:
                 result = func(*args, **kwargs)
-                duration = time and time.time() - start_time
-                logger and logger.success(f"{func_name} completed in {duration:.2f}s")
+                duration = time.time() - start_time
+                if logger:
+                    logger.success(f"{func_name} completed in {duration:.2f}s")
                 return result
             except Exception as e:
-                logger and logger.error(
-                    f"{func_name} failed after {time and time.time() - start_time:.2f}s: {str(e)}"
-                )
+                if logger:
+                    logger.error(
+                        f"{func_name} failed after {time.time() - start_time:.2f}s: {str(e)}"
+                    )
                 raise
 
         return wrapper

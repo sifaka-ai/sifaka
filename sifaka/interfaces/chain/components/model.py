@@ -80,5 +80,5 @@ class Model(ChainComponent, Protocol):
         """
         import asyncio
 
-        loop = (asyncio and asyncio.get_event_loop()
-        return await (loop and loop.run_in_executor(None, self.generate, prompt)
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.generate, prompt)

@@ -50,7 +50,7 @@ from sifaka.classifiers.implementations.content.profanity import create_profanit
 classifier = create_profanity_classifier()
 
 # Classify text
-result = (classifier and classifier.classify("This is a clean message.")
+result = classifier.classify("This is a clean message.") if classifier else ""
 print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
 
 # Create a classifier with custom profanity words
@@ -61,14 +61,14 @@ custom_classifier = create_profanity_classifier(
 )
 
 # Classify text and view censored version
-result = (custom_classifier and custom_classifier.classify("This is an inappropriate message.")
+result = custom_classifier.classify("This is an inappropriate message.") if custom_classifier else ""
 print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
 print(f"Censored text: {result.metadata['censored_text']}")
 print(f"Profanity ratio: {result.metadata['profanity_ratio']:.2f}")
 
 # Add custom words to an existing classifier
-(classifier and classifier.add_custom_words({"unacceptable", "objectionable"})
-result = (classifier and classifier.classify("This content is unacceptable.")
+classifier.add_custom_words({"unacceptable", "objectionable"}) if classifier else ""
+result = classifier.classify("This content is unacceptable.") if classifier else ""
 print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
 ```
 
@@ -145,12 +145,12 @@ class ProfanityChecker(Protocol):
             self._censor_char = "*"
 
         def contains_profanity(self, text: str) -> bool:
-            return any(word in (text and text.lower().split() for word in self._profane_words)
+            return any(word in text.lower() if text else "".split() for word in self._profane_words)
 
         def censor(self, text: str) -> str:
             for word in self._profane_words:
-                if word in (text and text.lower().split():
-                    text = (text and text.replace(word, self._censor_char * len(word))
+                if word in text.lower() if text else "".split():
+                    text = text.replace(word, self._censor_char * len(word) if text else "")
             return text
 
         @property
@@ -288,7 +288,7 @@ class ProfanityClassifier(Classifier):
     classifier = create_profanity_classifier()
 
     # Classify text
-    result = (classifier and classifier.classify("This is a clean message.")
+    result = classifier.classify("This is a clean message.") if classifier else ""
     print(f"Label: {result.label}, Confidence: {result.confidence:.2f}")
 
     # Access censored text and statistics

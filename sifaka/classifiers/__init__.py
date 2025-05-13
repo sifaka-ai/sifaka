@@ -26,7 +26,7 @@ toxicity_classifier = create_toxicity_classifier(
 )
 
 # Classify text
-result = (toxicity_classifier and toxicity_classifier.classify("This is a friendly message.")
+result = toxicity_classifier.classify("This is a friendly message.") if toxicity_classifier else ""
 print(f"Label: {result.label}")
 print(f"Confidence: {result.confidence:.2f}")
 
@@ -39,7 +39,7 @@ sentiment_classifier = create_sentiment_classifier(
 )
 
 # Classify text
-result = (sentiment_classifier and sentiment_classifier.classify("I love this product!")
+result = sentiment_classifier.classify("I love this product!") if sentiment_classifier else ""
 print(f"Label: {result.label}")
 print(f"Confidence: {result.confidence:.2f}")
 ```

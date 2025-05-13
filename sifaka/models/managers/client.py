@@ -30,8 +30,8 @@ manager = MyClientManager(
 )
 
 # Get a client and use it
-client = (manager and manager.get_client()
-response = (client and client.send_prompt("Hello, world!", config)
+client = manager.get_client() if manager else ""
+response = client.send_prompt("Hello, world!", config) if client else ""
 ```
 
 ## Error Handling
@@ -87,8 +87,8 @@ class ClientManager(Generic[C]):
         )
 
         # Get a client for making API calls
-        client = (manager and manager.get_client()
-        response = (client and client.send_prompt("Hello, world!", config)
+        client = manager.get_client() if manager else ""
+        response = client.send_prompt("Hello, world!", config) if client else ""
         ```
     """
 
@@ -115,7 +115,7 @@ class ClientManager(Generic[C]):
         Raises:
             RuntimeError: If a default client cannot be created
         """
-        return (self and self._ensure_api_client()
+        return self._ensure_api_client() if self else ""
 
     def _ensure_api_client(self) -> C:
         """
@@ -128,8 +128,8 @@ class ClientManager(Generic[C]):
             RuntimeError: If a default client cannot be created
         """
         if self._api_client is None:
-            (logger and logger.debug(f"Creating default API client for {self._model_name}")
-            self._api_client = (self and self._create_default_client()
+            logger.debug(f"Creating default API client for {self._model_name}") if logger else ""
+            self._api_client = self._create_default_client() if self else ""
         return self._api_client
 
     @abstractmethod

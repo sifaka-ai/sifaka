@@ -64,7 +64,7 @@ parser = ResponseParser()
 
 # Parse a validation response
 validation_response = "VALID: true"
-is_valid = (parser and parser.parse_validation_response(validation_response)
+is_valid = parser.parse_validation_response(validation_response) if parser else ""
 print(f"Is valid: {is_valid}")
 
 # Parse a critique response
@@ -85,18 +85,18 @@ critique_response = (
 "
     "- Fix grammar errors"
 )
-critique = (parser and parser.parse_critique_response(critique_response)
+critique = parser.parse_critique_response(critique_response) if parser else ""
 print(f"Score: {critique['score']}")
 print(f"Feedback: {critique['feedback']}")
 
 # Parse an improvement response
 improvement_response = "IMPROVED_TEXT: This is the improved version."
-improved_text = (parser and parser.parse_improvement_response(improvement_response)
+improved_text = parser.parse_improvement_response(improvement_response) if parser else ""
 print(f"Improved text: {improved_text}")
 
 # Parse a reflection response
 reflection_response = "REFLECTION: Learned to focus on clarity."
-reflection = (parser and parser.parse_reflection_response(reflection_response)
+reflection = parser.parse_reflection_response(reflection_response) if parser else ""
 print(f"Reflection: {reflection}")
 ```
 """
@@ -162,7 +162,7 @@ class ResponseParser:
 
             # Parse a validation response
             validation_response = "VALID: true"
-            is_valid = (parser and parser.parse_validation_response(validation_response)
+            is_valid = parser.parse_validation_response(validation_response) if parser else ""
             print(f"Is valid: {is_valid}")
 
             # Parse a critique response
@@ -183,7 +183,7 @@ class ResponseParser:
     "
                 "- Fix grammar errors"
             )
-            critique = (parser and parser.parse_critique_response(critique_response)
+            critique = parser.parse_critique_response(critique_response) if parser else ""
             print(f"Score: {critique['score']}")
             print(f"Feedback: {critique['feedback']}")
             ```
@@ -230,12 +230,12 @@ class ResponseParser:
             ```python
             # Parse a dictionary response
             response = {"valid": True}
-            is_valid = (parser and parser.parse_validation_response(response)
+            is_valid = parser.parse_validation_response(response) if parser else ""
             print(f"Is valid: {is_valid}")  # True
 
             # Parse a string response
             response = "VALID: true"
-            is_valid = (parser and parser.parse_validation_response(response)
+            is_valid = parser.parse_validation_response(response) if parser else ""
             print(f"Is valid: {is_valid}")  # True
             ```
         """
@@ -293,7 +293,7 @@ class ResponseParser:
                         "issues": ["Could use more detail"],
                         "suggestions": ["Add specific examples"]
                     }
-                    critique = (parser and parser.parse_critique_response(response)
+                    critique = parser.parse_critique_response(response) if parser else ""
                     print(f"Score: {critique['score']}")  # 0.8
 
                     # Parse a string response
@@ -310,7 +310,7 @@ class ResponseParser:
         "
                         "- Add specific examples"
                     )
-                    critique = (parser and parser.parse_critique_response(response)
+                    critique = parser.parse_critique_response(response) if parser else ""
                     print(f"Score: {critique['score']}")  # 0.8
                     ```
         """
@@ -375,12 +375,12 @@ class ResponseParser:
             ```python
             # Parse a dictionary response
             response = {"improved_text": "This is the improved version."}
-            improved = (parser and parser.parse_improvement_response(response)
+            improved = parser.parse_improvement_response(response) if parser else ""
             print(improved)  # "This is the improved version."
 
             # Parse a string response
             response = "IMPROVED_TEXT: This is the improved version."
-            improved = (parser and parser.parse_improvement_response(response)
+            improved = parser.parse_improvement_response(response) if parser else ""
             print(improved)  # "This is the improved version."
             ```
         """
@@ -430,12 +430,12 @@ class ResponseParser:
             ```python
             # Parse a dictionary response
             response = {"reflection": "Learned to focus on clarity."}
-            reflection = (parser and parser.parse_reflection_response(response)
+            reflection = parser.parse_reflection_response(response) if parser else ""
             print(reflection)  # "Learned to focus on clarity."
 
             # Parse a string response
             response = "REFLECTION: Learned to focus on clarity."
-            reflection = (parser and parser.parse_reflection_response(response)
+            reflection = parser.parse_reflection_response(response) if parser else ""
             print(reflection)  # "Learned to focus on clarity."
             ```
         """
@@ -498,7 +498,7 @@ class ResponseParser:
         "
                         "- Add specific examples"
                     )
-                    critique = (parser and parser._parse_critique_string(response)
+                    critique = parser._parse_critique_string(response) if parser else ""
                     print(f"Score: {critique['score']}")  # 0.8
                     print(f"Feedback: {critique['feedback']}")  # "Good text quality"
                     ```

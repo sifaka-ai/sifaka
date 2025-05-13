@@ -18,7 +18,7 @@ Example usage:
     >>> )
     >>>
     >>> # Use the rule like any other rule
-    >>> result = (rule and rule.validate("This is great!")  # True if classified as "positive" with confidence >= 0.7
+    >>> result = rule.validate("This is great!") if rule else ""  # True if classified as "positive" with confidence >= 0.7
 """
 from sifaka.adapters.classifier.adapter import Classifier, ClassifierAdapter, ClassifierRule, ClassifierRuleConfig, create_classifier_rule, create_classifier_adapter
 __all__: List[Any] = ['Classifier', 'ClassifierRuleConfig',

@@ -44,22 +44,22 @@ critic = create_reflexion_critic(
 
 # Validate text
 text = "The quick brown fox jumps over the lazy dog."
-is_valid = (critic and critic.validate(text)
+is_valid = critic.validate(text) if critic else ""
 
 # Critique text
-critique = (critic and critic.critique(text)
+critique = critic.critique(text) if critic else ""
 print(f"Score: {critique.score}")
 print(f"Feedback: {critique.message}")
 
 # Improve text with feedback
 feedback = "The text needs more detail and better structure."
-improved_text = (critic and critic.improve(text, feedback)
+improved_text = critic.improve(text, feedback) if critic else ""
 
 # Improve again - this time it will use the previous reflection
-improved_text_2 = (critic and critic.improve(
+improved_text_2 = critic.improve(
     "Another sample text that needs improvement.",
     "Make it more concise."
-)
+) if critic else ""
 ```
 
 ## Error Handling
@@ -163,16 +163,16 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
 
     # Validate text
     text = "The quick brown fox jumps over the lazy dog."
-    is_valid = (critic and critic.validate(text)
+    is_valid = critic.validate(text) if critic else ""
 
     # Critique text
-    critique = (critic and critic.critique(text)
+    critique = critic.critique(text) if critic else ""
     print(f"Score: {critique.score}")
     print(f"Feedback: {critique.message}")
 
     # Improve text with feedback
     feedback = "The text needs more detail and better structure."
-    improved_text = (critic and critic.improve(text, feedback)
+    improved_text = critic.improve(text, feedback) if critic else ""
     ```
 
     ## State Management
@@ -255,32 +255,32 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             from ..services.critique import CritiqueService
 
             # Store components in state
-            self.(_state_manager and _state_manager.update("model", llm_provider)
-            self.(_state_manager and _state_manager.update(
+            self._state_manager.update("model", llm_provider)
+            self._state_manager.update(
                 "prompt_manager", prompt_factory or ReflexionCriticPromptManager(config)
             )
-            self.(_state_manager and _state_manager.update("response_parser", ResponseParser())
-            self.(_state_manager and _state_manager.update(
+            self._state_manager.update("response_parser", ResponseParser())
+            self._state_manager.update(
                 "memory_manager", MemoryManager(buffer_size=config.memory_buffer_size)
             )
 
             # Create service and store in state cache
-            cache = self.(_state_manager and _state_manager.get("cache", {})
+            cache = self._state_manager.get("cache", {})
             cache["critique_service"] = CritiqueService(
                 llm_provider=llm_provider,
-                prompt_manager=self.(_state_manager and _state_manager.get("prompt_manager"),
-                response_parser=self.(_state_manager and _state_manager.get("response_parser"),
-                memory_manager=self.(_state_manager and _state_manager.get("memory_manager"),
+                prompt_manager=self._state_manager.get("prompt_manager"),
+                response_parser=self._state_manager.get("response_parser"),
+                memory_manager=self._state_manager.get("memory_manager"),
             )
-            self.(_state_manager and _state_manager.update("cache", cache)
+            self._state_manager.update("cache", cache)
 
             # Mark as initialized
-            self.(_state_manager and _state_manager.update("initialized", True)
-            self.(_state_manager and _state_manager.set_metadata("component_type", self.__class__.__name__)
-            self.(_state_manager and _state_manager.set_metadata("initialization_time", (time and time.time())
+            self._state_manager.update("initialized", True)
+            self._state_manager.set_metadata("component_type", self.__class__.__name__)
+            self._state_manager.set_metadata("initialization_time", time.time() if time else 0)
         except Exception as e:
-            (self and self.record_error(e)
-            raise ValueError(f"Failed to initialize ReflexionCritic: {str(e))") from e
+            self.record_error(e) if self else ""
+            raise ValueError(f"Failed to initialize ReflexionCritic: {str(e)}") from e
 
     def process(self, input: str) -> CriticResult:
         """
@@ -298,51 +298,51 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        start_time = (time and time.time()
+        start_time = time.time() if time else 0
 
         try:
             # Validate input
-            if not isinstance(input, str) or not (input and input.strip():
+            if not isinstance(input, str) or not input.strip():
                 raise ValueError("Input must be a non-empty string")
 
             # Ensure initialized
-            if not self.(_state_manager and _state_manager.get("initialized", False):
+            if not self._state_manager.get("initialized", False):
                 raise RuntimeError("ReflexionCritic not properly initialized")
 
             # Get critique service from state
-            cache = self.(_state_manager and _state_manager.get("cache", {})
-            critique_service = (cache and cache.get("critique_service")
+            cache = self._state_manager.get("cache", {})
+            critique_service = cache.get("critique_service")
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
             # Delegate to critique service
-            critique_result = (critique_service and critique_service.critique(input)
+            critique_result = critique_service.critique(input)
 
             # Create result
             result = CriticResult(
-                passed=(critique_result and critique_result.get("score", 0) >= self.config.min_confidence,
-                message=(critique_result and critique_result.get("feedback", ""),
+                passed=critique_result.get("score", 0) >= self.config.min_confidence,
+                message=critique_result.get("feedback", ""),
                 metadata={"operation": "process"},
-                score=(critique_result and critique_result.get("score", 0),
-                issues=(critique_result and critique_result.get("issues", []),
-                suggestions=(critique_result and critique_result.get("suggestions", []),
-                processing_time_ms=((time and time.time() - start_time) * 1000,
+                score=critique_result.get("score", 0),
+                issues=critique_result.get("issues", []),
+                suggestions=critique_result.get("suggestions", []),
+                processing_time_ms=(time.time() - start_time) * 1000 if time else 0,
             )
 
             # Update statistics
-            (self and self.update_statistics(result)
+            self.update_statistics(result)
 
             return result
 
         except Exception as e:
-            (self and self.record_error(e)
-            processing_time = ((time and time.time() - start_time) * 1000
+            self.record_error(e)
+            processing_time = (time.time() - start_time) * 1000 if time else 0
             return CriticResult(
                 passed=False,
-                message=f"Error: {str(e))",
-                metadata={"error_type": type(e).__name__),
+                message=f"Error: {str(e)}",
+                metadata={"error_type": type(e).__name__},
                 score=0.0,
-                issues=[f"Processing error: {str(e))"),
+                issues=[f"Processing error: {str(e)}"],
                 suggestions=["Retry with different input"],
                 processing_time_ms=processing_time,
             )
@@ -362,8 +362,8 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
 
             result = "The following issues were found:\n"
             for i, violation in enumerate(feedback):
-                rule_name = (violation and violation.get("rule_name", f"Rule {i+1}")
-                message = (violation and violation.get("message", "Unknown issue")
+                rule_name = violation.get("rule_name", f"Rule {i+1}") if violation else ""
+                message = violation.get("message", "Unknown issue") if violation else ""
                 result += f"- {rule_name}: {message}\n"
             return result
         elif feedback is None:
@@ -383,50 +383,50 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        start_time = (time and time.time()
+        start_time = time.time() if time else 0
 
         try:
             # Ensure initialized
-            if not self.(_state_manager and _state_manager.get("initialized", False):
+            if not self._state_manager.get("initialized", False):
                 raise RuntimeError("ReflexionCritic not properly initialized")
 
             # Validate input
-            if not isinstance(text, str) or not (text and text.strip():
+            if not isinstance(text, str) or not text.strip():
                 raise ValueError("text must be a non-empty string")
 
             # Get critique service from state
-            cache = self.(_state_manager and _state_manager.get("cache", {})
-            critique_service = (cache and cache.get("critique_service")
+            cache = self._state_manager.get("cache", {})
+            critique_service = cache.get("critique_service")
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
             # Track validation count
-            validation_count = self.(_state_manager and _state_manager.get_metadata("validation_count", 0)
-            self.(_state_manager and _state_manager.set_metadata("validation_count", validation_count + 1)
+            validation_count = self._state_manager.get_metadata("validation_count", 0)
+            self._state_manager.set_metadata("validation_count", validation_count + 1)
 
             # Delegate to critique service
-            is_valid = (critique_service and critique_service.validate(text)
+            is_valid = critique_service.validate(text)
 
             # Record result in metadata
             if is_valid:
-                valid_count = self.(_state_manager and _state_manager.get_metadata("valid_count", 0)
-                self.(_state_manager and _state_manager.set_metadata("valid_count", valid_count + 1)
+                valid_count = self._state_manager.get_metadata("valid_count", 0)
+                self._state_manager.set_metadata("valid_count", valid_count + 1)
             else:
-                invalid_count = self.(_state_manager and _state_manager.get_metadata("invalid_count", 0)
-                self.(_state_manager and _state_manager.set_metadata("invalid_count", invalid_count + 1)
+                invalid_count = self._state_manager.get_metadata("invalid_count", 0)
+                self._state_manager.set_metadata("invalid_count", invalid_count + 1)
 
             # Track performance
             if self.config.track_performance:
-                total_time = self.(_state_manager and _state_manager.get_metadata("total_validation_time_ms", 0.0)
-                self.(_state_manager and _state_manager.set_metadata(
-                    "total_validation_time_ms", total_time + ((time and time.time() - start_time) * 1000
+                total_time = self._state_manager.get_metadata("total_validation_time_ms", 0.0)
+                self._state_manager.set_metadata(
+                    "total_validation_time_ms", total_time + ((time.time() - start_time) * 1000)
                 )
 
             return is_valid
 
         except Exception as e:
-            (self and self.record_error(e)
-            raise RuntimeError(f"Failed to validate text: {str(e))") from e
+            self.record_error(e)
+            raise RuntimeError(f"Failed to validate text: {str(e)}") from e
 
     def improve(self, text: str, feedback: Optional[str] = None) -> str:
         """Improve text based on feedback and reflections.
@@ -442,58 +442,58 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        start_time = (time and time.time()
+        start_time = time.time() if time else 0
 
         try:
             # Ensure initialized
-            if not self.(_state_manager and _state_manager.get("initialized", False):
+            if not self._state_manager.get("initialized", False):
                 raise RuntimeError("ReflexionCritic not properly initialized")
 
             # Validate input
-            if not isinstance(text, str) or not (text and text.strip():
+            if not isinstance(text, str) or not text.strip():
                 raise ValueError("text must be a non-empty string")
 
             # Get critique service from state
-            cache = self.(_state_manager and _state_manager.get("cache", {})
-            critique_service = (cache and cache.get("critique_service")
+            cache = self._state_manager.get("cache", {})
+            critique_service = cache.get("critique_service")
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
             # Format feedback
-            feedback_str = (self and self._format_feedback(feedback)
+            feedback_str = self._format_feedback(feedback)
 
             # Track improvement count
-            improvement_count = self.(_state_manager and _state_manager.get_metadata("improvement_count", 0)
-            self.(_state_manager and _state_manager.set_metadata("improvement_count", improvement_count + 1)
+            improvement_count = self._state_manager.get_metadata("improvement_count", 0)
+            self._state_manager.set_metadata("improvement_count", improvement_count + 1)
 
             # Delegate to critique service
-            improved_text = (critique_service and critique_service.improve(text, feedback_str)
+            improved_text = critique_service.improve(text, feedback_str)
 
             # Track memory usage
-            memory_manager = self.(_state_manager and _state_manager.get("memory_manager")
+            memory_manager = self._state_manager.get("memory_manager")
             if memory_manager:
-                memory_item = (json and json.dumps(
+                memory_item = json.dumps(
                     {
                         "original_text": text,
                         "feedback": feedback_str,
                         "improved_text": improved_text,
-                        "timestamp": (time and time.time(),
-                    )
+                        "timestamp": time.time() if time else 0,
+                    }
                 )
-                (memory_manager and memory_manager.add_to_memory(memory_item)
+                memory_manager.add_to_memory(memory_item)
 
             # Track performance
             if self.config.track_performance:
-                total_time = self.(_state_manager and _state_manager.get_metadata("total_improvement_time_ms", 0.0)
-                self.(_state_manager and _state_manager.set_metadata(
-                    "total_improvement_time_ms", total_time + ((time and time.time() - start_time) * 1000
+                total_time = self._state_manager.get_metadata("total_improvement_time_ms", 0.0)
+                self._state_manager.set_metadata(
+                    "total_improvement_time_ms", total_time + ((time.time() - start_time) * 1000)
                 )
 
             return improved_text
 
         except Exception as e:
-            (self and self.record_error(e)
-            raise RuntimeError(f"Failed to improve text: {str(e))") from e
+            self.record_error(e)
+            raise RuntimeError(f"Failed to improve text: {str(e)}") from e
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
         """Improve text based on specific feedback.
@@ -509,31 +509,32 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             ValueError: If text or feedback is empty
             RuntimeError: If critic is not properly initialized
         """
-        start_time = (time and time.time()
+        start_time = time.time() if time else 0
 
         try:
             # Validate feedback
-            if not isinstance(feedback, str) or not (feedback and feedback.strip():
+            if not isinstance(feedback, str) or not feedback.strip():
                 raise ValueError("feedback must be a non-empty string")
 
             # Delegate to improve method
-            improved_text = (self and self.improve(text, feedback)
+            improved_text = self.improve(text, feedback)
 
             # Track performance
             if self.config.track_performance:
-                total_time = self.(_state_manager and _state_manager.get_metadata(
+                total_time = self._state_manager.get_metadata(
                     "total_feedback_improvement_time_ms", 0.0
                 )
-                self.(_state_manager and _state_manager.set_metadata(
+
+                self._state_manager.set_metadata(
                     "total_feedback_improvement_time_ms",
-                    total_time + ((time and time.time() - start_time) * 1000,
+                    total_time + ((time.time() - start_time) * 1000),
                 )
 
             return improved_text
 
         except Exception as e:
-            (self and self.record_error(e)
-            raise RuntimeError(f"Failed to improve text with feedback: {str(e))") from e
+            self.record_error(e)
+            raise RuntimeError(f"Failed to improve text with feedback: {str(e)}") from e
 
     def critique(self, text: str) -> CriticResult:
         """Analyze text and provide detailed feedback.
@@ -548,65 +549,69 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        start_time = (time and time.time()
+        start_time = time.time() if time else 0
 
         try:
             # Ensure initialized
-            if not self.(_state_manager and _state_manager.get("initialized", False):
+            if not self._state_manager.get("initialized", False):
                 raise RuntimeError("ReflexionCritic not properly initialized")
 
             # Validate input
-            if not isinstance(text, str) or not (text and text.strip():
+            if not isinstance(text, str) or not text.strip():
                 raise ValueError("text must be a non-empty string")
 
             # Get critique service from state
-            cache = self.(_state_manager and _state_manager.get("cache", {})
-            critique_service = (cache and cache.get("critique_service")
+            cache = self._state_manager.get("cache", {})
+            critique_service = cache.get("critique_service")
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
             # Track critique count
-            critique_count = self.(_state_manager and _state_manager.get_metadata("critique_count", 0)
-            self.(_state_manager and _state_manager.set_metadata("critique_count", critique_count + 1)
+            critique_count = self._state_manager.get_metadata("critique_count", 0)
+            self._state_manager.set_metadata("critique_count", critique_count + 1)
 
             # Delegate to critique service
-            critique_result = (critique_service and critique_service.critique(text)
+            critique_result = critique_service.critique(text) if critique_service else ""
 
             # Create result
             result = CriticResult(
-                passed=(critique_result and critique_result.get("score", 0) >= self.config.min_confidence,
-                message=(critique_result and critique_result.get("feedback", ""),
+                passed=(
+                    critique_result.get("score", 0)
+                    if critique_result
+                    else "" >= self.config.min_confidence
+                ),
+                message=critique_result.get("feedback", "") if critique_result else "",
                 metadata={"operation": "critique"},
-                score=(critique_result and critique_result.get("score", 0),
-                issues=(critique_result and critique_result.get("issues", []),
-                suggestions=(critique_result and critique_result.get("suggestions", []),
-                processing_time_ms=((time and time.time() - start_time) * 1000,
+                score=critique_result.get("score", 0) if critique_result else "",
+                issues=critique_result.get("issues", []) if critique_result else "",
+                suggestions=critique_result.get("suggestions", []) if critique_result else "",
+                processing_time_ms=(time.time() - start_time) * 1000 if time else 0,
             )
 
             # Track score distribution
-            score_distribution = self.(_state_manager and _state_manager.get_metadata("score_distribution", {})
+            score_distribution = self._state_manager.get_metadata("score_distribution", {})
             score_bucket = round(result.score * 10) / 10  # Round to nearest 0.1
-            score_distribution[str(score_bucket)) = (score_distribution and score_distribution.get(str(score_bucket), 0) + 1
-            self.(_state_manager and _state_manager.set_metadata("score_distribution", score_distribution)
+            score_distribution[str(score_bucket)] = score_distribution.get(str(score_bucket), 0) + 1
+            self._state_manager.set_metadata("score_distribution", score_distribution)
 
             # Track performance
             if self.config.track_performance:
-                total_time = self.(_state_manager and _state_manager.get_metadata("total_critique_time_ms", 0.0)
-                self.(_state_manager and _state_manager.set_metadata(
-                    "total_critique_time_ms", total_time + ((time and time.time() - start_time) * 1000
+                total_time = self._state_manager.get_metadata("total_critique_time_ms", 0.0)
+                self._state_manager.set_metadata(
+                    "total_critique_time_ms", total_time + ((time.time() - start_time) * 1000)
                 )
 
             return result
 
         except Exception as e:
-            (self and self.record_error(e)
-            processing_time = ((time and time.time() - start_time) * 1000
+            self.record_error(e) if self else ""
+            processing_time = (time.time() - start_time) * 1000 if time else 0
             return CriticResult(
                 passed=False,
-                message=f"Error: {str(e))",
-                metadata={"error_type": type(e).__name__),
+                message=f"Error: {str(e)}",
+                metadata={"error_type": type(e).__name__},
                 score=0.0,
-                issues=[f"Processing error: {str(e))"),
+                issues=[f"Processing error: {str(e)}"],
                 suggestions=["Retry with different input"],
                 processing_time_ms=processing_time,
             )
@@ -619,44 +624,44 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             Dictionary with usage statistics
         """
         return {
-            "validation_count": self.(_state_manager and _state_manager.get_metadata("validation_count", 0),
-            "valid_count": self.(_state_manager and _state_manager.get_metadata("valid_count", 0),
-            "invalid_count": self.(_state_manager and _state_manager.get_metadata("invalid_count", 0),
-            "critique_count": self.(_state_manager and _state_manager.get_metadata("critique_count", 0),
-            "improvement_count": self.(_state_manager and _state_manager.get_metadata("improvement_count", 0),
-            "score_distribution": self.(_state_manager and _state_manager.get_metadata("score_distribution", {}),
-            "total_validation_time_ms": self.(_state_manager and _state_manager.get_metadata(
+            "validation_count": self._state_manager.get_metadata("validation_count", 0),
+            "valid_count": self._state_manager.get_metadata("valid_count", 0),
+            "invalid_count": self._state_manager.get_metadata("invalid_count", 0),
+            "critique_count": self._state_manager.get_metadata("critique_count", 0),
+            "improvement_count": self._state_manager.get_metadata("improvement_count", 0),
+            "score_distribution": self._state_manager.get_metadata("score_distribution", {}),
+            "total_validation_time_ms": self._state_manager.get_metadata(
                 "total_validation_time_ms", 0
             ),
-            "total_critique_time_ms": self.(_state_manager and _state_manager.get_metadata("total_critique_time_ms", 0),
-            "total_improvement_time_ms": self.(_state_manager and _state_manager.get_metadata(
+            "total_critique_time_ms": self._state_manager.get_metadata("total_critique_time_ms", 0),
+            "total_improvement_time_ms": self._state_manager.get_metadata(
                 "total_improvement_time_ms", 0
             ),
-            "total_feedback_improvement_time_ms": self.(_state_manager and _state_manager.get_metadata(
+            "total_feedback_improvement_time_ms": self._state_manager.get_metadata(
                 "total_feedback_improvement_time_ms", 0
             ),
-        )
+        }
 
     # Async methods
     async def avalidate(self, text: str) -> bool:
         """Asynchronously validate text."""
         # For now, use the synchronous implementation
-        return (self and self.validate(text)
+        return self.validate(text)
 
     async def acritique(self, text: str) -> CriticResult:
         """Asynchronously critique text."""
         # For now, use the synchronous implementation
-        return (self and self.critique(text)
+        return self.critique(text)
 
     async def aimprove(self, text: str, feedback: Optional[str] = None) -> str:
         """Asynchronously improve text."""
         # For now, use the synchronous implementation
-        return (self and self.improve(text, feedback)
+        return self.improve(text, feedback)
 
     async def aimprove_with_feedback(self, text: str, feedback: str) -> str:
         """Asynchronously improve text based on specific feedback."""
         # For now, use the synchronous implementation
-        return (self and self.improve_with_feedback(text, feedback)
+        return self.improve_with_feedback(text, feedback)
 
 
 # Default system prompt
@@ -803,5 +808,5 @@ def create_reflexion_critic(
             config=config,
         )
     except Exception as e:
-        (logger and logger.error(f"Failed to create reflexion critic: {str(e))")
-        raise ValueError(f"Failed to create reflexion critic: {str(e))") from e
+        logger.error(f"Failed to create reflexion critic: {str(e)}")
+        raise ValueError(f"Failed to create reflexion critic: {str(e)}") from e

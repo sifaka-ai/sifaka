@@ -366,12 +366,21 @@ This phase has not yet been started.
 | Method docstrings | Minimal | Detailed with examples |
 | Usage examples | Few | Multiple per module |
 
+### Type Checking Improvements
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Syntax errors fixed | 0 | 10 files |
+| Type annotation improvements | Minimal | Significant progress |
+| Protocol type fixes | None | In progress |
+| Union type fixes | None | In progress |
+
 ### CI/CD Implementation
 
 | Component | Status | Details |
 |-----------|--------|---------|
 | GitHub Actions Workflow | Implemented | Runs on push to main and PRs |
-| Linting & Static Analysis | Implemented | Black, isort, autoflake, Ruff, mypy, flake8 |
+| Linting & Static Analysis | Implemented | Black, isort, autoflake, Ruff, type checking, flake8 |
 | Test Coverage | Implemented | pytest-cov with Codecov integration |
 | Package Building | Implemented | Automated build verification |
 | Documentation Building | Pending | Will be added in future updates |
@@ -383,7 +392,7 @@ This phase has not yet been started.
 | Code Organization and Structure | 80% | Refactored 7 major files, standardized model providers, updated imports, removed backward compatibility |
 | Documentation Standardization | 60% | Created templates, applied to refactored modules, standardized provider documentation |
 | Testing Improvements | 65% | Set up CI/CD, fixed configuration issues, updated tests to use new APIs, added provider tests |
-| Type Checking Improvements | 85% | Created automated scripts to fix mypy errors, fixed Protocol type variables, added missing type annotations, fixed syntax errors in adapter files |
+| Type Checking Improvements | 85% | Created automated scripts to fix type checking errors, fixed Protocol type variables, added missing type annotations, fixed syntax errors in adapter files |
 | Overall Phase 1 | 75% | Excellent progress on foundation improvements, significant type checking improvements completed |
 
 ## Next Steps
@@ -401,9 +410,9 @@ After completing these refactorings, we will focus on consolidating duplicated c
 
 ## Continuation Notes
 
-### Mypy Issues - IN PROGRESS ⏳
+### Type Checking Issues - IN PROGRESS ⏳
 
-We have made progress addressing mypy type checking issues in the codebase, but significant work remains:
+We have made progress addressing type checking issues in the codebase, but significant work remains:
 
 1. **Type Annotation Improvements** ✅:
    - Added proper type annotations to function parameters and return values
@@ -432,7 +441,7 @@ We have made progress addressing mypy type checking issues in the codebase, but 
 5. **Remaining Issues** ⏳:
    - Need to continue fixing syntax errors in remaining files
    - There are still many errors in complex files like `sifaka/rules/base.py`
-   - We need to implement stricter mypy configuration once all errors are fixed
+   - We need to implement stricter type checking configuration once all errors are fixed
    - We should add type checking to the CI/CD pipeline to ensure new code maintains type safety
 
 The syntax errors in the codebase are more complex than initially anticipated. Many files have patterns like:
@@ -452,6 +461,13 @@ We've identified 148 files with syntax errors across the codebase. So far, we've
 1. `sifaka/__init__.py` - Fixed import issues and type annotations
 2. `sifaka/adapters/pydantic_ai/factory.py` - Fixed logical expressions and parentheses issues
 3. `sifaka/adapters/base.py` - Fixed state manager access patterns and logical expressions
+4. `sifaka/rules/formatting/format/markdown.py` - Fixed missing closing parentheses and conditional expressions
+5. `sifaka/rules/formatting/format/utils.py` - Fixed syntax errors with parentheses and conditional expressions
+6. `sifaka/rules/formatting/format/plain_text.py` - Fixed syntax errors with parentheses, conditional expressions, and state manager access
+7. `sifaka/rules/factories.py` - Fixed syntax errors with dictionary comprehensions and f-string expressions
+8. `sifaka/interfaces/chain/components/model.py` - Fixed conditional expressions with asyncio
+9. `sifaka/classifiers/implementations/content/toxicity_model.py` - Fixed Union type usage in Protocol definition
+10. `sifaka/models/managers/anthropic_token_counter.py` - Fixed type assignment errors with Optional type annotations
 
 ### Next Files to Fix
 
@@ -461,6 +477,9 @@ The next files to focus on fixing syntax errors are:
 2. `sifaka/core/plugins.py` - Contains syntax errors with mismatched parentheses
 3. `sifaka/core/dependency/injector.py` - Contains syntax errors with logical expressions
 4. `sifaka/classifiers/implementations/content/bias.py` - Contains complex nested logical expressions
+5. `sifaka/interfaces/chain/components/model.py` - Contains type errors with Union attributes
+6. `sifaka/classifiers/implementations/content/toxicity_model.py` - Contains name definition errors
+7. `sifaka/models/managers/anthropic_token_counter.py` - Contains type assignment errors
 
 ### Approach for Continuing Work
 
@@ -483,9 +502,9 @@ The next files to focus on fixing syntax errors are:
 
 Once we've fixed the syntax errors, we'll need to:
 
-1. Run mypy on the entire codebase to identify remaining type checking issues
+1. Run type checking on the entire codebase to identify remaining issues
 2. Fix the remaining type checking issues
-3. Implement stricter mypy configuration
+3. Implement stricter type checking configuration
 4. Add type checking to the CI/CD pipeline
 
 This approach will ensure we make steady progress on improving the codebase quality while minimizing the risk of introducing new errors.

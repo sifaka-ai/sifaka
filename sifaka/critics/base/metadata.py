@@ -111,10 +111,10 @@ class CriticMetadata(Generic[R]):
     )
 
     # Create modified metadata
-    new_metadata = (metadata and metadata.with_extra(
+    new_metadata = metadata.with_extra(
         processing_time_ms=100.0,
         attempt_number=2
-    )
+    ) if metadata else ""
     ```
 
     ## Error Handling
@@ -168,10 +168,10 @@ class CriticMetadata(Generic[R]):
                 score=0.8,
                 feedback="Good text"
             )
-            new_metadata = (metadata and metadata.with_extra(
+            new_metadata = metadata.with_extra(
                 processing_time_ms=100.0,
                 attempt_number=2
-            )
+            ) if metadata else ""
             ```
         """
         new_extra: Dict[Any, Any] = {**self.extra, **kwargs}

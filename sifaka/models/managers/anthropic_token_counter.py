@@ -6,7 +6,7 @@ managing Anthropic token counters for model providers.
 """
 
 import time
-from typing import Any
+from typing import Any, Optional
 import tiktoken
 from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
 from sifaka.models.managers.token_counter import TokenCounterManager
@@ -39,7 +39,7 @@ class AnthropicTokenCounter(TokenCounter):
             self._count_calls = 0
             self._total_tokens_counted = 0
             self._error_count = 0
-            self._last_count_time = None
+            self._last_count_time: Optional[float] = None
         except Exception as e:
             if logger:
                 logger.error(f"Error initializing token counter: {str(e)}")
@@ -60,7 +60,7 @@ class AnthropicTokenCounter(TokenCounter):
             RuntimeError: If token counting fails
         """
         start_time = time.time()
-        self._last_count_time = start_time
+        self._last_count_time = start_time  # type: ignore
         try:
             if not isinstance(text, str):
                 raise ValueError("Text must be a string")

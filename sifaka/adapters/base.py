@@ -18,7 +18,7 @@ that enable the adapter pattern implementation throughout the Sifaka framework.
 class CustomAdapter(BaseAdapter[str, CustomComponent]):
     def validate(self, input_value: str, **kwargs) -> RuleResult:
         # Convert component's functionality to validation
-        result = self.(adaptee and adaptee.process(input_value)
+        result = self.adaptee.process(input_value) if adaptee else ""
         return RuleResult(
             passed=result.is_valid,
             message=result.message,
@@ -131,7 +131,7 @@ class BaseAdapter(BaseModel, Generic[T, C]):
     ```python
     class CustomAdapter(BaseAdapter[str, CustomComponent]):
         def validate(self, input_value: str, **kwargs) -> RuleResult:
-            result = self.(adaptee and adaptee.process(input_value)
+            result = self.adaptee.process(input_value) if adaptee else ""
             return RuleResult(
                 passed=result.is_valid,
                 message=result.message,
