@@ -47,6 +47,7 @@ The provider implements comprehensive error handling:
 """
 
 import os
+import time
 from typing import Optional, Dict, Any, ClassVar
 
 import tiktoken
@@ -65,7 +66,7 @@ logger = get_logger(__name__)
 class GeminiClient(APIClient):
     """Gemini API client implementation."""
 
-    def __init__(self, api_key: Optional[Optional[str]] = None) -> None:
+    def __init__(self, api_key: Optional[str] = None) -> None:
         """
         Initialize the Gemini client.
 
@@ -92,23 +93,23 @@ class GeminiClient(APIClient):
         if logger:
             logger.debug("Initialized Gemini client")
 
-    def send_prompt(self, prompt: str, config: ModelConfig) -> str:
+    def send_prompt(self, prompt: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Send a prompt to Gemini and return the response.
 
         Args:
             prompt: The prompt to send
-            config: Configuration for the request
+            params: Parameters for the request including model configuration
 
         Returns:
-            The generated text response
+            The API response as a dictionary
 
         Raises:
             ValueError: If API key is missing
             RuntimeError: If the API call fails
         """
-        # Get API key from config or client
-        api_key = config.api_key if config else self.api_key
+        # Get API key from params or client
+        api_key = params.get("api_key", self.api_key)
 
         # Check for missing API key
         if not api_key:
@@ -120,32 +121,44 @@ class GeminiClient(APIClient):
         try:
             # Initialize model if needed
             if self.model is None:
-                model_name = (
-                    config.params.get("model_name", "gemini-pro")
-                    if hasattr(config, "params") and config.params
-                    else "gemini-pro"
-                )
+                model_name = params.get("model_name", "gemini-pro")
+
+                # Create generation config from params
+                generation_config = {
+                    "temperature": params.get("temperature", 0.7),
+                    "max_output_tokens": params.get("max_tokens", 1024),
+                    "top_p": params.get("top_p", 0.95),
+                    "top_k": params.get("top_k", 40),
+                }
+
                 self.model = genai.GenerativeModel(
                     model_name=model_name,
-                    generation_config={
-                        "temperature": config.temperature if config else 0.7,
-                        "max_output_tokens": config.max_tokens if config else 1024,
-                        "top_p": (
-                            config.params.get("top_p", 0.95)
-                            if hasattr(config, "params") and config.params
-                            else 0.95
-                        ),
-                        "top_k": (
-                            config.params.get("top_k", 40)
-                            if hasattr(config, "params") and config.params
-                            else 40
-                        ),
-                    },
+                    generation_config=generation_config,
                 )
 
             # Generate text
             response = self.model.generate_content(prompt) if self.model else None
-            return response.text if response else ""
+
+            # Convert response to dictionary format
+            result = {
+                "choices": [
+                    {
+                        "text": response.text if response else "",
+                        "finish_reason": "stop",
+                        "index": 0,
+                    }
+                ],
+                "created": int(time.time()),
+                "model": params.get("model_name", "gemini-pro"),
+                "object": "text_completion",
+                "usage": {
+                    "prompt_tokens": 0,  # Will be updated by token counter
+                    "completion_tokens": 0,  # Will be updated by token counter
+                    "total_tokens": 0,  # Will be updated by token counter
+                },
+            }
+
+            return result
 
         except Exception as e:
             error_info = handle_error(e, "GeminiClient")
@@ -157,7 +170,7 @@ class GeminiClient(APIClient):
 class GeminiTokenCounter(TokenCounter):
     """Token counter using tiktoken for Gemini models."""
 
-    def __init__(self, model: str = "gemini-pro") -> None:
+    def __init__(self, model: Optional[str] = "gemini-pro") -> None:
         """
         Initialize the token counter for a specific model.
 
@@ -255,9 +268,9 @@ class GeminiProvider(ModelProviderCore):
     def __init__(
         self,
         model_name: str = DEFAULT_MODEL,
-        config: Optional[Optional[ModelConfig]] = None,
-        api_client: Optional[Optional[APIClient]] = None,
-        token_counter: Optional[Optional[TokenCounter]] = None,
+        config: Optional[ModelConfig] = None,
+        api_client: Optional[APIClient] = None,
+        token_counter: Optional[TokenCounter] = None,
     ) -> None:
         """
         Initialize the Gemini provider.
@@ -297,7 +310,7 @@ class GeminiProvider(ModelProviderCore):
         if self._state_manager:
             self._state_manager.update("stats", stats)
 
-    def invoke(self, prompt: str, **kwargs) -> str:
+    def invoke(self, prompt: str, **kwargs: Any) -> str:
         """
         Invoke the model with a prompt (delegates to generate).
 
@@ -373,7 +386,7 @@ class GeminiProvider(ModelProviderCore):
             # Re-raise the exception
             raise
 
-    async def ainvoke(self, prompt: str, **kwargs) -> str:
+    async def ainvoke(self, prompt: str, **kwargs: Any) -> str:
         """
         Asynchronously invoke the model with a prompt.
 
@@ -484,7 +497,7 @@ class GeminiProvider(ModelProviderCore):
             ImportError: If the tiktoken package is not installed
             RuntimeError: If token counter initialization fails
         """
-        model_name = self._state_manager.get("model_name") if self._state_manager else None
+        model_name = self._state_manager.get("model_name") if self._state_manager else ""
         return GeminiTokenCounter(model=model_name)
 
     @property
@@ -495,7 +508,7 @@ class GeminiProvider(ModelProviderCore):
         Returns:
             The provider name
         """
-        model_name = self._state_manager.get("model_name") if self._state_manager else None
+        model_name = self._state_manager.get("model_name") if self._state_manager else ""
         return f"Gemini-{model_name}"
 
     def get_statistics(self) -> Dict[str, Any]:
@@ -544,10 +557,10 @@ class GeminiProvider(ModelProviderCore):
         Returns:
             str: A description of the provider
         """
-        model_name = self._state_manager and self._state_manager.get("model_name")
+        model_name = self._state_manager and self._state_manager.get("model_name") or ""
         return f"Gemini provider using model {model_name}"
 
-    def update_config(self, **kwargs) -> None:
+    def update_config(self, **kwargs: Any) -> None:
         """
         Update the provider configuration.
 

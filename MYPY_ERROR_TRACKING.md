@@ -4,10 +4,10 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 
 ## Current Status
 
-- **Total files with errors**: ~109
-- **Files fixed**: 9
-- **Remaining files**: ~100
-- **Current error count**: ~1,754
+- **Total files with errors**: 124
+- **Files fixed**: 15
+- **Remaining files**: 109
+- **Current error count**: 1,195
 
 ## Error Categories and Solutions
 
@@ -143,8 +143,8 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 - [x] sifaka/core/dependency/scopes.py
 - [x] sifaka/core/dependency/injector.py
 - [x] sifaka/classifiers/implementations/adapters.py
-- [ ] sifaka/rules/content/safety.py
-- [ ] sifaka/models/providers/gemini.py
+- [x] sifaka/rules/content/safety.py
+- [x] sifaka/models/providers/gemini.py
 
 **Expected outcome**: Resolve approximately 30-40% of type errors
 
@@ -273,9 +273,9 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 
 ## Progress Summary
 
-- **Total files with errors**: ~109
-- **Files fixed**: 13 (11.9%)
-- **Remaining files**: ~96 (88.1%)
+- **Total files with errors**: 124
+- **Files fixed**: 13 (10.5%)
+- **Remaining files**: 111 (89.5%)
 - **High priority files fixed**: 10/25 (40%)
 - **Medium priority files fixed**: 3/59 (5.1%)
 - **Low priority files fixed**: 0/16 (0%)

@@ -11,10 +11,10 @@ delegating to the existing components.
 ## Usage Examples
 ```python
 from sifaka.classifiers.adapters import ImplementationAdapter
-from sifaka.classifiers.implementations.content.toxicity import ToxicityClassifier as OldToxicityClassifier
+from sifaka.classifiers.implementations.content.toxicity import ToxicityClassifier
 
-# Create old classifier
-old_classifier = OldToxicityClassifier.create(
+# Create classifier
+classifier = ToxicityClassifier.create(
     name="toxicity_classifier",
     description="Detects toxic content in text",
     labels=["toxic", "non-toxic"],
@@ -22,7 +22,7 @@ old_classifier = OldToxicityClassifier.create(
 )
 
 # Create adapter
-implementation = ImplementationAdapter(old_classifier)
+implementation = ImplementationAdapter(classifier)
 
 # Use adapter
 result = implementation.classify("This is a friendly message.")
