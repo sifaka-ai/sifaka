@@ -44,7 +44,7 @@ The interfaces support execution tracking:
 """
 
 from abc import abstractmethod
-from typing import Any, Dict, Generic, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Any, Protocol, TypeVar, runtime_checkable
 
 from sifaka.core.interfaces import Configurable, Identifiable
 
@@ -263,7 +263,7 @@ class LanguageModelProtocol(Protocol[R]):
         """
         ...
 
-    def generate(self, prompt: str, **kwargs) -> R:
+    def generate(self, prompt: str, **kwargs: Any) -> R:
         """
         Generate text from a prompt.
 

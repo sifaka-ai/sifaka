@@ -21,7 +21,7 @@ from abc import abstractmethod
 from typing import Any, Protocol, TypeVar, runtime_checkable
 
 # Type variables
-ResultType = TypeVar("ResultType")
+ResultType = TypeVar("ResultType", covariant=True)
 
 
 @runtime_checkable

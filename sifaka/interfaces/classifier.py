@@ -64,6 +64,8 @@ from typing import Any, Dict, List, Protocol, TypeVar, runtime_checkable, TYPE_C
 # Type variables for generic protocols
 T = TypeVar("T", contravariant=True)  # Input type
 R = TypeVar("R", covariant=True)  # Result label type
+InputType = TypeVar("InputType")  # Input type for ClassifierProtocol
+OutputType = TypeVar("OutputType")  # Output type for ClassifierProtocol
 
 # Forward reference for ClassificationResult to avoid circular imports
 if TYPE_CHECKING:
@@ -71,7 +73,7 @@ if TYPE_CHECKING:
 
 
 @runtime_checkable
-class TextProcessor(Protocol[T, R]):
+class TextProcessor(Protocol[InputType, OutputType]):
     """
     Protocol for text processing components.
 
@@ -103,11 +105,11 @@ class TextProcessor(Protocol[T, R]):
     - Resource availability issues
     """
 
-    def process(self, text: T) -> Dict[str, Any]: ...
+    def process(self, text: InputType) -> Dict[str, Any]: ...
 
 
 @runtime_checkable
-class ClassifierProtocol(Protocol[T, R]):
+class ClassifierProtocol(Protocol[InputType, OutputType]):
     """
     Protocol defining the interface for classifiers.
 
@@ -162,8 +164,10 @@ class ClassifierProtocol(Protocol[T, R]):
     - Provide statistics through get_statistics()
     """
 
-    def classify(self, text: T) -> "ClassificationResult[R, Any]": ...
-    def batch_classify(self, texts: List[T]) -> List["ClassificationResult[R, Any]"]: ...
+    def classify(self, text: InputType) -> "ClassificationResult[OutputType, Any]": ...
+    def batch_classify(
+        self, texts: List[InputType]
+    ) -> List["ClassificationResult[OutputType, Any]"]: ...
     @property
     def name(self) -> str: ...
     @property

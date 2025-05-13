@@ -57,7 +57,7 @@ OutputType = TypeVar("OutputType", covariant=True)
 
 
 @runtime_checkable
-class Chain(Identifiable, Configurable[ConfigType], Protocol[InputType, OutputType]):
+class Chain(Identifiable, Configurable[ConfigType], Protocol[ConfigType, InputType, OutputType]):
     """
     Interface for chains.
 

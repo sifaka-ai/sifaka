@@ -75,9 +75,9 @@ from sifaka.core.interfaces import Configurable, Identifiable
 
 # Type variables
 ConfigType = TypeVar("ConfigType")
-InputType = TypeVar("InputType")
-OutputType = TypeVar("OutputType")
-ResultType = TypeVar("ResultType")
+InputType = TypeVar("InputType", contravariant=True)
+OutputType = TypeVar("OutputType", covariant=True)
+ResultType = TypeVar("ResultType", covariant=True)
 
 
 @runtime_checkable
@@ -421,7 +421,9 @@ class PromptFactory(SyncPromptFactory, Protocol):
 
 
 @runtime_checkable
-class Critic(Identifiable, Configurable[ConfigType], Protocol[InputType, OutputType, ResultType]):
+class Critic(
+    Identifiable, Configurable[ConfigType], Protocol[ConfigType, InputType, OutputType, ResultType]
+):
     """
     Interface for critics.
 
@@ -499,7 +501,7 @@ class Critic(Identifiable, Configurable[ConfigType], Protocol[InputType, OutputT
 
 
 @runtime_checkable
-class AsyncCritic(Protocol[InputType, OutputType, ResultType]):
+class AsyncCritic(Protocol[ConfigType, InputType, OutputType, ResultType]):
     """
     Interface for asynchronous critics.
 
@@ -605,7 +607,9 @@ class AsyncCritic(Protocol[InputType, OutputType, ResultType]):
         pass
 
     @abstractmethod
-    async def improve(self, text: InputType, feedback: Optional[Optional[str]] = None) -> OutputType:
+    async def improve(
+        self, text: InputType, feedback: Optional[Optional[str]] = None
+    ) -> OutputType:
         """
         Improve text asynchronously.
 

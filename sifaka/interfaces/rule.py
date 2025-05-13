@@ -52,8 +52,10 @@ from sifaka.core.interfaces import Configurable, Identifiable
 # Type variables
 T = TypeVar("T")
 ConfigType = TypeVar("ConfigType")
-InputType = TypeVar("InputType")
-ResultType = TypeVar("ResultType")
+InputType = TypeVar("InputType", contravariant=True)
+ResultType = TypeVar("ResultType", covariant=True)
+HandlerResultType = TypeVar("HandlerResultType", contravariant=True)
+AsyncConfigType = TypeVar("AsyncConfigType", covariant=True)
 
 
 @runtime_checkable
@@ -99,7 +101,7 @@ class Validatable(Protocol[ResultType]):
 
 
 @runtime_checkable
-class RuleResultHandler(Protocol[ResultType]):
+class RuleResultHandler(Protocol[HandlerResultType]):
     """
     Interface for rule result handlers.
 
@@ -122,7 +124,7 @@ class RuleResultHandler(Protocol[ResultType]):
     """
 
     @abstractmethod
-    def handle_result(self, result: ResultType) -> None:
+    def handle_result(self, result: HandlerResultType) -> None:
         """
         Handle a validation result.
 
@@ -137,7 +139,7 @@ class RuleResultHandler(Protocol[ResultType]):
 
 
 @runtime_checkable
-class Rule(Identifiable, Configurable[ConfigType], Protocol[InputType, ResultType]):
+class Rule(Identifiable, Configurable[ConfigType], Protocol[ConfigType, InputType, ResultType]):
     """
     Interface for rules.
 
@@ -215,7 +217,7 @@ class Rule(Identifiable, Configurable[ConfigType], Protocol[InputType, ResultTyp
 
 
 @runtime_checkable
-class AsyncRule(Protocol[InputType, ResultType]):
+class AsyncRule(Protocol[AsyncConfigType, InputType, ResultType]):
     """
     Interface for asynchronous rules.
 
@@ -268,7 +270,7 @@ class AsyncRule(Protocol[InputType, ResultType]):
 
     @property
     @abstractmethod
-    def config(self) -> ConfigType:
+    def config(self) -> Any:
         """
         Get the rule configuration.
 
@@ -278,7 +280,7 @@ class AsyncRule(Protocol[InputType, ResultType]):
         pass
 
     @abstractmethod
-    def update_config(self, config: ConfigType) -> None:
+    def update_config(self, config: Any) -> None:
         """
         Update the rule configuration.
 

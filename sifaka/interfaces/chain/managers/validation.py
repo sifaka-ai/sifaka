@@ -22,7 +22,7 @@ from typing import Any, List, Protocol, TypeVar, runtime_checkable
 
 # Type variables
 InputType = TypeVar("InputType", contravariant=True)
-ValidationResultType = TypeVar("ValidationResultType")
+ValidationResultType = TypeVar("ValidationResultType", covariant=True)
 
 
 @runtime_checkable

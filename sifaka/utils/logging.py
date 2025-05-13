@@ -80,7 +80,22 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, Optional, Protocol, runtime_checkable
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Protocol,
+    TypeVar,
+    Union,
+    cast,
+    runtime_checkable,
+    IO,
+    TextIO,
+)
+from logging import Handler, Formatter, Logger, StreamHandler, FileHandler
 
 
 @runtime_checkable
@@ -122,12 +137,12 @@ class LogHandler(Protocol):
     that log handlers must satisfy.
     """
 
-    def setFormatter(self, formatter: LogFormatter) -> None:
+    def setFormatter(self, formatter: Optional[Formatter]) -> None:
         """
         Set the formatter for this handler.
 
         Args:
-            formatter (LogFormatter): The formatter to use
+            formatter (Optional[Formatter]): The formatter to use
         """
         ...
 
@@ -523,7 +538,7 @@ class LoggerFactory:
         self._loggers: Dict[str, logging.Logger] = {}
         logging.setLoggerClass(EnhancedLogger)
 
-    def create_formatter(self) -> LogFormatter:
+    def create_formatter(self) -> Formatter:
         """
         Create a structured formatter.
 
@@ -531,7 +546,7 @@ class LoggerFactory:
         settings from the factory's config.
 
         Returns:
-            LogFormatter: A configured formatter
+            Formatter: A configured formatter
         """
         return StructuredFormatter(
             fmt=self.config.format_string,
@@ -540,20 +555,20 @@ class LoggerFactory:
             structured=self.config.structured,
         )
 
-    def create_console_handler(self) -> LogHandler:
+    def create_console_handler(self) -> Handler:
         """
         Create a console handler.
 
         This method creates a console handler with the appropriate formatter.
 
         Returns:
-            LogHandler: A configured console handler
+            Handler: A configured console handler
         """
-        handler = logging.StreamHandler()
+        handler = StreamHandler()
         handler.setFormatter(self.create_formatter())
         return handler
 
-    def create_file_handler(self, logger_name: str) -> Optional[LogHandler]:
+    def create_file_handler(self, logger_name: str) -> Optional[Handler]:
         """
         Create a file handler if configured.
 
@@ -564,7 +579,7 @@ class LoggerFactory:
             logger_name (str): Name of the logger
 
         Returns:
-            Optional[LogHandler]: A configured file handler, or None if file logging is disabled
+            Optional[Handler]: A configured file handler, or None if file logging is disabled
 
         Raises:
             OSError: If the log directory cannot be created
@@ -575,7 +590,7 @@ class LoggerFactory:
         if log_dir and not log_dir.exists():
             log_dir.mkdir(parents=True)
         timestamp = datetime.now().strftime("%Y%m%d")
-        handler = logging.FileHandler(log_dir / f"{logger_name}_{timestamp}.log")
+        handler = FileHandler(log_dir / f"{logger_name}_{timestamp}.log")
         handler.setFormatter(
             StructuredFormatter(
                 fmt=self.config.format_string,
@@ -610,7 +625,7 @@ class LoggerFactory:
             ```
         """
         if name in self._loggers:
-            return self._loggers[name]
+            return cast(EnhancedLogger, self._loggers[name])
         logger = logging.getLogger(name)
         logger.setLevel(level or self.config.level)
         if not logger.handlers:
@@ -619,7 +634,7 @@ class LoggerFactory:
             if file_handler:
                 logger.addHandler(file_handler)
         self._loggers[name] = logger
-        return logger
+        return cast(EnhancedLogger, logger)
 
 
 _logger_factory = LoggerFactory()
@@ -758,7 +773,10 @@ def configure_logging(config: Optional[LogConfig] = None, level: Optional[str] =
         _logger_factory = LoggerFactory(new_config)
 
 
-def log_operation(logger: Optional[EnhancedLogger] = None) -> Any:
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def log_operation(logger: Optional[EnhancedLogger] = None) -> Callable[[F], F]:
     """
     Decorator to log function entry/exit with timing.
 
@@ -792,10 +810,10 @@ def log_operation(logger: Optional[EnhancedLogger] = None) -> Any:
         ```
     """
 
-    def decorator(func) -> Any:
+    def decorator(func: F) -> F:
 
         @wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             nonlocal logger
             if logger is None:
                 logger = get_logger(func.__module__)
@@ -816,6 +834,6 @@ def log_operation(logger: Optional[EnhancedLogger] = None) -> Any:
                     )
                 raise
 
-        return wrapper
+        return cast(F, wrapper)
 
     return decorator

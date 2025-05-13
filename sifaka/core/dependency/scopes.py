@@ -40,6 +40,7 @@ with provider.request_scope("request_123") if provider else "" as request:
 import logging
 import uuid
 from enum import Enum
+from types import TracebackType
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -154,7 +155,7 @@ class SessionScope:
         """
         self.provider = provider
         self.session_id = session_id or str(uuid.uuid4())
-        self.previous_session_id = None
+        self.previous_session_id: Optional[str] = None
         self.clear_on_exit = False
 
     def __enter__(self) -> Any:
@@ -169,7 +170,12 @@ class SessionScope:
         logger.debug(f"Entered session scope: {self.session_id}")
         return self.session_id
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         """
         Exit the session scope.
 
@@ -254,7 +260,7 @@ class RequestScope:
         """
         self.provider = provider
         self.request_id = request_id or str(uuid.uuid4())
-        self.previous_request_id = None
+        self.previous_request_id: Optional[str] = None
         self.clear_on_exit = False
 
     def __enter__(self) -> Any:
@@ -269,7 +275,12 @@ class RequestScope:
         logger.debug(f"Entered request scope: {self.request_id}")
         return self.request_id
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         """
         Exit the request scope.
 

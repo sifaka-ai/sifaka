@@ -54,9 +54,9 @@ from typing import Any, Dict, Generic, List, Protocol, TypeVar, runtime_checkabl
 from sifaka.utils.config.critics import CriticConfig
 from sifaka.critics.base.metadata import CriticMetadata
 
-# Input and output type variables
-T = TypeVar("T")  # Input type (usually str)
-R = TypeVar("R")  # Result type
+# Input and output type variables with variance annotations
+T = TypeVar("T", contravariant=True)  # Input type (usually str) - contravariant
+R = TypeVar("R", covariant=True)  # Result type - covariant
 
 
 @runtime_checkable
@@ -215,7 +215,7 @@ class TextImprover(Protocol[T, R]):
         """
         ...
 
-    def improve(self, text: T, violations: List[Dict[str, Any]]) -> T:
+    def improve(self, text: T, violations: List[Dict[str, Any]]) -> R:
         """
         Improve text based on violations.
 
@@ -324,7 +324,7 @@ class TextCritic(Protocol[T, R]):
         """
         ...
 
-    def critique(self, text: T) -> CriticMetadata[R]:
+    def critique(self, text: T) -> R:
         """
         Critique text and provide feedback.
 

@@ -283,7 +283,9 @@ class QueryProcessor(Protocol[QueryType, ResultType]):
 
 
 @runtime_checkable
-class Retriever(Identifiable, Configurable[ConfigType], Protocol[QueryType, ResultType]):
+class Retriever(
+    Identifiable, Configurable[ConfigType], Protocol[ConfigType, QueryType, ResultType]
+):
     """
     Interface for retrievers.
 

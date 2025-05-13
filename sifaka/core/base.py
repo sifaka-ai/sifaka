@@ -67,8 +67,8 @@ from sifaka.utils.state import StateManager
 from sifaka.utils.result_types import BaseResult
 
 logger = get_logger(__name__)
-T = TypeVar("T")
-R = TypeVar("R")
+T = TypeVar("T", contravariant=True)  # Input type - contravariant
+R = TypeVar("R", covariant=True)  # Result type - covariant
 C = TypeVar("C", bound="BaseComponent")
 
 

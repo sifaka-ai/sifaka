@@ -28,15 +28,15 @@ from typing import Any
 from ..interfaces import ClassifierImplementation
 from ...core.results import ClassificationResult
 from sifaka.classifiers.errors import ImplementationError, safely_execute
-from .content.toxicity import ToxicityClassifier as OldToxicityClassifier
-from .content.sentiment import SentimentClassifier as OldSentimentClassifier
-from .content.profanity import ProfanityClassifier as OldProfanityClassifier
+from .content.toxicity import ToxicityClassifier
+from .content.sentiment import SentimentClassifier
+from .content.profanity import ProfanityClassifier
 
 
 class ToxicityClassifierAdapter(ClassifierImplementation):
     """Adapter for the ToxicityClassifier."""
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         """
         Initialize the adapter.
 
@@ -49,11 +49,11 @@ class ToxicityClassifierAdapter(ClassifierImplementation):
             "labels",
             ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate", "non_toxic"],
         )
-        self._classifier = OldToxicityClassifier.create(
+        self._classifier = ToxicityClassifier.create(
             name=name, description=description, labels=labels, **kwargs
         )
 
-    def classify(self, text: str) -> Any:
+    def classify(self, text: str) -> ClassificationResult:
         """
         Classify the given text.
 
@@ -100,7 +100,7 @@ class ToxicityClassifierAdapter(ClassifierImplementation):
 class SentimentClassifierAdapter(ClassifierImplementation):
     """Adapter for the SentimentClassifier."""
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         """
         Initialize the adapter.
 
@@ -110,11 +110,11 @@ class SentimentClassifierAdapter(ClassifierImplementation):
         name = kwargs.get("name", "sentiment_classifier")
         description = kwargs.get("description", "Classifies text sentiment using VADER")
         labels = kwargs.get("labels", ["positive", "negative", "neutral", "unknown"])
-        self._classifier = OldSentimentClassifier.create(
+        self._classifier = SentimentClassifier.create(
             name=name, description=description, labels=labels, **kwargs
         )
 
-    def classify(self, text: str) -> Any:
+    def classify(self, text: str) -> ClassificationResult:
         """
         Classify the given text.
 
@@ -161,7 +161,7 @@ class SentimentClassifierAdapter(ClassifierImplementation):
 class ProfanityClassifierAdapter(ClassifierImplementation):
     """Adapter for the ProfanityClassifier."""
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         """
         Initialize the adapter.
 
@@ -171,11 +171,11 @@ class ProfanityClassifierAdapter(ClassifierImplementation):
         name = kwargs.get("name", "profanity_classifier")
         description = kwargs.get("description", "Detects profanity in text")
         labels = kwargs.get("labels", ["profane", "clean"])
-        self._classifier = OldProfanityClassifier.create(
+        self._classifier = ProfanityClassifier.create(
             name=name, description=description, labels=labels, **kwargs
         )
 
-    def classify(self, text: str) -> Any:
+    def classify(self, text: str) -> ClassificationResult:
         """
         Classify the given text.
 

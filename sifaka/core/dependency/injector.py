@@ -83,9 +83,7 @@ class DependencyInjector:
         request_id (Optional[str]): The request ID for scoped dependencies
     """
 
-    def __init__(
-        self, session_id: Optional[Optional[str]] = None, request_id: Optional[str] = None
-    ) -> None:
+    def __init__(self, session_id: Optional[str] = None, request_id: Optional[str] = None) -> None:
         """
         Initialize a dependency injector.
 
@@ -153,10 +151,10 @@ class DependencyInjector:
         """
 
         @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             sig = inspect.signature(func)
             params = sig.parameters
-            injected_kwargs = {}
+            injected_kwargs: Dict[str, Any] = {}
             for name, param in params.items():
                 if name in kwargs:
                     continue
@@ -207,10 +205,10 @@ class DependencyInjector:
         """
 
         @functools.wraps(method)
-        def wrapper(self_arg, *args, **kwargs) -> Any:
+        def wrapper(self_arg: Any, *args: Any, **kwargs: Any) -> Any:
             sig = inspect.signature(method)
             params = sig.parameters
-            injected_kwargs = {}
+            injected_kwargs: Dict[str, Any] = {}
             for name, param in list(params.items())[1:]:
                 if name in kwargs:
                     continue
@@ -261,10 +259,10 @@ class DependencyInjector:
         orig_init = cls.__init__
 
         @functools.wraps(orig_init)
-        def injected_init(self, *args, **kwargs) -> None:
+        def injected_init(self_arg: Any, *args: Any, **kwargs: Any) -> None:
             sig = inspect.signature(orig_init)
             params = sig.parameters
-            injected_kwargs = {}
+            injected_kwargs: Dict[str, Any] = {}
             for name, param in list(params.items())[1:]:
                 if name in kwargs:
                     continue
@@ -282,16 +280,17 @@ class DependencyInjector:
                 except Exception as e:
                     logger.debug(f"Failed to inject dependency {name}: {e}")
             merged_kwargs = {**injected_kwargs, **kwargs}
-            orig_init(self, *args, **merged_kwargs)
+            orig_init(self_arg, *args, **merged_kwargs)
 
-        cls.__init__ = injected_init
+        # Use setattr to avoid mypy method assignment error
+        setattr(cls, "__init__", injected_init)
         return cls
 
 
 def inject_dependencies(
-    func_or_class: Optional[Optional[F]] = None,
-    session_id: Optional[Optional[str]] = None,
-    request_id: Optional[Optional[str]] = None,
+    func_or_class: Optional[F] = None,
+    session_id: Optional[str] = None,
+    request_id: Optional[str] = None,
 ) -> F:
     """
     Decorator for automatically injecting dependencies into functions or classes.
@@ -343,25 +342,25 @@ def inject_dependencies(
     injector = DependencyInjector(session_id=session_id, request_id=request_id)
     if func_or_class is not None:
         if inspect.isfunction(func_or_class):
-            return injector.inject_function(func_or_class)
+            return cast(F, injector.inject_function(func_or_class))
         elif inspect.isclass(func_or_class):
-            return injector.inject_class(func_or_class)
+            return cast(F, injector.inject_class(func_or_class))
         elif inspect.ismethod(func_or_class):
-            return injector.inject_method(func_or_class)
+            return cast(F, injector.inject_method(func_or_class))
         elif callable(func_or_class):
-            return injector.inject_function(func_or_class)
+            return cast(F, injector.inject_function(func_or_class))
         else:
             raise TypeError(f"Expected function or class, got {type(func_or_class)}")
 
     def decorator(func_or_cls: F) -> F:
         if inspect.isfunction(func_or_cls):
-            return injector.inject_function(func_or_cls)
+            return cast(F, injector.inject_function(func_or_cls))
         elif inspect.isclass(func_or_cls):
-            return injector.inject_class(func_or_cls)
+            return cast(F, injector.inject_class(func_or_cls))
         elif inspect.ismethod(func_or_cls):
-            return injector.inject_method(func_or_cls)
+            return cast(F, injector.inject_method(func_or_cls))
         elif callable(func_or_cls):
-            return injector.inject_function(func_or_cls)
+            return cast(F, injector.inject_function(func_or_cls))
         else:
             raise TypeError(f"Expected function or class, got {type(func_or_cls)}")
 
