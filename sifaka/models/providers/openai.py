@@ -32,10 +32,10 @@ config = ModelConfig(
 provider = OpenAIProvider(model_name="gpt-4", config=config)
 
 # Generate text
-response = (provider and provider.generate("Explain quantum computing")
+response = provider.generate("Explain quantum computing")
 
 # Count tokens
-token_count = (provider and provider.count_tokens("How many tokens is this?")
+token_count = provider.count_tokens("How many tokens is this?")
 ```
 
 ## Error Handling
@@ -111,10 +111,10 @@ class OpenAIProvider(ModelProviderCore):
     provider = OpenAIProvider(model_name="gpt-4", config=config)
 
     # Generate text
-    response = (provider and provider.generate("Explain quantum computing")
+    response = provider.generate("Explain quantum computing")
 
     # Count tokens
-    token_count = (provider and provider.count_tokens("How many tokens is this?")
+    token_count = provider.count_tokens("How many tokens is this?")
     ```
 
     Attributes:
@@ -144,7 +144,7 @@ class OpenAIProvider(ModelProviderCore):
         """
         # Verify OpenAI package is installed
         try:
-            if importlib.(util and util.find_spec("openai") is None:
+            if importlib.util.find_spec("openai") is None:
                 raise ImportError()
         except ImportError:
             raise ImportError("OpenAI package is required. Install with: pip install openai")
@@ -164,9 +164,10 @@ class OpenAIProvider(ModelProviderCore):
             "error_count": 0,
             "total_processing_time": 0,
         }
-        self.(_state_manager and _state_manager.update("stats", stats)
+        if self._state_manager:
+            self._state_manager.update("stats", stats)
 
-        (logger and logger.info(f"Created OpenAIProvider with model {model_name}")
+        logger.info(f"Created OpenAIProvider with model {model_name}")
 
     def invoke(self, prompt: str, **kwargs) -> str:
         """
@@ -201,33 +202,37 @@ class OpenAIProvider(ModelProviderCore):
             ValueError: If invalid configuration is provided
         """
         # Ensure component is initialized
-        if not self.(_state_manager and _state_manager.get("initialized", False):
-            (self and self.warm_up()
+        if not self._state_manager or not self._state_manager.get("initialized", False):
+            self.warm_up()
 
         # Track generation count in state
-        start_time = (time and time.time()
+        start_time = time.time()
 
         try:
-            result = (self and self.generate(prompt, **kwargs)
+            result = self.generate(prompt, **kwargs)
 
             # Update statistics in state
-            stats = self.(_state_manager and _state_manager.get("stats", {})
-            stats["generation_count"] = (stats and stats.get("generation_count", 0) + 1
-            stats["total_processing_time"] = (
-                (stats and stats.get("total_processing_time", 0) + ((time and time.time() - start_time) * 1000
-            )
-            self.(_state_manager and _state_manager.update("stats", stats)
+            if self._state_manager:
+                stats = self._state_manager.get("stats", {})
+                if stats:
+                    stats["generation_count"] = stats.get("generation_count", 0) + 1
+                    stats["total_processing_time"] = stats.get("total_processing_time", 0) + (
+                        (time.time() - start_time) * 1000
+                    )
+                    self._state_manager.update("stats", stats)
 
             return result
 
         except Exception as e:
             # Update error count in state
-            stats = self.(_state_manager and _state_manager.get("stats", {})
-            stats["error_count"] = (stats and stats.get("error_count", 0) + 1
-            self.(_state_manager and _state_manager.update("stats", stats)
+            if self._state_manager:
+                stats = self._state_manager.get("stats", {})
+                if stats:
+                    stats["error_count"] = stats.get("error_count", 0) + 1
+                    self._state_manager.update("stats", stats)
 
             # Record the error
-            (self and self._record_error(e)
+            self._record_error(e)
 
             # Re-raise the exception
             raise
@@ -269,45 +274,49 @@ class OpenAIProvider(ModelProviderCore):
 
             async def generate_text():
                 provider = OpenAIProvider(model_name="gpt-4")
-                response = await (provider and provider.ainvoke("Explain quantum computing")
+                response = await provider.ainvoke("Explain quantum computing")
                 return response
 
             # Run the async function
-            response = (asyncio and asyncio.run(generate_text())
+            response = asyncio.run(generate_text())
             ```
         """
         # Ensure component is initialized
-        if not self.(_state_manager and _state_manager.get("initialized", False):
-            (self and self.warm_up()
+        if not self._state_manager or not self._state_manager.get("initialized", False):
+            self.warm_up()
 
         # Track generation count in state
-        start_time = (time and time.time()
+        start_time = time.time()
 
         try:
             if hasattr(self, "agenerate"):
-                result = await (self and self.agenerate(prompt, **kwargs)
+                result = await self.agenerate(prompt, **kwargs)
             else:
                 # Fall back to synchronous generate
-                result = (self and self.generate(prompt, **kwargs)
+                result = self.generate(prompt, **kwargs)
 
             # Update statistics in state
-            stats = self.(_state_manager and _state_manager.get("stats", {})
-            stats["generation_count"] = (stats and stats.get("generation_count", 0) + 1
-            stats["total_processing_time"] = (
-                (stats and stats.get("total_processing_time", 0) + ((time and time.time() - start_time) * 1000
-            )
-            self.(_state_manager and _state_manager.update("stats", stats)
+            if self._state_manager:
+                stats = self._state_manager.get("stats", {})
+                if stats:
+                    stats["generation_count"] = stats.get("generation_count", 0) + 1
+                    stats["total_processing_time"] = stats.get("total_processing_time", 0) + (
+                        (time.time() - start_time) * 1000
+                    )
+                    self._state_manager.update("stats", stats)
 
             return result
 
         except Exception as e:
             # Update error count in state
-            stats = self.(_state_manager and _state_manager.get("stats", {})
-            stats["error_count"] = (stats and stats.get("error_count", 0) + 1
-            self.(_state_manager and _state_manager.update("stats", stats)
+            if self._state_manager:
+                stats = self._state_manager.get("stats", {})
+                if stats:
+                    stats["error_count"] = stats.get("error_count", 0) + 1
+                    self._state_manager.update("stats", stats)
 
             # Record the error
-            (self and self._record_error(e)
+            self._record_error(e)
 
             # Re-raise the exception
             raise
@@ -315,17 +324,19 @@ class OpenAIProvider(ModelProviderCore):
     def _record_error(self, error: Exception) -> None:
         """Record an error in the state manager."""
         # Update error count in state
-        stats = self.(_state_manager and _state_manager.get("stats", {})
-        stats["error_count"] = (stats and stats.get("error_count", 0) + 1
-        self.(_state_manager and _state_manager.update("stats", stats)
+        if self._state_manager:
+            stats = self._state_manager.get("stats", {})
+            if stats:
+                stats["error_count"] = stats.get("error_count", 0) + 1
+                self._state_manager.update("stats", stats)
 
-        # Use common error recording utility
-        record_error(
-            error=error,
-            component_name=self.name,
-            component_type=self.__class__.__name__,
-            state_manager=self._state_manager,
-        )
+            # Use common error recording utility
+            record_error(
+                error=error,
+                component_name=self.name,
+                component_type=self.__class__.__name__,
+                state_manager=self._state_manager,
+            )
 
     @property
     def name(self) -> str:
@@ -335,7 +346,8 @@ class OpenAIProvider(ModelProviderCore):
         Returns:
             The provider name
         """
-        return f"OpenAI-{self.(_state_manager and _state_manager.get('model_name')}"
+        model_name = self._state_manager.get("model_name") if self._state_manager else "unknown"
+        return f"OpenAI-{model_name}"
 
     def warm_up(self) -> None:
         """
@@ -357,49 +369,54 @@ class OpenAIProvider(ModelProviderCore):
             ModelError: If initialization fails due to API issues
         """
         # Ensure component is not already initialized
-        if self.(_state_manager and _state_manager.get("initialized", False):
-            (logger and logger.debug(f"Provider {self.name} already initialized")
+        if self._state_manager and self._state_manager.get("initialized", False):
+            logger.debug(f"Provider {self.name} already initialized")
             return
 
         # Lazy import managers to avoid circular dependencies
         from sifaka.models.managers.openai_client import OpenAIClientManager
         from sifaka.models.managers.openai_token_counter import OpenAITokenCounterManager
 
+        if not self._state_manager:
+            return
+
         # Get dependencies from state
-        model_name = self.(_state_manager and _state_manager.get("model_name")
-        config = self.(_state_manager and _state_manager.get("config")
-        api_client = self.(_state_manager and _state_manager.get("api_client")
-        token_counter = self.(_state_manager and _state_manager.get("token_counter")
+        model_name = self._state_manager.get("model_name")
+        config = self._state_manager.get("config")
+        api_client = self._state_manager.get("api_client")
+        token_counter = self._state_manager.get("token_counter")
 
         # Create managers if they don't exist in state
-        if not self.(_state_manager and _state_manager.get("client_manager"):
+        if not self._state_manager.get("client_manager"):
             client_manager = OpenAIClientManager(
                 model_name=model_name,
                 config=config,
                 api_client=api_client,
             )
-            self.(_state_manager and _state_manager.update("client_manager", client_manager)
+            self._state_manager.update("client_manager", client_manager)
 
-        if not self.(_state_manager and _state_manager.get("token_counter_manager"):
+        if not self._state_manager.get("token_counter_manager"):
             token_counter_manager = OpenAITokenCounterManager(
                 model_name=model_name,
                 token_counter=token_counter,
             )
-            self.(_state_manager and _state_manager.update("token_counter_manager", token_counter_manager)
+            self._state_manager.update("token_counter_manager", token_counter_manager)
 
         # Initialize client
-        client_manager = self.(_state_manager and _state_manager.get("client_manager")
-        client = (client_manager and client_manager.get_client()
-        self.(_state_manager and _state_manager.update("client", client)
+        client_manager = self._state_manager.get("client_manager")
+        if client_manager:
+            client = client_manager.get_client()
+            self._state_manager.update("client", client)
 
         # Initialize token counter
-        token_counter_manager = self.(_state_manager and _state_manager.get("token_counter_manager")
-        token_counter = (token_counter_manager and token_counter_manager.get_token_counter()
-        self.(_state_manager and _state_manager.update("token_counter", token_counter)
+        token_counter_manager = self._state_manager.get("token_counter_manager")
+        if token_counter_manager:
+            token_counter = token_counter_manager.get_token_counter()
+            self._state_manager.update("token_counter", token_counter)
 
         # Mark as initialized
-        self.(_state_manager and _state_manager.update("initialized", True)
-        (logger and logger.info(f"Provider {self.name} initialized successfully")
+        self._state_manager.update("initialized", True)
+        logger.info(f"Provider {self.name} initialized successfully")
 
     def cleanup(self) -> None:
         """
@@ -415,23 +432,23 @@ class OpenAIProvider(ModelProviderCore):
         Example:
             ```python
             provider = OpenAIProvider(model_name="gpt-4")
-            (provider and provider.generate("Hello")  # Automatically warms up
-            (provider and provider.cleanup()  # Release resources
-            (provider and provider.warm_up()  # Reinitialize for reuse
+            provider.generate("Hello")  # Automatically warms up
+            provider.cleanup()  # Release resources
+            provider.warm_up()  # Reinitialize for reuse
             ```
         """
         # Check if already cleaned up
-        if not self.(_state_manager and _state_manager.get("initialized", False):
-            (logger and logger.debug(f"Provider {self.name} not initialized, nothing to clean up")
+        if not self._state_manager or not self._state_manager.get("initialized", False):
+            logger.debug(f"Provider {self.name} not initialized, nothing to clean up")
             return
 
         # Release OpenAI-specific resources
-        client = self.(_state_manager and _state_manager.get("client")
+        client = self._state_manager.get("client")
         if client and hasattr(client, "close"):
-            (client and client.close()
+            client.close()
 
         # Clear provider-specific stats
-        self.(_state_manager and _state_manager.update(
+        self._state_manager.update(
             "stats",
             {
                 "generation_count": 0,
@@ -442,8 +459,8 @@ class OpenAIProvider(ModelProviderCore):
         )
 
         # Mark as not initialized
-        self.(_state_manager and _state_manager.update("initialized", False)
-        (logger and logger.info(f"Provider {self.name} cleaned up successfully")
+        self._state_manager.update("initialized", False)
+        logger.info(f"Provider {self.name} cleaned up successfully")
 
     def generate(self, prompt: str, **kwargs) -> str:
         """
@@ -482,10 +499,10 @@ class OpenAIProvider(ModelProviderCore):
             provider = OpenAIProvider(model_name="gpt-4")
 
             # Basic generation
-            response = (provider and provider.generate("Explain quantum computing")
+            response = provider.generate("Explain quantum computing")
 
             # Generation with configuration overrides
-            response = (provider and provider.generate(
+            response = provider.generate(
                 "Write a poem about AI",
                 temperature=0.9,
                 max_tokens=200
@@ -493,29 +510,35 @@ class OpenAIProvider(ModelProviderCore):
             ```
         """
         # Ensure component is initialized
-        if not self.(_state_manager and _state_manager.get("initialized", False):
-            (self and self.warm_up()
+        if not self._state_manager or not self._state_manager.get("initialized", False):
+            self.warm_up()
+
+        if not self._state_manager:
+            return ""
 
         # Get client from state
-        client = self.(_state_manager and _state_manager.get("client")
+        client = self._state_manager.get("client")
         if client is None:
-            client_manager = self.(_state_manager and _state_manager.get("client_manager")
+            client_manager = self._state_manager.get("client_manager")
             if client_manager is None:
-                (self and self.warm_up()
-                client = self.(_state_manager and _state_manager.get("client")
-            else:
-                client = (client_manager and client_manager.get_client()
-                self.(_state_manager and _state_manager.update("client", client)
+                self.warm_up()
+                client = self._state_manager.get("client")
+            elif client_manager:
+                client = client_manager.get_client()
+                if client:
+                    self._state_manager.update("client", client)
 
         # Get config from state
-        config = self.(_state_manager and _state_manager.get("config")
+        config = self._state_manager.get("config")
+        if not config:
+            return ""
 
         # Create a new config with updated values using the proper immutable pattern
         # First, check if any kwargs match direct config attributes
         config_kwargs = {}
         params_kwargs = {}
 
-        for key, value in (kwargs and kwargs.items():
+        for key, value in kwargs.items():
             if hasattr(config, key) and key != "params":
                 config_kwargs[key] = value
             else:
@@ -523,19 +546,21 @@ class OpenAIProvider(ModelProviderCore):
 
         # Create updated config using with_options for direct attributes
         if config_kwargs:
-            new_config = (config and config.with_options(**config_kwargs)
+            new_config = config.with_options(**config_kwargs)
         else:
             new_config = config
 
         # Add any params using with_params
-        if params_kwargs:
-            new_config = (new_config and new_config.with_params(**params_kwargs)
+        if params_kwargs and hasattr(new_config, "with_params"):
+            new_config = new_config.with_params(**params_kwargs)
 
         # Store the updated config in the state manager
-        self.(_state_manager and _state_manager.update("config", new_config)
+        self._state_manager.update("config", new_config)
 
         # Send prompt to client
-        return (client and client.send_prompt(prompt, config)
+        if client:
+            return client.send_prompt(prompt, config)
+        return ""
 
     def count_tokens(self, text: str) -> int:
         """
@@ -566,36 +591,43 @@ class OpenAIProvider(ModelProviderCore):
             provider = OpenAIProvider(model_name="gpt-4")
 
             # Count tokens in a string
-            token_count = (provider and provider.count_tokens("How many tokens is this?")
+            token_count = provider.count_tokens("How many tokens is this?")
 
             # Count tokens in a longer text
             with open("document.txt", "r") as f:
-                text = (f and f.read()
-                token_count = (provider and provider.count_tokens(text)
+                text = f.read()
+                token_count = provider.count_tokens(text)
             ```
         """
         # Ensure component is initialized
-        if not self.(_state_manager and _state_manager.get("initialized", False):
-            (self and self.warm_up()
+        if not self._state_manager or not self._state_manager.get("initialized", False):
+            self.warm_up()
+
+        if not self._state_manager:
+            return 0
 
         # Get token counter from state
-        token_counter = self.(_state_manager and _state_manager.get("token_counter")
+        token_counter = self._state_manager.get("token_counter")
         if token_counter is None:
-            token_counter_manager = self.(_state_manager and _state_manager.get("token_counter_manager")
+            token_counter_manager = self._state_manager.get("token_counter_manager")
             if token_counter_manager is None:
-                (self and self.warm_up()
-                token_counter = self.(_state_manager and _state_manager.get("token_counter")
-            else:
-                token_counter = (token_counter_manager and token_counter_manager.get_token_counter()
-                self.(_state_manager and _state_manager.update("token_counter", token_counter)
+                self.warm_up()
+                token_counter = self._state_manager.get("token_counter")
+            elif token_counter_manager:
+                token_counter = token_counter_manager.get_token_counter()
+                if token_counter:
+                    self._state_manager.update("token_counter", token_counter)
 
         # Update statistics
-        stats = self.(_state_manager and _state_manager.get("stats", {})
-        stats["token_count_calls"] = (stats and stats.get("token_count_calls", 0) + 1
-        self.(_state_manager and _state_manager.update("stats", stats)
+        stats = self._state_manager.get("stats", {})
+        if stats:
+            stats["token_count_calls"] = stats.get("token_count_calls", 0) + 1
+            self._state_manager.update("stats", stats)
 
         # Count tokens
-        return (token_counter and token_counter.count_tokens(text)
+        if token_counter:
+            return token_counter.count_tokens(text)
+        return 0
 
     def _create_default_client(self) -> APIClient:
         """
@@ -614,7 +646,11 @@ class OpenAIProvider(ModelProviderCore):
         """
         from sifaka.models.managers.openai_client import OpenAIClient
 
-        return OpenAIClient(api_key=self.(_state_manager and _state_manager.get("config").api_key)
+        api_key = None
+        if self._state_manager and self._state_manager.get("config"):
+            api_key = self._state_manager.get("config").api_key
+
+        return OpenAIClient(api_key=api_key)
 
     def _create_default_token_counter(self) -> TokenCounter:
         """
@@ -633,7 +669,11 @@ class OpenAIProvider(ModelProviderCore):
         """
         from sifaka.models.managers.openai_token_counter import OpenAITokenCounter
 
-        return OpenAITokenCounter(model=self.(_state_manager and _state_manager.get("model_name"))
+        model_name = "gpt-4"  # Default fallback
+        if self._state_manager:
+            model_name = self._state_manager.get("model_name", model_name)
+
+        return OpenAITokenCounter(model=model_name)
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -655,21 +695,26 @@ class OpenAIProvider(ModelProviderCore):
         Example:
             ```python
             provider = OpenAIProvider(model_name="gpt-4")
-            (provider and provider.generate("Hello, world!")
-            (provider and provider.count_tokens("How many tokens?")
+            provider.generate("Hello, world!")
+            provider.count_tokens("How many tokens?")
 
             # Get usage statistics
-            stats = (provider and provider.get_statistics()
+            stats = provider.get_statistics()
             print(f"Generation count: {stats['generation_count']}")
             print(f"Token count calls: {stats['token_count_calls']}")
             ```
         """
         # Get statistics from tracing manager and state
-        tracing_manager = self.(_state_manager and _state_manager.get("tracing_manager")
-        tracing_stats = (tracing_manager and tracing_manager.get_statistics() if tracing_manager else {}
+        tracing_stats = {}
+        stats = {}
 
-        # Combine with any other stats from state
-        stats = self.(_state_manager and _state_manager.get("stats", {})
+        if self._state_manager:
+            tracing_manager = self._state_manager.get("tracing_manager")
+            if tracing_manager and hasattr(tracing_manager, "get_statistics"):
+                tracing_stats = tracing_manager.get_statistics()
+
+            # Combine with any other stats from state
+            stats = self._state_manager.get("stats", {})
 
         return {**tracing_stats, **stats}
 
@@ -681,7 +726,10 @@ class OpenAIProvider(ModelProviderCore):
         Returns:
             str: A description of the provider
         """
-        return f"OpenAI provider using model {self.(_state_manager and _state_manager.get('model_name')}"
+        model_name = "unknown"
+        if self._state_manager:
+            model_name = self._state_manager.get("model_name", model_name)
+        return f"OpenAI provider using model {model_name}"
 
     def update_config(self, **kwargs) -> None:
         """
@@ -690,14 +738,19 @@ class OpenAIProvider(ModelProviderCore):
         Args:
             **kwargs: Configuration parameters to update
         """
-        config = self.(_state_manager and _state_manager.get("config")
+        if not self._state_manager:
+            return
+
+        config = self._state_manager.get("config")
+        if not config:
+            return
 
         # Create a new config with updated values using the proper immutable pattern
         # First, check if any kwargs match direct config attributes
         config_kwargs = {}
         params_kwargs = {}
 
-        for key, value in (kwargs and kwargs.items():
+        for key, value in kwargs.items():
             if hasattr(config, key) and key != "params":
                 config_kwargs[key] = value
             else:
@@ -705,13 +758,13 @@ class OpenAIProvider(ModelProviderCore):
 
         # Create updated config using with_options for direct attributes
         if config_kwargs:
-            new_config = (config and config.with_options(**config_kwargs)
+            new_config = config.with_options(**config_kwargs)
         else:
             new_config = config
 
         # Add any params using with_params
-        if params_kwargs:
-            new_config = (new_config and new_config.with_params(**params_kwargs)
+        if params_kwargs and hasattr(new_config, "with_params"):
+            new_config = new_config.with_params(**params_kwargs)
 
         # Update state
-        self.(_state_manager and _state_manager.update("config", new_config)
+        self._state_manager.update("config", new_config)

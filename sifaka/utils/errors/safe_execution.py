@@ -257,21 +257,22 @@ def safely_execute_component(
     """
     try:
         # Record start time
-        start_time = (time.time()
+        start_time = time.time()
 
         # Execute operation
         result = operation()
 
         # Record execution time
-        execution_time = (time.time() - start_time
-        (logger and logger.debug(
-            f"{(component_type.capitalize()} operation completed in {execution_time:.4f}s",
-            extra={
-                "execution_time": execution_time,
-                "component": component_name,
-                "component_type": component_type,
-            },
-        )
+        execution_time = time.time() - start_time
+        if logger:
+            logger.debug(
+                f"{component_type.capitalize()} operation completed in {execution_time:.4f}s",
+                extra={
+                    "execution_time": execution_time,
+                    "component": component_name,
+                    "component_type": component_type,
+                },
+            )
 
         return result
     except Exception as e:
@@ -293,6 +294,6 @@ def safely_execute_component(
             raise
         else:
             raise error_class(
-                f"{(component_type.capitalize()} operation failed: {str(e)}",
+                f"{component_type.capitalize()} operation failed: {str(e)}",
                 **kwargs,
             ) from e

@@ -670,7 +670,7 @@ def create_ner_classifier(
         classifier = create_ner_classifier()
 
         # Classify text
-        result = (classifier.classify("Apple Inc. was founded by Steve Jobs in California.")
+        result = classifier.classify("Apple Inc. was founded by Steve Jobs in California.")
         print(f"Dominant entity type: {result.label}, Confidence: {result.confidence:.2f}")
         print(f"Entity count: {result.metadata['entity_count']}")
 
@@ -688,7 +688,7 @@ def create_ner_classifier(
             "Paris is the capital of France.",
             "The Eiffel Tower was built in 1889."
         ]
-        results = (custom_classifier.batch_classify(texts)
+        results = custom_classifier.batch_classify(texts)
         for text, result in zip(texts, results):
             print(f"Text: {text}")
             print(f"Dominant entity: {result.label}, Count: {result.metadata['entity_count']}")

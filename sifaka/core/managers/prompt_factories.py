@@ -80,12 +80,13 @@ class SelfRefineCriticPromptManager(DefaultPromptManager):
     def __init__(self, config: Optional[Any] = None):
         """Initialize the prompt manager."""
         super().__init__(config)
-        self.(_state_manager and _state_manager.update(
-            "critique_prompt_template", getattr(config, "critique_prompt_template", None)
-        )
-        self.(_state_manager and _state_manager.update(
-            "revision_prompt_template", getattr(config, "revision_prompt_template", None)
-        )
+        if self._state_manager:
+            self._state_manager.update(
+                "critique_prompt_template", getattr(config, "critique_prompt_template", None)
+            )
+            self._state_manager.update(
+                "revision_prompt_template", getattr(config, "revision_prompt_template", None)
+            )
 
     def create_critique_prompt(self, text: str) -> str:
         """
@@ -104,9 +105,11 @@ class SelfRefineCriticPromptManager(DefaultPromptManager):
             raise ValueError("Text must be a non-empty string")
 
         # Use custom template if available
-        template = self.(_state_manager and _state_manager.get("critique_prompt_template")
+        template = (
+            self._state_manager.get("critique_prompt_template") if self._state_manager else None
+        )
         if template:
-            return (template and template.format(response=text, task="Critique the following text")
+            return template.format(response=text, task="Critique the following text")
 
         # Default template
         return f"""Please critique the following text. Focus on accuracy, clarity, and completeness.
@@ -139,9 +142,11 @@ Critique:"""
             raise ValueError("Feedback must be a non-empty string")
 
         # Use custom template if available
-        template = self.(_state_manager and _state_manager.get("revision_prompt_template")
+        template = (
+            self._state_manager.get("revision_prompt_template") if self._state_manager else None
+        )
         if template:
-            return (template and template.format(
+            return template.format(
                 response=text, critique=feedback, task="Improve the following text"
             )
 
@@ -196,13 +201,14 @@ class ConstitutionalCriticPromptManager(DefaultPromptManager):
     def __init__(self, config: Optional[Any] = None):
         """Initialize the prompt manager."""
         super().__init__(config)
-        self.(_state_manager and _state_manager.update("principles", getattr(config, "principles", []))
-        self.(_state_manager and _state_manager.update(
-            "critique_prompt_template", getattr(config, "critique_prompt_template", None)
-        )
-        self.(_state_manager and _state_manager.update(
-            "improvement_prompt_template", getattr(config, "improvement_prompt_template", None)
-        )
+        if self._state_manager:
+            self._state_manager.update("principles", getattr(config, "principles", []))
+            self._state_manager.update(
+                "critique_prompt_template", getattr(config, "critique_prompt_template", None)
+            )
+            self._state_manager.update(
+                "improvement_prompt_template", getattr(config, "improvement_prompt_template", None)
+            )
 
     def _format_principles(self) -> str:
         """
@@ -211,7 +217,7 @@ class ConstitutionalCriticPromptManager(DefaultPromptManager):
         Returns:
             Formatted principles as a string
         """
-        principles = self.(_state_manager and _state_manager.get("principles", [])
+        principles = self._state_manager.get("principles", []) if self._state_manager else []
         return "\n".join(f"- {p}" for p in principles)
 
     def create_critique_prompt(self, text: str) -> str:
@@ -231,14 +237,16 @@ class ConstitutionalCriticPromptManager(DefaultPromptManager):
             raise ValueError("Text must be a non-empty string")
 
         # Use custom template if available
-        template = self.(_state_manager and _state_manager.get("critique_prompt_template")
+        template = (
+            self._state_manager.get("critique_prompt_template") if self._state_manager else None
+        )
         if template:
-            return (template and template.format(text=text, principles=(self and self._format_principles())
+            return template.format(text=text, principles=self._format_principles() if self else "")
 
         # Default template
         return f"""You are an AI assistant tasked with ensuring alignment to the following principles:
 
-{(self and self._format_principles()}
+{self._format_principles() if self else ""}
 
 Please critique the following text based on these principles:
 
@@ -269,16 +277,18 @@ Critique:"""
             raise ValueError("Feedback must be a non-empty string")
 
         # Use custom template if available
-        template = self.(_state_manager and _state_manager.get("improvement_prompt_template")
+        template = (
+            self._state_manager.get("improvement_prompt_template") if self._state_manager else None
+        )
         if template:
-            return (template and template.format(
-                text=text, feedback=feedback, principles=(self and self._format_principles()
+            return template.format(
+                text=text, feedback=feedback, principles=self._format_principles() if self else ""
             )
 
         # Default template
         prompt = f"""You are an AI assistant tasked with ensuring alignment to the following principles:
 
-{(self and self._format_principles()}
+{self._format_principles() if self else ""}
 
 Please improve the following text based on this feedback:
 

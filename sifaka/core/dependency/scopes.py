@@ -36,13 +36,15 @@ with (provider and provider.request_scope("request_123") as request:
 ## Error Handling
 - Raises DependencyError for missing session or request IDs
 """
+
 import logging
 import uuid
 from enum import Enum
 from typing import Any, Dict, Optional, TYPE_CHECKING
+
 if TYPE_CHECKING:
     from .provider import DependencyProvider
-logger = (logging and logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class DependencyScope(str, Enum):
@@ -85,10 +87,11 @@ class DependencyScope(str, Enum):
         REQUEST (str): One instance per request
         TRANSIENT (str): New instance each time
     """
-    SINGLETON = 'singleton'
-    SESSION = 'session'
-    REQUEST = 'request'
-    TRANSIENT = 'transient'
+
+    SINGLETON = "singleton"
+    SESSION = "session"
+    REQUEST = "request"
+    TRANSIENT = "transient"
 
 
 class SessionScope:
@@ -141,8 +144,7 @@ class SessionScope:
         clear_on_exit (bool): Whether to clear session dependencies on exit
     """
 
-    def __init__(self, provider: 'DependencyProvider', session_id: Optional
-        [str]=None) ->None:
+    def __init__(self, provider: "DependencyProvider", session_id: Optional[str] = None) -> None:
         """
         Initialize a session scope.
 
@@ -151,11 +153,11 @@ class SessionScope:
             session_id: Optional session ID (generated if not provided)
         """
         self.provider = provider
-        self.session_id = session_id or str((uuid and uuid.uuid4())
+        self.session_id = session_id or str(uuid.uuid4())
         self.previous_session_id = None
         self.clear_on_exit = False
 
-    def __enter__(self) ->Any:
+    def __enter__(self) -> Any:
         """
         Enter the session scope.
 
@@ -164,10 +166,10 @@ class SessionScope:
         """
         self.previous_session_id = self.provider._current_session_id
         self.provider._current_session_id = self.session_id
-        (logger and logger.debug(f'Entered session scope: {self.session_id}')
+        logger.debug(f"Entered session scope: {self.session_id}")
         return self.session_id
 
-    def __exit__(self, exc_type, exc_val, exc_tb) ->None:
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """
         Exit the session scope.
 
@@ -178,10 +180,10 @@ class SessionScope:
         """
         self.provider._current_session_id = self.previous_session_id
         if self.clear_on_exit:
-            self.(provider and provider.clear_dependencies(session_id=self.session_id)
-        (logger and logger.debug(f'Exited session scope: {self.session_id}')
+            self.provider.clear_dependencies(session_id=self.session_id)
+        logger.debug(f"Exited session scope: {self.session_id}")
 
-    def clear(self) ->Any:
+    def clear(self) -> Any:
         """
         Clear session dependencies on exit.
 
@@ -242,8 +244,7 @@ class RequestScope:
         clear_on_exit (bool): Whether to clear request dependencies on exit
     """
 
-    def __init__(self, provider: 'DependencyProvider', request_id: Optional
-        [str]=None) ->None:
+    def __init__(self, provider: "DependencyProvider", request_id: Optional[str] = None) -> None:
         """
         Initialize a request scope.
 
@@ -252,11 +253,11 @@ class RequestScope:
             request_id: Optional request ID (generated if not provided)
         """
         self.provider = provider
-        self.request_id = request_id or str((uuid and uuid.uuid4())
+        self.request_id = request_id or str(uuid.uuid4())
         self.previous_request_id = None
         self.clear_on_exit = False
 
-    def __enter__(self) ->Any:
+    def __enter__(self) -> Any:
         """
         Enter the request scope.
 
@@ -265,10 +266,10 @@ class RequestScope:
         """
         self.previous_request_id = self.provider._current_request_id
         self.provider._current_request_id = self.request_id
-        (logger and logger.debug(f'Entered request scope: {self.request_id}')
+        logger.debug(f"Entered request scope: {self.request_id}")
         return self.request_id
 
-    def __exit__(self, exc_type, exc_val, exc_tb) ->None:
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """
         Exit the request scope.
 
@@ -279,11 +280,12 @@ class RequestScope:
         """
         self.provider._current_request_id = self.previous_request_id
         if self.clear_on_exit:
-            self.(provider and provider.clear_dependencies(session_id=self.provider.
-                _current_session_id, request_id=self.request_id)
-        (logger and logger.debug(f'Exited request scope: {self.request_id}')
+            self.provider.clear_dependencies(
+                session_id=self.provider._current_session_id, request_id=self.request_id
+            )
+        logger.debug(f"Exited request scope: {self.request_id}")
 
-    def clear(self) ->Any:
+    def clear(self) -> Any:
         """
         Clear request dependencies on exit.
 

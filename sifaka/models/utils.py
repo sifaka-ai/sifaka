@@ -51,12 +51,12 @@ def create_model_error_result(
     if include_traceback:
         import traceback
 
-        metadata["traceback"] = (traceback and traceback.format_exc()
+        metadata["traceback"] = traceback.format_exc()
 
     # Log the error
     import logging
 
-    logger = (logging and logging.getLogger(__name__)
+    logger = logging.getLogger(__name__)
     log_func = getattr(logger, log_level, logger.error)
     log_func(f"Model error in {component_name}: {error_message}")
 
@@ -174,12 +174,12 @@ def try_generate(
 
         def generate_text(prompt: str) -> GenerationResult:
             # Generation logic
-            text = (model and model.generate(prompt)
+            text = model.generate(prompt)
             return create_generation_result(
                 text=text,
                 model_name="gpt-4",
-                prompt_tokens=len((prompt and prompt.split()),
-                completion_tokens=len((text and text.split()),
+                prompt_tokens=len(prompt.split()) if prompt else 0,
+                completion_tokens=len(text.split()) if text else 0,
             )
 
         # Use try_generate to handle errors

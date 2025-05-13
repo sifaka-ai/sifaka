@@ -4,6 +4,7 @@ Core Model Provider Implementation
 This module provides the ModelProviderCore class which is the main interface
 for model providers, delegating to specialized components for better separation of concerns.
 """
+
 from abc import abstractmethod
 from typing import Generic, Optional, TypeVar
 from sifaka.interfaces.client import APIClientProtocol as APIClient
@@ -17,9 +18,10 @@ from .generation import process_input
 from .token_counting import count_tokens_impl
 from .error_handling import record_error
 from .utils import update_statistics, update_token_count_statistics
+
 logger = get_logger(__name__)
-T = TypeVar('T', bound='ModelProviderCore')
-C = TypeVar('C', bound=ModelConfig)
+T = TypeVar("T", bound="ModelProviderCore")
+C = TypeVar("C", bound=ModelConfig)
 
 
 class ModelProviderCore(ModelProviderProtocol, Generic[C]):
@@ -67,9 +69,14 @@ class ModelProviderCore(ModelProviderProtocol, Generic[C]):
         C: The configuration type, must be a subclass of ModelConfig
     """
 
-    def __init__(self, model_name: str, config: Optional[Optional[C]] = None,
-        api_client: Optional[Optional[APIClient]] = None, token_counter: Optional[
-        TokenCounter]=None, tracer: Optional[Optional[Tracer]] = None) ->None:
+    def __init__(
+        self,
+        model_name: str,
+        config: Optional[Optional[C]] = None,
+        api_client: Optional[Optional[APIClient]] = None,
+        token_counter: Optional[TokenCounter] = None,
+        tracer: Optional[Optional[Tracer]] = None,
+    ) -> None:
         """
         Initialize a ModelProviderCore instance.
 
@@ -90,42 +97,41 @@ class ModelProviderCore(ModelProviderProtocol, Generic[C]):
         """
         import time
         from sifaka.utils.state import StateManager
+
         self._state_manager = StateManager()
-        self.(_state_manager and _state_manager.update('model_name', model_name)
-        self.(_state_manager and _state_manager.update('config', config or self.
-            _create_default_config())
-        self.(_state_manager and _state_manager.update('initialized', False)
-        self.(_state_manager and _state_manager.update('cache', {})
-        self.(_state_manager and _state_manager.update('api_client', api_client)
-        self.(_state_manager and _state_manager.update('token_counter', token_counter)
-        self.(_state_manager and _state_manager.update('tracer', tracer)
-        self.(_state_manager and _state_manager.set_metadata('component_type', self.__class__.
-            __name__)
-        self.(_state_manager and _state_manager.set_metadata('creation_time', (time and time.time())
-        (logger and logger.info(
-            f'Initialized {self.__class__.__name__} with model {model_name}')
+        self._state_manager.update("model_name", model_name)
+        self._state_manager.update("config", config or self._create_default_config())
+        self._state_manager.update("initialized", False)
+        self._state_manager.update("cache", {})
+        self._state_manager.update("api_client", api_client)
+        self._state_manager.update("token_counter", token_counter)
+        self._state_manager.update("tracer", tracer)
+        self._state_manager.set_metadata("component_type", self.__class__.__name__)
+        self._state_manager.set_metadata("creation_time", time.time())
+        if logger:
+            logger.info(f"Initialized {self.__class__.__name__} with model {model_name}")
 
     @property
-    def model_name(self) ->str:
+    def model_name(self) -> str:
         """
         Get the model name.
 
         Returns:
             The name of the language model
         """
-        return self.(_state_manager and _state_manager.get('model_name')
+        return self._state_manager.get("model_name")
 
     @property
-    def config(self) ->C:
+    def config(self) -> C:
         """
         Get the model configuration.
 
         Returns:
             The current model configuration
         """
-        return self.(_state_manager and _state_manager.get('config')
+        return self._state_manager.get("config")
 
-    def count_tokens(self, text: str) ->int:
+    def count_tokens(self, text: str) -> int:
         """
         Count tokens in the given text.
 
@@ -143,24 +149,27 @@ class ModelProviderCore(ModelProviderProtocol, Generic[C]):
             TypeError: If text is not a string
             RuntimeError: If token counting fails
         """
-        if not self.(_state_manager and _state_manager.get('initialized', False):
-            (self and self.warm_up()
-        start_time = __import__('time').time()
+        if not self._state_manager.get("initialized", False):
+            self.warm_up()
+        start_time = __import__("time").time()
 
-        def operation() ->Any:
+        def operation() -> Any:
             result = count_tokens_impl(self, text)
             return result
+
         from sifaka.utils.errors.safe_execution import safely_execute_component_operation
-        token_count = safely_execute_component_operation(operation=
-            operation, component_name=self.name, component_type=self.
-            __class__.__name__, additional_metadata={'input_type': 'text',
-            'method': 'count_tokens'})
-        processing_time = __import__('time').time() - start_time
-        update_token_count_statistics(self, token_count, processing_time_ms
-            =processing_time * 1000)
+
+        token_count = safely_execute_component_operation(
+            operation=operation,
+            component_name=self.name,
+            component_type=self.__class__.__name__,
+            additional_metadata={"input_type": "text", "method": "count_tokens"},
+        )
+        processing_time = __import__("time").time() - start_time
+        update_token_count_statistics(self, token_count, processing_time_ms=processing_time * 1000)
         return token_count
 
-    def generate(self, prompt: str, **kwargs) ->str:
+    def generate(self, prompt: str, **kwargs) -> str:
         """
         Generate text using the model.
 
@@ -184,24 +193,27 @@ class ModelProviderCore(ModelProviderProtocol, Generic[C]):
             ValueError: If prompt is empty or API key is missing
             RuntimeError: If an error occurs during generation
         """
-        if not self.(_state_manager and _state_manager.get('initialized', False):
-            (self and self.warm_up()
-        start_time = __import__('time').time()
+        if not self._state_manager.get("initialized", False):
+            self.warm_up()
+        start_time = __import__("time").time()
 
-        def operation() ->Any:
+        def operation() -> Any:
             result = process_input(self, prompt, **kwargs)
             return result
+
         from sifaka.utils.errors.safe_execution import safely_execute_component_operation
-        result = safely_execute_component_operation(operation=operation,
-            component_name=self.name, component_type=self.__class__.
-            __name__, additional_metadata={'input_type': 'prompt', 'method':
-            'generate'})
-        processing_time = __import__('time').time() - start_time
-        update_statistics(self, result, processing_time_ms=processing_time *
-            1000)
+
+        result = safely_execute_component_operation(
+            operation=operation,
+            component_name=self.name,
+            component_type=self.__class__.__name__,
+            additional_metadata={"input_type": "prompt", "method": "generate"},
+        )
+        processing_time = __import__("time").time() - start_time
+        update_statistics(self, result, processing_time_ms=processing_time * 1000)
         return result
 
-    def warm_up(self) ->None:
+    def warm_up(self) -> None:
         """
         Prepare the component for use.
 
@@ -216,21 +228,22 @@ class ModelProviderCore(ModelProviderProtocol, Generic[C]):
             InitializationError: If initialization fails
         """
         try:
-            if self.(_state_manager and _state_manager.get('initialized', False):
-                (logger and logger.debug(f'Component {self.name} already initialized')
+            if self._state_manager.get("initialized", False):
+                if logger:
+                    logger.debug(f"Component {self.name} already initialized")
                 return
             initialize_resources(self)
-            self.(_state_manager and _state_manager.update('initialized', True)
-            self.(_state_manager and _state_manager.set_metadata('warm_up_time', __import__(
-                'time').time())
-            (logger and logger.debug(f'Component {self.name} warmed up successfully')
+            self._state_manager.update("initialized", True)
+            self._state_manager.set_metadata("warm_up_time", __import__("time").time())
+            if logger:
+                logger.debug(f"Component {self.name} warmed up successfully")
         except Exception as e:
             record_error(self, e)
             from sifaka.utils.errors.base import InitializationError
-            raise InitializationError(
-                f'Failed to warm up component {self.name}: {str(e)}') from e
 
-    def cleanup(self) ->None:
+            raise InitializationError(f"Failed to warm up component {self.name}: {str(e)}") from e
+
+    def cleanup(self) -> None:
         """
         Clean up component resources.
 
@@ -243,18 +256,20 @@ class ModelProviderCore(ModelProviderProtocol, Generic[C]):
         """
         try:
             release_resources(self)
-            self.(_state_manager and _state_manager.update('cache', {})
-            self.(_state_manager and _state_manager.update('initialized', False)
-            (logger and logger.debug(f'Component {self.name} cleaned up successfully')
+            self._state_manager.update("cache", {})
+            self._state_manager.update("initialized", False)
+            if logger:
+                logger.debug(f"Component {self.name} cleaned up successfully")
         except Exception as e:
-            (logger and logger.error(f'Failed to clean up component {self.name}: {str(e)}')
+            if logger:
+                logger.error(f"Failed to clean up component {self.name}: {str(e)}")
 
-    def _create_default_config(self) ->C:
+    def _create_default_config(self) -> C:
         """Create a default configuration if none was provided."""
         return ModelConfig()
 
     @abstractmethod
-    def _create_default_client(self) ->APIClient:
+    def _create_default_client(self) -> APIClient:
         """
         Create a default API client if none was provided.
 
@@ -271,7 +286,7 @@ class ModelProviderCore(ModelProviderProtocol, Generic[C]):
         ...
 
     @abstractmethod
-    def _create_default_token_counter(self) ->TokenCounter:
+    def _create_default_token_counter(self) -> TokenCounter:
         """
         Create a default token counter if none was provided.
 
@@ -288,7 +303,7 @@ class ModelProviderCore(ModelProviderProtocol, Generic[C]):
         ...
 
     @property
-    def name(self) ->str:
+    def name(self) -> str:
         """
         Get the provider name.
 
@@ -299,6 +314,4 @@ class ModelProviderCore(ModelProviderProtocol, Generic[C]):
         Returns:
             The provider name as a string in the format "ClassName-model_name"
         """
-        return (
-            f"{self.__class__.__name__}-{self.(_state_manager and _state_manager.get('model_name')}"
-            )
+        return f"{self.__class__.__name__}-{self._state_manager.get('model_name')}"

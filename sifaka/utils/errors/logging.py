@@ -48,15 +48,16 @@ def configure_error_logging(
         )
 
         # Configure error logging with additional handlers
-        file_handler = (logging and logging.FileHandler("errors.log")
+        file_handler = logging.FileHandler("errors.log")
         configure_error_logging(additional_handlers=[file_handler])
         ```
     """
     # Get the root logger
-    root_logger = (logging and logging.getLogger("sifaka")
+    root_logger = logging.getLogger("sifaka")
 
     # Set log level
-    (root_logger and root_logger.setLevel(getattr(logging, (log_level and log_level.upper()))
+    if root_logger:
+        root_logger.setLevel(getattr(logging, log_level.upper() if log_level else "ERROR"))
 
     # Configure log format
     if log_format is None:
@@ -66,17 +67,20 @@ def configure_error_logging(
             log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
     # Create formatter
-    formatter = (logging and logging.Formatter(log_format)
+    formatter = logging.Formatter(log_format)
 
     # Configure handlers
     for handler in root_logger.handlers:
-        (handler and handler.setFormatter(formatter)
+        if handler:
+            handler.setFormatter(formatter)
 
     # Add additional handlers
     if additional_handlers:
         for handler in additional_handlers:
-            (handler and handler.setFormatter(formatter)
-            (root_logger and root_logger.addHandler(handler)
+            if handler:
+                handler.setFormatter(formatter)
+                if root_logger:
+                    root_logger.addHandler(handler)
 
 
 def get_error_logger(name: str) -> logging.Logger:
@@ -103,7 +107,8 @@ def get_error_logger(name: str) -> logging.Logger:
             # Some operation
             result = process_data(input_data)
         except Exception as e:
-            (logger and logger.error(f"Error processing data: {str(e)}", exc_info=True)
+            if logger:
+                logger.error(f"Error processing data: {str(e)}", exc_info=True)
         ```
     """
     return get_logger(name)
@@ -137,8 +142,9 @@ def format_error_metadata(metadata: Dict[str, Any]) -> str:
         ```
     """
     lines = []
-    for key, value in (metadata and metadata.items():
-        if key == "traceback":
-            continue  # Skip traceback in formatted output
-        (lines and lines.append(f"{key}: {value}")
+    if metadata:
+        for key, value in metadata.items():
+            if key == "traceback":
+                continue  # Skip traceback in formatted output
+            lines.append(f"{key}: {value}")
     return "\n".join(lines)

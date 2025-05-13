@@ -32,23 +32,25 @@ plugins = loader.load_plugins_from_entry_points("sifaka.plugins")
 plugin = loader.load_plugin_from_module("my_plugin_module")
 ```
 """
+
 from typing import Any, Dict, List, Optional, Type
 import importlib
 import pkg_resources
 from .interfaces import Plugin
 from ..utils.errors import PluginError
 from ..utils.logging import get_logger
+
 logger = get_logger(__name__)
 
 
 class PluginRegistry:
     """Discovers and registers plugins."""
 
-    def __init__(self) ->None:
+    def __init__(self) -> None:
         """Initialize the plugin registry."""
         self._plugins: Dict[str, Plugin] = {}
 
-    def register_plugin(self, name: str, plugin: Plugin) ->None:
+    def register_plugin(self, name: str, plugin: Plugin) -> None:
         """
         Register a plugin.
 
@@ -64,7 +66,7 @@ class PluginRegistry:
         self._plugins[name] = plugin
         logger.debug(f"Registered plugin '{name}'")
 
-    def unregister_plugin(self, name: str) ->None:
+    def unregister_plugin(self, name: str) -> None:
         """
         Unregister a plugin.
 
@@ -79,7 +81,7 @@ class PluginRegistry:
         del self._plugins[name]
         logger.debug(f"Unregistered plugin '{name}'")
 
-    def get_plugin(self, name: str) ->Plugin:
+    def get_plugin(self, name: str) -> Plugin:
         """
         Get a plugin by name.
 
@@ -96,7 +98,7 @@ class PluginRegistry:
             raise PluginError(f"Plugin '{name}' not found")
         return self._plugins[name]
 
-    def get_plugins(self) ->Dict[str, Plugin]:
+    def get_plugins(self) -> Dict[str, Plugin]:
         """
         Get all registered plugins.
 
@@ -105,7 +107,7 @@ class PluginRegistry:
         """
         return self._plugins.copy()
 
-    def get_plugins_by_type(self, component_type: str) ->Dict[str, Plugin]:
+    def get_plugins_by_type(self, component_type: str) -> Dict[str, Plugin]:
         """
         Get plugins by component type.
 
@@ -115,19 +117,22 @@ class PluginRegistry:
         Returns:
             Dictionary of plugin names to plugin instances
         """
-        return {name: plugin for name, plugin in self._plugins.items() if 
-            plugin.component_type == component_type)
+        return {
+            name: plugin
+            for name, plugin in self._plugins.items()
+            if plugin.component_type == component_type
+        }
 
-    def clear(self) ->None:
+    def clear(self) -> None:
         """Clear all registered plugins."""
         self._plugins.clear()
-        logger.debug('Cleared all plugins')
+        logger.debug("Cleared all plugins")
 
 
 class PluginLoader:
     """Dynamically loads plugins at runtime."""
 
-    def __init__(self, registry: Optional[Optional[PluginRegistry]] = None) ->None:
+    def __init__(self, registry: Optional[Optional[PluginRegistry]] = None) -> None:
         """
         Initialize the plugin loader.
 
@@ -136,7 +141,7 @@ class PluginLoader:
         """
         self._registry = registry or PluginRegistry()
 
-    def load_plugins_from_entry_points(self, group: str) ->Dict[str, Plugin]:
+    def load_plugins_from_entry_points(self, group: str) -> Dict[str, Plugin]:
         """
         Load plugins from entry points.
 
@@ -158,23 +163,23 @@ class PluginLoader:
                     if not isinstance(plugin, Plugin):
                         logger.warning(
                             f"Entry point '{entry_point.name}' does not provide a Plugin instance"
-                            )
+                        )
                         continue
                     plugins[entry_point.name] = plugin
                     if self._registry:
-                        self._registry.register_plugin(entry_point.name, plugin
-                            )
-                    logger.debug(
-                        f"Loaded plugin '{entry_point.name}' from entry point")
+                        self._registry.register_plugin(entry_point.name, plugin)
+                    logger.debug(f"Loaded plugin '{entry_point.name}' from entry point")
                 except Exception as e:
                     logger.error(
                         f"Failed to load plugin from entry point '{entry_point.name}': {e}"
-                        )
+                    )
         except Exception as e:
-            raise PluginError(f'Failed to load plugins from entry points: {e}')
+            raise PluginError(f"Failed to load plugins from entry points: {e}")
         return plugins
 
-    def load_plugin_from_module(self, module_name: str, class_name: Optional[Optional[str]] = None) ->Plugin:
+    def load_plugin_from_module(
+        self, module_name: str, class_name: Optional[Optional[str]] = None
+    ) -> Plugin:
         """
         Load a plugin from a module.
 
@@ -192,38 +197,32 @@ class PluginLoader:
             module = importlib.import_module(module_name)
             if class_name:
                 if not hasattr(module, class_name):
-                    raise PluginError(
-                        f"Module '{module_name}' has no attribute '{class_name}'"
-                        )
+                    raise PluginError(f"Module '{module_name}' has no attribute '{class_name}'")
                 plugin_class = getattr(module, class_name)
                 plugin = plugin_class()
             else:
                 plugin = None
                 for attr_name in dir(module):
                     attr = getattr(module, attr_name)
-                    if isinstance(attr, type) and issubclass(attr, Plugin
-                        ) and attr != Plugin:
+                    if isinstance(attr, type) and issubclass(attr, Plugin) and attr != Plugin:
                         plugin = attr()
                         break
                 if not plugin:
-                    raise PluginError(
-                        f"No Plugin class found in module '{module_name}'")
+                    raise PluginError(f"No Plugin class found in module '{module_name}'")
             if not isinstance(plugin, Plugin):
                 raise PluginError(
                     f"Class '{class_name or plugin.__class__.__name__}' does not implement Plugin"
-                    )
+                )
             if self._registry:
                 self._registry.register_plugin(plugin.name, plugin)
-            logger.debug(
-                f"Loaded plugin '{plugin.name}' from module '{module_name}'")
+            logger.debug(f"Loaded plugin '{plugin.name}' from module '{module_name}'")
             return plugin
         except ImportError as e:
             raise PluginError(f"Failed to import module '{module_name}': {e}")
         except Exception as e:
-            raise PluginError(
-                f"Failed to load plugin from module '{module_name}': {e}")
+            raise PluginError(f"Failed to load plugin from module '{module_name}': {e}")
 
-    def get_registry(self) ->PluginRegistry:
+    def get_registry(self) -> PluginRegistry:
         """
         Get the plugin registry.
 

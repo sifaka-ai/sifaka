@@ -139,7 +139,7 @@ def create_model_provider(
         max_tokens=max_tokens,
         api_key=api_key,
         trace_enabled=trace_enabled,
-        params=(kwargs and kwargs.pop("params", {}),
+        params=kwargs.pop("params", {}) if kwargs else {},
     )
 
     # Create provider

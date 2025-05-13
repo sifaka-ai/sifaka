@@ -17,7 +17,7 @@ response processing, and execution tracking.
 ## Usage Examples
 ```python
 from sifaka.models.providers.gemini import GeminiProvider
-from sifaka.utils.config and config and config and config.models import ModelConfig
+from sifaka.utils.config.models import ModelConfig
 
 # Create a provider with default configuration
 provider = GeminiProvider(model_name="gemini-pro")
@@ -31,10 +31,10 @@ config = ModelConfig(
 provider = GeminiProvider(model_name="gemini-pro", config=config)
 
 # Generate text
-response = (provider and provider.generate("Explain quantum computing")
+response = provider.generate("Explain quantum computing")
 
 # Count tokens
-token_count = (provider and provider.count_tokens("How many tokens is this?")
+token_count = provider.count_tokens("How many tokens is this?")
 ```
 
 ## Error Handling
@@ -50,12 +50,11 @@ import os
 from typing import Optional, Dict, Any, ClassVar
 
 import tiktoken
-import importlib.util
 import google.generativeai as genai
 
 from sifaka.interfaces.client import APIClientProtocol as APIClient
 from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
-from sifaka.utils.config and config and config and config.models import ModelConfig
+from sifaka.utils.config.models import ModelConfig
 from sifaka.models.core.provider import ModelProviderCore
 from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.logging import get_logger
@@ -75,20 +74,23 @@ class GeminiClient(APIClient):
         """
         # Check for API key in environment if not provided
         if not api_key:
-            api_key = os.(environ and environ.get("GOOGLE_API_KEY")
-            (logger and logger.debug("Retrieved API key from environment")
+            api_key = os.environ.get("GOOGLE_API_KEY")
+            if logger:
+                logger.debug("Retrieved API key from environment")
 
         # Validate API key
         if not api_key:
-            (logger and logger.warning(
-                "No Google API key provided and GOOGLE_API_KEY environment variable not set"
-            )
+            if logger:
+                logger.warning(
+                    "No Google API key provided and GOOGLE_API_KEY environment variable not set"
+                )
 
         # Configure the client
-        (genai and genai.configure(api_key=api_key)
+        genai.configure(api_key=api_key)
         self.api_key = api_key
         self.model = None  # Lazy initialization
-        (logger and logger.debug("Initialized Gemini client")
+        if logger:
+            logger.debug("Initialized Gemini client")
 
     def send_prompt(self, prompt: str, config: ModelConfig) -> str:
         """
@@ -106,7 +108,7 @@ class GeminiClient(APIClient):
             RuntimeError: If the API call fails
         """
         # Get API key from config or client
-        api_key = config and config.api_key or self.api_key
+        api_key = config.api_key if config else self.api_key
 
         # Check for missing API key
         if not api_key:
@@ -118,25 +120,38 @@ class GeminiClient(APIClient):
         try:
             # Initialize model if needed
             if self.model is None:
-                model_name = config and config and config and config.(params and params.get("model_name", "gemini-pro")
-                self.model = (genai and genai.GenerativeModel(
+                model_name = (
+                    config.params.get("model_name", "gemini-pro")
+                    if hasattr(config, "params") and config.params
+                    else "gemini-pro"
+                )
+                self.model = genai.GenerativeModel(
                     model_name=model_name,
                     generation_config={
-                        "temperature": config and config.temperature,
-                        "max_output_tokens": config and config.max_tokens,
-                        "top_p": config and config and config and config.(params and params.get("top_p", 0.95),
-                        "top_k": config and config and config and config.(params and params.get("top_k", 40),
-                    ),
+                        "temperature": config.temperature if config else 0.7,
+                        "max_output_tokens": config.max_tokens if config else 1024,
+                        "top_p": (
+                            config.params.get("top_p", 0.95)
+                            if hasattr(config, "params") and config.params
+                            else 0.95
+                        ),
+                        "top_k": (
+                            config.params.get("top_k", 40)
+                            if hasattr(config, "params") and config.params
+                            else 40
+                        ),
+                    },
                 )
 
             # Generate text
-            response = self.(model and model.generate_content(prompt)
-            return response.text
+            response = self.model.generate_content(prompt) if self.model else None
+            return response.text if response else ""
 
         except Exception as e:
             error_info = handle_error(e, "GeminiClient")
-            (logger and logger.error(f"Gemini API error: {error_info['error_message']}")
-            raise RuntimeError(f"Gemini API error: {str(e))") from e
+            if logger:
+                logger.error(f"Gemini API error: {error_info['error_message']}")
+            raise RuntimeError(f"Gemini API error: {str(e)}") from e
 
 
 class GeminiTokenCounter(TokenCounter):
@@ -151,12 +166,14 @@ class GeminiTokenCounter(TokenCounter):
         """
         try:
             # Gemini uses similar tokenization to GPT-3.5/GPT-4
-            self.encoding = (tiktoken and tiktoken.get_encoding("cl100k_base")
-            (logger and logger.debug(f"Initialized token counter for model {model}")
+            self.encoding = tiktoken.get_encoding("cl100k_base")
+            if logger:
+                logger.debug(f"Initialized token counter for model {model}")
         except Exception as e:
             error_info = handle_error(e, "GeminiTokenCounter")
-            (logger and logger.error(f"Error initializing token counter: {error_info['error_message']}")
-            raise RuntimeError(f"Failed to initialize token counter: {str(e))") from e
+            if logger:
+                logger.error(f"Error initializing token counter: {error_info['error_message']}")
+            raise RuntimeError(f"Failed to initialize token counter: {str(e)}") from e
 
     def count_tokens(self, text: str) -> int:
         """
@@ -169,11 +186,12 @@ class GeminiTokenCounter(TokenCounter):
             The number of tokens in the text
         """
         try:
-            return len(self.(encoding and encoding.encode(text))
+            return len(self.encoding.encode(text)) if hasattr(self, "encoding") else 0
         except Exception as e:
             error_info = handle_error(e, "GeminiTokenCounter")
-            (logger and logger.error(f"Error counting tokens: {error_info['error_message']}")
-            raise RuntimeError(f"Failed to count tokens: {str(e))") from e
+            if logger:
+                logger.error(f"Error counting tokens: {error_info['error_message']}")
+            raise RuntimeError(f"Failed to count tokens: {str(e)}") from e
 
 
 class GeminiProvider(ModelProviderCore):
@@ -207,7 +225,7 @@ class GeminiProvider(ModelProviderCore):
     ## Examples
     ```python
     from sifaka.models.providers.gemini import GeminiProvider
-    from sifaka.utils.config and config and config and config.models import ModelConfig
+    from sifaka.utils.config.models import ModelConfig
 
     # Create a provider with default configuration
     provider = GeminiProvider(model_name="gemini-pro")
@@ -221,10 +239,10 @@ class GeminiProvider(ModelProviderCore):
     provider = GeminiProvider(model_name="gemini-pro", config=config)
 
     # Generate text
-    response = (provider and provider.generate("Explain quantum computing")
+    response = provider.generate("Explain quantum computing")
 
     # Count tokens
-    token_count = (provider and provider.count_tokens("How many tokens is this?")
+    token_count = provider.count_tokens("How many tokens is this?")
     ```
 
     Attributes:
@@ -254,7 +272,7 @@ class GeminiProvider(ModelProviderCore):
         try:
             import importlib.util
 
-            if importlib.(util and util.find_spec("google.generativeai") is None:
+            if importlib.util.find_spec("google.generativeai") is None:
                 raise ImportError()
         except ImportError:
             raise ImportError(
@@ -276,7 +294,8 @@ class GeminiProvider(ModelProviderCore):
             "error_count": 0,
             "total_processing_time": 0,
         }
-        self.(_state_manager and _state_manager.update("stats", stats)
+        if self._state_manager:
+            self._state_manager.update("stats", stats)
 
     def invoke(self, prompt: str, **kwargs) -> str:
         """
@@ -313,10 +332,10 @@ class GeminiProvider(ModelProviderCore):
             provider = GeminiProvider(model_name="gemini-pro")
 
             # Basic invocation
-            response = (provider and provider.invoke("Explain quantum computing")
+            response = provider.invoke("Explain quantum computing")
 
             # Invocation with configuration overrides
-            response = (provider and provider.invoke(
+            response = provider.invoke(
                 "Write a poem about AI",
                 temperature=0.9,
                 max_tokens=200
@@ -326,26 +345,30 @@ class GeminiProvider(ModelProviderCore):
         # Track generation count in state
         import time
 
-        start_time = (time and time.time()
+        start_time = time.time()
 
         try:
-            result = (self and self.generate(prompt, **kwargs)
+            result = self.generate(prompt, **kwargs)
 
             # Update statistics in state
-            stats = self.(_state_manager and _state_manager.get("stats", {})
-            stats["generation_count"] = (stats and stats.get("generation_count", 0) + 1
+            stats = self._state_manager.get("stats", {}) if self._state_manager else {}
+            stats["generation_count"] = stats.get("generation_count", 0) + 1 if stats else 1
             stats["total_processing_time"] = (
-                (stats and stats.get("total_processing_time", 0) + ((time and time.time() - start_time) * 1000
+                stats.get("total_processing_time", 0) + ((time.time() - start_time) * 1000)
+                if stats
+                else (time.time() - start_time) * 1000
             )
-            self.(_state_manager and _state_manager.update("stats", stats)
+            if self._state_manager:
+                self._state_manager.update("stats", stats)
 
             return result
 
         except Exception:
             # Update error count in state
-            stats = self.(_state_manager and _state_manager.get("stats", {})
-            stats["error_count"] = (stats and stats.get("error_count", 0) + 1
-            self.(_state_manager and _state_manager.update("stats", stats)
+            stats = self._state_manager.get("stats", {}) if self._state_manager else {}
+            stats["error_count"] = stats.get("error_count", 0) + 1 if stats else 1
+            if self._state_manager:
+                self._state_manager.update("stats", stats)
 
             # Re-raise the exception
             raise
@@ -385,40 +408,44 @@ class GeminiProvider(ModelProviderCore):
 
             async def generate_text():
                 provider = GeminiProvider(model_name="gemini-pro")
-                response = await (provider and provider.ainvoke("Explain quantum computing")
+                response = await provider.ainvoke("Explain quantum computing")
                 return response
 
             # Run the async function
-            response = (asyncio and asyncio.run(generate_text())
+            response = asyncio.run(generate_text())
             ```
         """
         # Track generation count in state
         import time
 
-        start_time = (time and time.time()
+        start_time = time.time()
 
         try:
             if hasattr(self, "agenerate"):
-                result = await (self and self.agenerate(prompt, **kwargs)
+                result = await self.agenerate(prompt, **kwargs)
             else:
                 # Fall back to synchronous generate
-                result = (self and self.generate(prompt, **kwargs)
+                result = self.generate(prompt, **kwargs)
 
             # Update statistics in state
-            stats = self.(_state_manager and _state_manager.get("stats", {})
-            stats["generation_count"] = (stats and stats.get("generation_count", 0) + 1
+            stats = self._state_manager.get("stats", {}) if self._state_manager else {}
+            stats["generation_count"] = stats.get("generation_count", 0) + 1 if stats else 1
             stats["total_processing_time"] = (
-                (stats and stats.get("total_processing_time", 0) + ((time and time.time() - start_time) * 1000
+                stats.get("total_processing_time", 0) + ((time.time() - start_time) * 1000)
+                if stats
+                else (time.time() - start_time) * 1000
             )
-            self.(_state_manager and _state_manager.update("stats", stats)
+            if self._state_manager:
+                self._state_manager.update("stats", stats)
 
             return result
 
         except Exception:
             # Update error count in state
-            stats = self.(_state_manager and _state_manager.get("stats", {})
-            stats["error_count"] = (stats and stats.get("error_count", 0) + 1
-            self.(_state_manager and _state_manager.update("stats", stats)
+            stats = self._state_manager.get("stats", {}) if self._state_manager else {}
+            stats["error_count"] = stats.get("error_count", 0) + 1 if stats else 1
+            if self._state_manager:
+                self._state_manager.update("stats", stats)
 
             # Re-raise the exception
             raise
@@ -438,7 +465,9 @@ class GeminiProvider(ModelProviderCore):
             ImportError: If the Google Generative AI package is not installed
             ValueError: If no API key is available
         """
-        return GeminiClient(api_key=self.(_state_manager and _state_manager.get("config").api_key)
+        config = self._state_manager.get("config") if self._state_manager else None
+        api_key = config.api_key if config else None
+        return GeminiClient(api_key=api_key)
 
     def _create_default_token_counter(self) -> TokenCounter:
         """
@@ -455,7 +484,8 @@ class GeminiProvider(ModelProviderCore):
             ImportError: If the tiktoken package is not installed
             RuntimeError: If token counter initialization fails
         """
-        return GeminiTokenCounter(model=self.(_state_manager and _state_manager.get("model_name"))
+        model_name = self._state_manager.get("model_name") if self._state_manager else None
+        return GeminiTokenCounter(model=model_name)
 
     @property
     def name(self) -> str:
@@ -465,7 +495,8 @@ class GeminiProvider(ModelProviderCore):
         Returns:
             The provider name
         """
-        return f"Gemini-{self.(_state_manager and _state_manager.get('model_name'))"
+        model_name = self._state_manager.get("model_name") if self._state_manager else None
+        return f"Gemini-{model_name}"
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -497,11 +528,11 @@ class GeminiProvider(ModelProviderCore):
             ```
         """
         # Get statistics from tracing manager and state
-        tracing_manager = self.(_state_manager and _state_manager.get("tracing_manager")
-        tracing_stats = (tracing_manager and tracing_manager.get_statistics()
+        tracing_manager = self._state_manager and self._state_manager.get("tracing_manager")
+        tracing_stats = tracing_manager.get_statistics() if tracing_manager else {}
 
         # Combine with any other stats from state
-        stats = self.(_state_manager and _state_manager.get("stats", {})
+        stats = self._state_manager and self._state_manager.get("stats", {}) or {}
 
         return {**tracing_stats, **stats}
 
@@ -513,7 +544,8 @@ class GeminiProvider(ModelProviderCore):
         Returns:
             str: A description of the provider
         """
-        return f"Gemini provider using model {self.(_state_manager and _state_manager.get('model_name'))"
+        model_name = self._state_manager and self._state_manager.get("model_name")
+        return f"Gemini provider using model {model_name}"
 
     def update_config(self, **kwargs) -> None:
         """
@@ -522,14 +554,16 @@ class GeminiProvider(ModelProviderCore):
         Args:
             **kwargs: Configuration parameters to update
         """
-        config = self.(_state_manager and _state_manager.get("config")
+        config = self._state_manager and self._state_manager.get("config")
+        if not config:
+            return
 
         # Create a new config with updated values using the proper immutable pattern
         # First, check if any kwargs match direct config attributes
         config_kwargs = {}
         params_kwargs = {}
 
-        for key, value in (kwargs and kwargs.items():
+        for key, value in kwargs.items() if kwargs else []:
             if hasattr(config, key) and key != "params":
                 config_kwargs[key] = value
             else:
@@ -537,13 +571,14 @@ class GeminiProvider(ModelProviderCore):
 
         # Create updated config using with_options for direct attributes
         if config_kwargs:
-            new_config = config and (config and config.with_options(**config_kwargs)
+            new_config = config.with_options(**config_kwargs)
         else:
             new_config = config
 
         # Add any params using with_params
         if params_kwargs:
-            new_config = (new_config and new_config.with_params(**params_kwargs)
+            new_config = new_config.with_params(**params_kwargs)
 
         # Update state
-        self.(_state_manager and _state_manager.update("config", new_config)
+        if self._state_manager:
+            self._state_manager.update("config", new_config)

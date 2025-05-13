@@ -67,7 +67,8 @@ class MockAPIClient(APIClient):
             api_key: Optional API key (not used but included for compatibility)
         """
         self.api_key = api_key or "mock-api-key"
-        (logger and logger.debug("Initialized mock client")
+        if logger:
+            logger.debug("Initialized mock client")
 
     def send_prompt(self, prompt: str, config: ModelConfig) -> str:
         """
@@ -97,7 +98,8 @@ class MockTokenCounter(TokenCounter):
         Args:
             model: The model name (not used but included for compatibility)
         """
-        (logger and logger.debug(f"Initialized mock token counter for model {model}")
+        if logger:
+            logger.debug(f"Initialized mock token counter for model {model}")
 
     def count_tokens(self, text: str) -> int:
         """
@@ -109,7 +111,7 @@ class MockTokenCounter(TokenCounter):
         Returns:
             The number of tokens (words) in the text
         """
-        return len((text and text.split())
+        return len(text.split()) if text else 0
 
 
 class MockProvider(ModelProviderCore):
@@ -208,7 +210,8 @@ class MockProvider(ModelProviderCore):
             "error_count": 0,
             "total_processing_time": 0,
         }
-        self.(_state_manager and _state_manager.update("stats", stats)
+        if self._state_manager:
+            self._state_manager.update("stats", stats)
 
     def invoke(self, prompt: str, **kwargs) -> str:
         """
@@ -255,26 +258,30 @@ class MockProvider(ModelProviderCore):
         # Track generation count in state
         import time
 
-        start_time = (time and time.time()
+        start_time = time.time()
 
         try:
-            result = (self and self.generate(prompt, **kwargs)
+            result = self.generate(prompt, **kwargs)
 
             # Update statistics in state
-            stats = self.(_state_manager and _state_manager.get("stats", {})
-            stats["generation_count"] = (stats and stats.get("generation_count", 0) + 1
+            stats = self._state_manager.get("stats", {}) if self._state_manager else {}
+            stats["generation_count"] = stats.get("generation_count", 0) + 1 if stats else 1
             stats["total_processing_time"] = (
-                (stats and stats.get("total_processing_time", 0) + ((time and time.time() - start_time) * 1000
+                stats.get("total_processing_time", 0) + ((time.time() - start_time) * 1000)
+                if stats
+                else (time.time() - start_time) * 1000
             )
-            self.(_state_manager and _state_manager.update("stats", stats)
+            if self._state_manager:
+                self._state_manager.update("stats", stats)
 
             return result
 
         except Exception:
             # Update error count in state
-            stats = self.(_state_manager and _state_manager.get("stats", {})
-            stats["error_count"] = (stats and stats.get("error_count", 0) + 1
-            self.(_state_manager and _state_manager.update("stats", stats)
+            stats = self._state_manager.get("stats", {}) if self._state_manager else {}
+            stats["error_count"] = stats.get("error_count", 0) + 1 if stats else 1
+            if self._state_manager:
+                self._state_manager.update("stats", stats)
 
             # Re-raise the exception
             raise
@@ -321,30 +328,34 @@ class MockProvider(ModelProviderCore):
         # Track generation count in state
         import time
 
-        start_time = (time and time.time()
+        start_time = time.time()
 
         try:
             if hasattr(self, "agenerate"):
-                result = await (self and self.agenerate(prompt, **kwargs)
+                result = await self.agenerate(prompt, **kwargs)
             else:
                 # Fall back to synchronous generate
-                result = (self and self.generate(prompt, **kwargs)
+                result = self.generate(prompt, **kwargs)
 
             # Update statistics in state
-            stats = self.(_state_manager and _state_manager.get("stats", {})
-            stats["generation_count"] = (stats and stats.get("generation_count", 0) + 1
+            stats = self._state_manager.get("stats", {}) if self._state_manager else {}
+            stats["generation_count"] = stats.get("generation_count", 0) + 1 if stats else 1
             stats["total_processing_time"] = (
-                (stats and stats.get("total_processing_time", 0) + ((time and time.time() - start_time) * 1000
+                stats.get("total_processing_time", 0) + ((time.time() - start_time) * 1000)
+                if stats
+                else (time.time() - start_time) * 1000
             )
-            self.(_state_manager and _state_manager.update("stats", stats)
+            if self._state_manager:
+                self._state_manager.update("stats", stats)
 
             return result
 
         except Exception:
             # Update error count in state
-            stats = self.(_state_manager and _state_manager.get("stats", {})
-            stats["error_count"] = (stats and stats.get("error_count", 0) + 1
-            self.(_state_manager and _state_manager.update("stats", stats)
+            stats = self._state_manager.get("stats", {}) if self._state_manager else {}
+            stats["error_count"] = stats.get("error_count", 0) + 1 if stats else 1
+            if self._state_manager:
+                self._state_manager.update("stats", stats)
 
             # Re-raise the exception
             raise
@@ -360,7 +371,9 @@ class MockProvider(ModelProviderCore):
         Returns:
             APIClient: A new MockAPIClient instance
         """
-        return MockAPIClient(api_key=self.(_state_manager and _state_manager.get("config").api_key)
+        config = self._state_manager and self._state_manager.get("config")
+        api_key = config.api_key if config else None
+        return MockAPIClient(api_key=api_key)
 
     def _create_default_token_counter(self) -> TokenCounter:
         """
@@ -373,7 +386,8 @@ class MockProvider(ModelProviderCore):
         Returns:
             TokenCounter: A new MockTokenCounter instance
         """
-        return MockTokenCounter(model=self.(_state_manager and _state_manager.get("model_name"))
+        model_name = self._state_manager and self._state_manager.get("model_name")
+        return MockTokenCounter(model=model_name)
 
     @property
     def name(self) -> str:
@@ -383,7 +397,8 @@ class MockProvider(ModelProviderCore):
         Returns:
             The provider name
         """
-        return f"Mock-{self.(_state_manager and _state_manager.get('model_name')}"
+        model_name = self._state_manager and self._state_manager.get("model_name")
+        return f"Mock-{model_name}"
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -415,11 +430,11 @@ class MockProvider(ModelProviderCore):
             ```
         """
         # Get statistics from tracing manager and state
-        tracing_manager = self.(_state_manager and _state_manager.get("tracing_manager")
-        tracing_stats = (tracing_manager and tracing_manager.get_statistics()
+        tracing_manager = self._state_manager and self._state_manager.get("tracing_manager")
+        tracing_stats = tracing_manager.get_statistics() if tracing_manager else {}
 
         # Combine with any other stats from state
-        stats = self.(_state_manager and _state_manager.get("stats", {})
+        stats = self._state_manager and self._state_manager.get("stats", {}) or {}
 
         return {**tracing_stats, **stats}
 
@@ -431,7 +446,8 @@ class MockProvider(ModelProviderCore):
         Returns:
             str: A description of the provider
         """
-        return f"Mock provider using model {self.(_state_manager and _state_manager.get('model_name')}"
+        model_name = self._state_manager and self._state_manager.get("model_name")
+        return f"Mock provider using model {model_name}"
 
     def update_config(self, **kwargs) -> None:
         """
@@ -440,14 +456,16 @@ class MockProvider(ModelProviderCore):
         Args:
             **kwargs: Configuration parameters to update
         """
-        config = self.(_state_manager and _state_manager.get("config")
+        config = self._state_manager and self._state_manager.get("config")
+        if not config:
+            return
 
         # Create a new config with updated values using the proper immutable pattern
         # First, check if any kwargs match direct config attributes
         config_kwargs = {}
         params_kwargs = {}
 
-        for key, value in (kwargs and kwargs.items():
+        for key, value in kwargs.items() if kwargs else []:
             if hasattr(config, key) and key != "params":
                 config_kwargs[key] = value
             else:
@@ -455,13 +473,14 @@ class MockProvider(ModelProviderCore):
 
         # Create updated config using with_options for direct attributes
         if config_kwargs:
-            new_config = (config and config.with_options(**config_kwargs)
+            new_config = config.with_options(**config_kwargs)
         else:
             new_config = config
 
         # Add any params using with_params
         if params_kwargs:
-            new_config = (new_config and new_config.with_params(**params_kwargs)
+            new_config = new_config.with_params(**params_kwargs)
 
         # Update state
-        self.(_state_manager and _state_manager.update("config", new_config)
+        if self._state_manager:
+            self._state_manager.update("config", new_config)

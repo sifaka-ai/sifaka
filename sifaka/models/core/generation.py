@@ -4,15 +4,17 @@ Text generation functionality for the ModelProviderCore class.
 This module provides functions for generating text using a ModelProviderCore
 instance, including input validation, configuration handling, and cache management.
 """
+
 from typing import Any, Dict, TYPE_CHECKING
 from sifaka.utils.config.models import ModelConfig
 from sifaka.utils.logging import get_logger
+
 if TYPE_CHECKING:
     from .provider import ModelProviderCore
 logger = get_logger(__name__)
 
 
-def process_input(provider: 'ModelProviderCore', prompt: str, **kwargs) ->Any:
+def process_input(provider: "ModelProviderCore", prompt: str, **kwargs) -> Any:
     """
     Process the input prompt and generate text.
 
@@ -37,35 +39,36 @@ def process_input(provider: 'ModelProviderCore', prompt: str, **kwargs) ->Any:
         ValueError: If prompt is empty or API key is missing
     """
     if not isinstance(prompt, str):
-        raise TypeError('prompt must be a string')
-    if not (prompt and prompt.strip():
-        raise ValueError('prompt cannot be empty')
-    cache = provider.(_state_manager and _state_manager.get('cache', {})
-    cache_key = f'{prompt}_{str(kwargs)}'
+        raise TypeError("prompt must be a string")
+    if not prompt or not prompt.strip():
+        raise ValueError("prompt cannot be empty")
+    cache = provider._state_manager.get("cache", {})
+    cache_key = f"{prompt}_{str(kwargs)}"
     if cache_key in cache:
-        provider.(_state_manager and _state_manager.set_metadata('cache_hit', True)
+        provider._state_manager.set_metadata("cache_hit", True)
         return cache[cache_key]
-    config = ModelConfig(temperature=(kwargs and kwargs.pop('temperature', provider.
-        config.temperature), max_tokens=(kwargs and kwargs.pop('max_tokens', provider.
-        config.max_tokens), api_key=(kwargs and kwargs.pop('api_key', provider.config.
-        api_key), trace_enabled=(kwargs and kwargs.pop('trace_enabled', provider.config
-        .trace_enabled))
+    config = ModelConfig(
+        temperature=kwargs.pop("temperature", provider.config.temperature),
+        max_tokens=kwargs.pop("max_tokens", provider.config.max_tokens),
+        api_key=kwargs.pop("api_key", provider.config.api_key),
+        trace_enabled=kwargs.pop("trace_enabled", provider.config.trace_enabled),
+    )
     if not config.api_key:
         model_specific_env = (
-            f"{provider.__class__.(__name__ and __name__.replace('Provider', '').upper()}_API_KEY"
-            )
+            f"{provider.__class__.__name__.replace('Provider', '').upper()}_API_KEY"
+        )
         raise ValueError(
-            f'API key is missing. Please provide an API key either by setting the {model_specific_env} environment variable or by passing it explicitly via the api_key parameter or config.'
-            )
-    generation_service = provider.(_state_manager and _state_manager.get('generation_service')
-    result = (generation_service and generation_service.generate(prompt, config)
+            f"API key is missing. Please provide an API key either by setting the {model_specific_env} environment variable or by passing it explicitly via the api_key parameter or config."
+        )
+    generation_service = provider._state_manager.get("generation_service")
+    result = generation_service.generate(prompt, config)
     if len(cache) < 100:
         cache[cache_key] = result
-        provider.(_state_manager and _state_manager.update('cache', cache)
+        provider._state_manager.update("cache", cache)
     return result
 
 
-def get_generation_service(provider: 'ModelProviderCore') ->Any:
+def get_generation_service(provider: "ModelProviderCore") -> Any:
     """
     Get the generation service from the provider's state.
 
@@ -81,15 +84,15 @@ def get_generation_service(provider: 'ModelProviderCore') ->Any:
     Raises:
         RuntimeError: If the generation service is not found
     """
-    if not provider.(_state_manager and _state_manager.get('initialized', False):
-        (provider and provider.warm_up()
-    generation_service = provider.(_state_manager and _state_manager.get('generation_service')
+    if not provider._state_manager.get("initialized", False):
+        provider.warm_up()
+    generation_service = provider._state_manager.get("generation_service")
     if not generation_service:
-        raise RuntimeError('Generation service not found')
+        raise RuntimeError("Generation service not found")
     return generation_service
 
 
-def clear_cache(provider: 'ModelProviderCore') ->None:
+def clear_cache(provider: "ModelProviderCore") -> None:
     """
     Clear the generation cache.
 
@@ -98,10 +101,10 @@ def clear_cache(provider: 'ModelProviderCore') ->None:
     Args:
         provider: The model provider instance
     """
-    provider.(_state_manager and _state_manager.update('cache', {})
+    provider._state_manager.update("cache", {})
 
 
-def get_cache_stats(provider: 'ModelProviderCore') ->Any:
+def get_cache_stats(provider: "ModelProviderCore") -> Any:
     """
     Get cache statistics.
 
@@ -114,10 +117,13 @@ def get_cache_stats(provider: 'ModelProviderCore') ->Any:
     Returns:
         A dictionary containing cache statistics
     """
-    cache = provider.(_state_manager and _state_manager.get('cache', {})
-    cache_hits = provider.(_state_manager and _state_manager.get_metadata('cache_hit_count', 0)
-    cache_misses = provider.(_state_manager and _state_manager.get_metadata('cache_miss_count', 0)
+    cache = provider._state_manager.get("cache", {})
+    cache_hits = provider._state_manager.get_metadata("cache_hit_count", 0)
+    cache_misses = provider._state_manager.get_metadata("cache_miss_count", 0)
     total_requests = cache_hits + cache_misses
-    return {'cache_size': len(cache), 'cache_hits': cache_hits,
-        'cache_misses': cache_misses, 'hit_rate': cache_hits /
-        total_requests if total_requests > 0 else 0}
+    return {
+        "cache_size": len(cache),
+        "cache_hits": cache_hits,
+        "cache_misses": cache_misses,
+        "hit_rate": cache_hits / total_requests if total_requests > 0 else 0,
+    }

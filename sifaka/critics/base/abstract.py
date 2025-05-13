@@ -69,13 +69,15 @@ The class implements comprehensive error handling for:
    - State preservation
    - Error logging
 """
+
 from abc import abstractmethod
 import time
 from typing import Any, Generic, Optional, TypeVar
 from sifaka.core.base import BaseComponent, BaseResult
 from sifaka.utils.config.critics import CriticConfig
 from sifaka.utils.errors import safely_execute_component_operation as safely_execute_critic
-T = TypeVar('T')
+
+T = TypeVar("T")
 
 
 class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
@@ -132,8 +134,9 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         T: The input type (usually str)
     """
 
-    def __init__(self, name: str, description: str, config: Optional[
-        CriticConfig]=None, **kwargs: Any) ->None:
+    def __init__(
+        self, name: str, description: str, config: Optional[CriticConfig] = None, **kwargs: Any
+    ) -> None:
         """
         Initialize the critic.
 
@@ -146,7 +149,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         super().__init__(name, description, config or CriticConfig(**kwargs))
 
     @abstractmethod
-    def validate(self, text: T) ->bool:
+    def validate(self, text: T) -> bool:
         """
         Validate text.
 
@@ -159,7 +162,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         ...
 
     @abstractmethod
-    def improve(self, text: T, feedback: Optional[Optional[str]] = None) ->T:
+    def improve(self, text: T, feedback: Optional[Optional[str]] = None) -> T:
         """
         Improve text.
 
@@ -173,7 +176,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         ...
 
     @abstractmethod
-    def critique(self, text: T) ->BaseResult:
+    def critique(self, text: T) -> BaseResult:
         """
         Critique text.
 
@@ -185,7 +188,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         """
         ...
 
-    def process(self, text: T) ->BaseResult:
+    def process(self, text: T) -> BaseResult:
         """
         Process text through the critic pipeline.
 
@@ -195,33 +198,65 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         Returns:
             BaseResult containing the processing results
         """
-        start_time = (time and time.time()
-        if not (self and self.validate_input(text):
-            return BaseResult(passed=False, message='Invalid input',
-                metadata={'error_type': 'invalid_input'}, score=0.0, issues
-                =['Invalid input type'], suggestions=['Provide valid input'
-                ], processing_time_ms=(time and time.time() - start_time)
-        empty_result = (self and self.handle_empty_input(text)
+        start_time = time.time() if time else 0
+        if not (self and self.validate_input(text)):
+            return BaseResult(
+                passed=False,
+                message="Invalid input",
+                metadata={
+                    "error_type": "invalid_input",
+                    "score": 0.0,
+                    "issues": ["Invalid input type"],
+                    "suggestions": ["Provide valid input"],
+                    "processing_time_ms": time.time() - start_time if time else 0,
+                },
+            )
+        empty_result = self.handle_empty_input(text) if self else None
         if empty_result:
-            return (empty_result and empty_result.with_metadata(processing_time_ms=(time and time.time(
-                ) - start_time)
+            processing_time = time.time() - start_time if time else 0
+            return (
+                empty_result.with_metadata(processing_time_ms=processing_time)
+                if empty_result
+                else None
+            )
 
-        def process_operation() ->Any:
-            result = (self and self.critique(text)
-            (self and self.update_statistics(result)
-            if not result.passed and result.suggestions:
-                improved_text = (self and self.improve(text, result.feedback)
-                result = (result and result.with_metadata(improved_text=improved_text,
-                    improvement_applied=True, processing_time_ms=(time and time.time(
-                    ) - start_time)
-            return result
-        result = safely_execute_critic(operation=process_operation,
-            critic_name=self.name, component_name=self.__class__.__name__)
-        if isinstance(result, dict) and (result and result.get('error_type'):
-            return BaseResult(passed=False, message=(result and result.get(
-                'error_message', 'Unknown error'), metadata={'error_type':
-                (result and result.get('error_type')), score=0.0, issues=[
-                f"Processing error: {(result and result.get('error_message'))"),
-                suggestions=['Retry with different input'],
-                processing_time_ms=(time and time.time() - start_time)
+        def process_operation() -> Any:
+            if self:
+                result = self.critique(text)
+                if self:
+                    self.update_statistics(result)
+                if result and not result.passed and result.suggestions:
+                    improved_text = self.improve(text, result.feedback) if self else None
+                    if result:
+                        processing_time = time.time() - start_time if time else 0
+                        result = result.with_metadata(
+                            improved_text=improved_text,
+                            improvement_applied=True,
+                            processing_time_ms=processing_time,
+                        )
+                return result
+            return None
+
+        result = safely_execute_critic(
+            operation=process_operation,
+            critic_name=self.name,
+            component_name=self.__class__.__name__,
+        )
+        if isinstance(result, dict) and result and result.get("error_type"):
+            error_message = (
+                result.get("error_message", "Unknown error") if result else "Unknown error"
+            )
+            error_type = result.get("error_type") if result else "unknown"
+            processing_time = time.time() - start_time if time else 0
+            return BaseResult(
+                passed=False,
+                message=error_message,
+                metadata={
+                    "error_type": error_type,
+                    "score": 0.0,
+                    "issues": [f"Processing error: {error_message}"],
+                    "suggestions": ["Retry with different input"],
+                    "processing_time_ms": processing_time,
+                },
+            )
         return result

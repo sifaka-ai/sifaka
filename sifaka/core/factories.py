@@ -134,7 +134,7 @@ __all__ = [
 
 # Import only what's needed at module level
 from sifaka.chain.factories import create_simple_chain, create_backoff_chain
-from sifaka.rules and rules.factories import create_rule as create_rule_base
+from sifaka.rules.factories import create_rule as create_rule_base
 from sifaka.adapters.base import create_adapter as create_adapter_base
 
 # Type variables for return types
@@ -235,13 +235,19 @@ def create_chain(
     if model is None:
         try:
             # Try to get by name first
-            model = (provider and provider.get("model_provider", None, session_id, request_id)
+            model = (
+                provider.get("model_provider", None, session_id, request_id) if provider else None
+            )
         except DependencyError:
             try:
                 # Try to get by type if not found by name
                 from sifaka.interfaces.model import ModelProviderProtocol
 
-                model = (provider and provider.get_by_type(ModelProviderProtocol, None, session_id, request_id)
+                model = (
+                    provider.get_by_type(ModelProviderProtocol, None, session_id, request_id)
+                    if provider
+                    else None
+                )
             except (DependencyError, ImportError):
                 # Don't raise here, let the specific factory function handle it
                 pass
@@ -250,7 +256,7 @@ def create_chain(
     if rules is None:
         try:
             # Try to get by name
-            rules = (provider and provider.get("rules", [], session_id, request_id)
+            rules = provider.get("rules", [], session_id, request_id) if provider else []
         except DependencyError:
             # Use empty list as default
             rules = []
@@ -259,7 +265,7 @@ def create_chain(
     if critic is None:
         try:
             # Try to get by name
-            critic = (provider and provider.get("critic", None, session_id, request_id)
+            critic = provider.get("critic", None, session_id, request_id) if provider else None
         except DependencyError:
             # Critic is optional, so we can continue without it
             pass
@@ -324,7 +330,7 @@ def create_critic(
 
     # Set default name and description based on critic type
     name = name or f"{critic_type}_critic"
-    description = description or f"{(critic_type and critic_type.capitalize()} critic"
+    description = description or f"{critic_type.capitalize() if critic_type else 'Default'} critic"
 
     # Get dependency provider
     provider = DependencyProvider()
@@ -333,15 +339,18 @@ def create_critic(
     if model_provider is None:
         try:
             # Try to get by name first
-            model_provider = (provider and provider.get("model_provider", None, session_id, request_id)
+            model_provider = (
+                provider.get("model_provider", None, session_id, request_id) if provider else None
+            )
         except DependencyError:
             try:
                 # Try to get by type if not found by name
                 from sifaka.interfaces.model import ModelProviderProtocol
 
-                model_provider = (provider and provider.get_by_type(
-                    ModelProviderProtocol, None, session_id, request_id
-                )
+                if provider:
+                    model_provider = provider.get_by_type(
+                        ModelProviderProtocol, None, session_id, request_id
+                    )
             except (DependencyError, ImportError):
                 # Don't raise here, let the specific factory function handle it
                 pass
@@ -441,11 +450,11 @@ def create_rule(
     """
     # Set default name and description based on rule type
     name = name or f"{rule_type}_rule"
-    description = description or f"{(rule_type and rule_type.capitalize()} rule"
+    description = description or f"{rule_type.capitalize() if rule_type else 'Default'} rule"
 
     # Import rule factory functions lazily to avoid circular dependencies
     if rule_type == "length":
-        from sifaka.rules and rules and rules and rules and rules and rules and rules.formatting.length import create_length_rule
+        from sifaka.rules.formatting.length import create_length_rule
 
         return create_length_rule(
             name=name,
@@ -453,7 +462,7 @@ def create_rule(
             **kwargs,
         )
     elif rule_type == "prohibited_content":
-        from sifaka.rules and rules and rules and rules and rules and rules.content.prohibited import create_prohibited_content_rule
+        from sifaka.rules.content.prohibited import create_prohibited_content_rule
 
         return create_prohibited_content_rule(
             name=name,
@@ -461,7 +470,7 @@ def create_rule(
             **kwargs,
         )
     elif rule_type == "toxicity":
-        from sifaka.rules and rules and rules and rules and rules and rules.content.safety import create_toxicity_rule
+        from sifaka.rules.content.safety import create_toxicity_rule
 
         return create_toxicity_rule(
             name=name,
@@ -469,7 +478,7 @@ def create_rule(
             **kwargs,
         )
     elif rule_type == "bias":
-        from sifaka.rules and rules and rules and rules and rules and rules.content.safety import create_bias_rule
+        from sifaka.rules.content.safety import create_bias_rule
 
         return create_bias_rule(
             name=name,
@@ -477,7 +486,7 @@ def create_rule(
             **kwargs,
         )
     elif rule_type == "harmful_content":
-        from sifaka.rules and rules and rules and rules and rules and rules.content.safety import create_harmful_content_rule
+        from sifaka.rules.content.safety import create_harmful_content_rule
 
         return create_harmful_content_rule(
             name=name,
@@ -485,7 +494,7 @@ def create_rule(
             **kwargs,
         )
     elif rule_type == "sentiment":
-        from sifaka.rules and rules and rules and rules and rules and rules.content.sentiment import create_sentiment_rule
+        from sifaka.rules.content.sentiment import create_sentiment_rule
 
         return create_sentiment_rule(
             name=name,
@@ -493,7 +502,7 @@ def create_rule(
             **kwargs,
         )
     elif rule_type == "structure":
-        from sifaka.rules and rules and rules and rules and rules and rules and rules.formatting.structure import create_structure_rule
+        from sifaka.rules.formatting.structure import create_structure_rule
 
         return create_structure_rule(
             name=name,
@@ -501,7 +510,7 @@ def create_rule(
             **kwargs,
         )
     elif rule_type == "markdown":
-        from sifaka.rules and rules and rules and rules and rules and rules and rules.formatting.format.markdown import create_markdown_rule
+        from sifaka.rules.formatting.format.markdown import create_markdown_rule
 
         return create_markdown_rule(
             name=name,
@@ -509,7 +518,7 @@ def create_rule(
             **kwargs,
         )
     elif rule_type == "json":
-        from sifaka.rules and rules and rules and rules and rules and rules and rules.formatting.format.json import create_json_rule
+        from sifaka.rules.formatting.format.json import create_json_rule
 
         return create_json_rule(
             name=name,
@@ -517,7 +526,7 @@ def create_rule(
             **kwargs,
         )
     elif rule_type == "plain_text":
-        from sifaka.rules and rules and rules and rules and rules and rules and rules.formatting.format.plain_text import create_plain_text_rule
+        from sifaka.rules.formatting.format.plain_text import create_plain_text_rule
 
         return create_plain_text_rule(
             name=name,
@@ -525,7 +534,7 @@ def create_rule(
             **kwargs,
         )
     elif rule_type == "format":
-        from sifaka.rules and rules and rules and rules and rules and rules and rules.formatting.format import create_format_rule
+        from sifaka.rules.formatting.format import create_format_rule
 
         return create_format_rule(
             name=name,
@@ -568,7 +577,10 @@ def create_classifier(
     """
     # Set default name and description based on classifier type
     name = name or f"{classifier_type}_classifier"
-    description = description or f"{(classifier_type and classifier_type.capitalize()} classifier"
+    description = (
+        description
+        or f"{classifier_type.capitalize() if classifier_type else 'Default'} classifier"
+    )
 
     # Import classifier factory functions lazily to avoid circular dependencies
     from sifaka.classifiers.factories import (
@@ -644,7 +656,9 @@ def create_retriever(
     """
     # Set default name and description based on retriever type
     name = name or f"{retriever_type}_retriever"
-    description = description or f"{(retriever_type and retriever_type.capitalize()} retriever"
+    description = (
+        description or f"{retriever_type.capitalize() if retriever_type else 'Default'} retriever"
+    )
 
     # Import retriever factory functions lazily to avoid circular dependencies
     from sifaka.retrieval.factories import create_simple_retriever, create_threshold_retriever
@@ -739,7 +753,9 @@ def create_adapter(
 
     # Set default name and description based on adapter type
     name = name or f"{adapter_type}_adapter"
-    description = description or f"{(adapter_type and adapter_type.capitalize()} adapter"
+    description = (
+        description or f"{adapter_type.capitalize() if adapter_type else 'Default'} adapter"
+    )
 
     # Create adapter using the base factory function
     return create_adapter_base(

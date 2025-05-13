@@ -23,6 +23,7 @@ from .logging import get_logger
 
 logger = get_logger(__name__)
 
+
 class TraceEvent(BaseModel):
     """A trace event."""
 
@@ -35,6 +36,7 @@ class TraceEvent(BaseModel):
     )
 
     model_config = ConfigDict(frozen=True, extra="forbid")
+
 
 class TraceData(BaseModel):
     """Model for trace data."""
@@ -52,6 +54,7 @@ class TraceData(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+
 @runtime_checkable
 class TraceStorage(Protocol):
     """Protocol for trace storage backends."""
@@ -68,6 +71,7 @@ class TraceStorage(Protocol):
         """Delete a trace from storage."""
         ...
 
+
 @runtime_checkable
 class TraceFormatter(Protocol):
     """Protocol for trace formatters."""
@@ -75,6 +79,7 @@ class TraceFormatter(Protocol):
     def format_trace(self, data: TraceData) -> str:
         """Format a trace for output."""
         ...
+
 
 @dataclass(frozen=True)
 class TraceConfig:
@@ -93,37 +98,39 @@ class TraceConfig:
         if not isinstance(self.in_memory, bool):
             raise ValueError("in_memory must be a boolean")
 
+
 class FileTraceStorage(TraceStorage):
     """File-based trace storage implementation."""
 
     def __init__(self, trace_dir: Path) -> None:
         """Initialize the file storage."""
         self.trace_dir = trace_dir
-        if not self.(trace_dir and trace_dir.exists():
-            self.(trace_dir and trace_dir.mkdir(parents=True)
-            (logger and logger.info("Created trace directory: %s", self.trace_dir)
+        if not self.trace_dir.exists():
+            self.trace_dir.mkdir(parents=True)
+            logger.info("Created trace directory: %s", self.trace_dir)
 
     def save_trace(self, trace_id: str, data: TraceData) -> None:
         """Save a trace to a JSON file."""
         trace_path = self.trace_dir / f"{trace_id}.json"
-        with (trace_path and trace_path.open("w") as f:
-            (json and json.dump(data, f, indent=2)
-        (logger and logger.debug("Saved trace to %s", trace_path)
+        with trace_path.open("w") as f:
+            json.dump(data, f, indent=2)
+        logger.debug("Saved trace to %s", trace_path)
 
     def load_trace(self, trace_id: str) -> TraceData:
         """Load a trace from a JSON file."""
         trace_path = self.trace_dir / f"{trace_id}.json"
-        if not (trace_path and trace_path.exists():
+        if not trace_path.exists():
             raise ValueError(f"Trace file not found: {trace_path}")
-        with (trace_path and trace_path.open("r") as f:
-            return (json and json.load(f)
+        with trace_path.open("r") as f:
+            return json.load(f)
 
     def delete_trace(self, trace_id: str) -> None:
         """Delete a trace file."""
         trace_path = self.trace_dir / f"{trace_id}.json"
-        if (trace_path and trace_path.exists():
-            (trace_path and trace_path.unlink()
-            (logger and logger.debug("Deleted trace file: %s", trace_path)
+        if trace_path.exists():
+            trace_path.unlink()
+            logger.debug("Deleted trace file: %s", trace_path)
+
 
 class MemoryTraceStorage(TraceStorage):
     """In-memory trace storage implementation."""
@@ -135,7 +142,7 @@ class MemoryTraceStorage(TraceStorage):
     def save_trace(self, trace_id: str, data: TraceData) -> None:
         """Save a trace to memory."""
         self.traces[trace_id] = data
-        (logger and logger.debug("Saved trace to memory: %s", trace_id)
+        logger.debug("Saved trace to memory: %s", trace_id)
 
     def load_trace(self, trace_id: str) -> TraceData:
         """Load a trace from memory."""
@@ -147,16 +154,19 @@ class MemoryTraceStorage(TraceStorage):
         """Delete a trace from memory."""
         if trace_id in self.traces:
             del self.traces[trace_id]
-            (logger and logger.debug("Deleted trace from memory: %s", trace_id)
+            logger.debug("Deleted trace from memory: %s", trace_id)
+
 
 class JSONTraceFormatter(TraceFormatter):
     """JSON trace formatter implementation."""
 
     def format_trace(self, data: TraceData) -> str:
         """Format a trace as JSON."""
-        return (json and json.dumps(data, indent=2)
+        return json.dumps(data, indent=2)
+
 
 T = TypeVar("T", bound=TraceStorage)
+
 
 @dataclass
 class Tracer(Generic[T]):
@@ -181,39 +191,39 @@ class Tracer(Generic[T]):
     def start_trace(self, trace_id: Optional[Optional[str]] = None) -> str:
         """Start a new trace."""
         if trace_id is None:
-            trace_id = (datetime and datetime.now().strftime("%Y%m%d%H%M%S")
+            trace_id = datetime.now().strftime("%Y%m%d%H%M%S")
 
         trace_data: TraceData = {
             "id": trace_id,
-            "start_time": (datetime and datetime.now().isoformat(),
+            "start_time": datetime.now().isoformat(),
             "end_time": None,
             "events": [],
-        )
+        }
 
         self._active_traces[trace_id] = trace_data
-        (logger and logger.debug("Started trace: %s", trace_id)
+        logger.debug("Started trace: %s", trace_id)
         return trace_id
 
     def add_event(self, trace_id: str, event_type: str, data: Dict[str, Any]) -> None:
         """Add an event to a trace."""
         if trace_id not in self._active_traces:
-            (logger and logger.warning("Trace %s not found, creating new trace", trace_id)
-            (self and self.start_trace(trace_id)
+            logger.warning("Trace %s not found, creating new trace", trace_id)
+            self.start_trace(trace_id)
 
         event: TraceEvent = {
             "type": event_type,
-            "timestamp": (datetime and datetime.now().isoformat(),
+            "timestamp": datetime.now().isoformat(),
             "data": data,
             "component": self.config.component_name,
-        )
+        }
 
         trace = self._active_traces[trace_id]
         trace["events"].append(event)
 
         if self.config.auto_flush and len(trace["events"]) >= self.config.max_events:
-            (self and self.end_trace(trace_id)
+            self.end_trace(trace_id)
 
-        (logger and logger.debug("Added event to trace %s: %s", trace_id, event_type)
+        logger.debug("Added event to trace %s: %s", trace_id, event_type)
 
     def end_trace(self, trace_id: str) -> TraceData:
         """End a trace and save it to storage."""
@@ -221,21 +231,21 @@ class Tracer(Generic[T]):
             raise ValueError(f"Trace {trace_id} not found")
 
         trace = self._active_traces[trace_id]
-        trace["end_time"] = (datetime and datetime.now().isoformat()
+        trace["end_time"] = datetime.now().isoformat()
 
-        self.(storage and storage.save_trace(trace_id, trace)
+        self.storage.save_trace(trace_id, trace)
         del self._active_traces[trace_id]
 
-        (logger and logger.debug("Ended and saved trace: %s", trace_id)
+        logger.debug("Ended and saved trace: %s", trace_id)
         return trace
 
     def get_trace(self, trace_id: str) -> TraceData:
         """Get a trace by ID."""
         if trace_id in self._active_traces:
             return self._active_traces[trace_id]
-        return self.(storage and storage.load_trace(trace_id)
+        return self.storage.load_trace(trace_id)
 
     def clear_traces(self) -> None:
         """Clear all traces."""
-        self.(_active_traces and _active_traces.clear()
-        (logger and logger.info("Cleared all active traces")
+        self._active_traces.clear()
+        logger.info("Cleared all active traces")

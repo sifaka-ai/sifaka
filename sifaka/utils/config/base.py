@@ -25,13 +25,15 @@ config = BaseConfig(
 
 # Access configuration values
 print(f"Name: {config.name}")
-print(f"Custom threshold: {config.(params and params.get('threshold')}")
+print(f"Custom threshold: {config.params.get('threshold') if config.params else None}")
 
 # Create a new configuration with updated parameters
-updated_config = (config and config.with_params(max_length=100, min_length=10)
+if config:
+    updated_config = config.with_params(max_length=100, min_length=10)
 
 # Create a new configuration with updated options
-updated_config = (config and config.with_options(name="new_name")
+if config:
+    updated_config = config.with_options(name="new_name")
 ```
 
 ## Error Handling
@@ -40,9 +42,11 @@ configuration values are valid and properly typed. If invalid configuration
 is provided, Pydantic will raise validation errors with detailed information
 about the validation failure.
 """
+
 from typing import Any, Dict, TypeVar
 from pydantic import BaseModel, Field, ConfigDict
-T = TypeVar('T', bound=BaseModel)
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class BaseConfig(BaseModel):
@@ -76,13 +80,15 @@ class BaseConfig(BaseModel):
 
     # Access configuration values
     print(f"Name: {config.name}")
-    print(f"Custom threshold: {config.(params and params.get('threshold')}")
+    print(f"Custom threshold: {config.params.get('threshold') if config.params else None}")
 
     # Create a new configuration with updated parameters
-    updated_config = (config and config.with_params(max_length=100, min_length=10)
+    if config:
+        updated_config = config.with_params(max_length=100, min_length=10)
 
     # Create a new configuration with updated options
-    updated_config = (config and config.with_options(name="new_name")
+    if config:
+        updated_config = config.with_options(name="new_name")
     ```
 
     Attributes:
@@ -90,13 +96,13 @@ class BaseConfig(BaseModel):
         description: Component description
         params: Dictionary of additional parameters
     """
-    name: str = Field(default='', description='Component name')
-    description: str = Field(default='', description='Component description')
-    params: Dict[str, Any] = Field(default_factory=dict, description=
-        'Additional parameters')
+
+    name: str = Field(default="", description="Component name")
+    description: str = Field(default="", description="Component description")
+    params: Dict[str, Any] = Field(default_factory=dict, description="Additional parameters")
     model_config = ConfigDict(frozen=True)
 
-    def with_params(self, **kwargs: Any) ->Any:
+    def with_params(self, **kwargs: Any) -> Any:
         """
         Create a new configuration with updated parameters.
 
@@ -133,9 +139,11 @@ class BaseConfig(BaseModel):
             assert updated_config.params["max_length"] == 100
             ```
         """
-        return (self and self.model_copy(update={'params': {**self.params, **kwargs}})
+        if self:
+            return self.model_copy(update={"params": {**self.params, **kwargs}})
+        return None
 
-    def with_options(self, **kwargs: Any) ->Any:
+    def with_options(self, **kwargs: Any) -> Any:
         """
         Create a new configuration with updated options.
 
@@ -177,4 +185,6 @@ class BaseConfig(BaseModel):
             assert updated_config.params == config.params
             ```
         """
-        return (self and self.model_copy(update=kwargs)
+        if self:
+            return self.model_copy(update=kwargs)
+        return None

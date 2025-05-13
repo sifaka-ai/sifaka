@@ -57,7 +57,7 @@ from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
 from sifaka.models.core.provider import ModelProviderCore
 
 # Import utilities
-from sifaka.utils.config and config and config and config.models import ModelConfig
+from sifaka.utils.config.models import ModelConfig
 from sifaka.utils.common import record_error
 from sifaka.utils.logging import get_logger
 
@@ -144,7 +144,7 @@ class AnthropicProvider(ModelProviderCore):
         """
         # Verify Anthropic package is installed
         try:
-            if importlib.(util and util.find_spec("anthropic") is None:
+            if importlib.util.find_spec("anthropic") is None:
                 raise ImportError()
         except ImportError:
             raise ImportError("Anthropic package is required. Install with: pip install anthropic")
@@ -164,9 +164,10 @@ class AnthropicProvider(ModelProviderCore):
             "error_count": 0,
             "total_processing_time": 0,
         }
-        self.(_state_manager and _state_manager.update("stats", stats)
+        if self._state_manager:
+            self._state_manager.update("stats", stats)
 
-        (logger and logger.info(f"Created AnthropicProvider with model {model_name}")
+        logger.info(f"Created AnthropicProvider with model {model_name}")
 
     def invoke(self, prompt: str, **kwargs) -> str:
         """
@@ -200,33 +201,37 @@ class AnthropicProvider(ModelProviderCore):
             ValueError: If invalid configuration is provided
         """
         # Ensure component is initialized
-        if not self.(_state_manager and _state_manager.get("initialized", False):
-            (self and self.warm_up()
+        if not self._state_manager or not self._state_manager.get("initialized", False):
+            self.warm_up()
 
         # Track generation count in state
-        start_time = (time and time.time()
+        start_time = time.time()
 
         try:
-            result = (self and self.generate(prompt, **kwargs)
+            result = self.generate(prompt, **kwargs)
 
             # Update statistics in state
-            stats = self.(_state_manager and _state_manager.get("stats", {})
-            stats["generation_count"] = (stats and stats.get("generation_count", 0) + 1
-            stats["total_processing_time"] = (
-                (stats and stats.get("total_processing_time", 0) + ((time and time.time() - start_time) * 1000
-            )
-            self.(_state_manager and _state_manager.update("stats", stats)
+            if self._state_manager:
+                stats = self._state_manager.get("stats", {})
+                if stats:
+                    stats["generation_count"] = stats.get("generation_count", 0) + 1
+                    stats["total_processing_time"] = stats.get("total_processing_time", 0) + (
+                        (time.time() - start_time) * 1000
+                    )
+                    self._state_manager.update("stats", stats)
 
             return result
 
         except Exception as e:
             # Update error count in state
-            stats = self.(_state_manager and _state_manager.get("stats", {})
-            stats["error_count"] = (stats and stats.get("error_count", 0) + 1
-            self.(_state_manager and _state_manager.update("stats", stats)
+            if self._state_manager:
+                stats = self._state_manager.get("stats", {})
+                if stats:
+                    stats["error_count"] = stats.get("error_count", 0) + 1
+                    self._state_manager.update("stats", stats)
 
             # Record the error
-            (self and self._record_error(e)
+            self._record_error(e)
 
             # Re-raise the exception
             raise
@@ -275,37 +280,41 @@ class AnthropicProvider(ModelProviderCore):
             ```
         """
         # Ensure component is initialized
-        if not self.(_state_manager and _state_manager.get("initialized", False):
-            (self and self.warm_up()
+        if not self._state_manager or not self._state_manager.get("initialized", False):
+            self.warm_up()
 
         # Track generation count in state
-        start_time = (time and time.time()
+        start_time = time.time()
 
         try:
             if hasattr(self, "agenerate"):
-                result = await (self and self.agenerate(prompt, **kwargs)
+                result = await self.agenerate(prompt, **kwargs)
             else:
                 # Fall back to synchronous generate
-                result = (self and self.generate(prompt, **kwargs)
+                result = self.generate(prompt, **kwargs)
 
             # Update statistics in state
-            stats = self.(_state_manager and _state_manager.get("stats", {})
-            stats["generation_count"] = (stats and stats.get("generation_count", 0) + 1
-            stats["total_processing_time"] = (
-                (stats and stats.get("total_processing_time", 0) + ((time and time.time() - start_time) * 1000
-            )
-            self.(_state_manager and _state_manager.update("stats", stats)
+            if self._state_manager:
+                stats = self._state_manager.get("stats", {})
+                if stats:
+                    stats["generation_count"] = stats.get("generation_count", 0) + 1
+                    stats["total_processing_time"] = stats.get("total_processing_time", 0) + (
+                        (time.time() - start_time) * 1000
+                    )
+                    self._state_manager.update("stats", stats)
 
             return result
 
         except Exception as e:
             # Update error count in state
-            stats = self.(_state_manager and _state_manager.get("stats", {})
-            stats["error_count"] = (stats and stats.get("error_count", 0) + 1
-            self.(_state_manager and _state_manager.update("stats", stats)
+            if self._state_manager:
+                stats = self._state_manager.get("stats", {})
+                if stats:
+                    stats["error_count"] = stats.get("error_count", 0) + 1
+                    self._state_manager.update("stats", stats)
 
             # Record the error
-            (self and self._record_error(e)
+            self._record_error(e)
 
             # Re-raise the exception
             raise
@@ -313,17 +322,19 @@ class AnthropicProvider(ModelProviderCore):
     def _record_error(self, error: Exception) -> None:
         """Record an error in the state manager."""
         # Update error count in state
-        stats = self.(_state_manager and _state_manager.get("stats", {})
-        stats["error_count"] = (stats and stats.get("error_count", 0) + 1
-        self.(_state_manager and _state_manager.update("stats", stats)
+        if self._state_manager:
+            stats = self._state_manager.get("stats", {})
+            if stats:
+                stats["error_count"] = stats.get("error_count", 0) + 1
+                self._state_manager.update("stats", stats)
 
-        # Use common error recording utility
-        record_error(
-            error=error,
-            component_name=self.name,
-            component_type=self.__class__.__name__,
-            state_manager=self._state_manager,
-        )
+            # Use common error recording utility
+            record_error(
+                error=error,
+                component_name=self.name,
+                component_type=self.__class__.__name__,
+                state_manager=self._state_manager,
+            )
 
     @property
     def name(self) -> str:
@@ -333,7 +344,10 @@ class AnthropicProvider(ModelProviderCore):
         Returns:
             The provider name
         """
-        return f"Anthropic-{self.(_state_manager and _state_manager.get('model_name')}"
+        model_name = "unknown"
+        if self._state_manager:
+            model_name = self._state_manager.get("model_name", model_name)
+        return f"Anthropic-{model_name}"
 
     def warm_up(self) -> None:
         """
@@ -355,49 +369,54 @@ class AnthropicProvider(ModelProviderCore):
             ModelError: If initialization fails due to API issues
         """
         # Ensure component is not already initialized
-        if self.(_state_manager and _state_manager.get("initialized", False):
-            (logger and logger.debug(f"Provider {self.name} already initialized")
+        if self._state_manager and self._state_manager.get("initialized", False):
+            logger.debug(f"Provider {self.name} already initialized")
             return
 
         # Lazy import managers to avoid circular dependencies
         from sifaka.models.managers.anthropic_client import AnthropicClientManager
         from sifaka.models.managers.anthropic_token_counter import AnthropicTokenCounterManager
 
+        if not self._state_manager:
+            return
+
         # Get dependencies from state
-        model_name = self.(_state_manager and _state_manager.get("model_name")
-        config = self.(_state_manager and _state_manager.get("config")
-        api_client = self.(_state_manager and _state_manager.get("api_client")
-        token_counter = self.(_state_manager and _state_manager.get("token_counter")
+        model_name = self._state_manager.get("model_name")
+        config = self._state_manager.get("config")
+        api_client = self._state_manager.get("api_client")
+        token_counter = self._state_manager.get("token_counter")
 
         # Create managers if they don't exist in state
-        if not self.(_state_manager and _state_manager.get("client_manager"):
+        if not self._state_manager.get("client_manager"):
             client_manager = AnthropicClientManager(
                 model_name=model_name,
                 config=config,
                 api_client=api_client,
             )
-            self.(_state_manager and _state_manager.update("client_manager", client_manager)
+            self._state_manager.update("client_manager", client_manager)
 
-        if not self.(_state_manager and _state_manager.get("token_counter_manager"):
+        if not self._state_manager.get("token_counter_manager"):
             token_counter_manager = AnthropicTokenCounterManager(
                 model_name=model_name,
                 token_counter=token_counter,
             )
-            self.(_state_manager and _state_manager.update("token_counter_manager", token_counter_manager)
+            self._state_manager.update("token_counter_manager", token_counter_manager)
 
         # Initialize client
-        client_manager = self.(_state_manager and _state_manager.get("client_manager")
-        client = (client_manager and client_manager.get_client()
-        self.(_state_manager and _state_manager.update("client", client)
+        client_manager = self._state_manager.get("client_manager")
+        if client_manager:
+            client = client_manager.get_client()
+            self._state_manager.update("client", client)
 
         # Initialize token counter
-        token_counter_manager = self.(_state_manager and _state_manager.get("token_counter_manager")
-        token_counter = (token_counter_manager and token_counter_manager.get_token_counter()
-        self.(_state_manager and _state_manager.update("token_counter", token_counter)
+        token_counter_manager = self._state_manager.get("token_counter_manager")
+        if token_counter_manager:
+            token_counter = token_counter_manager.get_token_counter()
+            self._state_manager.update("token_counter", token_counter)
 
         # Mark as initialized
-        self.(_state_manager and _state_manager.update("initialized", True)
-        (logger and logger.info(f"Provider {self.name} initialized successfully")
+        self._state_manager.update("initialized", True)
+        logger.info(f"Provider {self.name} initialized successfully")
 
     def cleanup(self) -> None:
         """
@@ -419,29 +438,33 @@ class AnthropicProvider(ModelProviderCore):
             ```
         """
         # Check if already cleaned up
-        if not self.(_state_manager and _state_manager.get("initialized", False):
-            (logger and logger.debug(f"Provider {self.name} not initialized, nothing to clean up")
+        if not (self._state_manager and self._state_manager.get("initialized", False)):
+            if logger:
+                logger.debug(f"Provider {self.name} not initialized, nothing to clean up")
             return
 
         # Release Anthropic-specific resources
-        client = self.(_state_manager and _state_manager.get("client")
+        client = self._state_manager and self._state_manager.get("client")
         if client and hasattr(client, "close"):
-            (client and client.close()
+            client.close()
 
         # Clear provider-specific stats
-        self.(_state_manager and _state_manager.update(
-            "stats",
-            {
-                "generation_count": 0,
-                "token_count_calls": 0,
-                "error_count": 0,
-                "total_processing_time": 0,
-            },
-        )
+        if self._state_manager:
+            self._state_manager.update(
+                "stats",
+                {
+                    "generation_count": 0,
+                    "token_count_calls": 0,
+                    "error_count": 0,
+                    "total_processing_time": 0,
+                },
+            )
 
         # Mark as not initialized
-        self.(_state_manager and _state_manager.update("initialized", False)
-        (logger and logger.info(f"Provider {self.name} cleaned up successfully")
+        if self._state_manager:
+            self._state_manager.update("initialized", False)
+        if logger:
+            logger.info(f"Provider {self.name} cleaned up successfully")
 
     def generate(self, prompt: str, **kwargs) -> str:
         """
@@ -490,49 +513,51 @@ class AnthropicProvider(ModelProviderCore):
             ```
         """
         # Ensure component is initialized
-        if not self.(_state_manager and _state_manager.get("initialized", False):
-            (self and self.warm_up()
+        if not (self._state_manager and self._state_manager.get("initialized", False)):
+            self.warm_up()
 
         # Get client from state
-        client = self.(_state_manager and _state_manager.get("client")
+        client = self._state_manager and self._state_manager.get("client")
         if client is None:
-            client_manager = self.(_state_manager and _state_manager.get("client_manager")
+            client_manager = self._state_manager and self._state_manager.get("client_manager")
             if client_manager is None:
-                (self and self.warm_up()
-                client = self.(_state_manager and _state_manager.get("client")
+                self.warm_up()
+                client = self._state_manager and self._state_manager.get("client")
             else:
-                client = (client_manager and client_manager.get_client()
-                self.(_state_manager and _state_manager.update("client", client)
+                client = client_manager and client_manager.get_client()
+                if self._state_manager:
+                    self._state_manager.update("client", client)
 
         # Get config from state
-        config = self.(_state_manager and _state_manager.get("config")
+        config = self._state_manager and self._state_manager.get("config")
 
         # Create a new config with updated values using the proper immutable pattern
         # First, check if any kwargs match direct config attributes
         config_kwargs = {}
         params_kwargs = {}
 
-        for key, value in (kwargs and kwargs.items():
+        for key, value in kwargs.items() if kwargs else []:
             if hasattr(config, key) and key != "params":
                 config_kwargs[key] = value
             else:
                 params_kwargs[key] = value
 
         # Create updated config using with_options for direct attributes
-        if config_kwargs:
-            new_config = config and config and (config and config.with_options(**config_kwargs)
+        if config_kwargs and config:
+            new_config = config.with_options(**config_kwargs)
         else:
             new_config = config
 
         # Add any params using with_params
-        if params_kwargs:
-            new_config = new_config and config and (config and config.with_params(**params_kwargs)
+        if params_kwargs and new_config:
+            new_config = new_config.with_params(**params_kwargs)
 
         # Store the updated config in the state manager
-        self.(_state_manager and _state_manager.update("config", new_config)
+        if self._state_manager:
+            self._state_manager.update("config", new_config)
 
         # Send prompt to client
-        return (client and client.send_prompt(prompt, config)
+        return client.send_prompt(prompt, config) if client else ""
 
     def count_tokens(self, text: str) -> int:
         """
@@ -572,22 +597,26 @@ class AnthropicProvider(ModelProviderCore):
             ```
         """
         # Ensure component is initialized
-        if not self.(_state_manager and _state_manager.get("initialized", False):
-            (self and self.warm_up()
+        if not (self._state_manager and self._state_manager.get("initialized", False)):
+            self.warm_up()
 
         # Get token counter from state
-        token_counter = self.(_state_manager and _state_manager.get("token_counter")
+        token_counter = self._state_manager and self._state_manager.get("token_counter")
         if token_counter is None:
-            token_counter = self.(_token_counter_manager and _token_counter_manager.get_token_counter()
-            self.(_state_manager and _state_manager.update("token_counter", token_counter)
+            token_counter = (
+                self._token_counter_manager and self._token_counter_manager.get_token_counter()
+            )
+            if self._state_manager:
+                self._state_manager.update("token_counter", token_counter)
 
         # Update statistics
-        stats = self.(_state_manager and _state_manager.get("stats", {})
-        stats["token_count_calls"] = (stats and stats.get("token_count_calls", 0) + 1
-        self.(_state_manager and _state_manager.update("stats", stats)
+        stats = self._state_manager and self._state_manager.get("stats", {}) or {}
+        stats["token_count_calls"] = (stats.get("token_count_calls", 0) + 1) if stats else 1
+        if self._state_manager:
+            self._state_manager.update("stats", stats)
 
         # Count tokens
-        return token_counter and (token_counter and token_counter.count_tokens(text)
+        return token_counter.count_tokens(text) if token_counter else 0
 
     # Note: Text analysis functionality has been removed from the provider
     # For text analysis, use the critics component instead (e.g., SelfRefineCritic)
@@ -612,7 +641,9 @@ class AnthropicProvider(ModelProviderCore):
         """
         from sifaka.models.managers.anthropic_client import AnthropicClient
 
-        return AnthropicClient(api_key=self.(_state_manager and _state_manager.get("config").api_key)
+        config = self._state_manager and self._state_manager.get("config")
+        api_key = config.api_key if config else None
+        return AnthropicClient(api_key=api_key)
 
     def _create_default_token_counter(self) -> TokenCounter:
         """
@@ -631,7 +662,8 @@ class AnthropicProvider(ModelProviderCore):
         """
         from sifaka.models.managers.anthropic_token_counter import AnthropicTokenCounter
 
-        return AnthropicTokenCounter(model=self.(_state_manager and _state_manager.get("model_name"))
+        model_name = self._state_manager and self._state_manager.get("model_name")
+        return AnthropicTokenCounter(model=model_name)
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -663,11 +695,11 @@ class AnthropicProvider(ModelProviderCore):
             ```
         """
         # Get statistics from tracing manager and state
-        tracing_manager = self.(_state_manager and _state_manager.get("tracing_manager")
-        tracing_stats = (tracing_manager and tracing_manager.get_statistics() if tracing_manager else {}
+        tracing_manager = self._state_manager and self._state_manager.get("tracing_manager")
+        tracing_stats = tracing_manager.get_statistics() if tracing_manager else {}
 
         # Combine with any other stats from state
-        stats = self.(_state_manager and _state_manager.get("stats", {})
+        stats = self._state_manager and self._state_manager.get("stats", {}) or {}
 
         return {**tracing_stats, **stats}
 
@@ -679,7 +711,8 @@ class AnthropicProvider(ModelProviderCore):
         Returns:
             str: A description of the provider
         """
-        return f"Anthropic provider using model {self.(_state_manager and _state_manager.get('model_name')}"
+        model_name = self._state_manager and self._state_manager.get("model_name")
+        return f"Anthropic provider using model {model_name}"
 
     def update_config(self, **kwargs) -> None:
         """
@@ -688,14 +721,16 @@ class AnthropicProvider(ModelProviderCore):
         Args:
             **kwargs: Configuration parameters to update
         """
-        config = self.(_state_manager and _state_manager.get("config")
+        config = self._state_manager and self._state_manager.get("config")
+        if not config:
+            return
 
         # Create a new config with updated values using the proper immutable pattern
         # First, check if any kwargs match direct config attributes
         config_kwargs = {}
         params_kwargs = {}
 
-        for key, value in (kwargs and kwargs.items():
+        for key, value in kwargs.items() if kwargs else []:
             if hasattr(config, key) and key != "params":
                 config_kwargs[key] = value
             else:
@@ -703,13 +738,14 @@ class AnthropicProvider(ModelProviderCore):
 
         # Create updated config using with_options for direct attributes
         if config_kwargs:
-            new_config = config and config and (config and config.with_options(**config_kwargs)
+            new_config = config.with_options(**config_kwargs)
         else:
             new_config = config
 
         # Add any params using with_params
         if params_kwargs:
-            new_config = new_config and config and (config and config.with_params(**params_kwargs)
+            new_config = new_config.with_params(**params_kwargs)
 
         # Update state
-        self.(_state_manager and _state_manager.update("config", new_config)
+        if self._state_manager:
+            self._state_manager.update("config", new_config)

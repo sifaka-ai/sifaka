@@ -17,13 +17,14 @@ implementation = ToxicityClassifierAdapter()
 classifier = Classifier(implementation=implementation)
 
 # Classify text
-result = (classifier and classifier.classify("This is a friendly message.")
+result = classifier.classify("This is a friendly message.")
 print(f"Label: {result.label}")
 print(f"Confidence: {result.confidence:.2f}")
 ```
 """
+
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import Any
 from ..interfaces import ClassifierImplementation
 from ...core.results import ClassificationResult
 from sifaka.classifiers.errors import ImplementationError, safely_execute
@@ -35,20 +36,24 @@ from .content.profanity import ProfanityClassifier as OldProfanityClassifier
 class ToxicityClassifierAdapter(ClassifierImplementation):
     """Adapter for the ToxicityClassifier."""
 
-    def __init__(self, **kwargs) ->None:
+    def __init__(self, **kwargs) -> None:
         """
         Initialize the adapter.
 
         Args:
             **kwargs: Arguments to pass to the ToxicityClassifier constructor
         """
-        self._classifier = (OldToxicityClassifier and OldToxicityClassifier.create(name=(kwargs and kwargs.get(
-            'name', 'toxicity_classifier'), description=(kwargs and kwargs.get(
-            'description', 'Detects toxic content using Detoxify'), labels=
-            (kwargs and kwargs.get('labels', ['toxic', 'severe_toxic', 'obscene',
-            'threat', 'insult', 'identity_hate', 'non_toxic']), **kwargs)
+        name = kwargs.get("name", "toxicity_classifier")
+        description = kwargs.get("description", "Detects toxic content using Detoxify")
+        labels = kwargs.get(
+            "labels",
+            ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate", "non_toxic"],
+        )
+        self._classifier = OldToxicityClassifier.create(
+            name=name, description=description, labels=labels, **kwargs
+        )
 
-    def classify(self, text: str) ->Any:
+    def classify(self, text: str) -> Any:
         """
         Classify the given text.
 
@@ -59,17 +64,26 @@ class ToxicityClassifierAdapter(ClassifierImplementation):
             The classification result
         """
 
-        def classify_operation() ->Any:
-            return self.(_classifier and _classifier.classify(text)
-        result = safely_execute(operation=classify_operation,
-            component_name='toxicity_classifier_adapter', component_type=
-            'ClassifierImplementation', error_class=ImplementationError)
-        return ClassificationResult(label=result.label, confidence=result.
-            confidence, metadata=result.metadata, issues=getattr(result,
-            'issues', []), suggestions=getattr(result, 'suggestions', []),
-            passed=True, message='')
+        def classify_operation() -> Any:
+            return self._classifier.classify(text)
 
-    async def classify_async(self, text: str) ->ClassificationResult:
+        result = safely_execute(
+            operation=classify_operation,
+            component_name="toxicity_classifier_adapter",
+            component_type="ClassifierImplementation",
+            error_class=ImplementationError,
+        )
+        return ClassificationResult(
+            label=result.label,
+            confidence=result.confidence,
+            metadata=result.metadata,
+            issues=getattr(result, "issues", []),
+            suggestions=getattr(result, "suggestions", []),
+            passed=True,
+            message="",
+        )
+
+    async def classify_async(self, text: str) -> ClassificationResult:
         """
         Classify the given text asynchronously.
 
@@ -79,27 +93,28 @@ class ToxicityClassifierAdapter(ClassifierImplementation):
         Returns:
             The classification result
         """
-        loop = (asyncio and asyncio.get_event_loop()
-        return await (loop and loop.run_in_executor(None, self.classify, text)
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.classify, text)
 
 
 class SentimentClassifierAdapter(ClassifierImplementation):
     """Adapter for the SentimentClassifier."""
 
-    def __init__(self, **kwargs) ->None:
+    def __init__(self, **kwargs) -> None:
         """
         Initialize the adapter.
 
         Args:
             **kwargs: Arguments to pass to the SentimentClassifier constructor
         """
-        self._classifier = (OldSentimentClassifier and OldSentimentClassifier.create(name=(kwargs and kwargs.get(
-            'name', 'sentiment_classifier'), description=(kwargs and kwargs.get(
-            'description', 'Classifies text sentiment using VADER'), labels
-            =(kwargs and kwargs.get('labels', ['positive', 'negative', 'neutral',
-            'unknown']), **kwargs)
+        name = kwargs.get("name", "sentiment_classifier")
+        description = kwargs.get("description", "Classifies text sentiment using VADER")
+        labels = kwargs.get("labels", ["positive", "negative", "neutral", "unknown"])
+        self._classifier = OldSentimentClassifier.create(
+            name=name, description=description, labels=labels, **kwargs
+        )
 
-    def classify(self, text: str) ->Any:
+    def classify(self, text: str) -> Any:
         """
         Classify the given text.
 
@@ -110,17 +125,26 @@ class SentimentClassifierAdapter(ClassifierImplementation):
             The classification result
         """
 
-        def classify_operation() ->Any:
-            return self.(_classifier and _classifier.classify(text)
-        result = safely_execute(operation=classify_operation,
-            component_name='sentiment_classifier_adapter', component_type=
-            'ClassifierImplementation', error_class=ImplementationError)
-        return ClassificationResult(label=result.label, confidence=result.
-            confidence, metadata=result.metadata, issues=getattr(result,
-            'issues', []), suggestions=getattr(result, 'suggestions', []),
-            passed=True, message='')
+        def classify_operation() -> Any:
+            return self._classifier.classify(text)
 
-    async def classify_async(self, text: str) ->ClassificationResult:
+        result = safely_execute(
+            operation=classify_operation,
+            component_name="sentiment_classifier_adapter",
+            component_type="ClassifierImplementation",
+            error_class=ImplementationError,
+        )
+        return ClassificationResult(
+            label=result.label,
+            confidence=result.confidence,
+            metadata=result.metadata,
+            issues=getattr(result, "issues", []),
+            suggestions=getattr(result, "suggestions", []),
+            passed=True,
+            message="",
+        )
+
+    async def classify_async(self, text: str) -> ClassificationResult:
         """
         Classify the given text asynchronously.
 
@@ -130,26 +154,28 @@ class SentimentClassifierAdapter(ClassifierImplementation):
         Returns:
             The classification result
         """
-        loop = (asyncio and asyncio.get_event_loop()
-        return await (loop and loop.run_in_executor(None, self.classify, text)
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.classify, text)
 
 
 class ProfanityClassifierAdapter(ClassifierImplementation):
     """Adapter for the ProfanityClassifier."""
 
-    def __init__(self, **kwargs) ->None:
+    def __init__(self, **kwargs) -> None:
         """
         Initialize the adapter.
 
         Args:
             **kwargs: Arguments to pass to the ProfanityClassifier constructor
         """
-        self._classifier = (OldProfanityClassifier and OldProfanityClassifier.create(name=(kwargs and kwargs.get(
-            'name', 'profanity_classifier'), description=(kwargs and kwargs.get(
-            'description', 'Detects profanity in text'), labels=(kwargs and kwargs.get(
-            'labels', ['profane', 'clean']), **kwargs)
+        name = kwargs.get("name", "profanity_classifier")
+        description = kwargs.get("description", "Detects profanity in text")
+        labels = kwargs.get("labels", ["profane", "clean"])
+        self._classifier = OldProfanityClassifier.create(
+            name=name, description=description, labels=labels, **kwargs
+        )
 
-    def classify(self, text: str) ->Any:
+    def classify(self, text: str) -> Any:
         """
         Classify the given text.
 
@@ -160,17 +186,26 @@ class ProfanityClassifierAdapter(ClassifierImplementation):
             The classification result
         """
 
-        def classify_operation() ->Any:
-            return self.(_classifier and _classifier.classify(text)
-        result = safely_execute(operation=classify_operation,
-            component_name='profanity_classifier_adapter', component_type=
-            'ClassifierImplementation', error_class=ImplementationError)
-        return ClassificationResult(label=result.label, confidence=result.
-            confidence, metadata=result.metadata, issues=getattr(result,
-            'issues', []), suggestions=getattr(result, 'suggestions', []),
-            passed=True, message='')
+        def classify_operation() -> Any:
+            return self._classifier.classify(text)
 
-    async def classify_async(self, text: str) ->ClassificationResult:
+        result = safely_execute(
+            operation=classify_operation,
+            component_name="profanity_classifier_adapter",
+            component_type="ClassifierImplementation",
+            error_class=ImplementationError,
+        )
+        return ClassificationResult(
+            label=result.label,
+            confidence=result.confidence,
+            metadata=result.metadata,
+            issues=getattr(result, "issues", []),
+            suggestions=getattr(result, "suggestions", []),
+            passed=True,
+            message="",
+        )
+
+    async def classify_async(self, text: str) -> ClassificationResult:
         """
         Classify the given text asynchronously.
 
@@ -180,5 +215,5 @@ class ProfanityClassifierAdapter(ClassifierImplementation):
         Returns:
             The classification result
         """
-        loop = (asyncio and asyncio.get_event_loop()
-        return await (loop and loop.run_in_executor(None, self.classify, text)
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.classify, text)

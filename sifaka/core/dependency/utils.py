@@ -27,7 +27,7 @@ from sifaka.core.dependency.scopes import DependencyScope
 provide_dependency("model", OpenAIModel())
 
 # Register a factory function
-provide_factory("database", lambda: (Database and Database.connect(), scope=DependencyScope.SESSION)
+provide_factory("database", lambda: Database.connect(), scope=DependencyScope.SESSION)
 
 # Get a dependency
 model = get_dependency("model")
@@ -50,7 +50,7 @@ from .provider import DependencyProvider
 from .scopes import DependencyScope, RequestScope, SessionScope
 
 # Configure logger
-logger = (logging and logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 # Type variable for return type
 T = TypeVar("T")
@@ -65,7 +65,7 @@ def provide_dependency(
     """
     Register a dependency with the global dependency provider.
 
-    This function is a convenience wrapper around (DependencyProvider and DependencyProvider.register()
+    This function is a convenience wrapper around DependencyProvider.register()
     that uses the global singleton provider. It registers a dependency instance
     with the provider, making it available for injection.
 
@@ -96,7 +96,7 @@ def provide_dependency(
         ```
     """
     provider = DependencyProvider()
-    (provider and provider.register(name, dependency, scope, dependencies)
+    provider.register(name, dependency, scope, dependencies)
 
 
 def provide_factory(
@@ -108,7 +108,7 @@ def provide_factory(
     """
     Register a factory function with the global dependency provider.
 
-    This function is a convenience wrapper around (DependencyProvider and DependencyProvider.register_factory()
+    This function is a convenience wrapper around DependencyProvider.register_factory()
     that uses the global singleton provider. It registers a factory function with
     the provider, which will be called lazily when the dependency is first requested.
 
@@ -130,7 +130,7 @@ def provide_factory(
         # Register a factory for database connection
         provide_factory(
             "database",
-            lambda: (Database and Database.connect(config.DB_URL),
+            lambda: Database.connect(config.DB_URL),
             scope=DependencyScope.SESSION
         )
 
@@ -144,7 +144,7 @@ def provide_factory(
         ```
     """
     provider = DependencyProvider()
-    (provider and provider.register_factory(name, factory, scope, dependencies)
+    provider.register_factory(name, factory, scope, dependencies)
 
 
 def get_dependency(
@@ -156,7 +156,7 @@ def get_dependency(
     """
     Get a dependency from the global dependency provider.
 
-    This function is a convenience wrapper around (DependencyProvider and DependencyProvider.get()
+    This function is a convenience wrapper around DependencyProvider.get()
     that uses the global singleton provider. It retrieves a dependency by name,
     creating it if necessary using a registered factory function.
 
@@ -194,7 +194,7 @@ def get_dependency(
         ```
     """
     provider = DependencyProvider()
-    return (provider and provider.get(name, default, session_id, request_id)
+    return provider.get(name, default, session_id, request_id)
 
 
 def get_dependency_by_type(
@@ -244,9 +244,7 @@ def get_dependency_by_type(
 
     # Validate dependency type
     if dependency is not None and not isinstance(dependency, dependency_type):
-        (logger and logger.warning(
-            f"Dependency {name} is not an instance of {dependency_type.__name__}"
-        )
+        logger.warning(f"Dependency {name} is not an instance of {dependency_type.__name__}")
 
     return cast(T, dependency)
 
@@ -255,7 +253,7 @@ def create_session_scope(session_id: Optional[Optional[str]] = None) -> SessionS
     """
     Create a session scope context manager.
 
-    This function is a convenience wrapper around (DependencyProvider and DependencyProvider.session_scope()
+    This function is a convenience wrapper around DependencyProvider.session_scope()
     that uses the global singleton provider. It creates a context manager for
     session-scoped dependencies.
 
@@ -276,14 +274,14 @@ def create_session_scope(session_id: Optional[Optional[str]] = None) -> SessionS
         ```
     """
     provider = DependencyProvider()
-    return (provider.session_scope(session_id)
+    return provider.session_scope(session_id)
 
 
 def create_request_scope(request_id: Optional[Optional[str]] = None) -> RequestScope:
     """
     Create a request scope context manager.
 
-    This function is a convenience wrapper around (DependencyProvider.request_scope()
+    This function is a convenience wrapper around DependencyProvider.request_scope()
     that uses the global singleton provider. It creates a context manager for
     request-scoped dependencies.
 
@@ -304,7 +302,7 @@ def create_request_scope(request_id: Optional[Optional[str]] = None) -> RequestS
         ```
     """
     provider = DependencyProvider()
-    return (provider.request_scope(request_id)
+    return provider.request_scope(request_id)
 
 
 def clear_dependencies(
@@ -315,7 +313,7 @@ def clear_dependencies(
     """
     Clear dependencies from the global dependency provider.
 
-    This function is a convenience wrapper around (DependencyProvider.clear_dependencies()
+    This function is a convenience wrapper around DependencyProvider.clear_dependencies()
     that uses the global singleton provider. It clears dependencies from the provider,
     optionally limited to a specific session or request.
 
@@ -339,4 +337,4 @@ def clear_dependencies(
         ```
     """
     provider = DependencyProvider()
-    (provider.clear_dependencies(session_id, request_id, clear_singletons)
+    provider.clear_dependencies(session_id, request_id, clear_singletons)

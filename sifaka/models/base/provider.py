@@ -187,12 +187,12 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
             TypeError: If dependencies don't implement required protocols
         """
         self._model_name = model_name
-        self._config = config or (self and self._create_default_config()  # type: C
+        self._config = config or self._create_default_config()  # type: C
         self._api_client = api_client
         self._token_counter = token_counter
         self._tracer = tracer or (Tracer() if self._config.trace_enabled else None)
         self._initialized = False
-        (logger and logger.info(f"Created {self.__class__.__name__} with model {model_name}")
+        logger.info(f"Created {self.__class__.__name__} with model {model_name}")
 
     def initialize(self) -> None:
         """
@@ -206,17 +206,17 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
             RuntimeError: If initialization fails for any reason
         """
         if self._initialized:
-            (logger and logger.debug(f"{self.__class__.__name__} already initialized")
+            logger.debug(f"{self.__class__.__name__} already initialized")
             return
 
         try:
             # Ensure API client and token counter are created
-            (self and self._ensure_api_client()
-            (self and self._ensure_token_counter()
+            self._ensure_api_client()
+            self._ensure_token_counter()
             self._initialized = True
-            (logger and logger.info(f"Initialized {self.__class__.__name__} with model {self.model_name}")
+            logger.info(f"Initialized {self.__class__.__name__} with model {self.model_name}")
         except Exception as e:
-            (logger and logger.error(f"Failed to initialize {self.__class__.__name__}: {e}")
+            logger.error(f"Failed to initialize {self.__class__.__name__}: {e}")
             raise RuntimeError(f"Failed to initialize {self.__class__.__name__}: {e}") from e
 
     def cleanup(self) -> None:
@@ -231,22 +231,22 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
             RuntimeError: If cleanup fails for any reason
         """
         if not self._initialized:
-            (logger and logger.debug(f"{self.__class__.__name__} not initialized, nothing to clean up")
+            logger.debug(f"{self.__class__.__name__} not initialized, nothing to clean up")
             return
 
         try:
             # Close API client if it has a close method
             if self._api_client and hasattr(self._api_client, "close"):
-                self.(_api_client and _api_client.close()
+                self._api_client.close()
 
             # Close token counter if it has a close method
             if self._token_counter and hasattr(self._token_counter, "close"):
-                self.(_token_counter and _token_counter.close()
+                self._token_counter.close()
 
             self._initialized = False
-            (logger and logger.info(f"Cleaned up {self.__class__.__name__} with model {self.model_name}")
+            logger.info(f"Cleaned up {self.__class__.__name__} with model {self.model_name}")
         except Exception as e:
-            (logger and logger.error(f"Failed to clean up {self.__class__.__name__}: {e}")
+            logger.error(f"Failed to clean up {self.__class__.__name__}: {e}")
             raise RuntimeError(f"Failed to clean up {self.__class__.__name__}: {e}") from e
 
     @property
@@ -303,9 +303,9 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
             ValueError: If the configuration is not an instance of ModelConfig
         """
         if not isinstance(config, ModelConfig):
-            raise ValueError(f"Config must be an instance of ModelConfig, got {type(config))")
+            raise ValueError(f"Config must be an instance of ModelConfig, got {type(config)}")
         self._config = config
-        (logger and logger.info(f"Updated configuration for {self.__class__.__name__} with {self.model_name}")
+        logger.info(f"Updated configuration for {self.__class__.__name__} with {self.model_name}")
 
     def _create_default_config(self) -> C:
         """
@@ -368,8 +368,8 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
             TypeError: If the created client doesn't implement APIClient protocol
         """
         if self._api_client is None:
-            (logger and logger.debug(f"Creating default API client for {self.model_name}")
-            self._api_client = (self and self._create_default_client()
+            logger.debug(f"Creating default API client for {self.model_name}")
+            self._api_client = self._create_default_client()
         return self._api_client
 
     def _ensure_token_counter(self) -> TokenCounter:
@@ -388,8 +388,8 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
             TypeError: If the created counter doesn't implement TokenCounter protocol
         """
         if self._token_counter is None:
-            (logger and logger.debug(f"Creating default token counter for {self.model_name}")
-            self._token_counter = (self and self._create_default_token_counter()
+            logger.debug(f"Creating default token counter for {self.model_name}")
+            self._token_counter = self._create_default_token_counter()
         return self._token_counter
 
     def _trace_event(self, event_type: str, data: Dict[str, Any]) -> None:
@@ -405,8 +405,8 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
             data: The data to record with the event as key-value pairs
         """
         if self._tracer and self._config.trace_enabled:
-            trace_id = (datetime and datetime.now().strftime(f"{self.model_name}_%Y%m%d%H%M%S")
-            self.(_tracer and _tracer.add_event(trace_id, event_type, data)
+            trace_id = datetime.now().strftime(f"{self.model_name}_%Y%m%d%H%M%S")
+            self._tracer.add_event(trace_id, event_type, data)
 
     def count_tokens(self, text: str) -> int:
         """
@@ -425,15 +425,15 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         if not isinstance(text, str):
             raise TypeError("text must be a string")
 
-        counter = (self and self._ensure_token_counter()
-        token_count = (counter and counter.count_tokens(text)
+        counter = self._ensure_token_counter()
+        token_count = counter.count_tokens(text)
 
-        (self and self._trace_event(
+        self._trace_event(
             "token_count",
             {
                 "text_length": len(text),
                 "token_count": token_count,
-            ),
+            },
         )
 
         return token_count
@@ -460,46 +460,46 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         """
         if not isinstance(prompt, str):
             raise TypeError("prompt must be a string")
-        if not (prompt and prompt.strip():
+        if not prompt or not prompt.strip():
             raise ValueError("prompt cannot be empty")
 
         # Update config with any override kwargs
         config = ModelConfig(
-            temperature=(kwargs and kwargs.pop("temperature", self.config.temperature),
-            max_tokens=(kwargs and kwargs.pop("max_tokens", self.config.max_tokens),
-            api_key=(kwargs and kwargs.pop("api_key", self.config.api_key),
-            trace_enabled=(kwargs and kwargs.pop("trace_enabled", self.config.trace_enabled),
+            temperature=kwargs.pop("temperature", self.config.temperature),
+            max_tokens=kwargs.pop("max_tokens", self.config.max_tokens),
+            api_key=kwargs.pop("api_key", self.config.api_key),
+            trace_enabled=kwargs.pop("trace_enabled", self.config.trace_enabled),
         )
 
         # Count tokens before generation
-        prompt_tokens = (self and self.count_tokens(prompt)
+        prompt_tokens = self.count_tokens(prompt)
         if prompt_tokens > config.max_tokens:
-            (logger and logger.warning(
+            logger.warning(
                 f"Prompt tokens ({prompt_tokens}) exceed max_tokens ({config.max_tokens})"
             )
 
-        start_time = (datetime and datetime.now()
-        client = (self and self._ensure_api_client()
+        start_time = datetime.now()
+        client = self._ensure_api_client()
 
         try:
-            response = (client and client.send_prompt(prompt, config)
+            response = client.send_prompt(prompt, config)
 
-            end_time = (datetime and datetime.now()
+            end_time = datetime.now()
             duration_ms = (end_time - start_time).total_seconds() * 1000
 
-            (self and self._trace_event(
+            self._trace_event(
                 "generate",
                 {
                     "prompt_tokens": prompt_tokens,
-                    "response_tokens": (self and self.count_tokens(response),
+                    "response_tokens": self.count_tokens(response),
                     "duration_ms": duration_ms,
                     "temperature": config.temperature,
                     "max_tokens": config.max_tokens,
                     "success": True,
-                ),
+                },
             )
 
-            (logger and logger.debug(
+            logger.debug(
                 f"Generated response in {duration_ms:.2f}ms " f"(prompt: {prompt_tokens} tokens)"
             )
 
@@ -507,9 +507,9 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
 
         except Exception as e:
             error_msg = str(e)
-            (logger and logger.error(f"Error generating text with {self.model_name}: {error_msg}")
+            logger.error(f"Error generating text with {self.model_name}: {error_msg}")
 
-            (self and self._trace_event(
+            self._trace_event(
                 "error",
                 {
                     "error": error_msg,

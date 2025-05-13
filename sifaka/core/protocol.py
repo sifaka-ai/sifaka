@@ -45,13 +45,22 @@ The module handles various error conditions:
 - Provides detailed information about type mismatches
 - Logs warnings for potential issues
 """
+
 import inspect
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Protocol, Set, Type, TypeVar, get_type_hints, runtime_checkable
+from typing import (
+    Any,
+    Dict,
+    List,
+    Set,
+    Type,
+    TypeVar,
+)
 from sifaka.utils.logging import get_logger
+
 logger = get_logger(__name__)
-T = TypeVar('T', bound=Protocol)
-C = TypeVar('C')
+T = TypeVar("T")
+C = TypeVar("C")
 
 
 @dataclass
@@ -75,7 +84,8 @@ class ProtocolComplianceResult:
         missing_properties (List[str]): Properties required by the protocol but missing from the target
         type_mismatches (Dict[str, Dict[str, Any]]): Type mismatches between protocol and target
     """
-    protocol: Type[Protocol]
+
+    protocol: Type[Any]
     target: Type[Any]
     compliant: bool
     missing_methods: List[str]
@@ -83,8 +93,9 @@ class ProtocolComplianceResult:
     type_mismatches: Dict[str, Dict[str, Any]]
 
 
-def check_protocol_compliance(target_class: Type[C], protocol_class: Type[T]
-    ) ->Any:
+def check_protocol_compliance(
+    target_class: Type[C], protocol_class: Type[T]
+) -> ProtocolComplianceResult:
     """
     Check if a class implements a protocol.
 
@@ -129,61 +140,76 @@ def check_protocol_compliance(target_class: Type[C], protocol_class: Type[T]
     target_methods = _get_class_methods(target_class)
     target_properties = _get_class_properties(target_class)
     missing_methods = []
-    for method_name, method_info in (protocol_methods and protocol_methods.items():
-        if method_name not in target_methods:
-            (missing_methods and missing_methods.append(method_name)
+    if protocol_methods:
+        for method_name, method_info in protocol_methods.items():
+            if method_name not in target_methods:
+                missing_methods.append(method_name)
     missing_properties = []
     for prop_name in protocol_properties:
         if prop_name not in target_properties:
-            (missing_properties and missing_properties.append(prop_name)
+            missing_properties.append(prop_name)
     type_mismatches = {}
-    for method_name, method_info in (protocol_methods and protocol_methods.items():
-        if method_name in target_methods:
-            protocol_sig = method_info['signature']
-            target_sig = target_methods[method_name]['signature']
-            if protocol_sig.return_annotation != inspect.Signature.empty:
-                if target_sig.return_annotation == inspect.Signature.empty:
-                    if method_name not in type_mismatches:
-                        type_mismatches[method_name] = {}
-                    type_mismatches[method_name]['return'] = {'expected':
-                        protocol_sig.return_annotation, 'actual': 'unspecified'
+    if protocol_methods:
+        for method_name, method_info in protocol_methods.items():
+            if method_name in target_methods:
+                protocol_sig = method_info["signature"]
+                target_sig = target_methods[method_name]["signature"]
+                if protocol_sig.return_annotation != inspect.Signature.empty:
+                    if target_sig.return_annotation == inspect.Signature.empty:
+                        if method_name not in type_mismatches:
+                            type_mismatches[method_name] = {}
+                        type_mismatches[method_name]["return"] = {
+                            "expected": protocol_sig.return_annotation,
+                            "actual": "unspecified",
                         }
-                elif not _is_compatible_type(target_sig.return_annotation,
-                    protocol_sig.return_annotation):
-                    if method_name not in type_mismatches:
-                        type_mismatches[method_name] = {}
-                    type_mismatches[method_name]['return'] = {'expected':
-                        protocol_sig.return_annotation, 'actual':
-                        target_sig.return_annotation}
-            for param_name, param in protocol_sig.(parameters and parameters.items():
-                if param.annotation != inspect.Parameter.empty:
-                    if param_name in target_sig.parameters:
-                        target_param = target_sig.parameters[param_name]
-                        if target_param.annotation == inspect.Parameter.empty:
-                            if method_name not in type_mismatches:
-                                type_mismatches[method_name] = {}
-                            if 'params' not in type_mismatches[method_name]:
-                                type_mismatches[method_name]['params'] = {}
-                            type_mismatches[method_name]['params'][param_name
-                                ] = {'expected': param.annotation, 'actual':
-                                'unspecified'}
-                        elif not _is_compatible_type(target_param.
-                            annotation, param.annotation):
-                            if method_name not in type_mismatches:
-                                type_mismatches[method_name] = {}
-                            if 'params' not in type_mismatches[method_name]:
-                                type_mismatches[method_name]['params'] = {}
-                            type_mismatches[method_name]['params'][param_name
-                                ] = {'expected': param.annotation, 'actual':
-                                target_param.annotation}
-    compliant = len(missing_methods) == 0 and len(missing_properties
-        ) == 0 and len(type_mismatches) == 0
-    return ProtocolComplianceResult(protocol=protocol_class, target=
-        target_class, compliant=compliant, missing_methods=missing_methods,
-        missing_properties=missing_properties, type_mismatches=type_mismatches)
+                    elif not _is_compatible_type(
+                        target_sig.return_annotation, protocol_sig.return_annotation
+                    ):
+                        if method_name not in type_mismatches:
+                            type_mismatches[method_name] = {}
+                        type_mismatches[method_name]["return"] = {
+                            "expected": protocol_sig.return_annotation,
+                            "actual": target_sig.return_annotation,
+                        }
+                if hasattr(protocol_sig, "parameters"):
+                    for param_name, param in protocol_sig.parameters.items():
+                        if param.annotation != inspect.Parameter.empty:
+                            if param_name in target_sig.parameters:
+                                target_param = target_sig.parameters[param_name]
+                                if target_param.annotation == inspect.Parameter.empty:
+                                    if method_name not in type_mismatches:
+                                        type_mismatches[method_name] = {}
+                                    if "params" not in type_mismatches[method_name]:
+                                        type_mismatches[method_name]["params"] = {}
+                                    type_mismatches[method_name]["params"][param_name] = {
+                                        "expected": param.annotation,
+                                        "actual": "unspecified",
+                                    }
+                                elif not _is_compatible_type(
+                                    target_param.annotation, param.annotation
+                                ):
+                                    if method_name not in type_mismatches:
+                                        type_mismatches[method_name] = {}
+                                    if "params" not in type_mismatches[method_name]:
+                                        type_mismatches[method_name]["params"] = {}
+                                    type_mismatches[method_name]["params"][param_name] = {
+                                        "expected": param.annotation,
+                                        "actual": target_param.annotation,
+                                    }
+    compliant = (
+        len(missing_methods) == 0 and len(missing_properties) == 0 and len(type_mismatches) == 0
+    )
+    return ProtocolComplianceResult(
+        protocol=protocol_class,
+        target=target_class,
+        compliant=compliant,
+        missing_methods=missing_methods,
+        missing_properties=missing_properties,
+        type_mismatches=type_mismatches,
+    )
 
 
-def generate_implementation_template(protocol_class: Type[T]) ->Any:
+def generate_implementation_template(protocol_class: Type[T]) -> str:
     """
     Generate a template for implementing a protocol.
 
@@ -225,41 +251,38 @@ def generate_implementation_template(protocol_class: Type[T]) ->Any:
     """
     protocol_methods = _get_protocol_methods(protocol_class)
     protocol_properties = _get_protocol_properties(protocol_class)
-    template = f'class {protocol_class.__name__}Implementation:\n'
-    template += (
-        f'    """Implementation of {protocol_class.__name__} protocol."""\n\n')
+    template = f"class {protocol_class.__name__}Implementation:\n"
+    template += f'    """Implementation of {protocol_class.__name__} protocol."""\n\n'
     for prop_name in protocol_properties:
-        template += f'    @property\n'
-        template += f'    def {prop_name}(self):\n'
+        template += f"    @property\n"
+        template += f"    def {prop_name}(self):\n"
         template += f'        """Get the {prop_name}."""\n'
-        template += f'        # TODO: Implement {prop_name} property\n'
-        template += f'        raise NotImplementedError()\n\n'
-    for method_name, method_info in (protocol_methods and protocol_methods.items():
-        signature = method_info['signature']
-        docstring = method_info['docstring'] or f'{method_name} method.'
-        params = []
-        for param_name, param in signature.(parameters and parameters.items():
-            if param_name == 'self':
-                (params and params.append('self')
-            elif param.annotation != inspect.Parameter.empty:
-                (params and params.append(
-                    f'{param_name}: {_format_annotation(param.annotation))')
-            else:
-                (params and params.append(param_name)
-        return_annotation = ''
-        if signature.return_annotation != inspect.Signature.empty:
-            return_annotation = (
-                f' -> {_format_annotation(signature.return_annotation))')
-        template += (
-            f"    def {method_name}({', '.join(params))){return_annotation}:\n"
-            )
-        template += f'        """{docstring}"""\n'
-        template += f'        # TODO: Implement {method_name} method\n'
-        template += f'        raise NotImplementedError()\n\n'
+        template += f"        # TODO: Implement {prop_name} property\n"
+        template += f"        raise NotImplementedError()\n\n"
+    if protocol_methods:
+        for method_name, method_info in protocol_methods.items():
+            signature = method_info["signature"]
+            docstring = method_info["docstring"] or f"{method_name} method."
+            params = []
+            if hasattr(signature, "parameters"):
+                for param_name, param in signature.parameters.items():
+                    if param_name == "self":
+                        params.append("self")
+                    elif param.annotation != inspect.Parameter.empty:
+                        params.append(f"{param_name}: {_format_annotation(param.annotation)}")
+                    else:
+                        params.append(param_name)
+            return_annotation = ""
+            if signature.return_annotation != inspect.Signature.empty:
+                return_annotation = f" -> {_format_annotation(signature.return_annotation)}"
+            template += f"    def {method_name}({', '.join(params)}){return_annotation}:\n"
+            template += f'        """{docstring}"""\n'
+            template += f"        # TODO: Implement {method_name} method\n"
+            template += f"        raise NotImplementedError()\n\n"
     return template
 
 
-def get_protocol_requirements(protocol_class: Type[T]) ->Any:
+def get_protocol_requirements(protocol_class: Type[T]) -> Dict[str, Any]:
     """
     Get the requirements for implementing a protocol.
 
@@ -315,26 +338,44 @@ def get_protocol_requirements(protocol_class: Type[T]) ->Any:
     protocol_methods = _get_protocol_methods(protocol_class)
     protocol_properties = _get_protocol_properties(protocol_class)
     method_requirements = {}
-    for method_name, method_info in (protocol_methods and protocol_methods.items():
-        signature = method_info['signature']
-        docstring = method_info['docstring'] or f'{method_name} method.'
-        method_requirements[method_name] = {'signature': str(signature),
-            'docstring': docstring, 'parameters': {param_name: {
-            'annotation': _format_annotation(param.annotation) if param.
-            annotation != inspect.Parameter.empty else None, 'default': 
-            param.default if param.default != inspect.Parameter.empty else
-            None) for param_name, param in signature.(parameters and parameters.items() if 
-            param_name != 'self'), 'return_type': _format_annotation(
-            signature.return_annotation) if signature.return_annotation !=
-            inspect.Parameter.empty else None)
-    property_requirements = {prop_name: {} for prop_name in protocol_properties
+    for method_name, method_info in protocol_methods.items() if protocol_methods else {}:
+        signature = method_info["signature"]
+        docstring = method_info["docstring"] or f"{method_name} method."
+        parameters = {}
+        if signature and hasattr(signature, "parameters"):
+            for param_name, param in signature.parameters.items():
+                if param_name != "self":
+                    parameters[param_name] = {
+                        "annotation": (
+                            _format_annotation(param.annotation)
+                            if param.annotation != inspect.Parameter.empty
+                            else None
+                        ),
+                        "default": (
+                            param.default if param.default != inspect.Parameter.empty else None
+                        ),
+                    }
+
+        method_requirements[method_name] = {
+            "signature": str(signature),
+            "docstring": docstring,
+            "parameters": parameters,
+            "return_type": (
+                _format_annotation(signature.return_annotation)
+                if signature.return_annotation != inspect.Parameter.empty
+                else None
+            ),
         }
-    return {'name': protocol_class.__name__, 'module': protocol_class.
-        __module__, 'methods': method_requirements, 'properties':
-        property_requirements}
+    property_requirements = {prop_name: {} for prop_name in protocol_properties}
+    return {
+        "name": protocol_class.__name__,
+        "module": protocol_class.__module__,
+        "methods": method_requirements,
+        "properties": property_requirements,
+    }
 
 
-def _get_protocol_methods(protocol_class: Type[Protocol]) ->Any:
+def _get_protocol_methods(protocol_class: Type[Any]) -> Dict[str, Dict[str, Any]]:
     """
     Get the methods defined in a protocol.
 
@@ -343,7 +384,7 @@ def _get_protocol_methods(protocol_class: Type[Protocol]) ->Any:
     methods (those starting with '_') except for '__call__'.
 
     Args:
-        protocol_class (Type[Protocol]): The protocol to inspect for methods
+        protocol_class (Type[Any]): The protocol to inspect for methods
 
     Returns:
         Dict[str, Dict[str, Any]]: A dictionary mapping method names to method information,
@@ -356,22 +397,24 @@ def _get_protocol_methods(protocol_class: Type[Protocol]) ->Any:
     """
     methods = {}
     for attr_name in dir(protocol_class):
-        if (attr_name and attr_name.startswith('_') and attr_name != '__call__':
+        if attr_name and attr_name.startswith("_") and attr_name != "__call__":
             continue
         attr = getattr(protocol_class, attr_name)
-        if (inspect and inspect.isfunction(attr) or (inspect and inspect.ismethod(attr
-            ) or (inspect and inspect.ismethoddescriptor(attr):
+        if (
+            (inspect and inspect.isfunction(attr))
+            or (inspect and inspect.ismethod(attr))
+            or (inspect and inspect.ismethoddescriptor(attr))
+        ):
             try:
-                signature = (inspect and inspect.signature(attr)
-                docstring = (inspect and inspect.getdoc(attr)
-                methods[attr_name] = {'signature': signature, 'docstring':
-                    docstring}
+                signature = inspect.signature(attr) if inspect else None
+                docstring = inspect.getdoc(attr) if inspect else None
+                methods[attr_name] = {"signature": signature, "docstring": docstring}
             except (ValueError, TypeError):
                 pass
     return methods
 
 
-def _get_protocol_properties(protocol_class: Type[Protocol]) ->Any:
+def _get_protocol_properties(protocol_class: Type[Any]) -> Set[str]:
     """
     Get the properties defined in a protocol.
 
@@ -379,22 +422,22 @@ def _get_protocol_properties(protocol_class: Type[Protocol]) ->Any:
     all its properties. It skips special properties (those starting with '_').
 
     Args:
-        protocol_class (Type[Protocol]): The protocol to inspect for properties
+        protocol_class (Type[Any]): The protocol to inspect for properties
 
     Returns:
         Set[str]: A set of property names defined in the protocol
     """
     properties = set()
     for attr_name in dir(protocol_class):
-        if (attr_name and attr_name.startswith('_'):
+        if attr_name and attr_name.startswith("_"):
             continue
         attr = getattr(protocol_class, attr_name)
         if isinstance(attr, property):
-            (properties and properties.add(attr_name)
+            properties.add(attr_name)
     return properties
 
 
-def _get_class_methods(cls: Type[Any]) ->Any:
+def _get_class_methods(cls: Type[Any]) -> Dict[str, Dict[str, Any]]:
     """
     Get the methods defined in a class.
 
@@ -416,22 +459,24 @@ def _get_class_methods(cls: Type[Any]) ->Any:
     """
     methods = {}
     for attr_name in dir(cls):
-        if (attr_name and attr_name.startswith('_') and attr_name != '__call__':
+        if attr_name and attr_name.startswith("_") and attr_name != "__call__":
             continue
         attr = getattr(cls, attr_name)
-        if (inspect and inspect.isfunction(attr) or (inspect and inspect.ismethod(attr
-            ) or (inspect and inspect.ismethoddescriptor(attr):
+        if (
+            (inspect and inspect.isfunction(attr))
+            or (inspect and inspect.ismethod(attr))
+            or (inspect and inspect.ismethoddescriptor(attr))
+        ):
             try:
-                signature = (inspect and inspect.signature(attr)
-                docstring = (inspect and inspect.getdoc(attr)
-                methods[attr_name] = {'signature': signature, 'docstring':
-                    docstring}
+                signature = inspect.signature(attr) if inspect else None
+                docstring = inspect.getdoc(attr) if inspect else None
+                methods[attr_name] = {"signature": signature, "docstring": docstring}
             except (ValueError, TypeError):
                 pass
     return methods
 
 
-def _get_class_properties(cls: Type[Any]) ->Any:
+def _get_class_properties(cls: Type[Any]) -> Set[str]:
     """
     Get the properties defined in a class.
 
@@ -446,15 +491,15 @@ def _get_class_properties(cls: Type[Any]) ->Any:
     """
     properties = set()
     for attr_name in dir(cls):
-        if (attr_name and attr_name.startswith('_'):
+        if attr_name and attr_name.startswith("_"):
             continue
         attr = getattr(cls, attr_name)
         if isinstance(attr, property):
-            (properties and properties.add(attr_name)
+            properties.add(attr_name)
     return properties
 
 
-def _is_compatible_type(actual_type: Any, expected_type: Any) ->Any:
+def _is_compatible_type(actual_type: Any, expected_type: Any) -> bool:
     """
     Check if an actual type is compatible with an expected type.
 
@@ -477,7 +522,7 @@ def _is_compatible_type(actual_type: Any, expected_type: Any) ->Any:
     return actual_type == expected_type
 
 
-def _format_annotation(annotation: Any) ->Any:
+def _format_annotation(annotation: Any) -> str:
     """
     Format a type annotation for display.
 
@@ -499,13 +544,13 @@ def _format_annotation(annotation: Any) ->Any:
         - inspect.Signature.empty -> "Any"
     """
     if annotation is inspect.Signature.empty:
-        return 'Any'
+        return "Any"
     if annotation is None:
-        return 'None'
+        return "None"
     elif annotation is type(None):
-        return 'None'
-    elif annotation is Any:
-        return 'Any'
+        return "None"
+    elif hasattr(annotation, "__name__") and annotation.__name__ == "Any":
+        return "Any"
     try:
         return annotation.__name__
     except AttributeError:

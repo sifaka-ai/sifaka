@@ -65,6 +65,7 @@ Components can be configured through:
 - Configuration dictionaries
 - Pydantic models (for BaseInitializable)
 """
+
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Protocol, Type, TypeVar, runtime_checkable
@@ -73,8 +74,9 @@ from sifaka.utils.errors.base import InitializationError, CleanupError
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import StateManager
 from sifaka.utils.resources import ResourceManager, Resource
+
 logger = get_logger(__name__)
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 @runtime_checkable
@@ -125,7 +127,7 @@ class Initializable(Protocol):
     ```
     """
 
-    def initialize(self) ->None:
+    def initialize(self) -> None:
         """
         Initialize the component.
 
@@ -137,7 +139,7 @@ class Initializable(Protocol):
         """
         ...
 
-    def is_initialized(self) ->bool:
+    def is_initialized(self) -> bool:
         """
         Check if the component is initialized.
 
@@ -149,7 +151,7 @@ class Initializable(Protocol):
         """
         ...
 
-    def warm_up(self) ->None:
+    def warm_up(self) -> None:
         """
         Prepare the component for use.
 
@@ -161,7 +163,7 @@ class Initializable(Protocol):
         """
         ...
 
-    def cleanup(self) ->None:
+    def cleanup(self) -> None:
         """
         Clean up component resources.
 
@@ -217,7 +219,7 @@ class StandardInitializer:
     """
 
     @staticmethod
-    def initialize_component(component: Any) ->None:
+    def initialize_component(component: Any) -> None:
         """
         Initialize a component with standardized error handling.
 
@@ -228,33 +230,35 @@ class StandardInitializer:
             InitializationError: If initialization fails
         """
         try:
-            if hasattr(component, 'is_initialized'
-                ) and (component and component.is_initialized():
-                (logger and logger.debug(
-                    f'Component {component.__class__.__name__} already initialized'
-                    )
+            if hasattr(component, "is_initialized") and component and component.is_initialized():
+                if logger:
+                    logger.debug(f"Component {component.__class__.__name__} already initialized")
                 return
-            if hasattr(component, 'initialize'):
-                (logger and logger.debug(
-                    f'Initializing component {component.__class__.__name__}')
-                (component and component.initialize()
-                (logger and logger.debug(
-                    f'Component {component.__class__.__name__} initialized successfully'
+            if hasattr(component, "initialize"):
+                if logger:
+                    logger.debug(f"Initializing component {component.__class__.__name__}")
+                if component:
+                    component.initialize()
+                if logger:
+                    logger.debug(
+                        f"Component {component.__class__.__name__} initialized successfully"
                     )
             else:
-                (logger and logger.warning(
-                    f'Component {component.__class__.__name__} has no initialize method'
+                if logger:
+                    logger.warning(
+                        f"Component {component.__class__.__name__} has no initialize method"
                     )
         except Exception as e:
-            (logger and logger.error(
-                f'Failed to initialize component {component.__class__.__name__}: {str(e)}'
+            if logger:
+                logger.error(
+                    f"Failed to initialize component {component.__class__.__name__}: {str(e)}"
                 )
             raise InitializationError(
-                f'Failed to initialize component {component.__class__.__name__}: {str(e)}'
-                ) from e
+                f"Failed to initialize component {component.__class__.__name__}: {str(e)}"
+            ) from e
 
     @staticmethod
-    def warm_up_component(component: Any) ->None:
+    def warm_up_component(component: Any) -> None:
         """
         Warm up a component with standardized error handling.
 
@@ -265,27 +269,29 @@ class StandardInitializer:
             InitializationError: If warm-up fails
         """
         try:
-            if hasattr(component, 'warm_up'):
-                (logger and logger.debug(
-                    f'Warming up component {component.__class__.__name__}')
-                (component and component.warm_up()
-                (logger and logger.debug(
-                    f'Component {component.__class__.__name__} warmed up successfully'
-                    )
+            if hasattr(component, "warm_up"):
+                if logger:
+                    logger.debug(f"Warming up component {component.__class__.__name__}")
+                if component:
+                    component.warm_up()
+                if logger:
+                    logger.debug(f"Component {component.__class__.__name__} warmed up successfully")
             else:
-                (logger and logger.warning(
-                    f'Component {component.__class__.__name__} has no warm_up method'
+                if logger:
+                    logger.warning(
+                        f"Component {component.__class__.__name__} has no warm_up method"
                     )
         except Exception as e:
-            (logger and logger.error(
-                f'Failed to warm up component {component.__class__.__name__}: {str(e)}'
+            if logger:
+                logger.error(
+                    f"Failed to warm up component {component.__class__.__name__}: {str(e)}"
                 )
             raise InitializationError(
-                f'Failed to warm up component {component.__class__.__name__}: {str(e)}'
-                ) from e
+                f"Failed to warm up component {component.__class__.__name__}: {str(e)}"
+            ) from e
 
     @staticmethod
-    def cleanup_component(component: Any) ->None:
+    def cleanup_component(component: Any) -> None:
         """
         Clean up a component with standardized error handling.
 
@@ -293,20 +299,24 @@ class StandardInitializer:
             component: The component to clean up
         """
         try:
-            if hasattr(component, 'cleanup'):
-                (logger and logger.debug(
-                    f'Cleaning up component {component.__class__.__name__}')
-                (component and component.cleanup()
-                (logger and logger.debug(
-                    f'Component {component.__class__.__name__} cleaned up successfully'
+            if hasattr(component, "cleanup"):
+                if logger:
+                    logger.debug(f"Cleaning up component {component.__class__.__name__}")
+                if component:
+                    component.cleanup()
+                if logger:
+                    logger.debug(
+                        f"Component {component.__class__.__name__} cleaned up successfully"
                     )
             else:
-                (logger and logger.warning(
-                    f'Component {component.__class__.__name__} has no cleanup method'
+                if logger:
+                    logger.warning(
+                        f"Component {component.__class__.__name__} has no cleanup method"
                     )
         except Exception as e:
-            (logger and logger.error(
-                f'Failed to clean up component {component.__class__.__name__}: {str(e)}'
+            if logger:
+                logger.error(
+                    f"Failed to clean up component {component.__class__.__name__}: {str(e)}"
                 )
 
 
@@ -355,11 +365,13 @@ class InitializableMixin:
             self.(_resource_manager and _resource_manager.register("my_resource", self._resource)
     ```
     """
+
     _state_manager = None
     _resource_manager = None
 
-    def __init__(self, name: str, description: str, config: Optional[Dict[
-        str, Any]]=None, **kwargs: Any) ->None:
+    def __init__(
+        self, name: str, description: str, config: Optional[Dict[str, Any]] = None, **kwargs: Any
+    ) -> None:
         """
         Initialize the component.
 
@@ -371,28 +383,36 @@ class InitializableMixin:
         """
         self._name = name
         self._description = description
-        (self and self._initialize_state()
-        (self and self._initialize_resource_manager()
+        if self:
+            self._initialize_state()
+        if self:
+            self._initialize_resource_manager()
         self._config = config or {}
-        self._creation_time = (time and time.time()
-        self.(_state_manager and _state_manager.update('initialized', False)
-        self.(_state_manager and _state_manager.update('dependencies_validated', False)
-        self.(_state_manager and _state_manager.update('resources_initialized', False)
+        self._creation_time = time.time() if time else None
+        if self._state_manager:
+            self._state_manager.update("initialized", False)
+        if self._state_manager:
+            self._state_manager.update("dependencies_validated", False)
+        if self._state_manager:
+            self._state_manager.update("resources_initialized", False)
 
-    def _initialize_state(self) ->None:
+    def _initialize_state(self) -> None:
         """Initialize component state."""
         self._state_manager = StateManager()
-        self.(_state_manager and _state_manager.update('initialized', False)
-        self.(_state_manager and _state_manager.update('cache', {})
-        self.(_state_manager and _state_manager.set_metadata('component_type', self.__class__.
-            __name__)
-        self.(_state_manager and _state_manager.set_metadata('creation_time', (time and time.time())
+        if self._state_manager:
+            self._state_manager.update("initialized", False)
+        if self._state_manager:
+            self._state_manager.update("cache", {})
+        if self._state_manager:
+            self._state_manager.set_metadata("component_type", self.__class__.__name__)
+        if self._state_manager and time:
+            self._state_manager.set_metadata("creation_time", time.time())
 
-    def _initialize_resource_manager(self) ->None:
+    def _initialize_resource_manager(self) -> None:
         """Initialize resource manager."""
         self._resource_manager = ResourceManager()
 
-    def initialize(self) ->None:
+    def initialize(self) -> None:
         """
         Initialize the component.
 
@@ -404,40 +424,47 @@ class InitializableMixin:
             InitializationError: If initialization fails
         """
         try:
-            if (self and self.is_initialized():
-                (logger and logger.debug(
-                    f'Component {self.__class__.__name__} already initialized')
+            if self and self.is_initialized():
+                if logger:
+                    logger.debug(f"Component {self.__class__.__name__} already initialized")
                 return
-            (self and self._validate_configuration()
-            (self and self._validate_dependencies()
-            self.(_state_manager and _state_manager.update('dependencies_validated', True)
-            (self and self._register_resources()
-            (self and self._initialize_resources()
-            self.(_state_manager and _state_manager.update('resources_initialized', True)
-            self.(_state_manager and _state_manager.update('initialized', True)
-            self.(_state_manager and _state_manager.set_metadata('initialization_time', (time and time.time()
-                )
-            (logger and logger.debug(
-                f'Component {self.__class__.__name__} initialized successfully'
-                )
+            if self:
+                self._validate_configuration()
+            if self:
+                self._validate_dependencies()
+            if self._state_manager:
+                self._state_manager.update("dependencies_validated", True)
+            if self:
+                self._register_resources()
+            if self:
+                self._initialize_resources()
+            if self._state_manager:
+                self._state_manager.update("resources_initialized", True)
+            if self._state_manager:
+                self._state_manager.update("initialized", True)
+            if self._state_manager and time:
+                self._state_manager.set_metadata("initialization_time", time.time())
+            if logger:
+                logger.debug(f"Component {self.__class__.__name__} initialized successfully")
         except Exception as e:
-            (logger and logger.error(
-                f'Failed to initialize component {self.__class__.__name__}: {str(e)}'
-                )
+            if logger:
+                logger.error(f"Failed to initialize component {self.__class__.__name__}: {str(e)}")
             raise InitializationError(
-                f'Failed to initialize component {self.__class__.__name__}: {str(e)}'
-                ) from e
+                f"Failed to initialize component {self.__class__.__name__}: {str(e)}"
+            ) from e
 
-    def is_initialized(self) ->Any:
+    def is_initialized(self) -> bool:
         """
         Check if the component is initialized.
 
         Returns:
             True if the component is initialized, False otherwise
         """
-        return self.(_state_manager and _state_manager.get('initialized', False)
+        if self._state_manager:
+            return self._state_manager.get("initialized", False)
+        return False
 
-    def warm_up(self) ->None:
+    def warm_up(self) -> None:
         """
         Prepare the component for use.
 
@@ -448,23 +475,25 @@ class InitializableMixin:
             InitializationError: If warm-up fails
         """
         try:
-            if not (self and self.is_initialized():
-                (logger and logger.warning(
-                    f'Component {self.__class__.__name__} not initialized, initializing now'
+            if not (self and self.is_initialized()):
+                if logger:
+                    logger.warning(
+                        f"Component {self.__class__.__name__} not initialized, initializing now"
                     )
-                (self and self.initialize()
-            (self and self._warm_up_resources()
-            (logger and logger.debug(
-                f'Component {self.__class__.__name__} warmed up successfully')
+                if self:
+                    self.initialize()
+            if self:
+                self._warm_up_resources()
+            if logger:
+                logger.debug(f"Component {self.__class__.__name__} warmed up successfully")
         except Exception as e:
-            (logger and logger.error(
-                f'Failed to warm up component {self.__class__.__name__}: {str(e)}'
-                )
+            if logger:
+                logger.error(f"Failed to warm up component {self.__class__.__name__}: {str(e)}")
             raise InitializationError(
-                f'Failed to warm up component {self.__class__.__name__}: {str(e)}'
-                ) from e
+                f"Failed to warm up component {self.__class__.__name__}: {str(e)}"
+            ) from e
 
-    def cleanup(self) ->None:
+    def cleanup(self) -> None:
         """
         Clean up component resources.
 
@@ -473,25 +502,30 @@ class InitializableMixin:
         """
         try:
             if self._resource_manager:
-                self.(_resource_manager and _resource_manager.cleanup_all()
-            (self and self._cleanup_resources()
-            if hasattr(self, 'clear_cache') and callable(getattr(self,
-                'clear_cache')):
-                (self and self.clear_cache()
+                self._resource_manager.cleanup_all()
+            if self:
+                self._cleanup_resources()
+            if hasattr(self, "clear_cache") and callable(getattr(self, "clear_cache")):
+                if self:
+                    self.clear_cache()
             else:
-                self.(_state_manager and _state_manager.update('cache', {})
-            self.(_state_manager and _state_manager.update('initialized', False)
-            self.(_state_manager and _state_manager.update('resources_initialized', False)
-            self.(_state_manager and _state_manager.update('dependencies_validated', False)
-            self.(_state_manager and _state_manager.set_metadata('cleanup_time', (time and time.time())
-            (logger and logger.debug(
-                f'Component {self.__class__.__name__} cleaned up successfully')
+                if self._state_manager:
+                    self._state_manager.update("cache", {})
+            if self._state_manager:
+                self._state_manager.update("initialized", False)
+            if self._state_manager:
+                self._state_manager.update("resources_initialized", False)
+            if self._state_manager:
+                self._state_manager.update("dependencies_validated", False)
+            if self._state_manager and time:
+                self._state_manager.set_metadata("cleanup_time", time.time())
+            if logger:
+                logger.debug(f"Component {self.__class__.__name__} cleaned up successfully")
         except Exception as e:
-            (logger and logger.error(
-                f'Failed to clean up component {self.__class__.__name__}: {str(e)}'
-                )
+            if logger:
+                logger.error(f"Failed to clean up component {self.__class__.__name__}: {str(e)}")
 
-    def _validate_configuration(self) ->None:
+    def _validate_configuration(self) -> None:
         """
         Validate component configuration.
 
@@ -503,7 +537,7 @@ class InitializableMixin:
         """
         pass
 
-    def _validate_dependencies(self) ->None:
+    def _validate_dependencies(self) -> None:
         """
         Validate component dependencies.
 
@@ -515,7 +549,7 @@ class InitializableMixin:
         """
         pass
 
-    def _register_resources(self) ->None:
+    def _register_resources(self) -> None:
         """
         Register component resources.
 
@@ -527,7 +561,7 @@ class InitializableMixin:
         """
         pass
 
-    def _initialize_resources(self) ->None:
+    def _initialize_resources(self) -> None:
         """
         Initialize component resources.
 
@@ -541,13 +575,13 @@ class InitializableMixin:
         """
         if self._resource_manager:
             try:
-                self.(_resource_manager and _resource_manager.initialize_all()
+                self._resource_manager.initialize_all()
             except Exception as e:
-                (logger and logger.error(f'Failed to initialize resources: {str(e)}')
-                raise InitializationError(
-                    f'Failed to initialize resources: {str(e)}') from e
+                if logger:
+                    logger.error(f"Failed to initialize resources: {str(e)}")
+                raise InitializationError(f"Failed to initialize resources: {str(e)}") from e
 
-    def _warm_up_resources(self) ->None:
+    def _warm_up_resources(self) -> None:
         """
         Warm up component resources.
 
@@ -559,7 +593,7 @@ class InitializableMixin:
         """
         pass
 
-    def _cleanup_resources(self) ->None:
+    def _cleanup_resources(self) -> None:
         """
         Clean up component resources.
 
@@ -616,13 +650,14 @@ class BaseInitializable(BaseModel, InitializableMixin):
     (component and component.initialize()
     ```
     """
-    name: str = Field(description='Component name', min_length=1)
-    description: str = Field(description='Component description', min_length=1)
+
+    name: str = Field(description="Component name", min_length=1)
+    description: str = Field(description="Component description", min_length=1)
     model_config = ConfigDict(arbitrary_types_allowed=True)
     _state_manager = PrivateAttr(default_factory=StateManager)
     _resource_manager = PrivateAttr(default_factory=ResourceManager)
 
-    def __init__(self, **data: Any) ->None:
+    def __init__(self, **data: Any) -> None:
         """
         Initialize the component.
 
@@ -630,11 +665,13 @@ class BaseInitializable(BaseModel, InitializableMixin):
             **data: Component parameters
         """
         super().__init__(**data)
-        (self and self._initialize_state()
-        (self and self._initialize_resource_manager()
+        if self:
+            self._initialize_state()
+        if self:
+            self._initialize_resource_manager()
 
     @classmethod
-    def create(cls: Type[T], name: str, description: str, **kwargs: Any) ->Any:
+    def create(cls: Type[T], name: str, description: str, **kwargs: Any) -> Any:
         """
         Create a new component instance.
 
@@ -647,12 +684,14 @@ class BaseInitializable(BaseModel, InitializableMixin):
             A new component instance
         """
         component = cls(name=name, description=description, **kwargs)
-        (component and component.initialize()
+        if component:
+            component.initialize()
         return component
 
     @classmethod
-    def create_with_dependencies(cls: Type[T], name: str, description: str,
-        dependencies: Dict[str, Any], **kwargs: Any) ->Any:
+    def create_with_dependencies(
+        cls: Type[T], name: str, description: str, dependencies: Dict[str, Any], **kwargs: Any
+    ) -> Any:
         """
         Create a new component instance with dependencies.
 
@@ -666,7 +705,9 @@ class BaseInitializable(BaseModel, InitializableMixin):
             A new component instance with dependencies
         """
         component = cls(name=name, description=description, **kwargs)
-        for key, value in (dependencies and dependencies.items():
-            setattr(component, f'_{key}', value)
-        (component and component.initialize()
+        if dependencies:
+            for key, value in dependencies.items():
+                setattr(component, f"_{key}", value)
+        if component:
+            component.initialize()
         return component

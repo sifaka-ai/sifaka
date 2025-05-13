@@ -107,7 +107,7 @@ class ValidationConfig(BaseModel):
             )
             ```
         """
-        return ValidationConfig(**{**(self and self.model_dump(), **kwargs))
+        return ValidationConfig(**{**self.model_dump(), **kwargs})
 
 
 class ValidationManager:
@@ -186,23 +186,23 @@ class ValidationManager:
         self.config = config or ValidationConfig()
 
         # Initialize state
-        self.(_state_manager and _state_manager.update("initialized", True)
-        self.(_state_manager and _state_manager.update("rules", self.rules)
-        self.(_state_manager and _state_manager.update("config", self.config)
-        self.(_state_manager and _state_manager.update("validation_count", 0)
-        self.(_state_manager and _state_manager.update("result_cache", {})
-        self.(_state_manager and _state_manager.update("start_time", (time and time.time())
+        self._state_manager.update("initialized", True)
+        self._state_manager.update("rules", self.rules)
+        self._state_manager.update("config", self.config)
+        self._state_manager.update("validation_count", 0)
+        self._state_manager.update("result_cache", {})
+        self._state_manager.update("start_time", time.time())
 
         # Set metadata
-        self.(_state_manager and _state_manager.set_metadata("component_type", "validation_manager")
-        self.(_state_manager and _state_manager.set_metadata("rule_count", len(self.rules))
-        self.(_state_manager and _state_manager.set_metadata("pass_count", 0)
-        self.(_state_manager and _state_manager.set_metadata("fail_count", 0)
-        self.(_state_manager and _state_manager.set_metadata("failing_rules", {})
-        self.(_state_manager and _state_manager.set_metadata("avg_execution_time", 0)
-        self.(_state_manager and _state_manager.set_metadata("max_execution_time", 0)
+        self._state_manager.set_metadata("component_type", "validation_manager")
+        self._state_manager.set_metadata("rule_count", len(self.rules))
+        self._state_manager.set_metadata("pass_count", 0)
+        self._state_manager.set_metadata("fail_count", 0)
+        self._state_manager.set_metadata("failing_rules", {})
+        self._state_manager.set_metadata("avg_execution_time", 0)
+        self._state_manager.set_metadata("max_execution_time", 0)
 
-        (logger and logger.debug(f"Initialized ValidationManager with {len(self.rules)) rules")
+        logger.debug(f"Initialized ValidationManager with {len(self.rules)} rules")
 
     def validate(self, text: str, **kwargs: Any) -> List[RuleResult]:
         """
@@ -234,8 +234,8 @@ class ValidationManager:
             ```
         """
         # Update validation count
-        validation_count = self.(_state_manager and _state_manager.get("validation_count", 0)
-        self.(_state_manager and _state_manager.update("validation_count", validation_count + 1)
+        validation_count = self._state_manager.get("validation_count", 0)
+        self._state_manager.update("validation_count", validation_count + 1)
 
         # Check cache if we've validated this text before
         cache = self.(_state_manager and _state_manager.get("result_cache", {})
