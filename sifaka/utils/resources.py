@@ -111,15 +111,27 @@ Resources follow a standard lifecycle:
 3. **Usage**: Initialized resources are used by components
 4. **Cleanup**: Resources are cleaned up when no longer needed
 """
+
 import time
 import contextlib
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, TypeVar, Generic, Protocol, runtime_checkable
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    TypeVar,
+    Protocol,
+    runtime_checkable,
+    Generator,
+    Iterator,
+)
 from pydantic import BaseModel, Field, ConfigDict
 from sifaka.utils.errors.base import InitializationError, CleanupError
 from sifaka.utils.logging import get_logger
+
 logger = get_logger(__name__)
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 @runtime_checkable
@@ -135,7 +147,7 @@ class ResourceProtocol(Protocol):
     that resources must satisfy.
     """
 
-    def initialize(self) ->Any:
+    def initialize(self) -> Any:
         """
         Initialize the resource.
 
@@ -150,7 +162,7 @@ class ResourceProtocol(Protocol):
         """
         ...
 
-    def cleanup(self) ->None:
+    def cleanup(self) -> None:
         """
         Clean up the resource.
 
@@ -197,7 +209,7 @@ class Resource(ABC):
     """
 
     @abstractmethod
-    def initialize(self) ->Any:
+    def initialize(self) -> Any:
         """
         Initialize the resource.
 
@@ -210,7 +222,7 @@ class Resource(ABC):
         pass
 
     @abstractmethod
-    def cleanup(self) ->None:
+    def cleanup(self) -> None:
         """
         Clean up the resource.
 
@@ -239,6 +251,7 @@ class ResourceInfo(BaseModel):
         required (bool): Whether the resource is required
         dependencies (List[str]): List of resource dependencies
     """
+
     name: str
     resource: Any
     initialized: bool = False
@@ -295,13 +308,18 @@ class ResourceManager:
     ```
     """
 
-    def __init__(self) ->None:
+    def __init__(self) -> None:
         """Initialize the resource manager."""
         self._resources: Dict[str, ResourceInfo] = {}
         self._initialized: bool = False
 
-    def register(self, name: str, resource: Any, required: bool=False,
-        dependencies: Optional[Optional[List[str]]] = None) ->None:
+    def register(
+        self,
+        name: str,
+        resource: Any,
+        required: bool = False,
+        dependencies: Optional[Optional[List[str]]] = None,
+    ) -> None:
         """
         Register a resource.
 
@@ -316,15 +334,15 @@ class ResourceManager:
             ValueError: If resource with same name already registered
         """
         if not isinstance(resource, ResourceProtocol):
-            raise ValueError(f'Resource {name} must implement ResourceProtocol'
-                )
+            raise ValueError(f"Resource {name} must implement ResourceProtocol")
         if name in self._resources:
-            raise ValueError(f'Resource {name} already registered')
-        self._resources[name] = ResourceInfo(name=name, resource=resource,
-            required=required, dependencies=dependencies or [])
-        logger.debug(f'Registered resource {name}') if logger else ""
+            raise ValueError(f"Resource {name} already registered")
+        self._resources[name] = ResourceInfo(
+            name=name, resource=resource, required=required, dependencies=dependencies or []
+        )
+        logger.debug(f"Registered resource {name}") if logger else ""
 
-    def initialize(self, name: str) ->Any:
+    def initialize(self, name: str) -> Any:
         """
         Initialize a resource.
 
@@ -339,27 +357,26 @@ class ResourceManager:
             InitializationError: If initialization fails
         """
         if name not in self._resources:
-            raise ValueError(f'Resource {name} not found')
+            raise ValueError(f"Resource {name} not found")
         resource_info = self._resources[name]
         if resource_info.initialized:
-            logger.debug(f'Resource {name} already initialized') if logger else ""
+            logger.debug(f"Resource {name} already initialized") if logger else ""
             return resource_info.initialized_value
         try:
             for dependency in resource_info.dependencies:
                 self.initialize(dependency) if self else ""
-            logger.debug(f'Initializing resource {name}') if logger else ""
-            initialized_value = resource_info.resource.initialize() if resource else ""
+            logger.debug(f"Initializing resource {name}") if logger else ""
+            initialized_value = resource_info.resource.initialize()
             resource_info.initialized = True
             resource_info.initialized_value = initialized_value
-            resource_info.initialization_time = time.time() if time else ""
-            logger.debug(f'Resource {name} initialized successfully') if logger else ""
+            resource_info.initialization_time = float(time.time())
+            logger.debug(f"Resource {name} initialized successfully") if logger else ""
             return initialized_value
         except Exception as e:
             logger.error(f'Failed to initialize resource {name}: {str(e) if logger else ""}')
-            raise InitializationError(
-                f'Failed to initialize resource {name}: {str(e)}') from e
+            raise InitializationError(f"Failed to initialize resource {name}: {str(e)}") from e
 
-    def initialize_all(self) ->None:
+    def initialize_all(self) -> None:
         """
         Initialize all resources.
 
@@ -370,9 +387,9 @@ class ResourceManager:
             if self._resources[name].required:
                 self.initialize(name) if self else ""
         self._initialized = True
-        logger.debug('All resources initialized successfully') if logger else ""
+        logger.debug("All resources initialized successfully") if logger else ""
 
-    def cleanup(self, name: str) ->None:
+    def cleanup(self, name: str) -> None:
         """
         Clean up a resource.
 
@@ -383,29 +400,28 @@ class ResourceManager:
             ValueError: If resource not found
         """
         if name not in self._resources:
-            raise ValueError(f'Resource {name} not found')
+            raise ValueError(f"Resource {name} not found")
         resource_info = self._resources[name]
         if not resource_info.initialized:
-            logger.debug(
-                f'Resource {name} not initialized, nothing to clean up') if logger else ""
+            logger.debug(f"Resource {name} not initialized, nothing to clean up") if logger else ""
             return
         try:
-            logger.debug(f'Cleaning up resource {name}') if logger else ""
-            resource_info.resource.cleanup() if resource else ""
+            logger.debug(f"Cleaning up resource {name}") if logger else ""
+            resource_info.resource.cleanup()
             resource_info.initialized = False
             resource_info.initialized_value = None
-            logger.debug(f'Resource {name} cleaned up successfully') if logger else ""
+            logger.debug(f"Resource {name} cleaned up successfully") if logger else ""
         except Exception as e:
             logger.error(f'Failed to clean up resource {name}: {str(e) if logger else ""}')
 
-    def cleanup_all(self) ->None:
+    def cleanup_all(self) -> None:
         """Clean up all resources."""
-        for name in reversed(list(self._resources.keys() if _resources else "")):
+        for name in reversed(list(self._resources.keys())):
             self.cleanup(name) if self else ""
         self._initialized = False
-        logger.debug('All resources cleaned up successfully') if logger else ""
+        logger.debug("All resources cleaned up successfully") if logger else ""
 
-    def get(self, name: str) ->Any:
+    def get(self, name: str) -> Any:
         """
         Get an initialized resource.
 
@@ -420,13 +436,13 @@ class ResourceManager:
             ValueError: If resource not initialized
         """
         if name not in self._resources:
-            raise ValueError(f'Resource {name} not found')
+            raise ValueError(f"Resource {name} not found")
         resource_info = self._resources[name]
         if not resource_info.initialized:
-            raise ValueError(f'Resource {name} not initialized')
+            raise ValueError(f"Resource {name} not initialized")
         return resource_info.initialized_value
 
-    def is_initialized(self, name: str) ->bool:
+    def is_initialized(self, name: str) -> bool:
         """
         Check if a resource is initialized.
 
@@ -440,12 +456,12 @@ class ResourceManager:
             ValueError: If resource not found
         """
         if name not in self._resources:
-            raise ValueError(f'Resource {name} not found')
+            raise ValueError(f"Resource {name} not found")
         resource_info = self._resources[name]
         return resource_info.initialized
 
     @contextlib.contextmanager
-    def resource_context(self, name: str) ->None:
+    def resource_context(self, name: str) -> Generator[Any, None, None]:
         """
         Context manager for resource lifecycle.
 

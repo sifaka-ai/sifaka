@@ -65,7 +65,7 @@ Memory managers can be configured with:
 - Custom memory implementations
 """
 
-from typing import Any, Dict, List, Optional, TypeVar, Protocol
+from typing import Any, Dict, List, Optional, TypeVar, Protocol, runtime_checkable, cast
 import time
 
 from pydantic import Field, ConfigDict, PrivateAttr
@@ -78,7 +78,7 @@ logger = get_logger(__name__)
 
 T = TypeVar("T")  # Input type
 R = TypeVar("R")  # Result type
-V = TypeVar("V")  # Value type
+V = TypeVar("V", contravariant=True)  # Value type
 
 
 # Key-Value Memory Manager Implementation
@@ -134,6 +134,7 @@ class MemoryResult(BaseResult):
     )
 
 
+@runtime_checkable
 class BaseMemory(Protocol[V]):
     """
     Protocol for memory implementations.
@@ -242,16 +243,14 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
         super().__init__(name, description, config)
 
         # Store memories in state
-        if self._state_manager:
-            self._state_manager.update("memories", memories)
-            self._state_manager.update("result_cache", {})
-            self._state_manager.update("initialized", True)
+        self._state_manager.update("memories", memories)
+        self._state_manager.update("result_cache", {})
+        self._state_manager.update("initialized", True)
 
         # Set metadata
-        if self._state_manager:
-            self._state_manager.set_metadata("component_type", "memory_manager")
-            self._state_manager.set_metadata("creation_time", time.time() if time else 0)
-            self._state_manager.set_metadata("memory_count", len(memories))
+        self._state_manager.set_metadata("component_type", "memory_manager")
+        self._state_manager.set_metadata("creation_time", time.time())
+        self._state_manager.set_metadata("memory_count", len(memories))
 
     def process(self, input: Dict[str, Any]) -> MemoryResult:
         """
@@ -308,8 +307,7 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
                     suggestions=["Provide a value to store"],
                 )
 
-            if self:
-                self.store(key, value)
+            self.store(key, value)
             return MemoryResult(
                 passed=True,
                 message=f"Value stored under key '{key}'",
@@ -320,7 +318,7 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
             )
 
         elif operation == "retrieve":
-            results = self.retrieve(key) if self else []
+            results = self.retrieve(key)
             if not results:
                 return MemoryResult(
                     passed=False,
@@ -365,41 +363,37 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
             ValueError: If storage fails
         """
         # Record start time
-        start_time = time.time() if time else 0
+        start_time = time.time()
 
         try:
             # Get memories from state
-            memories = self._state_manager.get("memories", []) if self._state_manager else []
+            memories = self._state_manager.get("memories", [])
             if not memories:
-                if logger:
-                    logger.warning("No memories available for storage")
+                logger.warning("No memories available for storage")
                 return
 
             # Store in each memory
             for memory in memories:
-                if memory:
+                if memory is not None:
                     memory.store(key, value)
 
             # Update statistics
-            if self:
-                self.update_statistics(
-                    MemoryResult(
-                        passed=True,
-                        message=f"Value stored under key '{key}'",
-                        metadata={"operation": "store", "key": key},
-                        score=1.0,
-                        key=key,
-                        value=value,
-                        processing_time_ms=(time.time() - start_time) * 1000 if time else 0,
-                    )
+            self.update_statistics(
+                MemoryResult(
+                    passed=True,
+                    message=f"Value stored under key '{key}'",
+                    metadata={"operation": "store", "key": key},
+                    score=1.0,
+                    key=key,
+                    value=value,
+                    processing_time_ms=(time.time() - start_time) * 1000,
                 )
+            )
 
         except Exception as e:
             # Record error
-            if self:
-                self.record_error(e)
-            if logger:
-                logger.error(f"Memory storage error: {str(e)}")
+            self.record_error(e)
+            logger.error(f"Memory storage error: {str(e)}")
             raise ValueError(f"Memory storage error: {str(e)}")
 
     def retrieve(self, key: str) -> List[MemoryResult]:
@@ -417,44 +411,42 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
         """
         # Handle empty input
         if not key:
-            if logger:
-                logger.warning("Empty key provided for retrieval")
+            logger.warning("Empty key provided for retrieval")
             return []
 
         # Record start time
-        start_time = time.time() if time else 0
+        start_time = time.time()
 
         try:
             # Check cache if enabled
-            cache = self._state_manager.get("result_cache", {}) if self._state_manager else {}
+            cache = self._state_manager.get("result_cache", {})
 
-            if key in cache and self.config and self.config.cache_enabled:
-                if self._state_manager:
-                    self._state_manager.set_metadata("cache_hit", True)
-                return cache[key]
+            if (
+                key in cache
+                and self.config is not None
+                and getattr(self.config, "cache_enabled", False)
+            ):
+                self._state_manager.set_metadata("cache_hit", True)
+                return cast(List[MemoryResult], cache[key])
 
             # Mark as cache miss
-            if self._state_manager:
-                self._state_manager.set_metadata("cache_hit", False)
+            self._state_manager.set_metadata("cache_hit", False)
 
             # Get memories from state
-            memories = self._state_manager.get("memories", []) if self._state_manager else []
+            memories = self._state_manager.get("memories", [])
             if not memories:
-                if logger:
-                    logger.warning("No memories available for retrieval")
+                logger.warning("No memories available for retrieval")
                 return []
 
             # Retrieve from each memory
-            results = []
+            results: List[MemoryResult] = []
             for memory in memories:
                 try:
-                    if memory:
+                    if memory is not None:
                         result = memory.retrieve(key)
-                        if results is not None:
-                            results.append(result)
+                        results.append(result)
                 except Exception as e:
-                    if logger:
-                        logger.error(f"Error retrieving from memory {memory.name}: {str(e)}")
+                    logger.error(f"Error retrieving from memory {memory.name}: {str(e)}")
                     # Continue with other memories
 
             # Create result for statistics
@@ -470,34 +462,30 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
                 score=1.0 if results else 0.0,
                 key=key,
                 found=len(results) > 0,
-                processing_time_ms=(time.time() - start_time) * 1000 if time else 0,
+                processing_time_ms=(time.time() - start_time) * 1000,
             )
 
             # Update statistics
-            if self:
-                self.update_statistics(retrieval_result)
+            self.update_statistics(retrieval_result)
 
             # Cache result if caching is enabled
-            if self.config and self.config.cache_enabled:
+            if self.config is not None and getattr(self.config, "cache_enabled", False):
                 # Manage cache size
-                if len(cache) >= self.config.max_items:
+                max_items = getattr(self.config, "max_items", 100)
+                if len(cache) >= max_items and cache:
                     # Remove oldest entry (simple approach)
-                    if cache:
-                        oldest_key = next(iter(cache))
-                        del cache[oldest_key]
+                    oldest_key = next(iter(cache))
+                    del cache[oldest_key]
 
                 cache[key] = results
-                if self._state_manager:
-                    self._state_manager.update("result_cache", cache)
+                self._state_manager.update("result_cache", cache)
 
             return results
 
         except Exception as e:
             # Record error
-            if self:
-                self.record_error(e)
-            if logger:
-                logger.error(f"Memory retrieval error: {str(e)}")
+            self.record_error(e)
+            logger.error(f"Memory retrieval error: {str(e)}")
             raise ValueError(f"Memory retrieval error: {str(e)}")
 
     def get_statistics(self) -> Dict[str, Any]:
@@ -514,16 +502,16 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
         if stats:
             stats.update(
                 {
-                    "cache_size": (
-                        len(self._state_manager.get("result_cache", {}))
-                        if self._state_manager
-                        else 0
+                    "cache_size": len(self._state_manager.get("result_cache", {})),
+                    "memory_count": len(self._state_manager.get("memories", [])),
+                    "cache_enabled": (
+                        getattr(self.config, "cache_enabled", False)
+                        if self.config is not None
+                        else False
                     ),
-                    "memory_count": (
-                        len(self._state_manager.get("memories", [])) if self._state_manager else 0
+                    "max_items": (
+                        getattr(self.config, "max_items", 0) if self.config is not None else 0
                     ),
-                    "cache_enabled": self.config.cache_enabled if self.config else False,
-                    "max_items": self.config.max_items if self.config else 0,
                 }
             )
 
@@ -531,23 +519,20 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
 
     def clear_cache(self) -> None:
         """Clear the memory result cache."""
-        if self._state_manager:
-            self._state_manager.update("result_cache", {})
-        if logger:
-            logger.debug(f"Memory cache cleared for {self.name}")
+        self._state_manager.update("result_cache", {})
+        logger.debug(f"Memory cache cleared for {self.name}")
 
     def warm_up(self) -> None:
         """Prepare the memory manager for use."""
         super().warm_up()
 
         # Pre-validate memories
-        memories = self._state_manager.get("memories", []) if self._state_manager else []
+        memories = self._state_manager.get("memories", [])
         for memory in memories:
-            if hasattr(memory, "warm_up") and memory:
+            if hasattr(memory, "warm_up") and memory is not None:
                 memory.warm_up()
 
-        if logger:
-            logger.debug(f"Memory manager '{self.name}' warmed up with {len(memories)} memories")
+        logger.debug(f"Memory manager '{self.name}' warmed up with {len(memories)} memories")
 
     def add_memory(self, memory: Any) -> None:
         """
@@ -565,34 +550,26 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
             raise ValueError(f"Expected BaseMemory instance, got {type(memory)}")
 
         # Check for duplicate memory names
-        memories = self._state_manager.get("memories", []) if self._state_manager else []
+        memories = self._state_manager.get("memories", [])
         if any(m.name == memory.name for m in memories):
-            if logger:
-                logger.warning(
-                    f"Memory with name '{memory.name}' already exists, it will be replaced"
-                )
+            logger.warning(f"Memory with name '{memory.name}' already exists, it will be replaced")
             # Remove existing memory with same name
-            if self:
-                self.remove_memory(memory.name)
+            self.remove_memory(memory.name)
             # Get updated memories list
-            memories = self._state_manager.get("memories", []) if self._state_manager else []
+            memories = self._state_manager.get("memories", [])
 
         # Add memory to the list
         if memories is not None:
             memories.append(memory)
-        if self._state_manager:
-            self._state_manager.update("memories", memories)
+        self._state_manager.update("memories", memories)
 
         # Update metadata
-        if self._state_manager:
-            self._state_manager.set_metadata("memory_count", len(memories))
+        self._state_manager.set_metadata("memory_count", len(memories))
 
         # Clear cache since memory operations may change
-        if self:
-            self.clear_cache()
+        self.clear_cache()
 
-        if logger:
-            logger.debug(f"Added memory '{memory.name}' to memory manager '{self.name}'")
+        logger.debug(f"Added memory '{memory.name}' to memory manager '{self.name}'")
 
     def remove_memory(self, memory_name: str) -> None:
         """
@@ -610,7 +587,7 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
 
         # Find memory by name
         memory_to_remove = None
-        memories = self._state_manager.get("memories", []) if self._state_manager else []
+        memories = self._state_manager.get("memories", [])
         for memory in memories:
             if memory.name == memory_name:
                 memory_to_remove = memory
@@ -622,28 +599,24 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
         # Remove memory from list
         if memories is not None:
             memories.remove(memory_to_remove)
-        if self._state_manager:
-            self._state_manager.update("memories", memories)
+        self._state_manager.update("memories", memories)
 
         # Update metadata
-        if self._state_manager:
-            self._state_manager.set_metadata("memory_count", len(memories))
+        self._state_manager.set_metadata("memory_count", len(memories))
 
         # Clear cache since memory operations may change
-        if self:
-            self.clear_cache()
+        self.clear_cache()
 
-        if logger:
-            logger.debug(f"Removed memory '{memory_name}' from memory manager '{self.name}'")
+        logger.debug(f"Removed memory '{memory_name}' from memory manager '{self.name}'")
 
-    def get_memories(self) -> List[BaseMemory]:
+    def get_memories(self) -> List[BaseMemory[Any]]:
         """
         Get all registered memories.
 
         Returns:
             The list of registered memories
         """
-        return self._state_manager.get("memories", []) if self._state_manager else []
+        return cast(List[BaseMemory[Any]], self._state_manager.get("memories", []))
 
 
 def create_key_value_memory_manager(
@@ -768,19 +741,18 @@ class BufferMemoryManager:
         self._state_manager = StateManager()
 
         # Initialize state
-        if self._state_manager:
-            self._state_manager.update("buffer_size", buffer_size)
-            self._state_manager.update("memory_buffer", list())
-            self._state_manager.update("initialized", True)
+        self._state_manager.update("buffer_size", buffer_size)
+        self._state_manager.update("memory_buffer", list())
+        self._state_manager.update("initialized", True)
 
-            # Initialize metadata
-            self._state_manager.set_metadata("component_type", "buffer_memory_manager")
-            self._state_manager.set_metadata("creation_time", time.time() if time else 0)
-            self._state_manager.set_metadata("add_count", 0)
-            self._state_manager.set_metadata("retrieve_count", 0)
-            self._state_manager.set_metadata("clear_count", 0)
-            self._state_manager.set_metadata("overflow_count", 0)
-            self._state_manager.set_metadata("error_count", 0)
+        # Initialize metadata
+        self._state_manager.set_metadata("component_type", "buffer_memory_manager")
+        self._state_manager.set_metadata("creation_time", time.time())
+        self._state_manager.set_metadata("add_count", 0)
+        self._state_manager.set_metadata("retrieve_count", 0)
+        self._state_manager.set_metadata("clear_count", 0)
+        self._state_manager.set_metadata("overflow_count", 0)
+        self._state_manager.set_metadata("error_count", 0)
 
     def add_to_memory(self, item: str) -> None:
         """
@@ -798,22 +770,18 @@ class BufferMemoryManager:
         """
         if not item or not isinstance(item, str):
             # Track error
-            if self._state_manager:
-                error_count = self._state_manager.get_metadata("error_count", 0)
-                self._state_manager.set_metadata("error_count", error_count + 1)
+            error_count = self._state_manager.get_metadata("error_count", 0)
+            self._state_manager.set_metadata("error_count", error_count + 1)
             raise ValueError("Invalid memory item: must be non-empty string")
 
         # Track add count
-        if self._state_manager:
-            add_count = self._state_manager.get_metadata("add_count", 0)
-            self._state_manager.set_metadata("add_count", add_count + 1)
+        add_count = self._state_manager.get_metadata("add_count", 0)
+        self._state_manager.set_metadata("add_count", add_count + 1)
 
         try:
             # Get current buffer and buffer size
-            memory_buffer = (
-                self._state_manager.get("memory_buffer", list()) if self._state_manager else []
-            )
-            buffer_size = self._state_manager.get("buffer_size", 5) if self._state_manager else 5
+            memory_buffer = self._state_manager.get("memory_buffer", list())
+            buffer_size = self._state_manager.get("buffer_size", 5)
 
             # Add the item to the buffer
             if memory_buffer is not None:
@@ -822,26 +790,22 @@ class BufferMemoryManager:
             # Handle overflow - if buffer exceeds size limit, remove oldest items
             if len(memory_buffer) > buffer_size:
                 # Track overflow
-                if self._state_manager:
-                    overflow_count = self._state_manager.get_metadata("overflow_count", 0)
-                    self._state_manager.set_metadata("overflow_count", overflow_count + 1)
+                overflow_count = self._state_manager.get_metadata("overflow_count", 0)
+                self._state_manager.set_metadata("overflow_count", overflow_count + 1)
 
                 # Remove oldest items
                 memory_buffer = memory_buffer[-buffer_size:]
 
             # Update the buffer in state
-            if self._state_manager:
-                self._state_manager.update("memory_buffer", memory_buffer)
+            self._state_manager.update("memory_buffer", memory_buffer)
 
         except Exception as e:
             # Track error
-            if self._state_manager:
-                error_count = self._state_manager.get_metadata("error_count", 0)
-                self._state_manager.set_metadata("error_count", error_count + 1)
+            error_count = self._state_manager.get_metadata("error_count", 0)
+            self._state_manager.set_metadata("error_count", error_count + 1)
 
             # Log and raise
-            if logger:
-                logger.error(f"Failed to add item to memory: {e}")
+            logger.error(f"Failed to add item to memory: {e}")
             raise RuntimeError(f"Failed to add item to memory: {e}")
 
     def get_memory(self, max_items: Optional[Optional[int]] = None) -> List[str]:
@@ -865,21 +829,17 @@ class BufferMemoryManager:
         """
         if max_items is not None and max_items < 0:
             # Track error
-            if self._state_manager:
-                error_count = self._state_manager.get_metadata("error_count", 0)
-                self._state_manager.set_metadata("error_count", error_count + 1)
+            error_count = self._state_manager.get_metadata("error_count", 0)
+            self._state_manager.set_metadata("error_count", error_count + 1)
             raise ValueError("max_items must be non-negative")
 
         # Track retrieve count
-        if self._state_manager:
-            retrieve_count = self._state_manager.get_metadata("retrieve_count", 0)
-            self._state_manager.set_metadata("retrieve_count", retrieve_count + 1)
+        retrieve_count = self._state_manager.get_metadata("retrieve_count", 0)
+        self._state_manager.set_metadata("retrieve_count", retrieve_count + 1)
 
         try:
             # Get memory buffer
-            memory_buffer = (
-                self._state_manager.get("memory_buffer", list()) if self._state_manager else []
-            )
+            memory_buffer = self._state_manager.get("memory_buffer", list())
 
             # Return all or recent items based on max_items
             if max_items is not None:
@@ -891,13 +851,11 @@ class BufferMemoryManager:
 
         except Exception as e:
             # Track error
-            if self._state_manager:
-                error_count = self._state_manager.get_metadata("error_count", 0)
-                self._state_manager.set_metadata("error_count", error_count + 1)
+            error_count = self._state_manager.get_metadata("error_count", 0)
+            self._state_manager.set_metadata("error_count", error_count + 1)
 
             # Log and raise
-            if logger:
-                logger.error(f"Failed to retrieve items from memory: {e}")
+            logger.error(f"Failed to retrieve items from memory: {e}")
             raise RuntimeError(f"Failed to retrieve items from memory: {e}")
 
     def clear_memory(self) -> None:
@@ -911,24 +869,20 @@ class BufferMemoryManager:
             RuntimeError: If memory clearing fails
         """
         # Track clear count
-        if self._state_manager:
-            clear_count = self._state_manager.get_metadata("clear_count", 0)
-            self._state_manager.set_metadata("clear_count", clear_count + 1)
+        clear_count = self._state_manager.get_metadata("clear_count", 0)
+        self._state_manager.set_metadata("clear_count", clear_count + 1)
 
         try:
             # Clear the memory buffer
-            if self._state_manager:
-                self._state_manager.update("memory_buffer", list())
+            self._state_manager.update("memory_buffer", list())
 
         except Exception as e:
             # Track error
-            if self._state_manager:
-                error_count = self._state_manager.get_metadata("error_count", 0)
-                self._state_manager.set_metadata("error_count", error_count + 1)
+            error_count = self._state_manager.get_metadata("error_count", 0)
+            self._state_manager.set_metadata("error_count", error_count + 1)
 
             # Log and raise
-            if logger:
-                logger.error(f"Failed to clear memory: {e}")
+            logger.error(f"Failed to clear memory: {e}")
             raise RuntimeError(f"Failed to clear memory: {e}")
 
     @property
@@ -944,15 +898,12 @@ class BufferMemoryManager:
         """
         try:
             # Get the memory buffer and return its length
-            memory_buffer = (
-                self._state_manager.get("memory_buffer", list()) if self._state_manager else []
-            )
+            memory_buffer = self._state_manager.get("memory_buffer", list())
             return len(memory_buffer)
 
         except Exception as e:
             # Log error but don't raise (property accessor should be safe)
-            if logger:
-                logger.error(f"Failed to get memory size: {e}")
+            logger.error(f"Failed to get memory size: {e}")
             return 0
 
     def get_statistics(self) -> Dict[str, Any]:
@@ -963,28 +914,14 @@ class BufferMemoryManager:
             Dictionary with memory statistics
         """
         return {
-            "buffer_size": self._state_manager.get("buffer_size", 0) if self._state_manager else 0,
+            "buffer_size": self._state_manager.get("buffer_size", 0),
             "memory_size": self.memory_size,
-            "add_count": (
-                self._state_manager.get_metadata("add_count", 0) if self._state_manager else 0
-            ),
-            "retrieve_count": (
-                self._state_manager.get_metadata("retrieve_count", 0) if self._state_manager else 0
-            ),
-            "clear_count": (
-                self._state_manager.get_metadata("clear_count", 0) if self._state_manager else 0
-            ),
-            "overflow_count": (
-                self._state_manager.get_metadata("overflow_count", 0) if self._state_manager else 0
-            ),
-            "error_count": (
-                self._state_manager.get_metadata("error_count", 0) if self._state_manager else 0
-            ),
-            "uptime": (
-                (time.time() - self._state_manager.get_metadata("creation_time", time.time()))
-                if self._state_manager and time
-                else 0
-            ),
+            "add_count": self._state_manager.get_metadata("add_count", 0),
+            "retrieve_count": self._state_manager.get_metadata("retrieve_count", 0),
+            "clear_count": self._state_manager.get_metadata("clear_count", 0),
+            "overflow_count": self._state_manager.get_metadata("overflow_count", 0),
+            "error_count": self._state_manager.get_metadata("error_count", 0),
+            "uptime": time.time() - self._state_manager.get_metadata("creation_time", time.time()),
         }
 
 
@@ -993,7 +930,6 @@ def create_buffer_memory_manager(
     name: Optional[str] = None,
     description: Optional[str] = None,
     component_type: Optional[str] = None,
-    **kwargs: Any,
 ) -> BufferMemoryManager:
     """
     Create a buffer memory manager.
@@ -1040,9 +976,9 @@ def create_buffer_memory_manager(
     buffer_manager = BufferMemoryManager(buffer_size=buffer_size)
 
     # Set name and description in state manager if provided
-    if name and buffer_manager._state_manager:
+    if name:
         buffer_manager._state_manager.set_metadata("name", name)
-    if description and buffer_manager._state_manager:
+    if description:
         buffer_manager._state_manager.set_metadata("description", description)
 
     return buffer_manager

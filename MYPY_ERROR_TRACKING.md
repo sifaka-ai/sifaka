@@ -4,10 +4,10 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 
 ## Current Status
 
-- **Total files with errors**: 124
-- **Files fixed**: 15
-- **Remaining files**: 109
-- **Current error count**: 1,195
+- **Total files with errors**: 112
+- **Files fixed**: 29
+- **Remaining files**: 83
+- **Current error count**: 1,141
 
 ## Error Categories and Solutions
 
@@ -153,12 +153,13 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 **Focus**: Fix attribute errors, assignment errors, and argument type errors
 
 **Files to address**:
-- [ ] sifaka/utils/base_results.py
-- [ ] sifaka/utils/text.py
-- [ ] sifaka/core/initialization.py
+- [x] sifaka/utils/base_results.py
+- [x] sifaka/utils/text.py
+- [x] sifaka/utils/tracing.py
+- [x] sifaka/core/initialization.py
 - [ ] sifaka/chain/interfaces.py
 - [ ] sifaka/utils/errors/safe_execution.py
-- [ ] sifaka/core/results.py
+- [x] sifaka/core/results.py
 - [ ] sifaka/chain/state.py
 - [ ] sifaka/utils/results.py
 - [ ] sifaka/models/managers/client.py
@@ -193,30 +194,38 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 - [x] sifaka/interfaces/chain/chain.py
 - [x] sifaka/interfaces/classifier.py
 
-### Core (2/6 completed)
+### Core (6/6 completed)
 
-- [ ] sifaka/core/base.py (High Priority)
-- [ ] sifaka/core/results.py (Medium Priority)
-- [ ] sifaka/core/managers/memory.py (High Priority)
+- [x] sifaka/core/base.py (High Priority)
+- [x] sifaka/core/results.py (Medium Priority)
+- [x] sifaka/core/managers/memory.py (High Priority)
 - [x] sifaka/core/dependency/scopes.py (Medium Priority)
-- [ ] sifaka/core/dependency/provider.py (Medium Priority)
+- [x] sifaka/core/dependency/provider.py (Medium Priority)
 - [x] sifaka/core/dependency/injector.py (Medium Priority)
 
-### Utils (1/13 completed)
+### Utils (21/21 completed)
 
 - [x] sifaka/utils/logging.py (High Priority)
-- [ ] sifaka/utils/base_results.py (Medium Priority)
-- [ ] sifaka/utils/tracing.py (Medium Priority)
-- [ ] sifaka/utils/state.py (High Priority)
-- [ ] sifaka/utils/config/retrieval.py (Low Priority)
-- [ ] sifaka/utils/config/classifiers.py (Low Priority)
-- [ ] sifaka/utils/config/chain.py (Low Priority)
-- [ ] sifaka/utils/config/rules.py (Low Priority)
-- [ ] sifaka/utils/config/models.py (Low Priority)
-- [ ] sifaka/utils/config/critics.py (High Priority)
-- [ ] sifaka/utils/errors/safe_execution.py (Medium Priority)
-- [ ] sifaka/utils/results.py (Medium Priority)
-- [ ] sifaka/utils/text.py (Medium Priority)
+- [x] sifaka/utils/base_results.py (Medium Priority)
+- [x] sifaka/utils/tracing.py (Medium Priority)
+- [x] sifaka/utils/state.py (High Priority)
+- [x] sifaka/utils/config/retrieval.py (Low Priority)
+- [x] sifaka/utils/config/classifiers.py (Low Priority)
+- [x] sifaka/utils/config/chain.py (Low Priority)
+- [x] sifaka/utils/config/rules.py (Low Priority)
+- [x] sifaka/utils/config/models.py (Low Priority)
+- [x] sifaka/utils/config/critics.py (High Priority)
+- [x] sifaka/utils/errors/safe_execution.py (Medium Priority)
+- [x] sifaka/utils/errors/results.py (Medium Priority)
+- [x] sifaka/utils/results.py (Medium Priority)
+- [x] sifaka/utils/text.py (Medium Priority)
+- [x] sifaka/utils/config/base.py (Low Priority)
+- [x] sifaka/utils/config/factories.py (Low Priority)
+- [x] sifaka/utils/config/formatters.py (Low Priority)
+- [x] sifaka/utils/config/improvers.py (Low Priority)
+- [x] sifaka/utils/config/providers.py (Low Priority)
+- [x] sifaka/utils/config/state.py (Low Priority)
+- [x] sifaka/utils/config/validators.py (Low Priority)
 
 ### Models (0/9 completed)
 
@@ -273,11 +282,11 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 
 ## Progress Summary
 
-- **Total files with errors**: 124
-- **Files fixed**: 13 (10.5%)
-- **Remaining files**: 111 (89.5%)
-- **High priority files fixed**: 10/25 (40%)
-- **Medium priority files fixed**: 3/59 (5.1%)
+- **Total files with errors**: 112
+- **Files fixed**: 29 (25.9%)
+- **Remaining files**: 83 (74.1%)
+- **High priority files fixed**: 11/25 (44%)
+- **Medium priority files fixed**: 18/59 (30.5%)
 - **Low priority files fixed**: 0/16 (0%)
 
 ## Common Error Patterns and Solutions
@@ -333,3 +342,32 @@ if isinstance(result, dict):  # Fixed: Type guard
 4. Fix protocol type parameter issues in remaining interfaces
 5. Fix return type incompatibilities in core modules
 6. Update progress in this document after each file is fixed
+
+## Files Fixed
+
+1. `sifaka/core/dependency/provider.py` - Fixed missing type annotation for `_initialized` class variable
+2. `sifaka/core/results.py` - Fixed double Optional types in function signatures (e.g., `Optional[Optional[List[str]]]` → `Optional[List[str]]`)
+3. `sifaka/utils/config/critics.py` - Fixed incorrect type annotations
+4. `sifaka/utils/config/models.py` - Fixed incorrect type annotations
+5. `sifaka/utils/config/chain.py` - Fixed incorrect type annotations
+6. `sifaka/utils/config/classifiers.py` - Fixed incorrect type annotations
+7. `sifaka/utils/config/retrieval.py` - Fixed incorrect type annotations
+8. `sifaka/utils/config/rules.py` - Fixed incorrect type annotations
+9. `sifaka/utils/config/validators.py` - Fixed incorrect type annotations
+10. `sifaka/utils/config/base.py` - Fixed incorrect type annotations
+11. `sifaka/utils/config/factories.py` - Fixed incorrect type annotations
+12. `sifaka/utils/config/formatters.py` - Fixed incorrect type annotations
+13. `sifaka/utils/config/improvers.py` - Fixed incorrect type annotations
+14. `sifaka/utils/config/providers.py` - Fixed incorrect type annotations
+15. `sifaka/utils/config/state.py` - Fixed incorrect type annotations
+16. `sifaka/core/results.py` - Fixed all instances of double Optional types in function parameters
+17. `sifaka/utils/state.py` - Fixed type variable usage by adding bound=BaseModel and using Type from typing module
+18. `sifaka/utils/text.py` - Fixed return type in is_empty_text function and converted int to str in metadata assignments
+19. `sifaka/utils/base_results.py` - Fixed incompatible return value types in with_* methods and removed double Optional types in function parameters
+20. `sifaka/utils/tracing.py` - Fixed dictionary usage where Pydantic models should be used and removed double Optional types
+21. `sifaka/utils/errors/safe_execution.py` - Fixed return type annotations, removed double Optional types, and fixed unused imports
+22. `sifaka/utils/errors/results.py` - Fixed return type annotations and improved function signature formatting
+23. `sifaka/core/initialization.py` - Fixed type variable usage in generic methods, added CleanupError class, fixed return type issues, and improved type safety in class methods
+24. `sifaka/utils/results.py` - Fixed missing required arguments for result classes, removed double Optional types, and fixed type incompatibilities in function parameters and return values
+25. `sifaka/utils/resources.py` - Fixed undefined variable issues, incompatible type in assignment, and contextmanager return type
+26. `sifaka/core/protocol.py` - Fixed missing type annotations for variables and return type issues in helper functions

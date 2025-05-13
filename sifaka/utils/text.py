@@ -93,7 +93,7 @@ def is_empty_text(text: str) -> bool:
             process_text(text)
         ```
     """
-    return not text or not text.strip() if text else ""
+    return not text or not text.strip() if text else False
 
 
 def handle_empty_text(
@@ -157,7 +157,7 @@ def handle_empty_text(
 
     # Add input length to metadata
     if "input_length" not in final_metadata:
-        final_metadata["input_length"] = len(text)
+        final_metadata["input_length"] = str(len(text))
 
     return BaseResult(
         passed=passed,
@@ -212,7 +212,7 @@ def handle_empty_text_for_classifier(
 
     # Add input length to metadata
     if "input_length" not in final_metadata:
-        final_metadata["input_length"] = len(text)
+        final_metadata["input_length"] = str(len(text))
 
     return ClassificationResult(
         passed=False,

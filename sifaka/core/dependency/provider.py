@@ -107,6 +107,8 @@ class DependencyProvider:
 
     _instance = None
 
+    _initialized: bool = False
+
     def __new__(cls) -> Any:
         """
         Create or return the singleton instance of DependencyProvider.

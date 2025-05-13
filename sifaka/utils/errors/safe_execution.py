@@ -22,7 +22,7 @@ error result.
 """
 
 import time
-from typing import Any, Callable, Dict, Optional, Type, TypeVar, Union, cast
+from typing import Any, Callable, Dict, Optional, Type, TypeVar, Union
 
 from ..logging import get_logger
 from .base import SifakaError
@@ -49,7 +49,7 @@ def try_component_operation(
     component_name: str,
     component_type: str,
     error_class: Type[SifakaError],
-    default_value: Optional[Optional[T]] = None,
+    default_value: Optional[T] = None,
     log_level: str = "error",
     include_traceback: bool = True,
     additional_metadata: Optional[Dict[str, Any]] = None,
@@ -175,7 +175,9 @@ def safely_execute_component_operation(
         )
 
 
-def create_safe_execution_factory(component_type: str, error_class: Type[SifakaError]) -> Callable:
+def create_safe_execution_factory(
+    component_type: str, error_class: Type[SifakaError]
+) -> Callable[..., Union[T, ErrorResult]]:
     """
     Create a safe execution factory for a specific component type.
 
@@ -225,7 +227,7 @@ safely_execute_retrieval = create_safe_execution_factory("Retrieval", RetrievalE
 
 def safely_execute_component(
     operation: Callable[[], T],
-    component_name: Optional[Optional[str]] = None,
+    component_name: Optional[str] = None,
     component_type: str = "component",
     error_class: Type[Exception] = Exception,
     log_level: str = "error",
@@ -277,7 +279,7 @@ def safely_execute_component(
         return result
     except Exception as e:
         # Handle error
-        error_metadata = handle_error(
+        handle_error(
             e,
             component_name or component_type,
             log_level=log_level,

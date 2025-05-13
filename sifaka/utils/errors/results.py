@@ -19,10 +19,18 @@ operations instead of raising exceptions.
   - **create_classifier_error_result**
   - **create_retrieval_error_result**
 """
+
 from typing import Any, Callable, Dict, Optional, Type
 from pydantic import BaseModel
 from .base import SifakaError
-from .component import ChainError, ClassifierError, CriticError, ModelError, RetrievalError, RuleError
+from .component import (
+    ChainError,
+    ClassifierError,
+    CriticError,
+    ModelError,
+    RetrievalError,
+    RuleError,
+)
 from .handling import handle_error
 
 
@@ -78,16 +86,22 @@ class ErrorResult(BaseModel):
         component_name (str): Name of the component where the error occurred
         metadata (Dict[str, Any]): Additional error context and details
     """
+
     error_type: str
     error_message: str
     component_name: str
     metadata: Dict[str, Any] = {}
 
 
-def create_error_result(error: Exception, component_name: str,
-    component_type: str, error_class: Type[SifakaError], log_level: str=
-    'error', include_traceback: bool=True, additional_metadata: Optional[
-    Dict[str, Any]]=None) ->Any:
+def create_error_result(
+    error: Exception,
+    component_name: str,
+    component_type: str,
+    error_class: Type[SifakaError],
+    log_level: Optional[str] = "error",
+    include_traceback: Optional[bool] = True,
+    additional_metadata: Optional[Dict[str, Any]] = None,
+) -> ErrorResult:
     """Create a standardized error result for any component type.
 
     This function creates a standardized error result for any component type,
@@ -107,19 +121,29 @@ def create_error_result(error: Exception, component_name: str,
     """
     if not isinstance(error, SifakaError):
         error = error_class(
-            f'{component_type} error in {component_name}: {str(error)}',
-            metadata=additional_metadata)
-    error_metadata = handle_error(error, component_name=
-        f'{component_type}:{component_name}', log_level=log_level,
-        include_traceback=include_traceback, additional_metadata=
-        additional_metadata)
-    return ErrorResult(error_type=error_metadata['error_type'],
-        error_message=error_metadata['error_message'], component_name=
-        component_name, metadata=error_metadata)
+            f"{component_type} error in {component_name}: {str(error)}",
+            metadata=additional_metadata,
+        )
+    error_metadata = handle_error(
+        error,
+        component_name=f"{component_type}:{component_name}",
+        log_level=log_level if log_level is not None else "error",
+        include_traceback=include_traceback if include_traceback is not None else True,
+        additional_metadata=additional_metadata,
+    )
+    return ErrorResult(
+        error_type=error_metadata["error_type"],
+        error_message=error_metadata["error_message"],
+        component_name=component_name,
+        metadata=error_metadata,
+    )
 
 
-def create_error_result_factory(component_type: str, error_class: Type[
-    SifakaError]) ->Any:
+def create_error_result_factory(
+    component_type: str, error_class: Type[SifakaError]
+) -> Callable[
+    [Exception, str, Optional[str], Optional[bool], Optional[Dict[str, Any]]], ErrorResult
+]:
     """Create an error result factory for a specific component type.
 
     This factory function creates an error result function for a specific component type,
@@ -133,22 +157,42 @@ def create_error_result_factory(component_type: str, error_class: Type[
         An error result function for the specified component type
     """
 
-    def factory(error: Exception, component_name: str, log_level: str=
-        'error', include_traceback: bool=True, additional_metadata:
-        Optional[Dict[str, Any]]=None) ->Any:
+    def factory(
+        error: Exception,
+        component_name: str,
+        log_level: Optional[str] = "error",
+        include_traceback: Optional[bool] = True,
+        additional_metadata: Optional[Dict[str, Any]] = None,
+    ) -> ErrorResult:
         """Create a standardized error result for a specific component type."""
-        return create_error_result(error=error, component_name=
-            component_name, component_type=component_type, error_class=
-            error_class, log_level=log_level, include_traceback=
-            include_traceback, additional_metadata=additional_metadata)
+        return create_error_result(
+            error=error,
+            component_name=component_name,
+            component_type=component_type,
+            error_class=error_class,
+            log_level=log_level,
+            include_traceback=include_traceback,
+            additional_metadata=additional_metadata,
+        )
+
     return factory
 
 
-create_chain_error_result = create_error_result_factory('Chain', ChainError)
-create_model_error_result = create_error_result_factory('Model', ModelError)
-create_rule_error_result = create_error_result_factory('Rule', RuleError)
-create_critic_error_result = create_error_result_factory('Critic', CriticError)
-create_classifier_error_result = create_error_result_factory('Classifier',
-    ClassifierError)
-create_retrieval_error_result = create_error_result_factory('Retrieval',
-    RetrievalError)
+create_chain_error_result: Callable[
+    [Exception, str, Optional[str], Optional[bool], Optional[Dict[str, Any]]], ErrorResult
+] = create_error_result_factory("Chain", ChainError)
+create_model_error_result: Callable[
+    [Exception, str, Optional[str], Optional[bool], Optional[Dict[str, Any]]], ErrorResult
+] = create_error_result_factory("Model", ModelError)
+create_rule_error_result: Callable[
+    [Exception, str, Optional[str], Optional[bool], Optional[Dict[str, Any]]], ErrorResult
+] = create_error_result_factory("Rule", RuleError)
+create_critic_error_result: Callable[
+    [Exception, str, Optional[str], Optional[bool], Optional[Dict[str, Any]]], ErrorResult
+] = create_error_result_factory("Critic", CriticError)
+create_classifier_error_result: Callable[
+    [Exception, str, Optional[str], Optional[bool], Optional[Dict[str, Any]]], ErrorResult
+] = create_error_result_factory("Classifier", ClassifierError)
+create_retrieval_error_result: Callable[
+    [Exception, str, Optional[str], Optional[bool], Optional[Dict[str, Any]]], ErrorResult
+] = create_error_result_factory("Retrieval", RetrievalError)

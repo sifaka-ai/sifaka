@@ -326,7 +326,9 @@ class RetrievalResult(BaseResult, Generic[T]):
         top_doc = self.top_document
         if top_doc is None:
             return None
-        return top_doc.content
+        # Cast the content to the correct type to satisfy mypy
+        content: T = top_doc.content  # type: ignore
+        return content
 
     @property
     def has_results(self) -> bool:
@@ -356,9 +358,9 @@ def create_base_result(
     message: str,
     metadata: Optional[Dict[str, Any]] = None,
     score: float = 0.0,
-    issues: Optional[Optional[List[str]]] = None,
-    suggestions: Optional[Optional[List[str]]] = None,
-    processing_time_ms: Optional[Optional[float]] = None,
+    issues: Optional[List[str]] = None,
+    suggestions: Optional[List[str]] = None,
+    processing_time_ms: Optional[float] = None,
 ) -> BaseResult:
     """
     Create a standardized base result.
@@ -393,12 +395,12 @@ def create_rule_result(
     metadata: Optional[Dict[str, Any]] = None,
     severity: str = "error",
     category: str = "general",
-    tags: Optional[Optional[List[str]]] = None,
-    rule_id: Optional[Optional[str]] = None,
+    tags: Optional[List[str]] = None,
+    rule_id: Optional[str] = None,
     score: float = 0.0,
-    issues: Optional[Optional[List[str]]] = None,
-    suggestions: Optional[Optional[List[str]]] = None,
-    processing_time_ms: Optional[Optional[float]] = None,
+    issues: Optional[List[str]] = None,
+    suggestions: Optional[List[str]] = None,
+    processing_time_ms: Optional[float] = None,
 ) -> RuleResult:
     """
     Create a standardized rule result.
@@ -443,9 +445,9 @@ def create_classification_result(
     message: str = "Classification completed",
     metadata: Optional[Dict[str, Any]] = None,
     score: Optional[float] = None,
-    issues: Optional[Optional[List[str]]] = None,
-    suggestions: Optional[Optional[List[str]]] = None,
-    processing_time_ms: Optional[Optional[float]] = None,
+    issues: Optional[List[str]] = None,
+    suggestions: Optional[List[str]] = None,
+    processing_time_ms: Optional[float] = None,
 ) -> ClassificationResult[Any, L]:
     """
     Create a standardized classification result.
@@ -486,9 +488,9 @@ def create_critic_result(
     passed: Optional[bool] = None,
     message: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
-    issues: Optional[Optional[List[str]]] = None,
-    suggestions: Optional[Optional[List[str]]] = None,
-    processing_time_ms: Optional[Optional[float]] = None,
+    issues: Optional[List[str]] = None,
+    suggestions: Optional[List[str]] = None,
+    processing_time_ms: Optional[float] = None,
 ) -> CriticResult:
     """
     Create a standardized critic result.
@@ -527,16 +529,16 @@ def create_critic_result(
 def create_chain_result(
     output: str,
     prompt: str,
-    validation_results: Optional[Optional[List[ValidationResult]]] = None,
+    validation_results: Optional[List[ValidationResult]] = None,
     passed: bool = True,
     message: str = "Chain execution completed",
     metadata: Optional[Dict[str, Any]] = None,
     score: float = 1.0,
-    issues: Optional[Optional[List[str]]] = None,
-    suggestions: Optional[Optional[List[str]]] = None,
+    issues: Optional[List[str]] = None,
+    suggestions: Optional[List[str]] = None,
     execution_time: float = 0.0,
     attempt_count: int = 1,
-    processing_time_ms: Optional[Optional[float]] = None,
+    processing_time_ms: Optional[float] = None,
 ) -> ChainResult:
     """
     Create a standardized chain result.
@@ -577,15 +579,15 @@ def create_chain_result(
 def create_retrieval_result(
     query: str,
     documents: List[Any],
-    processed_query: Optional[Optional[str]] = None,
-    total_results: Optional[Optional[int]] = None,
+    processed_query: Optional[str] = None,
+    total_results: Optional[int] = None,
     passed: bool = True,
     message: str = "Retrieval completed",
     metadata: Optional[Dict[str, Any]] = None,
     score: float = 1.0,
-    issues: Optional[Optional[List[str]]] = None,
-    suggestions: Optional[Optional[List[str]]] = None,
-    processing_time_ms: Optional[Optional[float]] = None,
+    issues: Optional[List[str]] = None,
+    suggestions: Optional[List[str]] = None,
+    processing_time_ms: Optional[float] = None,
 ) -> RetrievalResult:
     """
     Create a standardized retrieval result.
@@ -626,8 +628,8 @@ def create_retrieval_result(
 
 def create_error_result(
     message: str,
-    component_name: Optional[Optional[str]] = None,
-    error_type: Optional[Optional[str]] = None,
+    component_name: Optional[str] = None,
+    error_type: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
     severity: str = "error",
 ) -> RuleResult:

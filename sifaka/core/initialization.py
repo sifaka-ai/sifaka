@@ -67,13 +67,12 @@ Components can be configured through:
 """
 
 import time
-from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Protocol, Type, TypeVar, runtime_checkable
+from typing import Any, Dict, Optional, Protocol, Type, TypeVar, runtime_checkable
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 from sifaka.utils.errors.base import InitializationError, CleanupError
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import StateManager
-from sifaka.utils.resources import ResourceManager, Resource
+from sifaka.utils.resources import ResourceManager
 
 logger = get_logger(__name__)
 T = TypeVar("T")
@@ -370,7 +369,7 @@ class InitializableMixin:
     _resource_manager = None
 
     def __init__(
-        self, name: str, description: str, config: Optional[Dict[str, Any]] = None, **kwargs: Any
+        self, name: str, description: str, config: Optional[Dict[str, Any]] = None, **_: Any
     ) -> None:
         """
         Initialize the component.
@@ -379,7 +378,7 @@ class InitializableMixin:
             name: The component name
             description: The component description
             config: Optional component configuration
-            **kwargs: Additional component parameters
+            **_: Additional component parameters (ignored)
         """
         self._name = name
         self._description = description
@@ -461,7 +460,7 @@ class InitializableMixin:
             True if the component is initialized, False otherwise
         """
         if self._state_manager:
-            return self._state_manager.get("initialized", False)
+            return bool(self._state_manager.get("initialized", False))
         return False
 
     def warm_up(self) -> None:
@@ -505,12 +504,9 @@ class InitializableMixin:
                 self._resource_manager.cleanup_all()
             if self:
                 self._cleanup_resources()
-            if hasattr(self, "clear_cache") and callable(getattr(self, "clear_cache")):
-                if self:
-                    self.clear_cache()
-            else:
-                if self._state_manager:
-                    self._state_manager.update("cache", {})
+            # Clear cache if method exists, otherwise reset cache in state manager
+            if self._state_manager:
+                self._state_manager.update("cache", {})
             if self._state_manager:
                 self._state_manager.update("initialized", False)
             if self._state_manager:
@@ -524,6 +520,11 @@ class InitializableMixin:
         except Exception as e:
             if logger:
                 logger.error(f"Failed to clean up component {self.__class__.__name__}: {str(e)}")
+            # Don't raise the error to avoid blocking further cleanup operations
+            # but log it as a CleanupError for tracking
+            logger.warning(
+                f"CleanupError: {CleanupError(f'Failed to clean up component {self.__class__.__name__}: {str(e)}')}"
+            )
 
     def _validate_configuration(self) -> None:
         """
@@ -671,7 +672,7 @@ class BaseInitializable(BaseModel, InitializableMixin):
             self._initialize_resource_manager()
 
     @classmethod
-    def create(cls: Type[T], name: str, description: str, **kwargs: Any) -> Any:
+    def create(cls: Type[T], name: str, description: str, **kwargs: Any) -> T:
         """
         Create a new component instance.
 
@@ -683,15 +684,18 @@ class BaseInitializable(BaseModel, InitializableMixin):
         Returns:
             A new component instance
         """
-        component = cls(name=name, description=description, **kwargs)
-        if component:
+        # Create component with appropriate parameters
+        # Use dict unpacking to avoid mypy errors about unexpected keyword arguments
+        params = {"name": name, "description": description, **kwargs}
+        component = cls(**params)
+        if hasattr(component, "initialize") and callable(getattr(component, "initialize")):
             component.initialize()
         return component
 
     @classmethod
     def create_with_dependencies(
         cls: Type[T], name: str, description: str, dependencies: Dict[str, Any], **kwargs: Any
-    ) -> Any:
+    ) -> T:
         """
         Create a new component instance with dependencies.
 
@@ -704,10 +708,13 @@ class BaseInitializable(BaseModel, InitializableMixin):
         Returns:
             A new component instance with dependencies
         """
-        component = cls(name=name, description=description, **kwargs)
+        # Create component with appropriate parameters
+        # Use dict unpacking to avoid mypy errors about unexpected keyword arguments
+        params = {"name": name, "description": description, **kwargs}
+        component = cls(**params)
         if dependencies:
             for key, value in dependencies.items():
                 setattr(component, f"_{key}", value)
-        if component:
+        if hasattr(component, "initialize") and callable(getattr(component, "initialize")):
             component.initialize()
         return component

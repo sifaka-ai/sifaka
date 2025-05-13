@@ -16,10 +16,11 @@ standardized error handling functionality.
 - **StateError**: Raised when state is invalid
 - **DependencyError**: Raised when a dependency is missing or invalid
 - **InitializationError**: Raised when initialization fails
+- **CleanupError**: Raised when cleanup fails
 - **ComponentError**: Base class for component-specific errors
 """
 
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 
 class SifakaError(Exception):
@@ -192,6 +193,16 @@ class InitializationError(SifakaError):
 
     This error is raised when a component fails to initialize properly,
     such as when required resources cannot be loaded or configured.
+    """
+
+    pass
+
+
+class CleanupError(SifakaError):
+    """Error raised when component cleanup fails.
+
+    This error is raised when a component fails to clean up properly,
+    such as when resources cannot be released or closed.
     """
 
     pass

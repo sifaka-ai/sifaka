@@ -48,21 +48,29 @@ class BaseResult(BaseModel, Generic[T]):
         arbitrary_types_allowed=True, validate_assignment=True, extra="forbid"
     )
 
-    def with_metadata(self, **kwargs: Any) -> "BaseResult":
+    def with_metadata(self, **kwargs: Any) -> "BaseResult[T]":
         """Create a new result with additional metadata."""
-        return self.model_copy(update={"metadata": {**self.metadata, **kwargs}}) if self else ""
+        if not self:
+            raise ValueError("Cannot update metadata on a falsy result")
+        return self.model_copy(update={"metadata": {**self.metadata, **kwargs}})
 
-    def with_issues(self, issues: List[str]) -> "BaseResult":
+    def with_issues(self, issues: List[str]) -> "BaseResult[T]":
         """Create a new result with updated issues."""
-        return self.model_copy(update={"issues": issues}) if self else ""
+        if not self:
+            raise ValueError("Cannot update issues on a falsy result")
+        return self.model_copy(update={"issues": issues})
 
-    def with_suggestions(self, suggestions: List[str]) -> "BaseResult":
+    def with_suggestions(self, suggestions: List[str]) -> "BaseResult[T]":
         """Create a new result with updated suggestions."""
-        return self.model_copy(update={"suggestions": suggestions}) if self else ""
+        if not self:
+            raise ValueError("Cannot update suggestions on a falsy result")
+        return self.model_copy(update={"suggestions": suggestions})
 
-    def with_score(self, score: float) -> "BaseResult":
+    def with_score(self, score: float) -> "BaseResult[T]":
         """Create a new result with updated score."""
-        return self.model_copy(update={"score": score}) if self else ""
+        if not self:
+            raise ValueError("Cannot update score on a falsy result")
+        return self.model_copy(update={"score": score})
 
 
 class BaseRuleResult(BaseResult):
@@ -102,19 +110,27 @@ class BaseRuleResult(BaseResult):
 
     def with_rule_id(self, rule_id: str) -> "BaseRuleResult":
         """Create a new result with the rule ID set."""
-        return self.model_copy(update={"rule_id": rule_id}) if self else ""
+        if not self:
+            raise ValueError("Cannot update rule_id on a falsy result")
+        return self.model_copy(update={"rule_id": rule_id})
 
     def with_severity(self, severity: str) -> "BaseRuleResult":
         """Create a new result with updated severity."""
-        return self.model_copy(update={"severity": severity}) if self else ""
+        if not self:
+            raise ValueError("Cannot update severity on a falsy result")
+        return self.model_copy(update={"severity": severity})
 
     def with_category(self, category: str) -> "BaseRuleResult":
         """Create a new result with updated category."""
-        return self.model_copy(update={"category": category}) if self else ""
+        if not self:
+            raise ValueError("Cannot update category on a falsy result")
+        return self.model_copy(update={"category": category})
 
     def with_tags(self, tags: List[str]) -> "BaseRuleResult":
         """Create a new result with updated tags."""
-        return self.model_copy(update={"tags": tags}) if self else ""
+        if not self:
+            raise ValueError("Cannot update tags on a falsy result")
+        return self.model_copy(update={"tags": tags})
 
 
 class CriticMetadata(BaseResult):
@@ -195,9 +211,9 @@ def create_base_result(
     message: str,
     metadata: Optional[Dict[str, Any]] = None,
     score: float = 0.0,
-    issues: Optional[Optional[List[str]]] = None,
-    suggestions: Optional[Optional[List[str]]] = None,
-    processing_time_ms: Optional[Optional[float]] = None,
+    issues: Optional[List[str]] = None,
+    suggestions: Optional[List[str]] = None,
+    processing_time_ms: Optional[float] = None,
 ) -> BaseResult:
     """
     Create a standardized base result.
@@ -232,12 +248,12 @@ def create_base_rule_result(
     metadata: Optional[Dict[str, Any]] = None,
     severity: str = "error",
     category: str = "general",
-    tags: Optional[Optional[List[str]]] = None,
-    rule_id: Optional[Optional[str]] = None,
+    tags: Optional[List[str]] = None,
+    rule_id: Optional[str] = None,
     score: float = 0.0,
-    issues: Optional[Optional[List[str]]] = None,
-    suggestions: Optional[Optional[List[str]]] = None,
-    processing_time_ms: Optional[Optional[float]] = None,
+    issues: Optional[List[str]] = None,
+    suggestions: Optional[List[str]] = None,
+    processing_time_ms: Optional[float] = None,
 ) -> BaseRuleResult:
     """
     Create a standardized base rule result.
@@ -281,9 +297,9 @@ def create_critic_metadata(
     passed: bool,
     message: str,
     metadata: Optional[Dict[str, Any]] = None,
-    issues: Optional[Optional[List[str]]] = None,
-    suggestions: Optional[Optional[List[str]]] = None,
-    processing_time_ms: Optional[Optional[float]] = None,
+    issues: Optional[List[str]] = None,
+    suggestions: Optional[List[str]] = None,
+    processing_time_ms: Optional[float] = None,
 ) -> CriticMetadata:
     """
     Create a standardized critic metadata result.

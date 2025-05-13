@@ -61,7 +61,7 @@ is provided, Pydantic will raise validation errors with detailed information
 about the validation failure.
 """
 
-from typing import Any, Dict, List, Optional, Type, TypeVar, Union, cast
+from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 from pydantic import Field
 from .base import BaseConfig
 
@@ -702,9 +702,9 @@ DEFAULT_LAC_CRITIC_CONFIG = {
 def standardize_critic_config(
     config: Optional[Union[Dict[str, Any], CriticConfig]] = None,
     params: Optional[Dict[str, Any]] = None,
-    config_class: Type[T] = CriticConfig,
+    config_class: Type[CriticConfig] = CriticConfig,
     **kwargs: Any,
-) -> Any:
+) -> CriticConfig:
     """
     Standardize critic configuration.
 
@@ -769,12 +769,10 @@ def standardize_critic_config(
     if isinstance(config, dict):
         dict_params = config.pop("params", {}) if config else {}
         final_params.update(dict_params)
-        return cast(
-            T, config_class(**{} if config is None else config, params=final_params, **kwargs)
-        )
+        return config_class(**{} if config is None else config, params=final_params, **kwargs)
     elif isinstance(config, CriticConfig):
         final_params.update(config.params)
         config_dict = {**config.model_dump(), "params": final_params, **kwargs}
-        return cast(T, config_class(**config_dict))
+        return config_class(**config_dict)
     else:
-        return cast(T, config_class(params=final_params, **kwargs))
+        return config_class(params=final_params, **kwargs)

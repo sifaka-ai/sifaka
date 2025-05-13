@@ -83,10 +83,10 @@ State management can be configured through:
 3. Setting component-specific metadata through the state manager
 """
 
-from typing import Any, Dict, List, Optional, TypeVar, Generic
+from typing import Any, Dict, List, Optional, TypeVar, Generic, Type
 from pydantic import BaseModel, Field, ConfigDict
 
-T = TypeVar("T")
+T = TypeVar("T", bound=BaseModel)
 
 
 class State(BaseModel):
@@ -347,7 +347,7 @@ class AdapterState(ComponentState):
     cache: Dict[str, Any] = Field(default_factory=dict)
 
 
-def create_state_manager(state_class: type[T], **kwargs: Any) -> StateManager:
+def create_state_manager(state_class: Type[T], **kwargs: Any) -> StateManager:
     """
     Create a state manager for a specific state class.
 

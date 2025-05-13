@@ -370,7 +370,7 @@ This phase has not yet been started.
 
 | Metric | Before | After |
 |--------|--------|-------|
-| Syntax errors fixed | 0 | 10 files |
+| Syntax errors fixed | 0 | 11 files |
 | Type annotation improvements | Minimal | Significant progress |
 | Protocol type fixes | None | In progress |
 | Union type fixes | None | In progress |
@@ -468,6 +468,7 @@ We've identified 148 files with syntax errors across the codebase. So far, we've
 8. `sifaka/interfaces/chain/components/model.py` - Fixed conditional expressions with asyncio
 9. `sifaka/classifiers/implementations/content/toxicity_model.py` - Fixed Union type usage in Protocol definition
 10. `sifaka/models/managers/anthropic_token_counter.py` - Fixed type assignment errors with Optional type annotations
+11. `sifaka/core/base.py` - Fixed type casting issues with ErrorResult and return type annotations
 
 ### Next Files to Fix
 

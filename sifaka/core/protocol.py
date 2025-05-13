@@ -148,7 +148,7 @@ def check_protocol_compliance(
     for prop_name in protocol_properties:
         if prop_name not in target_properties:
             missing_properties.append(prop_name)
-    type_mismatches = {}
+    type_mismatches: Dict[str, Dict[str, Any]] = {}
     if protocol_methods:
         for method_name, method_info in protocol_methods.items():
             if method_name in target_methods:
@@ -366,7 +366,9 @@ def get_protocol_requirements(protocol_class: Type[T]) -> Dict[str, Any]:
                 else None
             ),
         }
-    property_requirements = {prop_name: {} for prop_name in protocol_properties}
+    property_requirements: Dict[str, Dict[str, Any]] = {
+        prop_name: {} for prop_name in protocol_properties
+    }
     return {
         "name": protocol_class.__name__,
         "module": protocol_class.__module__,
@@ -519,7 +521,7 @@ def _is_compatible_type(actual_type: Any, expected_type: Any) -> bool:
         This is a simple implementation that only checks for exact type matches.
         Future implementations could handle more complex type compatibility rules.
     """
-    return actual_type == expected_type
+    return bool(actual_type == expected_type)
 
 
 def _format_annotation(annotation: Any) -> str:
@@ -552,6 +554,6 @@ def _format_annotation(annotation: Any) -> str:
     elif hasattr(annotation, "__name__") and annotation.__name__ == "Any":
         return "Any"
     try:
-        return annotation.__name__
+        return str(annotation.__name__)
     except AttributeError:
         return str(annotation)

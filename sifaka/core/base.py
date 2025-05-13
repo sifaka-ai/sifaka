@@ -246,23 +246,21 @@ class BaseComponent(ABC, Generic[T, R]):
         self._state_manager.set_metadata("last_error", None)
         self._state_manager.set_metadata("last_error_time", None)
 
-    @property
-    def name(self) -> str:
+    # These properties are defined in the class attributes but we need to keep them
+    # for backward compatibility. We'll use a different implementation approach.
+    def get_name(self) -> str:
         """Get component name."""
         return self._name
 
-    @property
-    def description(self) -> str:
+    def get_description(self) -> str:
         """Get component description."""
         return self._description
 
-    @property
-    def config(self) -> BaseConfig:
+    def get_config(self) -> BaseConfig:
         """Get component configuration."""
         return self._config
 
-    @config.setter
-    def config(self, value: BaseConfig) -> None:
+    def set_config(self, value: BaseConfig) -> None:
         """Set component configuration."""
         self._config = value
 
@@ -371,15 +369,34 @@ class BaseComponent(ABC, Generic[T, R]):
         self._state_manager.set_metadata("last_error", None)
         self._state_manager.set_metadata("last_error_time", None)
 
-    def update_statistics(self, result: BaseResult) -> None:
+    def update_statistics(
+        self, result: BaseResult, processing_time_ms: Optional[float] = None
+    ) -> None:
         """Update component statistics based on result."""
-        execution_time = result.processing_time_ms / 1000.0
+        # If processing_time_ms is provided, use it, otherwise calculate from result
+        if processing_time_ms is not None:
+            execution_time = processing_time_ms / 1000.0
+        else:
+            execution_time = (
+                result.processing_time_ms / 1000.0 if hasattr(result, "processing_time_ms") else 0.0
+            )
+
+        # Check if result is an ErrorResult
+        from sifaka.utils.errors.results import ErrorResult
+
+        if isinstance(result, ErrorResult):
+            success = False
+        else:
+            success = result.passed if hasattr(result, "passed") else True
+
         update_statistics(
-            state_manager=self._state_manager, execution_time=execution_time, success=result.passed
+            state_manager=self._state_manager, execution_time=execution_time, success=success
         )
+
         validation_count = self._state_manager.get_metadata("validation_count", 0)
         self._state_manager.set_metadata("validation_count", validation_count + 1)
-        if result.suggestions:
+
+        if hasattr(result, "suggestions") and result.suggestions:
             improvement_count = self._state_manager.get_metadata("improvement_count", 0)
             self._state_manager.set_metadata("improvement_count", improvement_count + 1)
 
@@ -441,15 +458,45 @@ class BaseComponent(ABC, Generic[T, R]):
 
         from sifaka.utils.errors.safe_execution import safely_execute_component_operation
 
+        from sifaka.utils.errors.base import ComponentError
+
         result = safely_execute_component_operation(
             operation=operation,
             component_name=self.name,
             component_type=self.__class__.__name__,
+            error_class=ComponentError,
             additional_metadata={"input_type": type(input).__name__},
         )
         processing_time = time.time() - start_time
-        self.update_statistics(result, processing_time_ms=processing_time * 1000)
-        return result
+
+        # Handle the case where result might be an ErrorResult
+        from sifaka.utils.errors.results import ErrorResult
+        from typing import cast
+        from sifaka.core.results import BaseResult
+
+        # Create a BaseResult for statistics if result is an ErrorResult
+        if isinstance(result, ErrorResult):
+            # Use a dummy BaseResult for statistics
+            from sifaka.utils.result_types import BaseResult as UtilsBaseResult
+
+            # Create a dummy result for statistics
+            dummy_result: UtilsBaseResult = UtilsBaseResult(
+                passed=False,
+                message=result.error_message,
+                processing_time_ms=processing_time * 1000,
+                metadata={
+                    "component_name": self.name,
+                    "component_type": self.__class__.__name__,
+                },
+            )
+            self.update_statistics(dummy_result)
+            # Cast to R to satisfy the type checker
+            # This is safe because the caller will check for ErrorResult
+            return cast(R, result)
+        else:
+            # Normal case - update statistics with the actual result
+            self.update_statistics(result, processing_time_ms=processing_time * 1000)
+            return cast(R, result)  # Explicitly cast to satisfy mypy
 
     def _process_input(self, input: T) -> R:
         """

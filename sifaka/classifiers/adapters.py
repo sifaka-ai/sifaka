@@ -57,7 +57,7 @@ class ImplementationAdapter(ClassifierImplementation):
         """
         self._classifier = classifier
 
-    def classify(self, text: str) -> Any:
+    def classify(self, text: str) -> ClassificationResult[Any, Any]:
         """
         Classify the given text.
 
@@ -91,7 +91,7 @@ class ImplementationAdapter(ClassifierImplementation):
         )
         return self._convert_result(result)
 
-    async def classify_async(self, text: str) -> ClassificationResult:
+    async def classify_async(self, text: str) -> ClassificationResult[Any, Any]:
         """
         Classify the given text asynchronously.
 
@@ -116,7 +116,7 @@ class ImplementationAdapter(ClassifierImplementation):
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self.classify, text)
 
-    def _convert_result(self, result: Any) -> Any:
+    def _convert_result(self, result: Any) -> ClassificationResult[Any, Any]:
         """
         Convert a classifier result to a ClassificationResult.
 
@@ -140,5 +140,5 @@ class ImplementationAdapter(ClassifierImplementation):
             issues=issues,
             suggestions=suggestions,
             passed=True,
-            message="",
+            message="Classification completed",
         )

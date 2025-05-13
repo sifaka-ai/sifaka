@@ -122,7 +122,8 @@ class FileTraceStorage(TraceStorage):
         if not trace_path.exists():
             raise ValueError(f"Trace file not found: {trace_path}")
         with trace_path.open("r") as f:
-            return json.load(f)
+            data = json.load(f)
+            return TraceData.model_validate(data)
 
     def delete_trace(self, trace_id: str) -> None:
         """Delete a trace file."""
@@ -188,17 +189,14 @@ class Tracer(Generic[T]):
         else:
             self.storage = MemoryTraceStorage()  # type: ignore
 
-    def start_trace(self, trace_id: Optional[Optional[str]] = None) -> str:
+    def start_trace(self, trace_id: Optional[str] = None) -> str:
         """Start a new trace."""
         if trace_id is None:
             trace_id = datetime.now().strftime("%Y%m%d%H%M%S")
 
-        trace_data: TraceData = {
-            "id": trace_id,
-            "start_time": datetime.now().isoformat(),
-            "end_time": None,
-            "events": [],
-        }
+        trace_data = TraceData(
+            id=trace_id, start_time=datetime.now().isoformat(), end_time=None, events=[]
+        )
 
         self._active_traces[trace_id] = trace_data
         logger.debug("Started trace: %s", trace_id)
@@ -210,17 +208,17 @@ class Tracer(Generic[T]):
             logger.warning("Trace %s not found, creating new trace", trace_id)
             self.start_trace(trace_id)
 
-        event: TraceEvent = {
-            "type": event_type,
-            "timestamp": datetime.now().isoformat(),
-            "data": data,
-            "component": self.config.component_name,
-        }
+        event = TraceEvent(
+            type=event_type,
+            timestamp=datetime.now().isoformat(),
+            data=data,
+            component=self.config.component_name,
+        )
 
         trace = self._active_traces[trace_id]
-        trace["events"].append(event)
+        trace.events.append(event)
 
-        if self.config.auto_flush and len(trace["events"]) >= self.config.max_events:
+        if self.config.auto_flush and len(trace.events) >= self.config.max_events:
             self.end_trace(trace_id)
 
         logger.debug("Added event to trace %s: %s", trace_id, event_type)
@@ -231,13 +229,19 @@ class Tracer(Generic[T]):
             raise ValueError(f"Trace {trace_id} not found")
 
         trace = self._active_traces[trace_id]
-        trace["end_time"] = datetime.now().isoformat()
+        # Create a new TraceData with updated end_time
+        updated_trace = TraceData(
+            id=trace.id,
+            start_time=trace.start_time,
+            end_time=datetime.now().isoformat(),
+            events=trace.events,
+        )
 
-        self.storage.save_trace(trace_id, trace)
+        self.storage.save_trace(trace_id, updated_trace)
         del self._active_traces[trace_id]
 
         logger.debug("Ended and saved trace: %s", trace_id)
-        return trace
+        return updated_trace
 
     def get_trace(self, trace_id: str) -> TraceData:
         """Get a trace by ID."""

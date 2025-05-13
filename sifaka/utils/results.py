@@ -107,11 +107,11 @@ def create_generic_result(
     message: str,
     metadata: Optional[Dict[str, Any]] = None,
     score: float = 0.0,
-    issues: Optional[Optional[List[str]]] = None,
-    suggestions: Optional[Optional[List[str]]] = None,
-    processing_time_ms: Optional[Optional[float]] = None,
+    issues: Optional[List[str]] = None,
+    suggestions: Optional[List[str]] = None,
+    processing_time_ms: Optional[float] = None,
     **kwargs: Any,
-) -> BaseResult:
+) -> Any:
     """
     Create a standardized result for any component.
 
@@ -178,6 +178,13 @@ def create_generic_result(
         ```
     """
     if component_type == "chain":
+        # Extract and convert chain-specific parameters
+        output = kwargs.get("output", "") if kwargs else ""
+        prompt = kwargs.get("prompt", "") if kwargs else ""
+        validation_results = kwargs.get("validation_results", []) if kwargs else []
+        execution_time = float(kwargs.get("execution_time", 0.0)) if kwargs else 0.0
+        attempt_count = int(kwargs.get("attempt_count", 1)) if kwargs else 1
+
         return ChainResult(
             passed=passed,
             message=message,
@@ -186,13 +193,17 @@ def create_generic_result(
             issues=issues or [],
             suggestions=suggestions or [],
             processing_time_ms=processing_time_ms or 0.0,
-            output=kwargs.get("output", "") if kwargs else "",
-            prompt=kwargs.get("prompt", "") if kwargs else "",
-            validation_results=kwargs.get("validation_results", []) if kwargs else "",
-            execution_time=kwargs.get("execution_time", 0.0) if kwargs else "",
-            attempt_count=kwargs.get("attempt_count", 1) if kwargs else "",
+            output=output,
+            prompt=prompt,
+            validation_results=validation_results,
+            execution_time=execution_time,
+            attempt_count=attempt_count,
         )
     elif component_type == "classifier":
+        # Extract and convert classifier-specific parameters
+        label = kwargs.get("label", None) if kwargs else None
+        confidence = float(kwargs.get("confidence", 1.0)) if kwargs else 1.0
+
         return ClassificationResult(
             passed=passed,
             message=message,
@@ -201,8 +212,8 @@ def create_generic_result(
             issues=issues or [],
             suggestions=suggestions or [],
             processing_time_ms=processing_time_ms or 0.0,
-            label=kwargs.get("label", None) if kwargs else "",
-            confidence=kwargs.get("confidence", 1.0) if kwargs else "",
+            label=label,
+            confidence=confidence,
         )
     elif component_type == "critic":
         return CriticMetadata(
@@ -231,11 +242,11 @@ def create_generic_result(
 def create_rule_result(
     passed: bool,
     message: str,
-    component_name: Optional[Optional[str]] = None,
+    component_name: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
-    severity: Optional[Optional[str]] = None,
-    rule_id: Optional[Optional[str]] = None,
-    cost: Optional[Optional[float]] = None,
+    severity: Optional[str] = None,
+    rule_id: Optional[str] = None,
+    cost: Optional[float] = None,
 ) -> RuleResult:
     """
     Create a standardized rule result.
@@ -293,11 +304,11 @@ def create_rule_result(
 def create_classification_result(
     label: R,
     confidence: float,
-    component_name: Optional[Optional[str]] = None,
+    component_name: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
-    threshold: Optional[Optional[float]] = None,
-    model_name: Optional[Optional[str]] = None,
-    processing_time: Optional[Optional[float]] = None,
+    threshold: Optional[float] = None,
+    model_name: Optional[str] = None,
+    processing_time: Optional[float] = None,
 ) -> ClassificationResult[Any, R]:
     """
     Create a standardized classification result.
@@ -350,19 +361,23 @@ def create_classification_result(
 
     # Create result using the standard result data
     return ClassificationResult[Any, R](
-        label=label, confidence=confidence, metadata=standard_result["metadata"]
+        label=label,
+        confidence=confidence,
+        metadata=standard_result["metadata"],
+        passed=True,  # Classification results are considered successful by default
+        message=f"Classification: {label} (confidence: {confidence:.2f})",
     )
 
 
 def create_critic_result(
     score: float,
     feedback: str,
-    component_name: Optional[Optional[str]] = None,
-    issues: Optional[Optional[List[str]]] = None,
-    suggestions: Optional[Optional[List[str]]] = None,
+    component_name: Optional[str] = None,
+    issues: Optional[List[str]] = None,
+    suggestions: Optional[List[str]] = None,
     metadata: Optional[Dict[str, Any]] = None,
-    model_name: Optional[Optional[str]] = None,
-    processing_time: Optional[Optional[float]] = None,
+    model_name: Optional[str] = None,
+    processing_time: Optional[float] = None,
 ) -> CriticMetadata:
     """
     Create a standardized critic result.
@@ -418,13 +433,15 @@ def create_critic_result(
         issues=issues or [],
         suggestions=suggestions or [],
         metadata=standard_result["metadata"],
+        passed=score >= 0.5,  # Consider scores above 0.5 as "passed"
+        message=feedback,  # Use feedback as the message
     )
 
 
 def create_error_result(
     message: str,
-    component_name: Optional[Optional[str]] = None,
-    error_type: Optional[Optional[str]] = None,
+    component_name: Optional[str] = None,
+    error_type: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
     severity: str = "error",
 ) -> RuleResult:
@@ -517,7 +534,7 @@ def create_error_result(
 
 
 def create_unknown_result(
-    component_name: Optional[Optional[str]] = None,
+    component_name: Optional[str] = None,
     reason: str = "unknown",
     metadata: Optional[Dict[str, Any]] = None,
 ) -> ClassificationResult[Any, str]:
@@ -603,7 +620,11 @@ def create_unknown_result(
 
     # Create result using the standard result data
     return ClassificationResult[Any, str](
-        label="unknown", confidence=0.0, metadata=standard_result["metadata"]
+        label="unknown",
+        confidence=0.0,
+        metadata=standard_result["metadata"],
+        passed=False,  # Unknown results are considered failures
+        message=f"Unknown classification: {reason}",
     )
 
 

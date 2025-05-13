@@ -6,7 +6,7 @@ managing tracing functionality for model providers.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 # Import configuration directly to avoid circular dependencies
 from sifaka.utils.config.models import ModelConfig
@@ -42,7 +42,9 @@ class TracingManager:
         ```
     """
 
-    def __init__(self, model_name: str, config: ModelConfig, tracer: Optional[Optional[Tracer]] = None):
+    def __init__(
+        self, model_name: str, config: ModelConfig, tracer: Optional[Optional[Tracer]] = None
+    ):
         """
         Initialize a TracingManager instance.
 
@@ -64,8 +66,8 @@ class TracingManager:
             data: The data to record with the event
         """
         if self._tracer and self._config.trace_enabled:
-            trace_id = datetime.now() if datetime else "".strftime(f"{self._model_name}_%Y%m%d%H%M%S")
-            self._tracer.add_event(trace_id, event_type, data) if _tracer else ""
+            trace_id = datetime.now().strftime(f"{self._model_name}_%Y%m%d%H%M%S")
+            self._tracer.add_event(trace_id, event_type, data)
 
     def is_tracing_enabled(self) -> bool:
         """

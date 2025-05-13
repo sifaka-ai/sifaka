@@ -80,6 +80,9 @@ The interfaces define consistent error handling patterns:
 from abc import abstractmethod
 from typing import Any, Dict, List, Optional, Protocol, TypeVar, runtime_checkable
 
+# Import ClassificationResult to fix the forward reference
+from sifaka.core.results import ClassificationResult
+
 
 @runtime_checkable
 class ClassifierImplementation(Protocol):
@@ -120,7 +123,7 @@ class ClassifierImplementation(Protocol):
     """
 
     @abstractmethod
-    def classify(self, text: str) -> "ClassificationResult":
+    def classify(self, text: str) -> ClassificationResult:
         """
         Classify the given text.
 
@@ -147,7 +150,7 @@ class ClassifierImplementation(Protocol):
         pass
 
     @abstractmethod
-    async def classify_async(self, text: str) -> "ClassificationResult":
+    async def classify_async(self, text: str) -> ClassificationResult:
         """
         Classify the given text asynchronously.
 
