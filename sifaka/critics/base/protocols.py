@@ -52,7 +52,9 @@ including handling of empty or invalid inputs, validation failures, and resource
 from typing import Any, Dict, Generic, List, Protocol, TypeVar, runtime_checkable
 
 from sifaka.utils.config.critics import CriticConfig
-from sifaka.critics.base.metadata import CriticMetadata
+
+# Import CriticMetadata from the correct location to avoid conflicts
+from sifaka.critics.base.metadata import CriticMetadata as BaseCriticMetadata
 
 # Input and output type variables with variance annotations
 T = TypeVar("T", contravariant=True)  # Input type (usually str) - contravariant
@@ -247,7 +249,8 @@ class TextCritic(Protocol[T, R]):
 
     ## Usage Examples
     ```python
-    from sifaka.critics.base.protocols import TextCritic, CriticMetadata
+    from sifaka.critics.base.protocols import TextCritic
+    from sifaka.critics.base.metadata import CriticMetadata
     from sifaka.utils.config.critics import CriticConfig
 
     class SimpleCritic:
@@ -332,6 +335,6 @@ class TextCritic(Protocol[T, R]):
             text: The text to critique
 
         Returns:
-            CriticMetadata containing the critique details
+            Critique metadata containing the critique details
         """
         ...

@@ -5,7 +5,7 @@ This module provides utility functions for models in the Sifaka framework,
 including error handling, result creation, and generation helpers.
 """
 
-from typing import Any, Dict, Optional, TypeVar, Callable, Union
+from typing import Any, Dict, Optional, TypeVar, Callable
 
 from .result import GenerationResult
 from sifaka.utils.errors.handling import try_operation
@@ -111,7 +111,7 @@ def create_error_result(
     error: Exception,
     model_name: str,
     log_level: str = "error",
-) -> Union[ErrorResult, GenerationResult]:
+) -> GenerationResult:
     """
     Create a result for a model error.
 
@@ -124,7 +124,7 @@ def create_error_result(
         log_level: Log level to use (default: "error")
 
     Returns:
-        Error result or generation result with error information
+        Generation result with error information
     """
     # Handle the error
     error_result = create_model_error_result(
@@ -153,7 +153,7 @@ def try_generate(
     generation_func: Callable[[], T],
     model_name: str,
     log_level: str = "error",
-    default_result: Optional[Optional[T]] = None,
+    default_result: Optional[T] = None,
 ) -> T:
     """
     Execute a generation function with standardized error handling.

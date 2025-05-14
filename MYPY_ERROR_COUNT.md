@@ -62,3 +62,5 @@ This document tracks the progress of fixing mypy errors in the Sifaka codebase.
 | 2023-11-22 | 48 | 1,754 | 1,069 |
 | 2023-11-23 | 49 | 1,754 | 1,063 |
 | 2023-11-24 | 50 | 1,754 | 833 |
+| 2023-11-25 | 51 | 1,754 | 827 |
+| 2023-11-26 | 52 | 1,754 | 972 |

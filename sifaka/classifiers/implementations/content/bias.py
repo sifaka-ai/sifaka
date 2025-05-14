@@ -115,6 +115,7 @@ from sifaka.core.results import ClassificationResult
 from sifaka.utils.config.classifiers import ClassifierConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.config.classifiers import extract_classifier_config_params
+from sifaka.utils.state import StateManager
 
 logger = get_logger(__name__)
 
@@ -230,7 +231,7 @@ class BiasDetector(Classifier):
     DEFAULT_COST: ClassVar[float] = 2.5
 
     # State management
-    _state_manager = PrivateAttr(default_factory=lambda: {})
+    _state_manager: StateManager = PrivateAttr(default_factory=StateManager)
 
     # Default keywords for each bias category to enhance detection
     DEFAULT_BIAS_KEYWORDS: ClassVar[Dict[str, List[str]]] = {
@@ -364,7 +365,7 @@ class BiasDetector(Classifier):
             RuntimeError: If model initialization fails
         """
         # Check if already initialized
-        if self._state_manager.get("initialized", False):
+        if self._state_manager is not None and self._state_manager.get("initialized", False):
             return
 
         # Load dependencies
@@ -461,22 +462,32 @@ class BiasDetector(Classifier):
             IOError: If the file cannot be written
         """
         # Check if initialized
-        if not self._state_manager or not self._state_manager.get("initialized", False):
+        if self._state_manager is None or not self._state_manager.get("initialized", False):
             raise RuntimeError("Model not initialized")
 
         with open(path, "wb") as f:
             pickle.dump(
                 {
                     "vectorizer": (
-                        self._state_manager.get("vectorizer") if self._state_manager else None
+                        self._state_manager.get("vectorizer")
+                        if self._state_manager is not None
+                        else None
                     ),
-                    "model": self._state_manager.get("model") if self._state_manager else None,
+                    "model": (
+                        self._state_manager.get("model")
+                        if self._state_manager is not None
+                        else None
+                    ),
                     "pipeline": (
-                        self._state_manager.get("pipeline") if self._state_manager else None
+                        self._state_manager.get("pipeline")
+                        if self._state_manager is not None
+                        else None
                     ),
-                    "config_params": self.config.params if self.config else None,
+                    "config_params": self.config.params if self.config is not None else None,
                     "feature_names": (
-                        self._state_manager.get("feature_names") if self._state_manager else None
+                        self._state_manager.get("feature_names")
+                        if self._state_manager is not None
+                        else None
                     ),
                 },
                 f,
@@ -500,27 +511,27 @@ class BiasDetector(Classifier):
         """
         with open(path, "rb") as f:
             data = pickle.load(f)
-            if self._state_manager:
+            if self._state_manager is not None:
                 self._state_manager.update("vectorizer", data["vectorizer"])
                 self._state_manager.update("model", data["model"])
                 self._state_manager.update("pipeline", data["pipeline"])
 
             # Load feature names if available
-            if "feature_names" in data and self._state_manager:
+            if "feature_names" in data and self._state_manager is not None:
                 self._state_manager.update("feature_names", data["feature_names"])
 
             # Update config params if available in the saved model
-            if "config_params" in data and self.config:
+            if "config_params" in data and self.config is not None:
                 # Create a new config with the loaded params
                 self.config = ClassifierConfig(
-                    labels=self.config.labels if self.config else [],
-                    cost=self.config.cost if self.config else 0.0,
-                    min_confidence=self.config.min_confidence if self.config else 0.7,
+                    labels=self.config.labels if self.config is not None else [],
+                    cost=self.config.cost if self.config is not None else 0.0,
+                    min_confidence=self.config.min_confidence if self.config is not None else 0.7,
                     params=data["config_params"],
                 )
 
             # Mark as initialized
-            if self._state_manager:
+            if self._state_manager is not None:
                 self._state_manager.update("initialized", True)
 
     def fit(self, texts: List[str], labels: List[str]) -> "BiasDetector":
@@ -547,7 +558,7 @@ class BiasDetector(Classifier):
 
         # Load scikit-learn dependencies
         sklearn = self._load_dependencies()
-        if self._state_manager:
+        if self._state_manager is not None:
             self._state_manager.update("dependencies_loaded", True)
 
         # Get configuration from params
@@ -707,15 +718,15 @@ class BiasDetector(Classifier):
             RuntimeError: If the model is not initialized
         """
         # Check if initialized
-        if not self._state_manager or not self._state_manager.get("initialized", False):
+        if self._state_manager is None or not self._state_manager.get("initialized", False):
             self.warm_up()
 
         # Check if still not initialized
-        if not self._state_manager or not self._state_manager.get("initialized", False):
+        if self._state_manager is None or not self._state_manager.get("initialized", False):
             raise RuntimeError("Model not initialized")
 
         # Get prediction and probability
-        pipeline = self._state_manager.get("pipeline") if self._state_manager else None
+        pipeline = self._state_manager.get("pipeline") if self._state_manager is not None else None
         if not pipeline:
             raise RuntimeError("Pipeline not initialized")
 
@@ -728,10 +739,12 @@ class BiasDetector(Classifier):
 
         # Get explanations from cache
         explanations = {}
-        if self._state_manager:
-            explanations = (
-                self._state_manager.get("cache", {}).get("explanations", {}).get(label, {})
-            )
+        if self._state_manager is not None:
+            cache = self._state_manager.get("cache", {})
+            if cache:
+                explanations_dict = cache.get("explanations", {})
+                if explanations_dict and label in explanations_dict:
+                    explanations = explanations_dict.get(label, {})
 
         result = ClassificationResult(
             label=label,
@@ -743,7 +756,7 @@ class BiasDetector(Classifier):
         )
 
         # Track statistics
-        if self._state_manager:
+        if self._state_manager is not None:
             stats = self._state_manager.get("statistics", {})
             stats[label] = stats.get(label, 0) + 1
             self._state_manager.update("statistics", stats)
@@ -772,11 +785,11 @@ class BiasDetector(Classifier):
             ValueError: If an empty list is provided
         """
         # Check if initialized
-        if not self._state_manager or not self._state_manager.get("initialized", False):
+        if self._state_manager is None or not self._state_manager.get("initialized", False):
             self.warm_up()
 
         # Check if still not initialized
-        pipeline = self._state_manager.get("pipeline") if self._state_manager else None
+        pipeline = self._state_manager.get("pipeline") if self._state_manager is not None else None
         if not pipeline:
             raise RuntimeError(
                 "Model not initialized. You must either provide a model_path or call fit() before classification."
@@ -809,10 +822,12 @@ class BiasDetector(Classifier):
 
             # Get explanations from cache
             explanations = {}
-            if self._state_manager:
-                explanations = (
-                    self._state_manager.get("cache", {}).get("explanations", {}).get(label, {})
-                )
+            if self._state_manager is not None:
+                cache = self._state_manager.get("cache", {})
+                if cache:
+                    explanations_dict = cache.get("explanations", {})
+                    if explanations_dict and label in explanations_dict:
+                        explanations = explanations_dict.get(label, {})
 
             metadata = {
                 "probabilities": all_probs,
@@ -831,7 +846,7 @@ class BiasDetector(Classifier):
             )
 
             # Track statistics for this label
-            if self._state_manager:
+            if self._state_manager is not None:
                 stats = self._state_manager.get("statistics", {})
                 stats[label] = stats.get(label, 0) + 1
                 self._state_manager.update("statistics", stats)
@@ -873,10 +888,12 @@ class BiasDetector(Classifier):
 
         # Extract the features that contributed to this bias type
         explanation = {}
-        if self._state_manager:
-            explanations = self._state_manager.get("cache", {}).get("explanations", {})
-            if explanations and bias_type in explanations:
-                explanation = explanations[bias_type]
+        if self._state_manager is not None:
+            cache = self._state_manager.get("cache", {})
+            if cache:
+                explanations = cache.get("explanations", {})
+                if explanations and bias_type in explanations:
+                    explanation = explanations[bias_type]
 
         # Get bias-specific features
         bias_features = self._extract_bias_features(text)
@@ -916,43 +933,49 @@ class BiasDetector(Classifier):
         stats = {
             # Classification counts by label
             "classifications": (
-                self._state_manager.get("statistics", {}) if self._state_manager else {}
+                self._state_manager.get("statistics", {}) if self._state_manager is not None else {}
             ),
             # Number of errors encountered
-            "error_count": len(self._state_manager.get("errors", [])) if self._state_manager else 0,
+            "error_count": (
+                len(self._state_manager.get("errors", [])) if self._state_manager is not None else 0
+            ),
             # Cache information
             "cache_enabled": (
                 self.config.cache_size > 0
-                if self.config and hasattr(self.config, "cache_size")
+                if self.config is not None and hasattr(self.config, "cache_size")
                 else False
             ),
             "cache_size": (
-                self.config.cache_size if self.config and hasattr(self.config, "cache_size") else 0
+                self.config.cache_size
+                if self.config is not None and hasattr(self.config, "cache_size")
+                else 0
             ),
             # State initialization status
             "initialized": (
-                self._state_manager.get("initialized", False) if self._state_manager else False
+                self._state_manager.get("initialized", False)
+                if self._state_manager is not None
+                else False
             ),
             # Model information
             "model_path": (
                 self.config.params.get("model_path")
-                if self.config and hasattr(self.config, "params")
+                if self.config is not None and hasattr(self.config, "params")
                 else None
             ),
             "max_features": (
                 self.config.params.get("max_features", 3000)
-                if self.config and hasattr(self.config, "params")
+                if self.config is not None and hasattr(self.config, "params")
                 else 3000
             ),
             "random_state": (
                 self.config.params.get("random_state", 42)
-                if self.config and hasattr(self.config, "params")
+                if self.config is not None and hasattr(self.config, "params")
                 else 42
             ),
         }
 
         # Add feature information if available
-        if self._state_manager:
+        if self._state_manager is not None:
             feature_names = self._state_manager.get("feature_names")
             if feature_names:
                 stats["feature_count"] = feature_names.get("count", 0)
@@ -975,7 +998,7 @@ class BiasDetector(Classifier):
             self._result_cache.clear()
 
         # Reset statistics if state manager exists
-        if self._state_manager:
+        if self._state_manager is not None:
             self._state_manager.update("statistics", {})
 
             # Reset errors list but keep model components and initialized status

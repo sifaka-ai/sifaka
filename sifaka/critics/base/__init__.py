@@ -1,4 +1,5 @@
-from typing import Optional, Any, List
+from typing import Any, List
+
 """
 Base module for critics.
 
@@ -32,7 +33,10 @@ improvement system.
 
 ## Usage Examples
 ```python
-from sifaka.critics.base import BaseCritic, Critic, CriticMetadata, create_critic
+from sifaka.critics.base.abstract import BaseCritic
+from sifaka.critics.base.implementation import Critic
+from sifaka.critics.base.metadata import CriticMetadata
+from sifaka.critics.base.factories import create_critic
 
 # Create a custom critic
 class MyCritic(BaseCritic[str]):
@@ -91,6 +95,16 @@ from .metadata import CriticMetadata, CriticOutput, CriticResultEnum
 from .abstract import BaseCritic
 from .implementation import Critic
 from .factories import create_critic, create_basic_critic
-__all__: List[Any] = ['TextValidator', 'TextImprover', 'TextCritic',
-    'CriticMetadata', 'CriticOutput', 'CriticResultEnum', 'BaseCritic',
-    'Critic', 'create_critic', 'create_basic_critic']
+
+__all__: List[Any] = [
+    "TextValidator",
+    "TextImprover",
+    "TextCritic",
+    "CriticMetadata",
+    "CriticOutput",
+    "CriticResultEnum",
+    "BaseCritic",
+    "Critic",
+    "create_critic",
+    "create_basic_critic",
+]

@@ -50,7 +50,7 @@ The functions handle:
 - Configuration validation
 """
 
-from typing import Any, Optional, Type, TypeVar
+from typing import Any, Optional, Type, TypeVar, cast
 
 from sifaka.utils.config.critics import CriticConfig
 from sifaka.critics.base.abstract import BaseCritic
@@ -169,7 +169,9 @@ def create_critic(
         raise TypeError(f"critic_class must be a subclass of BaseCritic, got {critic_class}")
 
     # Create and return critic instance
-    return critic_class(name, description, config)
+    # Use explicit cast to satisfy mypy type checking
+    instance = critic_class(name, description, config)
+    return cast(C, instance)
 
 
 def create_basic_critic(
@@ -234,11 +236,14 @@ def create_basic_critic(
     Raises:
         ValueError: If configuration is invalid
     """
-    return create_critic(
-        Critic,
+    # Create a config
+    config = CriticConfig(
         name=name,
         description=description,
         min_confidence=min_confidence,
         max_attempts=max_attempts,
-        **kwargs,
+        params=kwargs,
     )
+
+    # Directly instantiate Critic to avoid type issues
+    return Critic(name, description, config)

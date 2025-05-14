@@ -5,9 +5,9 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 ## Current Status
 
 - **Total files with errors**: 70
-- **Files fixed**: 55
-- **Remaining files**: 15
-- **Current error count**: 802
+- **Files fixed**: 61
+- **Remaining files**: 9
+- **Current error count**: 1177
 
 ## Error Categories and Solutions
 
@@ -142,8 +142,8 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 **Focus**: Fix remaining errors and ensure consistency
 
 **Files to address**:
-- [ ] sifaka/critics/base/metadata.py
-- [ ] sifaka/models/utils.py
+- [x] sifaka/critics/base/metadata.py
+- [x] sifaka/models/utils.py
 - [x] sifaka/utils/results.py (partially fixed)
 - [ ] sifaka/core/base.py
 - [ ] sifaka/adapters/chain/formatter.py
@@ -197,9 +197,9 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 - [x] sifaka/utils/config/state.py (Low Priority)
 - [x] sifaka/utils/config/validators.py (Low Priority)
 
-### Models (0/9 completed)
+### Models (1/9 completed)
 
-- [ ] sifaka/models/utils.py (Medium Priority)
+- [x] sifaka/models/utils.py (Medium Priority)
 - [ ] sifaka/models/managers/tracing.py (Low Priority)
 - [x] sifaka/models/managers/client.py (High Priority, partially fixed)
 - [ ] sifaka/models/managers/openai_token_counter.py (Low Priority)
@@ -209,13 +209,13 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 - [ ] sifaka/models/providers/gemini.py (Low Priority)
 - [ ] sifaka/models/factories.py (Medium Priority)
 
-### Critics (1/6 completed)
+### Critics (3/6 completed)
 
-- [x] sifaka/critics/base/metadata.py
-- [ ] sifaka/critics/base/protocols.py (High Priority)
+- [x] sifaka/critics/base/metadata.py (Medium Priority)
+- [x] sifaka/critics/base/protocols.py (High Priority)
 - [ ] sifaka/critics/core.py (High Priority)
 - [ ] sifaka/critics/implementations/reflexion.py (Medium Priority)
-- [ ] sifaka/critics/implementations/self_rag.py (Medium Priority)
+- [x] sifaka/critics/implementations/self_rag.py (Medium Priority)
 - [ ] sifaka/critics/implementations/lac.py (Medium Priority)
 
 ### Chain (0/7 completed)
@@ -253,10 +253,10 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 ## Progress Summary
 
 - **Total files with errors**: 112
-- **Files fixed**: 50 (44.6%)
-- **Remaining files**: 62 (55.4%)
-- **High priority files fixed**: 11/25 (44%)
-- **Medium priority files fixed**: 37/59 (62.7%)
+- **Files fixed**: 55 (49.1%)
+- **Remaining files**: 57 (50.9%)
+- **High priority files fixed**: 12/25 (48%)
+- **Medium priority files fixed**: 41/59 (69.5%)
 - **Low priority files fixed**: 2/16 (12.5%)
 
 ## Common Error Patterns and Solutions
@@ -346,3 +346,9 @@ if isinstance(result, dict):  # Fixed: Type guard
 29. `sifaka/chain/state.py` - Fixed conditional expressions using 'and' operators in docstring examples and class methods
 30. `sifaka/chain/interfaces.py` - Fixed incompatible types in async methods by properly using asyncio.get_running_loop() and ensuring proper return types
 31. `sifaka/utils/errors/safe_execution.py` - Fixed returning Any from function declared to return "Union[T, ErrorResult]" by adding explicit type annotations
+32. `sifaka/critics/base/protocols.py` - Fixed import conflicts with CriticMetadata class by using aliased imports and updating docstrings
+33. `sifaka/critics/base/factories.py` - Fixed type errors in create_critic and create_basic_critic functions by using explicit type casting and direct instantiation
+34. `sifaka/critics/base/__init__.py` - Fixed circular import issues by importing directly from implementation modules instead of from the package itself
+35. `sifaka/critics/base/metadata.py` - Fixed return type in `with_extra` method to use proper generic type annotation and improved example code in docstring to avoid type errors
+36. `sifaka/models/utils.py` - Fixed return type in `create_error_result` function to use specific type instead of union type, removed double Optional in `try_generate` function, and removed unused Union import
+37. `sifaka/critics/implementations/self_rag.py` - Fixed conditional expressions using 'and' operators, fixed return types in functions that return Any but should return str, and fixed type compatibility issues with SelfRAGCriticConfig

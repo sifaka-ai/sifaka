@@ -154,7 +154,7 @@ class CriticMetadata(Generic[R]):
         if self.processing_time_ms < 0:
             raise ValueError("processing_time_ms must be non-negative")
 
-    def with_extra(self, **kwargs: Any) -> Any:
+    def with_extra(self, **kwargs: Any) -> "CriticMetadata[R]":
         """Create a new metadata with additional extra data.
 
         This method creates a new CriticMetadata instance with additional
@@ -172,13 +172,15 @@ class CriticMetadata(Generic[R]):
                 score=0.8,
                 feedback="Good text"
             )
-            new_metadata = metadata.with_extra(
-                processing_time_ms=100.0,
-                attempt_number=2
-            ) if metadata else ""
+            # Create a new metadata object with additional values
+            if metadata:
+                new_metadata = metadata.with_extra(
+                    processing_time_ms=100.0,
+                    attempt_number=2
+                )
             ```
         """
-        new_extra: Dict[Any, Any] = {**self.extra, **kwargs}
+        new_extra: Dict[str, Any] = {**self.extra, **kwargs}
         return CriticMetadata(
             score=self.score,
             feedback=self.feedback,

@@ -250,8 +250,9 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
             # Create a new SelfRAGCriticConfig from the updated dict
             from sifaka.utils.config.critics import SelfRAGCriticConfig
 
-            # Cast to BaseConfig to satisfy type checker
-            config = cast(BaseConfig, SelfRAGCriticConfig(**config_dict))
+            # Create the config and cast to BaseConfig to satisfy type checker
+            critic_config = SelfRAGCriticConfig.model_validate(config_dict)
+            config = cast(BaseConfig, critic_config)
 
         # Initialize base component
         super().__init__(name=name, description=description, config=config)
@@ -456,7 +457,7 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        self._check_input(text) if self else ""
+        self._check_input(text)
 
         # For SelfRAG, validation is always True as it focuses on improvement
         return True
@@ -536,18 +537,19 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
         """
         # This implementation uses metadata instead of direct feedback parameter
         metadata = {"task": "Improve the text"} if not feedback else {"task": feedback}
-        self._check_input(text) if self else ""
+        self._check_input(text)
 
         # Get task from metadata
-        task = self._get_task_from_metadata(metadata) if self else ""
+        task = self._get_task_from_metadata(metadata)
 
         # Run the full Self-RAG process
-        result = self.run(task, text, metadata) if self else ""
+        result = self.run(task, text, metadata)
 
         # Return the improved response
-        if isinstance(result, dict):
-            return result.get("response", text)
-        return text
+        if isinstance(result, dict) and "response" in result:
+            response = result.get("response", "")
+            return str(response)
+        return str(text)
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
         """
@@ -585,14 +587,20 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
 
         # Generate improved response
         model = self._state_manager.get("model")
-        improved_text = model.generate(
+        result = model.generate(
             generation_prompt,
             system_prompt=cache.get("system_prompt", ""),
             temperature=cache.get("temperature", 0.7),
             max_tokens=cache.get("max_tokens", 1000),
-        ).strip()
+        )
 
-        return improved_text
+        # Ensure we return a string
+        if isinstance(result, str):
+            return result.strip()
+        elif hasattr(result, "output"):
+            return str(result.output).strip()
+        else:
+            return str(result).strip()
 
     def run(
         self,
@@ -767,9 +775,12 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
         metadata = {"task": "Improve the text"} if not feedback else {"task": feedback}
         task = self._get_task_from_metadata(metadata)
         result = await self.arun(task, text, metadata)
+
+        # Ensure we return a string
         if isinstance(result, dict):
-            return result.get("response", text)
-        return text
+            response = result.get("response", text)
+            return str(response)
+        return str(text)
 
     async def arun(
         self,
@@ -899,10 +910,12 @@ def create_self_rag_critic(
         TypeError: If llm_provider or retriever is not a valid provider
     """
     try:
+        # Import the config class
+        from sifaka.utils.config.critics import SelfRAGCriticConfig
+
         # Create config if not provided
         if config is None:
             from sifaka.utils.config.critics import DEFAULT_SELF_RAG_CRITIC_CONFIG
-
             from copy import deepcopy
 
             # Create a copy of the default config
@@ -942,22 +955,26 @@ def create_self_rag_critic(
             # Update config with all updates
             config_dict.update(updates)
 
-            # Create a new config object
-            from sifaka.utils.config.critics import SelfRAGCriticConfig
-
-            config = cast(BaseConfig, SelfRAGCriticConfig(**config_dict))
+            # Create the config and cast to BaseConfig
+            critic_config = SelfRAGCriticConfig.model_validate(config_dict)
+            final_config = cast(BaseConfig, critic_config)
         elif isinstance(config, dict):
-            from sifaka.utils.config.critics import SelfRAGCriticConfig
+            # Create the config from dict and cast to BaseConfig
+            critic_config = SelfRAGCriticConfig.model_validate(config)
+            final_config = cast(BaseConfig, critic_config)
+        elif isinstance(config, SelfRAGCriticConfig):
+            # Use the provided config directly
+            final_config = cast(BaseConfig, config)
+        else:
+            # Use the provided config as is
+            final_config = cast(BaseConfig, config)
 
-            config = cast(BaseConfig, SelfRAGCriticConfig(**config))
-
-        # Create and return the critic
         return SelfRAGCritic(
             name=name,
             description=description,
             llm_provider=llm_provider,
             retriever=retriever,
-            config=config,
+            config=final_config,
         )
     except Exception as e:
         raise ValueError(f"Failed to create Self-RAG critic: {str(e)}") from e
