@@ -140,6 +140,8 @@ class ClientManager(Generic[C]):
         if self._api_client is None:
             logger.debug(f"Creating default API client for {self._model_name}")
             self._api_client = self._create_default_client()
+        if self._api_client is None:
+            raise RuntimeError(f"Failed to create API client for {self._model_name}")
         return self._api_client
 
     @abstractmethod

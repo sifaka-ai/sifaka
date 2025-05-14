@@ -111,7 +111,7 @@ def create_generic_result(
     suggestions: Optional[List[str]] = None,
     processing_time_ms: Optional[float] = None,
     **kwargs: Any,
-) -> Union[ChainResult, ClassificationResult, CriticMetadata, BaseResult[Any]]:
+) -> Union[ChainResult, ClassificationResult[Any, Any], CriticMetadata, BaseResult[Any]]:
     """
     Create a standardized result for any component.
 
@@ -204,7 +204,7 @@ def create_generic_result(
         label = kwargs.get("label", None) if kwargs else None
         confidence = float(kwargs.get("confidence", 1.0)) if kwargs else 1.0
 
-        return ClassificationResult(
+        return ClassificationResult[Any, Any](
             passed=passed,
             message=message,
             metadata=metadata or {},

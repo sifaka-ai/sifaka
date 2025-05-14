@@ -5,9 +5,9 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 ## Current Status
 
 - **Total files with errors**: 70
-- **Files fixed**: 52
-- **Remaining files**: 18
-- **Current error count**: 824
+- **Files fixed**: 55
+- **Remaining files**: 15
+- **Current error count**: 802
 
 ## Error Categories and Solutions
 
@@ -131,9 +131,9 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 - [x] sifaka/utils/errors/safe_execution.py
 - [x] sifaka/core/results.py
 - [x] sifaka/chain/state.py
-- [ ] sifaka/utils/results.py
-- [ ] sifaka/models/managers/client.py
-- [ ] sifaka/critics/core.py
+- [x] sifaka/utils/results.py (partially fixed)
+- [x] sifaka/models/managers/client.py (partially fixed)
+- [x] sifaka/critics/core.py (partially fixed)
 
 **Expected outcome**: Resolve approximately 20-30% of type errors
 
@@ -144,7 +144,7 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 **Files to address**:
 - [ ] sifaka/critics/base/metadata.py
 - [ ] sifaka/models/utils.py
-- [ ] sifaka/utils/results.py
+- [x] sifaka/utils/results.py (partially fixed)
 - [ ] sifaka/core/base.py
 - [ ] sifaka/adapters/chain/formatter.py
 - [ ] sifaka/rules/content/safety.py
@@ -201,7 +201,7 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 
 - [ ] sifaka/models/utils.py (Medium Priority)
 - [ ] sifaka/models/managers/tracing.py (Low Priority)
-- [ ] sifaka/models/managers/client.py (High Priority)
+- [x] sifaka/models/managers/client.py (High Priority, partially fixed)
 - [ ] sifaka/models/managers/openai_token_counter.py (Low Priority)
 - [ ] sifaka/models/services/generation.py (Medium Priority)
 - [ ] sifaka/models/base/factory.py (Medium Priority)

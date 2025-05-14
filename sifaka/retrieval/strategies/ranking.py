@@ -43,7 +43,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
-from sifaka.core.base import BaseComponent
+from sifaka.core.base import BaseComponent, BaseConfig
 from sifaka.utils.errors.component import RetrievalError
 from sifaka.utils.errors.base import InputError
 from sifaka.utils.errors.handling import handle_error
@@ -131,14 +131,17 @@ class RankingStrategy(BaseComponent, ABC):
         self._state_manager.update("last_result_count", 0)
 
     @property
-    def config(self) -> RankingConfig:
+    def config(self) -> BaseConfig:
         """
         Get the ranking configuration.
 
         Returns:
             The ranking configuration
         """
-        return self._state_manager.get("config")
+        config = self._state_manager.get("config")
+        if config is None:
+            return BaseConfig(name=self.name, description=self.description)
+        return config
 
     @config.setter
     def config(self, config: RankingConfig) -> None:
@@ -158,26 +161,25 @@ class RankingStrategy(BaseComponent, ABC):
             )
         self._state_manager.update("config", config)
 
-    def process(self, input_data: Any, **kwargs: Any) -> Any:
+    def process(self, input: Any) -> Any:
         """
         Process input data.
 
         This method is required by the BaseComponent abstract class.
 
         Args:
-            input_data: The input data to process
-            **kwargs: Additional processing parameters
+            input: The input data to process
 
         Returns:
             The processed data
         """
-        if isinstance(input_data, tuple) and len(input_data) == 2:
-            query, documents = input_data
-            return self.rank(query, documents, **kwargs) if self else ""
+        if isinstance(input, tuple) and len(input) == 2:
+            query, documents = input
+            return self.rank(query, documents) if self else ""
         else:
             raise InputError(
                 "Input data must be a tuple of (query, documents)",
-                metadata={"input_type": type(input_data).__name__},
+                metadata={"input_type": type(input).__name__},
             )
 
     @abstractmethod
@@ -225,7 +227,7 @@ class RankingStrategy(BaseComponent, ABC):
         self._state_manager.set_metadata("last_ranking_start_time", time.time())
 
         # Subclasses should implement the actual ranking logic
-        pass
+        return []  # This will never be reached in abstract method, but satisfies mypy
 
     def _update_execution_stats(self, execution_time_ms: float, result_count: int) -> None:
         """
@@ -268,7 +270,7 @@ class RankingStrategy(BaseComponent, ABC):
             "max_execution_time_ms": self._state_manager.get_metadata("max_execution_time_ms", 0),
             "avg_result_count": self._state_manager.get_metadata("avg_result_count", 0),
             "last_result_count": self._state_manager.get("last_result_count", 0),
-            "top_k": self.config.top_k,
+            "top_k": getattr(self.config, "top_k", 5),
         }
 
 

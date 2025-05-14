@@ -163,9 +163,9 @@ class CriticCore(BaseCritic[str]):
         self,
         config: CriticConfig,
         llm_provider: "ModelProviderCore",
-        prompt_manager: Optional[Optional["PromptManager"]] = None,
-        response_parser: Optional[Optional["ResponseParser"]] = None,
-        memory_manager: Optional[Optional["MemoryManager"]] = None,
+        prompt_manager: Optional["PromptManager"] = None,
+        response_parser: Optional["ResponseParser"] = None,
+        memory_manager: Optional["MemoryManager"] = None,
     ):
         """Initialize a CriticCore instance.
 
@@ -259,7 +259,8 @@ class CriticCore(BaseCritic[str]):
             ```
         """
         # Ensure initialized
-        if not self._state_manager.get("initialized", False):
+        initialized = self._state_manager.get("initialized")
+        if not initialized:
             raise RuntimeError("CriticCore not properly initialized")
 
         # Get critique service from state
@@ -334,7 +335,8 @@ class CriticCore(BaseCritic[str]):
             ```
         """
         # Ensure initialized
-        if not self._state_manager.get("initialized", False):
+        initialized = self._state_manager.get("initialized")
+        if not initialized:
             raise RuntimeError("CriticCore not properly initialized")
 
         # Get critique service from state
@@ -413,7 +415,7 @@ class CriticCore(BaseCritic[str]):
         # Return original text if no improvement
         return str(text)
 
-    def critique(self, text: str) -> BaseResult:
+    def critique(self, text: str) -> BaseResult[Any]:
         """
         Critique text and provide detailed feedback.
 
@@ -451,7 +453,8 @@ class CriticCore(BaseCritic[str]):
             ```
         """
         # Ensure initialized
-        if not self._state_manager.get("initialized", False):
+        initialized = self._state_manager.get("initialized")
+        if not initialized:
             raise RuntimeError("CriticCore not properly initialized")
 
         # Get critique service from state
@@ -494,7 +497,7 @@ class CriticCore(BaseCritic[str]):
         self._state_manager.set_metadata("avg_critique_time", new_avg)
 
         if critique is None:
-            return BaseResult(
+            return BaseResult[Any](
                 passed=False,
                 message="Failed to generate critique",
                 score=0.0,
@@ -510,7 +513,7 @@ class CriticCore(BaseCritic[str]):
         self._state_manager.set_metadata("score_distribution", score_distribution)
 
         # Convert CriticMetadata to BaseResult
-        return BaseResult(
+        return BaseResult[Any](
             passed=critique.score >= 0.5,
             message=critique.feedback,
             score=critique.score,
@@ -551,7 +554,8 @@ class CriticCore(BaseCritic[str]):
             ```
         """
         # Ensure initialized
-        if not self._state_manager.get("initialized", False):
+        initialized = self._state_manager.get("initialized")
+        if not initialized:
             raise RuntimeError("CriticCore not properly initialized")
 
         # Get critique service from state
