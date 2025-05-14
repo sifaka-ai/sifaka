@@ -206,7 +206,10 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                 try:
                     min_conf_val = config_dict.get("min_confidence")
                     if min_conf_val is not None:
-                        min_confidence = float(min_conf_val)
+                        if isinstance(min_conf_val, (int, float)):
+                            min_confidence = float(min_conf_val)
+                        elif isinstance(min_conf_val, str):
+                            min_confidence = float(min_conf_val)
                 except (ValueError, TypeError):
                     pass
 
@@ -214,7 +217,10 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                 try:
                     max_att_val = config_dict.get("max_attempts")
                     if max_att_val is not None:
-                        max_attempts = int(max_att_val)
+                        if isinstance(max_att_val, (int, float)):
+                            max_attempts = int(max_att_val)
+                        elif isinstance(max_att_val, str):
+                            max_attempts = int(max_att_val)
                 except (ValueError, TypeError):
                     pass
 
@@ -222,7 +228,10 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                 try:
                     cache_val = config_dict.get("cache_size")
                     if cache_val is not None:
-                        cache_size = int(cache_val)
+                        if isinstance(cache_val, (int, float)):
+                            cache_size = int(cache_val)
+                        elif isinstance(cache_val, str):
+                            cache_size = int(cache_val)
                 except (ValueError, TypeError):
                     pass
 
@@ -230,7 +239,10 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                 try:
                     priority_val = config_dict.get("priority")
                     if priority_val is not None:
-                        priority = int(priority_val)
+                        if isinstance(priority_val, (int, float)):
+                            priority = int(priority_val)
+                        elif isinstance(priority_val, str):
+                            priority = int(priority_val)
                 except (ValueError, TypeError):
                     pass
 
@@ -238,7 +250,10 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                 try:
                     cost_val = config_dict.get("cost")
                     if cost_val is not None:
-                        cost = float(cost_val)
+                        if isinstance(cost_val, (int, float)):
+                            cost = float(cost_val)
+                        elif isinstance(cost_val, str):
+                            cost = float(cost_val)
                 except (ValueError, TypeError):
                     pass
 
@@ -262,7 +277,10 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                 try:
                     temp_val = config_dict.get("temperature")
                     if temp_val is not None:
-                        temperature = float(temp_val)
+                        if isinstance(temp_val, (int, float)):
+                            temperature = float(temp_val)
+                        elif isinstance(temp_val, str):
+                            temperature = float(temp_val)
                 except (ValueError, TypeError):
                     pass
 
@@ -270,7 +288,10 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                 try:
                     max_tok_val = config_dict.get("max_tokens")
                     if max_tok_val is not None:
-                        max_tokens = int(max_tok_val)
+                        if isinstance(max_tok_val, (int, float)):
+                            max_tokens = int(max_tok_val)
+                        elif isinstance(max_tok_val, str):
+                            max_tokens = int(max_tok_val)
                 except (ValueError, TypeError):
                     pass
 
@@ -278,7 +299,10 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                 try:
                     max_iter_val = config_dict.get("max_iterations")
                     if max_iter_val is not None:
-                        max_iterations = int(max_iter_val)
+                        if isinstance(max_iter_val, (int, float)):
+                            max_iterations = int(max_iter_val)
+                        elif isinstance(max_iter_val, str):
+                            max_iterations = int(max_iter_val)
                 except (ValueError, TypeError):
                     pass
 
@@ -294,7 +318,10 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                 try:
                     mem_buf_val = config_dict.get("memory_buffer_size")
                     if mem_buf_val is not None:
-                        memory_buffer_size = int(mem_buf_val)
+                        if isinstance(mem_buf_val, (int, float)):
+                            memory_buffer_size = int(mem_buf_val)
+                        elif isinstance(mem_buf_val, str):
+                            memory_buffer_size = int(mem_buf_val)
                 except (ValueError, TypeError):
                     pass
 
@@ -320,7 +347,10 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                     params = params_val
 
                 # Create the config with proper typing
-                config = SelfRefineCriticConfig(
+                from sifaka.utils.config.critics import standardize_critic_config
+
+                config = standardize_critic_config(
+                    config_class=SelfRefineCriticConfig,
                     name=name,
                     description=description,
                     min_confidence=min_confidence,
@@ -856,10 +886,10 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             # Track performance
             if hasattr(self, "config") and self.config.track_performance:
                 total_time = self._state_manager.get_metadata("total_improvement_time_ms", 0.0)
-                elapsed_time = time.time() - start_time
+                elapsed_time = float(time.time() - start_time)
                 self._state_manager.set_metadata(
                     "total_improvement_time_ms",
-                    total_time + (float(elapsed_time) * 1000),
+                    float(total_time) + (elapsed_time * 1000),
                 )
 
             return str(current_output)
@@ -1114,7 +1144,11 @@ def create_self_refine_critic(
 
             # Start with default config
             if isinstance(DEFAULT_SELF_REFINE_CRITIC_CONFIG, dict):
-                config = SelfRefineCriticConfig(**DEFAULT_SELF_REFINE_CRITIC_CONFIG)
+                from sifaka.utils.config.critics import standardize_critic_config
+
+                config = standardize_critic_config(
+                    config_class=SelfRefineCriticConfig, config=DEFAULT_SELF_REFINE_CRITIC_CONFIG
+                )
             else:
                 config = DEFAULT_SELF_REFINE_CRITIC_CONFIG.model_copy()
 
@@ -1128,21 +1162,69 @@ def create_self_refine_critic(
             if system_prompt is not None:
                 updates["system_prompt"] = str(system_prompt)
             if temperature is not None:
-                updates["temperature"] = float(temperature)
+                if isinstance(temperature, (int, float)):
+                    updates["temperature"] = float(temperature)
+                elif isinstance(temperature, str):
+                    try:
+                        updates["temperature"] = float(temperature)
+                    except (ValueError, TypeError):
+                        pass
             if max_tokens is not None:
-                updates["max_tokens"] = int(max_tokens)
+                if isinstance(max_tokens, (int, float)):
+                    updates["max_tokens"] = int(max_tokens)
+                elif isinstance(max_tokens, str):
+                    try:
+                        updates["max_tokens"] = int(max_tokens)
+                    except (ValueError, TypeError):
+                        pass
             if min_confidence is not None:
-                updates["min_confidence"] = float(min_confidence)
+                if isinstance(min_confidence, (int, float)):
+                    updates["min_confidence"] = float(min_confidence)
+                elif isinstance(min_confidence, str):
+                    try:
+                        updates["min_confidence"] = float(min_confidence)
+                    except (ValueError, TypeError):
+                        pass
             if max_attempts is not None:
-                updates["max_attempts"] = int(max_attempts)
+                if isinstance(max_attempts, (int, float)):
+                    updates["max_attempts"] = int(max_attempts)
+                elif isinstance(max_attempts, str):
+                    try:
+                        updates["max_attempts"] = int(max_attempts)
+                    except (ValueError, TypeError):
+                        pass
             if cache_size is not None:
-                updates["cache_size"] = int(cache_size)
+                if isinstance(cache_size, (int, float)):
+                    updates["cache_size"] = int(cache_size)
+                elif isinstance(cache_size, str):
+                    try:
+                        updates["cache_size"] = int(cache_size)
+                    except (ValueError, TypeError):
+                        pass
             if priority is not None:
-                updates["priority"] = int(priority)
+                if isinstance(priority, (int, float)):
+                    updates["priority"] = int(priority)
+                elif isinstance(priority, str):
+                    try:
+                        updates["priority"] = int(priority)
+                    except (ValueError, TypeError):
+                        pass
             if cost is not None:
-                updates["cost"] = float(cost)
+                if isinstance(cost, (int, float)):
+                    updates["cost"] = float(cost)
+                elif isinstance(cost, str):
+                    try:
+                        updates["cost"] = float(cost)
+                    except (ValueError, TypeError):
+                        pass
             if max_iterations is not None:
-                updates["max_iterations"] = int(max_iterations)
+                if isinstance(max_iterations, (int, float)):
+                    updates["max_iterations"] = int(max_iterations)
+                elif isinstance(max_iterations, str):
+                    try:
+                        updates["max_iterations"] = int(max_iterations)
+                    except (ValueError, TypeError):
+                        pass
             if critique_prompt_template is not None:
                 updates["critique_prompt_template"] = critique_prompt_template
             if revision_prompt_template is not None:
@@ -1155,16 +1237,24 @@ def create_self_refine_critic(
             if hasattr(config, "model_copy"):
                 config = config.model_copy(update=updates)
             elif isinstance(config, dict):
-                config_dict = config.copy()
+                config_dict = dict(config)  # Create a new dict instead of using copy()
                 config_dict.update(updates)
-                config = SelfRefineCriticConfig(**config_dict)
+                from sifaka.utils.config.critics import standardize_critic_config
+
+                config = standardize_critic_config(
+                    config_class=SelfRefineCriticConfig, config=config_dict
+                )
             else:
                 # Create a new config with updates
-                config = SelfRefineCriticConfig(**updates)
+                from sifaka.utils.config.critics import standardize_critic_config
+
+                config = standardize_critic_config(config_class=SelfRefineCriticConfig, **updates)
         elif isinstance(config, dict):
             from sifaka.utils.config.critics import SelfRefineCriticConfig
 
-            config = SelfRefineCriticConfig(**config)
+            from sifaka.utils.config.critics import standardize_critic_config
+
+            config = standardize_critic_config(config_class=SelfRefineCriticConfig, config=config)
 
         # Create and return the critic
         return SelfRefineCritic(

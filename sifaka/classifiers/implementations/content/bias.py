@@ -103,9 +103,6 @@ from typing import (
     Dict,
     List,
     Optional,
-    Type,
-    TypeVar,
-    Union,
 )
 
 from pydantic import ConfigDict, PrivateAttr
@@ -114,7 +111,6 @@ from sifaka.classifiers.classifier import Classifier
 from sifaka.core.results import ClassificationResult
 from sifaka.utils.config.classifiers import ClassifierConfig
 from sifaka.utils.logging import get_logger
-from sifaka.utils.config.classifiers import extract_classifier_config_params
 from sifaka.utils.state import StateManager
 
 logger = get_logger(__name__)
@@ -273,8 +269,8 @@ class BiasDetector(Classifier):
         self,
         name: str = "bias_detector",
         description: str = "Detects various forms of bias in text",
-        config: Optional[Optional[ClassifierConfig]] = None,
-        **kwargs,
+        config: Optional[ClassifierConfig] = None,
+        **kwargs: Any,
     ) -> None:
         """
         Initialize the bias detector.
@@ -289,11 +285,11 @@ class BiasDetector(Classifier):
             config: Optional classifier configuration with settings like thresholds,
                    cache size, and labels
             **kwargs: Additional configuration parameters that will be extracted
-                     and added to the config and config and config and config and config and config and config and config and config and config and config and config and config and config and config and config.params dictionary
+                     and added to the config params dictionary
         """
         # Create default config if not provided
         if config is None:
-            params = kwargs and kwargs.pop("params", {})
+            params = kwargs.pop("params", {}) if kwargs else {}
 
             # Add default bias types and keywords if not provided
             if "bias_types" not in params:
@@ -302,13 +298,16 @@ class BiasDetector(Classifier):
                 params["bias_keywords"] = self.DEFAULT_BIAS_KEYWORDS
 
             config = ClassifierConfig(
-                labels=params.get("bias_types", DEFAULT_BIAS_TYPES),
-                cost=self.DEFAULT_COST,
-                min_confidence=params.get("min_confidence", 0.7),
+                threshold=params.get("min_confidence", 0.7),
                 params=params,
             )
 
-        super().__init__(name=name, description=description, config=config)
+        # Create a BiasDetectorImplementation instance
+        implementation = self  # BiasDetector itself is the implementation
+
+        super().__init__(
+            implementation=implementation, name=name, description=description, config=config
+        )
 
     def _load_dependencies(self) -> Dict[str, Any]:
         """
@@ -523,12 +522,13 @@ class BiasDetector(Classifier):
             # Update config params if available in the saved model
             if "config_params" in data and self.config is not None:
                 # Create a new config with the loaded params
-                self.config = ClassifierConfig(
-                    labels=self.config.labels if self.config is not None else [],
-                    cost=self.config.cost if self.config is not None else 0.0,
-                    min_confidence=self.config.min_confidence if self.config is not None else 0.7,
+                new_config: ClassifierConfig = ClassifierConfig(
+                    threshold=0.7,
                     params=data["config_params"],
                 )
+                # We can't directly assign to self.config as it's a read-only property
+                # This is a workaround to update the internal _config attribute
+                self._config = new_config
 
             # Mark as initialized
             if self._state_manager is not None:
@@ -746,13 +746,15 @@ class BiasDetector(Classifier):
                 if explanations_dict and label in explanations_dict:
                     explanations = explanations_dict.get(label, {})
 
-        result = ClassificationResult(
+        result: ClassificationResult = ClassificationResult(
             label=label,
             confidence=confidence,
             metadata={
                 "features": bias_features,
                 "explanations": explanations,
             },
+            passed=True,
+            message=f"Bias classification: {label} with confidence {confidence:.2f}",
         )
 
         # Track statistics
@@ -798,7 +800,7 @@ class BiasDetector(Classifier):
         # Get model predictions for all texts
         probas = pipeline.predict_proba(texts)
 
-        results = []
+        results: List[ClassificationResult] = []
         for i, text in enumerate(texts):
             # Extract bias features
             bias_features = self._extract_bias_features(text)
@@ -808,8 +810,13 @@ class BiasDetector(Classifier):
 
             # Create dictionary of probabilities for each label
             all_probs = {}
-            if self.config and hasattr(self.config, "labels"):
-                all_probs = {self.config.labels[j]: float(prob) for j, prob in enumerate(proba)}
+            if self.config and hasattr(self.config, "params"):
+                bias_types = self.config.params.get("bias_types", DEFAULT_BIAS_TYPES)
+                all_probs = {
+                    bias_types[j]: float(prob)
+                    for j, prob in enumerate(proba)
+                    if j < len(bias_types)
+                }
 
             # Get the most likely bias type
             label = max(all_probs.items(), key=lambda x: x[1])[0] if all_probs else "unknown"
@@ -817,8 +824,8 @@ class BiasDetector(Classifier):
 
             # Get min_confidence from config
             min_confidence = 0.7
-            if self.config and hasattr(self.config, "min_confidence"):
-                min_confidence = self.config.min_confidence
+            if self.config and hasattr(self.config, "threshold"):
+                min_confidence = self.config.threshold
 
             # Get explanations from cache
             explanations = {}
@@ -842,6 +849,8 @@ class BiasDetector(Classifier):
                     label=label,
                     confidence=confidence,
                     metadata=metadata,
+                    passed=True,
+                    message=f"Bias classification: {label} with confidence {confidence:.2f}",
                 )
             )
 
@@ -1018,7 +1027,7 @@ class BiasDetector(Classifier):
         name: str = "pretrained_bias_detector",
         description: str = "Pre-trained bias detector",
         config: Optional[ClassifierConfig] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> "BiasDetector":
         """
         Create and train a bias detector in one step.
@@ -1045,9 +1054,7 @@ class BiasDetector(Classifier):
                 params["bias_keywords"] = cls.DEFAULT_BIAS_KEYWORDS
 
             config = ClassifierConfig(
-                labels=params.get("bias_types", DEFAULT_BIAS_TYPES),
-                cost=cls.DEFAULT_COST,
-                min_confidence=params.get("min_confidence", 0.7),
+                threshold=params.get("min_confidence", 0.7),
                 params=params,
             )
 
@@ -1067,8 +1074,6 @@ def create_bias_detector(
     max_features: int = 3000,
     random_state: int = 42,
     cache_size: int = 100,
-    cost: float = BiasDetector.DEFAULT_COST,
-    config: Optional[Union[Dict[str, Any], ClassifierConfig]] = None,
     **kwargs: Any,
 ) -> BiasDetector:
     """
@@ -1083,8 +1088,6 @@ def create_bias_detector(
         max_features: Maximum number of features for the vectorizer
         random_state: Random state for reproducibility
         cache_size: Size of the cache for memoization
-        cost: Cost of running the classifier
-        config: Optional classifier configuration
         **kwargs: Additional configuration parameters
 
     Returns:
@@ -1093,8 +1096,8 @@ def create_bias_detector(
     bias_types = bias_types or DEFAULT_BIAS_TYPES
     bias_keywords = bias_keywords or BiasDetector.DEFAULT_BIAS_KEYWORDS
 
-    # Set up default params
-    default_params = {
+    # Set up params
+    params = {
         "bias_types": bias_types,
         "bias_keywords": bias_keywords,
         "max_features": max_features,
@@ -1102,21 +1105,17 @@ def create_bias_detector(
         "min_confidence": min_confidence,
     }
 
-    # Extract and merge configuration parameters
-    provided_params = kwargs.pop("params", {}) if kwargs else {}
+    # Add any additional parameters from kwargs
+    if kwargs:
+        additional_params = kwargs.pop("params", {})
+        params.update(additional_params)
 
-    config_dict = extract_classifier_config_params(
-        labels=bias_types,
+    # Create config
+    final_config: ClassifierConfig = ClassifierConfig(
+        threshold=min_confidence,
         cache_size=cache_size,
-        min_confidence=min_confidence,
-        cost=cost,
-        provided_params=provided_params,
-        default_params=default_params,
-        **kwargs,
+        params=params,
     )
-
-    # Create config with merged parameters
-    final_config = ClassifierConfig(**config_dict)
 
     # Create and return classifier
     return BiasDetector(

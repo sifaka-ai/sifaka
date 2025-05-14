@@ -64,7 +64,7 @@ The module handles various error conditions:
 7. Return result
 """
 
-from typing import List, Optional
+from typing import List, Optional, Union
 import time
 from pydantic import BaseModel, PrivateAttr
 from sifaka.interfaces.chain.components import Model, Validator, Improver
@@ -75,8 +75,11 @@ from ..utils.logging import get_logger
 from ..core.results import ChainResult
 from ..utils.config import EngineConfig
 from ..utils.errors import ChainError, safely_execute_chain
+from ..utils.errors.component import ModelError
+from ..utils.errors.results import ErrorResult
 from .managers.cache import CacheManager
 from .managers.retry import RetryManager
+from sifaka.models.result import GenerationResult
 
 logger = get_logger(__name__)
 
@@ -191,7 +194,10 @@ class Engine(BaseModel):
             execution_count = self._state_manager.get("execution_count", 0)
             self._state_manager.update("execution_count", execution_count + 1)
             if self._cache_manager.has_cached_result(prompt):
-                return self._cache_manager.get_cached_result(prompt)
+                cached_result = self._cache_manager.get_cached_result(prompt)
+                if isinstance(cached_result, ChainResult):
+                    return cached_result
+                raise ChainError(f"Cached result is not a ChainResult: {type(cached_result)}")
             start_time = time.time()
             self._state_manager.set_metadata("execution_start_time", start_time)
             try:
@@ -211,6 +217,8 @@ class Engine(BaseModel):
                     prompt=prompt,
                     create_result_func=self._create_result,
                 )
+                if not isinstance(result, ChainResult):
+                    raise ChainError(f"Result is not a ChainResult: {type(result)}")
                 self._cache_manager.cache_result(prompt, result)
                 return result
             finally:
@@ -234,11 +242,22 @@ class Engine(BaseModel):
 
         try:
             # Use the safely_execute_chain function with the correct parameters
-            return safely_execute_chain(
+            result = safely_execute_chain(
                 run_operation,
                 self.__class__.__name__,
-                additional_metadata=additional_metadata,
+                None,  # default_result
+                "error",  # log_level
+                True,  # include_traceback
+                additional_metadata,
             )
+            # Handle the case where the result is an ErrorResult
+            if isinstance(result, ErrorResult):
+                logger.error(f"Engine execution error: {result.error_message}")
+                raise ChainError(f"Engine execution failed: {result.error_message}")
+            if isinstance(result, ChainResult):
+                return result
+            # This should never happen, but we need to satisfy the type checker
+            raise ChainError("Unexpected result type from run_operation")
         except Exception as e:
             error_count = self._state_manager.get_metadata("error_count", 0)
             self._state_manager.set_metadata("error_count", error_count + 1)
@@ -247,7 +266,7 @@ class Engine(BaseModel):
             logger.error(f"Engine execution error: {str(e)}")
             raise ChainError(f"Engine execution failed: {str(e)}")
 
-    def _generate_output(self, prompt: str) -> str:
+    def _generate_output(self, prompt: str) -> Union[str, GenerationResult]:
         """
         Generate output using the model.
 
@@ -270,24 +289,33 @@ class Engine(BaseModel):
         """
         model = self._state_manager.get("model")
 
-        def generate_operation() -> str:
-            return model.generate(prompt)
+        def generate_operation() -> Union[str, GenerationResult]:
+            generated_output = model.generate(prompt)
+            if not isinstance(generated_output, (str, GenerationResult)):
+                raise ModelError(f"Model generated unexpected type: {type(generated_output)}")
+            return generated_output
 
         additional_metadata = {"method": "generate", "prompt_length": len(prompt)}
 
         result = safely_execute_chain(
             generate_operation,
             "model",
-            additional_metadata=additional_metadata,
+            None,  # default_result
+            "error",  # log_level
+            True,  # include_traceback
+            additional_metadata,
         )
 
         # Handle the case where the result is an ErrorResult
         if isinstance(result, ErrorResult):
             raise ModelError(f"Model generation failed: {result.error_message}")
 
-        return result
+        if isinstance(result, (str, GenerationResult)):
+            return result
+        # This should never happen, but we need to satisfy the type checker
+        raise ModelError(f"Unexpected result type from generate_operation: {type(result)}")
 
-    def _validate_output(self, output: str) -> List[ValidationResult]:
+    def _validate_output(self, output: Union[str, GenerationResult]) -> List[ValidationResult]:
         """
         Validate output using validators.
 
@@ -296,7 +324,7 @@ class Engine(BaseModel):
         of validation results, one for each validator.
 
         Args:
-            output (str): The output to validate
+            output (Union[str, GenerationResult]): The output to validate
 
         Returns:
             List[ValidationResult]: List of validation results, one for each validator
@@ -311,11 +339,16 @@ class Engine(BaseModel):
             ```
         """
         validators = self._state_manager.get("validators", [])
-        results = []
+        results: List[ValidationResult] = []
         for i, validator in enumerate(validators):
 
             def validate_operation() -> ValidationResult:
-                return validator.validate(output)
+                validation_result = validator.validate(output)
+                if not isinstance(validation_result, ValidationResult):
+                    raise ValueError(
+                        f"Validator returned unexpected type: {type(validation_result)}"
+                    )
+                return validation_result
 
             additional_metadata = {
                 "method": "validate",
@@ -326,14 +359,46 @@ class Engine(BaseModel):
             result = safely_execute_chain(
                 validate_operation,
                 f"validator_{i}",
-                additional_metadata=additional_metadata,
+                None,  # default_result
+                "error",  # log_level
+                True,  # include_traceback
+                additional_metadata,
             )
-            results.append(result)
-            if self.config.params.get("fail_fast", False) and not result.passed:
+
+            # If result is an ErrorResult, create a failed ValidationResult
+            if isinstance(result, ErrorResult):
+                validation_result = ValidationResult(
+                    passed=False,
+                    message=f"Validation error: {result.error_message}",
+                    score=0.0,
+                    issues=[result.error_message],
+                    suggestions=["Fix the validator or try a different input"],
+                    metadata=result.metadata,
+                )
+                results.append(validation_result)
+            else:
+                if isinstance(result, ValidationResult):
+                    results.append(result)
+                else:
+                    # This should never happen, but we need to satisfy the type checker
+                    validation_result = ValidationResult(
+                        passed=False,
+                        message=f"Unexpected result type from validate_operation",
+                        score=0.0,
+                        issues=["Unexpected result type"],
+                        suggestions=["Fix the validator implementation"],
+                        metadata={},
+                    )
+                    results.append(validation_result)
+
+            if self.config.params.get("fail_fast", False) and not results[-1].passed:
                 break
+
         return results
 
-    def _improve_output(self, output: str, validation_results: List[ValidationResult]) -> str:
+    def _improve_output(
+        self, output: Union[str, GenerationResult], validation_results: List[ValidationResult]
+    ) -> Union[str, GenerationResult]:
         """
         Improve output using the improver.
 
@@ -365,7 +430,10 @@ class Engine(BaseModel):
         output_text = output.output if hasattr(output, "output") else output
 
         def improve_operation() -> str:
-            return improver.improve(output_text, validation_results)
+            improved_output = improver.improve(output_text, validation_results)
+            if not isinstance(improved_output, str):
+                raise ValueError(f"Improver returned unexpected type: {type(improved_output)}")
+            return improved_output
 
         additional_metadata = {
             "method": "improve",
@@ -374,14 +442,28 @@ class Engine(BaseModel):
             "validation_results_count": len(validation_results),
         }
 
-        improved_text = safely_execute_chain(
+        result = safely_execute_chain(
             improve_operation,
             "improver",
-            additional_metadata=additional_metadata,
+            None,  # default_result
+            "error",  # log_level
+            True,  # include_traceback
+            additional_metadata,
         )
-        if hasattr(output, "output") and hasattr(output, "metadata"):
-            from sifaka.models.result import GenerationResult
 
+        # If result is an ErrorResult, return the original output
+        if isinstance(result, ErrorResult):
+            logger.warning(f"Improvement failed: {result.error_message}. Using original output.")
+            return output
+
+        if isinstance(result, str):
+            improved_text = result
+        else:
+            # This should never happen, but we need to satisfy the type checker
+            logger.warning("Unexpected result type from improve_operation. Using original output.")
+            return output
+
+        if hasattr(output, "output") and hasattr(output, "metadata"):
             return GenerationResult(
                 output=improved_text,
                 prompt_tokens=getattr(output, "prompt_tokens", 0),
@@ -393,7 +475,7 @@ class Engine(BaseModel):
     def _create_result(
         self,
         prompt: str,
-        output: str,
+        output: Union[str, GenerationResult],
         validation_results: List[ValidationResult],
         attempt_count: int,
     ) -> ChainResult:
@@ -406,7 +488,7 @@ class Engine(BaseModel):
 
         Args:
             prompt (str): The original prompt
-            output (str): The generated output
+            output (Union[str, GenerationResult]): The generated output
             validation_results (List[ValidationResult]): The validation results
             attempt_count (int): The number of attempts made
 
@@ -430,7 +512,8 @@ class Engine(BaseModel):
             all(result.passed for result in validation_results) if validation_results else True
         )
 
-        result = ChainResult(
+        # Use the from_interface_validation_results method to handle the conversion
+        result = ChainResult.from_interface_validation_results(
             output=output_text,
             validation_results=validation_results,
             prompt=prompt,
@@ -455,7 +538,12 @@ class Engine(BaseModel):
         if formatter:
 
             def format_operation() -> ChainResult:
-                return formatter.format(output, validation_results)
+                formatted_result = formatter.format(output, validation_results)
+                if not isinstance(formatted_result, ChainResult):
+                    raise ValueError(
+                        f"Formatter returned unexpected type: {type(formatted_result)}"
+                    )
+                return formatted_result
 
             try:
                 additional_metadata = {
@@ -470,10 +558,17 @@ class Engine(BaseModel):
                 formatted_result = safely_execute_chain(
                     format_operation,
                     "formatter",
-                    additional_metadata=additional_metadata,
+                    None,  # default_result
+                    "error",  # log_level
+                    True,  # include_traceback
+                    additional_metadata,
                 )
                 if isinstance(formatted_result, ChainResult):
                     result = formatted_result
+                elif isinstance(formatted_result, ErrorResult):
+                    logger.warning(
+                        f"Formatting failed: {formatted_result.error_message}. Using original result."
+                    )
             except Exception as e:
                 logger.warning(f"Result formatting failed: {str(e)}")
         if self.config.params.get("cache_enabled", True):

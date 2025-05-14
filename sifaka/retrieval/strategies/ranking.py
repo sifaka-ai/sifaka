@@ -41,7 +41,7 @@ filtered_docs = threshold_strategy.rank("machine learning", documents) if thresh
 
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from sifaka.core.base import BaseComponent, BaseConfig
 from sifaka.utils.errors.component import RetrievalError
@@ -88,7 +88,7 @@ class RankingStrategy(BaseComponent, ABC):
 
     def __init__(
         self,
-        config: Optional[Optional[RankingConfig]] = None,
+        config: Optional[RankingConfig] = None,
         name: str = "RankingStrategy",
         description: str = "Base ranking strategy",
     ):
@@ -112,7 +112,7 @@ class RankingStrategy(BaseComponent, ABC):
         self._state_manager.set_metadata("component_type", "ranking_strategy")
         self._state_manager.set_metadata("creation_time", time.time())
 
-    def _initialize_state(self, config: Optional[Optional[RankingConfig]] = None) -> None:
+    def _initialize_state(self, config: Optional[RankingConfig] = None) -> None:
         """
         Initialize the ranking strategy state.
 
@@ -140,8 +140,10 @@ class RankingStrategy(BaseComponent, ABC):
         """
         config = self._state_manager.get("config")
         if config is None:
-            return BaseConfig(name=self.name, description=self.description)
-        return config
+            # Create a default config
+            return cast(BaseConfig, RankingConfig(name=self.name, description=self.description))
+        # Return the config
+        return cast(BaseConfig, config)
 
     @config.setter
     def config(self, config: RankingConfig) -> None:
@@ -302,7 +304,7 @@ class SimpleRankingStrategy(RankingStrategy):
 
     def __init__(
         self,
-        config: Optional[Optional[RankingConfig]] = None,
+        config: Optional[RankingConfig] = None,
         name: str = "SimpleRankingStrategy",
         description: str = "Simple ranking strategy based on keyword matching",
     ):
@@ -504,7 +506,7 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
         self,
         base_strategy: RankingStrategy,
         threshold: float,
-        config: Optional[Optional[RankingConfig]] = None,
+        config: Optional[RankingConfig] = None,
         name: str = "ScoreThresholdRankingStrategy",
         description: str = "Ranking strategy that applies a score threshold",
     ):
@@ -550,7 +552,11 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
         Returns:
             The base ranking strategy
         """
-        return self._state_manager.get("base_strategy")
+        strategy = self._state_manager.get("base_strategy")
+        if strategy is None:
+            raise RetrievalError("Base strategy not initialized")
+        # Cast to RankingStrategy to satisfy mypy
+        return cast(RankingStrategy, strategy)
 
     @base_strategy.setter
     def base_strategy(self, strategy: RankingStrategy) -> None:
@@ -579,7 +585,11 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
         Returns:
             The score threshold
         """
-        return self._state_manager.get("threshold")
+        threshold = self._state_manager.get("threshold")
+        if threshold is None:
+            return 0.0  # Default threshold
+        # Cast to float to satisfy mypy
+        return cast(float, threshold)
 
     @threshold.setter
     def threshold(self, threshold: float) -> None:

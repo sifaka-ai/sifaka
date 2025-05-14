@@ -21,13 +21,13 @@ All factory functions use standardized error handling:
 3. They wrap exceptions in component-specific error types
 """
 
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, cast
 
 from sifaka.utils.errors.component import RetrievalError
 from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.logging import get_logger
 from sifaka.interfaces.factories import create_component
-from sifaka.utils.config.retrieval import RetrieverConfig
+from sifaka.utils.config.retrieval import RetrieverConfig, RankingConfig
 
 from .implementations.simple import SimpleRetriever
 from .strategies.ranking import SimpleRankingStrategy, ScoreThresholdRankingStrategy
@@ -77,7 +77,7 @@ def create_simple_retriever(
             component_class=SimpleRetriever,
             name=name,
             description=description,
-            config=config,
+            config=config.dict() if config else None,  # Convert RetrieverConfig to dict
             documents=documents,
             corpus=corpus,
         )
@@ -141,17 +141,20 @@ def create_threshold_retriever(
             component_class=SimpleRetriever,
             name=name,
             description=description,
-            config=config,
+            config=config.dict() if config else None,  # Convert RetrieverConfig to dict
             documents=documents,
             corpus=corpus,
         )
 
+        # Get the ranking configuration from the retriever's config
+        ranking_config = cast(RankingConfig, getattr(retriever.config, "ranking", RankingConfig()))
+        
         # Replace the default ranking strategy with a threshold strategy
-        base_strategy = SimpleRankingStrategy(retriever.config.ranking)
+        base_strategy = SimpleRankingStrategy(ranking_config)
         threshold_strategy = ScoreThresholdRankingStrategy(
             base_strategy=base_strategy,
             threshold=threshold,
-            config=retriever.config.ranking,
+            config=ranking_config,
         )
 
         # Update the ranking strategy in state

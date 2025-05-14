@@ -283,8 +283,8 @@ class SentimentClassifier(Classifier):
         self,
         name: str = "sentiment_classifier",
         description: str = "Analyzes text sentiment using VADER",
-        analyzer: Optional[Optional[SentimentAnalyzer]] = None,
-        config: Optional[Optional[ClassifierConfig[str]]] = None,
+        analyzer: Optional[SentimentAnalyzer] = None,
+        config: Optional[ClassifierConfig[str]] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -307,7 +307,7 @@ class SentimentClassifier(Classifier):
         # Create config if not provided
         if config is None:
             # Extract thresholds from kwargs
-            params = kwargs and kwargs.pop("params", {})
+            params = kwargs.pop("params", {}) if kwargs else {}
             if params:
                 params.update(
                     {
@@ -371,7 +371,17 @@ class SentimentClassifier(Classifier):
             ValueError: If the analyzer doesn't implement the SentimentAnalyzer protocol
                        or is missing required methods
         """
-        return self.validate_component(analyzer, SentimentAnalyzer, "Analyzer")
+        # Check if the analyzer implements the SentimentAnalyzer protocol
+        if not isinstance(analyzer, SentimentAnalyzer):
+            raise ValueError(
+                f"Analyzer must implement SentimentAnalyzer protocol, got {type(analyzer)}"
+            )
+
+        # Check if the analyzer has the required methods
+        if not hasattr(analyzer, "polarity_scores"):
+            raise ValueError("Analyzer must have a 'polarity_scores' method")
+
+        return True
 
     def _load_vader(self) -> SentimentAnalyzer:
         """
@@ -490,7 +500,7 @@ class SentimentClassifier(Classifier):
 
         return label, confidence
 
-    def _classify_impl_uncached(self, text: str) -> ClassificationResult[Any, str]:
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
         """
         Implement sentiment classification logic without caching.
 
@@ -550,7 +560,7 @@ class SentimentClassifier(Classifier):
                 confidence = 0.0
 
             # Return result with detailed metadata
-            result = ClassificationResult[str, Any](
+            result = ClassificationResult(
                 label=label,
                 confidence=confidence,
                 metadata={
@@ -578,7 +588,7 @@ class SentimentClassifier(Classifier):
             errors.append(error_info)
             self._state_manager.update("errors", errors)
 
-            return ClassificationResult[str, Any](
+            return ClassificationResult(
                 label="unknown",
                 confidence=0.0,
                 metadata={
@@ -670,10 +680,10 @@ class SentimentClassifier(Classifier):
         cls: Type[T],
         name: str = "sentiment_classifier",
         description: str = "Analyzes text sentiment using VADER",
-        labels: Optional[Optional[List[str]]] = None,
+        labels: Optional[List[str]] = None,
         cache_size: int = 0,
         min_confidence: float = 0.0,
-        cost: Optional[Optional[float]] = None,
+        cost: Optional[float] = None,
         positive_threshold: float = 0.05,
         negative_threshold: float = -0.05,
         params: Optional[Dict[str, Any]] = None,

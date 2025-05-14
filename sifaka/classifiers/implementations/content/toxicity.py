@@ -113,10 +113,8 @@ from sifaka.classifiers.classifier import Classifier
 from sifaka.utils.result_types import ClassificationResult
 from sifaka.utils.config.classifiers import ClassifierConfig
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import create_classifier_state
 from sifaka.utils.common import record_error
 from sifaka.classifiers.implementations.content.toxicity_model import ToxicityModel
-from sifaka.utils.config.classifiers import extract_classifier_config_params
 
 logger = get_logger(__name__)
 
@@ -223,7 +221,7 @@ class ToxicityClassifier(Classifier):
         self,
         name: str = "toxicity_classifier",
         description: str = "Detects toxic content using Detoxify",
-        config: Optional[Optional[ClassifierConfig[str]]] = None,
+        config: Optional[ClassifierConfig[str]] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -287,7 +285,15 @@ class ToxicityClassifier(Classifier):
             ValueError: If the model doesn't implement the ToxicityModel protocol
                        or is missing required methods
         """
-        return self.validate_component(model, ToxicityModel, "Model")
+        # Check if the model implements the ToxicityModel protocol
+        if not isinstance(model, ToxicityModel):
+            raise ValueError(f"Model must implement ToxicityModel protocol, got {type(model)}")
+
+        # Check if the model has the required methods
+        if not hasattr(model, "predict"):
+            raise ValueError("Model must have a 'predict' method")
+
+        return True
 
     def _load_detoxify(self) -> ToxicityModel:
         """
@@ -375,19 +381,33 @@ class ToxicityClassifier(Classifier):
             Dictionary of threshold values for different toxicity categories
         """
         # Get thresholds from state cache or use defaults
-        if "thresholds" in self._state_manager.get("cache", {}):
-            return self._state_manager.get("cache", {})["thresholds"]
+        cache = self._state_manager.get("cache", {})
+        if "thresholds" in cache and isinstance(cache["thresholds"], dict):
+            thresholds = cache["thresholds"]
+            return {
+                "general_threshold": float(
+                    thresholds.get("general_threshold", self.DEFAULT_GENERAL_THRESHOLD)
+                ),
+                "severe_toxic_threshold": float(
+                    thresholds.get("severe_toxic_threshold", self.DEFAULT_SEVERE_TOXIC_THRESHOLD)
+                ),
+                "threat_threshold": float(
+                    thresholds.get("threat_threshold", self.DEFAULT_THREAT_THRESHOLD)
+                ),
+            }
 
         # If not in cache, use defaults from config
         return {
-            "general_threshold": self.config.params.get(
-                "general_threshold", self.DEFAULT_GENERAL_THRESHOLD
+            "general_threshold": float(
+                self.config.params.get("general_threshold", self.DEFAULT_GENERAL_THRESHOLD)
             ),
-            "severe_toxic_threshold": self.config.params.get(
-                "severe_toxic_threshold", self.DEFAULT_SEVERE_TOXIC_THRESHOLD
+            "severe_toxic_threshold": float(
+                self.config.params.get(
+                    "severe_toxic_threshold", self.DEFAULT_SEVERE_TOXIC_THRESHOLD
+                )
             ),
-            "threat_threshold": self.config.params.get(
-                "threat_threshold", self.DEFAULT_THREAT_THRESHOLD
+            "threat_threshold": float(
+                self.config.params.get("threat_threshold", self.DEFAULT_THREAT_THRESHOLD)
             ),
         }
 
@@ -696,10 +716,10 @@ class ToxicityClassifier(Classifier):
         cls: Type[T],
         name: str = "toxicity_classifier",
         description: str = "Detects toxic content using Detoxify",
-        labels: Optional[Optional[List[str]]] = None,
+        labels: Optional[List[str]] = None,
         cache_size: int = 0,
         min_confidence: float = 0.0,
-        cost: Optional[Optional[float]] = None,
+        cost: Optional[float] = None,
         params: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ) -> T:

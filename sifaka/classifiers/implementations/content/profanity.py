@@ -107,7 +107,7 @@ from sifaka.classifiers.classifier import Classifier
 from sifaka.core.results import ClassificationResult
 from sifaka.utils.config.classifiers import ClassifierConfig
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import create_classifier_state
+
 
 logger = get_logger(__name__)
 P = TypeVar("P", bound="ProfanityClassifier")
@@ -332,10 +332,8 @@ class ProfanityClassifier(Classifier):
         """
         if config is None:
             params = kwargs.pop("params", {}) if kwargs else {}
-            config = ClassifierConfig(
-                labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, params=params
-            )
-        super().__init__(name=name, description=description, config=config)
+            config = ClassifierConfig(params=params)
+        super().__init__(name=name, description=description, config=config, implementation=self)
         if checker is not None:
             if self._validate_checker(checker):
                 if self._state_manager:
@@ -555,11 +553,17 @@ class ProfanityClassifier(Classifier):
             self.warm_up()
 
         try:
-            from sifaka.utils.text import handle_empty_text_for_classifier
+            from sifaka.utils.text import is_empty_text
 
-            empty_result = handle_empty_text_for_classifier(text)
-            if empty_result:
-                return empty_result
+            # Handle empty text
+            if is_empty_text(text):
+                return ClassificationResult(
+                    label="unknown",
+                    confidence=0.0,
+                    passed=False,
+                    message="Empty text",
+                    metadata={"reason": "empty_input", "input_length": str(len(text))},
+                )
 
             checker = self._state_manager.get("cache", {}).get("checker")
             if not checker:
@@ -576,9 +580,11 @@ class ProfanityClassifier(Classifier):
                 censor_result.profanity_ratio, min_confidence if contains_profanity else 0.0
             )
 
-            result = ClassificationResult(
+            result: ClassificationResult = ClassificationResult(
                 label="profane" if contains_profanity else "clean",
                 confidence=confidence if contains_profanity else 1.0 - confidence,
+                passed=True,
+                message="Profanity check completed successfully",
                 metadata={
                     "contains_profanity": contains_profanity,
                     "censored_text": censor_result.censored_text,
@@ -603,6 +609,8 @@ class ProfanityClassifier(Classifier):
             return ClassificationResult(
                 label="unknown",
                 confidence=0.0,
+                passed=False,
+                message="Profanity check failed",
                 metadata={"error": str(e), "reason": "profanity_check_error"},
             )
 
@@ -659,12 +667,10 @@ class ProfanityClassifier(Classifier):
         cls: Type[P],
         name: str = "profanity_classifier",
         description: str = "Detects profanity and inappropriate language",
-        labels: Optional[List[str]] = None,
         custom_words: Optional[List[str]] = None,
         censor_char: str = "*",
         min_confidence: float = 0.5,
         cache_size: int = 0,
-        cost: Optional[int] = None,
         params: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ) -> P:
@@ -707,10 +713,8 @@ class ProfanityClassifier(Classifier):
             params.update(kwargs.pop("params", {}))
 
         # Create config
-        config = ClassifierConfig(
-            labels=labels or cls.DEFAULT_LABELS,
+        config: ClassifierConfig = ClassifierConfig(
             cache_size=cache_size,
-            cost=cost or cls.DEFAULT_COST,
             params=params,
         )
         return cls(name=name, description=description, config=config, **kwargs)
@@ -792,7 +796,6 @@ def create_profanity_classifier(
     censor_char: str = "*",
     min_confidence: float = 0.5,
     cache_size: int = 0,
-    cost: int = 1,
     **kwargs: Any,
 ) -> ProfanityClassifier:
     """
@@ -837,6 +840,5 @@ def create_profanity_classifier(
         censor_char=censor_char,
         min_confidence=min_confidence,
         cache_size=cache_size,
-        cost=cost,
         **kwargs,
     )

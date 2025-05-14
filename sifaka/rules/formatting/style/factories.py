@@ -32,7 +32,7 @@ print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 """
 
-from typing import List, Optional
+from typing import Dict, List, Optional, Any
 
 from sifaka.rules.base import RuleConfig
 from sifaka.rules.formatting.style.validators import StyleValidator, FormattingValidator
@@ -53,12 +53,12 @@ __all__ = [
 
 
 def create_style_validator(
-    capitalization: Optional[Optional[CapitalizationStyle]] = None,
+    capitalization: Optional[CapitalizationStyle] = None,
     require_end_punctuation: bool = False,
-    allowed_end_chars: Optional[Optional[List[str]]] = None,
-    disallowed_chars: Optional[Optional[List[str]]] = None,
+    allowed_end_chars: Optional[List[str]] = None,
+    disallowed_chars: Optional[List[str]] = None,
     strip_whitespace: bool = True,
-    **kwargs,
+    **kwargs: Any,
 ) -> StyleValidator:
     """
     Create a style validator with the specified constraints.
@@ -117,12 +117,12 @@ def create_style_validator(
 def create_style_rule(
     name: str = "style_rule",
     description: str = "Validates text style",
-    capitalization: Optional[Optional[CapitalizationStyle]] = None,
+    capitalization: Optional[CapitalizationStyle] = None,
     require_end_punctuation: bool = False,
-    allowed_end_chars: Optional[Optional[List[str]]] = None,
-    disallowed_chars: Optional[Optional[List[str]]] = None,
+    allowed_end_chars: Optional[List[str]] = None,
+    disallowed_chars: Optional[List[str]] = None,
     strip_whitespace: bool = True,
-    **kwargs,
+    **kwargs: Any,
 ) -> StyleRule:
     """
     Create a style validation rule with the specified constraints.
@@ -190,7 +190,7 @@ def create_style_rule(
     )
 
     # Create params dictionary for RuleConfig
-    params = {}
+    params: Dict[str, Any] = {}
     if capitalization is not None:
         params["capitalization"] = capitalization
     params["require_end_punctuation"] = require_end_punctuation
@@ -213,11 +213,11 @@ def create_style_rule(
 
 
 def create_formatting_validator(
-    style_config: Optional[Optional[StyleConfig]] = None,
+    style_config: Optional[StyleConfig] = None,
     strip_whitespace: bool = True,
     normalize_whitespace: bool = False,
     remove_extra_lines: bool = False,
-    **kwargs,
+    **kwargs: Any,
 ) -> FormattingValidator:
     """
     Create a formatting validator with the specified constraints.
@@ -269,12 +269,12 @@ def create_formatting_validator(
 def create_formatting_rule(
     name: str = "formatting_rule",
     description: str = "Validates text formatting",
-    style_config: Optional[Optional[StyleConfig]] = None,
+    style_config: Optional[StyleConfig] = None,
     strip_whitespace: bool = True,
     normalize_whitespace: bool = False,
     remove_extra_lines: bool = False,
-    rule_id: Optional[Optional[str]] = None,
-    **kwargs,
+    rule_id: Optional[str] = None,
+    **kwargs: Any,
 ) -> FormattingRule:
     """
     Create a formatting validation rule with the specified constraints.
@@ -334,7 +334,7 @@ def create_formatting_rule(
     )
 
     # Create params dictionary for RuleConfig
-    params = {}
+    params: Dict[str, Any] = {}
     if style_config is not None:
         params["style_config"] = style_config
     params["strip_whitespace"] = strip_whitespace

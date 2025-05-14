@@ -434,7 +434,7 @@ class SpamClassifier(Classifier):
 
         return self
 
-    def _classify_impl_uncached(self, text: str) -> ClassificationResult[Any, str]:
+    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
         """
         Implement spam classification logic without caching.
 
@@ -471,7 +471,7 @@ class SpamClassifier(Classifier):
             # Get label from index
             label = self.config.labels[label_idx]
 
-            result = ClassificationResult[str, Any](
+            result = ClassificationResult(
                 label=label,
                 confidence=confidence,
                 metadata={
@@ -496,7 +496,7 @@ class SpamClassifier(Classifier):
             errors.append(error_info)
             self._state_manager.update("errors", errors)
 
-            return ClassificationResult[str, Any](
+            return ClassificationResult(
                 label="unknown",
                 confidence=0.0,
                 metadata={"error": str(e), "reason": "classification_error"},
@@ -504,7 +504,7 @@ class SpamClassifier(Classifier):
                 message=f"Classification error: {str(e)}",
             )
 
-    def batch_classify(self, texts: List[str]) -> List[ClassificationResult[Any, str]]:
+    def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
         """
         Classify multiple texts efficiently.
 
@@ -543,7 +543,7 @@ class SpamClassifier(Classifier):
                 label = self.config.labels[label_idx]
 
                 results.append(
-                    ClassificationResult[str, Any](
+                    ClassificationResult(
                         label=label,
                         confidence=confidence,
                         metadata={
@@ -572,7 +572,7 @@ class SpamClassifier(Classifier):
             self._state_manager.update("errors", errors)
 
             return [
-                ClassificationResult[str, Any](
+                ClassificationResult(
                     label="unknown",
                     confidence=0.0,
                     metadata={"error": str(e), "reason": "batch_classification_error"},

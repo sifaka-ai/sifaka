@@ -1,4 +1,5 @@
 from typing import Any
+
 """
 Retry Manager Module
 
@@ -72,12 +73,13 @@ The retry manager can be configured with the following options:
 - max_attempts: Maximum number of retry attempts (default: 3)
 """
 
-from typing import Callable, List, Optional, Any
+from typing import Callable, List, Optional, Any, Union
 import time
 from ...utils.state import StateManager
 from ...utils.logging import get_logger
 from ...utils.errors import ChainError
 from sifaka.interfaces.chain.models import ValidationResult
+from sifaka.models.result import GenerationResult
 from ...core.results import ChainResult
 
 logger = get_logger(__name__)
@@ -179,12 +181,16 @@ class RetryManager:
 
     def execute_with_retries(
         self,
-        generate_func: Callable[[], str],
-        validate_func: Callable[[str], List[ValidationResult]],
-        improve_func: Callable[[str, List[ValidationResult]], str],
+        generate_func: Callable[[], Union[str, GenerationResult]],
+        validate_func: Callable[[Union[str, GenerationResult]], List[ValidationResult]],
+        improve_func: Callable[
+            [Union[str, GenerationResult], List[ValidationResult]], Union[str, GenerationResult]
+        ],
         prompt: str,
-        create_result_func: Callable[[str, str, List[ValidationResult], int], ChainResult],
-    ) -> Any:
+        create_result_func: Callable[
+            [str, Union[str, GenerationResult], List[ValidationResult], int], ChainResult
+        ],
+    ) -> ChainResult:
         """
         Execute with retries.
 
@@ -195,11 +201,11 @@ class RetryManager:
         the maximum number of attempts is reached.
 
         Args:
-            generate_func (Callable[[], str]): Function to generate output
-            validate_func (Callable[[str], List[ValidationResult]]): Function to validate output
-            improve_func (Callable[[str, List[ValidationResult]], str]): Function to improve output
+            generate_func (Callable[[], Union[str, GenerationResult]]): Function to generate output
+            validate_func (Callable[[Union[str, GenerationResult]], List[ValidationResult]]): Function to validate output
+            improve_func (Callable[[Union[str, GenerationResult], List[ValidationResult]], Union[str, GenerationResult]]): Function to improve output
             prompt (str): The prompt to process
-            create_result_func (Callable[[str, str, List[ValidationResult], int], ChainResult]):
+            create_result_func (Callable[[str, Union[str, GenerationResult], List[ValidationResult], int], ChainResult]):
                 Function to create the result
 
         Returns:

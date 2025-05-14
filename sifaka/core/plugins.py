@@ -202,7 +202,12 @@ class PluginLoader:
                 plugin = None
                 for attr_name in dir(module):
                     attr = getattr(module, attr_name)
-                    if isinstance(attr, type) and attr != Plugin and issubclass(attr, Plugin):
+                    if (
+                        isinstance(attr, type)
+                        and attr != Plugin
+                        and hasattr(attr, "__mro__")
+                        and Plugin in attr.__mro__
+                    ):
                         plugin = attr()
                         break
                 if not plugin:
