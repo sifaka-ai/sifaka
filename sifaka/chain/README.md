@@ -1,36 +1,41 @@
 # Sifaka Chain
 
-This package provides a simplified and more maintainable implementation of the chain system for orchestrating the validation and improvement flow between models, rules, and critics.
+This package provides a sophisticated, component-based implementation of the chain system for orchestrating the validation and improvement flow between models, rules, and critics.
 
 ## Architecture
 
-The chain architecture follows a simplified component-based design:
+The chain architecture follows a refined component-based design:
 
 ```
 Chain
 ├── Engine (core execution logic)
-│   ├── Executor (handles execution flow)
-│   └── StateTracker (centralized state management)
+│   ├── RetryManager (handles retry strategies)
+│   ├── CacheManager (manages result caching)
+│   └── StateManager (centralized state management)
 ├── Components (pluggable components)
 │   ├── Model (text generation)
 │   ├── Validator (rule-based validation)
 │   ├── Improver (output improvement)
 │   └── Formatter (result formatting)
-└── Plugins (extension mechanism)
-    ├── PluginRegistry (plugin discovery and registration)
-    └── PluginLoader (dynamic plugin loading)
+├── Factories (component creation)
+│   ├── create_chain (standard chain creation)
+│   ├── create_simple_chain (simplified creation with dependency injection)
+│   └── create_backoff_chain (chain with backoff retry strategy)
+└── Adapters (component compatibility)
+    ├── ModelAdapter (adapt model providers)
+    ├── ValidatorAdapter (adapt rules)
+    └── ImproverAdapter (adapt critics)
 ```
 
 ### Core Components
 
-- **Chain**: Main user-facing class for running chains
-- **Engine**: Core execution engine that coordinates the flow
-- **StateTracker**: Centralized state management
+- **Chain**: Main user-facing class for running chains with proper lifecycle management
+- **Engine**: Core execution engine that coordinates the flow between components
+- **StateManager**: Centralized state management for tracking execution
 - **Model**: Interface for text generation models
 - **Validator**: Interface for output validators
 - **Improver**: Interface for output improvers
 - **Formatter**: Interface for result formatters
-- **Plugin**: Interface for plugins
 
 ## Usage
 
@@ -58,6 +63,7 @@ result = chain.run("Write a short story about a robot.")
 # Access the result
 print(f"Output: {result.output}")
 print(f"All validations passed: {result.all_passed}")
+print(f"Execution time: {result.execution_time:.2f}s")
 ```
 
 ### Advanced Usage with Improver
@@ -93,14 +99,14 @@ result = chain.run("Write a short story about a robot.")
 # Access the result
 print(f"Output: {result.output}")
 print(f"All validations passed: {result.all_passed}")
-print(f"Issues: {result.issues}")
-print(f"Suggestions: {result.suggestions}")
+print(f"Issues: {[r.issues for r in result.validation_results if not r.passed]}")
+print(f"Suggestions: {[r.suggestions for r in result.validation_results if not r.passed]}")
 ```
 
 ### Using Factory Functions
 
 ```python
-from sifaka.chain import create_chain
+from sifaka.chain.factories import create_simple_chain, create_backoff_chain
 from sifaka.models import OpenAIProvider
 from sifaka.rules import create_length_rule
 from sifaka.critics import create_prompt_critic
@@ -113,16 +119,56 @@ critic = create_prompt_critic(
     system_prompt="You are an expert editor that improves text."
 )
 
-# Create chain using factory
-chain = create_chain(
+# Create standard chain using factory
+chain = create_simple_chain(
     model=model,
-    validators=validators,
-    improver=critic,
+    rules=validators,
+    critic=critic,
     max_attempts=3
+)
+
+# Create chain with backoff retry strategy
+backoff_chain = create_backoff_chain(
+    model=model,
+    rules=validators,
+    critic=critic,
+    max_attempts=5,
+    initial_backoff=1.0,
+    backoff_factor=2.0,
+    max_backoff=60.0
 )
 
 # Run chain
 result = chain.run("Write a short story about a robot.")
+```
+
+### Asynchronous Execution
+
+```python
+import asyncio
+from sifaka.chain import Chain
+from sifaka.models import OpenAIProvider
+from sifaka.rules import create_length_rule
+
+# Create components
+model = OpenAIProvider("gpt-3.5-turbo")
+validators = [create_length_rule(min_chars=10, max_chars=1000)]
+
+# Create chain with async enabled
+from sifaka.utils.config.chain import ChainConfig
+config = ChainConfig(max_attempts=3, async_enabled=True)
+chain = Chain(
+    model=model,
+    validators=validators,
+    config=config
+)
+
+# Run chain asynchronously
+async def run_async():
+    result = await chain.run_async("Write a short story about a robot.")
+    print(f"Output: {result.output}")
+
+asyncio.run(run_async())
 ```
 
 ## Extending
@@ -130,7 +176,7 @@ result = chain.run("Write a short story about a robot.")
 ### Creating a Custom Model
 
 ```python
-from sifaka.chain.interfaces import Model
+from sifaka.interfaces.chain.components import Model
 
 class MyCustomModel(Model):
     def __init__(self, model_name: str):
@@ -148,7 +194,8 @@ class MyCustomModel(Model):
 ### Creating a Custom Validator
 
 ```python
-from sifaka.chain.interfaces import Validator, ValidationResult
+from sifaka.interfaces.chain.components import Validator
+from sifaka.interfaces.chain.models import ValidationResult
 
 class MyCustomValidator(Validator):
     def __init__(self, min_length: int, max_length: int):
@@ -184,52 +231,52 @@ class MyCustomValidator(Validator):
         return self.validate(output)
 ```
 
-### Creating a Plugin
+### Creating a Custom Improver
 
 ```python
-from typing import Any, Dict
-from sifaka.chain.interfaces import Plugin, Validator, ValidationResult
+from typing import List
+from sifaka.interfaces.chain.components import Improver
+from sifaka.interfaces.chain.models import ValidationResult
 
-class MyValidatorPlugin(Plugin):
-    @property
-    def name(self) -> str:
-        return "my_validator_plugin"
+class MyCustomImprover(Improver):
+    def improve(self, output: str, validation_results: List[ValidationResult]) -> str:
+        # Collect all issues
+        issues = []
+        for result in validation_results:
+            if not result.passed and hasattr(result, "issues"):
+                issues.extend(result.issues)
 
-    @property
-    def version(self) -> str:
-        return "1.0.0"
+        # Simple improvement logic
+        improved_output = output
+        for issue in issues:
+            if "too short" in issue:
+                improved_output += " Additional content to make the output longer."
+            if "too long" in issue:
+                improved_output = improved_output[:len(improved_output)//2] + "..."
 
-    @property
-    def component_type(self) -> str:
-        return "validator"
+        return improved_output
 
-    def create_component(self, config: Dict[str, Any]) -> Validator:
-        min_length = config.get("min_length", 10)
-        max_length = config.get("max_length", 1000)
+    async def improve_async(self, output: str, validation_results: List[ValidationResult]) -> str:
+        # For simple improvers, async can just call the sync version
+        return self.improve(output, validation_results)
+```
 
-        class LengthValidator(Validator):
-            def validate(self, output: str) -> ValidationResult:
-                length = len(output)
-                if length < min_length:
-                    return ValidationResult(
-                        passed=False,
-                        message=f"Output too short: {length} < {min_length}",
-                        score=0.0
-                    )
-                if length > max_length:
-                    return ValidationResult(
-                        passed=False,
-                        message=f"Output too long: {length} > {max_length}",
-                        score=0.0
-                    )
-                return ValidationResult(
-                    passed=True,
-                    message="Length validation passed",
-                    score=1.0
-                )
+### Error Handling and Monitoring
 
-            async def validate_async(self, output: str) -> ValidationResult:
-                return self.validate(output)
+```python
+from sifaka.chain import Chain
+from sifaka.utils.errors import ChainError
 
-        return LengthValidator()
+try:
+    # Create and run chain
+    chain = Chain(model=model, validators=validators)
+    result = chain.run("Write a short story")
+
+    # Check statistics
+    stats = chain.get_statistics()
+    print(f"Execution count: {stats['execution_count']}")
+    print(f"Average execution time: {stats['avg_execution_time']:.2f}s")
+
+except ChainError as e:
+    print(f"Chain execution failed: {str(e)}")
 ```

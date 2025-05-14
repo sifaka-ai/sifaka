@@ -1,20 +1,22 @@
-from typing import Any, Dict, List, Optional, Union, Callable
+from typing import Any, Dict, List, Optional
 import time
 import logging
-from sifaka.core.components import BaseComponent
-from sifaka.core.errors import InputError, RetrievalError
+from sifaka.core.base import BaseComponent
+from sifaka.utils.errors.base import InputError
+from sifaka.utils.errors.component import RetrievalError
 from sifaka.core.results import RetrievalResult
-from sifaka.core.documents import DocumentMetadata, RetrievedDocument
 from sifaka.utils.state import StateManager
-from sifaka.utils.errors import handle_error, record_error
-from sifaka.utils.execution import safely_execute_retrieval
+from sifaka.utils.errors.handling import handle_error
+from sifaka.utils.common import record_error
+from sifaka.utils.errors.safe_execution import safely_execute_retrieval
+from .result import DocumentMetadata, RetrievedDocument
 
 logger = logging.getLogger(__name__)
 
 
-class BaseRetriever(BaseComponent):
+class RetrieverCore(BaseComponent):
     """
-    Base class for all retrievers.
+    Core implementation of retriever functionality.
 
     A retriever is a component that retrieves information based on a query.
     It can be used to retrieve documents from a vector store, search engine, or any other source.
@@ -27,7 +29,7 @@ class BaseRetriever(BaseComponent):
 
     def __init__(self, name: str = "base_retriever", query_processor: Any = None):
         """
-        Initialize a new BaseRetriever.
+        Initialize a new RetrieverCore.
 
         Args:
             name: The name of the retriever
@@ -81,7 +83,7 @@ class BaseRetriever(BaseComponent):
             )
         try:
             query_processor = self.query_processor
-            return query_processor.process_query(query) if query_processor else ""
+            return query_processor.process_query(query) if query_processor else query
         except Exception as e:
             error_info = handle_error(e, self.name, "error")
             raise RetrievalError(f"Failed to process query: {str(e)}", metadata=error_info)
@@ -91,7 +93,7 @@ class BaseRetriever(BaseComponent):
         query: str,
         processed_query: str,
         documents: List[Dict[str, Any]],
-        execution_time_ms: Optional[Optional[float]] = None,
+        execution_time_ms: Optional[float] = None,
     ) -> RetrievalResult:
         """
         Create a retrieval result from raw documents.
@@ -103,7 +105,7 @@ class BaseRetriever(BaseComponent):
             execution_time_ms: The execution time in milliseconds
 
         Returns:
-            A StringRetrievalResult object
+            A RetrievalResult object
 
         Raises:
             RetrievalError: If result creation fails
@@ -121,8 +123,6 @@ class BaseRetriever(BaseComponent):
                 metadata = DocumentMetadata(**metadata_dict)
                 retrieved_docs.append(
                     RetrievedDocument(content=content, metadata=metadata, score=score)
-                    if retrieved_docs
-                    else ""
                 )
             from sifaka.core.results import create_retrieval_result
 
@@ -153,7 +153,7 @@ class BaseRetriever(BaseComponent):
             **kwargs: Additional retrieval parameters
 
         Returns:
-            A StringRetrievalResult object
+            A RetrievalResult object
 
         Raises:
             InputError: If the query is empty or invalid
@@ -251,7 +251,7 @@ class BaseRetriever(BaseComponent):
             **kwargs: Additional processing parameters
 
         Returns:
-            A StringRetrievalResult object
+            A RetrievalResult object
 
         Raises:
             InputError: If the input is not a string

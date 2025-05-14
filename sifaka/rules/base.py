@@ -77,7 +77,8 @@ from typing import Any, Generic, List, Optional, Type, TypeVar
 import time
 from pydantic import Field, ConfigDict, PrivateAttr
 from sifaka.core.base import BaseComponent, BaseConfig
-from sifaka.utils.errors.safe_execution import safely_execute_rule
+
+# Import utilities
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_rule_state, StateManager
 from .validators import RuleValidator, FunctionValidator, BaseValidator
@@ -288,26 +289,51 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
                 suggestions=["Provide valid input"],
                 processing_time_ms=time.time() - start_time,
                 rule_id=rule_id,
-                severity=self.config.severity if self.config else None,
-                category=self.config.category if self.config else None,
-                tags=self.config.tags if self.config else None,
+                severity=self.config.severity if isinstance(self.config, RuleConfig) else "error",
+                category=self.config.category if isinstance(self.config, RuleConfig) else "general",
+                tags=self.config.tags if isinstance(self.config, RuleConfig) else [],
             )
-            self.update_statistics(result)
+            # Cast RuleResult to BaseResult for update_statistics
+            from sifaka.utils.result_types import BaseResult
+
+            stats_result: BaseResult = BaseResult(
+                passed=result.passed,
+                message=result.message,
+                metadata=result.metadata,
+                score=result.score,
+                issues=result.issues,
+                suggestions=result.suggestions,
+                processing_time_ms=result.processing_time_ms,
+            )
+            self.update_statistics(stats_result)
             return result
-        empty_result = self.handle_empty_input(input)
+        # Convert input to string for handle_empty_input which expects a string
+        empty_result = self.handle_empty_input(str(input) if input is not None else "")
         if empty_result:
             result = empty_result.with_metadata(
                 processing_time_ms=time.time() - start_time,
                 rule_id=rule_id,
                 rule_type=self.__class__.__name__,
             )
-            if self.config:
+            if isinstance(self.config, RuleConfig):
                 result = (
                     result.with_severity(self.config.severity)
                     .with_category(self.config.category)
                     .with_tags(self.config.tags)
                 )
-            self.update_statistics(result)
+            # Cast RuleResult to BaseResult for update_statistics
+            from sifaka.utils.result_types import BaseResult
+
+            stats_result: BaseResult = BaseResult(
+                passed=result.passed,
+                message=result.message,
+                metadata=result.metadata,
+                score=result.score,
+                issues=result.issues,
+                suggestions=result.suggestions,
+                processing_time_ms=result.processing_time_ms,
+            )
+            self.update_statistics(stats_result)
             return result
         if not self._validator or not self._validator.can_validate(input):
             result = RuleResult(
@@ -323,11 +349,23 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
                 suggestions=["Use supported input type"],
                 processing_time_ms=time.time() - start_time,
                 rule_id=rule_id,
-                severity=self.config.severity if self.config else None,
-                category=self.config.category if self.config else None,
-                tags=self.config.tags if self.config else None,
+                severity=self.config.severity if isinstance(self.config, RuleConfig) else "error",
+                category=self.config.category if isinstance(self.config, RuleConfig) else "general",
+                tags=self.config.tags if isinstance(self.config, RuleConfig) else [],
             )
-            self.update_statistics(result)
+            # Cast RuleResult to BaseResult for update_statistics
+            from sifaka.utils.result_types import BaseResult
+
+            stats_result: BaseResult = BaseResult(
+                passed=result.passed,
+                message=result.message,
+                metadata=result.metadata,
+                score=result.score,
+                issues=result.issues,
+                suggestions=result.suggestions,
+                processing_time_ms=result.processing_time_ms,
+            )
+            self.update_statistics(stats_result)
             return result
 
         def validation_operation() -> Any:
@@ -337,7 +375,7 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
                 rule_id=rule_id,
                 rule_type=self.__class__.__name__,
             )
-            if self.config:
+            if isinstance(self.config, RuleConfig):
                 result = (
                     result.with_rule_id(rule_id)
                     .with_severity(self.config.severity)
@@ -346,14 +384,20 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
                 )
             return result
 
-        result = safely_execute_rule(
+        # Import the correct function for safe execution
+        from sifaka.utils.common import safely_execute
+
+        # Call safely_execute with the correct parameters
+        result = safely_execute(
             operation=validation_operation,
             component_name=self.name,
-            additional_metadata={"rule_id": rule_id, "rule_type": self.__class__.__name__},
+            state_manager=self._state_manager,
+            component_type="Rule",
         )
         if isinstance(result, dict) and result and result.get("error_type"):
             self.record_error(Exception(result.get("error_message", "Unknown error")))
-            result = RuleResult(
+            # Create a new RuleResult for error case
+            error_result = RuleResult(
                 passed=False,
                 message=(
                     result.get("error_message", "Validation failed")
@@ -372,11 +416,24 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
                 suggestions=["Retry with different input"],
                 processing_time_ms=time.time() - start_time,
                 rule_id=rule_id,
-                severity=self.config.severity if self.config else None,
-                category=self.config.category if self.config else None,
-                tags=self.config.tags if self.config else None,
+                severity=self.config.severity if isinstance(self.config, RuleConfig) else "error",
+                category=self.config.category if isinstance(self.config, RuleConfig) else "general",
+                tags=self.config.tags if isinstance(self.config, RuleConfig) else [],
             )
-        self.update_statistics(result)
+            result = error_result
+        # Cast RuleResult to BaseResult for update_statistics
+        from sifaka.utils.result_types import BaseResult
+
+        stats_result: BaseResult = BaseResult(
+            passed=result.passed,
+            message=result.message,
+            metadata=result.metadata,
+            score=result.score,
+            issues=result.issues,
+            suggestions=result.suggestions,
+            processing_time_ms=result.processing_time_ms,
+        )
+        self.update_statistics(stats_result)
         return result
 
     def process(self, input: T) -> RuleResult:
@@ -471,7 +528,7 @@ class FunctionRule(Rule[T]):
         func: Any,
         description: str = "",
         config: Optional[RuleConfig] = None,
-        validation_type: Type[T] = str,
+        validation_type: Optional[Type[T]] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -485,7 +542,7 @@ class FunctionRule(Rule[T]):
             validation_type: Type this rule can validate
             **kwargs: Additional keyword arguments for configuration
         """
-        validator = FunctionValidator(func, validation_type)
+        validator = FunctionValidator(func, validation_type or str)
         super().__init__(
             name=name,
             description=description or f"Function rule using {func.__name__}",

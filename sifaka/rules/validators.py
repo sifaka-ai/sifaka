@@ -38,7 +38,8 @@ from typing import (
     TYPE_CHECKING,
 )
 from pydantic import PrivateAttr
-from sifaka.utils.errors.safe_execution import safely_execute_rule
+
+# Import utilities for error handling
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_rule_state
 from sifaka.utils.common import update_statistics, record_error
@@ -265,10 +266,14 @@ class FunctionValidator(BaseValidator[T]):
             result = result.with_metadata(processing_time_ms=time.time() - start_time)
             return result
 
-        operation_result = safely_execute_rule(
+        # Import the correct function for safe execution
+        from sifaka.utils.common import safely_execute
+
+        # Call safely_execute with the correct parameters
+        operation_result = safely_execute(
             operation=validation_operation,
-            rule_name=self.__class__.__name__,
             component_name="FunctionValidator",
+            component_type="Rule",
         )
 
         # Handle error case
