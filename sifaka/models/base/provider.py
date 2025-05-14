@@ -36,12 +36,12 @@ provider = ProviderClass(model_name="model-name", config=config)
 
 # With explicit dependencies
 class CustomClient:
-    def send_prompt(self, prompt, config):
+    def send_prompt(self, prompt: Any, config: Any) -> None:
         # Custom implementation
         return "Response"
 
 class CustomTokenCounter:
-    def count_tokens(self, text):
+    def count_tokens(self, text: Any) -> None:
         # Custom implementation
         return len(text.split() if text else "")
 

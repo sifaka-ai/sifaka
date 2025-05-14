@@ -116,7 +116,7 @@ class StyleValidator(BaseValidator[str]):
     ```
     """
 
-    def __init__(self, config: StyleConfig):
+    def __init__(self, config: StyleConfig) -> None:
         """
         Initialize validator with a configuration.
 
@@ -227,7 +227,7 @@ class FormattingValidator(BaseValidator[str]):
     ```
     """
 
-    def __init__(self, config: FormattingConfig):
+    def __init__(self, config: FormattingConfig) -> None:
         """
         Initialize validator with a configuration.
 

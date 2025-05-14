@@ -16,7 +16,7 @@ from sifaka.models.base.types import T, C
 
 # Use type variables in generic classes
 class CustomProvider(Generic[C]):
-    def __init__(self, config: C):
+    def __init__(self, config: C) -> None:
         self.config = config
 ```
 """

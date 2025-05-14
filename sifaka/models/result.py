@@ -150,7 +150,7 @@ class TokenCountResult(ModelResult[int]):
     ```
     """
 
-    def __init__(self, token_count: int, **kwargs: Any):
+    def __init__(self, token_count: int, **kwargs: Any) -> None:
         """
         Initialize a TokenCountResult instance.
 

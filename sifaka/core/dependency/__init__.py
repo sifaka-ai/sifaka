@@ -32,7 +32,7 @@ validator = get_dependency("validator")
 # Use dependency injection
 @inject_dependencies
 class MyComponent:
-    def __init__(self, model=None, validator=None):
+    def __init__(self, model=None, validator=None) -> None:
         self.model = model  # Injected from DependencyProvider
         self.validator = validator  # Injected from DependencyProvider
 

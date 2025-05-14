@@ -32,7 +32,7 @@ class SimpleModel(Model):
         return f"Generated: {prompt}"
 
 class LengthValidator(Validator):
-    def __init__(self, min_length: int, max_length: int):
+    def __init__(self, min_length: int, max_length: int) -> None:
         self.min_length = min_length
         self.max_length = max_length
 

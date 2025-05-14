@@ -38,7 +38,7 @@ class Improver(Generic[OutputType]):
     model providers.
     """
 
-    def __init__(self, model: ModelProvider):
+    def __init__(self, model: ModelProvider) -> None:
         """
         Initialize an Improver instance.
 

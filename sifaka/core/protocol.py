@@ -1,3 +1,4 @@
+from typing import Any
 """
 Protocol Implementation Module
 
@@ -23,7 +24,7 @@ from sifaka.interfaces import Chain
 
 # Check if a class implements a protocol
 class MyChain:
-    def run(self, prompt, **kwargs):
+    def run(self, prompt: Any, **kwargs: Any) -> None:
         return "Result"
 
 compliance_result = check_protocol_compliance(MyChain, Chain)
@@ -124,7 +125,7 @@ def check_protocol_compliance(
         from sifaka.interfaces import Chain
 
         class MyChain:
-            def run(self, prompt, **kwargs):
+            def run(self, prompt: Any, **kwargs: Any) -> None:
                 return "Result"
 
         result = check_protocol_compliance(MyChain, Chain)

@@ -585,7 +585,7 @@ class DefaultPromptManager(CriticPromptManager):
     ```
     """
 
-    def __init__(self, config: Optional[Any] = None):
+    def __init__(self, config: Optional[Any] = None) -> None:
         """Initialize the prompt manager."""
         self.config = config
         self._state_manager = StateManager()

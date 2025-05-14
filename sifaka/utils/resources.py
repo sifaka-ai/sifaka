@@ -1,3 +1,4 @@
+from typing import Any
 """
 Resource Management Module
 
@@ -35,31 +36,31 @@ from pydantic import BaseModel
 
 # Define a resource
 class DatabaseResource(Resource):
-    def initialize(self):
+    def initialize(self) -> None:
         self.connection = connect_to_database()
         return self.connection
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         if hasattr(self, 'connection') and self.connection:
             self.connection.close() if connection else ""
 
 # Use in a Pydantic component
 class MyComponent(BaseModel):
-    def __init__(self, **data):
+    def __init__(self, **data: Any) -> None:
         super().__init__(**data)
         # Initialize resource manager
         self.resource_manager = ResourceManager()
 
-    def initialize(self):
+    def initialize(self) -> None:
         # Register and initialize resources
         self.resource_manager.register("database", DatabaseResource() if resource_manager else "")
         self.resource_manager.initialize_all() if resource_manager else ""
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         # Clean up all resources
         self.resource_manager.cleanup_all() if resource_manager else ""
 
-    def get_database(self):
+    def get_database(self) -> None:
         # Get initialized resource
         return self.resource_manager.get("database") if resource_manager else ""
 ```
@@ -195,14 +196,14 @@ class Resource(ABC):
     ## Examples
     ```python
     class DatabaseResource(Resource):
-        def __init__(self, connection_string):
+        def __init__(self, connection_string: Any) -> None:
             self.connection_string = connection_string
 
-        def initialize(self):
+        def initialize(self) -> None:
             self.connection = connect_to_database(self.connection_string)
             return self.connection
 
-        def cleanup(self):
+        def cleanup(self) -> None:
             if hasattr(self, 'connection') and self.connection:
                 self.connection.close() if connection else ""
     ```

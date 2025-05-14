@@ -34,13 +34,13 @@ class MyComponent(BaseModel):
     # State management (mutable)
     _state_manager = PrivateAttr(default_factory=StateManager)
 
-    def __init__(self, **data):
+    def __init__(self, **data: Any) -> None:
         super().__init__(**data)
         # Initialize state
         self._state_manager.update("initialized", False
         self._state_manager.update("cache", {}
 
-    def process(self, input_data):
+    def process(self, input_data: Any) -> None:
         # Access and update state
         cache = self._state_manager.get("cache", {}
         if input_data in cache:
@@ -62,7 +62,7 @@ class MyClassifier(BaseModel):
     # Use specialized state manager
     _state_manager = PrivateAttr(default_factory=create_classifier_state)
 
-    def warm_up(self):
+    def warm_up(self) -> None:
         if not self._state_manager.get("initialized":
             # Initialize classifier-specific state
             self._state_manager.update("model", self._load_model() if self else ""

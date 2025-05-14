@@ -59,7 +59,7 @@ class MyClassifier(ClassifierProtocol[str, str]):
 - TypeError: Raised for type mismatches
 """
 
-from typing import Any, Dict, List, Protocol, TypeVar, runtime_checkable, TYPE_CHECKING
+from typing import Any, Dict, List, Protocol, TypeVar, TYPE_CHECKING
 
 # Type variables for generic protocols
 T = TypeVar("T", contravariant=True)  # Input type
@@ -72,8 +72,7 @@ if TYPE_CHECKING:
     from sifaka.core.results import ClassificationResult
 
 
-@runtime_checkable
-class TextProcessor(Protocol[InputType, OutputType]):
+class TextProcessor(Protocol):
     """
     Protocol for text processing components.
 
@@ -105,11 +104,12 @@ class TextProcessor(Protocol[InputType, OutputType]):
     - Resource availability issues
     """
 
-    def process(self, text: InputType) -> Dict[str, Any]: ...
+    def process(self, text: Any) -> Dict[str, Any]:
+        """Process the input text and return a dictionary of results."""
+        ...
 
 
-@runtime_checkable
-class ClassifierProtocol(Protocol[InputType, OutputType]):
+class ClassifierProtocol(Protocol):
     """
     Protocol defining the interface for classifiers.
 
@@ -164,19 +164,46 @@ class ClassifierProtocol(Protocol[InputType, OutputType]):
     - Provide statistics through get_statistics()
     """
 
-    def classify(self, text: InputType) -> "ClassificationResult[OutputType, Any]": ...
-    def batch_classify(
-        self, texts: List[InputType]
-    ) -> List["ClassificationResult[OutputType, Any]"]: ...
+    def classify(self, text: Any) -> "ClassificationResult":
+        """Classify a single text input."""
+        ...
+
+    def batch_classify(self, texts: List[Any]) -> List["ClassificationResult"]:
+        """Classify multiple text inputs."""
+        ...
+
     @property
-    def name(self) -> str: ...
+    def name(self) -> str:
+        """Get the classifier name."""
+        ...
+
     @property
-    def description(self) -> str: ...
+    def description(self) -> str:
+        """Get the classifier description."""
+        ...
+
     @property
-    def min_confidence(self) -> float: ...
+    def min_confidence(self) -> float:
+        """Get the minimum confidence threshold."""
+        ...
+
     @property
-    def _state_manager(self) -> Any: ...
-    def initialize(self) -> None: ...
-    def warm_up(self) -> None: ...
-    def get_statistics(self) -> Dict[str, Any]: ...
-    def clear_cache(self) -> None: ...
+    def _state_manager(self) -> Any:
+        """Get the state manager."""
+        ...
+
+    def initialize(self) -> None:
+        """Initialize the classifier."""
+        ...
+
+    def warm_up(self) -> None:
+        """Warm up the classifier."""
+        ...
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get execution statistics."""
+        ...
+
+    def clear_cache(self) -> None:
+        """Clear the classifier cache."""
+        ...

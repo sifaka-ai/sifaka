@@ -581,7 +581,7 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
     )
 
     # Create an adapter with an extraction function
-    def extract_message(text):
+    def extract_message(text: Any) -> None:
         # Extract message content from a structured format
         if ":" in text:
             return (text.split("Content:")[1].strip()

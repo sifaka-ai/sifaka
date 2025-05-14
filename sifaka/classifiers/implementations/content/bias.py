@@ -364,7 +364,7 @@ class BiasDetector(Classifier):
             RuntimeError: If model initialization fails
         """
         # Check if already initialized
-        if self._state_manager and self._state_manager.get("initialized", False):
+        if self._state_manager.get("initialized", False):
             return
 
         # Load dependencies

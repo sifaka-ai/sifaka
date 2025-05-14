@@ -105,7 +105,7 @@ class DefaultImprovementStrategy:
        - Handles errors
     """
 
-    def __init__(self, model_provider: LLMProvider):
+    def __init__(self, model_provider: LLMProvider) -> None:
         """
         Initialize the improvement strategy.
 

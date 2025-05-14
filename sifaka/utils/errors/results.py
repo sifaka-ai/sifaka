@@ -58,7 +58,7 @@ class ErrorResult(BaseModel):
     )
 
     # Using ErrorResult in a function
-    def process_data(data):
+    def process_data(data: Any) -> None:
         if not validate(data):
             return ErrorResult(
                 error_type="ValidationError",

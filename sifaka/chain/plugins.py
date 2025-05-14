@@ -121,7 +121,7 @@ class PluginLoader(CorePluginLoader):
         _registry (PluginRegistry): The registry to register plugins with
     """
 
-    def __init__(self, registry: Optional[PluginRegistry] = None):
+    def __init__(self, registry: Optional[PluginRegistry] = None) -> None:
         """
         Initialize the chain plugin loader.
 

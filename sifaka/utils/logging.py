@@ -1,3 +1,4 @@
+from typing import Any
 """
 Logging Module
 
@@ -797,14 +798,14 @@ def log_operation(logger: Optional[EnhancedLogger] = None) -> Callable[[F], F]:
 
         # Use with default logger (from function's module)
         @log_operation()
-        def process_data(data):
+        def process_data(data: Any) -> None:
             # Process data
             return result
 
         # Use with custom logger
         logger = get_logger("my_component")
         @log_operation(logger=logger)
-        def process_data(data):
+        def process_data(data: Any) -> None:
             # Process data
             return result
         ```

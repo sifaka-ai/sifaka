@@ -20,7 +20,7 @@ from sifaka.utils.config.models import ModelConfig
 
 # Create a client manager
 class MyClientManager(ClientManager):
-    def _create_default_client(self):
+    def _create_default_client(self) -> None:
         return MyAPIClient(api_key=self._config.api_key)
 
 # Use the client manager
@@ -92,7 +92,7 @@ class ClientManager(Generic[C]):
         ```
     """
 
-    def __init__(self, model_name: str, config: ModelConfig, api_client: Optional[C] = None):
+    def __init__(self, model_name: str, config: ModelConfig, api_client: Optional[C] = None) -> None:
         """
         Initialize a ClientManager instance.
 

@@ -20,7 +20,7 @@ from sifaka.utils.config.critics import CriticConfig
 from sifaka.core.base import BaseResult
 
 class MyCritic(BaseCritic[str]):
-    def __init__(self, name: str, description: str, config: Optional[CriticConfig] = None):
+    def __init__(self, name: str, description: str, config: Optional[CriticConfig] = None) -> None:
         super().__init__(name, description, config)
 
     def validate(self, text: str) -> bool:
@@ -104,7 +104,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
     from sifaka.core.base import BaseResult
 
     class MyCritic(BaseCritic[str]):
-        def __init__(self, name: str, description: str, config: Optional[CriticConfig] = None):
+        def __init__(self, name: str, description: str, config: Optional[CriticConfig] = None) -> None:
             super().__init__(name, description, config)
 
         def validate(self, text: str) -> bool:

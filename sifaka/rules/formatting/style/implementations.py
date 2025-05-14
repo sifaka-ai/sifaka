@@ -123,7 +123,7 @@ class DefaultStyleValidator(StyleValidator):
     ```
     """
 
-    def __init__(self, config: StyleConfig):
+    def __init__(self, config: StyleConfig) -> None:
         """
         Initialize validator with a configuration and analyzers.
 

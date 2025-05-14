@@ -140,7 +140,7 @@ class ProfanityChecker(Protocol):
     from sifaka.classifiers.implementations.content.profanity import ProfanityChecker
 
     class CustomProfanityChecker:
-        def __init__(self):
+        def __init__(self) -> None:
             self._profane_words = {"bad", "inappropriate"}
             self._censor_char = "*"
 
@@ -387,7 +387,7 @@ class ProfanityClassifier(Classifier):
                          or other runtime problems
         """
         try:
-            if self._state_manager and self._state_manager.get("cache", {}).get("checker"):
+            if self._state_manager.get("cache", {}).get("checker"):
                 checker = self._state_manager.get("cache")["checker"]
                 if isinstance(checker, ProfanityChecker):
                     return checker
@@ -631,7 +631,7 @@ class ProfanityClassifier(Classifier):
         if hasattr(self, "_result_cache"):
             stats["cache_entries"] = len(self._result_cache)
 
-        if self._state_manager and self._state_manager.get("cache", {}).get("checker"):
+        if self._state_manager.get("cache", {}).get("checker"):
             stats["has_checker"] = True
 
         return stats

@@ -14,7 +14,7 @@ from sifaka.rules.base import RuleResult
 
 # Create a custom format validator
 class CustomFormatValidator(FormatValidator):
-    def __init__(self, config: FormatConfig):
+    def __init__(self, config: FormatConfig) -> None:
         self._config = config
 
     @property

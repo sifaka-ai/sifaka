@@ -77,7 +77,7 @@ class SelfRefineCriticPromptManager(DefaultPromptManager):
        - Logs final status
     """
 
-    def __init__(self, config: Optional[Any] = None):
+    def __init__(self, config: Optional[Any] = None) -> None:
         """Initialize the prompt manager."""
         super().__init__(config)
         if self._state_manager:
@@ -198,7 +198,7 @@ class ConstitutionalCriticPromptManager(DefaultPromptManager):
        - Logs final status
     """
 
-    def __init__(self, config: Optional[Any] = None):
+    def __init__(self, config: Optional[Any] = None) -> None:
         """Initialize the prompt manager."""
         super().__init__(config)
         if self._state_manager:

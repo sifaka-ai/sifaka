@@ -19,13 +19,13 @@ from sifaka.adapters.plugins import PluginRegistry, PluginLoader, AdapterPlugin
 
 # Define a custom adapter plugin
 class MyAdapterPlugin(AdapterPlugin):
-    def __init__(self, name="my_plugin"):
+    def __init__(self, name="my_plugin") -> None:
         self.name = name
 
-    def initialize(self):
+    def initialize(self) -> None:
         print(f"Initializing {self.name}")
 
-    def get_metadata(self):
+    def get_metadata(self) -> None:
         return {"type": "adapter_plugin", "name": self.name}
 
 # Create plugin registry
@@ -96,13 +96,13 @@ class AdapterPlugin(Plugin):
     ## Examples
     ```python
     class MyAdapterPlugin(AdapterPlugin):
-        def __init__(self, name="my_plugin"):
+        def __init__(self, name="my_plugin") -> None:
             self.name = name
 
-        def initialize(self):
+        def initialize(self) -> None:
             print(f"Initializing {self.name}")
 
-        def get_metadata(self):
+        def get_metadata(self) -> None:
             return {"type": "adapter_plugin", "name": self.name}
     ```
     """
@@ -221,7 +221,7 @@ class PluginLoader(CorePluginLoader):
     ```
     """
 
-    def __init__(self, registry: Optional[Optional[PluginRegistry]] = None):
+    def __init__(self, registry: Optional[Optional[PluginRegistry]] = None) -> None:
         """
         Initialize the adapter plugin loader.
 

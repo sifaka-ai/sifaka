@@ -1,3 +1,4 @@
+from typing import Any
 """
 Utility functions for rules in Sifaka.
 
@@ -19,7 +20,7 @@ Usage Example:
     )
 
     # Use try_validate to handle errors
-    def validate_text(text):
+    def validate_text(text: Any) -> None:
         if len(text) < 10:
             return create_rule_result(
                 passed=False,

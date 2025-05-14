@@ -60,7 +60,7 @@ class SifakaError(Exception):
         metadata (Dict[str, Any]): Additional error context and details
     """
 
-    def __init__(self, message: str, metadata: Optional[Dict[str, Any]] = None):
+    def __init__(self, message: str, metadata: Optional[Dict[str, Any]] = None) -> None:
         """Initialize a SifakaError with a message and optional metadata.
 
         This constructor initializes a SifakaError with a human-readable message

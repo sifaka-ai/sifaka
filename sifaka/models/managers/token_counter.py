@@ -19,7 +19,7 @@ from sifaka.models.managers.token_counter import TokenCounterManager
 
 # Create a token counter manager
 class MyTokenCounterManager(TokenCounterManager):
-    def _create_default_token_counter(self):
+    def _create_default_token_counter(self) -> None:
         return MyTokenCounter(model=self._model_name)
 
 # Use the token counter manager
@@ -84,7 +84,7 @@ class TokenCounterManager(Generic[T]):
         ```
     """
 
-    def __init__(self, model_name: str, token_counter: Optional[Optional[T]] = None):
+    def __init__(self, model_name: str, token_counter: Optional[Optional[T]] = None) -> None:
         """
         Initialize a TokenCounterManager instance.
 

@@ -141,7 +141,7 @@ class LanguageDetector(Protocol):
 
             # Create language probability objects
             class LangProb:
-                def __init__(self, lang, prob):
+                def __init__(self, lang: Any, prob: Any) -> None:
                     self.lang = lang
                     self.prob = prob
 

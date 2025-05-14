@@ -367,7 +367,7 @@ class OpenAIProvider(ModelProviderCore):
             ModelError: If initialization fails due to API issues
         """
         # Ensure component is not already initialized
-        if self._state_manager and self._state_manager.get("initialized", False):
+        if self._state_manager.get("initialized", False):
             logger.debug(f"Provider {self.name} already initialized")
             return
 
@@ -647,7 +647,7 @@ class OpenAIProvider(ModelProviderCore):
         from sifaka.models.managers.openai_client import OpenAIClient
 
         api_key = None
-        if self._state_manager and self._state_manager.get("config"):
+        if self._state_manager.get("config"):
             api_key = self._state_manager.get("config").api_key
 
         return OpenAIClient(api_key=api_key)

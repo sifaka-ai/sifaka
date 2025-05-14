@@ -15,7 +15,7 @@ from sifaka.core.dependency.injector import inject_dependencies, DependencyInjec
 # Use the decorator for automatic injection
 @inject_dependencies
 class MyComponent:
-    def __init__(self, model=None, validator=None):
+    def __init__(self, model=None, validator=None) -> None:
         self.model = model  # Injected from DependencyProvider
         self.validator = validator  # Injected from DependencyProvider
 
@@ -69,7 +69,7 @@ class DependencyInjector:
     dependencies = injector.inject({"model": None, "validator": None}) if injector else ""
 
     # Inject dependencies into a function
-    def process_data(model=None, validator=None):
+    def process_data(model=None, validator=None) -> None:
         # Use injected dependencies
         pass
 
@@ -141,7 +141,7 @@ class DependencyInjector:
             ```python
             injector = DependencyInjector()
 
-            def process_data(model=None, validator=None):
+            def process_data(model=None, validator=None) -> None:
                 # Use injected dependencies
                 pass
 
@@ -194,7 +194,7 @@ class DependencyInjector:
             injector = DependencyInjector()
 
             class MyComponent:
-                def process_data(self, model=None, validator=None):
+                def process_data(self, model=None, validator=None) -> None:
                     # Use injected dependencies
                     pass
 
@@ -248,7 +248,7 @@ class DependencyInjector:
             injector = DependencyInjector()
 
             class MyComponent:
-                def __init__(self, model=None, validator=None):
+                def __init__(self, model=None, validator=None) -> None:
                     self.model = model
                     self.validator = validator
 
@@ -316,25 +316,25 @@ def inject_dependencies(
         # Basic usage with a class
         @inject_dependencies
         class MyComponent:
-            def __init__(self, model=None, validator=None):
+            def __init__(self, model=None, validator=None) -> None:
                 self.model = model  # Injected from DependencyProvider
                 self.validator = validator  # Injected from DependencyProvider
 
         # With explicit session ID
         @inject_dependencies(session_id="user_session_1")
         class MySessionComponent:
-            def __init__(self, database=None):
+            def __init__(self, database=None) -> None:
                 self.database = database  # Session-specific instance
 
         # With explicit request ID
         @inject_dependencies(request_id="request_123")
         class MyRequestComponent:
-            def __init__(self, validator=None):
+            def __init__(self, validator=None) -> None:
                 self.validator = validator  # Request-specific instance
 
         # With a function
         @inject_dependencies
-        def process_data(model=None, validator=None):
+        def process_data(model=None, validator=None) -> None:
             # Use injected dependencies
             pass
         ```

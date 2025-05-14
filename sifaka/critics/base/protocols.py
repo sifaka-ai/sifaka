@@ -20,7 +20,7 @@ from sifaka.critics.base.protocols import TextValidator
 from sifaka.utils.config.critics import CriticConfig
 
 class LengthValidator:
-    def __init__(self, min_length: int = 10, max_length: int = 1000):
+    def __init__(self, min_length: int = 10, max_length: int = 1000) -> None:
         self._config = CriticConfig(
             name="length_validator",
             description="Validates text length",
@@ -80,7 +80,7 @@ class TextValidator(Protocol[T]):
     from sifaka.utils.config.critics import CriticConfig
 
     class LengthValidator:
-        def __init__(self, min_length: int = 10, max_length: int = 1000):
+        def __init__(self, min_length: int = 10, max_length: int = 1000) -> None:
             self._config = CriticConfig(
                 name="length_validator",
                 description="Validates text length",
@@ -165,7 +165,7 @@ class TextImprover(Protocol[T, R]):
     from typing import Dict, List, Any
 
     class SimpleImprover:
-        def __init__(self):
+        def __init__(self) -> None:
             self._config = CriticConfig(
                 name="simple_improver",
                 description="Improves text based on rule violations"
@@ -251,7 +251,7 @@ class TextCritic(Protocol[T, R]):
     from sifaka.utils.config.critics import CriticConfig
 
     class SimpleCritic:
-        def __init__(self):
+        def __init__(self) -> None:
             self._config = CriticConfig(
                 name="simple_critic",
                 description="Analyzes text quality"

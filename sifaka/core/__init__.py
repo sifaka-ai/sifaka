@@ -45,10 +45,10 @@ class MyComponent(Component, Configurable):
         pass
 
     @property
-    def config(self):
+    def config(self) -> None:
         return self._config
 
-    def update_config(self, config):
+    def update_config(self, config: Any) -> None:
         # Update configuration
         pass
 ```

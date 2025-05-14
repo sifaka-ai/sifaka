@@ -393,7 +393,7 @@ class SentimentClassifier(Classifier):
         """
         try:
             # Check if analyzer is already in state
-            if self._state_manager and self._state_manager.get("cache", {}).get("analyzer"):
+            if self._state_manager.get("cache", {}).get("analyzer"):
                 cached_analyzer = self._state_manager.get("cache", {}).get("analyzer")
                 if isinstance(cached_analyzer, SentimentAnalyzer):
                     return cached_analyzer

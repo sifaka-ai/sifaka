@@ -32,21 +32,21 @@ class MyComponent(Component, Configurable, Stateful):
         pass
 
     @property
-    def config(self):
+    def config(self) -> None:
         return self._config
 
-    def update_config(self, config):
+    def update_config(self, config: Any) -> None:
         # Update configuration
         pass
 
-    def get_state(self):
+    def get_state(self) -> None:
         return self._state
 
-    def set_state(self, state):
+    def set_state(self, state: Any) -> None:
         # Update state
         pass
 
-    def reset_state(self):
+    def reset_state(self) -> None:
         # Reset state
         pass
 ```

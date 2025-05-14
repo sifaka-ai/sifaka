@@ -1,3 +1,4 @@
+from typing import Any
 """
 Retry Manager Module
 
@@ -31,13 +32,13 @@ retry_manager = RetryManager(
 def generate():
     return model.generate(prompt) if model else ""
 
-def validate(output):
+def validate(output: Any) -> None:
     return [validator.validate(output) if validator else "" for validator in validators)
 
-def improve(output, results):
+def improve(output: Any, results: Any) -> None:
     return improver.improve(output, results) if improver else "" if improver else output
 
-def create_result(prompt, output, results, attempt):
+def create_result(prompt: Any, output: Any, results: Any, attempt: Any) -> None:
     return ChainResult(
         prompt=prompt,
         output=output,
@@ -129,7 +130,7 @@ class RetryManager:
     ```
     """
 
-    def __init__(self, state_manager: StateManager, max_attempts: int = 3):
+    def __init__(self, state_manager: StateManager, max_attempts: int = 3) -> None:
         """
         Initialize the retry manager.
 

@@ -365,7 +365,7 @@ class AnthropicProvider(ModelProviderCore):
             ModelError: If initialization fails due to API issues
         """
         # Ensure component is not already initialized
-        if self._state_manager and self._state_manager.get("initialized", False):
+        if self._state_manager.get("initialized", False):
             logger.debug(f"Provider {self.name} already initialized")
             return
 

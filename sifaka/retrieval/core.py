@@ -27,7 +27,7 @@ class RetrieverCore(BaseComponent):
         _state_manager: State manager for tracking retriever state
     """
 
-    def __init__(self, name: str = "base_retriever", query_processor: Any = None):
+    def __init__(self, name: str = "base_retriever", query_processor: Any = None) -> None:
         """
         Initialize a new RetrieverCore.
 

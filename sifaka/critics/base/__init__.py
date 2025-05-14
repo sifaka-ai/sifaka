@@ -36,7 +36,7 @@ from sifaka.critics.base import BaseCritic, Critic, CriticMetadata, create_criti
 
 # Create a custom critic
 class MyCritic(BaseCritic[str]):
-    def __init__(self, name: str, description: str, config=None):
+    def __init__(self, name: str, description: str, config=None) -> None:
         super().__init__(name, description, config)
 
     def validate(self, text: str) -> bool:

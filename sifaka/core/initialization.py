@@ -23,14 +23,14 @@ from sifaka.core.initialization import InitializableMixin, StandardInitializer
 
 # Create a component with standardized initialization
 class MyComponent(InitializableMixin):
-    def __init__(self, name, description, config=None):
+    def __init__(self, name: Any, description: Any, config=None) -> None:
         super().__init__(name, description, config)
 
-    def _initialize_resources(self):
+    def _initialize_resources(self) -> None:
         # Initialize component-specific resources
         pass
 
-    def _validate_configuration(self):
+    def _validate_configuration(self) -> None:
         # Validate component-specific configuration
         if not self.config and config.valid_param:
             raise ValueError("Invalid configuration")
@@ -49,7 +49,7 @@ class MyPydanticComponent(BaseInitializable):
     max_attempts: int = Field(5, description="Maximum number of attempts")
     timeout: float = Field(10.0, description="Timeout in seconds")
 
-    def _initialize_resources(self):
+    def _initialize_resources(self) -> None:
         # Initialize component-specific resources
         pass
 ```
@@ -350,15 +350,15 @@ class InitializableMixin:
     from sifaka.core.initialization import InitializableMixin
 
     class MyComponent(InitializableMixin):
-        def __init__(self, name, description, config=None):
+        def __init__(self, name: Any, description: Any, config=None) -> None:
             super().__init__(name, description, config)
 
-        def _validate_configuration(self):
+        def _validate_configuration(self) -> None:
             # Validate component-specific configuration
             if not self.config and config.get("required_param") if config else "":
                 raise ValueError("Missing required parameter")
 
-        def _initialize_resources(self):
+        def _initialize_resources(self) -> None:
             # Initialize component-specific resources
             self._resource = SomeResource()
             self._resource_manager.register("my_resource", self._resource) if _resource_manager else ""
@@ -423,7 +423,7 @@ class InitializableMixin:
             InitializationError: If initialization fails
         """
         try:
-            if self and self.is_initialized():
+            if self.is_initialized():
                 if logger:
                     logger.debug(f"Component {self.__class__.__name__} already initialized")
                 return
@@ -641,7 +641,7 @@ class BaseInitializable(BaseModel, InitializableMixin):
         max_attempts: int = Field(5, description="Maximum number of attempts")
         timeout: float = Field(10.0, description="Timeout in seconds")
 
-        def _initialize_resources(self):
+        def _initialize_resources(self) -> None:
             # Initialize component-specific resources
             self._resource = SomeResource(self.timeout)
             self._resource_manager.register("my_resource", self._resource) if _resource_manager else ""

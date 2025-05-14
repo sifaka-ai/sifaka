@@ -724,7 +724,7 @@ class BufferMemoryManager:
     # State management
     _state_manager: StateManager
 
-    def __init__(self, buffer_size: int = 5):
+    def __init__(self, buffer_size: int = 5) -> None:
         """
         Initialize a BufferMemoryManager instance.
 
