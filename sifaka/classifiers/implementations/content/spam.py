@@ -173,7 +173,7 @@ class SpamClassifier(Classifier):
 
     # Class-level constants
     DEFAULT_LABELS: ClassVar[List[str]] = ["ham", "spam"]
-    DEFAULT_COST: ClassVar[int] = 1.5  # Slightly higher cost for ML-based model
+    DEFAULT_COST: ClassVar[float] = 1.5  # Slightly higher cost for ML-based model
 
     # State management
     _state_manager = PrivateAttr(default_factory=create_classifier_state)
@@ -182,8 +182,8 @@ class SpamClassifier(Classifier):
         self,
         name: str = "spam_classifier",
         description: str = "Detects spam content in text",
-        config: Optional[Optional[ClassifierConfig[str]]] = None,
-        **kwargs,
+        config: Optional[ClassifierConfig[str]] = None,
+        **kwargs: Any,
     ) -> None:
         """
         Initialize the spam classifier.
@@ -477,6 +477,8 @@ class SpamClassifier(Classifier):
                 metadata={
                     "probabilities": {l: float(p) for l, p in zip(self.config.labels, proba)}
                 },
+                passed=True,
+                message="",
             )
 
             # Track statistics
@@ -498,6 +500,8 @@ class SpamClassifier(Classifier):
                 label="unknown",
                 confidence=0.0,
                 metadata={"error": str(e), "reason": "classification_error"},
+                passed=False,
+                message=f"Classification error: {str(e)}",
             )
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult[Any, str]]:
@@ -547,6 +551,8 @@ class SpamClassifier(Classifier):
                                 l: float(p) for l, p in zip(self.config.labels, proba)
                             }
                         },
+                        passed=True,
+                        message="",
                     )
                 )
 
@@ -570,6 +576,8 @@ class SpamClassifier(Classifier):
                     label="unknown",
                     confidence=0.0,
                     metadata={"error": str(e), "reason": "batch_classification_error"},
+                    passed=False,
+                    message=f"Batch classification error: {str(e)}",
                 )
                 for _ in texts
             ]
@@ -645,7 +653,7 @@ class SpamClassifier(Classifier):
         labels: List[str],
         name: str = "pretrained_spam_classifier",
         description: str = "Pre-trained spam classifier",
-        **kwargs,
+        **kwargs: Any,
     ) -> "SpamClassifier":
         """
         Create and train a spam classifier in one step.
@@ -688,12 +696,12 @@ class SpamClassifier(Classifier):
 def create_spam_classifier(
     name: str = "spam_classifier",
     description: str = "Detects spam content in text",
-    model_path: Optional[Optional[str]] = None,
+    model_path: Optional[str] = None,
     max_features: int = 1000,
     use_bigrams: bool = True,
     cache_size: int = 0,
-    cost: int = 1.5,
-    **kwargs,
+    cost: float = 1.5,
+    **kwargs: Any,
 ) -> SpamClassifier:
     """
     Factory function to create a spam classifier.

@@ -63,19 +63,12 @@ from typing import (
     Generic,
     List,
     Optional,
-    Protocol,
     TypeVar,
-    Union,
-    runtime_checkable,
 )
 
-from pydantic import BaseModel, Field
-
-from sifaka.core.base import BaseComponent
+from sifaka.core.base import BaseComponent, BaseConfig
 from sifaka.utils.state import StateManager, create_classifier_state
 from sifaka.utils.errors.component import ClassifierError
-from sifaka.classifiers.errors import ImplementationError
-from sifaka.utils.common import update_statistics
 from sifaka.utils.logging import get_logger
 from sifaka.core.results import ClassificationResult
 from sifaka.utils.config.classifiers import ClassifierConfig
@@ -143,7 +136,10 @@ class BaseClassifier(BaseComponent[T, ClassificationResult], Generic[T, L]):
         """
         self._name = name
         self._description = description
-        self._config = config or ClassifierConfig()
+        # Cast to BaseConfig to match the BaseComponent interface
+        from typing import cast
+
+        self._config: BaseConfig = cast(BaseConfig, config or ClassifierConfig())
 
         # Create state manager using the standardized state management
         self._state_manager = create_classifier_state()
@@ -183,14 +179,17 @@ class BaseClassifier(BaseComponent[T, ClassificationResult], Generic[T, L]):
         """
         return self._description
 
-    def get_config(self) -> ClassifierConfig:
+    def get_config(self) -> BaseConfig:
         """
         Get classifier configuration.
 
         Returns:
             The current configuration of the classifier
         """
-        return self._config
+        # Cast to BaseConfig to match the BaseComponent interface
+        from typing import cast
+
+        return cast(BaseConfig, self._config)
 
     def update_config(self, config: ClassifierConfig) -> None:
         """
@@ -202,9 +201,15 @@ class BaseClassifier(BaseComponent[T, ClassificationResult], Generic[T, L]):
         Args:
             config: New classifier configuration
         """
-        self._config = config
+        # Cast to BaseConfig to match the BaseComponent interface
+        from typing import cast
+
+        self._config = cast(BaseConfig, config)
         if self._state_manager:
-            self._state_manager.update("config", config)
+            # Store config as a dictionary to avoid type issues
+            self._state_manager.update(
+                "config", config.model_dump() if hasattr(config, "model_dump") else {}
+            )
 
     @abstractmethod
     def classify(self, text: T) -> ClassificationResult[L, Any]:
@@ -425,10 +430,13 @@ class BaseClassifierImplementation(ABC, Generic[L]):
             if self._state_manager:
                 cache = self._state_manager.get("result_cache", {})
                 if text in cache:
-                    return cache[text]
+                    # Use explicit typing to avoid Any return type
+                    cached_result: ClassificationResult[L, Any] = cache[text]
+                    return cached_result
 
         # Perform classification
-        result = self._classify_impl_uncached(text)
+        # Use explicit typing to avoid Any return type
+        result: ClassificationResult[L, Any] = self._classify_impl_uncached(text)
 
         # Cache result if enabled
         if (
@@ -464,10 +472,13 @@ class BaseClassifierImplementation(ABC, Generic[L]):
             if self._state_manager:
                 cache = self._state_manager.get("result_cache", {})
                 if text in cache:
-                    return cache[text]
+                    # Use explicit typing to avoid Any return type
+                    cached_result: ClassificationResult[L, Any] = cache[text]
+                    return cached_result
 
         # Perform classification
-        result = await self._classify_async_impl_uncached(text)
+        # Use explicit typing to avoid Any return type
+        result: ClassificationResult[L, Any] = await self._classify_async_impl_uncached(text)
 
         # Cache result if enabled
         if (
@@ -583,7 +594,9 @@ def safely_classify(
         ClassifierError: If classification fails and no fallback is available
     """
     try:
-        return operation()
+        # Use explicit typing to avoid Any return type
+        result: ClassificationResult = operation()
+        return result
     except Exception as e:
         logger.error(
             f"Classification error in {component_name} ({classifier_name}): {str(e)}",
