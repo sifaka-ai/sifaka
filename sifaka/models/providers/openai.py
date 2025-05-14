@@ -49,7 +49,9 @@ The provider implements comprehensive error handling:
 
 import time
 import importlib.util
-from typing import Any, Dict, Optional, ClassVar
+from typing import Any, Dict, Optional, ClassVar, Union
+
+from sifaka.utils.config.models import ModelConfig
 
 # Import interfaces directly to avoid circular dependencies
 from sifaka.interfaces.client import APIClientProtocol as APIClient
@@ -58,7 +60,6 @@ from sifaka.models.core.provider import ModelProviderCore
 
 # Import utilities
 from sifaka.utils.config.models import OpenAIConfig
-from sifaka.utils.common import record_error
 from sifaka.utils.logging import get_logger
 
 # Lazy import managers to avoid circular dependencies
@@ -169,7 +170,7 @@ class OpenAIProvider(ModelProviderCore):
 
         logger.info(f"Created OpenAIProvider with model {model_name}")
 
-    def invoke(self, prompt: str, **kwargs) -> str:
+    def invoke(self, prompt: str, **kwargs: Any) -> str:
         """
         Invoke the model with a prompt (delegates to generate).
 
@@ -237,7 +238,7 @@ class OpenAIProvider(ModelProviderCore):
             # Re-raise the exception
             raise
 
-    async def ainvoke(self, prompt: str, **kwargs) -> str:
+    async def ainvoke(self, prompt: str, **kwargs: Any) -> str:
         """
         Asynchronously invoke the model with a prompt.
 
@@ -305,7 +306,7 @@ class OpenAIProvider(ModelProviderCore):
                     )
                     self._state_manager.update("stats", stats)
 
-            return result
+            return str(result) if result is not None else ""
 
         except Exception as e:
             # Update error count in state
@@ -331,12 +332,9 @@ class OpenAIProvider(ModelProviderCore):
                 self._state_manager.update("stats", stats)
 
             # Use common error recording utility
-            record_error(
-                error=error,
-                component_name=self.name,
-                component_type=self.__class__.__name__,
-                state_manager=self._state_manager,
-            )
+            from sifaka.models.core.error_handling import record_error as core_record_error
+
+            core_record_error(self, error)
 
     @property
     def name(self) -> str:
@@ -462,7 +460,7 @@ class OpenAIProvider(ModelProviderCore):
         self._state_manager.update("initialized", False)
         logger.info(f"Provider {self.name} cleaned up successfully")
 
-    def generate(self, prompt: str, **kwargs) -> str:
+    def generate(self, prompt: str, **kwargs: Any) -> str:
         """
         Generate text from a prompt.
 
@@ -559,7 +557,8 @@ class OpenAIProvider(ModelProviderCore):
 
         # Send prompt to client
         if client:
-            return client.send_prompt(prompt, config)
+            result = client.send_prompt(prompt, config)
+            return str(result) if result is not None else ""
         return ""
 
     def count_tokens(self, text: str) -> int:
@@ -626,7 +625,8 @@ class OpenAIProvider(ModelProviderCore):
 
         # Count tokens
         if token_counter:
-            return token_counter.count_tokens(text)
+            result = token_counter.count_tokens(text)
+            return int(result) if result is not None else 0
         return 0
 
     def _create_default_client(self) -> APIClient:
@@ -731,9 +731,28 @@ class OpenAIProvider(ModelProviderCore):
             model_name = self._state_manager.get("model_name", model_name)
         return f"OpenAI provider using model {model_name}"
 
-    def update_config(self, **kwargs) -> None:
+    def update_config(self, config: Any) -> None:
         """
         Update the provider configuration.
+
+        Args:
+            config: The new configuration object or values to update
+        """
+        if not self._state_manager:
+            return
+
+        # If config is a dict, convert it to kwargs and call the kwargs version
+        if isinstance(config, dict):
+            self._update_config_with_kwargs(**config)
+        # If config is a ModelConfig, update directly
+        elif isinstance(config, ModelConfig):
+            self._state_manager.update("config", config)
+        else:
+            raise ValueError(f"Config must be a dict or ModelConfig, got {type(config)}")
+
+    def _update_config_with_kwargs(self, **kwargs: Any) -> None:
+        """
+        Update the provider configuration with keyword arguments.
 
         Args:
             **kwargs: Configuration parameters to update
@@ -747,8 +766,8 @@ class OpenAIProvider(ModelProviderCore):
 
         # Create a new config with updated values using the proper immutable pattern
         # First, check if any kwargs match direct config attributes
-        config_kwargs = {}
-        params_kwargs = {}
+        config_kwargs: Dict[str, Any] = {}
+        params_kwargs: Dict[str, Any] = {}
 
         for key, value in kwargs.items():
             if hasattr(config, key) and key != "params":

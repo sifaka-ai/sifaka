@@ -63,9 +63,7 @@ The state management utilities work with the following components:
 import time
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
-
-from ..utils.state import StateManager, ChainState, create_chain_state as create_base_chain_state
+from ..utils.state import StateManager, create_chain_state as create_base_chain_state
 
 
 class ChainStateManager(StateManager):
@@ -121,9 +119,9 @@ class ChainStateManager(StateManager):
         self,
         model: Any,
         validators: List[Any],
-        improver: Optional[Optional[Any]] = None,
-        formatter: Optional[Optional[Any]] = None,
-        config: Optional[Optional[Any]] = None,
+        improver: Optional[Any] = None,
+        formatter: Optional[Any] = None,
+        config: Optional[Any] = None,
         name: str = "chain",
         description: str = "Sifaka chain for text generation and validation",
     ) -> None:
@@ -180,7 +178,7 @@ class ChainStateManager(StateManager):
         self,
         success: bool,
         execution_time: float,
-        error: Optional[Optional[Exception]] = None,
+        error: Optional[Exception] = None,
     ) -> None:
         """
         Track the end of chain execution.
@@ -235,7 +233,10 @@ class ChainStateManager(StateManager):
         Returns:
             The validators used for validation
         """
-        return self.get("validators", [])
+        validators = self.get("validators", [])
+        if validators is None:
+            return []
+        return list(validators) if validators else []
 
     def get_improver(self) -> Optional[Any]:
         """
@@ -262,7 +263,10 @@ class ChainStateManager(StateManager):
         Returns:
             The number of times the chain has been executed
         """
-        return self.get("execution_count", 0)
+        count = self.get("execution_count", 0)
+        if count is None:
+            return 0
+        return int(count) if isinstance(count, (int, float, str)) else 0
 
     def get_statistics(self) -> Dict[str, Any]:
         """

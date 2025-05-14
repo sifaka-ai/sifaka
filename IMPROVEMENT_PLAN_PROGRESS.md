@@ -469,6 +469,8 @@ We've identified 148 files with syntax errors across the codebase. So far, we've
 9. `sifaka/classifiers/implementations/content/toxicity_model.py` - Fixed Union type usage in Protocol definition
 10. `sifaka/models/managers/anthropic_token_counter.py` - Fixed type assignment errors with Optional type annotations
 11. `sifaka/core/base.py` - Fixed type casting issues with ErrorResult and return type annotations
+12. `sifaka/utils/config/rules.py` - Fixed type annotation issues with list[str] vs List[str]
+13. `sifaka/utils/config/chain.py` - Fixed conditional expressions with ternary operators and empty string fallbacks
 
 ### Next Files to Fix
 

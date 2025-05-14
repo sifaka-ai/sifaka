@@ -364,9 +364,9 @@ class FormatterConfig(BaseConfig):
 def standardize_chain_config(
     config: Optional[Union[Dict[str, Any], ChainConfig]] = None,
     params: Optional[Dict[str, Any]] = None,
-    config_class: Type[T] = ChainConfig,
+    config_class: Type[T] = None,  # type: ignore
     **kwargs: Any,
-) -> Any:
+) -> T:
     """
     Standardize chain configuration.
 
@@ -384,7 +384,6 @@ def standardize_chain_config(
         Standardized ChainConfig object or subclass
 
     Examples:
-        ```python
         from sifaka.utils.config.chain import standardize_chain_config, EngineConfig
 
         # Create from parameters
@@ -423,24 +422,27 @@ def standardize_chain_config(
             timeout=30,  # Can use either timeout or timeout_seconds
             fail_fast=True
         )
-        ```
     """
+    if config_class is None:
+        config_class = ChainConfig  # type: ignore
     final_params: Dict[str, Any] = {}
-    if params:
-        final_params.update(params) if final_params else ""
+    if params and final_params:
+        final_params.update(params)
     if "timeout" in kwargs and "timeout_seconds" not in kwargs:
-        kwargs["timeout_seconds"] = kwargs.pop("timeout") if kwargs else ""
+        kwargs["timeout_seconds"] = kwargs.pop("timeout")
     if isinstance(config, dict):
-        dict_params = config.pop("params", {}) if config else "" if config else {}
-        final_params.update(dict_params) if final_params else ""
+        dict_params = config.pop("params", {}) if config else {}
+        if final_params and dict_params:
+            final_params.update(dict_params)
         if config and "timeout" in config and "timeout_seconds" not in config:
-            config["timeout_seconds"] = config.pop("timeout") if config else ""
+            config["timeout_seconds"] = config.pop("timeout")
         return cast(
             T, config_class(**{} if config is None else config, params=final_params, **kwargs)
         )
     elif isinstance(config, ChainConfig):
-        final_params.update(config.params) if final_params else ""
-        model_data = config.model_dump() if config else {}
+        if final_params and config.params:
+            final_params.update(config.params)
+        model_data = config.model_dump()
         config_dict = {**model_data, "params": final_params, **kwargs}
         return cast(T, config_class(**config_dict))
     else:

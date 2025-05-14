@@ -63,9 +63,7 @@ class Improver(ChainComponent, Protocol):
         """
         ...
 
-    async def improve_async(
-        self, output: str, validation_results: List[ValidationResult]
-    ) -> str:
+    async def improve_async(self, output: str, validation_results: List[ValidationResult]) -> str:
         """
         Improve an output asynchronously.
 
@@ -85,7 +83,5 @@ class Improver(ChainComponent, Protocol):
         """
         import asyncio
 
-        loop = asyncio.get_event_loop() if asyncio else ""
-        return await loop.run_in_executor(
-            None, lambda: self.improve(output, validation_results) if self else "" if loop else ""
-        )
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, lambda: self.improve(output, validation_results))

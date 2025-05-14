@@ -67,13 +67,14 @@ Result creation can be configured with:
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TypeVar, Generic, Union
+from typing import Any, Dict, List, Optional, TypeVar, Generic, Union, Type, cast
 
 from pydantic import BaseModel, Field, ConfigDict, computed_field
 
 # Type variables
 T = TypeVar("T")  # Generic type for results
 L = TypeVar("L")  # Label type for classification results
+OutputType = TypeVar("OutputType")  # Output type for model results
 
 
 class BaseResult(BaseModel, Generic[T]):
@@ -107,19 +108,19 @@ class BaseResult(BaseModel, Generic[T]):
         arbitrary_types_allowed=True, validate_assignment=True, extra="forbid"
     )
 
-    def with_metadata(self, **kwargs: Any) -> "BaseResult":
+    def with_metadata(self, **kwargs: Any) -> "BaseResult[T]":
         """Create a new result with additional metadata."""
         return self.model_copy(update={"metadata": {**self.metadata, **kwargs}})
 
-    def with_issues(self, issues: List[str]) -> "BaseResult":
+    def with_issues(self, issues: List[str]) -> "BaseResult[T]":
         """Create a new result with updated issues."""
         return self.model_copy(update={"issues": issues})
 
-    def with_suggestions(self, suggestions: List[str]) -> "BaseResult":
+    def with_suggestions(self, suggestions: List[str]) -> "BaseResult[T]":
         """Create a new result with updated suggestions."""
         return self.model_copy(update={"suggestions": suggestions})
 
-    def with_score(self, score: float) -> "BaseResult":
+    def with_score(self, score: float) -> "BaseResult[T]":
         """Create a new result with updated score."""
         return self.model_copy(update={"score": score})
 
@@ -206,15 +207,140 @@ class CriticResult(BaseResult):
     )
 
 
-class ValidationResult(BaseResult):
+class ValidationResult(BaseResult[Any]):
     """
     Result for validation operations.
 
     This class provides a standardized result for validation operations.
     It is used by ChainResult to track validation results.
+
+    This class is compatible with sifaka.chain.interfaces.ValidationResult
+    to ensure type compatibility across the codebase.
+
+    Attributes:
+        passed: Whether the validation passed
+        message: Validation message
+        score: Validation score (0.0 to 1.0)
+        issues: List of issues found
+        suggestions: List of improvement suggestions
+        metadata: Additional metadata
     """
 
-    pass
+    # All required fields are already defined in BaseResult
+
+    @classmethod
+    def from_interface_validation_result(cls, result: Any) -> "ValidationResult":
+        """
+        Create a ValidationResult from an interface ValidationResult.
+
+        Args:
+            result: The interface ValidationResult to convert
+
+        Returns:
+            A new ValidationResult instance
+        """
+        if isinstance(result, ValidationResult):
+            return result
+
+        # Check if it has the required attributes
+        if hasattr(result, "passed") and hasattr(result, "message"):
+            return cls(
+                passed=result.passed,
+                message=result.message,
+                score=getattr(result, "score", 0.0),
+                issues=getattr(result, "issues", []),
+                suggestions=getattr(result, "suggestions", []),
+                metadata=getattr(result, "metadata", {}),
+            )
+
+        # If it doesn't have the required attributes, create a default result
+        return cls(
+            passed=False,
+            message="Invalid validation result",
+            score=0.0,
+            issues=["The provided validation result is not compatible"],
+            suggestions=["Use a compatible ValidationResult class"],
+        )
+
+
+class ModelResult(BaseResult, Generic[OutputType]):
+    """
+    Result of a model operation.
+
+    This class provides an immutable representation of a model operation result,
+    including the generated output and additional metadata.
+
+    ## Lifecycle
+
+    1. **Creation**: Instantiate with operation results
+       - Provide output (required)
+       - Add optional metadata dictionary
+       - Values are validated during creation
+
+    2. **Access**: Read properties to get operation details
+       - Access output for the operation result
+       - Examine metadata for additional information
+
+    Attributes:
+        output: The generated output
+        metadata: Additional metadata about the operation
+    """
+
+    output: OutputType = Field(description="The generated output")
+
+
+class GenerationResult(ModelResult[str]):
+    """
+    Result of a text generation operation.
+
+    This class extends ModelResult with text generation specific fields,
+    providing a standardized format for text generation results.
+
+    ## Lifecycle
+
+    1. **Creation**: Instantiate with generation results
+       - Provide output (required)
+       - Add model_name, prompt_tokens, and completion_tokens
+       - Add optional metadata dictionary
+       - Values are validated during creation
+
+    2. **Access**: Read properties to get generation details
+       - Access output for the generated text
+       - Check prompt_tokens and completion_tokens for token usage
+       - Examine metadata for additional information
+
+    Attributes:
+        output: The generated text
+        model_name: Name of the model used for generation
+        prompt_tokens: Number of tokens in the prompt
+        completion_tokens: Number of tokens in the completion
+        total_tokens: Total number of tokens (prompt + completion)
+        metadata: Additional metadata about the operation
+    """
+
+    model_name: str = Field(description="Name of the model used for generation")
+    prompt_tokens: int = Field(default=0, ge=0, description="Number of tokens in the prompt")
+    completion_tokens: int = Field(
+        default=0, ge=0, description="Number of tokens in the completion"
+    )
+    total_tokens: int = Field(default=0, ge=0, description="Total number of tokens")
+
+
+class ErrorResult(BaseResult):
+    """
+    Result for error conditions.
+
+    This class provides a standardized result for error conditions,
+    including error type, message, and additional metadata.
+
+    Attributes:
+        error_type: Type of error
+        error_message: Detailed error message
+        metadata: Additional error metadata
+    """
+
+    error_type: str = Field(description="Type of error")
+    error_message: str = Field(description="Detailed error message")
 
 
 class ChainResult(BaseResult):
@@ -238,6 +364,70 @@ class ChainResult(BaseResult):
     prompt: str = Field(description="The original prompt")
     execution_time: float = Field(default=0.0, ge=0.0, description="Execution time in seconds")
     attempt_count: int = Field(default=1, ge=1, description="Number of generation attempts")
+
+    @classmethod
+    def from_interface_validation_results(
+        cls,
+        output: str,
+        validation_results: List[Any],  # Accept any ValidationResult-like objects
+        prompt: str,
+        passed: bool = True,
+        message: str = "Chain execution completed",
+        execution_time: float = 0.0,
+        attempt_count: int = 1,
+        metadata: Optional[Dict[str, Any]] = None,
+        score: float = 1.0,
+        issues: Optional[List[str]] = None,
+        suggestions: Optional[List[str]] = None,
+        processing_time_ms: Optional[float] = None,
+    ) -> "ChainResult":
+        """
+        Create a ChainResult from interface ValidationResult objects.
+
+        This method allows creating a ChainResult from ValidationResult objects
+        defined in sifaka.interfaces.chain.models, ensuring type compatibility.
+
+        Args:
+            output: The generated output
+            validation_results: Results of validation (from interfaces.chain.models.ValidationResult)
+            prompt: The original prompt
+            passed: Whether the chain execution passed
+            message: Human-readable result message
+            execution_time: Execution time in seconds
+            attempt_count: Number of generation attempts
+            metadata: Additional result metadata
+            score: Confidence score (0.0 to 1.0)
+            issues: List of identified issues
+            suggestions: List of improvement suggestions
+            processing_time_ms: Processing time in milliseconds
+
+        Returns:
+            A new ChainResult instance
+        """
+        # Convert interface ValidationResults to core ValidationResults if needed
+        core_validation_results = []
+
+        # Convert each validation result to a core ValidationResult
+        for result in validation_results:
+            # Use the helper method to convert the result
+            core_validation_results.append(
+                ValidationResult.from_interface_validation_result(result)
+            )
+
+        return cls(
+            output=output,
+            validation_results=core_validation_results,
+            prompt=prompt,
+            execution_time=execution_time,
+            attempt_count=attempt_count,
+            passed=passed,
+            message=message,
+            metadata=metadata or {},
+            score=score,
+            issues=issues or [],
+            suggestions=suggestions or [],
+            processing_time_ms=processing_time_ms or 0.0,
+        )
 
     @computed_field
     def all_passed(self) -> bool:
@@ -529,7 +719,7 @@ def create_critic_result(
 def create_chain_result(
     output: str,
     prompt: str,
-    validation_results: Optional[List[ValidationResult]] = None,
+    validation_results: Optional[List[Any]] = None,  # Accept any ValidationResult-like objects
     passed: bool = True,
     message: str = "Chain execution completed",
     metadata: Optional[Dict[str, Any]] = None,
@@ -543,10 +733,13 @@ def create_chain_result(
     """
     Create a standardized chain result.
 
+    This function accepts ValidationResult objects from either sifaka.core.results
+    or sifaka.interfaces.chain.models, ensuring type compatibility across the codebase.
+
     Args:
         output: The generated output
         prompt: The original prompt
-        validation_results: Results of validation
+        validation_results: Results of validation (from either ValidationResult class)
         passed: Whether the chain execution passed
         message: Human-readable result message
         metadata: Additional result metadata
@@ -560,20 +753,43 @@ def create_chain_result(
     Returns:
         Standardized ChainResult
     """
-    return ChainResult(
-        output=output,
-        prompt=prompt,
-        validation_results=validation_results or [],
-        passed=passed,
-        message=message,
-        metadata=metadata or {},
-        score=score,
-        issues=issues or [],
-        suggestions=suggestions or [],
-        execution_time=execution_time,
-        attempt_count=attempt_count,
-        processing_time_ms=processing_time_ms or 0.0,
-    )
+    # Handle None case
+    if validation_results is None:
+        validation_results = []
+
+    # Check if any validation result is not a core ValidationResult
+    if any(not isinstance(vr, ValidationResult) for vr in validation_results):
+        # If any validation result is not a core ValidationResult, use the conversion method
+        return ChainResult.from_interface_validation_results(
+            output=output,
+            prompt=prompt,
+            validation_results=validation_results,
+            passed=passed,
+            message=message,
+            metadata=metadata,
+            score=score,
+            issues=issues,
+            suggestions=suggestions,
+            execution_time=execution_time,
+            attempt_count=attempt_count,
+            processing_time_ms=processing_time_ms,
+        )
+    else:
+        # All validation results are core ValidationResults or the list is empty
+        return ChainResult(
+            output=output,
+            prompt=prompt,
+            validation_results=validation_results,
+            passed=passed,
+            message=message,
+            metadata=metadata or {},
+            score=score,
+            issues=issues or [],
+            suggestions=suggestions or [],
+            execution_time=execution_time,
+            attempt_count=attempt_count,
+            processing_time_ms=processing_time_ms or 0.0,
+        )
 
 
 def create_retrieval_result(
@@ -626,13 +842,101 @@ def create_retrieval_result(
     )
 
 
+def create_model_result(
+    output: OutputType,
+    passed: bool = True,
+    message: str = "Model operation completed",
+    metadata: Optional[Dict[str, Any]] = None,
+    score: float = 1.0,
+    issues: Optional[List[str]] = None,
+    suggestions: Optional[List[str]] = None,
+    processing_time_ms: Optional[float] = None,
+) -> ModelResult[OutputType]:
+    """
+    Create a standardized model result.
+
+    Args:
+        output: The generated output
+        passed: Whether the model operation passed
+        message: Human-readable result message
+        metadata: Additional result metadata
+        score: Confidence score (0.0 to 1.0)
+        issues: List of identified issues
+        suggestions: List of improvement suggestions
+        processing_time_ms: Processing time in milliseconds
+
+    Returns:
+        Standardized ModelResult
+    """
+    return ModelResult(
+        output=output,
+        passed=passed,
+        message=message,
+        metadata=metadata or {},
+        score=score,
+        issues=issues or [],
+        suggestions=suggestions or [],
+        processing_time_ms=processing_time_ms or 0.0,
+    )
+
+
+def create_generation_result(
+    text: str,
+    model_name: str,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+    total_tokens: int = 0,
+    passed: bool = True,
+    message: str = "Generation completed",
+    metadata: Optional[Dict[str, Any]] = None,
+    score: float = 1.0,
+    issues: Optional[List[str]] = None,
+    suggestions: Optional[List[str]] = None,
+    processing_time_ms: Optional[float] = None,
+) -> GenerationResult:
+    """
+    Create a standardized generation result.
+
+    Args:
+        text: Generated text
+        model_name: Name of the model
+        prompt_tokens: Number of tokens in the prompt
+        completion_tokens: Number of tokens in the completion
+        total_tokens: Total number of tokens
+        passed: Whether the generation passed
+        message: Human-readable result message
+        metadata: Additional result metadata
+        score: Confidence score (0.0 to 1.0)
+        issues: List of identified issues
+        suggestions: List of improvement suggestions
+        processing_time_ms: Processing time in milliseconds
+
+    Returns:
+        Standardized GenerationResult
+    """
+    return GenerationResult(
+        output=text,
+        model_name=model_name,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens or (prompt_tokens + completion_tokens),
+        passed=passed,
+        message=message,
+        metadata=metadata or {},
+        score=score,
+        issues=issues or [],
+        suggestions=suggestions or [],
+        processing_time_ms=processing_time_ms or 0.0,
+    )
+
+
 def create_error_result(
     message: str,
     component_name: Optional[str] = None,
     error_type: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
     severity: str = "error",
-) -> RuleResult:
+) -> Union[RuleResult, ErrorResult]:
     """
     Create a standardized error result.
 
@@ -644,7 +948,7 @@ def create_error_result(
         severity: Severity level of the error
 
     Returns:
-        Standardized RuleResult for error condition
+        Standardized ErrorResult or RuleResult for error condition
     """
     # Create base metadata
     final_metadata: Dict[str, Any] = {"error": True, "severity": severity}
@@ -653,14 +957,22 @@ def create_error_result(
     if component_name:
         final_metadata["component"] = component_name
 
-    # Add error type if provided
-    if error_type:
-        final_metadata["error_type"] = error_type
-
     # Add additional metadata
     if metadata:
         final_metadata.update(metadata)
 
+    # Use ErrorResult if error_type is provided
+    if error_type:
+        return ErrorResult(
+            error_type=error_type,
+            error_message=message,
+            passed=False,
+            message=message,
+            metadata=final_metadata,
+            score=0.0,
+        )
+
+    # Otherwise use RuleResult
     return RuleResult(
         passed=False,
         message=message,
@@ -688,3 +1000,30 @@ def merge_metadata(*metadata_dicts: Optional[Dict[str, Any]]) -> Dict[str, Any]:
             result.update(metadata)
 
     return result
+
+
+# Export all public classes and functions
+__all__ = [
+    # Classes
+    "BaseResult",
+    "RuleResult",
+    "ClassificationResult",
+    "CriticResult",
+    "ValidationResult",
+    "ModelResult",
+    "GenerationResult",
+    "ErrorResult",
+    "ChainResult",
+    "RetrievalResult",
+    # Functions
+    "create_base_result",
+    "create_rule_result",
+    "create_classification_result",
+    "create_critic_result",
+    "create_chain_result",
+    "create_retrieval_result",
+    "create_model_result",
+    "create_generation_result",
+    "create_error_result",
+    "merge_metadata",
+]

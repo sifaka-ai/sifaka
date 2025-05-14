@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def process_input(provider: "ModelProviderCore", prompt: str, **kwargs) -> Any:
+def process_input(provider: "ModelProviderCore", prompt: str, **kwargs: Any) -> Any:
     """
     Process the input prompt and generate text.
 

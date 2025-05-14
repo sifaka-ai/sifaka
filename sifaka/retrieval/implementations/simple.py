@@ -53,7 +53,7 @@ print(result.get_formatted_results() if result else "")
 
 import os
 import time
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 from sifaka.utils.common import record_error
 from sifaka.utils.config.retrieval import RankingConfig, RetrieverConfig
@@ -63,7 +63,7 @@ from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.logging import get_logger
 
 from ..core import RetrieverCore
-from ..result import StringRetrievalResult
+from sifaka.core.results import RetrievalResult
 from ..strategies.ranking import SimpleRankingStrategy
 
 logger = get_logger(__name__)
@@ -130,7 +130,7 @@ class SimpleRetriever(RetrieverCore):
         super().__init__(config=config, name=name, description=description)
 
         # Initialize documents and ranking strategy
-        self._initialize_documents(documents, corpus) if self else ""
+        self._initialize_documents(documents, corpus)
 
         # Set metadata
         self._state_manager.set_metadata(
@@ -157,7 +157,7 @@ class SimpleRetriever(RetrieverCore):
         self._state_manager.update("documents", {})
 
         # Initialize ranking strategy using top_k from config
-        ranking_config = RankingConfig(top_k=self.config.top_k)
+        ranking_config = RankingConfig()
         strategy = SimpleRankingStrategy(ranking_config)
         self._state_manager.update("ranking_strategy", strategy)
 
@@ -222,7 +222,7 @@ class SimpleRetriever(RetrieverCore):
         """
         return self.get("ranking_strategy")
 
-    def retrieve(self, query: str, **kwargs: Any) -> StringRetrievalResult:
+    def retrieve(self, query: str, **kwargs: Any) -> RetrievalResult:
         """
         Retrieve information based on a query.
 
@@ -236,7 +236,7 @@ class SimpleRetriever(RetrieverCore):
                 - threshold: Score threshold for results (overrides config)
 
         Returns:
-            A StringRetrievalResult object
+            A RetrievalResult object
 
         Raises:
             InputError: If query is empty

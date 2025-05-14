@@ -206,7 +206,7 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
     """
 
     # State management
-    _state_manager = PrivateAttr(default_factory=StateManager)
+    _state_manager: StateManager = PrivateAttr(default_factory=StateManager)
 
     def __init__(
         self,
@@ -215,7 +215,7 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
         description: str = "Memory manager for Sifaka",
         cache_enabled: bool = True,
         max_items: int = 100,
-        config: Optional[Optional[MemoryConfig]] = None,
+        config: Optional[MemoryConfig] = None,
         **kwargs: Any,
     ):
         """Initialize the memory manager.
@@ -721,6 +721,9 @@ class BufferMemoryManager:
        - Logs final status
     """
 
+    # State management
+    _state_manager: StateManager
+
     def __init__(self, buffer_size: int = 5):
         """
         Initialize a BufferMemoryManager instance.
@@ -808,7 +811,7 @@ class BufferMemoryManager:
             logger.error(f"Failed to add item to memory: {e}")
             raise RuntimeError(f"Failed to add item to memory: {e}")
 
-    def get_memory(self, max_items: Optional[Optional[int]] = None) -> List[str]:
+    def get_memory(self, max_items: Optional[int] = None) -> List[str]:
         """
         Retrieve items from memory.
 

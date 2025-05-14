@@ -47,11 +47,11 @@ class GenerationService(Generic[C, T]):
             logger.warning(
                 f'Prompt tokens ({prompt_tokens}) if logger else "" exceed max_tokens ({config.max_tokens})'
             )
-        start_time = datetime.now() if datetime else ""
+        start_time = datetime.now()
         client = self._client_manager.get_client() if self._client_manager else None
         try:
             response = client.send_prompt(prompt, config) if client else ""
-            end_time = datetime.now() if datetime else ""
+            end_time = datetime.now()
             duration_ms = (end_time - start_time).total_seconds() * 1000
             if self._tracing_manager:
                 self._tracing_manager.trace_event(

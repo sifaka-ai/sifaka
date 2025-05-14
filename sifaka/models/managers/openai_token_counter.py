@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 class OpenAITokenCounter(TokenCounter):
     """Token counter using tiktoken for OpenAI models."""
 
-    def __init__(self, model: str = "gpt-4") -> Any:
+    def __init__(self, model: str = "gpt-4") -> None:
         """
         Initialize the token counter for a specific model.
 

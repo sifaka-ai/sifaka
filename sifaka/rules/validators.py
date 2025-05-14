@@ -28,7 +28,6 @@ Usage Example:
 import time
 from typing import (
     Any,
-    Dict,
     Generic,
     List,
     Optional,
@@ -46,8 +45,6 @@ from sifaka.utils.common import update_statistics, record_error
 from sifaka.utils.text import handle_empty_text
 
 if TYPE_CHECKING:
-    from sifaka.core.base import Validatable
-    from sifaka.utils.errors.handling import try_component_operation
     from sifaka.utils.state import StateManager
 from ..core.results import RuleResult
 
@@ -55,8 +52,11 @@ logger = get_logger(__name__)
 T = TypeVar("T")
 
 
+_T_contra = TypeVar("_T_contra", contravariant=True)
+
+
 @runtime_checkable
-class RuleValidator(Protocol[T]):
+class RuleValidator(Protocol[_T_contra]):
     """
     Protocol for rule validation logic.
 
@@ -64,11 +64,11 @@ class RuleValidator(Protocol[T]):
     It allows for duck typing of validators.
     """
 
-    def validate(self, input: T) -> RuleResult:
+    def validate(self, input: _T_contra) -> RuleResult:
         """Validate the input."""
         ...
 
-    def can_validate(self, input: T) -> bool:
+    def can_validate(self, input: _T_contra) -> bool:
         """Check if this validator can validate the input."""
         ...
 
@@ -89,14 +89,14 @@ class BaseValidator(Generic[T]):
 
     _state_manager: "StateManager" = PrivateAttr()
 
-    def __init__(self, validation_type: Type[T] = str) -> None:
+    def __init__(self, validation_type: Optional[Type[T]] = None) -> None:
         """
         Initialize the validator.
 
         Args:
             validation_type: The type this validator can validate
         """
-        self._validation_type = validation_type
+        self._validation_type = validation_type if validation_type is not None else str  # type: ignore
         object.__setattr__(self, "_state_manager", create_rule_state())
         self._initialize_state()
 
@@ -233,7 +233,7 @@ class FunctionValidator(BaseValidator[T]):
         ```
     """
 
-    def __init__(self, func: Any, validation_type: Type[T] = str) -> None:
+    def __init__(self, func: Any, validation_type: Optional[Type[T]] = None) -> None:
         """
         Initialize the validator.
 
@@ -265,26 +265,49 @@ class FunctionValidator(BaseValidator[T]):
             result = result.with_metadata(processing_time_ms=time.time() - start_time)
             return result
 
-        result = safely_execute_rule(
+        operation_result = safely_execute_rule(
             operation=validation_operation,
             rule_name=self.__class__.__name__,
             component_name="FunctionValidator",
         )
-        if isinstance(result, dict) and result.get("error_type"):
-            self.record_error(Exception(result.get("error_message", "Unknown error")))
-            result = RuleResult(
+
+        # Handle error case
+        if isinstance(operation_result, dict) and operation_result.get("error_type"):
+            self.record_error(Exception(operation_result.get("error_message", "Unknown error")))
+            rule_result = RuleResult(
                 passed=False,
-                message=result.get("error_message", "Validation failed"),
+                message=operation_result.get("error_message", "Validation failed"),
                 metadata={
-                    "error_type": result.get("error_type"),
+                    "error_type": operation_result.get("error_type"),
                     "score": 0.0,
-                    "issues": [f"Validation error: {result.get('error_message')}"],
+                    "issues": [f"Validation error: {operation_result.get('error_message')}"],
                     "suggestions": ["Retry with different input"],
                     "processing_time_ms": time.time() - start_time,
                 },
             )
-        self.update_statistics(result)
-        return result
+            self.update_statistics(rule_result)
+            return rule_result
+
+        # Handle success case
+        if isinstance(operation_result, RuleResult):
+            self.update_statistics(operation_result)
+            return operation_result
+
+        # Handle unexpected result type
+        rule_result = RuleResult(
+            passed=False,
+            message="Unexpected validation result type",
+            metadata={
+                "error_type": "unexpected_result_type",
+                "actual_type": str(type(operation_result)),
+                "score": 0.0,
+                "issues": ["Validation returned an unexpected result type"],
+                "suggestions": ["Check validator implementation"],
+                "processing_time_ms": time.time() - start_time,
+            },
+        )
+        self.update_statistics(rule_result)
+        return rule_result
 
 
 __all__ = ["RuleValidator", "BaseValidator", "FunctionValidator"]

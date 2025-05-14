@@ -61,7 +61,7 @@ is provided, Pydantic will raise validation errors with detailed information
 about the validation failure.
 """
 
-from typing import Any, Dict, List, Optional, Type, TypeVar, Union
+from typing import Any, Dict, List, Optional, Type, TypeVar, Union, cast
 from pydantic import Field
 from .base import BaseConfig
 
@@ -702,9 +702,9 @@ DEFAULT_LAC_CRITIC_CONFIG = {
 def standardize_critic_config(
     config: Optional[Union[Dict[str, Any], CriticConfig]] = None,
     params: Optional[Dict[str, Any]] = None,
-    config_class: Type[CriticConfig] = CriticConfig,
+    config_class: Optional[Type[T]] = None,
     **kwargs: Any,
-) -> CriticConfig:
+) -> T:
     """
     Standardize critic configuration.
 
@@ -722,7 +722,6 @@ def standardize_critic_config(
         Standardized CriticConfig object or subclass
 
     Examples:
-        ```python
         from sifaka.utils.config.critics import standardize_critic_config, PromptCriticConfig
 
         # Create from parameters
@@ -761,18 +760,24 @@ def standardize_critic_config(
             temperature=0.7,
             max_tokens=1000
         )
-        ```
     """
+    if config_class is None:
+        config_class = CriticConfig  # type: ignore
+
+    # Ensure config_class is properly typed
+    actual_config_class = cast(Type[T], config_class)
     final_params: Dict[str, Any] = {}
     if params:
         final_params.update(params)
     if isinstance(config, dict):
         dict_params = config.pop("params", {}) if config else {}
         final_params.update(dict_params)
-        return config_class(**{} if config is None else config, params=final_params, **kwargs)
+        return actual_config_class(
+            **{} if config is None else config, params=final_params, **kwargs
+        )
     elif isinstance(config, CriticConfig):
         final_params.update(config.params)
         config_dict = {**config.model_dump(), "params": final_params, **kwargs}
-        return config_class(**config_dict)
+        return actual_config_class(**config_dict)
     else:
-        return config_class(params=final_params, **kwargs)
+        return actual_config_class(params=final_params, **kwargs)

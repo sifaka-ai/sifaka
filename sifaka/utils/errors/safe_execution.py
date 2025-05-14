@@ -40,8 +40,11 @@ from .results import ErrorResult, create_error_result
 # Configure logger
 logger = get_logger(__name__)
 
-# Type variable for return type
-T = TypeVar("T")
+# Type variables with variance annotations
+T = TypeVar("T")  # Invariant type variable for general use
+R = TypeVar("R", covariant=True)  # Covariant type variable for return types
+InputT = TypeVar("InputT", contravariant=True)  # Contravariant type variable for input types
+OutputT = TypeVar("OutputT", covariant=True)  # Covariant type variable for output types
 
 
 def try_component_operation(
@@ -175,9 +178,17 @@ def safely_execute_component_operation(
         )
 
 
-def create_safe_execution_factory(
-    component_type: str, error_class: Type[SifakaError]
-) -> Callable[..., Union[T, ErrorResult]]:
+def create_safe_execution_factory(component_type: str, error_class: Type[SifakaError]) -> Callable[
+    [
+        Callable[[], OutputT],
+        str,
+        Optional[Union[OutputT, ErrorResult]],
+        str,
+        bool,
+        Optional[Dict[str, Any]],
+    ],
+    Union[OutputT, ErrorResult],
+]:
     """
     Create a safe execution factory for a specific component type.
 
@@ -194,13 +205,13 @@ def create_safe_execution_factory(
     """
 
     def factory(
-        operation: Callable[[], T],
+        operation: Callable[[], OutputT],
         component_name: str,
-        default_result: Optional[Union[T, ErrorResult]] = None,
+        default_result: Optional[Union[OutputT, ErrorResult]] = None,
         log_level: str = "error",
         include_traceback: bool = True,
         additional_metadata: Optional[Dict[str, Any]] = None,
-    ) -> Union[T, ErrorResult]:
+    ) -> Union[OutputT, ErrorResult]:
         """Safely execute an operation for a specific component type."""
         return safely_execute_component_operation(
             operation=operation,

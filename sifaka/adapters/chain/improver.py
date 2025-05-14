@@ -7,10 +7,11 @@ to the Improver interface from the chain system.
 
 import asyncio
 import time
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union, cast
 from sifaka.interfaces.chain.components import Improver
 from sifaka.interfaces.chain.models import ValidationResult
 from sifaka.utils.errors.component import ImproverError
+from sifaka.utils.errors.results import ErrorResult
 from sifaka.utils.errors.safe_execution import safely_execute_component_operation
 from sifaka.utils.state import create_adapter_state
 
@@ -123,6 +124,13 @@ class ImproverAdapter(Improver):
                 error_class=ImproverError,
             )
 
+            # Handle the case where result might be an ErrorResult
+            if isinstance(result, ErrorResult):
+                raise ImproverError(f"Improvement failed: {result.error_message}")
+
+            # Convert result to string if it's not already
+            improved_text = str(result)
+
             end_time = time.time()
             execution_time = end_time - start_time
             improvement_count = self._state_manager.get_metadata("improvement_count", 0)
@@ -138,10 +146,10 @@ class ImproverAdapter(Improver):
             if self._state_manager.get("cache_enabled", True):
                 cache = self._state_manager.get("cache", {})
                 cache_key = f"{output[:50]}_{len(output)}"
-                cache[cache_key] = result
+                cache[cache_key] = improved_text
                 self._state_manager.update("cache", cache)
 
-            return result
+            return improved_text
 
         except Exception as e:
             error_count = self._state_manager.get_metadata("error_count", 0)
@@ -172,18 +180,34 @@ class ImproverAdapter(Improver):
 
         start_time = time.time()
         try:
+            improved_text: str
+
             if hasattr(self._improver, "improve_async"):
                 result = await self._improver.improve_async(output, validation_results)
+                if isinstance(result, ErrorResult):
+                    raise ImproverError(f"Async improvement failed: {result.error_message}")
+                improved_text = str(result)
             elif hasattr(self._improver, "refine_async"):
                 result = await self._improver.refine_async(output, validation_results)
+                if isinstance(result, ErrorResult):
+                    raise ImproverError(f"Async improvement failed: {result.error_message}")
+                improved_text = str(result)
             elif hasattr(self._improver, "process_async"):
                 result = await self._improver.process_async(output, validation_results)
+                if isinstance(result, ErrorResult):
+                    raise ImproverError(f"Async improvement failed: {result.error_message}")
+                improved_text = str(result)
             elif hasattr(self._improver, "run_async"):
                 result = await self._improver.run_async(output, validation_results)
+                if isinstance(result, ErrorResult):
+                    raise ImproverError(f"Async improvement failed: {result.error_message}")
+                improved_text = str(result)
             else:
                 loop = asyncio.get_event_loop()
-                result = await loop.run_in_executor(None, self.improve, output, validation_results)
-                return result
+                improved_text = await loop.run_in_executor(
+                    None, self.improve, output, validation_results
+                )
+                return improved_text
 
             end_time = time.time()
             execution_time = end_time - start_time
@@ -200,10 +224,10 @@ class ImproverAdapter(Improver):
             if self._state_manager.get("cache_enabled", True):
                 cache = self._state_manager.get("cache", {})
                 cache_key = f"{output[:50]}_{len(output)}"
-                cache[cache_key] = result
+                cache[cache_key] = improved_text
                 self._state_manager.update("cache", cache)
 
-            return result
+            return improved_text
 
         except Exception as e:
             error_count = self._state_manager.get_metadata("error_count", 0)

@@ -7,9 +7,10 @@ to the Model interface from the chain system.
 
 import asyncio
 import time
-from typing import Any, Optional
+from typing import Any, Optional, Union, cast
 from sifaka.interfaces.chain.components import Model
 from sifaka.utils.errors.component import ModelError
+from sifaka.utils.errors.results import ErrorResult
 from sifaka.utils.errors.safe_execution import safely_execute_component_operation
 from sifaka.utils.state import create_adapter_state
 
@@ -121,6 +122,13 @@ class ModelAdapter(Model):
                 error_class=ModelError,
             )
 
+            # Handle the case where result might be an ErrorResult
+            if isinstance(result, ErrorResult):
+                raise ModelError(f"Model generation failed: {result.error_message}")
+
+            # Convert result to string if it's not already
+            generated_text = str(result)
+
             end_time = time.time()
             execution_time = end_time - start_time
             generation_count = self._state_manager.get_metadata("generation_count", 0)
@@ -133,7 +141,7 @@ class ModelAdapter(Model):
             if execution_time > max_time:
                 self._state_manager.set_metadata("max_execution_time", execution_time)
 
-            return result
+            return generated_text
 
         except Exception as e:
             error_count = self._state_manager.get_metadata("error_count", 0)
@@ -163,18 +171,32 @@ class ModelAdapter(Model):
 
         start_time = time.time()
         try:
+            generated_text: str
+
             if hasattr(self._model, "invoke_async"):
                 result = await self._model.invoke_async(prompt)
+                if isinstance(result, ErrorResult):
+                    raise ModelError(f"Async model generation failed: {result.error_message}")
+                generated_text = str(result)
             elif hasattr(self._model, "generate_async"):
                 result = await self._model.generate_async(prompt)
+                if isinstance(result, ErrorResult):
+                    raise ModelError(f"Async model generation failed: {result.error_message}")
+                generated_text = str(result)
             elif hasattr(self._model, "run_async"):
                 result = await self._model.run_async(prompt)
+                if isinstance(result, ErrorResult):
+                    raise ModelError(f"Async model generation failed: {result.error_message}")
+                generated_text = str(result)
             elif hasattr(self._model, "process_async"):
                 result = await self._model.process_async(prompt)
+                if isinstance(result, ErrorResult):
+                    raise ModelError(f"Async model generation failed: {result.error_message}")
+                generated_text = str(result)
             else:
                 loop = asyncio.get_event_loop()
-                result = await loop.run_in_executor(None, self.generate, prompt)
-                return result
+                generated_text = await loop.run_in_executor(None, self.generate, prompt)
+                return generated_text
 
             end_time = time.time()
             execution_time = end_time - start_time
@@ -188,7 +210,7 @@ class ModelAdapter(Model):
             if execution_time > max_time:
                 self._state_manager.set_metadata("max_execution_time", execution_time)
 
-            return result
+            return generated_text
 
         except Exception as e:
             error_count = self._state_manager.get_metadata("error_count", 0)

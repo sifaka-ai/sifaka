@@ -72,10 +72,11 @@ The class implements comprehensive error handling for:
 
 from abc import abstractmethod
 import time
-from typing import Any, Generic, Optional, TypeVar
-from sifaka.core.base import BaseComponent, BaseResult
+from typing import Any, Generic, Optional, TypeVar, cast
+from sifaka.core.base import BaseComponent, BaseResult, BaseConfig
 from sifaka.utils.config.critics import CriticConfig
 from sifaka.utils.errors import safely_execute_component_operation as safely_execute_critic
+from sifaka.utils.errors import CriticError
 
 T = TypeVar("T")
 
@@ -146,7 +147,10 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
             config: Optional critic configuration
             **kwargs: Additional configuration parameters
         """
-        super().__init__(name, description, config or CriticConfig(**kwargs))
+        # CriticConfig is a subclass of BaseConfig, so this is type-compatible
+        # Use explicit cast to satisfy mypy type checking
+        base_config = cast(BaseConfig, config or CriticConfig(**kwargs))
+        super().__init__(name, description, base_config)
 
     @abstractmethod
     def validate(self, text: T) -> bool:
@@ -211,22 +215,46 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
                     "processing_time_ms": time.time() - start_time if time else 0,
                 },
             )
-        empty_result = self.handle_empty_input(text) if self else None
+        # Convert to string for handle_empty_input which expects a string
+        empty_result = (
+            self.handle_empty_input(str(text) if text is not None else "") if self else None
+        )
         if empty_result:
             processing_time = time.time() - start_time if time else 0
-            return (
-                empty_result.with_metadata(processing_time_ms=processing_time)
-                if empty_result
-                else None
-            )
+            # Ensure we return a BaseResult
+            if isinstance(empty_result, BaseResult):
+                result = empty_result.with_metadata(processing_time_ms=processing_time)
+                return cast(BaseResult[Any], result)  # Explicit cast to satisfy mypy
+            else:
+                # If empty_result is not a BaseResult, create one
+                return BaseResult(
+                    passed=False,
+                    message="Empty input",
+                    metadata={
+                        "error_type": "empty_input",
+                        "processing_time_ms": processing_time,
+                        "original_result": str(empty_result),
+                    },
+                )
 
         def process_operation() -> Any:
             if self:
                 result = self.critique(text)
                 if self:
                     self.update_statistics(result)
-                if result and not result.passed and result.suggestions:
-                    improved_text = self.improve(text, result.feedback) if self else None
+                if (
+                    result
+                    and not result.passed
+                    and hasattr(result, "suggestions")
+                    and result.suggestions
+                ):
+                    # Get feedback from metadata if available, otherwise pass None
+                    feedback = (
+                        result.metadata.get("feedback")
+                        if hasattr(result, "metadata") and result.metadata
+                        else None
+                    )
+                    improved_text = self.improve(text, feedback) if self else None
                     if result:
                         processing_time = time.time() - start_time if time else 0
                         result = result.with_metadata(
@@ -235,12 +263,18 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
                             processing_time_ms=processing_time,
                         )
                 return result
-            return None
+            # Return a BaseResult to match the expected return type
+            return BaseResult(
+                passed=False,
+                message="Processing failed",
+                metadata={"error_type": "processing_error"},
+            )
 
         result = safely_execute_critic(
             operation=process_operation,
-            critic_name=self.name,
-            component_name=self.__class__.__name__,
+            component_name=self.name,
+            component_type="Critic",
+            error_class=CriticError,
         )
         if isinstance(result, dict) and result and result.get("error_type"):
             error_message = (
@@ -257,6 +291,17 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
                     "issues": [f"Processing error: {error_message}"],
                     "suggestions": ["Retry with different input"],
                     "processing_time_ms": processing_time,
+                },
+            )
+        # Ensure we always return a BaseResult
+        if not isinstance(result, BaseResult):
+            return BaseResult(
+                passed=False,
+                message="Invalid result type",
+                metadata={
+                    "error_type": "invalid_result_type",
+                    "actual_result": str(result),
+                    "processing_time_ms": time.time() - start_time if time else 0,
                 },
             )
         return result

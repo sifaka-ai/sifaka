@@ -108,15 +108,17 @@ class FormatterAdapter(Formatter):
             self._initialize_state()
 
         if self._formatter is None:
-            from sifaka.core.results import ChainResult
+            from sifaka.core.results import create_chain_result
 
-            return ChainResult(
+            return create_chain_result(
                 output=output,
                 validation_results=validation_results,
                 prompt="",
                 execution_time=0.0,
                 attempt_count=1,
                 metadata={},
+                passed=True,
+                message="Default formatting completed",
             )
 
         start_time = time.time()
@@ -189,15 +191,17 @@ class FormatterAdapter(Formatter):
             self._initialize_state()
 
         if self._formatter is None:
-            from sifaka.core.results import ChainResult
+            from sifaka.core.results import create_chain_result
 
-            return ChainResult(
+            return create_chain_result(
                 output=output,
                 validation_results=validation_results,
                 prompt="",
                 execution_time=0.0,
                 attempt_count=1,
                 metadata={},
+                passed=True,
+                message="Default async formatting completed",
             )
 
         start_time = time.time()

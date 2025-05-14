@@ -5,14 +5,11 @@ This module provides utility functions for models in the Sifaka framework,
 including error handling, result creation, and generation helpers.
 """
 
-from typing import Any, Dict, List, Optional, TypeVar, Callable, cast, Union
+from typing import Any, Dict, Optional, TypeVar, Callable, Union
 
-from pydantic import BaseModel
-
-from .result import ModelResult, GenerationResult
-from sifaka.utils.errors.component import ModelError
+from .result import GenerationResult
 from sifaka.utils.errors.handling import try_operation
-from sifaka.utils.errors.results import ErrorResult
+from sifaka.core.results import ErrorResult
 
 
 # Define create_model_error_result function
@@ -64,7 +61,10 @@ def create_model_error_result(
     return ErrorResult(
         error_type=error_type,
         error_message=error_message,
+        passed=False,
+        message=error_message,
         metadata=metadata,
+        score=0.0,
     )
 
 
@@ -74,10 +74,10 @@ T = TypeVar("T")
 
 def create_generation_result(
     text: str,
-    model_name: str,
+    model_name: str = "",  # Kept for backward compatibility
     prompt_tokens: int = 0,
     completion_tokens: int = 0,
-    total_tokens: int = 0,
+    total_tokens: int = 0,  # Kept for backward compatibility
     metadata: Optional[Dict[str, Any]] = None,
 ) -> GenerationResult:
     """
@@ -85,22 +85,25 @@ def create_generation_result(
 
     Args:
         text: Generated text
-        model_name: Name of the model
+        model_name: Name of the model (kept for backward compatibility)
         prompt_tokens: Number of tokens in the prompt
         completion_tokens: Number of tokens in the completion
-        total_tokens: Total number of tokens
+        total_tokens: Total number of tokens (kept for backward compatibility)
         metadata: Additional metadata
 
     Returns:
         Standardized generation result
     """
+    # Add model_name to metadata if provided
+    final_metadata = metadata or {}
+    if model_name:
+        final_metadata["model_name"] = model_name
+
     return GenerationResult(
-        text=text,
-        model_name=model_name,
+        output=text,
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
-        total_tokens=total_tokens or (prompt_tokens + completion_tokens),
-        metadata=metadata or {},
+        metadata=final_metadata,
     )
 
 
@@ -132,16 +135,15 @@ def create_error_result(
 
     # Create a generation result with error information
     return GenerationResult(
-        text="",
-        model_name=model_name,
+        output="",
         prompt_tokens=0,
         completion_tokens=0,
-        total_tokens=0,
         metadata={
             "error": True,
             "error_type": error_result.error_type,
             "error_message": error_result.error_message,
             "component": model_name,
+            "model_name": model_name,
             **error_result.metadata,
         },
     )

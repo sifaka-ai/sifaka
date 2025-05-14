@@ -32,7 +32,7 @@ plugin = loader.load_plugin_from_module("my_plugin_module") if loader else ""
 ```
 """
 
-from typing import Dict, Optional, Type, cast
+from typing import Optional, cast
 
 from sifaka.interfaces.chain.plugin import ChainPlugin as Plugin
 from sifaka.core.plugins import PluginRegistry as CorePluginRegistry
@@ -121,7 +121,7 @@ class PluginLoader(CorePluginLoader):
         _registry (PluginRegistry): The registry to register plugins with
     """
 
-    def __init__(self, registry: Optional[Optional[PluginRegistry]] = None):
+    def __init__(self, registry: Optional[PluginRegistry] = None):
         """
         Initialize the chain plugin loader.
 

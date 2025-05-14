@@ -7,7 +7,7 @@ managing Anthropic API clients for model providers.
 
 import os
 import time
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 
 import anthropic
 from anthropic import Anthropic
@@ -28,7 +28,7 @@ class AnthropicClient(APIClient):
     It manages authentication, request formatting, and response processing.
     """
 
-    def __init__(self, api_key: Optional[Optional[str]] = None) -> None:
+    def __init__(self, api_key: Optional[str] = None) -> None:
         """
         Initialize the Anthropic client.
 
@@ -40,39 +40,34 @@ class AnthropicClient(APIClient):
             api_key = os.environ.get("ANTHROPIC_API_KEY", "")
             if api_key and logger:
                 logger.debug(f"Retrieved API key from environment: {api_key[:10]}...")
-            else:
-                (
-                    logger.warning(
-                        "No Anthropic API key provided and ANTHROPIC_API_KEY environment variable not set"
-                    )
-                    if logger
-                    else ""
+            elif logger:
+                logger.warning(
+                    "No Anthropic API key provided and ANTHROPIC_API_KEY environment variable not set"
                 )
 
         # Validate API key format
-        if api_key and not api_key.startswith("sk-ant-api") if api_key else "":
-            (
+        if api_key and not api_key.startswith("sk-ant-api"):
+            if logger:
                 logger.warning(
                     f"API key format appears incorrect. Expected to start with 'sk-ant-api', got: {api_key[:10]}..."
                 )
-                if logger
-                else ""
-            )
 
         # Initialize client
         try:
             self.client = Anthropic(api_key=api_key)
-            logger.debug("Initialized Anthropic client") if logger else ""
+            if logger:
+                logger.debug("Initialized Anthropic client")
             self._api_key = api_key
             self._request_count = 0
             self._error_count = 0
-            self._last_request_time = None
-            self._last_response_time = None
+            self._last_request_time: Optional[float] = None
+            self._last_response_time: Optional[float] = None
         except Exception as e:
-            logger.error(f"Error initializing Anthropic client: {e}") if logger else ""
+            if logger:
+                logger.error(f"Error initializing Anthropic client: {e}")
             raise ValueError(f"Failed to initialize Anthropic client: {str(e)}")
 
-    def send_prompt(self, prompt: str, config: ModelConfig) -> str:
+    def send_prompt(self, prompt: str, config: Any) -> str:
         """
         Send a prompt to Anthropic and return the response.
 
@@ -87,7 +82,7 @@ class AnthropicClient(APIClient):
             ValueError: If no API key is provided
             RuntimeError: If the API request fails
         """
-        start_time = time.time() if time else ""
+        start_time = time.time()
         self._last_request_time = start_time
 
         try:
@@ -120,11 +115,13 @@ class AnthropicClient(APIClient):
 
             # Update statistics
             self._request_count += 1
-            if time:
-                self._last_response_time = time.time()
+            self._last_response_time = time.time()
 
             # Return response text
-            return response.content[0].text
+            content = response.content[0]
+            if hasattr(content, "text"):
+                return content.text
+            return ""
 
         except anthropic.AnthropicError as e:
             self._error_count += 1
@@ -140,11 +137,10 @@ class AnthropicClient(APIClient):
 
         finally:
             # Log request duration
-            if time:
-                end_time = time.time()
-                duration_ms = (end_time - start_time) * 1000
-                if logger:
-                    logger.debug(f"Anthropic request completed in {duration_ms:.2f}ms")
+            end_time = time.time()
+            duration_ms = (end_time - start_time) * 1000
+            if logger:
+                logger.debug(f"Anthropic request completed in {duration_ms:.2f}ms")
 
     def get_statistics(self) -> Dict[str, Any]:
         """

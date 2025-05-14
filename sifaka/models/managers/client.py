@@ -92,7 +92,7 @@ class ClientManager(Generic[C]):
         ```
     """
 
-    def __init__(self, model_name: str, config: ModelConfig, api_client: Optional[Optional[C]] = None):
+    def __init__(self, model_name: str, config: ModelConfig, api_client: Optional[C] = None):
         """
         Initialize a ClientManager instance.
 
@@ -115,7 +115,7 @@ class ClientManager(Generic[C]):
         Raises:
             RuntimeError: If a default client cannot be created
         """
-        return self._ensure_api_client() if self else ""
+        return self._ensure_api_client()
 
     def _ensure_api_client(self) -> C:
         """
@@ -128,8 +128,9 @@ class ClientManager(Generic[C]):
             RuntimeError: If a default client cannot be created
         """
         if self._api_client is None:
-            logger.debug(f"Creating default API client for {self._model_name}") if logger else ""
-            self._api_client = self._create_default_client() if self else ""
+            if logger:
+                logger.debug(f"Creating default API client for {self._model_name}")
+            self._api_client = self._create_default_client()
         return self._api_client
 
     @abstractmethod

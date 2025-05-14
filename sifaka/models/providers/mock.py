@@ -44,13 +44,13 @@ The provider implements simulated error handling for testing:
 - Simulated network errors
 """
 
+import time
 from typing import Dict, Any, Optional, ClassVar
 
 from sifaka.interfaces.client import APIClientProtocol as APIClient
 from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
 from sifaka.utils.config.models import ModelConfig
 from sifaka.models.core.provider import ModelProviderCore
-from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -59,7 +59,7 @@ logger = get_logger(__name__)
 class MockAPIClient(APIClient):
     """Mock API client for testing."""
 
-    def __init__(self, api_key: Optional[Optional[str]] = None) -> None:
+    def __init__(self, api_key: Optional[str] = None) -> None:
         """
         Initialize the mock client.
 
@@ -70,22 +70,40 @@ class MockAPIClient(APIClient):
         if logger:
             logger.debug("Initialized mock client")
 
-    def send_prompt(self, prompt: str, config: ModelConfig) -> str:
+    def send_prompt(self, prompt: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Send a mock prompt and return a response.
 
         Args:
             prompt: The prompt to send
-            config: Configuration for the request (not used but included for compatibility)
+            params: Parameters for the request including model configuration
 
         Returns:
-            A mock response
+            A mock response as a dictionary
         """
         # Simulate different responses based on configuration
-        temperature = config.temperature if hasattr(config, "temperature") else 0.7
+        temperature = params.get("temperature", 0.7)
         prefix = "Detailed" if temperature < 0.5 else "Creative"
 
-        return f"{prefix} mock response to: {prompt}"
+        # Return a dictionary format similar to real API responses
+        return {
+            "choices": [
+                {
+                    "text": f"{prefix} mock response to: {prompt}",
+                    "finish_reason": "stop",
+                    "index": 0,
+                }
+            ],
+            "created": int(time.time()),
+            "model": params.get("model_name", "mock-model"),
+            "object": "text_completion",
+            "usage": {
+                "prompt_tokens": len(prompt.split()) if prompt else 0,
+                "completion_tokens": len(f"{prefix} mock response to: {prompt}".split()),
+                "total_tokens": (len(prompt.split()) if prompt else 0)
+                + len(f"{prefix} mock response to: {prompt}".split()),
+            },
+        }
 
 
 class MockTokenCounter(TokenCounter):
@@ -173,9 +191,9 @@ class MockProvider(ModelProviderCore):
     def __init__(
         self,
         model_name: str = DEFAULT_MODEL,
-        config: Optional[Optional[ModelConfig]] = None,
-        api_client: Optional[Optional[APIClient]] = None,
-        token_counter: Optional[Optional[TokenCounter]] = None,
+        config: Optional[ModelConfig] = None,
+        api_client: Optional[APIClient] = None,
+        token_counter: Optional[TokenCounter] = None,
     ) -> None:
         """
         Initialize the mock provider.
@@ -213,7 +231,7 @@ class MockProvider(ModelProviderCore):
         if self._state_manager:
             self._state_manager.update("stats", stats)
 
-    def invoke(self, prompt: str, **kwargs) -> str:
+    def invoke(self, prompt: str, **kwargs: Any) -> str:
         """
         Invoke the model with a prompt (delegates to generate).
 
@@ -286,7 +304,7 @@ class MockProvider(ModelProviderCore):
             # Re-raise the exception
             raise
 
-    async def ainvoke(self, prompt: str, **kwargs) -> str:
+    async def ainvoke(self, prompt: str, **kwargs: Any) -> str:
         """
         Asynchronously invoke the model with a prompt.
 
@@ -386,8 +404,8 @@ class MockProvider(ModelProviderCore):
         Returns:
             TokenCounter: A new MockTokenCounter instance
         """
-        model_name = self._state_manager and self._state_manager.get("model_name")
-        return MockTokenCounter(model=model_name)
+        model_name = self._state_manager and self._state_manager.get("model_name", "")
+        return MockTokenCounter(model=str(model_name))
 
     @property
     def name(self) -> str:
@@ -449,11 +467,12 @@ class MockProvider(ModelProviderCore):
         model_name = self._state_manager and self._state_manager.get("model_name")
         return f"Mock provider using model {model_name}"
 
-    def update_config(self, **kwargs) -> None:
+    def update_config(self, config: Any = None, **kwargs: Any) -> None:
         """
         Update the provider configuration.
 
         Args:
+            config: New configuration (not used, included for compatibility with interface)
             **kwargs: Configuration parameters to update
         """
         config = self._state_manager and self._state_manager.get("config")
@@ -462,10 +481,10 @@ class MockProvider(ModelProviderCore):
 
         # Create a new config with updated values using the proper immutable pattern
         # First, check if any kwargs match direct config attributes
-        config_kwargs = {}
-        params_kwargs = {}
+        config_kwargs: Dict[str, Any] = {}
+        params_kwargs: Dict[str, Any] = {}
 
-        for key, value in kwargs.items() if kwargs else []:
+        for key, value in kwargs.items():
             if hasattr(config, key) and key != "params":
                 config_kwargs[key] = value
             else:

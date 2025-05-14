@@ -6,7 +6,7 @@ managing OpenAI API clients for model providers.
 """
 
 import os
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 from sifaka.interfaces.client import APIClientProtocol as APIClient
 from sifaka.models.managers.client import ClientManager
 from sifaka.utils.config.models import ModelConfig
@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 class OpenAIClient(APIClient):
     """OpenAI API client implementation."""
 
-    def __init__(self, api_key: Optional[Optional[str]] = None) -> None:
+    def __init__(self, api_key: Optional[str] = None) -> None:
         """
         Initialize the OpenAI client.
 
@@ -40,7 +40,7 @@ class OpenAIClient(APIClient):
         self.api_key = api_key
         logger.debug("Initialized OpenAI client")
 
-    def send_prompt(self, prompt: str, config: ModelConfig) -> str:
+    def send_prompt(self, prompt: str, config: Any) -> str:
         """
         Send a prompt to OpenAI and return the response.
 
@@ -97,18 +97,20 @@ class OpenAIClient(APIClient):
 
             # Make API call
             response = client.chat.completions.create(**params)
-            return response.choices[0].message.content.strip()
+            content = response.choices[0].message.content
+            return content.strip() if content is not None else ""
 
         from sifaka.utils.errors.safe_execution import safely_execute_component
         from sifaka.utils.errors.component import ModelError
 
-        return safely_execute_component(
+        result = safely_execute_component(
             operation=generate_operation,
             component_name="OpenAIClient",
             component_type="APIClient",
             error_class=ModelError,
             additional_metadata={"model_name": getattr(config, "model_name", "gpt-3.5-turbo")},
         )
+        return str(result)
 
 
 class OpenAIClientManager(ClientManager[OpenAIClient]):

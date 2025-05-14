@@ -7,10 +7,11 @@ to the Validator interface from the chain system.
 
 import asyncio
 import time
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union, cast
 from sifaka.interfaces.chain.components import Validator
 from sifaka.interfaces.chain.models import ValidationResult
 from sifaka.utils.errors.component import ValidationError
+from sifaka.utils.errors.results import ErrorResult
 from sifaka.utils.errors.safe_execution import safely_execute_component_operation
 from sifaka.utils.state import create_adapter_state
 
@@ -124,12 +125,15 @@ class ValidatorAdapter(Validator):
                 error_class=ValidationError,
             )
 
+            # Ensure result is a ValidationResult
+            validation_result = self._convert_result(result)
+
             end_time = time.time()
             execution_time = end_time - start_time
             validation_count = self._state_manager.get_metadata("validation_count", 0)
             self._state_manager.set_metadata("validation_count", validation_count + 1)
 
-            if result.passed:
+            if validation_result.passed:
                 success_count = self._state_manager.get_metadata("success_count", 0)
                 self._state_manager.set_metadata("success_count", success_count + 1)
             else:
@@ -147,10 +151,10 @@ class ValidatorAdapter(Validator):
             if self._state_manager.get("cache_enabled", True):
                 cache = self._state_manager.get("cache", {})
                 cache_key = f"{output[:50]}_{len(output)}"
-                cache[cache_key] = result
+                cache[cache_key] = validation_result
                 self._state_manager.update("cache", cache)
 
-            return result
+            return validation_result
 
         except Exception as e:
             error_count = self._state_manager.get_metadata("error_count", 0)
@@ -180,26 +184,28 @@ class ValidatorAdapter(Validator):
 
         start_time = time.time()
         try:
+            validation_result: ValidationResult
+
             if hasattr(self._validator, "validate_async"):
                 result = await self._validator.validate_async(output)
-                result = self._convert_result(result)
+                validation_result = self._convert_result(result)
             elif hasattr(self._validator, "process_async"):
                 result = await self._validator.process_async(output)
-                result = self._convert_result(result)
+                validation_result = self._convert_result(result)
             elif hasattr(self._validator, "run_async"):
                 result = await self._validator.run_async(output)
-                result = self._convert_result(result)
+                validation_result = self._convert_result(result)
             else:
                 loop = asyncio.get_event_loop()
-                result = await loop.run_in_executor(None, self.validate, output)
-                return result
+                validation_result = await loop.run_in_executor(None, self.validate, output)
+                return validation_result
 
             end_time = time.time()
             execution_time = end_time - start_time
             validation_count = self._state_manager.get_metadata("validation_count", 0)
             self._state_manager.set_metadata("validation_count", validation_count + 1)
 
-            if result.passed:
+            if validation_result.passed:
                 success_count = self._state_manager.get_metadata("success_count", 0)
                 self._state_manager.set_metadata("success_count", success_count + 1)
             else:
@@ -217,10 +223,10 @@ class ValidatorAdapter(Validator):
             if self._state_manager.get("cache_enabled", True):
                 cache = self._state_manager.get("cache", {})
                 cache_key = f"{output[:50]}_{len(output)}"
-                cache[cache_key] = result
+                cache[cache_key] = validation_result
                 self._state_manager.update("cache", cache)
 
-            return result
+            return validation_result
 
         except Exception as e:
             error_count = self._state_manager.get_metadata("error_count", 0)
@@ -232,7 +238,7 @@ class ValidatorAdapter(Validator):
                 raise e
             raise ValidationError(f"Async validation failed: {str(e)}")
 
-    def _convert_result(self, result: Any) -> ValidationResult:
+    def _convert_result(self, result: Union[Any, ErrorResult]) -> ValidationResult:
         """
         Convert a rule result to a ValidationResult.
 
@@ -242,14 +248,29 @@ class ValidatorAdapter(Validator):
         Returns:
             The converted ValidationResult
         """
+        # Handle the case where result is already a ValidationResult
         if isinstance(result, ValidationResult):
             return result
+
+        # Handle the case where result is an ErrorResult
+        if isinstance(result, ErrorResult):
+            return ValidationResult(
+                passed=False,
+                message=result.error_message,
+                score=0.0,
+                issues=[result.error_message],
+                suggestions=[],
+                metadata={"error_type": result.error_type, **result.metadata},
+            )
+
+        # Handle other result types
         passed = getattr(result, "passed", False)
         message = getattr(result, "message", "")
         score = getattr(result, "score", 0.0)
         issues = getattr(result, "issues", [])
         suggestions = getattr(result, "suggestions", [])
         metadata = getattr(result, "metadata", {})
+
         return ValidationResult(
             passed=passed,
             message=message,

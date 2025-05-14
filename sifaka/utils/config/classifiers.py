@@ -220,9 +220,9 @@ def extract_classifier_config_params(config: Dict[str, Any]) -> Any:
 def standardize_classifier_config(
     config: Optional[Union[Dict[str, Any], ClassifierConfig]] = None,
     params: Optional[Dict[str, Any]] = None,
-    config_class: Type[T] = ClassifierConfig,
+    config_class: Type[T] = None,  # type: ignore
     **kwargs: Any,
-) -> Any:
+) -> T:
     """
     Standardize classifier configuration.
 
@@ -240,7 +240,6 @@ def standardize_classifier_config(
         Standardized ClassifierConfig object or subclass
 
     Examples:
-        ```python
         from sifaka.utils.config.classifiers import standardize_classifier_config
 
         # Create from parameters
@@ -274,8 +273,9 @@ def standardize_classifier_config(
             }
         }
         config = standardize_classifier_config(config=dict_config)
-        ```
     """
+    if config_class is None:
+        config_class = ClassifierConfig  # type: ignore
     final_params: Dict[str, Any] = {}
     if params:
         final_params.update(params)

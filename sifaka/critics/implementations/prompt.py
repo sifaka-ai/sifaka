@@ -198,8 +198,8 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
         name: str,
         description: str,
         llm_provider: Any,
-        prompt_factory: Optional[Optional[Any]] = None,
-        config: Optional[Optional[PromptCriticConfig]] = None,
+        prompt_factory: Optional[Any] = None,
+        config: Optional[PromptCriticConfig] = None,
         **kwargs: Any,
     ):
         """
@@ -269,7 +269,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             self._state_manager.set_metadata("critic_type", self.__class__.__name__)
             self._state_manager.set_metadata("name", name)
             self._state_manager.set_metadata("description", description)
-            self._state_manager.set_metadata("creation_time", time.time() if time else "")
+            self._state_manager.set_metadata("creation_time", time.time())
             self._state_manager.set_metadata("validation_count", 0)
             self._state_manager.set_metadata("critique_count", 0)
             self._state_manager.set_metadata("improvement_count", 0)
@@ -347,7 +347,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
 
             # Mark as initialized
             self._state_manager.update("initialized", True)
-            self._state_manager.set_metadata("initialization_time", time.time() if time else "")
+            self._state_manager.set_metadata("initialization_time", time.time())
 
         except Exception as e:
             # Use the standardized utility function
@@ -370,11 +370,11 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        start_time = time.time() if time else ""
+        start_time = time.time()
 
         try:
             # Validate input
-            if not isinstance(input, str) or not input.strip() if input else "":
+            if not isinstance(input, str) or not input.strip():
                 raise ValueError("Input must be a non-empty string")
 
             # Ensure initialized
@@ -383,36 +383,46 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
 
             # Get critique service from state
             cache = self._state_manager.get("cache", {})
-            critique_service = cache.get("critique_service") if cache else ""
+            critique_service = cache.get("critique_service")
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
             # Delegate to critique service
-            critique_result = critique_service.critique(input) if critique_service else ""
+            critique_result = critique_service.critique(input)
 
             # Use getattr to safely access the attribute with a default value
             min_confidence = getattr(self.config, "min_confidence", 0.7)
 
+            # Get values from critique_result with proper type handling
+            score = critique_result.get("score", 0.0) if isinstance(critique_result, dict) else 0.0
+            feedback = (
+                critique_result.get("feedback", "") if isinstance(critique_result, dict) else ""
+            )
+            issues = critique_result.get("issues", []) if isinstance(critique_result, dict) else []
+            suggestions = (
+                critique_result.get("suggestions", []) if isinstance(critique_result, dict) else []
+            )
+
             # Create result
             result = CriticResult(
-                passed=critique_result.get("score", 0) if critique_result else "" >= min_confidence,
-                message=critique_result.get("feedback", "") if critique_result else "",
+                passed=score >= min_confidence,
+                message=feedback,
                 metadata={"operation": "process"},
-                score=critique_result.get("score", 0) if critique_result else "",
-                issues=critique_result.get("issues", []) if critique_result else "",
-                suggestions=critique_result.get("suggestions", []) if critique_result else "",
-                processing_time_ms=(time.time() if time else "" - start_time) * 1000,
+                score=score,
+                issues=issues,
+                suggestions=suggestions,
+                processing_time_ms=(time.time() - start_time) * 1000,
             )
 
             # Update statistics
-            self.update_statistics(result) if self else ""
+            self.update_statistics(result)
 
             return result
 
         except Exception as e:
             # Use the standardized utility function
             record_error(self._state_manager, e)
-            processing_time = (time.time() if time else "" - start_time) * 1000
+            processing_time = (time.time() - start_time) * 1000
             return CriticResult(
                 passed=False,
                 message=f"Error: {str(e)}",
@@ -438,7 +448,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             TypeError: If model returns non-string output
             RuntimeError: If critic is not properly initialized
         """
-        start_time = time.time() if time else ""
+        start_time = time.time()
 
         try:
             # Ensure initialized
@@ -446,7 +456,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 raise RuntimeError("PromptCritic not properly initialized")
 
             # Validate input
-            if not isinstance(text, str) or not text.strip() if text else "":
+            if not isinstance(text, str) or not text.strip():
                 raise ValueError("text must be a non-empty string")
 
             # Set default feedback if none provided
@@ -455,12 +465,12 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
 
             # Get critique service from state
             cache = self._state_manager.get("cache", {})
-            critique_service = cache.get("critique_service") if cache else ""
+            critique_service = cache.get("critique_service")
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
             # Delegate to critique service
-            improved_text = critique_service.improve(text, feedback) if critique_service else ""
+            improved_text = critique_service.improve(text, feedback)
 
             # Track improvement in memory manager
             memory_manager = self._state_manager.get("memory_manager")
@@ -470,15 +480,15 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                         "original_text": text,
                         "feedback": feedback,
                         "improved_text": improved_text,
-                        "timestamp": time.time() if time else "",
+                        "timestamp": time.time(),
                     }
                 )
-                memory_manager.add_to_memory(memory_item) if memory_manager else ""
+                memory_manager.add_to_memory(memory_item)
 
             # Update statistics
             improvement_count = self._state_manager.get_metadata("improvement_count", 0)
             self._state_manager.set_metadata("improvement_count", improvement_count + 1)
-            self._state_manager.set_metadata("last_improvement_time", time.time() if time else "")
+            self._state_manager.set_metadata("last_improvement_time", time.time())
 
             # Use getattr to safely access the attribute with a default value
             track_performance = getattr(self.config, "track_performance", True)
@@ -488,7 +498,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
                 self._state_manager.set_metadata(
                     "total_processing_time_ms",
-                    total_time + (time.time() - start_time) * 1000 if time else 0,
+                    total_time + (time.time() - start_time) * 1000,
                 )
 
             return improved_text
@@ -720,7 +730,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        start_time = time.time() if time else ""
+        start_time = time.time()
 
         try:
             # Ensure initialized
@@ -728,17 +738,21 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 raise RuntimeError("PromptCritic not properly initialized")
 
             # Validate input
-            if not isinstance(text, str) or not text.strip() if text else "":
+            if not isinstance(text, str) or not text.strip():
                 raise ValueError("text must be a non-empty string")
 
             # Get critique service from state
             cache = self._state_manager.get("cache", {})
-            critique_service = cache.get("critique_service") if cache else ""
+            critique_service = cache.get("critique_service")
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
             # Delegate to critique service
-            result = critique_service.validate(text) if critique_service else ""
+            result = critique_service.validate(text)
+
+            # Ensure result is a boolean
+            if not isinstance(result, bool):
+                result = bool(result)
 
             # Update statistics
             validation_count = self._state_manager.get_metadata("validation_count", 0)
@@ -758,13 +772,16 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
                 self._state_manager.set_metadata(
                     "total_processing_time_ms",
-                    total_time + (time.time() - start_time) * 1000 if time else 0,
+                    total_time + (time.time() - start_time) * 1000,
                 )
 
             return result
 
         except Exception as e:
-            self.record_error(e) if self else ""
+            if hasattr(self, "record_error"):
+                self.record_error(e)
+            else:
+                record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to validate text: {str(e)}") from e
 
     def critique(self, text: str) -> dict:
@@ -780,7 +797,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        start_time = time.time() if time else ""
+        start_time = time.time()
 
         try:
             # Ensure initialized
@@ -788,17 +805,21 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 raise RuntimeError("PromptCritic not properly initialized")
 
             # Validate input
-            if not isinstance(text, str) or not text.strip() if text else "":
+            if not isinstance(text, str) or not text.strip():
                 raise ValueError("text must be a non-empty string")
 
             # Get critique service from state
             cache = self._state_manager.get("cache", {})
-            critique_service = cache.get("critique_service") if cache else ""
+            critique_service = cache.get("critique_service")
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
             # Delegate to critique service
-            result = critique_service.critique(text) if critique_service else ""
+            result = critique_service.critique(text)
+
+            # Ensure result is a dictionary
+            if not isinstance(result, dict):
+                result = {"feedback": str(result), "score": 0.0}
 
             # Update statistics
             critique_count = self._state_manager.get_metadata("critique_count", 0)
@@ -811,13 +832,16 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
                 self._state_manager.set_metadata(
                     "total_processing_time_ms",
-                    total_time + (time.time() - start_time) * 1000 if time else 0,
+                    total_time + (time.time() - start_time) * 1000,
                 )
 
             return result
 
         except Exception as e:
-            self.record_error(e) if self else ""
+            if hasattr(self, "record_error"):
+                self.record_error(e)
+            else:
+                record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to critique text: {str(e)}") from e
 
     async def aimprove(self, text: str, feedback: Optional[str] = None) -> str:
@@ -987,7 +1011,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        start_time = time.time() if time else ""
+        start_time = time.time()
 
         try:
             # Ensure initialized
@@ -995,23 +1019,27 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 raise RuntimeError("PromptCritic not properly initialized")
 
             # Validate input
-            if not isinstance(text, str) or not text.strip() if text else "":
+            if not isinstance(text, str) or not text.strip():
                 raise ValueError("text must be a non-empty string")
 
             # Get critique service from state
             cache = self._state_manager.get("cache", {})
-            critique_service = cache.get("critique_service") if cache else ""
+            critique_service = cache.get("critique_service")
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
             # Check if service supports async
             if hasattr(critique_service, "avalidate"):
-                result = await critique_service.avalidate(text) if critique_service else ""
+                result = await critique_service.avalidate(text)
             else:
                 # Fallback to sync method in async context
                 import asyncio
 
-                result = await asyncio.to_thread(critique_service.validate, text) if asyncio else ""
+                result = await asyncio.to_thread(critique_service.validate, text)
+
+            # Ensure result is a boolean
+            if not isinstance(result, bool):
+                result = bool(result)
 
             # Update statistics
             validation_count = self._state_manager.get_metadata("validation_count", 0)
@@ -1031,13 +1059,16 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
                 self._state_manager.set_metadata(
                     "total_processing_time_ms",
-                    total_time + (time.time() - start_time) * 1000 if time else 0,
+                    total_time + (time.time() - start_time) * 1000,
                 )
 
             return result
 
         except Exception as e:
-            self.record_error(e) if self else ""
+            if hasattr(self, "record_error"):
+                self.record_error(e)
+            else:
+                record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to asynchronously validate text: {str(e)}") from e
 
     async def acritique(self, text: str) -> dict:
@@ -1053,7 +1084,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        start_time = time.time() if time else ""
+        start_time = time.time()
 
         try:
             # Ensure initialized
@@ -1061,23 +1092,27 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 raise RuntimeError("PromptCritic not properly initialized")
 
             # Validate input
-            if not isinstance(text, str) or not text.strip() if text else "":
+            if not isinstance(text, str) or not text.strip():
                 raise ValueError("text must be a non-empty string")
 
             # Get critique service from state
             cache = self._state_manager.get("cache", {})
-            critique_service = cache.get("critique_service") if cache else ""
+            critique_service = cache.get("critique_service")
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
             # Check if service supports async
             if hasattr(critique_service, "acritique"):
-                result = await critique_service.acritique(text) if critique_service else ""
+                result = await critique_service.acritique(text)
             else:
                 # Fallback to sync method in async context
                 import asyncio
 
-                result = await asyncio.to_thread(critique_service.critique, text) if asyncio else ""
+                result = await asyncio.to_thread(critique_service.critique, text)
+
+            # Ensure result is a dictionary
+            if not isinstance(result, dict):
+                result = {"feedback": str(result), "score": 0.0}
 
             # Update statistics
             critique_count = self._state_manager.get_metadata("critique_count", 0)
@@ -1090,13 +1125,16 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
                 self._state_manager.set_metadata(
                     "total_processing_time_ms",
-                    total_time + (time.time() - start_time) * 1000 if time else 0,
+                    total_time + (time.time() - start_time) * 1000,
                 )
 
             return result
 
         except Exception as e:
-            self.record_error(e) if self else ""
+            if hasattr(self, "record_error"):
+                self.record_error(e)
+            else:
+                record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to asynchronously critique text: {str(e)}") from e
 
     def warm_up(self) -> None:
@@ -1112,10 +1150,11 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
         """
         try:
             # Initialize components
-            self._initialize_components() if self else ""
+            if hasattr(self, "_initialize_components"):
+                self._initialize_components()
 
             # Set warm-up metadata
-            self._state_manager.set_metadata("warm_up_time", time.time() if time else "")
+            self._state_manager.set_metadata("warm_up_time", time.time())
 
         except Exception as e:
             # Use the standardized utility function
@@ -1139,24 +1178,27 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             # Release memory manager resources
             memory_manager = self._state_manager.get("memory_manager")
             if memory_manager and hasattr(memory_manager, "cleanup"):
-                memory_manager.cleanup() if memory_manager else ""
+                memory_manager.cleanup()
 
             # Release prompt manager resources
             prompt_manager = self._state_manager.get("prompt_manager")
             if prompt_manager and hasattr(prompt_manager, "cleanup"):
-                prompt_manager.cleanup() if prompt_manager else ""
+                prompt_manager.cleanup()
 
             # Release response parser resources
             response_parser = self._state_manager.get("response_parser")
             if response_parser and hasattr(response_parser, "cleanup"):
-                response_parser.cleanup() if response_parser else ""
+                response_parser.cleanup()
 
             # Mark as not initialized
             self._state_manager.update("initialized", False)
-            self._state_manager.set_metadata("cleanup_time", time.time() if time else "")
+            self._state_manager.set_metadata("cleanup_time", time.time())
 
         except Exception as e:
-            self.record_error(e) if self else ""
+            if hasattr(self, "record_error"):
+                self.record_error(e)
+            else:
+                record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to clean up critic: {str(e)}") from e
 
     def get_statistics(self) -> Dict[str, Any]:
@@ -1193,22 +1235,22 @@ def create_prompt_critic(
     llm_provider: Optional[Any] = None,
     name: str = "prompt_critic",
     description: str = "A critic that uses prompts to improve text",
-    system_prompt: Optional[Optional[str]] = None,
-    temperature: Optional[Optional[float]] = None,
-    max_tokens: Optional[Optional[int]] = None,
-    min_confidence: Optional[Optional[float]] = None,
-    max_attempts: Optional[Optional[int]] = None,
-    cache_size: Optional[Optional[int]] = None,
-    priority: Optional[Optional[int]] = None,
-    cost: Optional[Optional[float]] = None,
-    track_performance: Optional[Optional[bool]] = None,
-    track_errors: Optional[Optional[bool]] = None,
-    eager_initialization: Optional[Optional[bool]] = None,
-    memory_buffer_size: Optional[Optional[int]] = None,
-    prompt_factory: Optional[Optional[Any]] = None,
-    config: Optional[Optional[PromptCriticConfig]] = None,
-    session_id: Optional[Optional[str]] = None,
-    request_id: Optional[Optional[str]] = None,
+    system_prompt: Optional[str] = None,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+    min_confidence: Optional[float] = None,
+    max_attempts: Optional[int] = None,
+    cache_size: Optional[int] = None,
+    priority: Optional[int] = None,
+    cost: Optional[float] = None,
+    track_performance: Optional[bool] = None,
+    track_errors: Optional[bool] = None,
+    eager_initialization: Optional[bool] = None,
+    memory_buffer_size: Optional[int] = None,
+    prompt_factory: Optional[Any] = None,
+    config: Optional[PromptCriticConfig] = None,
+    session_id: Optional[str] = None,
+    request_id: Optional[str] = None,
     **kwargs: Any,
 ) -> PromptCritic:
     """
@@ -1318,18 +1360,14 @@ def create_prompt_critic(
 
             try:
                 # Try to get by name first
-                llm_provider = (
-                    provider.get("model_provider", None, session_id, request_id) if provider else ""
-                )
+                llm_provider = provider.get("model_provider", None, session_id, request_id)
             except DependencyError:
                 try:
                     # Try to get by type if not found by name
-                    from sifaka.interfaces.model import ModelProvider
+                    from sifaka.interfaces.model import ModelProviderProtocol
 
-                    llm_provider = (
-                        provider.get_by_type(ModelProvider, None, session_id, request_id)
-                        if provider
-                        else ""
+                    llm_provider = provider.get_by_type(
+                        ModelProviderProtocol, None, session_id, request_id
                     )
                 except (DependencyError, ImportError):
                     # This is a required dependency, so we need to raise an error
@@ -1344,75 +1382,72 @@ def create_prompt_critic(
 
             try:
                 # Try to get by name
-                prompt_factory = (
-                    provider.get("prompt_factory", None, session_id, request_id) if provider else ""
-                )
+                prompt_factory = provider.get("prompt_factory", None, session_id, request_id)
             except DependencyError:
                 # Prompt factory is optional, so we can continue without it
                 pass
 
         # Create config if not provided
         if config is None:
-            # Create a default config
-            config = PromptCriticConfig(
-                name="prompt_critic",
-                description="A critic that uses prompts to improve text",
-                system_prompt="You are a helpful assistant that provides high-quality feedback and improvements for text.",
-                temperature=0.7,
-                max_tokens=1000,
-                min_confidence=0.7,
-                max_attempts=3,
-                cache_size=100,
-                eager_initialization=False,
-                memory_buffer_size=10,
-                track_performance=True,
-                track_errors=True,
-            )
+            from copy import deepcopy
 
-            # Create updates dictionary with all provided parameters
-            updates = {}
+            # Create a default config dictionary
+            config_dict = {
+                "name": "prompt_critic",
+                "description": "A critic that uses prompts to improve text",
+                "system_prompt": "You are a helpful assistant that provides high-quality feedback and improvements for text.",
+                "temperature": 0.7,
+                "max_tokens": 1000,
+                "min_confidence": 0.7,
+                "max_attempts": 3,
+                "cache_size": 100,
+                "eager_initialization": False,
+                "memory_buffer_size": 10,
+                "track_performance": True,
+                "track_errors": True,
+            }
 
-            # Add all provided parameters to updates
+            # Add all provided parameters to config_dict
             if name is not None:
-                updates["name"] = name
+                config_dict["name"] = name
             if description is not None:
-                updates["description"] = description
+                config_dict["description"] = description
             if system_prompt is not None:
-                updates["system_prompt"] = system_prompt
+                config_dict["system_prompt"] = system_prompt
             if temperature is not None:
-                updates["temperature"] = temperature
+                config_dict["temperature"] = temperature
             if max_tokens is not None:
-                updates["max_tokens"] = max_tokens
+                config_dict["max_tokens"] = max_tokens
             if min_confidence is not None:
-                updates["min_confidence"] = min_confidence
+                config_dict["min_confidence"] = min_confidence
             if max_attempts is not None:
-                updates["max_attempts"] = max_attempts
+                config_dict["max_attempts"] = max_attempts
             if cache_size is not None:
-                updates["cache_size"] = cache_size
+                config_dict["cache_size"] = cache_size
             if priority is not None:
-                updates["priority"] = priority
+                config_dict["priority"] = priority
             if cost is not None:
-                updates["cost"] = cost
+                config_dict["cost"] = cost
             if track_performance is not None:
-                updates["track_performance"] = track_performance
+                config_dict["track_performance"] = track_performance
             if track_errors is not None:
-                updates["track_errors"] = track_errors
+                config_dict["track_errors"] = track_errors
             if eager_initialization is not None:
-                updates["eager_initialization"] = eager_initialization
+                config_dict["eager_initialization"] = eager_initialization
             if memory_buffer_size is not None:
-                updates["memory_buffer_size"] = memory_buffer_size
+                config_dict["memory_buffer_size"] = memory_buffer_size
 
             # Add any additional kwargs to params
             params = kwargs.pop("params", {})
             for key, value in kwargs.items():
-                if key not in updates and key not in ["session_id", "request_id"]:
+                if key not in config_dict and key not in ["session_id", "request_id"]:
                     params[key] = value
 
             if params:
-                updates["params"] = params
+                config_dict["params"] = params
 
-            # Update config with all parameters
-            config = config.model_copy(update=updates) if config else None
+            # Create a new config object
+            config = PromptCriticConfig(**config_dict)
 
         # Create and return the critic with standardized state management
         return PromptCritic(

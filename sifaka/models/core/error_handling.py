@@ -28,8 +28,6 @@ def record_error(provider: "ModelProviderCore", error: Exception) -> None:
 
     record_error_common(
         error=error,
-        component_name=provider.name,
-        component_type=provider.__class__.__name__,
         state_manager=provider._state_manager,
     )
 
@@ -58,10 +56,13 @@ def safely_execute(
     """
     from sifaka.utils.errors.safe_execution import safely_execute_component_operation
 
+    from sifaka.utils.errors.base import SifakaError
+
     return safely_execute_component_operation(
         operation=operation,
         component_name=provider.name,
         component_type=provider.__class__.__name__,
+        error_class=SifakaError,
         additional_metadata=error_context or {},
     )
 

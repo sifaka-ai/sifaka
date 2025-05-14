@@ -175,7 +175,7 @@ class RetrievedDocument(BaseModel, Generic[T]):
         description="The content of the document",
     )
     metadata: DocumentMetadata = Field(
-        default_factory=DocumentMetadata,
+        default_factory=lambda: DocumentMetadata(document_id="default"),
         description="Metadata for the document",
     )
     score: Optional[float] = Field(

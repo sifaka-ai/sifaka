@@ -82,13 +82,13 @@ def is_empty_text(text: str) -> bool:
         is_empty_text("Hello, world!")  # Returns False
         ```
     """
-    return not text or not text.strip() if text else ""
+    return not text or not text.strip() if text else True
 
 
 def handle_empty_text(
     text: str,
     passed: bool = True,
-    message: Optional[Optional[str]] = None,
+    message: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
     component_type: Literal[
         "rule", "adapter", "classifier", "chain", "critic", "retrieval", "component"
@@ -144,11 +144,11 @@ def handle_empty_text(
     # Set default metadata
     final_metadata = {"reason": "empty_input"}
     if metadata:
-        final_metadata.update(metadata) if final_metadata else ""
+        final_metadata.update(metadata)
 
     # Add input length to metadata
     if "input_length" not in final_metadata:
-        final_metadata["input_length"] = len(text)
+        final_metadata["input_length"] = str(len(text))
 
     return RuleResult(
         passed=passed,
@@ -204,16 +204,27 @@ def try_validate(
         )
         ```
     """
-    start_time = time.time() if time else 0
+    start_time = time.time()
 
     try:
         # Define error handler
         def error_handler(e: Exception) -> RuleResult:
-            return create_error_result(
+            result = create_error_result(
                 message=f"Error during validation: {str(e)}",
                 component_name=rule_name,
                 error_type=type(e).__name__,
                 severity=log_level,
+            )
+            # Ensure we return a RuleResult
+            if isinstance(result, RuleResult):
+                return result
+            # Convert ErrorResult to RuleResult if needed
+            return RuleResult(
+                passed=False,
+                message=result.message if hasattr(result, "message") else str(e),
+                metadata=result.metadata if hasattr(result, "metadata") else {"error": True},
+                severity=log_level,
+                score=0.0,
             )
 
         # Use try_operation with the error handler
@@ -225,22 +236,57 @@ def try_validate(
 
         # Add processing time if not already present
         if hasattr(result, "metadata") and result.metadata.get("processing_time_ms") is None:
-            if time:
-                elapsed_ms = (time.time() - start_time) * 1000
-                if result:
+            elapsed_ms = (time.time() - start_time) * 1000
+            if result and hasattr(result, "with_metadata"):
+                # Ensure result is a RuleResult
+                if isinstance(result, RuleResult):
                     result = result.with_metadata(processing_time_ms=elapsed_ms)
+                else:
+                    # Convert to RuleResult if needed
+                    rule_result = RuleResult(
+                        passed=result.passed if hasattr(result, "passed") else False,
+                        message=(
+                            result.message if hasattr(result, "message") else "Unknown result"
+                        ),
+                        metadata=result.metadata if hasattr(result, "metadata") else {},
+                        severity="error",
+                        score=result.score if hasattr(result, "score") else 0.0,
+                    )
+                    result = rule_result.with_metadata(processing_time_ms=elapsed_ms)
 
-        return result
+        # Ensure we return a RuleResult
+        if isinstance(result, RuleResult):
+            return result
+
+        # Convert to RuleResult if needed
+        return RuleResult(
+            passed=result.passed if hasattr(result, "passed") else False,
+            message=result.message if hasattr(result, "message") else "Unknown result",
+            metadata=result.metadata if hasattr(result, "metadata") else {},
+            severity="error",
+            score=result.score if hasattr(result, "score") else 0.0,
+        )
 
     except Exception as e:
         # This should only happen if try_operation itself fails
         if logger:
             logger.error(f"Unexpected error in try_validate: {e}")
-        return create_error_result(
+        result = create_error_result(
             message=f"Unexpected error in try_validate: {str(e)}",
             component_name=rule_name,
             error_type=type(e).__name__,
             severity=log_level,
+        )
+        # Ensure we return a RuleResult
+        if isinstance(result, RuleResult):
+            return result
+        # Convert ErrorResult to RuleResult if needed
+        return RuleResult(
+            passed=False,
+            message=result.message if hasattr(result, "message") else str(e),
+            metadata=result.metadata if hasattr(result, "metadata") else {"error": True},
+            severity=log_level,
+            score=0.0,
         )
 
 

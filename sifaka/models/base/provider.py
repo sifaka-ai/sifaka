@@ -163,10 +163,10 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
     def __init__(
         self,
         model_name: str,
-        config: Optional[Optional[C]] = None,
-        api_client: Optional[Optional[APIClient]] = None,
-        token_counter: Optional[Optional[TokenCounter]] = None,
-        tracer: Optional[Optional[Tracer]] = None,
+        config: Optional[C] = None,
+        api_client: Optional[APIClient] = None,
+        token_counter: Optional[TokenCounter] = None,
+        tracer: Optional[Tracer] = None,
     ) -> None:
         """
         Initialize a model provider with explicit dependencies.
@@ -438,7 +438,7 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
 
         return token_count
 
-    def generate(self, prompt: str, **kwargs) -> str:
+    def generate(self, prompt: str, **kwargs: Any) -> str:
         """
         Generate text using the model.
 
@@ -482,7 +482,16 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
         client = self._ensure_api_client()
 
         try:
-            response = client.send_prompt(prompt, config)
+            # Convert ModelConfig to Dict[str, Any] for API client
+            config_dict = {
+                "temperature": config.temperature,
+                "max_tokens": config.max_tokens,
+                "api_key": config.api_key,
+                "trace_enabled": config.trace_enabled,
+                "model": config.model,
+                **config.params,  # Include any additional params
+            }
+            response = client.send_prompt(prompt, config_dict)
 
             end_time = datetime.now()
             duration_ms = (end_time - start_time).total_seconds() * 1000
@@ -503,6 +512,10 @@ class ModelProvider(ModelProviderInterface, Generic[C], ABC):
                 f"Generated response in {duration_ms:.2f}ms " f"(prompt: {prompt_tokens} tokens)"
             )
 
+            # Ensure we return a string
+            if not isinstance(response, str):
+                logger.warning(f"API client returned non-string response: {type(response)}")
+                return str(response)
             return response
 
         except Exception as e:

@@ -48,7 +48,7 @@ about the validation failure.
 """
 
 from enum import Enum
-from typing import Any, Dict, Optional, Type, TypeVar, Union, cast
+from typing import Any, Dict, List, Optional, Type, TypeVar, Union, cast
 from pydantic import Field
 from .base import BaseConfig
 
@@ -155,7 +155,7 @@ class RuleConfig(BaseConfig):
     priority: RulePriority = Field(default=RulePriority.MEDIUM, description="Rule priority level")
     severity: str = Field(default="info", description="Rule severity level")
     category: str = Field(default="", description="Rule category")
-    tags: list[str] = Field(default_factory=list, description="List of tags for the rule")
+    tags: List[str] = Field(default_factory=list, description="List of tags for the rule")
     rule_id: str = Field(default="", description="Unique identifier for the rule")
     cost: Optional[float] = Field(default=None, description="Computational cost of the rule")
 
@@ -163,9 +163,9 @@ class RuleConfig(BaseConfig):
 def standardize_rule_config(
     config: Optional[Union[Dict[str, Any], RuleConfig]] = None,
     params: Optional[Dict[str, Any]] = None,
-    config_class: Type[T] = RuleConfig,
+    config_class: Type[T] = None,  # type: ignore
     **kwargs: Any,
-) -> Any:
+) -> T:
     """
     Standardize rule configuration.
 
@@ -183,7 +183,6 @@ def standardize_rule_config(
         Standardized RuleConfig object or subclass
 
     Examples:
-        ```python
         from sifaka.utils.config.rules import standardize_rule_config, RulePriority
 
         # Create from parameters
@@ -229,8 +228,9 @@ def standardize_rule_config(
                 "max_length": 100
             }
         )
-        ```
     """
+    if config_class is None:
+        config_class = RuleConfig  # type: ignore
     final_params: Dict[str, Any] = {}
     if params:
         final_params.update(params)

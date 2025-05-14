@@ -82,5 +82,5 @@ class Validator(ChainComponent, Protocol):
         """
         import asyncio
 
-        loop = asyncio.get_event_loop() if asyncio else ""
-        return await loop.run_in_executor(None, self.validate, output) if loop else ""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.validate, output)

@@ -112,13 +112,13 @@ from pydantic import ConfigDict, Field, PrivateAttr
 
 from ...core.base import BaseComponent
 from ...utils.state import create_critic_state
-from ...core.base import BaseResult as CriticResult
+from ...core.base import BaseResult
 from sifaka.utils.config.critics import SelfRAGCriticConfig
-from sifaka.interfaces import TextCritic, TextImprover, TextValidator
+from sifaka.interfaces.critic import TextCritic, TextImprover, TextValidator, CritiqueResult
 from ...retrieval import Retriever
 
 
-class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, TextCritic):
+class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, TextCritic):
     """
     A critic that implements the Self-Reflective Retrieval-Augmented Generation approach.
 
@@ -216,7 +216,7 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
         description: str,
         llm_provider: Any,
         retriever: Retriever,
-        config: Optional[Optional[SelfRAGCriticConfig]] = None,
+        config: Optional[SelfRAGCriticConfig] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -243,10 +243,16 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
         # Create config if not provided
         if config is None:
             from sifaka.utils.config.critics import DEFAULT_SELF_RAG_CRITIC_CONFIG
+            from copy import deepcopy
 
-            config = DEFAULT_SELF_RAG_CRITIC_CONFIG.model_copy(
-                update={"name": name, "description": description, **kwargs}
-            )
+            # Create a copy of the default config and update it
+            config_dict = deepcopy(DEFAULT_SELF_RAG_CRITIC_CONFIG)
+            config_dict.update({"name": name, "description": description, **kwargs})
+
+            # Create a new SelfRAGCriticConfig from the updated dict
+            from sifaka.utils.config.critics import SelfRAGCriticConfig
+
+            config = SelfRAGCriticConfig(**config_dict)
 
         # Initialize base component
         super().__init__(name=name, description=description, config=config)
@@ -257,15 +263,40 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
             self._state_manager.update("retriever", retriever)
 
             # Store configuration in cache
+            # Ensure config is a SelfRAGCriticConfig
+            self_rag_config = cast(SelfRAGCriticConfig, config)
+
+            # Define default values for missing attributes
+            DEFAULT_RETRIEVAL_PROMPT_TEMPLATE = (
+                "Decide whether to retrieve information for: {query}"
+            )
+            DEFAULT_GENERATION_PROMPT_TEMPLATE = "Generate a response for: {query}"
+            DEFAULT_REFLECTION_PROMPT_TEMPLATE = (
+                "Reflect on the quality of this response: {response}"
+            )
+
+            # Get attributes with fallbacks for missing ones
+            retrieval_threshold = getattr(self_rag_config, "retrieval_threshold", 0.7)
+            retrieval_prompt_template = getattr(
+                self_rag_config, "retrieval_prompt_template", DEFAULT_RETRIEVAL_PROMPT_TEMPLATE
+            )
+            generation_prompt_template = getattr(
+                self_rag_config, "generation_prompt_template", DEFAULT_GENERATION_PROMPT_TEMPLATE
+            )
+            reflection_prompt_template = getattr(
+                self_rag_config, "reflection_prompt_template", DEFAULT_REFLECTION_PROMPT_TEMPLATE
+            )
+            reflection_enabled = getattr(self_rag_config, "reflection_enabled", True)
+
             cache = {
-                "retrieval_threshold": config and config.retrieval_threshold,
-                "retrieval_prompt_template": config and config.retrieval_prompt_template,
-                "generation_prompt_template": config and config.generation_prompt_template,
-                "reflection_prompt_template": config and config.reflection_prompt_template,
-                "system_prompt": config and config.system_prompt,
-                "temperature": config and config.temperature,
-                "max_tokens": config and config.max_tokens,
-                "reflection_enabled": config and config.reflection_enabled,
+                "retrieval_threshold": retrieval_threshold,
+                "retrieval_prompt_template": retrieval_prompt_template,
+                "generation_prompt_template": generation_prompt_template,
+                "reflection_prompt_template": reflection_prompt_template,
+                "system_prompt": self_rag_config.system_prompt,
+                "temperature": self_rag_config.temperature,
+                "max_tokens": self_rag_config.max_tokens,
+                "reflection_enabled": reflection_enabled,
             }
             self._state_manager.update("cache", cache)
 
@@ -311,7 +342,7 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
             raise ValueError("metadata must contain a 'task' key")
         return metadata["task"]
 
-    def process(self, input: str) -> CriticResult:
+    def process(self, input: str) -> BaseResult:
         """
         Process the input text and return a result.
 
@@ -321,13 +352,13 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
             input: The text to process
 
         Returns:
-            CriticResult: The result of processing the text
+            BaseResult: The result of processing the text
 
         Raises:
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        start_time = time.time() if time else 0
+        start_time = time.time()
 
         try:
             # Validate input
@@ -342,60 +373,63 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
             task = "Provide information about the following text"
 
             # Run the Self-RAG process
-            result = self.run(task, input) if self else ""
+            result = self.run(task, input)
 
             # Extract reflection as feedback
-            reflection = result.get("reflection", "") if result else ""
+            reflection = result.get("reflection", "") if isinstance(result, dict) else ""
 
             # Parse reflection for issues and suggestions
-            issues = []
-            suggestions = []
+            issues: List[str] = []
+            suggestions: List[str] = []
 
             # Extract issues and suggestions from reflection
-            for line in reflection.split("\n") if reflection else "":
-                line = line.strip() if line else ""
-                if line.startswith("- ") if line else "" or line.startswith("* ") if line else "":
-                    if (
-                        "should" in line.lower()
-                        if line
-                        else (
-                            "" or "could" in line.lower()
-                            if line
-                            else "" or "recommend" in line.lower() if line else ""
-                        )
-                    ):
-                        suggestions.append(line[2:]) if suggestions else ""
-                    else:
-                        issues.append(line[2:]) if issues else ""
+            if reflection:
+                for line in reflection.split("\n"):
+                    line = line.strip()
+                    if line and (line.startswith("- ") or line.startswith("* ")):
+                        if (
+                            "should" in line.lower()
+                            or "could" in line.lower()
+                            or "recommend" in line.lower()
+                        ):
+                            suggestions.append(line[2:])
+                        else:
+                            issues.append(line[2:])
 
             # Calculate score based on issues
             score = 1.0 if not issues else 0.5
 
             # Create result
-            critic_result = CriticResult(
+            response_text = result.get("response", "") if isinstance(result, dict) else ""
+            retrieval_query = result.get("retrieval_query", "") if isinstance(result, dict) else ""
+            retrieved_context = (
+                result.get("retrieved_context", "") if isinstance(result, dict) else ""
+            )
+
+            critic_result = BaseResult(
                 passed=True,  # Self-RAG critics always pass
-                message=result.get("response", "") if result else "",
+                message=response_text,
                 metadata={
                     "operation": "process",
-                    "retrieval_query": result.get("retrieval_query", "") if result else "",
-                    "retrieved_context": result.get("retrieved_context", "") if result else "",
+                    "retrieval_query": retrieval_query,
+                    "retrieved_context": retrieved_context,
                     "reflection": reflection,
                 },
                 score=score,
                 issues=issues,
                 suggestions=suggestions,
-                processing_time_ms=(time.time() - start_time) * 1000 if time else 0,
+                processing_time_ms=(time.time() - start_time) * 1000,
             )
 
             # Update statistics
-            self.update_statistics(critic_result) if self else ""
+            self.update_statistics(critic_result)
 
             return critic_result
 
         except Exception as e:
             self.record_error(e)
-            processing_time = (time.time() - start_time) * 1000 if time else 0
-            return CriticResult(
+            processing_time = (time.time() - start_time) * 1000
+            return BaseResult(
                 passed=False,
                 message=f"Error: {str(e)}",
                 metadata={"error_type": type(e).__name__},
@@ -405,18 +439,15 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
                 processing_time_ms=processing_time,
             )
 
-    @property
-    def config(self) -> SelfRAGCriticConfig:
-        """Get the Self-RAG critic configuration."""
-        return cast(SelfRAGCriticConfig, self._config)
+    # Note: We're not overriding the config property since it's already defined in the base class
+    # and mypy complains about redefining it. Instead, we'll use type casting when needed.
 
-    def validate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
+    def validate(self, text: str) -> bool:
         """
         Validate text.
 
         Args:
             text: The text to validate
-            metadata: Optional metadata containing the task
 
         Returns:
             True if text is valid, False otherwise
@@ -430,70 +461,71 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
         # For SelfRAG, validation is always True as it focuses on improvement
         return True
 
-    def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def critique(self, text: str) -> CritiqueResult:
         """
         Analyze text and provide detailed feedback.
 
         Args:
             text: The text to critique
-            metadata: Optional metadata containing the task
 
         Returns:
-            Dictionary containing score, feedback, issues, and suggestions
+            CritiqueResult containing score, feedback, issues, and suggestions
 
         Raises:
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        self._check_input(text) if self else ""
+        # Use a default task since the interface doesn't allow for metadata
+        metadata = {"task": "Analyze the text"}
+        self._check_input(text)
 
         # Get task from metadata
-        task = self._get_task_from_metadata(metadata) if self else ""
+        task = self._get_task_from_metadata(metadata)
 
         # Run the full Self-RAG process
-        result = self.run(task, text, metadata) if self else ""
+        result = self.run(task, text, metadata)
 
         # Extract reflection as feedback
-        reflection = result.get("reflection", "") if result else ""
+        reflection = result.get("reflection", "") if isinstance(result, dict) else ""
 
         # Parse reflection for issues and suggestions
-        issues = []
-        suggestions = []
+        issues: List[str] = []
+        suggestions: List[str] = []
 
         # Extract issues and suggestions from reflection
-        for line in reflection.split("\n") if reflection else "":
-            line = line.strip() if line else ""
-            if line.startswith("- ") if line else "" or line.startswith("* ") if line else "":
-                if (
-                    "should" in line.lower()
-                    if line
-                    else (
-                        "" or "could" in line.lower()
-                        if line
-                        else "" or "recommend" in line.lower() if line else ""
-                    )
-                ):
-                    suggestions.append(line[2:]) if suggestions else ""
-                else:
-                    issues.append(line[2:]) if issues else ""
+        if reflection:
+            for line in reflection.split("\n"):
+                line = line.strip()
+                if line and (line.startswith("- ") or line.startswith("* ")):
+                    if (
+                        "should" in line.lower()
+                        or "could" in line.lower()
+                        or "recommend" in line.lower()
+                    ):
+                        suggestions.append(line[2:])
+                    else:
+                        issues.append(line[2:])
 
         # Calculate score based on issues
         score = 1.0 if not issues else 0.5
 
-        return {
+        # Create critique result
+        result_dict: CritiqueResult = {
             "score": score,
             "feedback": reflection,
             "issues": issues,
             "suggestions": suggestions,
         }
 
-    def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+        return result_dict
+
+    def improve(self, text: str, feedback: str = "") -> str:
         """
         Improve text through self-reflective retrieval-augmented generation.
 
         Args:
             text: The text to improve
-            metadata: Optional metadata containing the task
+            feedback: Feedback to guide the improvement (not used directly, metadata is used instead)
 
         Returns:
             Improved text
@@ -502,6 +534,8 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
+        # This implementation uses metadata instead of direct feedback parameter
+        metadata = {"task": "Improve the text"} if not feedback else {"task": feedback}
         self._check_input(text) if self else ""
 
         # Get task from metadata
@@ -561,8 +595,8 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
     def run(
         self,
         task: str,
-        response: Optional[Optional[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        response: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,  # Kept for compatibility
     ) -> Dict[str, Any]:
         """
         Run the full Self-RAG process.
@@ -570,7 +604,7 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
         Args:
             task: The task or question to process
             response: Optional initial response to improve
-            metadata: Optional metadata
+            metadata: Optional metadata (not used directly in this implementation)
 
         Returns:
             Dictionary containing response, retrieval_query, retrieved_context, and reflection
@@ -609,7 +643,7 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
         ).strip()
 
         # Step 2: Extract retrieval query and decide whether to retrieve
-        retrieval_threshold = cache.get("retrieval_threshold", 0.5)
+        # Note: retrieval_threshold is not currently used but kept for future implementation
         should_retrieve = False
         retrieval_query = ""
 
@@ -685,16 +719,16 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
         }
 
     # Async methods are implemented similarly to the synchronous ones
-    async def avalidate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
+    async def avalidate(self, text: str) -> bool:
         """Asynchronously validate text."""
         self._check_input(text)
         return True
 
-    async def acritique(
-        self, text: str, metadata: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    async def acritique(self, text: str) -> CritiqueResult:
         """Asynchronously analyze text and provide detailed feedback."""
         self._check_input(text)
+        # Use a default task since the interface doesn't allow for metadata
+        metadata = {"task": "Analyze the text"}
         task = self._get_task_from_metadata(metadata)
         result = await self.arun(task, text, metadata)
 
@@ -724,15 +758,20 @@ class SelfRAGCritic(BaseComponent[str, CriticResult], TextValidator, TextImprove
             "suggestions": suggestions,
         }
 
-    async def aimprove(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+    async def aimprove(self, text: str, feedback: str = "") -> str:
         """Asynchronously improve text through self-reflective retrieval-augmented generation."""
         self._check_input(text)
+        # This implementation uses metadata instead of direct feedback parameter
+        metadata = {"task": "Improve the text"} if not feedback else {"task": feedback}
         task = self._get_task_from_metadata(metadata)
         result = await self.arun(task, text, metadata)
         return result.get("response", text)
 
     async def arun(
-        self, task: str, response: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None
+        self,
+        task: str,
+        response: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,  # Kept for compatibility
     ) -> Dict[str, Any]:
         """Asynchronously run the full Self-RAG process."""
         # For simplicity, we'll use the synchronous implementation for now
@@ -753,9 +792,9 @@ def create_self_rag_critic(
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     retrieval_threshold: Optional[float] = None,
-    retrieval_prompt_template: Optional[Optional[str]] = None,
-    generation_prompt_template: Optional[Optional[str]] = None,
-    reflection_prompt_template: Optional[Optional[str]] = None,
+    retrieval_prompt_template: Optional[str] = None,
+    generation_prompt_template: Optional[str] = None,
+    reflection_prompt_template: Optional[str] = None,
     config: Optional[Union[Dict[str, Any], SelfRAGCriticConfig]] = None,
     **kwargs: Any,
 ) -> SelfRAGCritic:
@@ -860,14 +899,14 @@ def create_self_rag_critic(
         if config is None:
             from sifaka.utils.config.critics import DEFAULT_SELF_RAG_CRITIC_CONFIG
 
-            config = DEFAULT_SELF_RAG_CRITIC_CONFIG.model_copy()
+            from copy import deepcopy
 
-            # Update config with provided values
-            updates = {}
-            if name is not None:
-                updates["name"] = name
-            if description is not None:
-                updates["description"] = description
+            # Create a copy of the default config
+            config_dict = deepcopy(DEFAULT_SELF_RAG_CRITIC_CONFIG)
+
+            # Update with provided values
+            updates = {"name": name, "description": description}
+
             if system_prompt is not None:
                 updates["system_prompt"] = system_prompt
             if temperature is not None:
@@ -896,7 +935,13 @@ def create_self_rag_critic(
             # Add any additional kwargs
             updates.update(kwargs)
 
-            config = config.model_copy(update=updates)
+            # Update config with all updates
+            config_dict.update(updates)
+
+            # Create a new config object
+            from sifaka.utils.config.critics import SelfRAGCriticConfig
+
+            config = SelfRAGCriticConfig(**config_dict)
         elif isinstance(config, dict):
             from sifaka.utils.config.critics import SelfRAGCriticConfig
 

@@ -337,9 +337,9 @@ class QueryProcessingConfig(BaseConfig):
 def standardize_retriever_config(
     config: Optional[Union[Dict[str, Any], RetrieverConfig]] = None,
     params: Optional[Dict[str, Any]] = None,
-    config_class: Type[T] = RetrieverConfig,
+    config_class: Type[T] = None,  # type: ignore
     **kwargs: Any,
-) -> Any:
+) -> T:
     """
     Standardize retriever configuration.
 
@@ -357,7 +357,6 @@ def standardize_retriever_config(
         Standardized RetrieverConfig object or subclass
 
     Examples:
-        ```python
         from sifaka.utils.config.retrieval import standardize_retriever_config, RankingConfig
 
         # Create from parameters
@@ -404,8 +403,9 @@ def standardize_retriever_config(
                 "content": 1.0
             }
         )
-        ```
     """
+    if config_class is None:
+        config_class = RetrieverConfig  # type: ignore
     final_params: Dict[str, Any] = {}
     if params:
         final_params.update(params)

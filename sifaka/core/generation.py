@@ -5,16 +5,16 @@ This module provides functionality for generating text using various models,
 with support for caching, statistics tracking, and error handling.
 """
 
-from typing import Any, Dict, List, Optional, Type, TypeVar, Generic
+from typing import Any, Dict, Optional, TypeVar
 import time
-from pydantic import BaseModel, PrivateAttr
-from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
-from sifaka.models.core.provider import ModelProviderCore as BaseModelProvider
+from pydantic import PrivateAttr
+from sifaka.core.base import BaseComponent
+from sifaka.models.core.provider import ModelProviderCore as BaseModelProvider, ModelConfig
 from sifaka.utils.state import StateManager
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
-OutputType = TypeVar("OutputType")
+OutputType = TypeVar("OutputType", bound=ModelConfig)
 
 
 class Generator(BaseComponent):
@@ -42,10 +42,8 @@ class Generator(BaseComponent):
             description: Description of the generator
             config: Additional configuration
         """
-        super().__init__()
+        super().__init__(name=name, description=description)
         self._state_manager.update("model", model)
-        self._state_manager.update("name", name)
-        self._state_manager.update("description", description)
         self._state_manager.update("config", config or {})
         self._state_manager.update("initialized", True)
         self._state_manager.update("execution_count", 0)
@@ -53,7 +51,7 @@ class Generator(BaseComponent):
         self._state_manager.set_metadata("component_type", "generator")
         self._state_manager.set_metadata("creation_time", time.time())
 
-    def generate(self, prompt: str, **kwargs) -> Any:
+    def generate(self, prompt: str, **kwargs: Any) -> Any:
         """
         Generate text using the model provider.
 

@@ -49,7 +49,7 @@ The provider implements comprehensive error handling:
 
 import time
 import importlib.util
-from typing import Any, Dict, Optional, ClassVar
+from typing import Any, Dict, Optional, ClassVar, List
 
 # Import interfaces directly to avoid circular dependencies
 from sifaka.interfaces.client import APIClientProtocol as APIClient
@@ -58,7 +58,6 @@ from sifaka.models.core.provider import ModelProviderCore
 
 # Import utilities
 from sifaka.utils.config.models import ModelConfig
-from sifaka.utils.common import record_error
 from sifaka.utils.logging import get_logger
 
 # Lazy import managers to avoid circular dependencies
@@ -169,7 +168,7 @@ class AnthropicProvider(ModelProviderCore):
 
         logger.info(f"Created AnthropicProvider with model {model_name}")
 
-    def invoke(self, prompt: str, **kwargs) -> str:
+    def invoke(self, prompt: str, **kwargs: Any) -> str:
         """
         Invoke the model with a prompt (delegates to generate).
 
@@ -236,7 +235,7 @@ class AnthropicProvider(ModelProviderCore):
             # Re-raise the exception
             raise
 
-    async def ainvoke(self, prompt: str, **kwargs) -> str:
+    async def ainvoke(self, prompt: str, **kwargs: Any) -> str:
         """
         Asynchronously invoke the model with a prompt.
 
@@ -303,7 +302,7 @@ class AnthropicProvider(ModelProviderCore):
                     )
                     self._state_manager.update("stats", stats)
 
-            return result
+            return str(result)
 
         except Exception as e:
             # Update error count in state
@@ -329,12 +328,9 @@ class AnthropicProvider(ModelProviderCore):
                 self._state_manager.update("stats", stats)
 
             # Use common error recording utility
-            record_error(
-                error=error,
-                component_name=self.name,
-                component_type=self.__class__.__name__,
-                state_manager=self._state_manager,
-            )
+            from sifaka.models.core.error_handling import record_error as core_record_error
+
+            core_record_error(self, error)
 
     @property
     def name(self) -> str:
@@ -466,7 +462,7 @@ class AnthropicProvider(ModelProviderCore):
         if logger:
             logger.info(f"Provider {self.name} cleaned up successfully")
 
-    def generate(self, prompt: str, **kwargs) -> str:
+    def generate(self, prompt: str, **kwargs: Any) -> str:
         """
         Generate text from a prompt.
 
@@ -557,7 +553,8 @@ class AnthropicProvider(ModelProviderCore):
             self._state_manager.update("config", new_config)
 
         # Send prompt to client
-        return client.send_prompt(prompt, config) if client else ""
+        result = client.send_prompt(prompt, config) if client else ""
+        return str(result)
 
     def count_tokens(self, text: str) -> int:
         """
@@ -603,11 +600,13 @@ class AnthropicProvider(ModelProviderCore):
         # Get token counter from state
         token_counter = self._state_manager and self._state_manager.get("token_counter")
         if token_counter is None:
-            token_counter = (
-                self._token_counter_manager and self._token_counter_manager.get_token_counter()
+            token_counter_manager = self._state_manager and self._state_manager.get(
+                "token_counter_manager"
             )
-            if self._state_manager:
-                self._state_manager.update("token_counter", token_counter)
+            if token_counter_manager:
+                token_counter = token_counter_manager.get_token_counter()
+                if self._state_manager:
+                    self._state_manager.update("token_counter", token_counter)
 
         # Update statistics
         stats = self._state_manager and self._state_manager.get("stats", {}) or {}
@@ -662,7 +661,9 @@ class AnthropicProvider(ModelProviderCore):
         """
         from sifaka.models.managers.anthropic_token_counter import AnthropicTokenCounter
 
-        model_name = self._state_manager and self._state_manager.get("model_name")
+        model_name = ""
+        if self._state_manager:
+            model_name = self._state_manager.get("model_name", "")
         return AnthropicTokenCounter(model=model_name)
 
     def get_statistics(self) -> Dict[str, Any]:
@@ -714,23 +715,45 @@ class AnthropicProvider(ModelProviderCore):
         model_name = self._state_manager and self._state_manager.get("model_name")
         return f"Anthropic provider using model {model_name}"
 
-    def update_config(self, **kwargs) -> None:
+    def update_config(self, config: Any) -> None:
         """
         Update the provider configuration.
 
         Args:
+            config: The new configuration object or values to update
+        """
+        if not self._state_manager:
+            return
+
+        # If config is a dict, convert it to kwargs and call the kwargs version
+        if isinstance(config, dict):
+            self._update_config_with_kwargs(**config)
+        # If config is a ModelConfig, update directly
+        elif isinstance(config, ModelConfig):
+            self._state_manager.update("config", config)
+        else:
+            raise ValueError(f"Config must be a dict or ModelConfig, got {type(config)}")
+
+    def _update_config_with_kwargs(self, **kwargs: Any) -> None:
+        """
+        Update the provider configuration with keyword arguments.
+
+        Args:
             **kwargs: Configuration parameters to update
         """
-        config = self._state_manager and self._state_manager.get("config")
+        if not self._state_manager:
+            return
+
+        config = self._state_manager.get("config")
         if not config:
             return
 
         # Create a new config with updated values using the proper immutable pattern
         # First, check if any kwargs match direct config attributes
-        config_kwargs = {}
-        params_kwargs = {}
+        config_kwargs: Dict[str, Any] = {}
+        params_kwargs: Dict[str, Any] = {}
 
-        for key, value in kwargs.items() if kwargs else []:
+        for key, value in kwargs.items():
             if hasattr(config, key) and key != "params":
                 config_kwargs[key] = value
             else:
@@ -743,9 +766,8 @@ class AnthropicProvider(ModelProviderCore):
             new_config = config
 
         # Add any params using with_params
-        if params_kwargs:
+        if params_kwargs and hasattr(new_config, "with_params"):
             new_config = new_config.with_params(**params_kwargs)
 
         # Update state
-        if self._state_manager:
-            self._state_manager.update("config", new_config)
+        self._state_manager.update("config", new_config)

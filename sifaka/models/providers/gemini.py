@@ -89,7 +89,7 @@ class GeminiClient(APIClient):
         # Configure the client
         genai.configure(api_key=api_key)
         self.api_key = api_key
-        self.model = None  # Lazy initialization
+        self.model: Optional[genai.GenerativeModel] = None  # Lazy initialization
         if logger:
             logger.debug("Initialized Gemini client")
 
@@ -124,12 +124,12 @@ class GeminiClient(APIClient):
                 model_name = params.get("model_name", "gemini-pro")
 
                 # Create generation config from params
-                generation_config = {
-                    "temperature": params.get("temperature", 0.7),
-                    "max_output_tokens": params.get("max_tokens", 1024),
-                    "top_p": params.get("top_p", 0.95),
-                    "top_k": params.get("top_k", 40),
-                }
+                generation_config = genai.types.GenerationConfig(
+                    temperature=params.get("temperature", 0.7),
+                    max_output_tokens=params.get("max_tokens", 1024),
+                    top_p=params.get("top_p", 0.95),
+                    top_k=params.get("top_k", 40),
+                )
 
                 self.model = genai.GenerativeModel(
                     model_name=model_name,
@@ -451,7 +451,7 @@ class GeminiProvider(ModelProviderCore):
             if self._state_manager:
                 self._state_manager.update("stats", stats)
 
-            return result
+            return str(result)
 
         except Exception:
             # Update error count in state
@@ -560,11 +560,12 @@ class GeminiProvider(ModelProviderCore):
         model_name = self._state_manager and self._state_manager.get("model_name") or ""
         return f"Gemini provider using model {model_name}"
 
-    def update_config(self, **kwargs: Any) -> None:
+    def update_config(self, config: Any = None, **kwargs: Any) -> None:
         """
         Update the provider configuration.
 
         Args:
+            config: New configuration (not used, included for compatibility with interface)
             **kwargs: Configuration parameters to update
         """
         config = self._state_manager and self._state_manager.get("config")
@@ -573,10 +574,10 @@ class GeminiProvider(ModelProviderCore):
 
         # Create a new config with updated values using the proper immutable pattern
         # First, check if any kwargs match direct config attributes
-        config_kwargs = {}
-        params_kwargs = {}
+        config_kwargs: Dict[str, Any] = {}
+        params_kwargs: Dict[str, Any] = {}
 
-        for key, value in kwargs.items() if kwargs else []:
+        for key, value in kwargs.items():
             if hasattr(config, key) and key != "params":
                 config_kwargs[key] = value
             else:

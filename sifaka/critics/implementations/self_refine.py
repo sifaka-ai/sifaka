@@ -76,16 +76,16 @@ Based on Self-Refine: https://arxiv.org/abs/2303.17651
 
 import json
 import time
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import Field, ConfigDict, PrivateAttr
 
-from ...core.base import BaseComponent
+from ...core.base import BaseComponent, BaseConfig
 from ...utils.state import create_critic_state
 from ...utils.logging import get_logger
 from ...core.base import BaseResult as CriticResult
 from sifaka.utils.config.critics import SelfRefineCriticConfig
-from ...interfaces.critic import TextCritic, TextImprover, TextValidator
+from ...interfaces.critic import TextCritic, TextImprover, TextValidator, CritiqueResult
 
 # Configure logging
 logger = get_logger(__name__)
@@ -161,7 +161,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     # Configuration
-    config: SelfRefineCriticConfig = Field(description="Critic configuration")
+    config: BaseConfig = Field(description="Critic configuration")
 
     # State management using StateManager
     _state_manager = PrivateAttr(default_factory=create_critic_state)
@@ -192,12 +192,164 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
         if config is None:
             from sifaka.utils.config.critics import DEFAULT_SELF_REFINE_CRITIC_CONFIG
 
-            config = DEFAULT_SELF_REFINE_CRITIC_CONFIG.model_copy(
-                update={"name": name, "description": description, **kwargs}
-            )
+            # Convert dict to SelfRefineCriticConfig if it's a dict
+            if isinstance(DEFAULT_SELF_REFINE_CRITIC_CONFIG, dict):
+                # Extract known parameters
+                config_dict = DEFAULT_SELF_REFINE_CRITIC_CONFIG.copy()
+                config_dict.update(kwargs)
+                config_dict["name"] = name
+                config_dict["description"] = description
 
-        # Initialize base component
-        super().__init__(name=name, description=description, config=config)
+                # Create config with explicit parameters with proper type handling
+                # Use default values if not provided or if conversion fails
+                min_confidence: float = 0.7
+                try:
+                    min_conf_val = config_dict.get("min_confidence")
+                    if min_conf_val is not None:
+                        min_confidence = float(min_conf_val)
+                except (ValueError, TypeError):
+                    pass
+
+                max_attempts: int = 3
+                try:
+                    max_att_val = config_dict.get("max_attempts")
+                    if max_att_val is not None:
+                        max_attempts = int(max_att_val)
+                except (ValueError, TypeError):
+                    pass
+
+                cache_size: int = 100
+                try:
+                    cache_val = config_dict.get("cache_size")
+                    if cache_val is not None:
+                        cache_size = int(cache_val)
+                except (ValueError, TypeError):
+                    pass
+
+                priority: int = 1
+                try:
+                    priority_val = config_dict.get("priority")
+                    if priority_val is not None:
+                        priority = int(priority_val)
+                except (ValueError, TypeError):
+                    pass
+
+                cost: Optional[float] = None
+                try:
+                    cost_val = config_dict.get("cost")
+                    if cost_val is not None:
+                        cost = float(cost_val)
+                except (ValueError, TypeError):
+                    pass
+
+                track_performance: bool = True
+                try:
+                    track_perf_val = config_dict.get("track_performance")
+                    if track_perf_val is not None:
+                        track_performance = bool(track_perf_val)
+                except (ValueError, TypeError):
+                    pass
+
+                system_prompt: str = ""
+                try:
+                    sys_prompt_val = config_dict.get("system_prompt")
+                    if sys_prompt_val is not None:
+                        system_prompt = str(sys_prompt_val)
+                except (ValueError, TypeError):
+                    pass
+
+                temperature: float = 0.7
+                try:
+                    temp_val = config_dict.get("temperature")
+                    if temp_val is not None:
+                        temperature = float(temp_val)
+                except (ValueError, TypeError):
+                    pass
+
+                max_tokens: int = 1000
+                try:
+                    max_tok_val = config_dict.get("max_tokens")
+                    if max_tok_val is not None:
+                        max_tokens = int(max_tok_val)
+                except (ValueError, TypeError):
+                    pass
+
+                max_iterations: int = 3
+                try:
+                    max_iter_val = config_dict.get("max_iterations")
+                    if max_iter_val is not None:
+                        max_iterations = int(max_iter_val)
+                except (ValueError, TypeError):
+                    pass
+
+                refine_prompt: str = ""
+                try:
+                    refine_val = config_dict.get("refine_prompt")
+                    if refine_val is not None:
+                        refine_prompt = str(refine_val)
+                except (ValueError, TypeError):
+                    pass
+
+                memory_buffer_size: int = 10
+                try:
+                    mem_buf_val = config_dict.get("memory_buffer_size")
+                    if mem_buf_val is not None:
+                        memory_buffer_size = int(mem_buf_val)
+                except (ValueError, TypeError):
+                    pass
+
+                eager_initialization: bool = False
+                try:
+                    eager_val = config_dict.get("eager_initialization")
+                    if eager_val is not None:
+                        eager_initialization = bool(eager_val)
+                except (ValueError, TypeError):
+                    pass
+
+                track_errors: bool = True
+                try:
+                    track_err_val = config_dict.get("track_errors")
+                    if track_err_val is not None:
+                        track_errors = bool(track_err_val)
+                except (ValueError, TypeError):
+                    pass
+
+                params: Dict[str, Any] = {}
+                params_val = config_dict.get("params")
+                if isinstance(params_val, dict):
+                    params = params_val
+
+                # Create the config with proper typing
+                config = SelfRefineCriticConfig(
+                    name=name,
+                    description=description,
+                    min_confidence=min_confidence,
+                    max_attempts=max_attempts,
+                    cache_size=cache_size,
+                    priority=priority,
+                    cost=cost,
+                    track_performance=track_performance,
+                    system_prompt=system_prompt,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    max_iterations=max_iterations,
+                    refine_prompt=refine_prompt,
+                    memory_buffer_size=memory_buffer_size,
+                    eager_initialization=eager_initialization,
+                    track_errors=track_errors,
+                    params=params,
+                )
+            else:
+                config = DEFAULT_SELF_REFINE_CRITIC_CONFIG.model_copy(
+                    update={"name": name, "description": description, **kwargs}
+                )
+
+        # Initialize base component with config cast to BaseConfig
+        base_config = BaseConfig(name=name, description=description)
+        super().__init__(name=name, description=description, config=base_config)
+
+        # Store the SelfRefineCriticConfig separately
+        self._critic_config = config
 
         try:
             # Import required components
@@ -222,32 +374,47 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                 response_parser=self._state_manager.get("response_parser"),
                 memory_manager=self._state_manager.get("memory_manager"),
             )
-            cache["max_iterations"] = config and config.max_iterations
-            cache["critique_prompt_template"] = (
-                config
-                and config.critique_prompt_template
-                or (
-                    "Please critique the following response to the task. "
-                    "Focus on accuracy, clarity, and completeness.\n\n"
-                    "Task:\n{task}\n\n"
-                    "Response:\n{response}\n\n"
-                    "Critique:"
-                )
+            cache["max_iterations"] = (
+                self._critic_config.max_iterations if hasattr(self, "_critic_config") else 3
             )
-            cache["revision_prompt_template"] = (
-                config
-                and config.revision_prompt_template
-                or (
-                    "Please revise the following response based on the critique.\n\n"
-                    "Task:\n{task}\n\n"
-                    "Response:\n{response}\n\n"
-                    "Critique:\n{critique}\n\n"
-                    "Revised response:"
-                )
+            # Set critique prompt template with safe access
+            default_critique_template = (
+                "Please critique the following response to the task. "
+                "Focus on accuracy, clarity, and completeness.\n\n"
+                "Task:\n{task}\n\n"
+                "Response:\n{response}\n\n"
+                "Critique:"
             )
-            cache["system_prompt"] = config.system_prompt
-            cache["temperature"] = config.temperature
-            cache["max_tokens"] = config.max_tokens
+
+            if hasattr(self, "_critic_config") and hasattr(
+                self._critic_config, "critique_prompt_template"
+            ):
+                cache["critique_prompt_template"] = self._critic_config.critique_prompt_template
+            else:
+                cache["critique_prompt_template"] = default_critique_template
+            # Set revision prompt template with safe access
+            default_revision_template = (
+                "Please revise the following response based on the critique.\n\n"
+                "Task:\n{task}\n\n"
+                "Response:\n{response}\n\n"
+                "Critique:\n{critique}\n\n"
+                "Revised response:"
+            )
+
+            if hasattr(self, "_critic_config") and hasattr(
+                self._critic_config, "revision_prompt_template"
+            ):
+                cache["revision_prompt_template"] = self._critic_config.revision_prompt_template
+            else:
+                cache["revision_prompt_template"] = default_revision_template
+            if hasattr(self, "_critic_config"):
+                cache["system_prompt"] = self._critic_config.system_prompt
+                cache["temperature"] = self._critic_config.temperature
+                cache["max_tokens"] = self._critic_config.max_tokens
+            else:
+                cache["system_prompt"] = ""
+                cache["temperature"] = 0.7
+                cache["max_tokens"] = 1000
             self._state_manager.update("cache", cache)
 
             # Mark as initialized
@@ -294,15 +461,20 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             # Delegate to critique service
             critique_result = critique_service.critique(input)
 
+            # Get min_confidence from critic_config or use default
+            min_confidence = 0.7
+            if hasattr(self, "_critic_config") and hasattr(self._critic_config, "min_confidence"):
+                min_confidence = self._critic_config.min_confidence
+
             # Create result
-            result = CriticResult(
-                passed=critique_result.get("score", 0) >= self.config.min_confidence,
+            result: CriticResult = CriticResult(
+                passed=critique_result.get("score", 0) >= min_confidence,
                 message=critique_result.get("feedback", ""),
                 metadata={"operation": "process"},
                 score=critique_result.get("score", 0),
                 issues=critique_result.get("issues", []),
                 suggestions=critique_result.get("suggestions", []),
-                processing_time_ms=(time.time() - start_time) * 1000,
+                processing_time_ms=float(time.time() - start_time) * 1000.0,
             )
 
             # Update statistics
@@ -312,7 +484,8 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
 
         except Exception as e:
             self.record_error(e)
-            processing_time = (time.time() - start_time) * 1000 if time else 0
+            elapsed_time = time.time() - start_time
+            processing_time = float(elapsed_time) * 1000.0
             return CriticResult(
                 passed=False,
                 message=f"Error: {str(e)}",
@@ -357,13 +530,12 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             raise ValueError("metadata must contain a 'task' key")
         return metadata["task"]
 
-    def validate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
+    def validate(self, text: str) -> bool:
         """
         Validate text against quality standards.
 
         Args:
             text: The text to validate
-            metadata: Optional metadata containing the task
 
         Returns:
             True if the text passes validation, False otherwise
@@ -393,8 +565,8 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             validation_count = self._state_manager.get_metadata("validation_count", 0)
             self._state_manager.set_metadata("validation_count", validation_count + 1)
 
-            # Get task from metadata
-            task = self._get_task_from_metadata(metadata)
+            # Use a default task since metadata is not available in this interface
+            task: str = "Validate the following text"
 
             # Create critique prompt
             prompt = (
@@ -437,26 +609,26 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             # Track performance
             if hasattr(self, "config") and self.config.track_performance:
                 total_time = self._state_manager.get_metadata("total_validation_time_ms", 0.0)
+                elapsed_time = time.time() - start_time
                 self._state_manager.set_metadata(
-                    "total_validation_time_ms", total_time + ((time.time() - start_time) * 1000)
+                    "total_validation_time_ms", total_time + (float(elapsed_time) * 1000)
                 )
 
-            return is_valid
+            return bool(is_valid)
 
         except Exception as e:
             self.record_error(e)
             raise RuntimeError(f"Failed to validate text: {str(e)}") from e
 
-    def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def critique(self, text: str) -> CritiqueResult:
         """
-        Analyze text and provide detailed feedback.
+        Critique text and provide feedback.
 
         Args:
             text: The text to critique
-            metadata: Optional metadata containing the task
 
         Returns:
-            Dictionary containing score, feedback, issues, and suggestions
+            CritiqueResult: A dictionary containing critique information
 
         Raises:
             ValueError: If text is empty
@@ -483,8 +655,8 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             critique_count = self._state_manager.get_metadata("critique_count", 0)
             self._state_manager.set_metadata("critique_count", critique_count + 1)
 
-            # Get task from metadata
-            task = self._get_task_from_metadata(metadata) if self else ""
+            # Use empty task since metadata is not available in this interface
+            task = "Analyze the following text"
 
             # Create critique prompt
             prompt = (
@@ -508,8 +680,8 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             ).strip()
 
             # Parse critique
-            issues = []
-            suggestions = []
+            issues: List[str] = []
+            suggestions: List[str] = []
 
             # Extract issues and suggestions from critique
             for line in critique_text.split("\n") if critique_text else "":
@@ -532,9 +704,9 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             score = 1.0 if not issues else max(0.0, 1.0 - (len(issues) * 0.1))
 
             # Create result
-            critique_result = {
-                "score": score,
-                "feedback": critique_text,
+            critique_result: CritiqueResult = {
+                "score": float(score),
+                "feedback": str(critique_text),
                 "issues": issues,
                 "suggestions": suggestions,
             }
@@ -558,13 +730,13 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             self.record_error(e) if self else ""
             raise RuntimeError(f"Failed to critique text: {str(e)}") from e
 
-    def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+    def improve(self, text: str, feedback: str) -> str:
         """
-        Improve text through iterative self-critique and revision.
+        Improve text based on feedback.
 
         Args:
             text: The text to improve
-            metadata: Optional metadata containing the task
+            feedback: Feedback to guide the improvement
 
         Returns:
             Improved text
@@ -588,8 +760,8 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             improvement_count = self._state_manager.get_metadata("improvement_count", 0)
             self._state_manager.set_metadata("improvement_count", improvement_count + 1)
 
-            # Get task from metadata
-            task = self._get_task_from_metadata(metadata) if self else ""
+            # Use feedback as task
+            task = f"Improve the text based on this feedback: {feedback}"
 
             # Get max iterations from config
             max_iterations = self._state_manager.get("cache", {}).get("max_iterations", 3)
@@ -684,11 +856,13 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             # Track performance
             if hasattr(self, "config") and self.config.track_performance:
                 total_time = self._state_manager.get_metadata("total_improvement_time_ms", 0.0)
+                elapsed_time = time.time() - start_time
                 self._state_manager.set_metadata(
-                    "total_improvement_time_ms", total_time + ((time.time() - start_time) * 1000)
+                    "total_improvement_time_ms",
+                    total_time + (float(elapsed_time) * 1000),
                 )
 
-            return current_output
+            return str(current_output)
 
         except Exception as e:
             self.record_error(e)
@@ -766,12 +940,13 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                     "total_feedback_improvement_time_ms", 0.0
                 )
 
+                elapsed_time = time.time() - start_time
                 self._state_manager.set_metadata(
                     "total_feedback_improvement_time_ms",
-                    total_time + ((time.time() - start_time) * 1000),
+                    total_time + (float(elapsed_time) * 1000),
                 )
 
-            return improved_text
+            return str(improved_text)
 
         except Exception as e:
             self.record_error(e)
@@ -810,22 +985,20 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
         }
 
     # Async methods
-    async def avalidate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
+    async def avalidate(self, text: str) -> bool:
         """Asynchronously validate text."""
         # For now, use the synchronous implementation
-        return self.validate(text, metadata)
+        return self.validate(text)
 
-    async def acritique(
-        self, text: str, metadata: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    async def acritique(self, text: str) -> CritiqueResult:
         """Asynchronously critique text."""
         # For now, use the synchronous implementation
-        return self.critique(text, metadata)
+        return self.critique(text)
 
-    async def aimprove(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+    async def aimprove(self, text: str, feedback: str) -> str:
         """Asynchronously improve text."""
         # For now, use the synchronous implementation
-        return self.improve(text, metadata)
+        return self.improve(text, feedback)
 
     async def aimprove_with_feedback(self, text: str, feedback: str) -> str:
         """Asynchronously improve text based on specific feedback."""
@@ -940,7 +1113,10 @@ def create_self_refine_critic(
             from sifaka.utils.config.critics import DEFAULT_SELF_REFINE_CRITIC_CONFIG
 
             # Start with default config
-            config = DEFAULT_SELF_REFINE_CRITIC_CONFIG.model_copy()
+            if isinstance(DEFAULT_SELF_REFINE_CRITIC_CONFIG, dict):
+                config = SelfRefineCriticConfig(**DEFAULT_SELF_REFINE_CRITIC_CONFIG)
+            else:
+                config = DEFAULT_SELF_REFINE_CRITIC_CONFIG.model_copy()
 
             # Update with provided values
             updates = {
@@ -950,23 +1126,23 @@ def create_self_refine_critic(
 
             # Add optional parameters if provided
             if system_prompt is not None:
-                updates["system_prompt"] = system_prompt
+                updates["system_prompt"] = str(system_prompt)
             if temperature is not None:
-                updates["temperature"] = temperature
+                updates["temperature"] = float(temperature)
             if max_tokens is not None:
-                updates["max_tokens"] = max_tokens
+                updates["max_tokens"] = int(max_tokens)
             if min_confidence is not None:
-                updates["min_confidence"] = min_confidence
+                updates["min_confidence"] = float(min_confidence)
             if max_attempts is not None:
-                updates["max_attempts"] = max_attempts
+                updates["max_attempts"] = int(max_attempts)
             if cache_size is not None:
-                updates["cache_size"] = cache_size
+                updates["cache_size"] = int(cache_size)
             if priority is not None:
-                updates["priority"] = priority
+                updates["priority"] = int(priority)
             if cost is not None:
-                updates["cost"] = cost
+                updates["cost"] = float(cost)
             if max_iterations is not None:
-                updates["max_iterations"] = max_iterations
+                updates["max_iterations"] = int(max_iterations)
             if critique_prompt_template is not None:
                 updates["critique_prompt_template"] = critique_prompt_template
             if revision_prompt_template is not None:
@@ -976,7 +1152,15 @@ def create_self_refine_critic(
             updates.update(kwargs)
 
             # Create updated config
-            config = config.model_copy(update=updates)
+            if hasattr(config, "model_copy"):
+                config = config.model_copy(update=updates)
+            elif isinstance(config, dict):
+                config_dict = config.copy()
+                config_dict.update(updates)
+                config = SelfRefineCriticConfig(**config_dict)
+            else:
+                # Create a new config with updates
+                config = SelfRefineCriticConfig(**updates)
         elif isinstance(config, dict):
             from sifaka.utils.config.critics import SelfRefineCriticConfig
 

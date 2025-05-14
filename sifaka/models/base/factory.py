@@ -40,18 +40,19 @@ The factory function implements standardized error handling:
 - Provides clear error messages for debugging
 """
 
-from typing import Callable, Optional, TypeVar
+from typing import Any, Callable, Optional
 
 from sifaka.utils.config.models import ModelConfig
 from sifaka.models.base.types import T
 
+
 def create_model_provider(
     provider_type: Callable[..., T],
     model_name: str,
-    api_key: Optional[Optional[str]] = None,
+    api_key: Optional[str] = None,
     temperature: float = 0.7,
     max_tokens: int = 1000,
-    **kwargs,
+    **kwargs: Any,
 ) -> T:
     """
     Factory function to create a model provider with a standardized configuration.

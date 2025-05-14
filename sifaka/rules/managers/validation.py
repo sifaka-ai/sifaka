@@ -310,7 +310,9 @@ class ValidationManager:
                 # Create error result
                 from ..utils import create_error_result
 
-                error_result = create_error_result(e, rule.name)
+                error_result = create_error_result(
+                    message=str(e), component_name=rule.name, error_type=type(e).__name__
+                )
                 results.append(error_result) if results else ""
 
                 # Stop if fail_fast is enabled

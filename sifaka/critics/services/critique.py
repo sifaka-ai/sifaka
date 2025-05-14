@@ -100,6 +100,7 @@ if TYPE_CHECKING:
     from ..managers.response import ResponseParser
 from ...utils.logging import get_logger
 from ...utils.errors import safely_execute_component_operation as safely_execute_critic
+from ...utils.errors.component import CriticError
 from ...utils.state import StateManager, create_critic_state
 
 logger = get_logger(__name__)
@@ -273,6 +274,8 @@ class CritiqueService(BaseModel):
             return safely_execute_critic(
                 operation=validation_operation,
                 component_name=self.__class__.__name__,
+                component_type="Critic",
+                error_class=CriticError,
                 additional_metadata={"text_length": len(text), "method": "validate"},
             )
         except Exception as e:
@@ -336,6 +339,8 @@ class CritiqueService(BaseModel):
             return safely_execute_critic(
                 operation=critique_operation,
                 component_name=self.__class__.__name__,
+                component_type="Critic",
+                error_class=CriticError,
                 additional_metadata={
                     "text_length": len(text),
                     "method": "critique",
@@ -413,6 +418,8 @@ class CritiqueService(BaseModel):
             return safely_execute_critic(
                 operation=improvement_operation,
                 component_name=self.__class__.__name__,
+                component_type="Critic",
+                error_class=CriticError,
                 additional_metadata={
                     "text_length": len(text),
                     "method": "improve",
@@ -513,6 +520,8 @@ class CritiqueService(BaseModel):
             safely_execute_critic(
                 operation=reflection_operation,
                 component_name=self.__class__.__name__,
+                component_type="Critic",
+                error_class=CriticError,
                 additional_metadata={
                     "method": "generate_reflection",
                     "original_text_length": len(original_text),
@@ -549,6 +558,8 @@ class CritiqueService(BaseModel):
             return safely_execute_critic(
                 operation=retrieval_operation,
                 component_name=self.__class__.__name__,
+                component_type="Critic",
+                error_class=CriticError,
                 additional_metadata={"method": "get_relevant_reflections"},
             )
         except Exception as e:
@@ -583,16 +594,14 @@ class CritiqueService(BaseModel):
         """
         if not isinstance(text, str) or not text.strip() if text else "":
             raise ValueError("text must be a non-empty string")
-        validation_prompt = (
-            self._prompt_manager.create_validation_prompt(text) if _prompt_manager else ""
-        )
+        prompt_manager = self._state_manager.get("prompt_manager")
+        model = self._state_manager.get("model")
+        response_parser = self._state_manager.get("response_parser")
+
+        validation_prompt = prompt_manager.create_validation_prompt(text) if prompt_manager else ""
         try:
-            response = await self._model.ainvoke(validation_prompt) if _model else ""
-            return (
-                self._response_parser.parse_validation_response(response)
-                if _response_parser
-                else ""
-            )
+            response = await model.ainvoke(validation_prompt) if model else ""
+            return response_parser.parse_validation_response(response) if response_parser else ""
         except Exception as e:
             logger.error(f'Failed to validate text: {str(e) if logger else ""}')
             return False
@@ -623,14 +632,14 @@ class CritiqueService(BaseModel):
         """
         if not isinstance(text, str) or not text.strip() if text else "":
             raise ValueError("text must be a non-empty string")
-        critique_prompt = (
-            self._prompt_manager.create_critique_prompt(text) if _prompt_manager else ""
-        )
+        prompt_manager = self._state_manager.get("prompt_manager")
+        model = self._state_manager.get("model")
+        response_parser = self._state_manager.get("response_parser")
+
+        critique_prompt = prompt_manager.create_critique_prompt(text) if prompt_manager else ""
         try:
-            response = await self._model.ainvoke(critique_prompt) if _model else ""
-            return (
-                self._response_parser.parse_critique_response(response) if _response_parser else ""
-            )
+            response = await model.ainvoke(critique_prompt) if model else ""
+            return response_parser.parse_critique_response(response) if response_parser else ""
         except Exception as e:
             logger.error(f'Failed to critique text: {str(e) if logger else ""}')
             return {
@@ -668,19 +677,25 @@ class CritiqueService(BaseModel):
         """
         if not isinstance(text, str) or not text.strip() if text else "":
             raise ValueError("text must be a non-empty string")
+
+        prompt_manager = self._state_manager.get("prompt_manager")
+        model = self._state_manager.get("model")
+        response_parser = self._state_manager.get("response_parser")
+
         if isinstance(feedback, list):
             feedback = self._violations_to_feedback(feedback) if self else ""
-        improvement_prompt = self._prompt_manager.create_improvement_prompt(
-            text,
-            feedback,
-            self._get_relevant_reflections() if self else "" if _prompt_manager else "",
+
+        reflections = self._get_relevant_reflections() if self else ""
+        improvement_prompt = (
+            prompt_manager.create_improvement_prompt(text, feedback, reflections)
+            if prompt_manager
+            else ""
         )
+
         try:
-            response = await self._model.ainvoke(improvement_prompt) if _model else ""
+            response = await model.ainvoke(improvement_prompt) if model else ""
             improved_text = (
-                self._response_parser.parse_improvement_response(response)
-                if _response_parser
-                else ""
+                response_parser.parse_improvement_response(response) if response_parser else ""
             )
             await self._generate_reflection_async(text, feedback, improved_text) if self else ""
             return improved_text
@@ -713,27 +728,25 @@ class CritiqueService(BaseModel):
         Raises:
             ValueError: If inputs are invalid
         """
-        if not self._memory_manager:
+        memory_manager = self._state_manager.get("memory_manager")
+        if not memory_manager:
             return
+
+        prompt_manager = self._state_manager.get("prompt_manager")
+        model = self._state_manager.get("model")
+        response_parser = self._state_manager.get("response_parser")
+
         reflection_prompt = (
-            self._prompt_manager.create_reflection_prompt(original_text, feedback, improved_text)
-            if _prompt_manager
+            prompt_manager.create_reflection_prompt(original_text, feedback, improved_text)
+            if prompt_manager
             else ""
         )
         try:
-            response = await self._model.ainvoke(reflection_prompt) if _model else ""
+            response = await model.ainvoke(reflection_prompt) if model else ""
             reflection = (
-                self._response_parser.parse_reflection_response(response)
-                if _response_parser
-                else ""
+                response_parser.parse_reflection_response(response) if response_parser else ""
             )
-            if reflection:
-                (
-                    self._memory_manager
-                    and memory_manager
-                    and memory_manager.add_to_memory(reflection)
-                    if memory_manager
-                    else ""
-                )
+            if reflection and memory_manager:
+                memory_manager.add_to_memory(reflection)
         except Exception as e:
             logger.error(f'Failed to generate reflection: {str(e) if logger else ""}')

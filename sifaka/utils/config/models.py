@@ -312,9 +312,9 @@ class GeminiConfig(ModelConfig):
 def standardize_model_config(
     config: Optional[Union[Dict[str, Any], ModelConfig]] = None,
     params: Optional[Dict[str, Any]] = None,
-    config_class: Type[T] = ModelConfig,
+    config_class: Type[T] = None,  # type: ignore
     **kwargs: Any,
-) -> Any:
+) -> T:
     """
     Standardize model provider configuration.
 
@@ -332,7 +332,6 @@ def standardize_model_config(
         Standardized ModelConfig object or subclass
 
     Examples:
-        ```python
         from sifaka.utils.config.models import standardize_model_config, OpenAIConfig
 
         # Create from parameters
@@ -365,8 +364,9 @@ def standardize_model_config(
             temperature=0.7,
             params={"top_p": 0.9}
         )
-        ```
     """
+    if config_class is None:
+        config_class = ModelConfig  # type: ignore
     final_params: Dict[str, Any] = {}
     if params:
         final_params.update(params)

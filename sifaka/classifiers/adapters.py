@@ -31,12 +31,16 @@ print(f"Confidence: {result.confidence:.2f}")
 ```
 """
 
-from typing import Any
+from typing import Any, TypeVar, Generic, cast
 import asyncio
 from .interfaces import ClassifierImplementation
 from ..core.results import ClassificationResult
 from ..utils.errors import ClassifierError
 from ..utils.errors import safely_execute_component_operation as safely_execute
+
+# Define type variables for label and metadata types
+L = TypeVar("L")
+M = TypeVar("M")
 
 
 class ImplementationError(ClassifierError):
@@ -45,7 +49,7 @@ class ImplementationError(ClassifierError):
     pass
 
 
-class ImplementationAdapter(ClassifierImplementation):
+class ImplementationAdapter(ClassifierImplementation, Generic[L, M]):
     """Adapter for existing classifiers."""
 
     def __init__(self, classifier: Any) -> None:
@@ -57,7 +61,7 @@ class ImplementationAdapter(ClassifierImplementation):
         """
         self._classifier = classifier
 
-    def classify(self, text: str) -> ClassificationResult[Any, Any]:
+    def classify(self, text: str) -> ClassificationResult[L, M]:
         """
         Classify the given text.
 
@@ -91,7 +95,7 @@ class ImplementationAdapter(ClassifierImplementation):
         )
         return self._convert_result(result)
 
-    async def classify_async(self, text: str) -> ClassificationResult[Any, Any]:
+    async def classify_async(self, text: str) -> ClassificationResult[L, M]:
         """
         Classify the given text asynchronously.
 
@@ -116,7 +120,7 @@ class ImplementationAdapter(ClassifierImplementation):
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self.classify, text)
 
-    def _convert_result(self, result: Any) -> ClassificationResult[Any, Any]:
+    def _convert_result(self, result: Any) -> ClassificationResult[L, M]:
         """
         Convert a classifier result to a ClassificationResult.
 
@@ -133,10 +137,13 @@ class ImplementationAdapter(ClassifierImplementation):
         metadata = getattr(result, "metadata", {})
         issues = getattr(result, "issues", [])
         suggestions = getattr(result, "suggestions", [])
+        # Cast the label to the expected type to satisfy mypy
+        typed_label = cast(L, label)
+        typed_metadata = cast(M, metadata)
         return ClassificationResult(
-            label=label,
+            label=typed_label,
             confidence=confidence,
-            metadata=metadata,
+            metadata=typed_metadata,
             issues=issues,
             suggestions=suggestions,
             passed=True,

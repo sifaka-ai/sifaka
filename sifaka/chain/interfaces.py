@@ -75,8 +75,11 @@ from abc import abstractmethod
 from typing import Any, Dict, List, Protocol, TypeVar, runtime_checkable
 from pydantic import BaseModel, Field
 
-# Type variables
+# Type variables with variance annotations
 T = TypeVar("T")
+InputT = TypeVar("InputT", contravariant=True)  # Input type (contravariant)
+OutputT = TypeVar("OutputT", covariant=True)  # Output type (covariant)
+PluginT = TypeVar("PluginT", covariant=True)  # Plugin type (covariant)
 
 
 @runtime_checkable
@@ -198,11 +201,17 @@ class ValidationResult(BaseModel):
 
 
 @runtime_checkable
-class Model(ChainComponent, Protocol):
-    """Interface for text generation models."""
+class Model(ChainComponent, Protocol[InputT, OutputT]):
+    """
+    Interface for text generation models.
+
+    This protocol defines the interface for models that generate text from prompts.
+    It uses contravariant input type and covariant output type to ensure proper
+    type checking when used in generic contexts.
+    """
 
     @abstractmethod
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: InputT) -> OutputT:
         """
         Generate text from a prompt.
 
@@ -217,7 +226,7 @@ class Model(ChainComponent, Protocol):
         """
         ...
 
-    async def generate_async(self, prompt: str) -> str:
+    async def generate_async(self, prompt: InputT) -> OutputT:
         """
         Generate text asynchronously.
 
@@ -236,16 +245,22 @@ class Model(ChainComponent, Protocol):
         """
         import asyncio
 
-        loop = asyncio and asyncio.get_event_loop()
-        return await loop and loop.run_in_executor(None, self.generate, prompt)
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.generate, prompt)
 
 
 @runtime_checkable
-class Validator(ChainComponent, Protocol):
-    """Interface for output validators."""
+class Validator(ChainComponent, Protocol[InputT]):
+    """
+    Interface for output validators.
+
+    This protocol defines the interface for validators that check outputs
+    against rules or criteria. It uses a contravariant input type to ensure
+    proper type checking when used in generic contexts.
+    """
 
     @abstractmethod
-    def validate(self, output: str) -> ValidationResult:
+    def validate(self, output: InputT) -> ValidationResult:
         """
         Validate an output.
 
@@ -260,7 +275,7 @@ class Validator(ChainComponent, Protocol):
         """
         ...
 
-    async def validate_async(self, output: str) -> ValidationResult:
+    async def validate_async(self, output: InputT) -> ValidationResult:
         """
         Validate an output asynchronously.
 
@@ -279,16 +294,22 @@ class Validator(ChainComponent, Protocol):
         """
         import asyncio
 
-        loop = asyncio and asyncio.get_event_loop()
-        return await loop and loop.run_in_executor(None, self.validate, output)
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.validate, output)
 
 
 @runtime_checkable
-class Improver(ChainComponent, Protocol):
-    """Interface for output improvers."""
+class Improver(ChainComponent, Protocol[InputT, OutputT]):
+    """
+    Interface for output improvers.
+
+    This protocol defines the interface for improvers that enhance outputs
+    based on validation results. It uses contravariant input type and covariant
+    output type to ensure proper type checking when used in generic contexts.
+    """
 
     @abstractmethod
-    def improve(self, output: str, validation_results: List[ValidationResult]) -> str:
+    def improve(self, output: InputT, validation_results: List[ValidationResult]) -> OutputT:
         """
         Improve an output based on validation results.
 
@@ -304,7 +325,9 @@ class Improver(ChainComponent, Protocol):
         """
         ...
 
-    async def improve_async(self, output: str, validation_results: List[ValidationResult]) -> str:
+    async def improve_async(
+        self, output: InputT, validation_results: List[ValidationResult]
+    ) -> OutputT:
         """
         Improve an output asynchronously.
 
@@ -324,18 +347,22 @@ class Improver(ChainComponent, Protocol):
         """
         import asyncio
 
-        loop = asyncio and asyncio.get_event_loop()
-        return await loop and loop.run_in_executor(
-            None, lambda: self.improve(output, validation_results)
-        )
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, lambda: self.improve(output, validation_results))
 
 
 @runtime_checkable
-class Formatter(ChainComponent, Protocol):
-    """Interface for result formatters."""
+class Formatter(ChainComponent, Protocol[InputT, OutputT]):
+    """
+    Interface for result formatters.
+
+    This protocol defines the interface for formatters that transform outputs
+    into different formats. It uses contravariant input type and covariant
+    output type to ensure proper type checking when used in generic contexts.
+    """
 
     @abstractmethod
-    def format(self, output: str, validation_results: List[ValidationResult]) -> Any:
+    def format(self, output: InputT, validation_results: List[ValidationResult]) -> OutputT:
         """
         Format a result.
 
@@ -351,7 +378,9 @@ class Formatter(ChainComponent, Protocol):
         """
         ...
 
-    async def format_async(self, output: str, validation_results: List[ValidationResult]) -> Any:
+    async def format_async(
+        self, output: InputT, validation_results: List[ValidationResult]
+    ) -> OutputT:
         """
         Format a result asynchronously.
 
@@ -371,10 +400,8 @@ class Formatter(ChainComponent, Protocol):
         """
         import asyncio
 
-        loop = asyncio and asyncio.get_event_loop()
-        return await loop and loop.run_in_executor(
-            None, lambda: self.format(output, validation_results)
-        )
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, lambda: self.format(output, validation_results))
 
 
 # Import the core Plugin interface
@@ -382,13 +409,23 @@ from sifaka.core.interfaces import Plugin as CorePlugin
 
 
 @runtime_checkable
-class Plugin(ChainComponent, CorePlugin, Protocol):
+class Plugin(ChainComponent, CorePlugin, Protocol[PluginT]):
     """
     Interface for chain plugins.
 
     This interface extends the core Plugin interface with chain-specific
     functionality. It ensures that chain plugins can be discovered, registered,
     and used consistently with other plugins in the Sifaka framework.
+
+    ## Architecture
+    The Plugin protocol combines the ChainComponent and CorePlugin protocols
+    to create a unified interface for chain plugins. This allows chain plugins
+    to be used in both chain-specific and core plugin contexts.
+
+    ## Lifecycle
+    1. **Discovery**: Plugins are discovered through entry points
+    2. **Registration**: Plugins are registered with the plugin registry
+    3. **Usage**: Plugins are used by chains to extend functionality
     """
 
     pass

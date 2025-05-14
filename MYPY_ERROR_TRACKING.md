@@ -5,9 +5,9 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 ## Current Status
 
 - **Total files with errors**: 112
-- **Files fixed**: 29
-- **Remaining files**: 83
-- **Current error count**: 1,141
+- **Files fixed**: 32
+- **Remaining files**: 80
+- **Current error count**: 1,139
 
 ## Error Categories and Solutions
 
@@ -283,11 +283,11 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 ## Progress Summary
 
 - **Total files with errors**: 112
-- **Files fixed**: 29 (25.9%)
-- **Remaining files**: 83 (74.1%)
+- **Files fixed**: 32 (28.6%)
+- **Remaining files**: 80 (71.4%)
 - **High priority files fixed**: 11/25 (44%)
-- **Medium priority files fixed**: 18/59 (30.5%)
-- **Low priority files fixed**: 0/16 (0%)
+- **Medium priority files fixed**: 19/59 (32.2%)
+- **Low priority files fixed**: 2/16 (12.5%)
 
 ## Common Error Patterns and Solutions
 
@@ -371,3 +371,4 @@ if isinstance(result, dict):  # Fixed: Type guard
 24. `sifaka/utils/results.py` - Fixed missing required arguments for result classes, removed double Optional types, and fixed type incompatibilities in function parameters and return values
 25. `sifaka/utils/resources.py` - Fixed undefined variable issues, incompatible type in assignment, and contextmanager return type
 26. `sifaka/core/protocol.py` - Fixed missing type annotations for variables and return type issues in helper functions
+27. `sifaka/core/factories.py` - Fixed DependencyProvider.get_by_type method errors by using get_dependency_by_type function, fixed classifier factory imports, and fixed type mismatches in create_rule and create_adapter functions
