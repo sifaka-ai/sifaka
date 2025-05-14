@@ -5,7 +5,7 @@ This module provides functionality for generating text using various models,
 with support for caching, statistics tracking, and error handling.
 """
 
-from typing import Any, Dict, Optional, TypeVar
+from typing import Any, Dict, Optional, TypeVar, Union, cast
 import time
 from pydantic import PrivateAttr
 from sifaka.core.base import BaseComponent
@@ -51,7 +51,7 @@ class Generator(BaseComponent):
         self._state_manager.set_metadata("component_type", "generator")
         self._state_manager.set_metadata("creation_time", time.time())
 
-    def generate(self, prompt: str, **kwargs: Any) -> Any:
+    def generate(self, prompt: str, **kwargs: Any) -> Union[OutputType, None]:
         """
         Generate text using the model provider.
 
@@ -60,7 +60,7 @@ class Generator(BaseComponent):
             **kwargs: Additional generation parameters
 
         Returns:
-            Generated text output
+            Generated text output or None if no model is available
 
         Raises:
             ModelError: If generation fails
@@ -72,7 +72,10 @@ class Generator(BaseComponent):
         cache = self._state_manager.get("result_cache", {})
         if prompt in cache:
             self._state_manager.set_metadata("cache_hit", True)
-            return cache[prompt]
+            cached_result = cache[prompt]
+            # Return the cached result with explicit type casting
+            # This tells mypy that we're returning the expected type
+            return cast(Optional[OutputType], cached_result)
         self._state_manager.set_metadata("cache_hit", False)
         start_time = time.time()
         try:
@@ -88,9 +91,11 @@ class Generator(BaseComponent):
                 max_time = self._state_manager.get_metadata("max_execution_time", 0)
                 if exec_time > max_time:
                     self._state_manager.set_metadata("max_execution_time", exec_time)
+
+                # Store the output in the cache
                 cache[prompt] = output
                 self._state_manager.update("result_cache", cache)
-                return output
+                return cast(Optional[OutputType], output)
             return None
         except Exception as e:
             error_count = self._state_manager.get_metadata("error_count", 0)
@@ -99,7 +104,7 @@ class Generator(BaseComponent):
                 logger.error(f"Generation error: {str(e)}")
             raise
 
-    def get_statistics(self) -> Any:
+    def get_statistics(self) -> Dict[str, Any]:
         """
         Get statistics about generator usage.
 

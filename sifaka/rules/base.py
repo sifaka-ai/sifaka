@@ -296,7 +296,7 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
             # Cast RuleResult to BaseResult for update_statistics
             from sifaka.utils.result_types import BaseResult
 
-            stats_result: BaseResult = BaseResult(
+            base_result: BaseResult = BaseResult(
                 passed=result.passed,
                 message=result.message,
                 metadata=result.metadata,
@@ -305,7 +305,7 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
                 suggestions=result.suggestions,
                 processing_time_ms=result.processing_time_ms,
             )
-            self.update_statistics(stats_result)
+            self.update_statistics(base_result)
             return result
         # Convert input to string for handle_empty_input which expects a string
         empty_result = self.handle_empty_input(str(input) if input is not None else "")
@@ -324,7 +324,7 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
             # Cast RuleResult to BaseResult for update_statistics
             from sifaka.utils.result_types import BaseResult
 
-            stats_result: BaseResult = BaseResult(
+            base_result2: BaseResult = BaseResult(
                 passed=result.passed,
                 message=result.message,
                 metadata=result.metadata,
@@ -333,7 +333,7 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
                 suggestions=result.suggestions,
                 processing_time_ms=result.processing_time_ms,
             )
-            self.update_statistics(stats_result)
+            self.update_statistics(base_result2)
             return result
         if not self._validator or not self._validator.can_validate(input):
             result = RuleResult(
@@ -356,7 +356,7 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
             # Cast RuleResult to BaseResult for update_statistics
             from sifaka.utils.result_types import BaseResult
 
-            stats_result: BaseResult = BaseResult(
+            base_result3: BaseResult = BaseResult(
                 passed=result.passed,
                 message=result.message,
                 metadata=result.metadata,
@@ -365,15 +365,21 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
                 suggestions=result.suggestions,
                 processing_time_ms=result.processing_time_ms,
             )
-            self.update_statistics(stats_result)
+            self.update_statistics(base_result3)
             return result
 
         def validation_operation() -> Any:
             result = self._validator.validate(input)
-            result = result.with_metadata(
-                processing_time_ms=time.time() - start_time,
-                rule_id=rule_id,
-                rule_type=self.__class__.__name__,
+            # Cast to RuleResult to ensure type compatibility
+            from typing import cast
+
+            result = cast(
+                RuleResult,
+                result.with_metadata(
+                    processing_time_ms=time.time() - start_time,
+                    rule_id=rule_id,
+                    rule_type=self.__class__.__name__,
+                ),
             )
             if isinstance(self.config, RuleConfig):
                 result = (
@@ -424,7 +430,7 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
         # Cast RuleResult to BaseResult for update_statistics
         from sifaka.utils.result_types import BaseResult
 
-        stats_result: BaseResult = BaseResult(
+        base_result4: BaseResult = BaseResult(
             passed=result.passed,
             message=result.message,
             metadata=result.metadata,
@@ -433,7 +439,7 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
             suggestions=result.suggestions,
             processing_time_ms=result.processing_time_ms,
         )
-        self.update_statistics(stats_result)
+        self.update_statistics(base_result4)
         return result
 
     def process(self, input: T) -> RuleResult:

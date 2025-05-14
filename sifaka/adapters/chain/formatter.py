@@ -108,11 +108,27 @@ class FormatterAdapter(Formatter):
             self._initialize_state()
 
         if self._formatter is None:
-            from sifaka.core.results import create_chain_result
+            from sifaka.core.results import (
+                create_chain_result,
+                ValidationResult as CoreValidationResult,
+            )
+
+            # Convert ValidationResult objects to CoreValidationResult objects
+            core_validation_results = [
+                CoreValidationResult(
+                    passed=vr.passed,
+                    message=vr.message,
+                    score=vr.score,
+                    issues=vr.issues,
+                    suggestions=vr.suggestions,
+                    metadata=vr.metadata,
+                )
+                for vr in validation_results
+            ]
 
             return create_chain_result(
                 output=output,
-                validation_results=validation_results,
+                validation_results=core_validation_results,
                 prompt="",
                 execution_time=0.0,
                 attempt_count=1,
@@ -191,11 +207,27 @@ class FormatterAdapter(Formatter):
             self._initialize_state()
 
         if self._formatter is None:
-            from sifaka.core.results import create_chain_result
+            from sifaka.core.results import (
+                create_chain_result,
+                ValidationResult as CoreValidationResult,
+            )
+
+            # Convert ValidationResult objects to CoreValidationResult objects
+            core_validation_results = [
+                CoreValidationResult(
+                    passed=vr.passed,
+                    message=vr.message,
+                    score=vr.score,
+                    issues=vr.issues,
+                    suggestions=vr.suggestions,
+                    metadata=vr.metadata,
+                )
+                for vr in validation_results
+            ]
 
             return create_chain_result(
                 output=output,
-                validation_results=validation_results,
+                validation_results=core_validation_results,
                 prompt="",
                 execution_time=0.0,
                 attempt_count=1,
@@ -215,7 +247,11 @@ class FormatterAdapter(Formatter):
             elif hasattr(self._formatter, "run_async"):
                 result = await self._formatter.run_async(output, validation_results)
             else:
-                loop = asyncio.get_event_loop()
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
                 result = await loop.run_in_executor(None, self.format, output, validation_results)
                 return result
 

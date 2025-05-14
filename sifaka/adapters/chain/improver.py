@@ -105,24 +105,30 @@ class ImproverAdapter(Improver):
         start_time = time.time()
         try:
 
-            def improve_operation() -> Any:
+            def improve_operation() -> str:
                 if hasattr(self._improver, "improve"):
-                    return self._improver.improve(output, validation_results)
+                    return str(self._improver.improve(output, validation_results))
                 elif hasattr(self._improver, "refine"):
-                    return self._improver.refine(output, validation_results)
+                    return str(self._improver.refine(output, validation_results))
                 elif hasattr(self._improver, "process"):
-                    return self._improver.process(output, validation_results)
+                    return str(self._improver.process(output, validation_results))
                 elif hasattr(self._improver, "run"):
-                    return self._improver.run(output, validation_results)
+                    return str(self._improver.run(output, validation_results))
                 else:
                     raise ImproverError(f"Unsupported improver: {type(self._improver).__name__}")
 
-            result = safely_execute_component_operation(
+            result_or_error = safely_execute_component_operation(
                 operation=improve_operation,
                 component_name=self.name,
                 component_type="Improver",
                 error_class=ImproverError,
             )
+
+            # Handle the case where result might be an ErrorResult
+            if isinstance(result_or_error, ErrorResult):
+                raise ImproverError(f"Improvement failed: {result_or_error.error_message}")
+
+            result = str(result_or_error)
 
             # Handle the case where result might be an ErrorResult
             if isinstance(result, ErrorResult):
@@ -203,7 +209,11 @@ class ImproverAdapter(Improver):
                     raise ImproverError(f"Async improvement failed: {result.error_message}")
                 improved_text = str(result)
             else:
-                loop = asyncio.get_event_loop()
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
                 improved_text = await loop.run_in_executor(
                     None, self.improve, output, validation_results
                 )

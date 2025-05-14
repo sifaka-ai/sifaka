@@ -38,9 +38,8 @@ from ..core.results import ClassificationResult
 from ..utils.errors import ClassifierError
 from ..utils.errors import safely_execute_component_operation as safely_execute
 
-# Define type variables for label and metadata types
+# Define type variable for label type
 L = TypeVar("L")
-M = TypeVar("M")
 
 
 class ImplementationError(ClassifierError):
@@ -49,7 +48,7 @@ class ImplementationError(ClassifierError):
     pass
 
 
-class ImplementationAdapter(ClassifierImplementation, Generic[L, M]):
+class ImplementationAdapter(ClassifierImplementation, Generic[L]):
     """Adapter for existing classifiers."""
 
     def __init__(self, classifier: Any) -> None:
@@ -61,7 +60,7 @@ class ImplementationAdapter(ClassifierImplementation, Generic[L, M]):
         """
         self._classifier = classifier
 
-    def classify(self, text: str) -> ClassificationResult[L, M]:
+    def classify(self, text: str) -> ClassificationResult[Any, L]:
         """
         Classify the given text.
 
@@ -95,7 +94,7 @@ class ImplementationAdapter(ClassifierImplementation, Generic[L, M]):
         )
         return self._convert_result(result)
 
-    async def classify_async(self, text: str) -> ClassificationResult[L, M]:
+    async def classify_async(self, text: str) -> ClassificationResult[Any, L]:
         """
         Classify the given text asynchronously.
 
@@ -120,7 +119,7 @@ class ImplementationAdapter(ClassifierImplementation, Generic[L, M]):
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self.classify, text)
 
-    def _convert_result(self, result: Any) -> ClassificationResult[L, M]:
+    def _convert_result(self, result: Any) -> ClassificationResult[Any, L]:
         """
         Convert a classifier result to a ClassificationResult.
 
@@ -139,11 +138,10 @@ class ImplementationAdapter(ClassifierImplementation, Generic[L, M]):
         suggestions = getattr(result, "suggestions", [])
         # Cast the label to the expected type to satisfy mypy
         typed_label = cast(L, label)
-        typed_metadata = cast(M, metadata)
         return ClassificationResult(
             label=typed_label,
             confidence=confidence,
-            metadata=typed_metadata,
+            metadata=metadata,  # No need to cast metadata, it's already Dict[str, Any]
             issues=issues,
             suggestions=suggestions,
             passed=True,

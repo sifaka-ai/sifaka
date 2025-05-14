@@ -263,7 +263,7 @@ class ValidationResult(BaseResult[Any]):
         )
 
 
-class ModelResult(BaseResult, Generic[OutputType]):
+class ModelResult(BaseResult[T], Generic[T, OutputType]):
     """
     Result of a model operation.
 
@@ -289,7 +289,7 @@ class ModelResult(BaseResult, Generic[OutputType]):
     output: OutputType = Field(description="The generated output")
 
 
-class GenerationResult(ModelResult[str]):
+class GenerationResult(ModelResult[Any, str]):
     """
     Result of a text generation operation.
 
@@ -851,7 +851,7 @@ def create_model_result(
     issues: Optional[List[str]] = None,
     suggestions: Optional[List[str]] = None,
     processing_time_ms: Optional[float] = None,
-) -> ModelResult[OutputType]:
+) -> ModelResult[Any, OutputType]:
     """
     Create a standardized model result.
 

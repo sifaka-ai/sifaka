@@ -56,13 +56,25 @@ The module provides standardized error handling through:
 
 from abc import ABC, abstractmethod
 import time
-from typing import Any, Dict, Generic, List, Optional, Protocol, TypeVar, Union, runtime_checkable
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    TypeVar,
+    Union,
+    runtime_checkable,
+)
 
 from pydantic import BaseModel, Field
 
 from sifaka.core.base import BaseComponent
 from sifaka.utils.state import StateManager, create_classifier_state
-from sifaka.utils.errors.component import ClassifierError, ImplementationError
+from sifaka.utils.errors.component import ClassifierError
+from sifaka.classifiers.errors import ImplementationError
 from sifaka.utils.common import update_statistics
 from sifaka.utils.logging import get_logger
 from sifaka.core.results import ClassificationResult
@@ -117,7 +129,7 @@ class BaseClassifier(BaseComponent[T, ClassificationResult], Generic[T, L]):
 
     def __init__(
         self,
-        config: Optional[Optional[ClassifierConfig]] = None,
+        config: Optional[ClassifierConfig] = None,
         name: str = "classifier",
         description: str = "Sifaka classifier for text classification",
     ):
@@ -140,7 +152,10 @@ class BaseClassifier(BaseComponent[T, ClassificationResult], Generic[T, L]):
         if self._state_manager:
             self._state_manager.update("name", name)
             self._state_manager.update("description", description)
-            self._state_manager.update("config", self._config)
+            # Store config as a dictionary to avoid type issues
+            self._state_manager.update(
+                "config", self._config.model_dump() if hasattr(self._config, "model_dump") else {}
+            )
             self._state_manager.update("initialized", True)
             self._state_manager.update("execution_count", 0)
             self._state_manager.update("result_cache", {})
@@ -150,8 +165,7 @@ class BaseClassifier(BaseComponent[T, ClassificationResult], Generic[T, L]):
             self._state_manager.set_metadata("component_type", "classifier")
             self._state_manager.set_metadata("creation_time", time.time())
 
-    @property
-    def name(self) -> str:
+    def get_name(self) -> str:
         """
         Get classifier name.
 
@@ -160,8 +174,7 @@ class BaseClassifier(BaseComponent[T, ClassificationResult], Generic[T, L]):
         """
         return self._name
 
-    @property
-    def description(self) -> str:
+    def get_description(self) -> str:
         """
         Get classifier description.
 
@@ -170,8 +183,7 @@ class BaseClassifier(BaseComponent[T, ClassificationResult], Generic[T, L]):
         """
         return self._description
 
-    @property
-    def config(self) -> ClassifierConfig:
+    def get_config(self) -> ClassifierConfig:
         """
         Get classifier configuration.
 
@@ -343,8 +355,8 @@ class BaseClassifierImplementation(ABC, Generic[L]):
 
     def __init__(
         self,
-        config: Optional[Optional[ClassifierConfig]] = None,
-        state_manager: Optional[Optional[StateManager]] = None,
+        config: Optional[ClassifierConfig] = None,
+        state_manager: Optional[StateManager] = None,
     ):
         """
         Initialize the classifier implementation.
@@ -514,8 +526,10 @@ def create_base_classification_result(
     label: Any,
     confidence: float = 1.0,
     metadata: Optional[Dict[str, Any]] = None,
-    issues: Optional[Optional[List[str]]] = None,
-    suggestions: Optional[Optional[List[str]]] = None,
+    issues: Optional[List[str]] = None,
+    suggestions: Optional[List[str]] = None,
+    passed: bool = True,
+    message: str = "",
 ) -> ClassificationResult:
     """
     Create a standardized classification result.
@@ -529,6 +543,8 @@ def create_base_classification_result(
         metadata: Additional result metadata
         issues: List of issues found during classification
         suggestions: List of improvement suggestions
+        passed: Whether the classification passed validation
+        message: Human-readable message about the classification
 
     Returns:
         Standardized ClassificationResult
@@ -539,11 +555,13 @@ def create_base_classification_result(
         metadata=metadata or {},
         issues=issues or [],
         suggestions=suggestions or [],
+        passed=passed,
+        message=message,
     )
 
 
 def safely_classify(
-    operation: callable,
+    operation: Callable[[], ClassificationResult],
     classifier_name: str,
     component_name: str,
 ) -> ClassificationResult:

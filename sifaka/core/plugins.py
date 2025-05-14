@@ -156,7 +156,7 @@ class PluginLoader:
         """
         plugins = {}
         try:
-            for entry_point in pkg_resources.iter_entry_points(group):
+            for entry_point in pkg_resources.iter_entry_points(group):  # type: ignore
                 try:
                     plugin_class = entry_point.load()
                     plugin = plugin_class()
@@ -202,7 +202,7 @@ class PluginLoader:
                 plugin = None
                 for attr_name in dir(module):
                     attr = getattr(module, attr_name)
-                    if isinstance(attr, type) and issubclass(attr, Plugin) and attr != Plugin:
+                    if isinstance(attr, type) and attr != Plugin and issubclass(attr, Plugin):
                         plugin = attr()
                         break
                 if not plugin:

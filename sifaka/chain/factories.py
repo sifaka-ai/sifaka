@@ -70,21 +70,22 @@ Factory functions accept various configuration options:
 - Dependency resolution parameters (session_id, request_id)
 """
 
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Type, TypeVar, cast
 
 from .chain import Chain
 from .interfaces import Model, Validator, Improver, Formatter
 from ..utils.config import ChainConfig
+from ..utils.config.chain import EngineConfig
 from ..adapters.chain import ModelAdapter, ValidatorAdapter, ImproverAdapter, FormatterAdapter
 
 
 def create_chain(
     model: Any,
     validators: Optional[List[Any]] = None,
-    improver: Optional[Optional[Any]] = None,
-    formatter: Optional[Optional[Any]] = None,
+    improver: Optional[Any] = None,
+    formatter: Optional[Any] = None,
     max_attempts: int = 3,
-    config: Optional[Optional[ChainConfig]] = None,
+    config: Optional[ChainConfig] = None,
     name: str = "chain",
     description: str = "Sifaka chain for text generation and validation",
     **kwargs: Any,
@@ -125,7 +126,8 @@ def create_chain(
                 if isinstance(validator, Validator):
                     adapted_validators.append(validator)
                 else:
-                    adapted_validators.append(ValidatorAdapter(validator))
+                    # Cast to the expected type to satisfy mypy
+                    adapted_validators.append(cast(Validator[Any], ValidatorAdapter(validator)))
 
         # Adapt improver if needed
         adapted_improver = None
@@ -133,7 +135,8 @@ def create_chain(
             if isinstance(improver, Improver):
                 adapted_improver = improver
             else:
-                adapted_improver = ImproverAdapter(improver)
+                # Cast to the expected type to satisfy mypy
+                adapted_improver = cast(Improver[Any, Any], ImproverAdapter(improver))
 
         # Adapt formatter if needed
         adapted_formatter = None
@@ -141,14 +144,25 @@ def create_chain(
             if isinstance(formatter, Formatter):
                 adapted_formatter = formatter
             else:
-                adapted_formatter = FormatterAdapter(formatter)
+                # Cast to the expected type to satisfy mypy
+                adapted_formatter = cast(Formatter[Any, Any], FormatterAdapter(formatter))
 
         # Create chain
+        # Cast the adapted components to the expected types for Chain constructor
+        from sifaka.interfaces.chain.components import Validator as ChainValidator
+        from sifaka.interfaces.chain.components import Improver as ChainImprover
+        from sifaka.interfaces.chain.components.formatter import ChainFormatter
+
+        # Cast to the expected types
+        chain_validators = cast(Optional[List[ChainValidator]], adapted_validators)
+        chain_improver = cast(Optional[ChainImprover], adapted_improver)
+        chain_formatter = cast(Optional[ChainFormatter], adapted_formatter)
+
         chain = Chain(
             model=adapted_model,
-            validators=adapted_validators,
-            improver=adapted_improver,
-            formatter=adapted_formatter,
+            validators=chain_validators,
+            improver=chain_improver,
+            formatter=chain_formatter,
             max_attempts=max_attempts,
             config=config,
             name=name,
@@ -170,10 +184,10 @@ def create_chain(
 def create_simple_chain(
     model: Optional[Any] = None,
     rules: Optional[List[Any]] = None,
-    critic: Optional[Optional[Any]] = None,
+    critic: Optional[Any] = None,
     max_attempts: int = 3,
-    session_id: Optional[Optional[str]] = None,
-    request_id: Optional[Optional[str]] = None,
+    session_id: Optional[str] = None,
+    request_id: Optional[str] = None,
     **kwargs: Any,
 ) -> Chain:
     """
@@ -217,9 +231,12 @@ def create_simple_chain(
                 except DependencyError:
                     try:
                         # Try to get by type if not found by name
-                        from sifaka.interfaces.model import ModelProvider
+                        from sifaka.interfaces.model import ModelProviderProtocol
 
-                        model = provider.get_by_type(ModelProvider, None, session_id, request_id)
+                        # Since get_by_type doesn't exist, use get with a default
+                        model = provider.get(
+                            "model_provider_protocol", None, session_id, request_id
+                        )
                     except (DependencyError, ImportError):
                         # This is a required dependency, so we need to raise an error
                         raise ValueError("Model provider is required for chain creation")
@@ -273,13 +290,13 @@ def create_simple_chain(
 def create_backoff_chain(
     model: Optional[Any] = None,
     rules: Optional[List[Any]] = None,
-    critic: Optional[Optional[Any]] = None,
+    critic: Optional[Any] = None,
     max_attempts: int = 3,
     initial_backoff: float = 1.0,
     backoff_factor: float = 2.0,
     max_backoff: float = 60.0,
-    session_id: Optional[Optional[str]] = None,
-    request_id: Optional[Optional[str]] = None,
+    session_id: Optional[str] = None,
+    request_id: Optional[str] = None,
     **kwargs: Any,
 ) -> Chain:
     """
@@ -326,9 +343,12 @@ def create_backoff_chain(
                 except DependencyError:
                     try:
                         # Try to get by type if not found by name
-                        from sifaka.interfaces.model import ModelProvider
+                        from sifaka.interfaces.model import ModelProviderProtocol
 
-                        model = provider.get_by_type(ModelProvider, None, session_id, request_id)
+                        # Since get_by_type doesn't exist, use get with a default
+                        model = provider.get(
+                            "model_provider_protocol", None, session_id, request_id
+                        )
                     except (DependencyError, ImportError):
                         # This is a required dependency, so we need to raise an error
                         raise ValueError("Model provider is required for chain creation")
@@ -354,14 +374,18 @@ def create_backoff_chain(
         # Create config if not provided
         config = kwargs.pop("config", None)
         if not config:
-            from sifaka.utils.config.chain import EngineConfig
+            # Create engine config with appropriate parameters
+            # Store backoff parameters in the params dictionary
+            engine_params = {
+                "retry_delay": initial_backoff,
+                "backoff_factor": backoff_factor,
+                "max_retry_delay": max_backoff,
+                "jitter": kwargs.pop("jitter", True),
+            }
 
             engine_config = EngineConfig(
                 max_attempts=max_attempts,
-                retry_delay=initial_backoff,
-                backoff_factor=backoff_factor,
-                max_retry_delay=max_backoff,
-                jitter=kwargs.pop("jitter", True),
+                params=engine_params,
             )
 
             config = ChainConfig(

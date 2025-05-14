@@ -144,6 +144,24 @@ class ClientManager(Generic[C]):
             raise RuntimeError(f"Failed to create API client for {self._model_name}")
         return self._api_client
 
+    def __bool__(self) -> bool:
+        """
+        Check if the manager has a valid API client or can create one.
+
+        This allows for a more type-safe pattern when checking if a manager exists:
+        ```python
+        if manager:
+            client = manager.get_client()
+        ```
+
+        Returns:
+            True if the manager has a valid API client or can create one, False otherwise
+        """
+        try:
+            return self._api_client is not None or self._create_default_client() is not None
+        except Exception:
+            return False
+
     @abstractmethod
     def _create_default_client(self) -> C:
         """

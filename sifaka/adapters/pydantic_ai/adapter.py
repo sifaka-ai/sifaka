@@ -141,7 +141,6 @@ class SifakaPydanticConfig(BaseModel):
 
     model_config = ConfigDict(
         title="PydanticAI Adapter Configuration",
-        description="Configuration for the SifakaPydanticAdapter",
     )
 
 
@@ -270,24 +269,30 @@ class SifakaPydanticAdapter(BaseModel):
             )
 
             # Initialize state
-            state = self._state_manager.get_state()
-            state.adaptee = None  # This adapter doesn't have a single adaptee
-            state.initialized = True
-            state.execution_count = 0
-            state.error_count = 0
-            state.last_execution_time = None
-            state.avg_execution_time = 0
-            state.cache = {}
-            state.config_cache = {"rules": rules, "output_model": output_model, "critic": critic}
+            self._state_manager.update(
+                "adaptee", None
+            )  # This adapter doesn't have a single adaptee
+            self._state_manager.update("initialized", True)
+            self._state_manager.update("execution_count", 0)
+            self._state_manager.update("error_count", 0)
+            self._state_manager.update("last_execution_time", None)
+            self._state_manager.update("avg_execution_time", 0)
+            self._state_manager.update("cache", {})
+            self._state_manager.update(
+                "config_cache", {"rules": rules, "output_model": output_model, "critic": critic}
+            )
 
             # Create validator config
             validator_config = ValidatorConfig(
-                prioritize_by_cost=self.config and config.prioritize_by_cost,
                 fail_fast=False,  # Don't fail fast for PydanticAI integration
+                rules=self.rules,
+                params={
+                    "prioritize_by_cost": self.config.prioritize_by_cost if self.config else False
+                },
             )
 
             # Create validator with config
-            state.validator = Validator(rules=self.rules, config=validator_config)
+            self._state_manager.update("validator", Validator(config=validator_config))
 
             # Set metadata
             self._state_manager.set_metadata("component_type", "adapter")
@@ -316,12 +321,11 @@ class SifakaPydanticAdapter(BaseModel):
         """
         try:
             # Check if already initialized
-            if self._state_manager.get_state().initialized:
+            if self._state_manager.get("initialized", False):
                 return
 
             # Initialize state
-            state = self._state_manager.get_state()
-            state.initialized = True
+            self._state_manager.update("initialized", True)
 
             logger.debug(f"Adapter {self.__class__.__name__} initialized")
         except Exception as e:
@@ -354,11 +358,11 @@ class SifakaPydanticAdapter(BaseModel):
         # Ensure initialized
         self.warm_up()
 
-        # Get state
-        state = self._state_manager.get_state()
+        # Get state values
+        execution_count = self._state_manager.get("execution_count", 0)
 
         # Track execution
-        state.execution_count += 1
+        self._state_manager.update("execution_count", execution_count + 1)
         start_time = time.time()
 
         try:
@@ -381,10 +385,14 @@ class SifakaPydanticAdapter(BaseModel):
             logger.debug(f"Serialized output: {output_data}")
             issues = []
 
+            # Get cache and validator from state
+            cache = self._state_manager.get("cache", {})
+            validator = self._state_manager.get("validator")
+
             # Check cache if enabled
             cache_key = self._get_cache_key(output_data)
-            if cache_key and cache_key in state.cache:
-                cached_result = state.cache[cache_key]
+            if cache_key and cache_key in cache:
+                cached_result = cache[cache_key]
                 logger.debug(f"Cache hit for output validation")
 
                 # If cached result passed, return the original output
@@ -412,29 +420,33 @@ class SifakaPydanticAdapter(BaseModel):
 
                 # Validate against Sifaka rules
                 logger.info(f"Validating output against {len(self.rules)} Sifaka rules")
-                validation_result = state.validator.validate(output_str)
+                validation_result = validator.validate(output_str)
 
                 # If validation passes, return the original output
                 if validation_result.all_passed:
                     # Cache result if enabled
                     if cache_key:
-                        state.cache[cache_key] = {
+                        new_cache = cache.copy()
+                        new_cache[cache_key] = {
                             "passed": True,
                             "issues": [],
                         }
+                        self._state_manager.update("cache", new_cache)
                     logger.info("✅ Validation passed - returning original output")
                     return output
 
                 # Get error messages for failed rules
-                error_messages = state.validator.get_error_messages(validation_result)
+                error_messages = validator.get_error_messages(validation_result)
                 issues.extend(error_messages)
 
                 # Cache result if enabled
                 if cache_key:
-                    state.cache[cache_key] = {
+                    new_cache = cache.copy()
+                    new_cache[cache_key] = {
                         "passed": False,
                         "issues": issues,
                     }
+                    self._state_manager.update("cache", new_cache)
 
                 logger.warning(f"❌ Validation failed with {len(issues)} issues:")
                 for i, issue in enumerate(issues):
@@ -470,7 +482,8 @@ class SifakaPydanticAdapter(BaseModel):
             return output
         except Exception as e:
             # Track error
-            state.error_count += 1
+            error_count = self._state_manager.get("error_count", 0)
+            self._state_manager.update("error_count", error_count + 1)
 
             # Don't wrap ModelRetry exceptions
             if isinstance(e, ModelRetry):
@@ -487,15 +500,19 @@ class SifakaPydanticAdapter(BaseModel):
         finally:
             # Update execution stats
             execution_time = time.time() - start_time
-            state.last_execution_time = execution_time
+            self._state_manager.update("last_execution_time", execution_time)
 
             # Update average execution time
-            if state.execution_count > 1:
-                state.avg_execution_time = (
-                    state.avg_execution_time * (state.execution_count - 1) + execution_time
-                ) / state.execution_count
+            execution_count = self._state_manager.get("execution_count", 0)
+            avg_execution_time = self._state_manager.get("avg_execution_time", 0)
+
+            if execution_count > 1:
+                new_avg = (
+                    avg_execution_time * (execution_count - 1) + execution_time
+                ) / execution_count
+                self._state_manager.update("avg_execution_time", new_avg)
             else:
-                state.avg_execution_time = execution_time
+                self._state_manager.update("avg_execution_time", execution_time)
 
     def _get_cache_key(self, output_data: Any) -> Optional[str]:
         """
@@ -523,13 +540,13 @@ class SifakaPydanticAdapter(BaseModel):
         Returns:
             Dict[str, Any]: Dictionary with usage statistics
         """
-        state = self._state_manager.get_state()
+        cache = self._state_manager.get("cache", {})
         return {
-            "execution_count": state.execution_count,
-            "error_count": state.error_count,
-            "avg_execution_time": state.avg_execution_time,
-            "last_execution_time": state.last_execution_time,
-            "cache_size": len(state.cache),
+            "execution_count": self._state_manager.get("execution_count", 0),
+            "error_count": self._state_manager.get("error_count", 0),
+            "avg_execution_time": self._state_manager.get("avg_execution_time", 0),
+            "last_execution_time": self._state_manager.get("last_execution_time"),
+            "cache_size": len(cache),
             "rule_count": len(self.rules),
             "has_critic": self.critic is not None,
             "max_refine": self.config.max_refine,

@@ -31,14 +31,21 @@ retriever = create_retriever(
 - RuntimeError: Raised for creation failures
 - TypeError: Raised for type mismatches
 """
+
 from typing import Any, Dict, Optional, Type, TypeVar, cast
 from sifaka.core.base import BaseComponent
 from sifaka.utils.state import StateManager
-T = TypeVar('T', bound=BaseComponent)
+
+T = TypeVar("T", bound=BaseComponent)
 
 
-def create_component(component_class: Type[T], name: str, description: str,
-    config: Optional[Dict[str, Any]]=None, **kwargs: Any) ->Any:
+def create_component(
+    component_class: Type[T],
+    name: str,
+    description: str,
+    config: Optional[Dict[str, Any]] = None,
+    **kwargs: Any,
+) -> T:
     """
     Create a component with standardized configuration and state management.
 
@@ -56,14 +63,23 @@ def create_component(component_class: Type[T], name: str, description: str,
         ValueError: If the parameters are invalid
         RuntimeError: If component creation fails
     """
-    component = component_class(name=name, description=description, config=
-        config or {}, **kwargs)
-    component.initialize() if component else ""
+    from sifaka.core.base import BaseConfig
+
+    # Create a BaseConfig object if a dict is provided
+    config_obj = BaseConfig(name=name, description=description, **config) if config else None
+
+    component = component_class(name=name, description=description, config=config_obj, **kwargs)
+
+    # Call initialize if the component has this method
+    if hasattr(component, "initialize"):
+        component.initialize()
+
     return component
 
 
-def create_chain(name: str, description: str, config: Optional[Dict[str,
-    Any]]=None, **kwargs: Any) ->Any:
+def create_chain(
+    name: str, description: str, config: Optional[Dict[str, Any]] = None, **kwargs: Any
+) -> Any:
     """
     Create a chain with standardized configuration and state management.
 
@@ -81,12 +97,15 @@ def create_chain(name: str, description: str, config: Optional[Dict[str,
         RuntimeError: If chain creation fails
     """
     from sifaka.chain import Chain as ChainCore
-    return create_component(component_class=ChainCore, name=name,
-        description=description, config=config, **kwargs)
+
+    return create_component(
+        component_class=ChainCore, name=name, description=description, config=config, **kwargs
+    )
 
 
-def create_retriever(name: str, description: str, config: Optional[Dict[str,
-    Any]]=None, **kwargs: Any) ->Any:
+def create_retriever(
+    name: str, description: str, config: Optional[Dict[str, Any]] = None, **kwargs: Any
+) -> Any:
     """
     Create a retriever with standardized configuration and state management.
 
@@ -104,5 +123,7 @@ def create_retriever(name: str, description: str, config: Optional[Dict[str,
         RuntimeError: If retriever creation fails
     """
     from sifaka.retrieval.core import RetrieverCore
-    return create_component(component_class=RetrieverCore, name=name,
-        description=description, config=config, **kwargs)
+
+    return create_component(
+        component_class=RetrieverCore, name=name, description=description, config=config, **kwargs
+    )

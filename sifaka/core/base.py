@@ -246,8 +246,8 @@ class BaseComponent(ABC, Generic[T, R]):
         self._state_manager.set_metadata("last_error", None)
         self._state_manager.set_metadata("last_error_time", None)
 
-    # These properties are defined in the class attributes but we need to keep them
-    # for backward compatibility. We'll use a different implementation approach.
+    # These methods are provided for backward compatibility
+    # since the properties are now defined as class attributes
     def get_name(self) -> str:
         """Get component name."""
         return self._name
@@ -457,7 +457,6 @@ class BaseComponent(ABC, Generic[T, R]):
             return result
 
         from sifaka.utils.errors.safe_execution import safely_execute_component_operation
-
         from sifaka.utils.errors.base import ComponentError
 
         result = safely_execute_component_operation(
@@ -472,13 +471,11 @@ class BaseComponent(ABC, Generic[T, R]):
         # Handle the case where result might be an ErrorResult
         from sifaka.utils.errors.results import ErrorResult
         from typing import cast
-        from sifaka.core.results import BaseResult
+        from sifaka.utils.result_types import BaseResult as UtilsBaseResult
 
         # Create a BaseResult for statistics if result is an ErrorResult
         if isinstance(result, ErrorResult):
             # Use a dummy BaseResult for statistics
-            from sifaka.utils.result_types import BaseResult as UtilsBaseResult
-
             # Create a dummy result for statistics
             dummy_result: UtilsBaseResult = UtilsBaseResult(
                 passed=False,
@@ -495,7 +492,9 @@ class BaseComponent(ABC, Generic[T, R]):
             return cast(R, result)
         else:
             # Normal case - update statistics with the actual result
-            self.update_statistics(result, processing_time_ms=processing_time * 1000)
+            # We know result is not an ErrorResult, so it's safe to cast to BaseResult
+            base_result: UtilsBaseResult = cast(UtilsBaseResult, result)
+            self.update_statistics(base_result)
             return cast(R, result)  # Explicitly cast to satisfy mypy
 
     def _process_input(self, input: T) -> R:

@@ -67,7 +67,7 @@ The model provider implements several error handling patterns:
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, Dict, Generic, Optional
+from typing import Any, Dict, Generic, Optional, TypeVar
 
 # Import the interfaces for runtime use
 from sifaka.interfaces.model import ModelProviderProtocol as ModelProviderInterface
@@ -77,8 +77,8 @@ from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
 from sifaka.utils.logging import get_logger
 from sifaka.utils.tracing import Tracer
 
-# Import type variables
-from sifaka.models.base.types import C
+# Define type variables
+C = TypeVar("C", bound="ModelConfig")
 
 # Import configuration from utils/config.py
 from sifaka.utils.config.models import ModelConfig

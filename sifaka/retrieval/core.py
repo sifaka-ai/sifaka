@@ -35,7 +35,7 @@ class RetrieverCore(BaseComponent):
             name: The name of the retriever
             query_processor: Optional query processor to preprocess queries
         """
-        super().__init__(name=name)
+        super().__init__(name=name, description=f"Retriever: {name}")
         self.query_processor = query_processor
         self._state_manager = StateManager()
         self._state_manager.update("initialized", False)
@@ -122,7 +122,13 @@ class RetrieverCore(BaseComponent):
                     metadata_dict["document_id"] = f"doc_{len(retrieved_docs)}"
                 metadata = DocumentMetadata(**metadata_dict)
                 retrieved_docs.append(
-                    RetrievedDocument(content=content, metadata=metadata, score=score)
+                    RetrievedDocument(
+                        content=content,
+                        metadata=metadata,
+                        score=(
+                            float(score) if score and isinstance(score, (int, float, str)) else None
+                        ),
+                    )
                 )
             from sifaka.core.results import create_retrieval_result
 
@@ -168,7 +174,7 @@ class RetrieverCore(BaseComponent):
             self.initialize()
         start_time = time.time()
 
-        def retrieval_operation() -> Any:
+        def retrieval_operation() -> RetrievalResult:
             processed_query = self.process_query(query)
             end_time = time.time()
             execution_time_ms = (
@@ -186,10 +192,12 @@ class RetrieverCore(BaseComponent):
             return result
 
         result = safely_execute_retrieval(
-            operation=retrieval_operation,
-            retriever_name=self.name,
-            component_name=self.__class__.__name__,
-            additional_metadata={"query": query},
+            retrieval_operation,
+            self.name,
+            None,  # default_result
+            "error",  # log_level
+            True,  # include_traceback
+            None,  # additional_metadata
         )
 
         if isinstance(result, dict) and result.get("error_type"):
@@ -198,7 +206,9 @@ class RetrieverCore(BaseComponent):
             record_error(self._state_manager, Exception(error_message))
             raise RetrievalError(error_message, metadata={"query": query, "error_type": error_type})
 
-        return result  # type: ignore
+        from typing import cast
+
+        return cast(RetrievalResult, result)
 
     def _update_execution_stats(self, execution_time_ms: float) -> None:
         """
@@ -240,7 +250,7 @@ class RetrieverCore(BaseComponent):
         if logger:
             logger.debug(f"Cleared cache for retriever {self.name}")
 
-    def process(self, input_data: Any, **kwargs: Any) -> RetrievalResult:
+    def process(self, input: Any) -> RetrievalResult:
         """
         Process input data.
 
@@ -259,17 +269,17 @@ class RetrieverCore(BaseComponent):
         """
         from sifaka.utils.text import is_empty_text
 
-        if not isinstance(input_data, str):
+        if not isinstance(input, str):
             raise InputError(
-                "Input data must be a string", metadata={"input_type": type(input_data).__name__}
+                "Input data must be a string", metadata={"input_type": type(input).__name__}
             )
-        if is_empty_text(input_data):
+        if is_empty_text(input):
             raise InputError(
                 "Input data must be a non-empty string",
                 metadata={
-                    "input_type": type(input_data).__name__,
-                    "input_length": len(input_data),
+                    "input_type": type(input).__name__,
+                    "input_length": len(input),
                     "reason": "empty_input",
                 },
             )
-        return self.retrieve(input_data, **kwargs)
+        return self.retrieve(input)

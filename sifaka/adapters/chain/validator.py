@@ -105,7 +105,7 @@ class ValidatorAdapter(Validator):
         start_time = time.time()
         try:
 
-            def validate_operation() -> Any:
+            def validate_operation() -> ValidationResult:
                 if hasattr(self._validator, "validate"):
                     result = self._validator.validate(output)
                 elif hasattr(self._validator, "process"):
@@ -118,12 +118,25 @@ class ValidatorAdapter(Validator):
                     )
                 return self._convert_result(result)
 
-            result = safely_execute_component_operation(
+            result_or_error = safely_execute_component_operation(
                 operation=validate_operation,
                 component_name=self.name,
                 component_type="Validator",
                 error_class=ValidationError,
             )
+
+            if isinstance(result_or_error, ErrorResult):
+                # Convert ErrorResult to ValidationResult with failed status
+                result = ValidationResult(
+                    passed=False,
+                    message=f"Validation error: {result_or_error.error_message}",
+                    score=0.0,
+                    issues=[result_or_error.error_message],
+                    suggestions=[],
+                    metadata=result_or_error.metadata,
+                )
+            else:
+                result = result_or_error
 
             # Ensure result is a ValidationResult
             validation_result = self._convert_result(result)
@@ -196,7 +209,11 @@ class ValidatorAdapter(Validator):
                 result = await self._validator.run_async(output)
                 validation_result = self._convert_result(result)
             else:
-                loop = asyncio.get_event_loop()
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
                 validation_result = await loop.run_in_executor(None, self.validate, output)
                 return validation_result
 

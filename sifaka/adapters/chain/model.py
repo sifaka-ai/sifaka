@@ -103,24 +103,30 @@ class ModelAdapter(Model):
         start_time = time.time()
         try:
 
-            def generate_operation() -> Any:
+            def generate_operation() -> str:
                 if hasattr(self._model, "invoke"):
-                    return self._model.invoke(prompt)
+                    return str(self._model.invoke(prompt))
                 elif hasattr(self._model, "generate"):
-                    return self._model.generate(prompt)
+                    return str(self._model.generate(prompt))
                 elif hasattr(self._model, "run"):
-                    return self._model.run(prompt)
+                    return str(self._model.run(prompt))
                 elif hasattr(self._model, "process"):
-                    return self._model.process(prompt)
+                    return str(self._model.process(prompt))
                 else:
                     raise ModelError(f"Unsupported model provider: {type(self._model).__name__}")
 
-            result = safely_execute_component_operation(
+            result_or_error = safely_execute_component_operation(
                 operation=generate_operation,
                 component_name=self.name,
                 component_type="Model",
                 error_class=ModelError,
             )
+
+            # Handle the case where result might be an ErrorResult
+            if isinstance(result_or_error, ErrorResult):
+                raise ModelError(f"Model generation failed: {result_or_error.error_message}")
+
+            result = str(result_or_error)
 
             # Handle the case where result might be an ErrorResult
             if isinstance(result, ErrorResult):
@@ -194,7 +200,11 @@ class ModelAdapter(Model):
                     raise ModelError(f"Async model generation failed: {result.error_message}")
                 generated_text = str(result)
             else:
-                loop = asyncio.get_event_loop()
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
                 generated_text = await loop.run_in_executor(None, self.generate, prompt)
                 return generated_text
 
