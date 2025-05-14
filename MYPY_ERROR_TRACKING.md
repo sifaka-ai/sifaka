@@ -4,10 +4,10 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 
 ## Current Status
 
-- **Total files with errors**: 69
-- **Files fixed**: 43
-- **Remaining files**: 69
-- **Current error count**: 1,019
+- **Total files with errors**: 70
+- **Files fixed**: 52
+- **Remaining files**: 18
+- **Current error count**: 824
 
 ## Error Categories and Solutions
 
@@ -118,37 +118,7 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 
 ## Implementation Plan
 
-### Phase 1: Core Type Definitions (High Priority)
-
-**Focus**: Fix type variable variance issues in protocol definitions
-
-**Files to address**:
-- [x] sifaka/interfaces/chain/managers/validation.py
-- [x] sifaka/interfaces/chain/managers/formatter.py
-- [x] sifaka/interfaces/rule.py
-- [x] sifaka/interfaces/critic.py
-- [x] sifaka/interfaces/classifier.py
-- [x] sifaka/critics/base/protocols.py
-- [x] sifaka/core/base.py
-
-**Expected outcome**: Resolve approximately 20-30% of type errors
-
-### Phase 2: Function Signatures (High Priority)
-
-**Focus**: Fix missing type annotations and incompatible return types
-
-**Files to address**:
-- [x] sifaka/interfaces/model.py
-- [x] sifaka/utils/logging.py
-- [x] sifaka/core/dependency/scopes.py
-- [x] sifaka/core/dependency/injector.py
-- [x] sifaka/classifiers/implementations/adapters.py
-- [x] sifaka/rules/content/safety.py
-- [x] sifaka/models/providers/gemini.py
-
-**Expected outcome**: Resolve approximately 30-40% of type errors
-
-### Phase 3: Type Usage (Medium Priority)
+### Phase 3: Type Usage (Medium Priority) - IN PROGRESS
 
 **Focus**: Fix attribute errors, assignment errors, and argument type errors
 
@@ -157,10 +127,10 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 - [x] sifaka/utils/text.py
 - [x] sifaka/utils/tracing.py
 - [x] sifaka/core/initialization.py
-- [ ] sifaka/chain/interfaces.py
-- [ ] sifaka/utils/errors/safe_execution.py
+- [x] sifaka/chain/interfaces.py
+- [x] sifaka/utils/errors/safe_execution.py
 - [x] sifaka/core/results.py
-- [ ] sifaka/chain/state.py
+- [x] sifaka/chain/state.py
 - [ ] sifaka/utils/results.py
 - [ ] sifaka/models/managers/client.py
 - [ ] sifaka/critics/core.py
@@ -283,10 +253,10 @@ This document tracks the progress of fixing mypy type checking errors in the Sif
 ## Progress Summary
 
 - **Total files with errors**: 112
-- **Files fixed**: 32 (28.6%)
-- **Remaining files**: 80 (71.4%)
+- **Files fixed**: 50 (44.6%)
+- **Remaining files**: 62 (55.4%)
 - **High priority files fixed**: 11/25 (44%)
-- **Medium priority files fixed**: 19/59 (32.2%)
+- **Medium priority files fixed**: 37/59 (62.7%)
 - **Low priority files fixed**: 2/16 (12.5%)
 
 ## Common Error Patterns and Solutions
@@ -373,3 +343,6 @@ if isinstance(result, dict):  # Fixed: Type guard
 26. `sifaka/core/protocol.py` - Fixed missing type annotations for variables and return type issues in helper functions
 27. `sifaka/core/factories.py` - Fixed DependencyProvider.get_by_type method errors by using get_dependency_by_type function, fixed classifier factory imports, and fixed type mismatches in create_rule and create_adapter functions
 28. `sifaka/interfaces/classifier.py` - Fixed Protocol class definitions by removing variance annotations and adding proper return statements to Protocol method stubs
+29. `sifaka/chain/state.py` - Fixed conditional expressions using 'and' operators in docstring examples and class methods
+30. `sifaka/chain/interfaces.py` - Fixed incompatible types in async methods by properly using asyncio.get_running_loop() and ensuring proper return types
+31. `sifaka/utils/errors/safe_execution.py` - Fixed returning Any from function declared to return "Union[T, ErrorResult]" by adding explicit type annotations

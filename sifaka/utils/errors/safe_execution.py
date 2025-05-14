@@ -153,7 +153,7 @@ def safely_execute_component_operation(
     """
     try:
         # Try to execute the operation
-        return try_component_operation(
+        result: T = try_component_operation(
             operation=operation,
             component_name=component_name,
             component_type=component_type,
@@ -162,12 +162,13 @@ def safely_execute_component_operation(
             include_traceback=include_traceback,
             additional_metadata=additional_metadata,
         )
+        return result
     except Exception as e:
         # If operation fails, create an error result
         if default_result is not None:
             return default_result
 
-        return create_error_result(
+        error_result: ErrorResult = create_error_result(
             error=e,
             component_name=component_name,
             component_type=component_type,
@@ -176,6 +177,7 @@ def safely_execute_component_operation(
             include_traceback=include_traceback,
             additional_metadata=additional_metadata,
         )
+        return error_result
 
 
 def create_safe_execution_factory(component_type: str, error_class: Type[SifakaError]) -> Callable[

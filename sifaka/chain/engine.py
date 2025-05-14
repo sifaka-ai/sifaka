@@ -187,7 +187,7 @@ class Engine(BaseModel):
             FormatterError: If formatter formatting fails
         """
 
-        def run_operation():
+        def run_operation() -> ChainResult:
             execution_count = self._state_manager.get("execution_count", 0)
             self._state_manager.update("execution_count", execution_count + 1)
             if self._cache_manager.has_cached_result(prompt):
@@ -225,16 +225,19 @@ class Engine(BaseModel):
                 if execution_time > max_time:
                     self._state_manager.set_metadata("max_execution_time", execution_time)
 
+        additional_metadata = {
+            "prompt_length": len(prompt),
+            "validator_count": len(validators),
+            "has_improver": improver is not None,
+            "has_formatter": formatter is not None,
+        }
+
         try:
+            # Use the safely_execute_chain function with the correct parameters
             return safely_execute_chain(
-                operation=run_operation,
-                component_name=self.__class__.__name__,
-                additional_metadata={
-                    "prompt_length": len(prompt),
-                    "validator_count": len(validators),
-                    "has_improver": improver is not None,
-                    "has_formatter": formatter is not None,
-                },
+                run_operation,
+                self.__class__.__name__,
+                additional_metadata=additional_metadata,
             )
         except Exception as e:
             error_count = self._state_manager.get_metadata("error_count", 0)
@@ -267,14 +270,22 @@ class Engine(BaseModel):
         """
         model = self._state_manager.get("model")
 
-        def generate_operation():
+        def generate_operation() -> str:
             return model.generate(prompt)
 
-        return safely_execute_chain(
-            operation=generate_operation,
-            component_name="model",
-            additional_metadata={"method": "generate", "prompt_length": len(prompt)},
+        additional_metadata = {"method": "generate", "prompt_length": len(prompt)}
+
+        result = safely_execute_chain(
+            generate_operation,
+            "model",
+            additional_metadata=additional_metadata,
         )
+
+        # Handle the case where the result is an ErrorResult
+        if isinstance(result, ErrorResult):
+            raise ModelError(f"Model generation failed: {result.error_message}")
+
+        return result
 
     def _validate_output(self, output: str) -> List[ValidationResult]:
         """
@@ -303,19 +314,19 @@ class Engine(BaseModel):
         results = []
         for i, validator in enumerate(validators):
 
-            def validate_operation():
+            def validate_operation() -> ValidationResult:
                 return validator.validate(output)
 
+            additional_metadata = {
+                "method": "validate",
+                "validator_type": validator.__class__.__name__,
+                "output_length": (len(output.output) if hasattr(output, "output") else len(output)),
+            }
+
             result = safely_execute_chain(
-                operation=validate_operation,
-                component_name=f"validator_{i}",
-                additional_metadata={
-                    "method": "validate",
-                    "validator_type": validator.__class__.__name__,
-                    "output_length": (
-                        len(output.output) if hasattr(output, "output") else len(output)
-                    ),
-                },
+                validate_operation,
+                f"validator_{i}",
+                additional_metadata=additional_metadata,
             )
             results.append(result)
             if self.config.params.get("fail_fast", False) and not result.passed:
@@ -353,18 +364,20 @@ class Engine(BaseModel):
             return output
         output_text = output.output if hasattr(output, "output") else output
 
-        def improve_operation():
+        def improve_operation() -> str:
             return improver.improve(output_text, validation_results)
 
+        additional_metadata = {
+            "method": "improve",
+            "improver_type": improver.__class__.__name__,
+            "output_length": len(output_text),
+            "validation_results_count": len(validation_results),
+        }
+
         improved_text = safely_execute_chain(
-            operation=improve_operation,
-            component_name="improver",
-            additional_metadata={
-                "method": "improve",
-                "improver_type": improver.__class__.__name__,
-                "output_length": len(output_text),
-                "validation_results_count": len(validation_results),
-            },
+            improve_operation,
+            "improver",
+            additional_metadata=additional_metadata,
         )
         if hasattr(output, "output") and hasattr(output, "metadata"):
             from sifaka.models.result import GenerationResult
@@ -441,21 +454,23 @@ class Engine(BaseModel):
         formatter = self._state_manager.get("formatter")
         if formatter:
 
-            def format_operation():
+            def format_operation() -> ChainResult:
                 return formatter.format(output, validation_results)
 
             try:
+                additional_metadata = {
+                    "method": "format",
+                    "formatter_type": formatter.__class__.__name__,
+                    "output_length": (
+                        len(output.output) if hasattr(output, "output") else len(output)
+                    ),
+                    "validation_results_count": len(validation_results),
+                }
+
                 formatted_result = safely_execute_chain(
-                    operation=format_operation,
-                    component_name="formatter",
-                    additional_metadata={
-                        "method": "format",
-                        "formatter_type": formatter.__class__.__name__,
-                        "output_length": (
-                            len(output.output) if hasattr(output, "output") else len(output)
-                        ),
-                        "validation_results_count": len(validation_results),
-                    },
+                    format_operation,
+                    "formatter",
+                    additional_metadata=additional_metadata,
                 )
                 if isinstance(formatted_result, ChainResult):
                     result = formatted_result

@@ -90,7 +90,7 @@ Result creation can be configured with:
 - Processing time tracking
 """
 
-from typing import Any, Dict, List, Optional, TypeVar, Union, cast, Generic
+from typing import Any, Dict, List, Optional, TypeVar, Union
 
 from sifaka.core.results import RuleResult, ClassificationResult, ChainResult
 from sifaka.utils.base_results import BaseResult, CriticMetadata, create_base_result
@@ -111,7 +111,7 @@ def create_generic_result(
     suggestions: Optional[List[str]] = None,
     processing_time_ms: Optional[float] = None,
     **kwargs: Any,
-) -> Any:
+) -> Union[ChainResult, ClassificationResult, CriticMetadata, BaseResult[Any]]:
     """
     Create a standardized result for any component.
 
@@ -286,8 +286,8 @@ def create_rule_result(
         final_metadata["cost"] = cost
 
     # Add additional metadata
-    if metadata:
-        final_metadata.update(metadata) if final_metadata else ""
+    if metadata and final_metadata:
+        final_metadata.update(metadata)
 
     # Use the standardized result creation function
     standard_result = create_standard_result(
@@ -474,8 +474,8 @@ def create_error_result(
         # Access result properties
         print(f"Passed: {result.passed}")  # Always False for error results
         print(f"Message: {result.message}")
-        print(f"Error: {result.(metadata.get('error')}")  # True
-        print(f"Component: {result.(metadata.get('component')}")
+        print(f"Error: {result.metadata.get('error')}")  # True
+        print(f"Component: {result.metadata.get('component')}")
 
         # Create with error type
         result = create_error_result(
@@ -483,7 +483,7 @@ def create_error_result(
             component_name="TextProcessor",
             error_type="ValidationError"
         )
-        print(f"Error type: {result.(metadata.get('error_type')}")
+        print(f"Error type: {result.metadata.get('error_type')}")
 
         # Create with custom severity
         result = create_error_result(
@@ -491,7 +491,7 @@ def create_error_result(
             component_name="TextProcessor",
             severity="warning"
         )
-        print(f"Severity: {result.(metadata.get('severity')}")
+        print(f"Severity: {result.metadata.get('severity')}")
 
         # Create with additional metadata
         result = create_error_result(
@@ -503,7 +503,7 @@ def create_error_result(
                 "error_code": "E1001"
             }
         )
-        print(f"Error code: {result.(metadata.get('error_code')}")
+        print(f"Error code: {result.metadata.get('error_code')}")
         ```
     """
     # Create base metadata
@@ -564,15 +564,15 @@ def create_unknown_result(
         # Access result properties
         print(f"Label: {result.label}")  # Always "unknown"
         print(f"Confidence: {result.confidence}")  # Always 0.0
-        print(f"Reason: {result.(metadata.get('reason')}")  # "unknown" by default
-        print(f"Component: {result.(metadata.get('component')}")
+        print(f"Reason: {result.metadata.get('reason')}")  # "unknown" by default
+        print(f"Component: {result.metadata.get('component')}")
 
         # Create with custom reason
         result = create_unknown_result(
             component_name="LanguageClassifier",
             reason="insufficient_text"
         )
-        print(f"Reason: {result.(metadata.get('reason')}")
+        print(f"Reason: {result.metadata.get('reason')}")
 
         # Create with additional metadata
         result = create_unknown_result(
@@ -584,11 +584,11 @@ def create_unknown_result(
                 "language_hints": ["en", "fr"]
             }
         )
-        print(f"Text length: {result.(metadata.get('text_length')}")
-        print(f"Language hints: {result.(metadata.get('language_hints')}")
+        print(f"Text length: {result.metadata.get('text_length')}")
+        print(f"Language hints: {result.metadata.get('language_hints')}")
 
         # Use in a classifier
-        def classify_language(text: str) -> ClassificationResult[str, Any]:
+        def classify_language(text: str) -> ClassificationResult[Any, str]:
             if not text or len(text) < 20:
                 return create_unknown_result(
                     component_name="LanguageClassifier",

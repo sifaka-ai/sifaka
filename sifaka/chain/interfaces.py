@@ -245,8 +245,9 @@ class Model(ChainComponent, Protocol[InputT, OutputT]):
         """
         import asyncio
 
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self.generate, prompt)
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, self.generate, prompt)
+        return result
 
 
 @runtime_checkable
@@ -294,8 +295,9 @@ class Validator(ChainComponent, Protocol[InputT]):
         """
         import asyncio
 
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self.validate, output)
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, self.validate, output)
+        return result
 
 
 @runtime_checkable
@@ -347,8 +349,9 @@ class Improver(ChainComponent, Protocol[InputT, OutputT]):
         """
         import asyncio
 
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, lambda: self.improve(output, validation_results))
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, lambda: self.improve(output, validation_results))
+        return result
 
 
 @runtime_checkable
@@ -400,8 +403,9 @@ class Formatter(ChainComponent, Protocol[InputT, OutputT]):
         """
         import asyncio
 
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, lambda: self.format(output, validation_results))
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, lambda: self.format(output, validation_results))
+        return result
 
 
 # Import the core Plugin interface

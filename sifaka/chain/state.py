@@ -26,26 +26,26 @@ from sifaka.chain.validators import ValidationManager
 state_manager = create_chain_state()
 
 # Initialize state
-state_manager.update("model", OpenAIProvider("gpt-3.5-turbo") if state_manager else "")
-state_manager.update("validation_manager", ValidationManager() if state_manager else "")
-state_manager.update("initialized", True) if state_manager else ""
-state_manager.update("execution_count", 0) if state_manager else ""
-state_manager.update("result_cache", {}) if state_manager else ""
+state_manager.update("model", OpenAIProvider("gpt-3.5-turbo"))
+state_manager.update("validation_manager", ValidationManager())
+state_manager.update("initialized", True)
+state_manager.update("execution_count", 0)
+state_manager.update("result_cache", {})
 
 # Set metadata
-state_manager.set_metadata("component_type", "chain") if state_manager else ""
-state_manager.set_metadata("creation_time", time.time() if time else "" if state_manager else "")
+state_manager.set_metadata("component_type", "chain")
+state_manager.set_metadata("creation_time", time.time())
 
 # Access state
-model = state_manager.get("model") if state_manager else ""
-is_initialized = state_manager.get("initialized", False) if state_manager else ""
-execution_count = state_manager.get("execution_count", 0) if state_manager else ""
+model = state_manager.get("model")
+is_initialized = state_manager.get("initialized", False)
+execution_count = state_manager.get("execution_count", 0)
 
 # Update state
-state_manager.update("execution_count", execution_count + 1) if state_manager else ""
+state_manager.update("execution_count", execution_count + 1)
 
 # Rollback state if needed
-state_manager.rollback() if state_manager else ""
+state_manager.rollback()
 ```
 
 ## Error Handling
@@ -101,17 +101,17 @@ class ChainStateManager(StateManager):
         improver=improver,
         formatter=formatter,
         config=config
-    ) if manager else ""
+    )
 
     # Track execution
-    manager.track_execution_start() if manager else ""
+    manager.track_execution_start()
     # ... run chain ...
-    manager.track_execution_end(success=True, execution_time=0.5) if manager else ""
+    manager.track_execution_end(success=True, execution_time=0.5)
 
     # Access chain state
-    model = manager.get_model() if manager else ""
-    validators = manager.get_validators() if manager else ""
-    execution_count = manager.get_execution_count() if manager else ""
+    model = manager.get_model()
+    validators = manager.get_validators()
+    execution_count = manager.get_execution_count()
     ```
     """
 
