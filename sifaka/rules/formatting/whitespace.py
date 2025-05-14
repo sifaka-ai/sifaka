@@ -23,8 +23,8 @@ Usage Example:
 """
 
 import time
-from typing import List, Optional
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field, field_validator, ConfigDict, ValidationInfo
 from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
 from sifaka.utils.logging import get_logger
 from sifaka.utils.patterns import MULTIPLE_SPACES_PATTERN, replace_pattern, compile_pattern
@@ -66,7 +66,7 @@ class WhitespaceConfig(BaseModel):
 
     @field_validator("max_newlines")
     @classmethod
-    def validate_max_newlines(cls, v: Optional[int], info) -> Optional[int]:
+    def validate_max_newlines(cls, v: Optional[int], info: ValidationInfo) -> Optional[int]:
         """Validate that max_newlines is only set if allow_newlines is True."""
         allow_newlines = info.data.get("allow_newlines", True) if hasattr(info, "data") else True
         if v is not None and not allow_newlines:
@@ -327,9 +327,9 @@ class WhitespaceRule(Rule[str]):
         self,
         name: str = "whitespace_rule",
         description: str = "Validates text whitespace",
-        config: Optional[Optional[RuleConfig]] = None,
-        validator: Optional[Optional[WhitespaceValidator]] = None,
-        **kwargs,
+        config: Optional[RuleConfig] = None,
+        validator: Optional[WhitespaceValidator] = None,
+        **kwargs: Dict[str, Any],
     ) -> None:
         """
         Initialize the whitespace rule.
@@ -378,9 +378,9 @@ def create_whitespace_validator(
     allow_multiple_spaces: bool = False,
     allow_tabs: bool = False,
     allow_newlines: bool = True,
-    max_newlines: Optional[Optional[int]] = None,
+    max_newlines: Optional[int] = None,
     normalize_whitespace: bool = False,
-    **kwargs,
+    **kwargs: Dict[str, Any],
 ) -> WhitespaceValidator:
     """
     Create a whitespace validator with the specified constraints.
@@ -439,12 +439,12 @@ def create_whitespace_rule(
     allow_multiple_spaces: bool = False,
     allow_tabs: bool = False,
     allow_newlines: bool = True,
-    max_newlines: Optional[Optional[int]] = None,
+    max_newlines: Optional[int] = None,
     normalize_whitespace: bool = False,
     name: str = "whitespace_rule",
     description: str = "Validates text whitespace",
-    rule_id: Optional[Optional[str]] = None,
-    **kwargs,
+    rule_id: Optional[str] = None,
+    **kwargs: Dict[str, Any],
 ) -> WhitespaceRule:
     """
     Create a whitespace validation rule with the specified constraints.

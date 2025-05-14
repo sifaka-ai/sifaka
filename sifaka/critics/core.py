@@ -638,17 +638,17 @@ def create_core_critic(
     name: str,
     description: str,
     llm_provider: "ModelProviderCore",
-    system_prompt: Optional[Optional[str]] = None,
-    temperature: Optional[Optional[float]] = None,
-    max_tokens: Optional[Optional[int]] = None,
-    min_confidence: Optional[Optional[float]] = None,
-    max_attempts: Optional[Optional[int]] = None,
-    cache_size: Optional[Optional[int]] = None,
-    priority: Optional[Optional[int]] = None,
-    cost: Optional[Optional[float]] = None,
-    prompt_manager: Optional[Optional["PromptManager"]] = None,
-    response_parser: Optional[Optional["ResponseParser"]] = None,
-    memory_manager: Optional[Optional["MemoryManager"]] = None,
+    system_prompt: Optional[str] = None,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
+    min_confidence: Optional[float] = None,
+    max_attempts: Optional[int] = None,
+    cache_size: Optional[int] = None,
+    priority: Optional[int] = None,
+    cost: Optional[float] = None,
+    prompt_manager: Optional["PromptManager"] = None,
+    response_parser: Optional["ResponseParser"] = None,
+    memory_manager: Optional["MemoryManager"] = None,
     config: Optional[Union[Dict[str, Any], CriticConfig]] = None,
     **kwargs: Any,
 ) -> "CriticCore":
@@ -742,23 +742,64 @@ def create_core_critic(
     """
     # Create configuration
     if config is None:
-        config = CriticConfig(
-            name=name,
-            description=description,
-            system_prompt=system_prompt,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            min_confidence=min_confidence,
-            max_attempts=max_attempts,
-            cache_size=cache_size,
-            priority=priority,
-            cost=cost,
-            **kwargs,
-        )
+        # Prepare kwargs with only non-None values
+        config_kwargs: Dict[str, Any] = {
+            "name": name,
+            "description": description,
+        }
+
+        # Add optional parameters only if they are not None
+        if system_prompt is not None:
+            config_kwargs["system_prompt"] = system_prompt
+        if temperature is not None:
+            config_kwargs["temperature"] = temperature
+        if max_tokens is not None:
+            config_kwargs["max_tokens"] = max_tokens
+        if min_confidence is not None:
+            config_kwargs["min_confidence"] = min_confidence
+        if max_attempts is not None:
+            config_kwargs["max_attempts"] = max_attempts
+        if cache_size is not None:
+            config_kwargs["cache_size"] = cache_size
+        if priority is not None:
+            config_kwargs["priority"] = priority
+        if cost is not None:
+            config_kwargs["cost"] = cost
+
+        # Add any additional kwargs
+        config_kwargs.update(kwargs)
+
+        config = CriticConfig(**config_kwargs)
     elif isinstance(config, dict):
-        config = CriticConfig(**config)
+        # Convert the dict to a properly typed config
+        config_dict: Dict[str, Any] = {}
+
+        # Copy only the keys that are valid for CriticConfig
+        valid_keys = [
+            "name",
+            "description",
+            "system_prompt",
+            "temperature",
+            "max_tokens",
+            "min_confidence",
+            "max_attempts",
+            "cache_size",
+            "priority",
+            "cost",
+            "track_performance",
+        ]
+
+        for key, value in config.items():
+            if key in valid_keys:
+                config_dict[key] = value
+
+        config = CriticConfig(**config_dict)
     elif not isinstance(config, CriticConfig):
         raise TypeError("config must be a dict or CriticConfig instance")
+
+    # Ensure config is a valid CriticConfig instance
+    if not isinstance(config, CriticConfig):
+        raise TypeError("Failed to create a valid CriticConfig instance")
 
     # Create and return critic
     return CriticCore(

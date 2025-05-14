@@ -104,15 +104,13 @@ The module implements comprehensive error handling for:
 Based on Self-RAG: https://arxiv.org/abs/2310.11511
 """
 
-import json
 import time
 from typing import Any, Dict, List, Optional, Union, cast
 
 from pydantic import ConfigDict, Field, PrivateAttr
 
-from ...core.base import BaseComponent
+from ...core.base import BaseComponent, BaseConfig, BaseResult
 from ...utils.state import create_critic_state
-from ...core.base import BaseResult
 from sifaka.utils.config.critics import SelfRAGCriticConfig
 from sifaka.interfaces.critic import TextCritic, TextImprover, TextValidator, CritiqueResult
 from ...retrieval import Retriever
@@ -204,8 +202,8 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
     # Pydantic v2 configuration
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    # Configuration
-    config: SelfRAGCriticConfig = Field(description="Critic configuration")
+    # Configuration - using BaseConfig as the type to match BaseComponent
+    config: BaseConfig = Field(description="Critic configuration")
 
     # State management using StateManager
     _state_manager = PrivateAttr(default_factory=create_critic_state)
@@ -216,7 +214,7 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
         description: str,
         llm_provider: Any,
         retriever: Retriever,
-        config: Optional[SelfRAGCriticConfig] = None,
+        config: Optional[BaseConfig] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -252,7 +250,8 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
             # Create a new SelfRAGCriticConfig from the updated dict
             from sifaka.utils.config.critics import SelfRAGCriticConfig
 
-            config = SelfRAGCriticConfig(**config_dict)
+            # Cast to BaseConfig to satisfy type checker
+            config = cast(BaseConfig, SelfRAGCriticConfig(**config_dict))
 
         # Initialize base component
         super().__init__(name=name, description=description, config=config)
@@ -340,7 +339,8 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
         """
         if metadata is None or "task" not in metadata:
             raise ValueError("metadata must contain a 'task' key")
-        return metadata["task"]
+        # Explicitly cast to str to satisfy mypy
+        return str(metadata["task"])
 
     def process(self, input: str) -> BaseResult:
         """
@@ -406,7 +406,7 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
                 result.get("retrieved_context", "") if isinstance(result, dict) else ""
             )
 
-            critic_result = BaseResult(
+            critic_result: BaseResult = BaseResult(
                 passed=True,  # Self-RAG critics always pass
                 message=response_text,
                 metadata={
@@ -545,7 +545,9 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
         result = self.run(task, text, metadata) if self else ""
 
         # Return the improved response
-        return result.get("response", text) if result else ""
+        if isinstance(result, dict):
+            return result.get("response", text)
+        return text
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
         """
@@ -765,7 +767,9 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
         metadata = {"task": "Improve the text"} if not feedback else {"task": feedback}
         task = self._get_task_from_metadata(metadata)
         result = await self.arun(task, text, metadata)
-        return result.get("response", text)
+        if isinstance(result, dict):
+            return result.get("response", text)
+        return text
 
     async def arun(
         self,
@@ -905,7 +909,7 @@ def create_self_rag_critic(
             config_dict = deepcopy(DEFAULT_SELF_RAG_CRITIC_CONFIG)
 
             # Update with provided values
-            updates = {"name": name, "description": description}
+            updates: Dict[str, Any] = {"name": name, "description": description}
 
             if system_prompt is not None:
                 updates["system_prompt"] = system_prompt
@@ -941,11 +945,11 @@ def create_self_rag_critic(
             # Create a new config object
             from sifaka.utils.config.critics import SelfRAGCriticConfig
 
-            config = SelfRAGCriticConfig(**config_dict)
+            config = cast(BaseConfig, SelfRAGCriticConfig(**config_dict))
         elif isinstance(config, dict):
             from sifaka.utils.config.critics import SelfRAGCriticConfig
 
-            config = SelfRAGCriticConfig(**config)
+            config = cast(BaseConfig, SelfRAGCriticConfig(**config))
 
         # Create and return the critic
         return SelfRAGCritic(

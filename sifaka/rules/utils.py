@@ -40,9 +40,9 @@ Usage Example:
 """
 
 import time
-from typing import Callable, TypeVar, Dict, Optional, Any, Literal
+from typing import Callable, TypeVar, Dict, Optional, Any, Literal, Union, cast
 
-from ..core.results import RuleResult, create_error_result
+from ..core.results import RuleResult, ErrorResult, BaseResult, create_error_result
 from sifaka.utils.errors.handling import try_operation
 from sifaka.utils.logging import get_logger
 
@@ -209,82 +209,87 @@ def try_validate(
     try:
         # Define error handler
         def error_handler(e: Exception) -> RuleResult:
-            result = create_error_result(
+            error_result = create_error_result(
                 message=f"Error during validation: {str(e)}",
                 component_name=rule_name,
                 error_type=type(e).__name__,
                 severity=log_level,
             )
             # Ensure we return a RuleResult
-            if isinstance(result, RuleResult):
-                return result
+            if isinstance(error_result, RuleResult):
+                return error_result
             # Convert ErrorResult to RuleResult if needed
             return RuleResult(
                 passed=False,
-                message=result.message if hasattr(result, "message") else str(e),
-                metadata=result.metadata if hasattr(result, "metadata") else {"error": True},
+                message=error_result.message if hasattr(error_result, "message") else str(e),
+                metadata=(
+                    error_result.metadata if hasattr(error_result, "metadata") else {"error": True}
+                ),
                 severity=log_level,
                 score=0.0,
             )
 
         # Use try_operation with the error handler
-        result = try_operation(
+        operation_result = try_operation(
             operation=validation_func,
             component_name=f"Rule:{rule_name}",
             error_handler=error_handler,
         )
 
+        # Convert BaseResult to RuleResult if needed
+        if not isinstance(operation_result, RuleResult):
+            # If it's a BaseResult, convert it to a RuleResult
+            if isinstance(operation_result, BaseResult):
+                rule_result = RuleResult(
+                    passed=operation_result.passed,
+                    message=operation_result.message,
+                    metadata=operation_result.metadata,
+                    severity=log_level,
+                    score=operation_result.score,
+                    issues=operation_result.issues,
+                    suggestions=operation_result.suggestions,
+                )
+            else:
+                # If it's something else, create a default RuleResult
+                rule_result = RuleResult(
+                    passed=getattr(operation_result, "passed", False),
+                    message=getattr(operation_result, "message", "Unknown result"),
+                    metadata=getattr(operation_result, "metadata", {}),
+                    severity=log_level,
+                    score=getattr(operation_result, "score", 0.0),
+                )
+        else:
+            # It's already a RuleResult
+            rule_result = operation_result
+
         # Add processing time if not already present
-        if hasattr(result, "metadata") and result.metadata.get("processing_time_ms") is None:
+        if rule_result.metadata.get("processing_time_ms") is None:
             elapsed_ms = (time.time() - start_time) * 1000
-            if result and hasattr(result, "with_metadata"):
-                # Ensure result is a RuleResult
-                if isinstance(result, RuleResult):
-                    result = result.with_metadata(processing_time_ms=elapsed_ms)
-                else:
-                    # Convert to RuleResult if needed
-                    rule_result = RuleResult(
-                        passed=result.passed if hasattr(result, "passed") else False,
-                        message=(
-                            result.message if hasattr(result, "message") else "Unknown result"
-                        ),
-                        metadata=result.metadata if hasattr(result, "metadata") else {},
-                        severity="error",
-                        score=result.score if hasattr(result, "score") else 0.0,
-                    )
-                    result = rule_result.with_metadata(processing_time_ms=elapsed_ms)
+            # Use cast to help mypy understand that with_metadata returns a RuleResult
+            rule_result = cast(RuleResult, rule_result.with_metadata(processing_time_ms=elapsed_ms))
 
-        # Ensure we return a RuleResult
-        if isinstance(result, RuleResult):
-            return result
-
-        # Convert to RuleResult if needed
-        return RuleResult(
-            passed=result.passed if hasattr(result, "passed") else False,
-            message=result.message if hasattr(result, "message") else "Unknown result",
-            metadata=result.metadata if hasattr(result, "metadata") else {},
-            severity="error",
-            score=result.score if hasattr(result, "score") else 0.0,
-        )
+        return rule_result
 
     except Exception as e:
         # This should only happen if try_operation itself fails
         if logger:
             logger.error(f"Unexpected error in try_validate: {e}")
-        result = create_error_result(
+        error_result = create_error_result(
             message=f"Unexpected error in try_validate: {str(e)}",
             component_name=rule_name,
             error_type=type(e).__name__,
             severity=log_level,
         )
         # Ensure we return a RuleResult
-        if isinstance(result, RuleResult):
-            return result
+        if isinstance(error_result, RuleResult):
+            return error_result
         # Convert ErrorResult to RuleResult if needed
         return RuleResult(
             passed=False,
-            message=result.message if hasattr(result, "message") else str(e),
-            metadata=result.metadata if hasattr(result, "metadata") else {"error": True},
+            message=error_result.message if hasattr(error_result, "message") else str(e),
+            metadata=(
+                error_result.metadata if hasattr(error_result, "metadata") else {"error": True}
+            ),
             severity=log_level,
             score=0.0,
         )

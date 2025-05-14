@@ -4,10 +4,11 @@ This document tracks the progress of fixing mypy errors in the Sifaka codebase.
 
 ## Current Status
 
-- Total files with errors: 72
-- Total errors: 906
-- Files fixed: 45
-- Files remaining: 27
+- Total files with errors: 69
+- Total errors: 1,069 (reduced from 1,076)
+- Files fixed: 48
+- Files remaining: 22
+- Files partially fixed: 1 (sifaka/critics/core.py - fixed type errors around line 754)
 
 ## Fixed Files
 
@@ -30,7 +31,7 @@ This document tracks the progress of fixing mypy errors in the Sifaka codebase.
 17. sifaka/retrieval/implementations/simple.py
 18. sifaka/core/managers/memory.py
 19. sifaka/critics/services/critique.py
-20. sifaka/rules/utils.py
+20. sifaka/rules/utils.py (additional fixes made on 2023-11-18)
 21. sifaka/chain/state.py
 22. sifaka/chain/plugins.py
 23. sifaka/classifiers/adapters.py
@@ -55,6 +56,9 @@ This document tracks the progress of fixing mypy errors in the Sifaka codebase.
 42. sifaka/critics/implementations/self_rag.py
 43. sifaka/critics/implementations/prompt.py
 44. sifaka/chain/state.py
+45. sifaka/rules/formatting/whitespace.py
+46. sifaka/rules/formatting/structure.py
+47. sifaka/core/factories.py
 
 ## High Priority Files
 
@@ -132,3 +136,8 @@ This document tracks the progress of fixing mypy errors in the Sifaka codebase.
 | 2023-11-15 | 44 | 1,754 | 1,075 |
 | 2023-11-16 | 45 | 1,754 | 937 |
 | 2023-11-17 | 45 | 1,754 | 906 |
+| 2023-11-18 | 45 | 1,754 | 904 |
+| 2023-11-19 | 46 | 1,754 | 898 |
+| 2023-11-20 | 47 | 1,754 | 1,081 |
+| 2023-11-21 | 48 | 1,754 | 1,076 |
+| 2023-11-22 | 48 | 1,754 | 1,069 |

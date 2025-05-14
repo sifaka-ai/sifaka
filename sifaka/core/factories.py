@@ -241,11 +241,13 @@ def create_chain(
         except DependencyError:
             try:
                 # Try to get by type if not found by name
-                from sifaka.interfaces.model import ModelProviderProtocol
                 from sifaka.core.dependency.utils import get_dependency_by_type
 
+                # Use a concrete implementation type for dependency lookup
+                from sifaka.models.providers.openai import OpenAIProvider
+
                 model = (
-                    get_dependency_by_type(ModelProviderProtocol, None, session_id, request_id)
+                    get_dependency_by_type(OpenAIProvider, None, session_id, request_id)
                     if provider
                     else None
                 )
@@ -346,12 +348,14 @@ def create_critic(
         except DependencyError:
             try:
                 # Try to get by type if not found by name
-                from sifaka.interfaces.model import ModelProviderProtocol
                 from sifaka.core.dependency.utils import get_dependency_by_type
+
+                # Use a concrete implementation type for dependency lookup
+                from sifaka.models.providers.openai import OpenAIProvider
 
                 if provider:
                     model_provider = get_dependency_by_type(
-                        ModelProviderProtocol, None, session_id, request_id
+                        OpenAIProvider, None, session_id, request_id
                     )
             except (DependencyError, ImportError):
                 # Don't raise here, let the specific factory function handle it
@@ -778,6 +782,12 @@ def create_adapter(
     # We need to map the string to the appropriate adapter class
 
     # Import adapter classes lazily to avoid circular dependencies
+    from sifaka.adapters.base import BaseAdapter
+    from typing import Type, Any
+
+    # Initialize adapter_class with BaseAdapter as a fallback
+    adapter_class: Type[Any] = BaseAdapter
+
     if adapter_type == "classifier":
         from sifaka.adapters.classifier import ClassifierAdapter
 
@@ -787,14 +797,9 @@ def create_adapter(
 
         adapter_class = GuardrailsAdapter
     elif adapter_type == "pydantic":
-        from sifaka.adapters.pydantic_ai import PydanticAdapter
+        from sifaka.adapters.pydantic_ai import SifakaPydanticAdapter
 
-        adapter_class = PydanticAdapter
-    else:
-        # Default to a generic adapter if type not recognized
-        from sifaka.adapters.base import BaseAdapter
-
-        adapter_class = BaseAdapter
+        adapter_class = SifakaPydanticAdapter
 
     return create_adapter_base(
         adapter_type=adapter_class,

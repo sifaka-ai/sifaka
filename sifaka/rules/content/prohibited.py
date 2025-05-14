@@ -36,7 +36,7 @@ print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 ```
 """
 
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 import time
 
 from pydantic import BaseModel, Field, ConfigDict
@@ -281,7 +281,7 @@ class ProhibitedContentAnalyzer:
         # Create the classifier with custom words
         self._classifier = ProfanityClassifier(
             config=ClassifierConfig(
-                labels=["clean", "profane", "unknown"], params={"custom_words": self._terms}
+                params={"custom_words": self._terms, "labels": ["clean", "profane", "unknown"]}
             )
         )
 
@@ -422,7 +422,10 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
         Returns:
             The validator configuration
         """
-        return self._state_manager.get("config")
+        config = self._state_manager.get("config")
+        if isinstance(config, ProhibitedContentConfig):
+            return config
+        return ProhibitedContentConfig()
 
     def validate(self, text: str) -> RuleResult:
         """
@@ -434,11 +437,11 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
         Returns:
             RuleResult: The result of the validation
         """
-        start_time = time.time() if time else ""
+        start_time = time.time() if time else 0.0
 
         # Handle empty text
-        empty_result = self.handle_empty_text(text) if self else ""
-        if empty_result:
+        empty_result = self.handle_empty_text(text)
+        if empty_result is not None:
             return empty_result
 
         try:
@@ -446,29 +449,31 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
             analyzer = self._state_manager.get("analyzer")
 
             # Delegate to analyzer
-            if analyzer:
-                result = analyzer.analyze(text)
+            if analyzer is not None:
+                analyze_result = analyzer.analyze(text)
+                result: RuleResult = analyze_result
 
                 # Add processing time and validator type
-                if result and time:
+                if time is not None:
                     elapsed_ms = (time.time() - start_time) * 1000
-                    result = result.with_metadata(
+                    result_with_metadata = result.with_metadata(
                         processing_time_ms=elapsed_ms,
                         validator_type=self.__class__.__name__,
                     )
+                    result = result_with_metadata
 
                 # Update statistics
-                if self:
-                    self.update_statistics(result)
+                self.update_statistics(result)
 
                 # Update validation count in metadata
                 validation_count = self._state_manager.get_metadata("validation_count", 0)
                 self._state_manager.set_metadata("validation_count", validation_count + 1)
 
                 # Cache result if caching is enabled
-                if self.config.cache_size > 0:
+                config = self.config
+                if config.cache_size > 0:
                     cache = self._state_manager.get("cache", {})
-                    if len(cache) >= self.config.cache_size:
+                    if len(cache) >= config.cache_size:
                         # Clear cache if it's full
                         cache = {}
                     cache[text] = result
@@ -479,12 +484,11 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
                 raise ValueError("Analyzer not found in state manager")
 
         except Exception as e:
-            if self:
-                self.record_error(e)
-            if logger:
+            self.record_error(e)
+            if logger is not None:
                 logger.error(f"Error validating text for prohibited content: {e}")
 
-            return RuleResult(
+            error_result = RuleResult(
                 passed=False,
                 message=f"Error validating prohibited content: {str(e)}",
                 metadata={
@@ -494,8 +498,9 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
                 score=0.0,
                 issues=[f"Validation error: {str(e)}"],
                 suggestions=["Check the text for problematic content"],
-                processing_time_ms=(time.time() - start_time) * 1000 if time else 0,
+                processing_time_ms=(time.time() - start_time) * 1000 if time is not None else 0,
             )
+            return error_result
 
 
 class ProhibitedContentRule(Rule[str]):
@@ -721,7 +726,7 @@ def create_prohibited_content_validator(
         DefaultProhibitedContentValidator: The created validator
     """
     # Create config with default or provided values
-    config_params = {}
+    config_params: Dict[str, Any] = {}
     if terms is not None:
         config_params["terms"] = terms
     if threshold is not None:
@@ -730,7 +735,9 @@ def create_prohibited_content_validator(
         config_params["case_sensitive"] = case_sensitive
 
     # Add any remaining config parameters
-    config_params.update(kwargs)
+    for key, value in kwargs.items():
+        if key in ["cache_size", "priority", "cost"]:
+            config_params[key] = value
 
     # Create config
     config = ProhibitedContentConfig(**config_params)
@@ -848,7 +855,7 @@ def create_prohibited_content_rule(
     )
 
     # Create params dictionary for RuleConfig
-    params = {}
+    params: Dict[str, Any] = {}
     if terms is not None:
         params["terms"] = terms
     if threshold is not None:
@@ -859,14 +866,35 @@ def create_prohibited_content_rule(
     # Determine rule name
     rule_name = name or rule_id or "prohibited_content_rule"
 
+    # Filter kwargs to only include valid RuleConfig parameters
+    valid_config_keys = ["severity", "category", "tags", "priority", "cache_size", "cost"]
+    config_kwargs: Dict[str, Any] = {}
+
+    for k, v in kwargs.items():
+        if k in valid_config_keys:
+            config_kwargs[k] = v
+
     # Create RuleConfig
     config = RuleConfig(
         name=rule_name,
         description=description,
         rule_id=rule_id or rule_name,
         params=params,
-        **kwargs,
     )
+
+    # Apply config kwargs separately to avoid type errors
+    if "severity" in config_kwargs:
+        config.severity = config_kwargs["severity"]
+    if "category" in config_kwargs:
+        config.category = config_kwargs["category"]
+    if "tags" in config_kwargs:
+        config.tags = config_kwargs["tags"]
+    if "priority" in config_kwargs:
+        config.priority = config_kwargs["priority"]
+    if "cache_size" in config_kwargs:
+        config.cache_size = config_kwargs["cache_size"]
+    if "cost" in config_kwargs:
+        config.cost = config_kwargs["cost"]
 
     # Create rule
     return ProhibitedContentRule(

@@ -37,7 +37,7 @@ print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 - Detailed validation results with issues and suggestions
 """
 
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 import time
 from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
@@ -162,7 +162,7 @@ class StructureValidator(BaseValidator[str]):
 
     _state_manager = PrivateAttr(default_factory=create_rule_state)
 
-    def __init__(self, config: Optional[Optional[StructureConfig]] = None) -> None:
+    def __init__(self, config: Optional[StructureConfig] = None) -> None:
         """
         Initialize the validator.
 
@@ -183,7 +183,10 @@ class StructureValidator(BaseValidator[str]):
         Returns:
             The validator configuration
         """
-        return self._state_manager.get("config")
+        config = self._state_manager.get("config", None)
+        if config is None:
+            return StructureConfig()
+        return config if isinstance(config, StructureConfig) else StructureConfig()
 
     def validate(self, text: str) -> RuleResult:
         """
@@ -195,47 +198,40 @@ class StructureValidator(BaseValidator[str]):
         Returns:
             Validation result
         """
-        start_time = time.time() if time else ""
+        start_time = time.time()
         cache_size = self.config.cache_size
         if cache_size > 0:
             cache = self._state_manager.get("cache", {})
             if text in cache:
                 self._state_manager.set_metadata("cache_hit", True)
-                return cache[text]
+                result: RuleResult = cache[text]
+                return result
             self._state_manager.set_metadata("cache_hit", False)
-        empty_result = self.handle_empty_text(text) if self else ""
-        if empty_result:
+        empty_result = self.handle_empty_text(text)
+        if empty_result is not None:
             return empty_result
 
-        def validation_operation() -> Any:
-            sections = self._analyze_sections(text) if self else ""
+        def validation_operation() -> RuleResult:
+            sections = self._analyze_sections(text)
             section_count = len(sections)
-            issues = []
-            suggestions = []
+            issues: List[str] = []
+            suggestions: List[str] = []
             if section_count < self.config.min_sections:
                 issue = f"Text has {section_count} sections, but at least {self.config.min_sections} are required"
-                issues.append(issue) if issues else ""
-                (
-                    suggestions.append(
-                        f"Add at least {self.config.min_sections - section_count} more sections"
-                    )
-                    if suggestions
-                    else ""
+                issues.append(issue)
+                suggestions.append(
+                    f"Add at least {self.config.min_sections - section_count} more sections"
                 )
             if self.config.max_sections and section_count > self.config.max_sections:
                 issue = f"Text has {section_count} sections, but at most {self.config.max_sections} are allowed"
-                issues.append(issue) if issues else ""
-                (
-                    suggestions.append(
-                        f"Remove at least {section_count - self.config.max_sections} sections"
-                    )
-                    if suggestions
-                    else ""
+                issues.append(issue)
+                suggestions.append(
+                    f"Remove at least {section_count - self.config.max_sections} sections"
                 )
             missing_sections = [s for s in self.config.required_sections if s not in sections]
             if missing_sections:
                 issue = f"Text is missing required sections: {', '.join(missing_sections)}"
-                issues.append(issue) if issues else ""
+                issues.append(issue)
                 suggestions.append(f"Add the following sections: {', '.join(missing_sections)}")
             result = RuleResult(
                 passed=not issues,
@@ -249,11 +245,11 @@ class StructureValidator(BaseValidator[str]):
                 score=1.0 if not issues else 0.0,
                 issues=issues,
                 suggestions=suggestions,
-                processing_time_ms=time.time() if time else "" - start_time,
+                processing_time_ms=time.time() - start_time,
             )
             return result
 
-        result = try_operation(
+        operation_result = try_operation(
             validation_operation,
             component_name=self.__class__.__name__,
             default_value=RuleResult(
@@ -269,7 +265,8 @@ class StructureValidator(BaseValidator[str]):
                 processing_time_ms=time.time() - start_time,
             ),
         )
-        self.update_statistics(result) if self else ""
+        result: RuleResult = operation_result
+        self.update_statistics(result)
         validation_count = self._state_manager.get_metadata("validation_count", 0)
         self._state_manager.set_metadata("validation_count", validation_count + 1)
         if cache_size > 0:
@@ -290,13 +287,16 @@ class StructureValidator(BaseValidator[str]):
         Returns:
             List of section names
         """
-        sections = []
-        for line in text.split("\n") if text else "":
-            line = line.strip() if line else ""
-            if line.startswith("#") if line else "":
-                section_name = line.lstrip("#") if line else "".strip().lower()
+        sections: List[str] = []
+        if not text:
+            return sections
+
+        for line in text.split("\n"):
+            line = line.strip()
+            if line and line.startswith("#"):
+                section_name = line.lstrip("#").strip().lower()
                 if section_name:
-                    sections.append(section_name) if sections else ""
+                    sections.append(section_name)
         return sections
 
 
@@ -383,21 +383,24 @@ class StructureRule(Rule[str]):
             A configured StructureValidator
         """
         params = self.config.params
-        config = StructureConfig(
-            required_sections=params.get("required_sections", []) if params else "",
-            min_sections=params.get("min_sections", 1) if params else "",
-            max_sections=params.get("max_sections", None) if params else "",
-            cache_size=self.config.cache_size,
-        )
+        if not params:
+            config = StructureConfig(cache_size=self.config.cache_size)
+        else:
+            config = StructureConfig(
+                required_sections=params.get("required_sections", []),
+                min_sections=params.get("min_sections", 1),
+                max_sections=params.get("max_sections", None),
+                cache_size=self.config.cache_size,
+            )
         self._state_manager.update("validator_config", config)
         return StructureValidator(config=config)
 
 
 def create_structure_validator(
-    required_sections: Optional[Optional[List[str]]] = None,
+    required_sections: Optional[List[str]] = None,
     min_sections: int = 1,
-    max_sections: Optional[Optional[int]] = None,
-    **kwargs: Any,
+    max_sections: Optional[int] = None,
+    **kwargs: Dict[str, Any],
 ) -> StructureValidator:
     """
     Create a structure validator.
@@ -430,29 +433,33 @@ def create_structure_validator(
         ```
     """
     try:
-        config_params = {}
+        config_params: Dict[str, Any] = {}
         if required_sections is not None:
             config_params["required_sections"] = required_sections
         if min_sections is not None:
             config_params["min_sections"] = min_sections
         if max_sections is not None:
             config_params["max_sections"] = max_sections
-        config_params.update(kwargs)
+        # Only update with kwargs that match StructureConfig fields
+        valid_keys = ["required_sections", "min_sections", "max_sections", "cache_size"]
+        for key, value in kwargs.items():
+            if key in valid_keys:
+                config_params[key] = value
         config = StructureConfig(**config_params)
         return StructureValidator(config=config)
     except Exception as e:
-        logger.error(f"Error creating structure validator: {e}") if logger else ""
+        logger.error(f"Error creating structure validator: {e}")
         raise ValueError(f"Error creating structure validator: {str(e)}")
 
 
 def create_structure_rule(
     name: str = "structure",
     description: str = "Validates text structure",
-    required_sections: Optional[Optional[List[str]]] = None,
+    required_sections: Optional[List[str]] = None,
     min_sections: int = 1,
-    max_sections: Optional[Optional[int]] = None,
-    rule_id: Optional[Optional[str]] = None,
-    **kwargs: Any,
+    max_sections: Optional[int] = None,
+    rule_id: Optional[str] = None,
+    **kwargs: Dict[str, Any],
 ) -> StructureRule:
     """
     Create a structure rule.
@@ -511,7 +518,7 @@ def create_structure_rule(
             min_sections=min_sections,
             max_sections=max_sections,
         )
-        params = {}
+        params: Dict[str, Any] = {}
         if required_sections is not None:
             params["required_sections"] = required_sections
         if min_sections is not None:
@@ -519,21 +526,45 @@ def create_structure_rule(
         if max_sections is not None:
             params["max_sections"] = max_sections
         rule_name = name or rule_id or "structure"
-        config_kwargs = {k: v for k, v in kwargs.items() if k not in ["params"]}
-        if "params" in kwargs:
-            params.update(kwargs["params"])
+
+        # Filter kwargs to only include valid RuleConfig parameters
+        valid_config_keys = ["severity", "category", "tags", "priority", "cache_size"]
+        config_kwargs: Dict[str, Any] = {}
+
+        for k, v in kwargs.items():
+            if k in valid_config_keys and k != "params":
+                config_kwargs[k] = v
+
+        if "params" in kwargs and isinstance(kwargs["params"], dict):
+            # Only update with valid parameter keys
+            valid_param_keys = ["required_sections", "min_sections", "max_sections"]
+            for key, value in kwargs["params"].items():
+                if key in valid_param_keys:
+                    params[key] = value
+
         config = RuleConfig(
             name=rule_name,
             description=description,
             rule_id=rule_id or rule_name,
             params=params,
-            **config_kwargs,
         )
+
+        # Apply config kwargs separately to avoid type errors
+        if "severity" in config_kwargs:
+            config.severity = config_kwargs["severity"]
+        if "category" in config_kwargs:
+            config.category = config_kwargs["category"]
+        if "tags" in config_kwargs:
+            config.tags = config_kwargs["tags"]
+        if "priority" in config_kwargs:
+            config.priority = config_kwargs["priority"]
+        if "cache_size" in config_kwargs:
+            config.cache_size = config_kwargs["cache_size"]
         return StructureRule(
             name=rule_name, description=description, config=config, validator=validator
         )
     except Exception as e:
-        logger.error(f"Error creating structure rule: {e}") if logger else ""
+        logger.error(f"Error creating structure rule: {e}")
         raise ValueError(f"Error creating structure rule: {str(e)}")
 
 
