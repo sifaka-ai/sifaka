@@ -20,26 +20,22 @@ that don't meet validation criteria.
 ## Usage Examples
 ```python
 from sifaka.chain.managers.retry import RetryManager
-from sifaka.utils.state import StateManager
 from sifaka.core.results import ChainResult
 
 # Create retry manager
-retry_manager = RetryManager(
-    state_manager=StateManager(),
-    max_attempts=3
-)
+retry_manager = RetryManager(max_attempts=3)
 
 # Define functions for the retry flow
 def generate():
-    return model.generate(prompt) if model else ""
+    return model.generate(prompt)
 
-def validate(output: Any) -> None:
-    return [validator.validate(output) if validator else "" for validator in validators)
+def validate(output):
+    return [validator.validate(output) for validator in validators]
 
-def improve(output: Any, results: Any) -> None:
-    return improver.improve(output, results) if improver else "" if improver else output
+def improve(output, results):
+    return improver.improve(output, results)
 
-def create_result(prompt: Any, output: Any, results: Any, attempt: Any) -> None:
+def create_result(prompt, output, results, attempt):
     return ChainResult(
         prompt=prompt,
         output=output,
@@ -54,10 +50,10 @@ result = retry_manager.execute_with_retries(
     improve_func=improve,
     prompt=prompt,
     create_result_func=create_result
-) if retry_manager else ""
+)
 
 # Get retry statistics
-stats = retry_manager.get_retry_stats() if retry_manager else ""
+stats = retry_manager.get_retry_stats()
 print(f"Attempts: {stats['current_attempt']}/{stats['max_attempts']}")
 print(f"All validations passed: {stats['all_passed']}")
 ```
@@ -73,9 +69,10 @@ The retry manager can be configured with the following options:
 - max_attempts: Maximum number of retry attempts (default: 3)
 """
 
-from typing import Callable, List, Optional, Any, Union
+from typing import Callable, Dict, List, Optional, Any, Union
 import time
-from ...utils.state import StateManager
+from pydantic import PrivateAttr
+from ...utils.state import StateManager, create_manager_state
 from ...utils.logging import get_logger
 from ...utils.errors import ChainError
 from sifaka.interfaces.chain.models import ValidationResult
@@ -116,32 +113,32 @@ class RetryManager:
     ## Examples
     ```python
     # Create retry manager
-    retry_manager = RetryManager(
-        state_manager=StateManager(),
-        max_attempts=3
-    )
+    retry_manager = RetryManager(max_attempts=3)
 
     # Execute with retries
     result = retry_manager.execute_with_retries(
-        generate_func=lambda: model.generate(prompt) if model else "" if retry_manager else "",
-        validate_func=lambda output: [validator.validate(output) if validator else "" for validator in validators),
-        improve_func=lambda output, results: improver.improve(output, results) if improver else "",
+        generate_func=lambda: model.generate(prompt),
+        validate_func=lambda output: [validator.validate(output) for validator in validators],
+        improve_func=lambda output, results: improver.improve(output, results),
         prompt=prompt,
         create_result_func=create_result
     )
     ```
     """
 
-    def __init__(self, state_manager: StateManager, max_attempts: int = 3) -> None:
+    _state_manager: StateManager = PrivateAttr(default_factory=create_manager_state)
+
+    def __init__(self, max_attempts: int = 3, state_manager: Optional[StateManager] = None) -> None:
         """
         Initialize the retry manager.
 
-        This method initializes the retry manager with the provided state manager
-        and configuration options. It sets up the initial state and metadata.
+        This method initializes the retry manager with the provided configuration
+        options. It sets up the initial state and metadata.
 
         Args:
-            state_manager (StateManager): State manager for state management
             max_attempts (int, optional): Maximum number of retry attempts. Defaults to 3.
+            state_manager (Optional[StateManager], optional): State manager for state management.
+                If None, a new state manager will be created. Defaults to None.
 
         Raises:
             None: This method does not raise exceptions
@@ -149,23 +146,31 @@ class RetryManager:
         Example:
             ```python
             from sifaka.chain.managers.retry import RetryManager
-            from sifaka.utils.state import StateManager
 
             # Create retry manager
-            retry_manager = RetryManager(
-                state_manager=StateManager(),
-                max_attempts=3
-            )
+            retry_manager = RetryManager(max_attempts=3)
             ```
         """
-        self._state_manager = state_manager
         self._max_attempts = max_attempts
+
+        # Support both dependency injection and auto-creation patterns
+        if state_manager is not None:
+            object.__setattr__(self, "_state_manager", state_manager)
+
+        self._initialize_state()
+
+    def _initialize_state(self) -> None:
+        """Initialize the retry manager state."""
+        # Call super to ensure proper initialization of base state
+        super()._initialize_state()
+
+        self._state_manager.update("initialized", True)
         self._state_manager.set_metadata("component_type", "retry_manager")
         self._state_manager.set_metadata("creation_time", time.time())
-        self._state_manager.set_metadata("max_attempts", max_attempts)
+        self._state_manager.set_metadata("max_attempts", self._max_attempts)
 
     @property
-    def max_attempts(self) -> Any:
+    def max_attempts(self) -> int:
         """
         Get the maximum number of retry attempts.
 
@@ -217,9 +222,9 @@ class RetryManager:
         Example:
             ```python
             result = retry_manager.execute_with_retries(
-                generate_func=lambda: model.generate(prompt) if model else "" if retry_manager else "",
-                validate_func=lambda output: [validator.validate(output) if validator else "" for validator in validators),
-                improve_func=lambda output, results: improver.improve(output, results) if improver else "",
+                generate_func=lambda: model.generate(prompt),
+                validate_func=lambda output: [validator.validate(output) for validator in validators],
+                improve_func=lambda output, results: improver.improve(output, results),
                 prompt=prompt,
                 create_result_func=lambda p, o, r, a: ChainResult(
                     prompt=p, output=o, validation_results=r, attempt_count=a
@@ -246,7 +251,7 @@ class RetryManager:
                 return create_result_func(prompt, output, validation_results, attempt)
         raise ChainError(f"Execution failed after {self._max_attempts} attempts")
 
-    def get_retry_stats(self) -> Any:
+    def get_retry_stats(self) -> Dict[str, Any]:
         """
         Get retry statistics.
 
@@ -255,14 +260,14 @@ class RetryManager:
         and whether all validations passed.
 
         Returns:
-            dict: Dictionary with retry statistics including:
+            Dict[str, Any]: Dictionary with retry statistics including:
                 - max_attempts: Maximum number of retry attempts
                 - current_attempt: Current attempt number
                 - all_passed: Whether all validations passed
 
         Example:
             ```python
-            stats = retry_manager.get_retry_stats() if retry_manager else ""
+            stats = retry_manager.get_retry_stats()
             print(f"Attempts: {stats['current_attempt']}/{stats['max_attempts']}")
             print(f"All validations passed: {stats['all_passed']}")
             ```

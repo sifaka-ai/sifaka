@@ -34,7 +34,6 @@ retriever = create_retriever(
 
 from typing import Any, Dict, Optional, Type, TypeVar, cast
 from sifaka.core.base import BaseComponent
-from sifaka.utils.state import StateManager
 
 T = TypeVar("T", bound=BaseComponent)
 

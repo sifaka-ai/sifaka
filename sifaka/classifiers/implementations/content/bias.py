@@ -111,7 +111,7 @@ from sifaka.classifiers.classifier import Classifier
 from sifaka.core.results import ClassificationResult
 from sifaka.utils.config.classifiers import ClassifierConfig
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import StateManager
+from sifaka.utils.state import StateManager, create_classifier_state
 
 logger = get_logger(__name__)
 
@@ -227,7 +227,7 @@ class BiasDetector(Classifier):
     DEFAULT_COST: ClassVar[float] = 2.5
 
     # State management
-    _state_manager: StateManager = PrivateAttr(default_factory=StateManager)
+    _state_manager: StateManager = PrivateAttr(default_factory=create_classifier_state)
 
     # Default keywords for each bias category to enhance detection
     DEFAULT_BIAS_KEYWORDS: ClassVar[Dict[str, List[str]]] = {
@@ -308,6 +308,16 @@ class BiasDetector(Classifier):
         super().__init__(
             implementation=implementation, name=name, description=description, config=config
         )
+
+        # Initialize the specific bias detector state
+        self._initialize_bias_state()
+
+    def _initialize_bias_state(self) -> None:
+        """Initialize bias detector specific state."""
+        # Ensure our state has the necessary fields for bias detection
+        self._state_manager.update("bias_features", {})
+        self._state_manager.update("bias_explanations", {})
+        self._state_manager.set_metadata("model_type", "bias_detector")
 
     def _load_dependencies(self) -> Dict[str, Any]:
         """

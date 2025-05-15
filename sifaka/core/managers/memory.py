@@ -71,8 +71,13 @@ import time
 from pydantic import Field, ConfigDict, PrivateAttr
 
 from sifaka.core.base import BaseComponent, BaseConfig, BaseResult
-from sifaka.utils.state import StateManager
+from sifaka.utils.state import StateManager, create_memory_manager_state
 from sifaka.utils.logging import get_logger
+from sifaka.utils.config.base import ConfigDict
+from sifaka.utils.errors.component import RetrievalError
+from sifaka.utils.errors.common import ValidationError
+from sifaka.utils.common import record_error
+from sifaka.utils.errors.safe_execution import safely_execute_operation
 
 logger = get_logger(__name__)
 
@@ -741,7 +746,7 @@ class BufferMemoryManager:
         buffer_size = max(1, buffer_size)
 
         # Initialize state manager
-        self._state_manager = StateManager()
+        self._state_manager = create_memory_manager_state()
 
         # Initialize state
         self._state_manager.update("buffer_size", buffer_size)

@@ -74,7 +74,7 @@ from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 from sifaka.utils.common import update_statistics, record_error
 from sifaka.utils.errors.base import InitializationError
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import StateManager
+from sifaka.utils.state import StateManager, create_state_manager, ComponentState
 from sifaka.utils.result_types import BaseResult
 
 logger = get_logger(__name__)
@@ -239,12 +239,14 @@ class BaseComponent(ABC, Generic[T, R]):
         """Initialize the component."""
         self._name = name
         self._description = description
-        object.__setattr__(self, "_state_manager", StateManager())
+        object.__setattr__(self, "_state_manager", create_state_manager())
         self._initialize_state()
         self._config = config or BaseConfig(name=name, description=description, **kwargs)
 
     def _initialize_state(self) -> None:
         """Initialize component state."""
+        # This is the base implementation of _initialize_state in BaseComponent
+        # There is no super() to call since this is the root implementation for components
         self._state_manager.update("initialized", False)
         self._state_manager.update("cache", {})
         self._state_manager.set_metadata("component_type", self.__class__.__name__)

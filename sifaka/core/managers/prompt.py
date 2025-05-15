@@ -79,7 +79,7 @@ import time
 from pydantic import Field, ConfigDict, PrivateAttr
 
 from sifaka.core.base import BaseComponent, BaseConfig, BaseResult
-from sifaka.utils.state import StateManager
+from sifaka.utils.state import StateManager, create_prompt_manager_state
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -588,7 +588,7 @@ class DefaultPromptManager(CriticPromptManager):
     def __init__(self, config: Optional[Any] = None) -> None:
         """Initialize the prompt manager."""
         self.config = config
-        self._state_manager = StateManager()
+        self._state_manager = create_prompt_manager_state()
         if self._state_manager:
             self._state_manager.update("initialized", True)
 

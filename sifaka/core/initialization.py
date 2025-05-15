@@ -71,7 +71,7 @@ from typing import Any, Dict, Optional, Protocol, Type, TypeVar, runtime_checkab
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 from sifaka.utils.errors.base import InitializationError, CleanupError
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import StateManager
+from sifaka.utils.state import StateManager, create_state_manager, ComponentState
 from sifaka.utils.resources import ResourceManager
 
 logger = get_logger(__name__)
@@ -397,7 +397,11 @@ class InitializableMixin:
 
     def _initialize_state(self) -> None:
         """Initialize component state."""
-        self._state_manager = StateManager()
+        # This is the base implementation of _initialize_state
+        # There is no super() to call since this is the root implementation
+        from sifaka.utils.state import create_state_manager, ComponentState
+
+        self._state_manager = create_state_manager(ComponentState)
         if self._state_manager:
             self._state_manager.update("initialized", False)
         if self._state_manager:

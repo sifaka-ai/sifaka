@@ -17,31 +17,29 @@ results, with configurable cache size and enabling/disabling options.
 ## Usage Examples
 ```python
 from sifaka.chain.managers.cache import CacheManager
-from sifaka.utils.state import StateManager
 
 # Create cache manager
 cache_manager = CacheManager(
-    state_manager=StateManager(),
     cache_enabled=True,
     cache_size=100
 )
 
 # Check if result is in cache
-if cache_manager.has_cached_result(prompt) if cache_manager else "":
-    result = cache_manager.get_cached_result(prompt) if cache_manager else ""
+if cache_manager.has_cached_result(prompt):
+    result = cache_manager.get_cached_result(prompt)
     print(f"Cache hit: {result.output}")
 else:
     # Generate result and cache it
     result = generate_result(prompt)
-    cache_manager.cache_result(prompt, result) if cache_manager else ""
+    cache_manager.cache_result(prompt, result)
 
 # Get cache statistics
-stats = cache_manager.get_cache_stats() if cache_manager else ""
+stats = cache_manager.get_cache_stats()
 print(f"Cache hits: {stats['cache_hits']}")
 print(f"Cache entries: {stats['cache_entries']}")
 
 # Clear cache when needed
-cache_manager.clear_cache() if cache_manager else ""
+cache_manager.clear_cache()
 ```
 
 ## Error Handling
@@ -58,7 +56,8 @@ The cache manager can be configured with the following options:
 
 from typing import Dict, Optional, Any
 import time
-from ...utils.state import StateManager
+from pydantic import PrivateAttr
+from ...utils.state import StateManager, create_manager_state
 from ...utils.logging import get_logger
 from ...core.results import ChainResult
 
@@ -94,33 +93,38 @@ class CacheManager:
     ```python
     # Create cache manager
     cache_manager = CacheManager(
-        state_manager=StateManager(),
         cache_enabled=True,
         cache_size=100
     )
 
     # Use cache for results
-    if cache_manager.has_cached_result(prompt) if cache_manager else "":
-        result = cache_manager.get_cached_result(prompt) if cache_manager else ""
+    if cache_manager.has_cached_result(prompt):
+        result = cache_manager.get_cached_result(prompt)
     else:
         result = generate_result(prompt)
-        cache_manager.cache_result(prompt, result) if cache_manager else ""
+        cache_manager.cache_result(prompt, result)
     ```
     """
 
+    _state_manager: StateManager = PrivateAttr(default_factory=create_manager_state)
+
     def __init__(
-        self, state_manager: StateManager, cache_enabled: bool = True, cache_size: int = 100
+        self,
+        cache_enabled: bool = True,
+        cache_size: int = 100,
+        state_manager: Optional[StateManager] = None,
     ):
         """
         Initialize the cache manager.
 
-        This method initializes the cache manager with the provided state manager
-        and configuration options. It sets up the initial cache state and metadata.
+        This method initializes the cache manager with the provided configuration
+        options. It sets up the initial cache state and metadata.
 
         Args:
-            state_manager (StateManager): State manager for state management
             cache_enabled (bool, optional): Whether caching is enabled. Defaults to True.
             cache_size (int, optional): Maximum number of cached results. Defaults to 100.
+            state_manager (Optional[StateManager], optional): State manager for state management.
+                If None, a new state manager will be created. Defaults to None.
 
         Raises:
             None: This method does not raise exceptions
@@ -128,28 +132,39 @@ class CacheManager:
         Example:
             ```python
             from sifaka.chain.managers.cache import CacheManager
-            from sifaka.utils.state import StateManager
 
             # Create cache manager
             cache_manager = CacheManager(
-                state_manager=StateManager(),
                 cache_enabled=True,
                 cache_size=100
             )
             ```
         """
-        self._state_manager = state_manager
         self._cache_enabled = cache_enabled
         self._cache_size = cache_size
+
+        # Support both dependency injection and auto-creation patterns
+        if state_manager is not None:
+            object.__setattr__(self, "_state_manager", state_manager)
+
+        self._initialize_state()
+
+    def _initialize_state(self) -> None:
+        """Initialize the cache manager state."""
+        # Call super to ensure proper initialization of base state
+        super()._initialize_state()
+
         if not self._state_manager.get("result_cache"):
             self._state_manager.update("result_cache", {})
+
+        self._state_manager.update("initialized", True)
         self._state_manager.set_metadata("component_type", "cache_manager")
         self._state_manager.set_metadata("creation_time", time.time())
-        self._state_manager.set_metadata("cache_enabled", cache_enabled)
-        self._state_manager.set_metadata("cache_size", cache_size)
+        self._state_manager.set_metadata("cache_enabled", self._cache_enabled)
+        self._state_manager.set_metadata("cache_size", self._cache_size)
 
     @property
-    def cache_enabled(self) -> Any:
+    def cache_enabled(self) -> bool:
         """
         Get whether caching is enabled.
 
@@ -165,7 +180,7 @@ class CacheManager:
         return self._cache_enabled
 
     @property
-    def cache_size(self) -> Any:
+    def cache_size(self) -> int:
         """
         Get the maximum cache size.
 
@@ -179,7 +194,7 @@ class CacheManager:
         """
         return self._cache_size
 
-    def has_cached_result(self, prompt: str) -> Any:
+    def has_cached_result(self, prompt: str) -> bool:
         """
         Check if a result is cached for the given prompt.
 
@@ -194,8 +209,8 @@ class CacheManager:
 
         Example:
             ```python
-            if cache_manager.has_cached_result(prompt) if cache_manager else "":
-                result = cache_manager.get_cached_result(prompt) if cache_manager else ""
+            if cache_manager.has_cached_result(prompt):
+                result = cache_manager.get_cached_result(prompt)
             else:
                 result = generate_result(prompt)
             ```
@@ -205,7 +220,7 @@ class CacheManager:
         cache = self._state_manager.get("result_cache", {})
         return prompt in cache
 
-    def get_cached_result(self, prompt: str) -> Any:
+    def get_cached_result(self, prompt: str) -> Optional[ChainResult]:
         """
         Get a cached result for the given prompt.
 
@@ -224,7 +239,7 @@ class CacheManager:
 
         Example:
             ```python
-            result = cache_manager.get_cached_result(prompt) if cache_manager else ""
+            result = cache_manager.get_cached_result(prompt)
             if result:
                 print(f"Using cached result: {result.output}")
             else:
@@ -260,7 +275,7 @@ class CacheManager:
         Example:
             ```python
             result = generate_result(prompt)
-            cache_manager.cache_result(prompt, result) if cache_manager else ""
+            cache_manager.cache_result(prompt, result)
             ```
         """
         if not self._cache_enabled:
@@ -287,13 +302,13 @@ class CacheManager:
         Example:
             ```python
             # Clear the cache when needed
-            cache_manager.clear_cache() if cache_manager else ""
+            cache_manager.clear_cache()
             ```
         """
         self._state_manager.update("result_cache", {})
         logger.debug("Cache cleared")
 
-    def get_cache_stats(self) -> Any:
+    def get_cache_stats(self) -> Dict[str, Any]:
         """
         Get cache statistics.
 
@@ -311,10 +326,10 @@ class CacheManager:
 
         Example:
             ```python
-            stats = cache_manager.get_cache_stats() if cache_manager else ""
+            stats = cache_manager.get_cache_stats()
             print(f"Cache hits: {stats['cache_hits']}")
             print(f"Cache entries: {stats['cache_entries']}")
-            print(f"Cache hit rate: {stats['cache_hits'] / (stats['cache_hits'] + stats['cache_misses']):.2f)")
+            print(f"Cache hit rate: {stats['cache_hits'] / (stats['cache_hits'] + stats['cache_misses']):.2f}")
             ```
         """
         cache = self._state_manager.get("result_cache", {})

@@ -347,6 +347,92 @@ class AdapterState(ComponentState):
     cache: Dict[str, Any] = Field(default_factory=dict)
 
 
+class RetrieverState(ComponentState):
+    """
+    State for retriever components.
+
+    This class defines the state attributes specific to retriever components,
+    including query processors, result caches, and retrieval statistics.
+
+    ## Architecture
+    RetrieverState extends ComponentState with retriever-specific attributes
+    for tracking query processing, caching, and performance metrics.
+
+    ## Lifecycle
+    RetrieverState objects are typically created by the create_retriever_state
+    factory function and used to initialize a StateManager for retriever components.
+
+    Attributes:
+        query_processor (Optional[Any]): The query processor instance
+        result_cache (Dict[str, Any]): Cache for retrieval results
+        last_query (Optional[str]): The most recent query processed
+        last_result (Optional[Any]): The most recent retrieval result
+        execution_count (int): Number of retrieval operations performed
+    """
+
+    query_processor: Optional[Any] = None
+    result_cache: Dict[str, Any] = Field(default_factory=dict)
+    last_query: Optional[str] = None
+    last_result: Optional[Any] = None
+    execution_count: int = 0
+
+
+class ModelProviderState(ComponentState):
+    """
+    State for model provider components.
+
+    This class defines the state attributes specific to model provider components,
+    including client information, token counters, and provider statistics.
+
+    ## Architecture
+    ModelProviderState extends ComponentState with provider-specific attributes
+    for tracking API clients, token counters, and generation statistics.
+
+    ## Lifecycle
+    ModelProviderState objects are typically created by the create_model_provider_state
+    factory function and used to initialize a StateManager for model provider components.
+
+    Attributes:
+        model_name (str): The name of the model being used
+        config (Optional[Any]): The model configuration
+        api_client (Optional[Any]): The API client instance
+        token_counter (Optional[Any]): The token counter instance
+        tracer (Optional[Any]): The tracer instance
+        cache (Dict[str, Any]): Cache for generation results
+    """
+
+    model_name: str = ""
+    config: Optional[Any] = None
+    api_client: Optional[Any] = None
+    token_counter: Optional[Any] = None
+    tracer: Optional[Any] = None
+    cache: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ManagerState(ComponentState):
+    """
+    State for manager components.
+
+    This class defines the state attributes specific to manager components,
+    such as prompt managers, response managers, and memory managers.
+
+    ## Architecture
+    ManagerState extends ComponentState with manager-specific attributes
+    for tracking managed resources, caches, and operation statistics.
+
+    ## Lifecycle
+    ManagerState objects are typically created by manager-specific factory
+    functions and used to initialize a StateManager for manager components.
+
+    Attributes:
+        resources (List[Any]): Managed resources
+        cache (Dict[str, Any]): Cache for manager operations
+    """
+
+    resources: List[Any] = Field(default_factory=list)
+    cache: Dict[str, Any] = Field(default_factory=dict)
+
+
 def create_state_manager(state_class: Type[T], **kwargs: Any) -> StateManager:
     """
     Create a state manager for a specific state class.
@@ -367,6 +453,9 @@ def create_state_manager(state_class: Type[T], **kwargs: Any) -> StateManager:
         manager = create_state_manager(RuleState, initialized=True, validator=my_validator)
         ```
     """
+    # VALID_DIRECT_INSTANTIATION: This is the base factory function that all other factory
+    # functions build upon. Direct instantiation is acceptable here as this is the root
+    # of the factory function hierarchy.
     manager = StateManager()
     state = state_class(**kwargs)
     for key, value in state.model_dump().items():
@@ -400,6 +489,31 @@ def create_classifier_state(**kwargs: Any) -> StateManager:
     return create_state_manager(ClassifierState, **kwargs)
 
 
+def create_classifier_engine_state(**kwargs: Any) -> StateManager:
+    """
+    Create a state manager for a classifier engine component.
+
+    This function creates a StateManager specialized for classifier engines
+    with appropriate defaults.
+
+    Args:
+        **kwargs (Any): Initial values for classifier engine state attributes
+
+    Returns:
+        StateManager: A new state manager for classifier engines
+
+    Example:
+        ```python
+        # Create a classifier engine state manager
+        manager = create_classifier_engine_state(
+            initialized=True,
+            cache={}
+        )
+        ```
+    """
+    return create_manager_state(**kwargs)
+
+
 def create_rule_state(**kwargs: Any) -> StateManager:
     """Create a state manager for a rule."""
     return create_state_manager(RuleState, **kwargs)
@@ -423,3 +537,152 @@ def create_chain_state(**kwargs: Any) -> StateManager:
 def create_adapter_state(**kwargs: Any) -> StateManager:
     """Create a state manager for an adapter."""
     return create_state_manager(AdapterState, **kwargs)
+
+
+def create_retriever_state(**kwargs: Any) -> StateManager:
+    """
+    Create a state manager for a retriever component.
+
+    This function creates a StateManager initialized with RetrieverState
+    and optional initial values.
+
+    Args:
+        **kwargs (Any): Initial values for retriever state attributes
+
+    Returns:
+        StateManager: A new state manager initialized with RetrieverState
+
+    Example:
+        ```python
+        # Create a retriever state manager
+        manager = create_retriever_state(
+            query_processor=my_processor,
+            initialized=True
+        )
+        ```
+    """
+    return create_state_manager(RetrieverState, **kwargs)
+
+
+def create_manager_state(**kwargs: Any) -> StateManager:
+    """
+    Create a state manager for a manager component.
+
+    This function creates a StateManager initialized with ManagerState
+    and optional initial values.
+
+    Args:
+        **kwargs (Any): Initial values for manager state attributes
+
+    Returns:
+        StateManager: A new state manager initialized with ManagerState
+
+    Example:
+        ```python
+        # Create a manager state manager
+        manager = create_manager_state(
+            resources=[prompt1, prompt2],
+            initialized=True
+        )
+        ```
+    """
+    return create_state_manager(ManagerState, **kwargs)
+
+
+def create_engine_state(**kwargs: Any) -> StateManager:
+    """
+    Create a state manager for an engine component.
+
+    This function creates a StateManager specialized for engine components
+    with appropriate defaults.
+
+    Args:
+        **kwargs (Any): Initial values for engine state attributes
+
+    Returns:
+        StateManager: A new state manager for engine components
+
+    Example:
+        ```python
+        # Create an engine state manager
+        manager = create_engine_state(
+            initialized=True,
+            cache={}
+        )
+        ```
+    """
+    return create_manager_state(**kwargs)
+
+
+def create_response_manager_state(**kwargs: Any) -> StateManager:
+    """
+    Create a state manager for a response manager component.
+
+    This function creates a StateManager specialized for response managers
+    with appropriate defaults.
+
+    Args:
+        **kwargs (Any): Initial values for response manager state attributes
+
+    Returns:
+        StateManager: A new state manager for response managers
+    """
+    return create_manager_state(**kwargs)
+
+
+def create_prompt_manager_state(**kwargs: Any) -> StateManager:
+    """
+    Create a state manager for a prompt manager component.
+
+    This function creates a StateManager specialized for prompt managers
+    with appropriate defaults.
+
+    Args:
+        **kwargs (Any): Initial values for prompt manager state attributes
+
+    Returns:
+        StateManager: A new state manager for prompt managers
+    """
+    return create_manager_state(**kwargs)
+
+
+def create_memory_manager_state(**kwargs: Any) -> StateManager:
+    """
+    Create a state manager for a memory manager component.
+
+    This function creates a StateManager specialized for memory managers
+    with appropriate defaults.
+
+    Args:
+        **kwargs (Any): Initial values for memory manager state attributes
+
+    Returns:
+        StateManager: A new state manager for memory managers
+    """
+    return create_manager_state(**kwargs)
+
+
+def create_model_provider_state(**kwargs: Any) -> StateManager:
+    """
+    Create a state manager for a model provider component.
+
+    This function creates a StateManager initialized with ModelProviderState
+    and optional initial values.
+
+    Args:
+        **kwargs (Any): Initial values for model provider state attributes
+
+    Returns:
+        StateManager: A new state manager initialized with ModelProviderState
+
+    Example:
+        ```python
+        # Create a model provider state manager
+        manager = create_model_provider_state(
+            model_name="gpt-4",
+            config=my_config,
+            initialized=True
+        )
+        ```
+    """
+    return create_state_manager(ModelProviderState, **kwargs)

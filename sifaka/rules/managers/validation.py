@@ -34,7 +34,7 @@ from typing import Any, Dict, List, Optional, Type, Union
 
 from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
 from sifaka.rules.base import Rule as BaseRule, RuleConfig, RuleResult
-from sifaka.utils.state import StateManager
+from sifaka.utils.state import StateManager, create_manager_state
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -151,7 +151,7 @@ class ValidationManager:
     """
 
     # Add state manager
-    _state_manager = PrivateAttr(default_factory=StateManager)
+    _state_manager = PrivateAttr(default_factory=create_manager_state)
 
     def __init__(
         self,
@@ -186,6 +186,16 @@ class ValidationManager:
         self.config = config or ValidationConfig()
 
         # Initialize state
+        self._initialize_state()
+
+        logger.debug(f"Initialized ValidationManager with {len(self.rules)} rules")
+
+    def _initialize_state(self) -> None:
+        """Initialize the validation manager's state."""
+        # Call super to ensure proper initialization of base state
+        if hasattr(super(), "_initialize_state"):
+            super()._initialize_state()
+
         self._state_manager.update("initialized", True)
         self._state_manager.update("rules", self.rules)
         self._state_manager.update("config", self.config)
@@ -201,8 +211,6 @@ class ValidationManager:
         self._state_manager.set_metadata("failing_rules", {})
         self._state_manager.set_metadata("avg_execution_time", 0)
         self._state_manager.set_metadata("max_execution_time", 0)
-
-        logger.debug(f"Initialized ValidationManager with {len(self.rules)} rules")
 
     def validate(self, text: str, **kwargs: Any) -> List[RuleResult]:
         """

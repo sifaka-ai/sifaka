@@ -23,13 +23,9 @@ final result.
 ```python
 from sifaka.chain.engine import Engine
 from sifaka.chain.config import EngineConfig
-from sifaka.utils.state import StateManager
 
 # Create engine
-engine = Engine(
-    state_manager=StateManager(),
-    config=EngineConfig(max_attempts=3)
-)
+engine = Engine(config=EngineConfig(max_attempts=3))
 
 # Run engine
 result = engine.run(
@@ -38,7 +34,7 @@ result = engine.run(
     validators=validators,
     improver=improver,
     formatter=formatter
-) if engine else ""
+)
 
 # Access result
 print(f"Output: {result.output}")
@@ -70,7 +66,7 @@ from pydantic import BaseModel, PrivateAttr
 from sifaka.interfaces.chain.components import Model, Validator, Improver
 from sifaka.interfaces.chain.components.formatter import ChainFormatter as Formatter
 from sifaka.interfaces.chain.models import ValidationResult
-from ..utils.state import StateManager
+from ..utils.state import StateManager, create_engine_state
 from ..utils.logging import get_logger
 from ..core.results import ChainResult
 from ..utils.config import EngineConfig
@@ -112,10 +108,7 @@ class Engine(BaseModel):
     ## Examples
     ```python
     # Create engine
-    engine = Engine(
-        state_manager=StateManager(),
-        config=EngineConfig(max_attempts=3)
-    )
+    engine = Engine(config=EngineConfig(max_attempts=3))
 
     # Run engine
     result = engine.run(
@@ -124,36 +117,49 @@ class Engine(BaseModel):
         validators=validators,
         improver=improver,
         formatter=formatter
-    ) if engine else ""
+    )
     ```
 
     Attributes:
         config (EngineConfig): Engine configuration
     """
 
-    _state_manager: StateManager = PrivateAttr()
+    _state_manager: StateManager = PrivateAttr(default_factory=create_engine_state)
     config: EngineConfig = EngineConfig()
     _cache_manager: CacheManager = PrivateAttr()
     _retry_manager: RetryManager = PrivateAttr()
 
-    def __init__(self, state_manager: StateManager, config: Optional[EngineConfig] = None) -> None:
+    def __init__(
+        self, config: Optional[EngineConfig] = None, state_manager: Optional[StateManager] = None
+    ) -> None:
         """
         Initialize the engine.
 
         Args:
-            state_manager: State manager for state management
             config: Engine configuration
+            state_manager: Optional state manager for state management. If None, a new one will be created.
         """
         super().__init__(config=config or EngineConfig())
-        self._state_manager = state_manager
+
+        # Support both dependency injection and auto-creation patterns
+        if state_manager is not None:
+            object.__setattr__(self, "_state_manager", state_manager)
+
+        self._initialize_state()
+
+        # Create managers
         self._cache_manager = CacheManager(
-            state_manager=state_manager,
             cache_enabled=self.config.params.get("cache_enabled", True),
             cache_size=self.config.params.get("cache_size", 100),
         )
-        self._retry_manager = RetryManager(
-            state_manager=state_manager, max_attempts=self.config.max_attempts
-        )
+
+        self._retry_manager = RetryManager(max_attempts=self.config.max_attempts)
+
+    def _initialize_state(self) -> None:
+        """Initialize the engine state."""
+        # Call super to ensure proper initialization of base state
+        super()._initialize_state()
+
         self._state_manager.update("config", self.config)
         self._state_manager.update("initialized", True)
         self._state_manager.update("execution_count", 0)

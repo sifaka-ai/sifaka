@@ -188,3 +188,87 @@ if self.config.track_performance:
 - [State Management Consistency Report](../../CON.md)
 - [BaseComponent Documentation](../../sifaka/core/base.py)
 - [StateManager Implementation](../../sifaka/utils/state.py)
+
+## Common State Management Issues and How to Fix Them
+
+### 1. Direct StateManager Instantiation
+
+❌ **Incorrect Approach:**
+```python
+self._state_manager = StateManager()
+```
+
+✅ **Correct Approach:**
+```python
+from sifaka.utils.state import create_component_state
+
+# For a component class
+self._state_manager = create_component_state()
+
+# Or with PrivateAttr
+_state_manager = PrivateAttr(default_factory=create_component_state)
+```
+
+### 2. Missing `super()._initialize_state()` Call
+
+❌ **Incorrect Approach:**
+```python
+def _initialize_state(self) -> None:
+    # Initialize component-specific state
+    self._state_manager.update("my_field", value)
+```
+
+✅ **Correct Approach:**
+```python
+def _initialize_state(self) -> None:
+    # Call parent first
+    super()._initialize_state()
+
+    # Then initialize component-specific state
+    self._state_manager.update("my_field", value)
+```
+
+### 3. Using `set()` Instead of `update()`
+
+❌ **Incorrect Approach:**
+```python
+self._state_manager.set("initialized", True)
+```
+
+✅ **Correct Approach:**
+```python
+self._state_manager.update("initialized", True)
+```
+
+### 4. Importing StateManager Without Factory Function
+
+❌ **Incorrect Approach:**
+```python
+from sifaka.utils.state import StateManager
+```
+
+✅ **Correct Approach:**
+```python
+from sifaka.utils.state import StateManager, create_component_state
+```
+
+## Running the State Management Linter
+
+We provide a linter to help catch common state management issues:
+
+```bash
+# Check the entire codebase
+python tools/linters/state_management_linter.py sifaka/
+
+# Check a specific file
+python tools/linters/state_management_linter.py sifaka/path/to/file.py
+```
+
+## Best Practices for State Management
+
+1. **Use Factory Functions:** Always use the appropriate `create_*_state()` factory function for your component type
+2. **Call `super()._initialize_state()`:** Always call the parent's implementation first in your `_initialize_state()` method
+3. **Use `update()` for State Data:** Use `update()` to modify state data and `set_metadata()` for metadata
+4. **Test State Management:** Write tests that verify your component properly handles state initialization and updates
+5. **Leverage PrivateAttr:** Use Pydantic's `PrivateAttr` with a factory function to ensure proper initialization
+6. **Keep State Minimal:** Only store essential data in state; avoid storing large objects that could be computed on-demand

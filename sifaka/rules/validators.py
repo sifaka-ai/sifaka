@@ -102,17 +102,15 @@ class BaseValidator(Generic[T]):
         self._initialize_state()
 
     def _initialize_state(self) -> None:
-        """Initialize validator state."""
-        self._state_manager.update("initialized", True)
-        self._state_manager.update("cache", {})
-        self._state_manager.set_metadata("validator_type", self.__class__.__name__)
-        self._state_manager.set_metadata("validation_count", 0)
-        self._state_manager.set_metadata("success_count", 0)
-        self._state_manager.set_metadata("failure_count", 0)
-        self._state_manager.set_metadata("total_processing_time_ms", 0.0)
-        self._state_manager.set_metadata("error_count", 0)
-        self._state_manager.set_metadata("last_error", None)
-        self._state_manager.set_metadata("last_error_time", None)
+        """Initialize component state."""
+        # Call super to ensure proper initialization of base state
+        super()._initialize_state()
+
+        # Initialize validator-specific state
+        self._state_manager.update("pattern", self.pattern)
+        self._state_manager.update("case_sensitive", self.case_sensitive)
+        self._state_manager.update("compiled_pattern", None)
+        self._state_manager.update("initialized", False)
 
     def can_validate(self, input: T) -> Any:
         """

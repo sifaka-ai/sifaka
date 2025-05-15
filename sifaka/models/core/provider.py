@@ -13,6 +13,7 @@ from sifaka.interfaces.model import ModelProviderProtocol
 from sifaka.utils.config.models import ModelConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.tracing import Tracer
+from sifaka.utils.state import create_model_provider_state
 from .initialization import initialize_resources, release_resources
 from .generation import process_input
 from .token_counting import count_tokens_impl
@@ -96,9 +97,8 @@ class ModelProviderCore(ModelProviderProtocol, Generic[C]):
             TypeError: If dependencies don't implement required protocols
         """
         import time
-        from sifaka.utils.state import StateManager
 
-        self._state_manager = StateManager()
+        self._state_manager = create_model_provider_state()
         self._state_manager.update("model_name", model_name)
         self._state_manager.update("config", config or self._create_default_config())
         self._state_manager.update("initialized", False)

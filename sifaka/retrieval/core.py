@@ -5,11 +5,12 @@ from sifaka.core.base import BaseComponent
 from sifaka.utils.errors.base import InputError
 from sifaka.utils.errors.component import RetrievalError
 from sifaka.core.results import RetrievalResult
-from sifaka.utils.state import StateManager
+from sifaka.utils.state import StateManager, create_retriever_state
 from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.common import record_error
 from sifaka.utils.errors.safe_execution import safely_execute_retrieval
 from .result import DocumentMetadata, RetrievedDocument
+from pydantic import PrivateAttr
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,9 @@ class RetrieverCore(BaseComponent):
         _state_manager: State manager for tracking retriever state
     """
 
+    # Use PrivateAttr with factory function for state management
+    _state_manager: StateManager = PrivateAttr(default_factory=create_retriever_state)
+
     def __init__(self, name: str = "base_retriever", query_processor: Any = None) -> None:
         """
         Initialize a new RetrieverCore.
@@ -37,8 +41,22 @@ class RetrieverCore(BaseComponent):
         """
         super().__init__(name=name, description=f"Retriever: {name}")
         self.query_processor = query_processor
-        self._state_manager = StateManager()
+
+        # Initialize state
+        self._initialize_state()
+
+    def _initialize_state(self) -> None:
+        """Initialize component state with standardized patterns."""
+        # Call parent initialization
+        super()._initialize_state()
+
+        # Initialize retriever-specific state
         self._state_manager.update("initialized", False)
+        self._state_manager.update("query_processor", self.query_processor)
+
+        # Set component metadata
+        self._state_manager.set_metadata("component_type", "retriever")
+        self._state_manager.set_metadata("creation_time", time.time())
 
     def initialize(self) -> None:
         """

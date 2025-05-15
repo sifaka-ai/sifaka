@@ -10,7 +10,7 @@ import time
 from pydantic import PrivateAttr
 from sifaka.core.base import BaseComponent
 from sifaka.models.core.provider import ModelProviderCore as BaseModelProvider, ModelConfig
-from sifaka.utils.state import StateManager
+from sifaka.utils.state import StateManager, create_manager_state
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -25,7 +25,7 @@ class Generator(BaseComponent):
     with support for caching, statistics tracking, and error handling.
     """
 
-    _state_manager = PrivateAttr(default_factory=StateManager)
+    _state_manager = PrivateAttr(default_factory=create_manager_state)
 
     def __init__(
         self,

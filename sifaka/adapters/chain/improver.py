@@ -67,6 +67,10 @@ class ImproverAdapter(Improver):
 
     def _initialize_state(self) -> None:
         """Initialize adapter state."""
+        # Call super to ensure proper initialization of base state
+        super()._initialize_state()
+
+        # Initialize adapter-specific state
         self._state_manager.update("adaptee", self._improver)
         self._state_manager.update("initialized", True)
         self._state_manager.update("cache", {})

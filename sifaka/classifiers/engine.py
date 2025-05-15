@@ -28,13 +28,9 @@ The engine follows a layered architecture:
 ```python
 from sifaka.classifiers.engine import Engine
 from sifaka.utils.config.classifiers import ClassifierConfig
-from sifaka.utils.state import StateManager
 
 # Create engine
-engine = Engine(
-    state_manager=StateManager(),
-    config=ClassifierConfig(cache_enabled=True, cache_size=100)
-)
+engine = Engine(config=ClassifierConfig(cache_enabled=True, cache_size=100))
 
 # Classify text
 result = engine.classify(
@@ -63,8 +59,9 @@ The Engine class supports configuration through the ClassifierConfig class:
 
 from typing import Any, Optional
 import time
+from pydantic import PrivateAttr
 from .interfaces import ClassifierImplementation
-from ..utils.state import StateManager
+from ..utils.state import StateManager, create_classifier_engine_state
 from ..utils.logging import get_logger
 from ..core.results import ClassificationResult
 from ..utils.config import ClassifierConfig
@@ -101,14 +98,11 @@ class Engine:
     # Create engine with configuration
     from sifaka.utils.config.classifiers import ClassifierConfig
 
-    engine = Engine(
-        state_manager=StateManager(),
-        config=ClassifierConfig(
-            cache_enabled=True,
-            cache_size=100,
-            min_confidence=0.7
-        )
-    )
+    engine = Engine(config=ClassifierConfig(
+        cache_enabled=True,
+        cache_size=100,
+        min_confidence=0.7
+    ))
 
     # Classify text
     result = engine.classify(
@@ -118,22 +112,38 @@ class Engine:
     ```
     """
 
+    _state_manager: StateManager = PrivateAttr(default_factory=create_classifier_engine_state)
+
     def __init__(
-        self, state_manager: StateManager, config: Optional[ClassifierConfig] = None
+        self,
+        config: Optional[ClassifierConfig] = None,
+        state_manager: Optional[StateManager] = None,
     ) -> None:
         """
         Initialize the engine.
 
-        This method sets up the engine with the provided state manager and configuration.
+        This method sets up the engine with the provided configuration.
         It initializes the internal state, including execution counters, result cache,
         and metadata.
 
         Args:
-            state_manager: State manager for tracking state and statistics
             config: Engine configuration with settings for caching, confidence thresholds, etc.
+            state_manager: Optional state manager for tracking state and statistics.
+                If None, a new state manager will be created.
         """
-        self._state_manager = state_manager
         self._config = config or ClassifierConfig()
+
+        # Support both dependency injection and auto-creation patterns
+        if state_manager is not None:
+            object.__setattr__(self, "_state_manager", state_manager)
+
+        self._initialize_state()
+
+    def _initialize_state(self) -> None:
+        """Initialize the engine state."""
+        # Call super to ensure proper initialization of base state
+        super()._initialize_state()
+
         self._state_manager.update("config", self._config)
         self._state_manager.update("initialized", True)
         self._state_manager.update("execution_count", 0)

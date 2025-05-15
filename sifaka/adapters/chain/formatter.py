@@ -70,13 +70,15 @@ class FormatterAdapter(Formatter):
 
     def _initialize_state(self) -> None:
         """Initialize adapter state."""
+        # Call super to ensure proper initialization of base state
+        super()._initialize_state()
+
+        # Initialize adapter-specific state
         self._state_manager.update("adaptee", self._formatter)
         self._state_manager.update("initialized", True)
         self._state_manager.update("cache", {})
         self._state_manager.set_metadata("component_type", "formatter_adapter")
-        self._state_manager.set_metadata(
-            "adaptee_type", type(self._formatter).__name__ if self._formatter else "None"
-        )
+        self._state_manager.set_metadata("adaptee_type", type(self._formatter).__name__)
         self._state_manager.set_metadata("creation_time", time.time())
 
     @property

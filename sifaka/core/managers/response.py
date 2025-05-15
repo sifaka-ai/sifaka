@@ -104,7 +104,7 @@ print(f"Reflection: {reflection}")
 from typing import Any, Dict, Optional, Union
 import time
 from pydantic import PrivateAttr
-from sifaka.utils.state import StateManager
+from sifaka.utils.state import StateManager, create_response_manager_state
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -189,7 +189,7 @@ class ResponseParser:
             ```
     """
 
-    _state_manager = PrivateAttr(default_factory=StateManager)
+    _state_manager = PrivateAttr(default_factory=create_response_manager_state)
 
     def __init__(self) -> None:
         """
@@ -198,7 +198,6 @@ class ResponseParser:
         This method sets up the response parser with state management
         and initializes tracking metrics.
         """
-        self._state_manager = StateManager()
         if self._state_manager:
             self._state_manager.update("initialized", True)
             self._state_manager.set_metadata("component_type", "response_parser")
