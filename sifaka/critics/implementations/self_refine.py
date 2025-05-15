@@ -1014,27 +1014,6 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             ),
         }
 
-    # Async methods
-    async def avalidate(self, text: str) -> bool:
-        """Asynchronously validate text."""
-        # For now, use the synchronous implementation
-        return self.validate(text)
-
-    async def acritique(self, text: str) -> CritiqueResult:
-        """Asynchronously critique text."""
-        # For now, use the synchronous implementation
-        return self.critique(text)
-
-    async def aimprove(self, text: str, feedback: str) -> str:
-        """Asynchronously improve text."""
-        # For now, use the synchronous implementation
-        return self.improve(text, feedback)
-
-    async def aimprove_with_feedback(self, text: str, feedback: str) -> str:
-        """Asynchronously improve text based on specific feedback."""
-        # For now, use the synchronous implementation
-        return self.improve_with_feedback(text, feedback)
-
 
 def create_self_refine_critic(
     llm_provider: Any,

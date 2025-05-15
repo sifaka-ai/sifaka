@@ -5,7 +5,6 @@ This module provides the ImproverAdapter class for adapting existing critics
 to the Improver interface from the chain system.
 """
 
-import asyncio
 import time
 from typing import Any, List, Optional, Union, cast
 from sifaka.interfaces.chain.components import Improver
@@ -166,85 +165,3 @@ class ImproverAdapter(Improver):
             if isinstance(e, ImproverError):
                 raise e
             raise ImproverError(f"Improvement failed: {str(e)}")
-
-    async def improve_async(self, output: str, validation_results: List[ValidationResult]) -> str:
-        """
-        Improve an output asynchronously.
-
-        Args:
-            output: The output to improve
-            validation_results: The validation results to use for improvement
-
-        Returns:
-            The improved output
-
-        Raises:
-            ImproverError: If improvement fails
-        """
-        if not self._state_manager.get("initialized", False):
-            self._initialize_state()
-
-        start_time = time.time()
-        try:
-            improved_text: str
-
-            if hasattr(self._improver, "improve_async"):
-                result = await self._improver.improve_async(output, validation_results)
-                if isinstance(result, ErrorResult):
-                    raise ImproverError(f"Async improvement failed: {result.error_message}")
-                improved_text = str(result)
-            elif hasattr(self._improver, "refine_async"):
-                result = await self._improver.refine_async(output, validation_results)
-                if isinstance(result, ErrorResult):
-                    raise ImproverError(f"Async improvement failed: {result.error_message}")
-                improved_text = str(result)
-            elif hasattr(self._improver, "process_async"):
-                result = await self._improver.process_async(output, validation_results)
-                if isinstance(result, ErrorResult):
-                    raise ImproverError(f"Async improvement failed: {result.error_message}")
-                improved_text = str(result)
-            elif hasattr(self._improver, "run_async"):
-                result = await self._improver.run_async(output, validation_results)
-                if isinstance(result, ErrorResult):
-                    raise ImproverError(f"Async improvement failed: {result.error_message}")
-                improved_text = str(result)
-            else:
-                try:
-                    loop = asyncio.get_running_loop()
-                except RuntimeError:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                improved_text = await loop.run_in_executor(
-                    None, self.improve, output, validation_results
-                )
-                return improved_text
-
-            end_time = time.time()
-            execution_time = end_time - start_time
-            improvement_count = self._state_manager.get_metadata("improvement_count", 0)
-            self._state_manager.set_metadata("improvement_count", improvement_count + 1)
-            avg_time = self._state_manager.get_metadata("avg_execution_time", 0)
-            new_avg = (avg_time * improvement_count + execution_time) / (improvement_count + 1)
-            self._state_manager.set_metadata("avg_execution_time", new_avg)
-            max_time = self._state_manager.get_metadata("max_execution_time", 0)
-
-            if execution_time > max_time:
-                self._state_manager.set_metadata("max_execution_time", execution_time)
-
-            if self._state_manager.get("cache_enabled", True):
-                cache = self._state_manager.get("cache", {})
-                cache_key = f"{output[:50]}_{len(output)}"
-                cache[cache_key] = improved_text
-                self._state_manager.update("cache", cache)
-
-            return improved_text
-
-        except Exception as e:
-            error_count = self._state_manager.get_metadata("error_count", 0)
-            self._state_manager.set_metadata("error_count", error_count + 1)
-            self._state_manager.set_metadata("last_error", str(e))
-            self._state_manager.set_metadata("last_error_time", time.time())
-
-            if isinstance(e, ImproverError):
-                raise e
-            raise ImproverError(f"Async improvement failed: {str(e)}")

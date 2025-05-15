@@ -44,7 +44,6 @@ class Validator(ChainComponent, Protocol):
     Classes implementing this interface must:
     - Provide a validate method to validate outputs
     - Return standardized ValidationResult objects
-    - Optionally provide an async validate_async method for asynchronous validation
     """
 
     @abstractmethod
@@ -62,30 +61,3 @@ class Validator(ChainComponent, Protocol):
             ValidationError: If validation fails
         """
         ...
-
-    async def validate_async(self, output: str) -> ValidationResult:
-        """
-        Validate an output asynchronously.
-
-        This method has a default implementation that calls the synchronous
-        validate method in an executor. Implementations can override this
-        method to provide a more efficient asynchronous implementation.
-
-        Args:
-            output: The output to validate
-
-        Returns:
-            The validation result
-
-        Raises:
-            ValidationError: If validation fails
-        """
-        import asyncio
-
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return await loop.run_in_executor(None, self.validate, output)

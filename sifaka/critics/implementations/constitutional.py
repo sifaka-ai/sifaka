@@ -790,29 +790,6 @@ class ConstitutionalCritic(
             ),
         }
 
-    # Async methods
-    async def avalidate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
-        """Asynchronously validate text."""
-        # For now, use the synchronous implementation
-        return self.validate(text, metadata)
-
-    async def acritique(
-        self, text: str, metadata: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """Asynchronously critique text."""
-        # For now, use the synchronous implementation
-        return self.critique(text, metadata)
-
-    async def aimprove(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
-        """Asynchronously improve text."""
-        # For now, use the synchronous implementation
-        return self.improve(text, metadata)
-
-    async def aimprove_with_feedback(self, text: str, feedback: str) -> str:
-        """Asynchronously improve text based on specific feedback."""
-        # For now, use the synchronous implementation
-        return self.improve_with_feedback(text, feedback)
-
 
 def create_constitutional_critic(
     llm_provider: Any,

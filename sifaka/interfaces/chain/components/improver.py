@@ -43,7 +43,6 @@ class Improver(ChainComponent, Protocol):
 
     Classes implementing this interface must:
     - Provide an improve method to improve outputs based on validation results
-    - Optionally provide an async improve_async method for asynchronous improvement
     """
 
     @abstractmethod
@@ -62,31 +61,3 @@ class Improver(ChainComponent, Protocol):
             ImproverError: If improvement fails
         """
         ...
-
-    async def improve_async(self, output: str, validation_results: List[ValidationResult]) -> str:
-        """
-        Improve an output asynchronously.
-
-        This method has a default implementation that calls the synchronous
-        improve method in an executor. Implementations can override this
-        method to provide a more efficient asynchronous implementation.
-
-        Args:
-            output: The output to improve
-            validation_results: The validation results to use for improvement
-
-        Returns:
-            The improved output
-
-        Raises:
-            ImproverError: If improvement fails
-        """
-        import asyncio
-
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return await loop.run_in_executor(None, lambda: self.improve(output, validation_results))

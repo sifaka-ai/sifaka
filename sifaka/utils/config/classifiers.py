@@ -102,7 +102,7 @@ class ClassifierConfig(BaseConfig, Generic[R]):
     # Access configuration values
     print(f"Name: {config.name}")
     print(f"Threshold: {config.threshold}")
-    print(f"Model: {config.params.get('model') if params else "")")
+    print(f"Model: {config.params.get('model') if params else ""}")
 
     # Create a new configuration with updated options
     updated_config = config.with_options(threshold=0.8) if config else ""
@@ -115,6 +115,7 @@ class ClassifierConfig(BaseConfig, Generic[R]):
         threshold: Classification threshold
         cache_size: Size of the result cache
         trace_enabled: Whether to enable tracing
+        cache_enabled: Whether to enable result caching
     """
 
     threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Classification threshold")

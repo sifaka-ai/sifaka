@@ -42,7 +42,6 @@ class Model(ChainComponent, Protocol):
 
     Classes implementing this interface must:
     - Provide a generate method to generate text from prompts
-    - Optionally provide an async generate_async method for asynchronous generation
     """
 
     @abstractmethod
@@ -60,30 +59,3 @@ class Model(ChainComponent, Protocol):
             ModelError: If text generation fails
         """
         ...
-
-    async def generate_async(self, prompt: str) -> str:
-        """
-        Generate text asynchronously.
-
-        This method has a default implementation that calls the synchronous
-        generate method in an executor. Implementations can override this
-        method to provide a more efficient asynchronous implementation.
-
-        Args:
-            prompt: The prompt to generate text from
-
-        Returns:
-            The generated text
-
-        Raises:
-            ModelError: If text generation fails
-        """
-        import asyncio
-
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return await loop.run_in_executor(None, self.generate, prompt)

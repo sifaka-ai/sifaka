@@ -25,7 +25,7 @@ from sifaka.critics import create_prompt_critic
 
 # Create components
 model = OpenAIProvider("gpt-3.5-turbo")
-validators = [create_length_rule(min_chars=10, max_chars=1000))
+validators = [create_length_rule(min_chars=10, max_chars=1000)]
 improver = create_prompt_critic(
     llm_provider=model,
     system_prompt="You are an expert editor that improves text."
@@ -43,15 +43,6 @@ chain = Chain(
 result = chain.run("Write a short story") if chain else ""
 print(f"Output: {result.output}")
 print(f"All validations passed: {result.all_passed}")
-
-# Run chain asynchronously
-import asyncio
-
-async def run_async():
-    result = await chain.run_async("Write a short story") if chain else ""
-    print(f"Output: {result.output}")
-
-asyncio.run(run_async() if asyncio else "")
 ```
 
 ## Error Handling
@@ -67,13 +58,11 @@ Chain behavior can be configured with:
 - max_attempts: Maximum number of generation attempts
 - cache_enabled: Whether to enable result caching
 - trace_enabled: Whether to enable execution tracing
-- async_enabled: Whether to enable async execution
 - timeout: Timeout for chain operations in seconds
 """
 
 from typing import Any, Dict, List, Optional
 import time
-import asyncio
 
 from sifaka.interfaces.chain.components import Model, Validator, Improver
 from sifaka.interfaces.chain.components.formatter import ChainFormatter as Formatter
@@ -103,7 +92,7 @@ class Chain:
     - Uses Engine for core execution logic
     - Manages components (Model, Validator, Improver, Formatter)
     - Uses StateManager for state management
-    - Provides synchronous and asynchronous execution
+    - Provides synchronous execution
     - Implements proper error handling and statistics tracking
 
     ## Lifecycle
@@ -121,7 +110,7 @@ class Chain:
     # Create a chain
     chain = Chain(
         model=OpenAIProvider("gpt-3.5-turbo"),
-        validators=[create_length_rule(min_chars=10, max_chars=1000)),
+        validators=[create_length_rule(min_chars=10, max_chars=1000)],
         improver=create_prompt_critic(
             llm_provider=model,
             system_prompt="You are an expert editor that improves text."
@@ -411,59 +400,6 @@ class Chain:
             if isinstance(e, ChainError):
                 raise e
             raise ChainError(f"Chain execution failed: {str(e)}")
-
-    async def run_async(self, prompt: str, **kwargs: Any) -> ChainResult:
-        """
-        Run the chain asynchronously.
-
-        Args:
-            prompt: The prompt to process
-            **kwargs: Additional run parameters
-
-        Returns:
-            The chain result
-
-        Raises:
-            ChainError: If chain execution fails
-            ValueError: If prompt is empty or not a string
-        """
-        # Ensure the chain is initialized
-        if not self._state_manager.get("initialized", False):
-            self.initialize()
-
-        # Validate prompt
-        from sifaka.utils.text import is_empty_text
-
-        if not isinstance(prompt, str):
-            raise ValueError("Prompt must be a string")
-
-        if is_empty_text(prompt):
-            raise ValueError("Prompt must be a non-empty string")
-
-        # Check if async is enabled
-        if not self._config.async_enabled:
-            raise ChainError("Async execution is not enabled in the configuration")
-
-        try:
-            # Check if engine has async methods
-            if hasattr(self._engine, "run_async"):
-                return await self._engine.run_async(
-                    prompt=prompt,
-                    model=self._model,
-                    validators=self._validators,
-                    improver=self._improver,
-                    formatter=self._formatter,
-                    **kwargs,
-                )
-
-            # Fall back to running synchronous method in executor
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(None, lambda: self.run(prompt, **kwargs))
-        except Exception as e:
-            # Raise as chain error
-            if isinstance(e, ChainError):
-                raise e
-            raise ChainError(f"Async chain execution failed: {str(e)}")
 
     def _update_statistics(
         self,

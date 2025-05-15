@@ -43,7 +43,6 @@ class ChainFormatter(ChainComponent, Protocol):
 
     Classes implementing this interface must:
     - Provide a format method to format results with validation results
-    - Optionally provide an async format_async method for asynchronous formatting
     """
 
     @abstractmethod
@@ -62,31 +61,3 @@ class ChainFormatter(ChainComponent, Protocol):
             FormatterError: If formatting fails
         """
         ...
-
-    async def format_async(self, output: str, validation_results: List[ValidationResult]) -> Any:
-        """
-        Format a result asynchronously.
-
-        This method has a default implementation that calls the synchronous
-        format method in an executor. Implementations can override this
-        method to provide a more efficient asynchronous implementation.
-
-        Args:
-            output: The output to format
-            validation_results: The validation results to include
-
-        Returns:
-            The formatted result
-
-        Raises:
-            FormatterError: If formatting fails
-        """
-        import asyncio
-
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return await loop.run_in_executor(None, lambda: self.format(output, validation_results))

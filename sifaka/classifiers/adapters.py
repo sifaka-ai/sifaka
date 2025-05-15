@@ -32,7 +32,6 @@ print(f"Confidence: {result.confidence:.2f}")
 """
 
 from typing import Any, TypeVar, Generic, cast
-import asyncio
 from .interfaces import ClassifierImplementation
 from ..core.results import ClassificationResult
 from ..utils.errors import ClassifierError
@@ -93,31 +92,6 @@ class ImplementationAdapter(ClassifierImplementation, Generic[L]):
             error_class=ImplementationError,
         )
         return self._convert_result(result)
-
-    async def classify_async(self, text: str) -> ClassificationResult[Any, L]:
-        """
-        Classify the given text asynchronously.
-
-        Args:
-            text: The text to classify
-
-        Returns:
-            The classification result
-
-        Raises:
-            ImplementationError: If classification fails
-        """
-        if hasattr(self._classifier, "classify_async"):
-            result = await self._classifier.classify_async(text)
-            return self._convert_result(result)
-        elif hasattr(self._classifier, "process_async"):
-            result = await self._classifier.process_async(text)
-            return self._convert_result(result)
-        elif hasattr(self._classifier, "run_async"):
-            result = await self._classifier.run_async(text)
-            return self._convert_result(result)
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self.classify, text)
 
     def _convert_result(self, result: Any) -> ClassificationResult[Any, L]:
         """

@@ -5,7 +5,6 @@ This module provides the ValidatorAdapter class for adapting existing rules
 to the Validator interface from the chain system.
 """
 
-import asyncio
 import time
 from typing import Any, List, Optional, Union, cast
 from sifaka.interfaces.chain.components import Validator
@@ -178,82 +177,6 @@ class ValidatorAdapter(Validator):
             if isinstance(e, ValidationError):
                 raise e
             raise ValidationError(f"Validation failed: {str(e)}")
-
-    async def validate_async(self, output: str) -> ValidationResult:
-        """
-        Validate an output asynchronously.
-
-        Args:
-            output: The output to validate
-
-        Returns:
-            The validation result
-
-        Raises:
-            ValidationError: If validation fails
-        """
-        if not self._state_manager.get("initialized", False):
-            self._initialize_state()
-
-        start_time = time.time()
-        try:
-            validation_result: ValidationResult
-
-            if hasattr(self._validator, "validate_async"):
-                result = await self._validator.validate_async(output)
-                validation_result = self._convert_result(result)
-            elif hasattr(self._validator, "process_async"):
-                result = await self._validator.process_async(output)
-                validation_result = self._convert_result(result)
-            elif hasattr(self._validator, "run_async"):
-                result = await self._validator.run_async(output)
-                validation_result = self._convert_result(result)
-            else:
-                try:
-                    loop = asyncio.get_running_loop()
-                except RuntimeError:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                validation_result = await loop.run_in_executor(None, self.validate, output)
-                return validation_result
-
-            end_time = time.time()
-            execution_time = end_time - start_time
-            validation_count = self._state_manager.get_metadata("validation_count", 0)
-            self._state_manager.set_metadata("validation_count", validation_count + 1)
-
-            if validation_result.passed:
-                success_count = self._state_manager.get_metadata("success_count", 0)
-                self._state_manager.set_metadata("success_count", success_count + 1)
-            else:
-                failure_count = self._state_manager.get_metadata("failure_count", 0)
-                self._state_manager.set_metadata("failure_count", failure_count + 1)
-
-            avg_time = self._state_manager.get_metadata("avg_execution_time", 0)
-            new_avg = (avg_time * validation_count + execution_time) / (validation_count + 1)
-            self._state_manager.set_metadata("avg_execution_time", new_avg)
-            max_time = self._state_manager.get_metadata("max_execution_time", 0)
-
-            if execution_time > max_time:
-                self._state_manager.set_metadata("max_execution_time", execution_time)
-
-            if self._state_manager.get("cache_enabled", True):
-                cache = self._state_manager.get("cache", {})
-                cache_key = f"{output[:50]}_{len(output)}"
-                cache[cache_key] = validation_result
-                self._state_manager.update("cache", cache)
-
-            return validation_result
-
-        except Exception as e:
-            error_count = self._state_manager.get_metadata("error_count", 0)
-            self._state_manager.set_metadata("error_count", error_count + 1)
-            self._state_manager.set_metadata("last_error", str(e))
-            self._state_manager.set_metadata("last_error_time", time.time())
-
-            if isinstance(e, ValidationError):
-                raise e
-            raise ValidationError(f"Async validation failed: {str(e)}")
 
     def _convert_result(self, result: Union[Any, ErrorResult]) -> ValidationResult:
         """

@@ -1,613 +1,350 @@
 """
-Base Classes for Sifaka Classifiers
+Classifier Base Module
 
-This module provides the foundational components for the Sifaka classifiers system,
-including base classes, protocols, and utility functions for text classification.
-
-## Overview
-The classifier base module serves as the foundation for all text classification
-components in Sifaka. It defines abstract base classes and utility functions that
-standardize how classifiers are implemented, configured, and used throughout the
-system. This ensures consistent behavior and error handling across different
+This module provides the base classes for the Sifaka classifiers system.
+These classes implement common functionality shared across different
 classifier implementations.
 
-## Components
+## Overview
+The base classes provide a foundation for building classifier implementations,
+with shared functionality for caching, error handling, and result formatting.
+They ensure consistent behavior across different classifier types while
+allowing for implementation-specific customization.
+
+## Base Classes
 1. **BaseClassifier**: Abstract base class for all classifiers
-2. **BaseClassifierImplementation**: Abstract base class for classifier implementations
-3. **create_base_classification_result**: Utility function for creating standardized results
-4. **safely_classify**: Utility function for safe classification with error handling
+2. **CachedClassifier**: Base class for classifiers with result caching
+3. **ConfigurableClassifier**: Base class for classifiers with configuration
 
 ## Architecture
-The classifier system follows a layered architecture:
-1. **User Interface Layer**: Classifier class with public methods
-2. **Base Layer**: BaseClassifier and BaseClassifierImplementation abstract classes
-3. **Implementation Layer**: Concrete classifier implementations
-4. **State Management Layer**: StateManager for tracking state and statistics
+The base classes follow a layered architecture:
+1. **Interface Layer**: Implements the ClassifierImplementation interface
+2. **Caching Layer**: Optional caching of classification results
+3. **Configuration Layer**: Configuration management and validation
+4. **Error Handling Layer**: Standardized error handling and reporting
 
 ## Usage Examples
 ```python
-from sifaka.classifiers.base import BaseClassifierImplementation
-from sifaka.classifiers.result import ClassificationResult
-
-class MyClassifierImplementation(BaseClassifierImplementation):
-    def _classify_impl_uncached(self, text: str) -> ClassificationResult:
-        # Implement classification logic
-        return ClassificationResult(
-            label="example",
-            confidence=0.8,
-            metadata={"source": "custom_implementation"}
-        )
-
-    async def _classify_async_impl_uncached(self, text: str) -> ClassificationResult:
-        # Implement async classification logic
-        return ClassificationResult(
-            label="example",
-            confidence=0.8,
-            metadata={"source": "custom_implementation"}
-        )
-```
-
-## Error Handling
-The module provides standardized error handling through:
-- ClassifierError: Base exception for all classifier errors
-- ImplementationError: Raised when implementation-specific errors occur
-- safely_classify: Utility function for safe classification with error handling
-"""
-
-from abc import ABC, abstractmethod
-import time
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Generic,
-    List,
-    Optional,
-    TypeVar,
-)
-
-from sifaka.core.base import BaseComponent, BaseConfig
-from sifaka.utils.state import StateManager, create_classifier_state
-from sifaka.utils.errors.component import ClassifierError
-from sifaka.utils.logging import get_logger
+from sifaka.classifiers.base import BaseClassifier
 from sifaka.core.results import ClassificationResult
 from sifaka.utils.config.classifiers import ClassifierConfig
 
-# Configure logger
-logger = get_logger(__name__)
+class MyClassifier(BaseClassifier):
+    def classify(self, text: str) -> ClassificationResult:
+        # Implementation-specific classification logic
+        return ClassificationResult(
+            label="positive",
+            confidence=0.8,
+            metadata={"source": "my_classifier"}
+        )
 
-# Type variables
-T = TypeVar("T")  # Input type
-R = TypeVar("R")  # Result type
-L = TypeVar("L")  # Label type
+# Create classifier with configuration
+classifier = MyClassifier(
+    config=ClassifierConfig(
+        cache_enabled=True,
+        cache_size=100,
+        min_confidence=0.7
+    )
+)
+
+# Classify text
+result = classifier.classify("This is a friendly message.")
+print(f"Label: {result.label}")
+print(f"Confidence: {result.confidence:.2f}")
+```
+
+## Error Handling
+The base classes provide robust error handling:
+- ClassifierError: Base class for classifier errors
+- ImplementationError: Raised when classification fails
+- ConfigurationError: Raised for invalid configuration
+- Automatic error tracking and statistics
+
+## Configuration
+The base classes support configuration through the ClassifierConfig class:
+- cache_enabled: Whether to enable result caching
+- cache_size: Maximum number of cached results
+- min_confidence: Minimum confidence threshold
+"""
+
+from typing import Any, Dict, Generic, Optional, TypeVar, cast
+from ..core.results import ClassificationResult
+from ..utils.config import ClassifierConfig
+from ..utils.errors import ClassifierError
+from ..utils.errors import safely_execute_component_operation as safely_execute
+from .interfaces import ClassifierImplementation
+
+# Define type variables for label and metadata types
+L = TypeVar("L")
+M = TypeVar("M", bound=Dict[str, Any])
 
 
-class BaseClassifier(BaseComponent[T, ClassificationResult], Generic[T, L]):
+class BaseClassifier(ClassifierImplementation, Generic[L, M]):
     """
-    Abstract base class for all classifiers.
+    Base class for all classifiers.
 
-    This class provides a foundation for implementing classifiers that can
-    categorize text into predefined labels. It implements common functionality
-    and enforces a consistent interface for all classifier implementations.
+    This class provides the foundation for building classifier implementations,
+    with shared functionality for error handling, result formatting, and
+    configuration management.
 
     ## Architecture
     The BaseClassifier class:
-    - Extends BaseComponent for consistent component interfaces
-    - Uses StateManager for state tracking and statistics
-    - Provides abstract methods for classifier-specific functionality
-    - Implements common error handling and caching patterns
+    - Implements the ClassifierImplementation interface
+    - Provides configuration management
+    - Handles errors with standardized error classes
+    - Formats results consistently
 
     ## Lifecycle
     1. **Initialization**: Set up classifier with configuration
-    2. **Classification**: Process text through the implementation
-    3. **Result Handling**: Return standardized ClassificationResult
-    4. **State Management**: Track statistics and cache results
-    5. **Error Handling**: Handle and track errors
+    2. **Classification**: Process text through implementation
+    3. **Error Handling**: Handle and track errors
+    4. **Result Formatting**: Format results consistently
 
     ## Examples
     ```python
-    from sifaka.classifiers.base import BaseClassifier
-    from sifaka.classifiers.result import ClassificationResult
-
-    class MyClassifier(BaseClassifier[str, str]):
-        def _classify_impl(self, text: str) -> ClassificationResult:
-            # Implement classification logic
+    class MyClassifier(BaseClassifier):
+        def classify(self, text: str) -> ClassificationResult:
+            # Implementation-specific classification logic
             return ClassificationResult(
-                label="example",
+                label="positive",
                 confidence=0.8,
-                metadata={"source": "custom_classifier"}
+                metadata={"source": "my_classifier"}
             )
     ```
     """
 
-    def __init__(
-        self,
-        config: Optional[ClassifierConfig] = None,
-        name: str = "classifier",
-        description: str = "Sifaka classifier for text classification",
-    ):
+    def __init__(self, config: Optional[ClassifierConfig] = None) -> None:
         """
         Initialize the base classifier.
 
-        Args:
-            config: Classifier configuration
-            name: Classifier name
-            description: Classifier description
-        """
-        self._name = name
-        self._description = description
-        # Cast to BaseConfig to match the BaseComponent interface
-        from typing import cast
-
-        self._config: BaseConfig = cast(BaseConfig, config or ClassifierConfig())
-
-        # Create state manager using the standardized state management
-        self._state_manager = create_classifier_state()
-
-        # Initialize state
-        if self._state_manager:
-            self._state_manager.update("name", name)
-            self._state_manager.update("description", description)
-            # Store config as a dictionary to avoid type issues
-            self._state_manager.update(
-                "config", self._config.model_dump() if hasattr(self._config, "model_dump") else {}
-            )
-            self._state_manager.update("initialized", True)
-            self._state_manager.update("execution_count", 0)
-            self._state_manager.update("result_cache", {})
-
-        # Set metadata
-        if self._state_manager:
-            self._state_manager.set_metadata("component_type", "classifier")
-            self._state_manager.set_metadata("creation_time", time.time())
-
-    def get_name(self) -> str:
-        """
-        Get classifier name.
-
-        Returns:
-            The name of the classifier
-        """
-        return self._name
-
-    def get_description(self) -> str:
-        """
-        Get classifier description.
-
-        Returns:
-            The description of the classifier
-        """
-        return self._description
-
-    def get_config(self) -> BaseConfig:
-        """
-        Get classifier configuration.
-
-        Returns:
-            The current configuration of the classifier
-        """
-        # Cast to BaseConfig to match the BaseComponent interface
-        from typing import cast
-
-        return cast(BaseConfig, self._config)
-
-    def update_config(self, config: ClassifierConfig) -> None:
-        """
-        Update classifier configuration.
-
-        This method updates the classifier's configuration and ensures the state
-        manager is updated with the new configuration.
+        This method sets up the classifier with the provided configuration.
+        It initializes the internal state and validates the configuration.
 
         Args:
-            config: New classifier configuration
+            config: Classifier configuration with settings for caching,
+                   confidence thresholds, etc.
         """
-        # Cast to BaseConfig to match the BaseComponent interface
-        from typing import cast
+        self._config = config or ClassifierConfig()
 
-        self._config = cast(BaseConfig, config)
-        if self._state_manager:
-            # Store config as a dictionary to avoid type issues
-            self._state_manager.update(
-                "config", config.model_dump() if hasattr(config, "model_dump") else {}
-            )
-
-    @abstractmethod
-    def classify(self, text: T) -> ClassificationResult[L, Any]:
+    def classify(self, text: str) -> ClassificationResult[L, M]:
         """
         Classify the given text.
 
         This method processes the input text and returns a classification result.
-        It must be implemented by subclasses to provide specific classification logic.
+        It handles error handling and result formatting.
 
         Args:
-            text: The text to classify
+            text: The text to classify, which can be any string content
+                 that the implementation can process
 
         Returns:
-            The classification result with label, confidence, and metadata
+            The classification result containing:
+            - label: The classification label (e.g., "positive", "toxic")
+            - confidence: A confidence score between 0.0 and 1.0
+            - metadata: Optional additional information about the classification
+            - issues: Any issues encountered during classification
+            - suggestions: Suggestions for improving the input
 
         Raises:
-            ClassifierError: If classification fails
+            ClassifierError: If classification fails due to implementation errors,
+                            invalid input, or other issues
         """
-        pass
 
-    def get_statistics(self) -> Dict[str, Any]:
+        def classify_operation() -> ClassificationResult[L, M]:
+            return self._classify_impl(text)
+
+        try:
+            result = safely_execute(
+                operation=classify_operation,
+                component_name=self.__class__.__name__,
+                component_type="ClassifierImplementation",
+                error_class=ClassifierError,
+            )
+            return result
+        except Exception as e:
+            raise ClassifierError(f"Classification failed: {str(e)}") from e
+
+    def _classify_impl(self, text: str) -> ClassificationResult[L, M]:
         """
-        Get classifier statistics.
+        Implementation-specific classification logic.
 
-        This method returns a comprehensive dictionary of classifier statistics,
-        including execution counts, success/failure rates, timing information,
-        and error details.
+        This method should be implemented by subclasses to provide the actual
+        classification functionality. It is called by the public classify method
+        after error handling and result formatting.
+
+        Args:
+            text: The text to classify, which can be any string content
+                 that the implementation can process
 
         Returns:
-            Dictionary with classifier statistics
+            The classification result containing:
+            - label: The classification label (e.g., "positive", "toxic")
+            - confidence: A confidence score between 0.0 and 1.0
+            - metadata: Optional additional information about the classification
+            - issues: Any issues encountered during classification
+            - suggestions: Suggestions for improving the input
+
+        Raises:
+            ClassifierError: If classification fails due to implementation errors,
+                            invalid input, or other issues
         """
-        return {
-            "name": self._name,
-            "execution_count": (
-                self._state_manager.get("execution_count", 0) if self._state_manager else 0
-            ),
-            "success_count": (
-                self._state_manager.get_metadata("success_count", 0) if self._state_manager else 0
-            ),
-            "failure_count": (
-                self._state_manager.get_metadata("failure_count", 0) if self._state_manager else 0
-            ),
-            "error_count": (
-                self._state_manager.get_metadata("error_count", 0) if self._state_manager else 0
-            ),
-            "avg_execution_time": (
-                self._state_manager.get_metadata("avg_execution_time", 0)
-                if self._state_manager
-                else 0
-            ),
-            "max_execution_time": (
-                self._state_manager.get_metadata("max_execution_time", 0)
-                if self._state_manager
-                else 0
-            ),
-            "last_execution_time": (
-                self._state_manager.get_metadata("last_execution_time", 0)
-                if self._state_manager
-                else 0
-            ),
-            "last_error": (
-                self._state_manager.get_metadata("last_error", None)
-                if self._state_manager
-                else None
-            ),
-            "last_error_time": (
-                self._state_manager.get_metadata("last_error_time", None)
-                if self._state_manager
-                else None
-            ),
-            "cache_size": (
-                len(self._state_manager.get("result_cache", {})) if self._state_manager else 0
-            ),
-            "label_stats": (
-                self._state_manager.get_metadata("label_stats", {}) if self._state_manager else {}
-            ),
-        }
-
-    def clear_cache(self) -> None:
-        """
-        Clear the classifier result cache.
-
-        This method removes all cached classification results, which can be
-        useful when changing configuration or when memory usage needs to be reduced.
-        """
-        if self._state_manager:
-            self._state_manager.update("result_cache", {})
-        logger.debug("Classifier cache cleared")
-
-    def reset_state(self) -> None:
-        """
-        Reset classifier state.
-
-        This method resets all state information, including execution counts,
-        statistics, and the result cache. It then re-initializes the state with
-        the current classifier configuration.
-        """
-        if self._state_manager:
-            self._state_manager.reset()
-
-            # Re-initialize state
-            self._state_manager.update("name", self._name)
-            self._state_manager.update("description", self._description)
-            self._state_manager.update("config", self._config)
-            self._state_manager.update("initialized", True)
-            self._state_manager.update("execution_count", 0)
-            self._state_manager.update("result_cache", {})
-
-        logger.debug("Classifier state reset")
+        raise NotImplementedError("Subclasses must implement _classify_impl")
 
 
-class BaseClassifierImplementation(ABC, Generic[L]):
+class CachedClassifier(BaseClassifier[L, M]):
     """
-    Abstract base class for classifier implementations.
+    Base class for classifiers with result caching.
 
-    This class provides a foundation for implementing the actual classification logic
-    that is used by the Classifier class. It handles common implementation concerns
-    like caching, state tracking, and error handling.
+    This class extends BaseClassifier with caching functionality, allowing
+    for improved performance by caching classification results.
 
     ## Architecture
-    The BaseClassifierImplementation class:
-    - Uses the Template Method pattern for classification
-    - Provides caching through the _classify_impl method
-    - Delegates actual classification to _classify_impl_uncached
-    - Supports both synchronous and asynchronous classification
+    The CachedClassifier class:
+    - Extends BaseClassifier with caching functionality
+    - Uses a simple in-memory cache with configurable size
+    - Handles cache invalidation and updates
+    - Maintains cache statistics
 
     ## Lifecycle
-    1. **Initialization**: Set up implementation with configuration
-    2. **Classification**: Process text through the _classify_impl method
+    1. **Initialization**: Set up classifier with configuration
+    2. **Classification**: Process text through implementation
     3. **Caching**: Cache results for improved performance
-    4. **Error Handling**: Handle and propagate errors consistently
+    4. **Error Handling**: Handle and track errors
+    5. **Result Formatting**: Format results consistently
 
     ## Examples
     ```python
-    from sifaka.classifiers.base import BaseClassifierImplementation
-    from sifaka.classifiers.result import ClassificationResult
-
-    class MyImplementation(BaseClassifierImplementation[str]):
-        def _classify_impl_uncached(self, text: str) -> ClassificationResult:
-            # Implement classification logic
+    class MyCachedClassifier(CachedClassifier):
+        def _classify_impl(self, text: str) -> ClassificationResult:
+            # Implementation-specific classification logic
             return ClassificationResult(
-                label="example",
+                label="positive",
                 confidence=0.8,
-                metadata={"source": "custom_implementation"}
+                metadata={"source": "my_classifier"}
             )
     ```
     """
 
-    def __init__(
-        self,
-        config: Optional[ClassifierConfig] = None,
-        state_manager: Optional[StateManager] = None,
-    ):
+    def __init__(self, config: Optional[ClassifierConfig] = None) -> None:
         """
-        Initialize the classifier implementation.
+        Initialize the cached classifier.
+
+        This method sets up the classifier with the provided configuration.
+        It initializes the internal state, including the result cache.
 
         Args:
-            config: Configuration for the implementation
-            state_manager: State manager for tracking state and statistics
+            config: Classifier configuration with settings for caching,
+                   confidence thresholds, etc.
         """
-        self._config = config or ClassifierConfig()
-        self._state_manager = state_manager or create_classifier_state()
+        super().__init__(config)
+        self._cache: Dict[str, ClassificationResult[L, M]] = {}
 
-    def classify(self, text: str) -> ClassificationResult[L, Any]:
+    def classify(self, text: str) -> ClassificationResult[L, M]:
         """
         Classify the given text.
 
-        This method delegates to _classify_impl, which handles caching and
-        then calls _classify_impl_uncached for the actual classification.
+        This method processes the input text and returns a classification result.
+        It handles caching, error handling, and result formatting.
 
         Args:
-            text: The text to classify
+            text: The text to classify, which can be any string content
+                 that the implementation can process
 
         Returns:
-            The classification result
+            The classification result containing:
+            - label: The classification label (e.g., "positive", "toxic")
+            - confidence: A confidence score between 0.0 and 1.0
+            - metadata: Optional additional information about the classification
+            - issues: Any issues encountered during classification
+            - suggestions: Suggestions for improving the input
 
         Raises:
-            ImplementationError: If classification fails
+            ClassifierError: If classification fails due to implementation errors,
+                            invalid input, or other issues
         """
-        return self._classify_impl(text)
+        if not self._config.cache_enabled:
+            return super().classify(text)
 
-    async def classify_async(self, text: str) -> ClassificationResult[L, Any]:
-        """
-        Classify the given text asynchronously.
+        cache_key = text
+        if cache_key in self._cache:
+            return self._cache[cache_key]
 
-        This method delegates to _classify_async_impl, which handles caching and
-        then calls _classify_async_impl_uncached for the actual classification.
-
-        Args:
-            text: The text to classify
-
-        Returns:
-            The classification result
-
-        Raises:
-            ImplementationError: If classification fails
-        """
-        return await self._classify_async_impl(text)
-
-    def _classify_impl(self, text: str) -> ClassificationResult[L, Any]:
-        """
-        Implement classification with caching.
-
-        This method handles caching of classification results and delegates
-        to _classify_impl_uncached for the actual classification.
-
-        Args:
-            text: The text to classify
-
-        Returns:
-            The classification result
-
-        Raises:
-            ImplementationError: If classification fails
-        """
-        # Check cache if enabled
-        if self._config and hasattr(self._config, "cache_enabled") and self._config.cache_enabled:
-            if self._state_manager:
-                cache = self._state_manager.get("result_cache", {})
-                if text in cache:
-                    # Use explicit typing to avoid Any return type
-                    cached_result: ClassificationResult[L, Any] = cache[text]
-                    return cached_result
-
-        # Perform classification
-        # Use explicit typing to avoid Any return type
-        result: ClassificationResult[L, Any] = self._classify_impl_uncached(text)
-
-        # Cache result if enabled
-        if (
-            self._config
-            and hasattr(self._config, "cache_enabled")
-            and self._config.cache_enabled
-            and self._state_manager
-        ):
-            cache = self._state_manager.get("result_cache", {})
-            cache[text] = result
-            self._state_manager.update("result_cache", cache)
-
+        result = super().classify(text)
+        if len(self._cache) >= self._config.cache_size:
+            # Remove oldest entry
+            self._cache.pop(next(iter(self._cache)))
+        self._cache[cache_key] = result
         return result
 
-    async def _classify_async_impl(self, text: str) -> ClassificationResult[L, Any]:
-        """
-        Implement asynchronous classification with caching.
 
-        This method handles caching of classification results and delegates
-        to _classify_async_impl_uncached for the actual classification.
-
-        Args:
-            text: The text to classify
-
-        Returns:
-            The classification result
-
-        Raises:
-            ImplementationError: If classification fails
-        """
-        # Check cache if enabled
-        if self._config and hasattr(self._config, "cache_enabled") and self._config.cache_enabled:
-            if self._state_manager:
-                cache = self._state_manager.get("result_cache", {})
-                if text in cache:
-                    # Use explicit typing to avoid Any return type
-                    cached_result: ClassificationResult[L, Any] = cache[text]
-                    return cached_result
-
-        # Perform classification
-        # Use explicit typing to avoid Any return type
-        result: ClassificationResult[L, Any] = await self._classify_async_impl_uncached(text)
-
-        # Cache result if enabled
-        if (
-            self._config
-            and hasattr(self._config, "cache_enabled")
-            and self._config.cache_enabled
-            and self._state_manager
-        ):
-            cache = self._state_manager.get("result_cache", {})
-            cache[text] = result
-            self._state_manager.update("result_cache", cache)
-
-        return result
-
-    @abstractmethod
-    def _classify_impl_uncached(self, text: str) -> ClassificationResult[L, Any]:
-        """
-        Implement classification without caching.
-
-        This method must be implemented by subclasses to provide the actual
-        classification logic.
-
-        Args:
-            text: The text to classify
-
-        Returns:
-            The classification result
-
-        Raises:
-            ImplementationError: If classification fails
-        """
-        pass
-
-    async def _classify_async_impl_uncached(self, text: str) -> ClassificationResult[L, Any]:
-        """
-        Implement asynchronous classification without caching.
-
-        This method can be overridden by subclasses to provide asynchronous
-        classification logic. The default implementation calls the synchronous
-        version.
-
-        Args:
-            text: The text to classify
-
-        Returns:
-            The classification result
-
-        Raises:
-            ImplementationError: If classification fails
-        """
-        # Default implementation calls the synchronous version
-        return self._classify_impl_uncached(text)
-
-
-def create_base_classification_result(
-    label: Any,
-    confidence: float = 1.0,
-    metadata: Optional[Dict[str, Any]] = None,
-    issues: Optional[List[str]] = None,
-    suggestions: Optional[List[str]] = None,
-    passed: bool = True,
-    message: str = "",
-) -> ClassificationResult:
+class ConfigurableClassifier(BaseClassifier[L, M]):
     """
-    Create a standardized classification result.
+    Base class for classifiers with configuration.
 
-    This utility function creates a ClassificationResult with the given parameters,
-    ensuring consistent result creation across the framework.
+    This class extends BaseClassifier with additional configuration functionality,
+    allowing for more complex configuration management and validation.
 
-    Args:
-        label: The classification label
-        confidence: Confidence score (0.0 to 1.0)
-        metadata: Additional result metadata
-        issues: List of issues found during classification
-        suggestions: List of improvement suggestions
-        passed: Whether the classification passed validation
-        message: Human-readable message about the classification
+    ## Architecture
+    The ConfigurableClassifier class:
+    - Extends BaseClassifier with configuration functionality
+    - Provides configuration validation and management
+    - Handles configuration updates and changes
+    - Maintains configuration state
 
-    Returns:
-        Standardized ClassificationResult
-    """
-    return ClassificationResult(
-        label=label,
-        confidence=confidence,
-        metadata=metadata or {},
-        issues=issues or [],
-        suggestions=suggestions or [],
-        passed=passed,
-        message=message,
-    )
+    ## Lifecycle
+    1. **Initialization**: Set up classifier with configuration
+    2. **Configuration**: Validate and manage configuration
+    3. **Classification**: Process text through implementation
+    4. **Error Handling**: Handle and track errors
+    5. **Result Formatting**: Format results consistently
 
-
-def safely_classify(
-    operation: Callable[[], ClassificationResult],
-    classifier_name: str,
-    component_name: str,
-) -> ClassificationResult:
-    """
-    Safely execute a classification operation with error handling.
-
-    This utility function wraps classification operations with standardized
-    error handling, ensuring consistent error reporting and fallback behavior.
-
-    Args:
-        operation: The classification operation to execute
-        classifier_name: Name of the classifier for error reporting
-        component_name: Name of the component for error reporting
-
-    Returns:
-        The classification result or a fallback result in case of error
-
-    Raises:
-        ClassifierError: If classification fails and no fallback is available
-    """
-    try:
-        # Use explicit typing to avoid Any return type
-        result: ClassificationResult = operation()
-        return result
-    except Exception as e:
-        logger.error(
-            f"Classification error in {component_name} ({classifier_name}): {str(e)}",
-            exc_info=True,
-        )
-
-        # Wrap in ClassifierError if not already
-        if not isinstance(e, ClassifierError):
-            error = ClassifierError(
-                f"Classification failed in {component_name} ({classifier_name}): {str(e)}"
+    ## Examples
+    ```python
+    class MyConfigurableClassifier(ConfigurableClassifier):
+        def _classify_impl(self, text: str) -> ClassificationResult:
+            # Implementation-specific classification logic
+            return ClassificationResult(
+                label="positive",
+                confidence=0.8,
+                metadata={"source": "my_classifier"}
             )
-            error.__cause__ = e
-            raise error
-        raise e
+
+        def _validate_config(self, config: ClassifierConfig) -> None:
+            # Custom configuration validation
+            if config.min_confidence < 0.0 or config.min_confidence > 1.0:
+                raise ValueError("min_confidence must be between 0.0 and 1.0")
+    ```
+    """
+
+    def __init__(self, config: Optional[ClassifierConfig] = None) -> None:
+        """
+        Initialize the configurable classifier.
+
+        This method sets up the classifier with the provided configuration.
+        It initializes the internal state and validates the configuration.
+
+        Args:
+            config: Classifier configuration with settings for caching,
+                   confidence thresholds, etc.
+        """
+        super().__init__(config)
+        self._validate_config(self._config)
+
+    def _validate_config(self, config: ClassifierConfig) -> None:
+        """
+        Validate the classifier configuration.
+
+        This method validates the provided configuration, ensuring that all
+        required settings are present and valid. It can be overridden by
+        subclasses to provide additional validation.
+
+        Args:
+            config: The configuration to validate
+
+        Raises:
+            ValueError: If the configuration is invalid
+        """
+        if config.cache_size < 0:
+            raise ValueError("cache_size must be non-negative")
+        if config.min_confidence < 0.0 or config.min_confidence > 1.0:
+            raise ValueError("min_confidence must be between 0.0 and 1.0")

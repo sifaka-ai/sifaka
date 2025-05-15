@@ -1,98 +1,160 @@
 """
 Classifier Factories Module
 
-This module provides factory functions for creating classifiers and components.
-These factories simplify the creation of classifiers with sensible defaults.
+This module provides factory functions for creating classifier instances.
+These factories handle the creation and configuration of different types
+of classifiers, ensuring consistent initialization and setup.
+
+## Overview
+The factory functions provide a convenient way to create and configure
+classifiers, handling the details of initialization, configuration,
+and setup. They ensure that classifiers are created with the correct
+settings and dependencies.
 
 ## Factory Functions
-1. **create_classifier**: Creates a classifier with the specified implementation
-2. **create_implementation_adapter**: Creates an implementation adapter for existing classifiers
+1. **create_classifier**: Creates a classifier with the given configuration
+2. **create_implementation**: Creates a classifier implementation
+3. **create_adapter**: Creates a classifier adapter
 
 ## Usage Examples
 ```python
 from sifaka.classifiers.factories import create_classifier
-from sifaka.classifiers.implementations.content.toxicity import ToxicityClassifier
+from sifaka.utils.config.classifiers import ClassifierConfig
 
-# Create classifier implementation
-implementation = ToxicityClassifier()
-
-# Create classifier using factory
+# Create classifier with configuration
 classifier = create_classifier(
-    implementation=implementation,
-    name="toxicity_classifier",
-    description="Detects toxic content in text",
-    cache_enabled=True,
+    name="sentiment_classifier",
+    description="Detects sentiment in text",
+    labels=["positive", "negative", "neutral"],
     cache_size=100,
     min_confidence=0.7
 )
 
 # Classify text
-result = classifier.classify("This is a friendly message.") if classifier else ""
+result = classifier.classify("This is a friendly message.")
 print(f"Label: {result.label}")
 print(f"Confidence: {result.confidence:.2f}")
 ```
+
+## Error Handling
+The factory functions provide robust error handling:
+- ClassifierError: Raised when classifier creation fails
+- ConfigurationError: Raised for invalid configuration
+- ImplementationError: Raised when implementation creation fails
+
+## Configuration
+The factory functions support configuration through the ClassifierConfig class:
+- cache_enabled: Whether to enable result caching
+- cache_size: Maximum number of cached results
+- min_confidence: Minimum confidence threshold
 """
 
-from typing import Any, Dict, Optional, Union
-
-from .classifier import Classifier
+from typing import Any, Dict, List, Optional, Type, TypeVar, cast
 from .interfaces import ClassifierImplementation
-from sifaka.utils.config.classifiers import ClassifierConfig
+from .classifier import Classifier
 from .adapters import ImplementationAdapter
+from ..utils.config import ClassifierConfig
+from ..utils.errors import ClassifierError
+
+# Define type variables
+L = TypeVar("L")  # Label type
+M = TypeVar("M", bound=Dict[str, Any])  # Metadata type
 
 
 def create_classifier(
-    implementation: Any,
-    name: str = "classifier",
-    description: str = "Sifaka classifier for text classification",
-    cache_enabled: bool = True,
+    name: str,
+    description: str,
+    labels: List[str],
     cache_size: int = 100,
-    min_confidence: float = 0.5,
-    async_enabled: bool = False,
-    labels: Optional[Optional[list]] = None,
-    **kwargs: Any,
+    min_confidence: float = 0.7,
+    implementation: Optional[ClassifierImplementation] = None,
 ) -> Classifier:
     """
-    Create a classifier with the specified implementation.
+    Create a classifier with the given configuration.
 
-    This factory function creates a classifier with the specified implementation,
-    automatically adapting it to the required interface if needed.
+    This function creates a Classifier instance with the specified configuration
+    and optional implementation. It handles the initialization and setup of the
+    classifier, ensuring consistent behavior.
 
     Args:
-        implementation: The classifier implementation to use
-        name: Classifier name
-        description: Classifier description
-        cache_enabled: Whether to enable result caching
+        name: The name of the classifier
+        description: A description of the classifier's purpose
+        labels: The list of possible classification labels
         cache_size: Maximum number of cached results
         min_confidence: Minimum confidence threshold
-        async_enabled: Whether to enable asynchronous execution
-        labels: List of valid labels
-        **kwargs: Additional parameters for the configuration
+        implementation: Optional classifier implementation
 
     Returns:
-        A classifier instance
-    """
-    # Adapt implementation if needed
-    adapted_implementation = implementation
-    if not isinstance(implementation, ClassifierImplementation):
-        adapted_implementation = ImplementationAdapter(implementation)
+        A configured Classifier instance
 
-    # Create configuration
+    Raises:
+        ClassifierError: If classifier creation fails
+        ConfigurationError: If configuration is invalid
+    """
     config = ClassifierConfig(
-        name=name,
-        description=description,
-        cache_enabled=cache_enabled,
+        cache_enabled=True,
         cache_size=cache_size,
         min_confidence=min_confidence,
-        async_enabled=async_enabled,
-        labels=labels or [],
-        params=kwargs,
     )
-
-    # Create classifier
     return Classifier(
-        implementation=adapted_implementation,
-        config=config,
         name=name,
         description=description,
+        labels=labels,
+        config=config,
+        implementation=implementation,
     )
+
+
+def create_implementation(
+    implementation_type: Type[ClassifierImplementation],
+    **kwargs: Any,
+) -> ClassifierImplementation:
+    """
+    Create a classifier implementation.
+
+    This function creates an instance of the specified implementation type
+    with the given configuration. It handles the initialization and setup
+    of the implementation, ensuring consistent behavior.
+
+    Args:
+        implementation_type: The type of implementation to create
+        **kwargs: Additional arguments for the implementation
+
+    Returns:
+        A configured ClassifierImplementation instance
+
+    Raises:
+        ImplementationError: If implementation creation fails
+        ConfigurationError: If configuration is invalid
+    """
+    try:
+        return implementation_type(**kwargs)
+    except Exception as e:
+        raise ClassifierError(f"Failed to create implementation: {str(e)}") from e
+
+
+def create_adapter(
+    implementation: Any,
+    adapter_type: Type[ImplementationAdapter] = ImplementationAdapter,
+) -> ImplementationAdapter:
+    """
+    Create a classifier adapter.
+
+    This function creates an adapter for the given implementation, allowing
+    it to be used with the Sifaka classifiers system. It handles the initialization
+    and setup of the adapter, ensuring consistent behavior.
+
+    Args:
+        implementation: The implementation to adapt
+        adapter_type: The type of adapter to create
+
+    Returns:
+        A configured ImplementationAdapter instance
+
+    Raises:
+        ImplementationError: If adapter creation fails
+    """
+    try:
+        return adapter_type(implementation)
+    except Exception as e:
+        raise ClassifierError(f"Failed to create adapter: {str(e)}") from e
