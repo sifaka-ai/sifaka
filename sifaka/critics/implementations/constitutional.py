@@ -420,7 +420,7 @@ class ConstitutionalCritic(
         """
         if metadata is None or "task" not in metadata:
             raise ValueError("metadata must contain a 'task' key")
-        return metadata["task"]
+        return str(metadata["task"])
 
     def validate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
         """
@@ -464,12 +464,17 @@ class ConstitutionalCritic(
 
             # Get task from metadata
             task = ""
-            if hasattr(self, "_get_task_from_metadata"):
-                task = self._get_task_from_metadata(metadata)
+            if metadata is not None:
+                try:
+                    task = self._get_task_from_metadata(metadata)
+                except ValueError:
+                    pass
 
             # Delegate to critique service
-            critique_result = critique_service.critique(text, {"task": task})
-            is_valid = len(critique_result.get("issues", [])) == 0
+            critique_result = None
+            if critique_service:
+                critique_result = critique_service.critique(text, {"task": task})
+            is_valid = critique_result is not None and len(critique_result.get("issues", [])) == 0
 
             # Record result in metadata
             if is_valid:
@@ -547,17 +552,24 @@ class ConstitutionalCritic(
             )
 
             # Get task from metadata
-            task = self and self._get_task_from_metadata(metadata)
+            task = ""
+            if metadata is not None:
+                try:
+                    task = self._get_task_from_metadata(metadata)
+                except ValueError:
+                    pass
 
             # Delegate to critique service
-            critique_result = critique_service and critique_service.critique(text, {"task": task})
+            critique_result = None
+            if critique_service:
+                critique_result = critique_service.critique(text, {"task": task})
 
             # Track score distribution
             score_distribution = self._state_manager and self._state_manager.get_metadata(
                 "score_distribution", {}
             )
             score_bucket = (
-                round((critique_result.get("score", 0) if critique_result else 0) * 10) / 10
+                round((critique_result.get("score", 0.0) if critique_result else 0.0) * 10) / 10
             )  # Round to nearest 0.1
             score_bucket_str = str(score_bucket)
             if score_distribution:
@@ -574,12 +586,15 @@ class ConstitutionalCritic(
                     "total_critique_time_ms", 0.0
                 )
                 if self._state_manager:
-                    elapsed_time = time.time() - start_time
-                    self._state_manager.set_metadata(
-                        "total_critique_time_ms", total_time + (elapsed_time * 1000)
-                    )
+                    current_time = time.time()
+                    if isinstance(start_time, (int, float)):
+                        elapsed_time = current_time - float(start_time)
+                        self._state_manager.set_metadata(
+                            "total_critique_time_ms",
+                            total_time + (elapsed_time * 1000),
+                        )
 
-            return critique_result
+            return critique_result or {}
 
         except Exception as e:
             # Use the standardized utility function
@@ -635,7 +650,10 @@ class ConstitutionalCritic(
                     pass
 
             # Delegate to critique service
-            improved_text = critique_service.improve(text, {"task": task})
+            improved_text = ""
+            if critique_service:
+                result = critique_service.improve(text, {"task": task})
+                improved_text = str(result) if result else ""
 
             # Track memory usage
             memory_manager = self._state_manager and self._state_manager.get("memory_manager")
@@ -723,12 +741,16 @@ class ConstitutionalCritic(
 
             # Generate improved response
             model = self._state_manager.get("model")
-            improved_text = model.generate(
+            if not model:
+                return ""
+
+            result = model.generate(
                 prompt,
                 system_prompt=self._state_manager.get("cache", {}).get("system_prompt", ""),
                 temperature=self._state_manager.get("cache", {}).get("temperature", 0.7),
                 max_tokens=self._state_manager.get("cache", {}).get("max_tokens", 1000),
-            ).strip()
+            )
+            improved_text = str(result).strip() if result else ""
 
             # Track memory usage
             memory_manager = self._state_manager.get("memory_manager")

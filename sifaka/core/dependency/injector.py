@@ -291,7 +291,7 @@ def inject_dependencies(
     func_or_class: Optional[F] = None,
     session_id: Optional[str] = None,
     request_id: Optional[str] = None,
-) -> F:
+) -> Any:
     """
     Decorator for automatically injecting dependencies into functions or classes.
 
@@ -342,26 +342,26 @@ def inject_dependencies(
     injector = DependencyInjector(session_id=session_id, request_id=request_id)
     if func_or_class is not None:
         if inspect.isfunction(func_or_class):
-            return cast(F, injector.inject_function(func_or_class))
+            return injector.inject_function(func_or_class)
         elif inspect.isclass(func_or_class):
-            return cast(F, injector.inject_class(func_or_class))
+            return injector.inject_class(func_or_class)
         elif inspect.ismethod(func_or_class):
-            return cast(F, injector.inject_method(func_or_class))
+            return injector.inject_method(func_or_class)
         elif callable(func_or_class):
-            return cast(F, injector.inject_function(func_or_class))
+            return injector.inject_function(func_or_class)
         else:
             raise TypeError(f"Expected function or class, got {type(func_or_class)}")
 
-    def decorator(func_or_cls: F) -> F:
+    def decorator(func_or_cls: F) -> Any:
         if inspect.isfunction(func_or_cls):
-            return cast(F, injector.inject_function(func_or_cls))
+            return injector.inject_function(func_or_cls)
         elif inspect.isclass(func_or_cls):
-            return cast(F, injector.inject_class(func_or_cls))
+            return injector.inject_class(func_or_cls)
         elif inspect.ismethod(func_or_cls):
-            return cast(F, injector.inject_method(func_or_cls))
+            return injector.inject_method(func_or_cls)
         elif callable(func_or_cls):
-            return cast(F, injector.inject_function(func_or_cls))
+            return injector.inject_function(func_or_cls)
         else:
             raise TypeError(f"Expected function or class, got {type(func_or_cls)}")
 
-    return cast(F, decorator)
+    return decorator

@@ -96,7 +96,7 @@ import importlib
 from typing import List, Optional, Any, Dict, ClassVar, Union, Tuple
 
 from pydantic import ConfigDict
-from sifaka.classifiers.classifier import Classifier
+from sifaka.classifiers.classifier import Classifier, ClassifierImplementation
 from sifaka.core.results import ClassificationResult
 from sifaka.utils.config.classifiers import ClassifierConfig, standardize_classifier_config
 from sifaka.utils.logging import get_logger
@@ -211,7 +211,7 @@ class TopicClassifier(Classifier):
         self,
         name: str = "topic_classifier",
         description: str = "Classifies text by topic",
-        config: Optional[ClassifierConfig[str]] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -223,7 +223,7 @@ class TopicClassifier(Classifier):
             config: Optional classifier configuration
             **kwargs: Additional configuration parameters
         """
-        # Create config if not provided
+        # Create standardized config if not provided
         if config is None:
             # Extract params from kwargs if present
             params = kwargs.pop("params", {})
@@ -232,17 +232,19 @@ class TopicClassifier(Classifier):
             num_topics = params.get("num_topics", 5)
             min_confidence = params.get("min_confidence", 0.1)
 
-            # Create config with remaining kwargs
-            config = ClassifierConfig[str](
-                implementation="topic",
-                labels=[f"topic_{i}" for i in range(num_topics)],
-                cost=self.DEFAULT_COST,
-                min_confidence=min_confidence,
-                params=params,
-                **kwargs,
-            )
+            # Create params dictionary
+            config_params = {
+                "min_confidence": min_confidence,
+                "labels": [f"topic_{i}" for i in range(num_topics)],
+                "cost": self.DEFAULT_COST,
+                "params": params,
+            }
+            config_params.update(kwargs)
 
-        # Initialize base class
+            # Create standardized config
+            config = standardize_classifier_config(config=config_params)
+
+        # Initialize base class with implementation type
         super().__init__(name=name, description=description, config=config, implementation="topic")
 
         # Initialize state
@@ -252,7 +254,9 @@ class TopicClassifier(Classifier):
     @property
     def num_topics(self) -> int:
         """Get the number of topics."""
-        return len(self.config.labels) if self.config and self.config.labels else 5
+        return (
+            len(self.config.params.get("labels", [])) if self.config and self.config.params else 5
+        )
 
     @property
     def top_words_per_topic(self) -> int:
@@ -339,11 +343,16 @@ class TopicClassifier(Classifier):
         # Get topic words
         topic_words = self._state_manager.get_metadata("topic_words", {})
 
+        # Get min confidence
+        min_confidence = 0.1
+        if self.config and self.config.params:
+            min_confidence = self.config.params.get("min_confidence", 0.1)
+
         # Create result
         return ClassificationResult(
             label=f"topic_{dominant_topic_idx}",
             confidence=confidence,
-            passed=confidence >= self.config.min_confidence if self.config else True,
+            passed=confidence >= min_confidence,
             message=f"Classified as topic_{dominant_topic_idx} with confidence {confidence:.2f}",
             metadata={
                 "all_topics": {
@@ -371,6 +380,11 @@ class TopicClassifier(Classifier):
         # Get topic words
         topic_words = self._state_manager.get_metadata("topic_words", {})
 
+        # Get min confidence
+        min_confidence = 0.1
+        if self.config and self.config.params:
+            min_confidence = self.config.params.get("min_confidence", 0.1)
+
         # Process results
         results: List[ClassificationResult] = []
         for text, topic_dist in zip(texts, topic_dists):
@@ -383,7 +397,7 @@ class TopicClassifier(Classifier):
                 ClassificationResult(
                     label=f"topic_{dominant_topic_idx}",
                     confidence=confidence,
-                    passed=confidence >= self.config.min_confidence if self.config else True,
+                    passed=confidence >= min_confidence,
                     message=f"Classified as topic_{dominant_topic_idx} with confidence {confidence:.2f}",
                     metadata={
                         "all_topics": {
@@ -433,32 +447,29 @@ def create_topic_classifier(
 ) -> TopicClassifier:
     """Create a topic classifier with the given configuration."""
     # Create config
-    if config is None:
-        config = {}
+    config_dict: Dict[str, Any] = config if config is not None else {}
 
     # Update config with parameters
-    config.update(
-        {
-            "num_topics": num_topics,
-            "min_confidence": min_confidence,
-            "max_features": max_features,
-            "random_state": random_state,
-            "top_words_per_topic": top_words_per_topic,
-            "cache_size": cache_size,
-            "cost": cost,
-        }
-    )
+    params = {
+        "num_topics": num_topics,
+        "min_confidence": min_confidence,
+        "max_features": max_features,
+        "random_state": random_state,
+        "top_words_per_topic": top_words_per_topic,
+        "cache_size": cache_size,
+        "cost": cost,
+        "labels": [f"topic_{i}" for i in range(num_topics)],
+    }
+
+    config_dict.update(params)
+    config_dict.update(kwargs)
+
+    # Create standardized config
+    classifier_config = standardize_classifier_config(config=config_dict)
 
     # Create classifier
     return TopicClassifier(
         name=name,
         description=description,
-        config=ClassifierConfig[str](
-            implementation="topic",
-            labels=[f"topic_{i}" for i in range(num_topics)],
-            cost=cost,
-            min_confidence=min_confidence,
-            params=config,
-            **kwargs,
-        ),
+        config=classifier_config,
     )
