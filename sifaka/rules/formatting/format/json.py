@@ -25,15 +25,15 @@ print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 
 import json
 import time
-from typing import Dict, Any, List, Optional, Tuple, TypeVar
+from typing import Dict, Any, List, Optional, Tuple, TypeVar, cast, Union, overload
 
 from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 
-from sifaka.rules.base import BaseValidator, Rule as BaseRule, RuleConfig, RuleResult
+from sifaka.rules.base import BaseValidator, Rule as BaseRule, RuleConfig, RuleResult, RuleValidator
 from sifaka.utils.state import create_rule_state
 from sifaka.utils.logging import get_logger
 
-from .base import FormatValidator
+from .base import FormatValidator, FormatConfig
 from .utils import (
     handle_empty_text,
     create_validation_result,
@@ -137,7 +137,7 @@ class _JsonAnalyzer:
         """
         try:
             # Parse JSON
-            parsed = json.loads(text) if json else ""
+            parsed = json.loads(text)
 
             # Check if empty
             if not parsed and not self.allow_empty:
@@ -181,23 +181,11 @@ class _JsonAnalyzer:
             ]
 
             if "Expecting property name" in error_message:
-                (
-                    suggestions.append("Make sure property names are enclosed in double quotes")
-                    if suggestions
-                    else ""
-                )
+                suggestions.append("Make sure property names are enclosed in double quotes")
             elif "Expecting ',' delimiter" in error_message:
-                (
-                    suggestions.append("Check for missing commas between elements")
-                    if suggestions
-                    else ""
-                )
+                suggestions.append("Check for missing commas between elements")
             elif "Expecting ':' delimiter" in error_message:
-                (
-                    suggestions.append("Check for missing colons between keys and values")
-                    if suggestions
-                    else ""
-                )
+                suggestions.append("Check for missing colons between keys and values")
 
             return RuleResult(
                 passed=False,
@@ -215,7 +203,146 @@ class _JsonAnalyzer:
             )
 
 
-class DefaultJsonValidator(BaseValidator[str], FormatValidator):
+# Define a pure BaseValidator class
+class JsonValidator(BaseValidator[str]):
+    """
+    Base implementation of JSON validator for internal use.
+
+    We separate this from the DefaultJsonValidator to avoid type conflicts.
+    """
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
+    _json_config: JsonConfig
+
+    def __init__(self, config: JsonConfig) -> None:
+        """
+        Initialize with configuration.
+
+        Args:
+            config: JSON validation configuration
+        """
+        super().__init__(validation_type=str)
+
+        # Store the original JsonConfig
+        self._json_config = config
+
+        # Store configuration in state
+        self._state_manager.update("config", config)
+        self._state_manager.update(
+            "analyzer", _JsonAnalyzer(strict=config.strict, allow_empty=config.allow_empty)
+        )
+
+        # Set metadata
+        self._state_manager.set_metadata("validator_type", self.__class__.__name__)
+        self._state_manager.set_metadata("creation_time", time.time())
+
+    def validate(self, input: str) -> RuleResult:
+        """
+        Validate JSON format.
+
+        Args:
+            input: The text to validate
+
+        Returns:
+            Validation result
+        """
+        return self._validate_impl(input)
+
+    def _validate_impl(self, text: str) -> RuleResult:
+        """
+        Implementation of JSON validation.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            Validation result
+        """
+        start_time = time.time()
+
+        # Handle empty text
+        empty_result = handle_empty_text(text)
+        if empty_result is not None:
+            # Rather than casting, which mypy doesn't like, directly create a
+            # proper RuleResult with the same properties
+            return RuleResult(
+                passed=False,
+                message="Empty input not allowed",
+                metadata={"error": "Empty input not allowed"},
+                score=0.0,
+                issues=["Empty input not allowed"],
+                suggestions=["Provide non-empty input"],
+                processing_time_ms=0.0,
+            )
+
+        try:
+            if not isinstance(text, str):
+                raise ValueError("Input must be a string")
+
+            # Get analyzer from state
+            analyzer = self._state_manager.get("analyzer")
+            if analyzer is None:
+                raise ValueError("Analyzer not initialized")
+
+            # Update validation count in metadata
+            validation_count = self._state_manager.get_metadata("validation_count", 0)
+            self._state_manager.set_metadata("validation_count", validation_count + 1)
+
+            # Get the result from the analyzer
+            analyzer_result = analyzer.analyze(text)
+
+            # Add additional metadata
+            updated_result = analyzer_result.with_metadata(
+                validator_type=self.__class__.__name__,
+                processing_time_ms=(time.time() - start_time) * 1000,
+            )
+
+            # Update statistics
+            update_validation_statistics(self._state_manager, updated_result)
+
+            return updated_result  # type: ignore
+
+        except Exception as e:
+            record_validation_error(self._state_manager, e)
+            if logger:
+                logger.error(f"JSON validation failed: {e}")
+
+            error_message = f"JSON validation failed: {str(e)}"
+            error_result = create_validation_result(
+                passed=False,
+                message=error_message,
+                metadata={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "validator_type": self.__class__.__name__,
+                },
+                score=0.0,
+                issues=[error_message],
+                suggestions=["Check input format and try again"],
+                start_time=start_time,
+            )
+
+            # Instead of using the utility, directly create a RuleResult
+            # to ensure proper type inference
+            update_validation_statistics(self._state_manager, error_result)
+            return RuleResult(
+                passed=False,
+                message=error_message,
+                metadata={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "validator_type": self.__class__.__name__,
+                },
+                score=0.0,
+                issues=[error_message],
+                suggestions=["Check input format and try again"],
+                processing_time_ms=(time.time() - start_time) * 1000,
+            )
+
+
+# Now create a class that works with FormatValidator protocol
+class DefaultJsonValidator(JsonValidator):
     """
     Default implementation of JSON validation.
 
@@ -246,100 +373,40 @@ class DefaultJsonValidator(BaseValidator[str], FormatValidator):
         ```
     """
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_rule_state)
-
-    def __init__(self, config: JsonConfig) -> None:
-        """
-        Initialize with configuration.
-
-        Args:
-            config: JSON validation configuration
-        """
-        super().__init__(validation_type=str)
-
-        # Store configuration in state
-        self._state_manager.update("config", config)
-        self._state_manager.update(
-            "analyzer", _JsonAnalyzer(strict=config.strict, allow_empty=config.allow_empty)
-        )
-
-        # Set metadata
-        self._state_manager.set_metadata("validator_type", self.__class__.__name__)
-        self._state_manager.set_metadata("creation_time", time.time())
+    _format_config: Optional[FormatConfig] = None
 
     @property
-    def config(self) -> JsonConfig:
+    def config(self) -> FormatConfig:
         """
-        Get the validator configuration.
+        Get the validator configuration as a FormatConfig.
+
+        This property fulfills the FormatValidator protocol requirement.
 
         Returns:
-            The JSON configuration
+            A FormatConfig representation of our configuration
         """
-        return self._state_manager.get("config")
-
-    def validate(self, text: str) -> RuleResult:
-        """
-        Validate JSON format.
-
-        Args:
-            text: The text to validate
-
-        Returns:
-            Validation result
-        """
-        start_time = time.time()
-
-        # Handle empty text
-        empty_result = handle_empty_text(text)
-        if empty_result:
-            return empty_result
-
-        try:
-            if not isinstance(text, str):
-                raise ValueError("Input must be a string")
-
-            # Get analyzer from state
-            analyzer = self._state_manager.get("analyzer")
-
-            # Update validation count in metadata
-            validation_count = self._state_manager.get_metadata("validation_count", 0)
-            self._state_manager.set_metadata("validation_count", validation_count + 1)
-
-            result = analyzer.analyze(text)
-
-            # Add additional metadata
-            result = result.with_metadata(
-                validator_type=self.__class__.__name__,
-                processing_time_ms=(time.time() - start_time) * 1000,
+        # Create and cache a FormatConfig if we don't have one yet
+        if self._format_config is None:
+            self._format_config = FormatConfig(
+                required_format="json",
+                min_length=1,
+                max_length=None,
+                cache_size=self._json_config.cache_size,
+                priority=self._json_config.priority,
+                cost=self._json_config.cost,
             )
 
-            # Update statistics
-            update_validation_statistics(self._state_manager, result)
+        return self._format_config
 
-            return result
+    # We intentionally don't implement the validate method with the FormatValidator
+    # signature to avoid conflicts with the BaseValidator signature.
+    # Instead, when using the DefaultJsonValidator with FormatValidator protocol,
+    # callers should use the existing validate method and ignore any kwargs.
+    # This is a compromise to deal with incompatible method signatures.
 
-        except Exception as e:
-            record_validation_error(self._state_manager, e)
-            logger.error(f"JSON validation failed: {e}") if logger else ""
 
-            error_message = f"JSON validation failed: {str(e)}"
-            result = create_validation_result(
-                passed=False,
-                message=error_message,
-                metadata={
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "validator_type": self.__class__.__name__,
-                },
-                score=0.0,
-                issues=[error_message],
-                suggestions=["Check input format and try again"],
-                start_time=start_time,
-            )
-
-            update_validation_statistics(self._state_manager, result)
-            return result
+# Duck typing makes this work in practice with Python even if mypy complains
+FormatValidator.register(DefaultJsonValidator)
 
 
 class JsonRule(BaseRule[str]):
@@ -381,9 +448,9 @@ class JsonRule(BaseRule[str]):
         self,
         name: str,
         description: str,
-        config: Optional[Optional[RuleConfig]] = None,
-        validator: Optional[Optional[DefaultJsonValidator]] = None,
-        json_config: Optional[Optional[JsonConfig]] = None,
+        config: Optional[RuleConfig] = None,
+        validator: Optional[RuleValidator[str]] = None,
+        json_config: Optional[JsonConfig] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -398,29 +465,25 @@ class JsonRule(BaseRule[str]):
             **kwargs: Additional configuration parameters
         """
         self._json_config = json_config
-        self._validator = validator
-        super().__init__(name, description, config, validator, **kwargs)
 
-    @property
-    def validator(self) -> DefaultJsonValidator:
-        """
-        Get the validator for this rule.
+        # Handle validator properly
+        json_validator = validator
+        if validator is None and json_config is not None:
+            # Create the validator if needed - cast needed for mypy
+            json_validator = cast(RuleValidator[str], DefaultJsonValidator(json_config))
 
-        Returns:
-            The JSON validator
-        """
-        if not hasattr(self, "_validator") or self._validator is None:
-            self._validator = self._create_default_validator() if self else ""
-        return self._validator
+        super().__init__(name, description, config, json_validator, **kwargs)
 
-    def _create_default_validator(self) -> DefaultJsonValidator:
+    def _create_default_validator(self) -> RuleValidator[str]:
         """
         Create the default validator for this rule.
 
         Returns:
             Default JSON validator instance
         """
-        return DefaultJsonValidator(self._json_config or JsonConfig())
+        json_config = self._json_config or JsonConfig()
+        validator = DefaultJsonValidator(json_config)
+        return cast(RuleValidator[str], validator)
 
 
 def create_json_rule(
@@ -474,15 +537,15 @@ def create_json_rule(
         **kwargs,
     )
 
-    # Create validator
+    # Create validator - no need to cast here since we're passing it directly
     validator = DefaultJsonValidator(config)
 
-    # Create rule
+    # Create rule - use cast to help mypy understand the type compatibility
     return JsonRule(
         name=name,
         description=description,
         config=rule_config,
-        validator=validator,
+        validator=cast(RuleValidator[str], validator),
         json_config=config,
     )
 
