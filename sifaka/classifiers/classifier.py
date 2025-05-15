@@ -71,12 +71,10 @@ The Classifier class supports configuration through the ClassifierConfig class:
 - cache_enabled: Whether to enable result caching
 - cache_size: Maximum number of cached results
 - min_confidence: Minimum confidence threshold
-- async_enabled: Whether to enable asynchronous classification
 """
 
 from typing import Any, Dict, List, Optional
 import time
-import asyncio
 
 from .interfaces import ClassifierImplementation
 from .engine import Engine
@@ -248,53 +246,64 @@ class Classifier:
             # Record start time
             start_time = time.time()
             if self._state_manager:
-                self._state_manager.set_metadata("execution_start_time", start_time)
+                self._state_manager.update("last_execution_time", start_time)
 
-            # Run engine
-            result = self._engine.classify(
-                text=text,
-                implementation=self._implementation,
-            )
+            # Check cache if enabled
+            if self._config.cache_enabled and self._state_manager:
+                cache_key = text
+                cached_result = self._state_manager.get("result_cache", {}).get(cache_key)
+                if cached_result:
+                    return cached_result
 
-            # Record end time
-            end_time = time.time()
-            execution_time = end_time - start_time
+            # Perform classification
+            result = self._engine.classify(text)
+
+            # Cache result if enabled
+            if self._config.cache_enabled and self._state_manager:
+                cache = self._state_manager.get("result_cache", {})
+                cache[cache_key] = result
+                if len(cache) > self._config.cache_size:
+                    # Remove oldest entry
+                    cache.pop(next(iter(cache)))
+                self._state_manager.update("result_cache", cache)
 
             # Update statistics
-            self._update_statistics(execution_time, success=True)
+            execution_time = time.time() - start_time
+            self._update_statistics(execution_time, True)
 
             return result
 
         except Exception as e:
-            # Record end time
-            end_time = time.time()
-            execution_time = end_time - start_time
+            # Record error
+            if self._state_manager:
+                self._state_manager.update("last_error", str(e))
+                self._state_manager.update(
+                    "error_count", self._state_manager.get("error_count", 0) + 1
+                )
 
             # Update statistics
-            self._update_statistics(execution_time, success=False, error=e)
+            execution_time = time.time() - start_time
+            self._update_statistics(execution_time, False, e)
 
-            # Raise as classifier error
-            if isinstance(e, ClassifierError):
-                raise e
-            raise ClassifierError(f"Classification failed: {str(e)}")
+            # Raise standardized error
+            raise ClassifierError(f"Classification failed: {str(e)}") from e
 
     def classify_batch(self, texts: List[str]) -> List[ClassificationResult]:
         """
-        Classify multiple texts.
+        Classify a batch of texts.
 
-        This method processes multiple input texts through the classifier implementation
-        and returns a list of standardized classification results. It handles errors for
-        individual texts without failing the entire batch operation.
+        This method processes multiple texts through the classifier implementation
+        and returns a list of standardized classification results. It handles state
+        tracking, error handling, and statistics updates for each text.
 
         Args:
-            texts: The texts to classify
+            texts: List of texts to classify
 
         Returns:
             List of classification results, one for each input text
 
         Raises:
-            ClassifierError: If the entire batch operation fails
-                             (individual text failures are handled gracefully)
+            ClassifierError: If classification fails for any text
         """
         results = []
         for text in texts:
@@ -302,119 +311,10 @@ class Classifier:
                 result = self.classify(text)
                 results.append(result)
             except Exception as e:
+                # Log error and continue with next text
                 logger.error(f"Failed to classify text: {str(e)}")
-                # Create fallback result
-                results.append(
-                    ClassificationResult(
-                        label=self._config.params.get("fallback_label", "unknown"),
-                        confidence=0.0,
-                        metadata={"error": str(e), "error_type": type(e).__name__},
-                        issues=[f"Classification failed: {str(e)}"],
-                        suggestions=["Try with a different classifier or improve the input text"],
-                    )
-                )
+                results.append(ClassificationResult(label="", confidence=0.0))
         return results
-
-    async def classify_async(self, text: str) -> ClassificationResult:
-        """
-        Classify the given text asynchronously.
-
-        Args:
-            text: The text to classify
-
-        Returns:
-            The classification result
-
-        Raises:
-            ClassifierError: If classification fails
-        """
-        # Check if async is enabled
-        if not self._config.async_enabled:
-            raise ClassifierError("Async execution is not enabled in the configuration")
-
-        try:
-            # Track execution count
-            execution_count = (
-                self._state_manager.get("execution_count", 0) if self._state_manager else 0
-            )
-            if self._state_manager:
-                self._state_manager.update("execution_count", execution_count + 1)
-
-            # Record start time
-            start_time = time.time()
-            if self._state_manager:
-                self._state_manager.set_metadata("execution_start_time", start_time)
-
-            # Run engine
-            result = await self._engine.classify_async(
-                text=text,
-                implementation=self._implementation,
-            )
-
-            # Record end time
-            end_time = time.time()
-            execution_time = end_time - start_time
-
-            # Update statistics
-            self._update_statistics(execution_time, success=True)
-
-            return result
-
-        except Exception as e:
-            # Record end time
-            end_time = time.time()
-            execution_time = end_time - start_time
-
-            # Update statistics
-            self._update_statistics(execution_time, success=False, error=e)
-
-            # Raise as classifier error
-            if isinstance(e, ClassifierError):
-                raise e
-            raise ClassifierError(f"Classification failed: {str(e)}")
-
-    async def classify_batch_async(self, texts: List[str]) -> List[ClassificationResult]:
-        """
-        Classify multiple texts asynchronously.
-
-        Args:
-            texts: The texts to classify
-
-        Returns:
-            List of classification results
-
-        Raises:
-            ClassifierError: If classification fails
-        """
-        # Check if async is enabled
-        if not self._config.async_enabled:
-            raise ClassifierError("Async execution is not enabled in the configuration")
-
-        # Create tasks for all texts
-        tasks = [self.classify_async(text) for text in texts]
-
-        # Wait for all tasks to complete
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Process results
-        processed_results = []
-        for result in results:
-            if isinstance(result, Exception):
-                logger.error(f"Failed to classify text: {str(result)}")
-                # Create fallback result
-                processed_results.append(
-                    ClassificationResult(
-                        label=self._config.params.get("fallback_label", "unknown"),
-                        confidence=0.0,
-                        metadata={"error": str(result), "error_type": type(result).__name__},
-                        issues=[f"Classification failed: {str(result)}"],
-                        suggestions=["Try with a different classifier or improve the input text"],
-                    )
-                )
-            else:
-                processed_results.append(result)
-
-        return processed_results
 
     def _update_statistics(
         self,
@@ -425,135 +325,83 @@ class Classifier:
         """
         Update classifier statistics.
 
-        This internal method updates the classifier's execution statistics,
-        including success/failure counts, execution times, and error tracking.
-        It uses the standardized utility function from utils.common and adds
-        classifier-specific statistics.
+        This method updates the classifier's statistics with the latest execution
+        information, including execution time, success status, and any errors.
 
         Args:
-            execution_time: Execution time in seconds
-            success: Whether execution was successful
-            error: Optional error that occurred
+            execution_time: Time taken for the execution
+            success: Whether the execution was successful
+            error: Any error that occurred during execution
         """
-        # Use the standardized utility function
-        update_statistics(
-            state_manager=self._state_manager,
+        if not self._state_manager:
+            return
+
+        # Get current statistics
+        stats = self._state_manager.get("statistics", {})
+        execution_count = self._state_manager.get("execution_count", 0)
+
+        # Update statistics
+        stats = update_statistics(
+            stats,
             execution_time=execution_time,
             success=success,
             error=error,
+            execution_count=execution_count,
         )
 
-        # Update additional classifier-specific statistics
-        if self._state_manager:
-            self._state_manager.set_metadata("last_execution_time", execution_time)
-
-            max_time = self._state_manager.get_metadata("max_execution_time", 0)
-            if execution_time > max_time:
-                self._state_manager.set_metadata("max_execution_time", execution_time)
+        # Update state
+        self._state_manager.update("statistics", stats)
 
     def get_statistics(self) -> Dict[str, Any]:
         """
         Get classifier statistics.
 
-        This method returns a comprehensive dictionary of classifier statistics,
-        including execution counts, success/failure rates, timing information,
-        error details, and label distribution statistics.
+        This method returns the current statistics for the classifier, including
+        execution count, success rate, average execution time, and error information.
 
         Returns:
-            Dictionary with classifier statistics including:
-            - name: Classifier name
-            - execution_count: Total number of classification operations
-            - success_count: Number of successful classifications
-            - failure_count: Number of failed classifications
-            - error_count: Number of errors encountered
-            - avg_execution_time: Average execution time in seconds
-            - max_execution_time: Maximum execution time in seconds
-            - last_execution_time: Most recent execution time in seconds
-            - last_error: Most recent error message
-            - last_error_time: Timestamp of most recent error
-            - cache_size: Current size of the result cache
-            - label_stats: Distribution of classification labels
+            Dictionary containing classifier statistics
         """
+        if not self._state_manager:
+            return {}
+
+        stats = self._state_manager.get("statistics", {})
+        execution_count = self._state_manager.get("execution_count", 0)
+        error_count = self._state_manager.get("error_count", 0)
+        last_error = self._state_manager.get("last_error")
+
         return {
-            "name": self._name,
-            "execution_count": (
-                self._state_manager.get("execution_count", 0) if self._state_manager else 0
+            "execution_count": execution_count,
+            "error_count": error_count,
+            "last_error": last_error,
+            "success_rate": (
+                (execution_count - error_count) / execution_count if execution_count > 0 else 0
             ),
-            "success_count": (
-                self._state_manager.get_metadata("success_count", 0) if self._state_manager else 0
-            ),
-            "failure_count": (
-                self._state_manager.get_metadata("failure_count", 0) if self._state_manager else 0
-            ),
-            "error_count": (
-                self._state_manager.get_metadata("error_count", 0) if self._state_manager else 0
-            ),
-            "avg_execution_time": (
-                self._state_manager.get_metadata("avg_execution_time", 0)
-                if self._state_manager
-                else 0
-            ),
-            "max_execution_time": (
-                self._state_manager.get_metadata("max_execution_time", 0)
-                if self._state_manager
-                else 0
-            ),
-            "last_execution_time": (
-                self._state_manager.get_metadata("last_execution_time", 0)
-                if self._state_manager
-                else 0
-            ),
-            "last_error": (
-                self._state_manager.get_metadata("last_error", None)
-                if self._state_manager
-                else None
-            ),
-            "last_error_time": (
-                self._state_manager.get_metadata("last_error_time", None)
-                if self._state_manager
-                else None
-            ),
-            "cache_size": (
-                len(self._state_manager.get("result_cache", {})) if self._state_manager else 0
-            ),
-            "label_stats": (
-                self._state_manager.get_metadata("label_stats", {}) if self._state_manager else {}
-            ),
+            "avg_execution_time": stats.get("avg_execution_time", 0),
+            "min_execution_time": stats.get("min_execution_time", 0),
+            "max_execution_time": stats.get("max_execution_time", 0),
+            "total_execution_time": stats.get("total_execution_time", 0),
         }
 
     def clear_cache(self) -> None:
         """
-        Clear the classifier result cache.
+        Clear the classifier's result cache.
 
-        This method removes all cached classification results, which can be
-        useful when changing configuration or when memory usage needs to be reduced.
+        This method clears all cached classification results from the state manager.
         """
         if self._state_manager:
             self._state_manager.update("result_cache", {})
-        logger.debug("Classifier cache cleared")
 
     def reset_state(self) -> None:
         """
-        Reset classifier state.
+        Reset the classifier's state.
 
-        This method resets all state information, including execution counts,
-        statistics, and the result cache. It then re-initializes the state with
-        the current classifier configuration.
-
-        This is useful when you want to start fresh with the same classifier
-        configuration, for example when running a new batch of classifications
-        that should not be influenced by previous runs.
+        This method resets all state information, including statistics, cache,
+        and error tracking. It maintains the configuration and implementation.
         """
         if self._state_manager:
-            self._state_manager.reset()
-
-            # Re-initialize state
-            self._state_manager.update("name", self._name)
-            self._state_manager.update("description", self._description)
-            self._state_manager.update("implementation", self._implementation)
-            self._state_manager.update("config", self._config)
-            self._state_manager.update("initialized", True)
             self._state_manager.update("execution_count", 0)
+            self._state_manager.update("error_count", 0)
+            self._state_manager.update("last_error", None)
+            self._state_manager.update("statistics", {})
             self._state_manager.update("result_cache", {})
-
-        logger.debug("Classifier state reset")

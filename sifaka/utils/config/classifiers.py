@@ -120,6 +120,7 @@ class ClassifierConfig(BaseConfig, Generic[R]):
     threshold: float = Field(default=0.7, ge=0.0, le=1.0, description="Classification threshold")
     cache_size: int = Field(default=100, ge=0, description="Size of the result cache")
     trace_enabled: bool = Field(default=False, description="Whether to enable tracing")
+    cache_enabled: bool = Field(default=True, description="Whether to enable result caching")
 
 
 class ImplementationConfig(BaseConfig):

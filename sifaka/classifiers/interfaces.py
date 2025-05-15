@@ -14,7 +14,6 @@ different classifier implementations and plugins.
 ## Interface Hierarchy
 1. **ClassifierImplementation**: Core interface for classifier implementations
    - Defines the contract for text classification functionality
-   - Requires both synchronous and asynchronous classification methods
    - Ensures consistent error handling and result formatting
 
 2. **Plugin**: Interface for classifier plugins
@@ -27,7 +26,6 @@ The interfaces follow a protocol-based approach using Python's typing.Protocol:
 - Runtime checkable for dynamic type verification
 - Abstract methods define required functionality
 - Clear separation between implementation and interface
-- Support for both synchronous and asynchronous operations
 
 ## Usage Examples
 ```python
@@ -63,11 +61,6 @@ class SentimentClassifier(ClassifierImplementation):
                 confidence=0.6,
                 metadata={"positive_words": positive_count, "negative_words": negative_count}
             )
-
-    async def classify_async(self, text: str) -> ClassificationResult:
-        # For simple implementations, we can just call the synchronous version
-        # In real implementations, this would use async libraries or APIs
-        return self.classify(text) if self else ""
 ```
 
 ## Error Handling
@@ -97,7 +90,6 @@ class ClassifierImplementation(Protocol):
     The ClassifierImplementation protocol:
     - Uses Python's typing.Protocol for structural subtyping
     - Is runtime checkable for dynamic type verification
-    - Defines both synchronous and asynchronous classification methods
     - Ensures consistent result types and error handling
 
     ## Lifecycle
@@ -113,9 +105,6 @@ class ClassifierImplementation(Protocol):
         def classify(self, text: str) -> ClassificationResult:
             ...
 
-        async def classify_async(self, text: str) -> ClassificationResult:
-            ...
-
     # Check if an object implements the protocol
     if isinstance(obj, ClassifierImplementation):
         result = obj.classify("Some text") if obj else ""
@@ -129,35 +118,7 @@ class ClassifierImplementation(Protocol):
 
         This method processes the input text and returns a classification result
         with a label, confidence score, and optional metadata. It is the primary
-        synchronous classification method that all implementations must provide.
-
-        Args:
-            text: The text to classify, which can be any string content
-                  that the implementation can process
-
-        Returns:
-            The classification result containing:
-            - label: The classification label (e.g., "positive", "toxic")
-            - confidence: A confidence score between 0.0 and 1.0
-            - metadata: Optional additional information about the classification
-            - issues: Any issues encountered during classification
-            - suggestions: Suggestions for improving the input
-
-        Raises:
-            ImplementationError: If classification fails due to implementation errors,
-                                 invalid input, or other issues
-        """
-        pass
-
-    @abstractmethod
-    async def classify_async(self, text: str) -> ClassificationResult:
-        """
-        Classify the given text asynchronously.
-
-        This method provides the same functionality as classify() but operates
-        asynchronously, allowing for non-blocking classification operations.
-        It is particularly useful for implementations that use external APIs
-        or perform I/O operations.
+        classification method that all implementations must provide.
 
         Args:
             text: The text to classify, which can be any string content

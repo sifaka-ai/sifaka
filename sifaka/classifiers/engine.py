@@ -45,18 +45,6 @@ result = engine.classify(
 # Access result
 print(f"Label: {result.label}")
 print(f"Confidence: {result.confidence:.2f}")
-
-# Classify text asynchronously
-import asyncio
-
-async def classify_async():
-    result = await engine.classify_async(
-        text="This is a friendly message.",
-        implementation=implementation
-    )
-    return result
-
-result = asyncio.run(classify_async())
 ```
 
 ## Error Handling
@@ -71,7 +59,6 @@ The Engine class supports configuration through the ClassifierConfig class:
 - cache_enabled: Whether to enable result caching
 - cache_size: Maximum number of cached results
 - min_confidence: Minimum confidence threshold
-- async_enabled: Whether to enable asynchronous classification
 """
 
 from typing import Any, Optional
@@ -100,7 +87,6 @@ class Engine:
     - Uses StateManager for state tracking and statistics
     - Implements caching with configurable cache size
     - Delegates to classifier implementations for actual classification
-    - Provides both synchronous and asynchronous interfaces
     - Handles errors with standardized error classes
 
     ## Lifecycle
@@ -249,96 +235,13 @@ class Engine:
         def classify_operation() -> Any:
             return implementation.classify(text)
 
-        result = safely_execute(
-            operation=classify_operation,
-            component_name="implementation",
-            component_type="ClassifierImplementation",
-            error_class=ImplementationError,
-        )
-        if result.confidence < self._config.min_confidence:
-            result = result.with_issues(
-                [
-                    f"Confidence ({result.confidence:.2f}) below threshold ({self._config.min_confidence:.2f})"
-                ]
-            )
-            result = result.with_suggestions(
-                ["Consider using a different classifier or improving the input text"]
-            )
-        stats = self._state_manager.get_metadata("label_stats", {})
-        stats[result.label] = stats.get(result.label, 0) + 1
-        self._state_manager.set_metadata("label_stats", stats)
-        return result
-
-    async def classify_async(
-        self, text: str, implementation: ClassifierImplementation
-    ) -> ClassificationResult:
-        """
-        Classify the given text asynchronously.
-
-        This method provides the same functionality as classify() but operates
-        asynchronously, allowing for non-blocking classification operations.
-        It is particularly useful for implementations that use external APIs
-        or perform I/O operations.
-
-        Args:
-            text: The text to classify, which can be any string content
-                 that the implementation can process
-            implementation: The classifier implementation to use for classification,
-                           which must implement the ClassifierImplementation interface
-
-        Returns:
-            The classification result containing:
-            - label: The classification label (e.g., "positive", "toxic")
-            - confidence: A confidence score between 0.0 and 1.0
-            - metadata: Optional additional information about the classification
-            - issues: Any issues encountered during classification
-            - suggestions: Suggestions for improving the input
-
-        Raises:
-            ClassifierError: If classification fails due to engine errors or
-                            if async execution is not enabled in the configuration
-            ImplementationError: If the implementation fails to classify the text
-        """
-        if not self._config.async_enabled:
-            raise ClassifierError("Async execution is not enabled in the configuration")
-        execution_count = self._state_manager.get("execution_count", 0)
-        self._state_manager.update("execution_count", execution_count + 1)
-        if self._config.cache_enabled:
-            cache = self._state_manager.get("result_cache", {})
-            cache_key = f"{text}_{implementation.__class__.__name__}"
-            if cache_key in cache:
-                self._state_manager.set_metadata("cache_hit", True)
-                return cache[cache_key]
-        start_time = time.time()
         try:
-            self._state_manager.update("implementation", implementation)
-            self._state_manager.update("text", text)
-            result = await implementation.classify_async(text)
-            if self._config.cache_enabled:
-                cache = self._state_manager.get("result_cache", {})
-                cache_size = self._config.cache_size
-                cache_key = f"{text}_{implementation.__class__.__name__}"
-                if len(cache) >= cache_size:
-                    oldest_key = next(iter(cache))
-                    del cache[oldest_key]
-                cache[cache_key] = result
-                self._state_manager.update("result_cache", cache)
+            result = safely_execute(
+                operation=classify_operation,
+                component_name=implementation.__class__.__name__,
+                operation_name="classify",
+            )
             return result
         except Exception as e:
-            error_count = self._state_manager.get_metadata("error_count", 0)
-            self._state_manager.set_metadata("error_count", error_count + 1)
-            self._state_manager.set_metadata("last_error", str(e))
-            self._state_manager.set_metadata("last_error_time", time.time())
-            logger.error(f"Engine execution error: {str(e)}")
-            raise ClassifierError(f"Engine execution failed: {str(e)}")
-        finally:
-            end_time = time.time()
-            execution_time = end_time - start_time
-            self._state_manager.set_metadata("last_execution_time", execution_time)
-            avg_time = self._state_manager.get_metadata("avg_execution_time", 0)
-            count = execution_count + 1
-            new_avg = (avg_time * (count - 1) + execution_time) / count
-            self._state_manager.set_metadata("avg_execution_time", new_avg)
-            max_time = self._state_manager.get_metadata("max_execution_time", 0)
-            if execution_time > max_time:
-                self._state_manager.set_metadata("max_execution_time", execution_time)
+            logger.error(f"Implementation error: {str(e)}")
+            raise ImplementationError(f"Implementation failed: {str(e)}") from e
