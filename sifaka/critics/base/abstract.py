@@ -150,7 +150,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         # CriticConfig is a subclass of BaseConfig, so this is type-compatible
         # Use explicit cast to satisfy mypy type checking
         base_config = config or CriticConfig(**kwargs)
-        super().__init__(name, description, base_config)
+        super().__init__(name, description, cast(Optional[BaseConfig], base_config))
 
     @abstractmethod
     def validate(self, text: T) -> bool:
@@ -220,7 +220,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
             self.handle_empty_input(str(text) if text is not None else "") if self else None
         )
         if empty_result:
-            processing_time = (time.time() - start_time)
+            processing_time = time.time() - start_time
             # Ensure we return a BaseResult
             if isinstance(empty_result, BaseResult):
                 result = empty_result.with_metadata(processing_time_ms=processing_time)
@@ -237,7 +237,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
                     },
                 )
 
-        def process_operation() -> Any:
+        def process_operation() -> BaseResult:
             if self:
                 result = self.critique(text)
                 if self:
@@ -256,7 +256,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
                     )
                     improved_text = self.improve(text, feedback) if self else None
                     if result:
-                        processing_time = (time.time() - start_time)
+                        processing_time = time.time() - start_time
                         result = result.with_metadata(
                             improved_text=improved_text,
                             improvement_applied=True,
@@ -281,7 +281,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
                 result.get("error_message", "Unknown error") if result else "Unknown error"
             )
             error_type = result.get("error_type") if result else "unknown"
-            processing_time = (time.time() - start_time)
+            processing_time = time.time() - start_time
             return BaseResult(
                 passed=False,
                 message=error_message,

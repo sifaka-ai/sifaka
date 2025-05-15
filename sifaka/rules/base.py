@@ -373,26 +373,18 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
 
         def validation_operation() -> RuleResult:
             result = self._validator.validate(input)
-            # Cast to RuleResult to ensure type compatibility
-            from typing import cast
-
-            result = cast(
-                RuleResult,
-                result.with_metadata(
-                    processing_time_ms=time.time() - start_time,
-                    rule_id=rule_id,
-                    rule_type=self.__class__.__name__,
-                ),
+            # Update metadata without redundant cast
+            result = result.with_metadata(
+                processing_time_ms=time.time() - start_time,
+                rule_id=rule_id,
+                rule_type=self.__class__.__name__,
             )
             if isinstance(self.config, RuleConfig):
-                result = cast(
-                    RuleResult,
-                    (
-                        result.with_rule_id(rule_id)
-                        .with_severity(self.config.severity)
-                        .with_category(self.config.category)
-                        .with_tags(self.config.tags)
-                    ),
+                result = (
+                    result.with_rule_id(rule_id)
+                    .with_severity(self.config.severity)
+                    .with_category(self.config.category)
+                    .with_tags(self.config.tags)
                 )
             return result
 

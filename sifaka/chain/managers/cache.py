@@ -257,7 +257,14 @@ class CacheManager(InitializeStateMixin):
             cache_hits = self._state_manager.get_metadata("cache_hits", 0)
             self._state_manager.set_metadata("cache_hits", cache_hits + 1)
             logger.debug(f"Cache hit for prompt: {prompt[:50]}...")
-        return result
+
+            # Ensure we're returning a ChainResult
+            if isinstance(result, ChainResult):
+                return result
+            else:
+                logger.warning(f"Cached result for prompt '{prompt[:50]}...' is not a ChainResult")
+                return None
+        return None
 
     def cache_result(self, prompt: str, result: ChainResult) -> None:
         """

@@ -53,7 +53,7 @@ print(result.get_formatted_results() if result else "")
 
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 from sifaka.utils.common import record_error
 from sifaka.utils.config.retrieval import RankingConfig, RetrieverConfig
@@ -61,6 +61,7 @@ from sifaka.utils.errors.base import InputError
 from sifaka.utils.errors.component import RetrievalError
 from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.logging import get_logger
+from sifaka.core.base import BaseConfig
 
 from ..core import RetrieverCore
 from sifaka.core.results import RetrievalResult
@@ -108,10 +109,11 @@ class SimpleRetriever(RetrieverCore):
     def __init__(
         self,
         documents: Optional[Dict[str, str]] = None,
-        corpus: Optional[Optional[str]] = None,
-        config: Optional[Optional[RetrieverConfig]] = None,
+        corpus: Optional[str] = None,
+        config: Optional[RetrieverConfig] = None,
         name: str = "SimpleRetriever",
         description: str = "Simple retriever for in-memory document collections",
+        query_processor: Any = None,
     ):
         """
         Initialize the simple retriever.
@@ -122,12 +124,24 @@ class SimpleRetriever(RetrieverCore):
             config: The retriever configuration
             name: Name of the retriever
             description: Description of the retriever
+            query_processor: Optional query processor to preprocess queries
 
         Raises:
             RetrievalError: If both documents and corpus are None and initialization fails
             FileNotFoundError: If corpus file doesn't exist
         """
-        super().__init__(config=config, name=name, description=description)
+        # Store query_processor as an instance attribute so the parent class can access it
+        self.query_processor = query_processor
+
+        # Initialize the base retriever with only the parameters it accepts
+        # Make sure to pass query_processor to match the parent class expectations
+        super().__init__(name=name, query_processor=query_processor)
+
+        # Store the description in state_manager metadata
+        self._state_manager.set_metadata("description", description)
+
+        # Store the config - use explicit cast to satisfy mypy
+        self._retriever_config = config or RetrieverConfig(name=name)
 
         # Initialize documents and ranking strategy
         self._initialize_documents(documents, corpus)
@@ -138,6 +152,21 @@ class SimpleRetriever(RetrieverCore):
         )
         if corpus:
             self._state_manager.set_metadata("corpus_path", corpus)
+
+    @property
+    def config(self) -> BaseConfig:
+        """Get the component configuration"""
+        return cast(BaseConfig, self._retriever_config)
+
+    @config.setter
+    def config(self, config: Any) -> None:
+        """Set the component configuration"""
+        if isinstance(config, RetrieverConfig):
+            self._retriever_config = config
+        else:
+            self._retriever_config = (
+                RetrieverConfig() if config is None else RetrieverConfig(**config)
+            )
 
     def _initialize_documents(
         self, documents: Optional[Dict[str, str]], corpus: Optional[str]
@@ -199,7 +228,8 @@ class SimpleRetriever(RetrieverCore):
         Returns:
             The document collection
         """
-        return self.get("documents", {})
+        docs = self._state_manager.get("documents", {})
+        return cast(Dict[str, str], docs)
 
     @documents.setter
     def documents(self, documents: Dict[str, str]) -> None:
@@ -209,8 +239,8 @@ class SimpleRetriever(RetrieverCore):
         Args:
             documents: The new document collection
         """
-        self.update("documents", documents)
-        self.set_metadata("document_count", len(documents))
+        self._state_manager.update("documents", documents)
+        self._state_manager.set_metadata("document_count", len(documents))
 
     @property
     def ranking_strategy(self) -> SimpleRankingStrategy:
@@ -220,7 +250,8 @@ class SimpleRetriever(RetrieverCore):
         Returns:
             The ranking strategy
         """
-        return self.get("ranking_strategy")
+        strategy = self._state_manager.get("ranking_strategy")
+        return cast(SimpleRankingStrategy, strategy)
 
     def retrieve(self, query: str, **kwargs: Any) -> RetrievalResult:
         """
@@ -287,25 +318,29 @@ class SimpleRetriever(RetrieverCore):
             ]
 
             # Get ranking strategy from state
-            ranking_strategy = self.get("ranking_strategy")
+            ranking_strategy = self.ranking_strategy
 
-            # Apply custom parameters if provided
+            # Instead of modifying the config directly, pass the parameters to the rank method
+            # Extract parameters that will be passed to the ranking strategy
+            ranking_kwargs = {}
             if "max_results" in kwargs:
-                ranking_strategy.config.top_k = kwargs["max_results"]
+                ranking_kwargs["top_k"] = kwargs["max_results"]
             if "threshold" in kwargs:
-                ranking_strategy.config.score_threshold = kwargs["threshold"]
+                ranking_kwargs["score_threshold"] = kwargs["threshold"]
 
-            # Rank the documents
-            ranked_docs = ranking_strategy.rank(processed_query, doc_list)
+            # Rank the documents, passing any override parameters
+            ranked_docs = ranking_strategy.rank(processed_query, doc_list, **ranking_kwargs)
 
-            # Get max_results from kwargs or config
-            max_results = kwargs.get("max_results", self.config.max_results)
+            # Get max_results from kwargs or config - ensure we use the correct attribute
+            max_results = kwargs.get(
+                "max_results", getattr(self._retriever_config, "max_results", 5)
+            )
 
             # Limit the number of results to max_results
             limited_docs = ranked_docs[:max_results]
 
             # Track statistics
-            self.set_metadata("last_query_doc_count", len(limited_docs))
+            self._state_manager.set_metadata("last_query_doc_count", len(limited_docs))
 
             end_time = time.time()
             execution_time_ms = (end_time - start_time) * 1000
@@ -350,7 +385,7 @@ class SimpleRetriever(RetrieverCore):
         stats.update(
             {
                 "document_count": len(self.documents),
-                "last_query_doc_count": self.get_metadata("last_query_doc_count", 0),
+                "last_query_doc_count": self._state_manager.get_metadata("last_query_doc_count", 0),
             }
         )
         return stats

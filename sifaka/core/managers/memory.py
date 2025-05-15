@@ -75,9 +75,9 @@ from sifaka.utils.state import StateManager, create_memory_manager_state
 from sifaka.utils.logging import get_logger
 from sifaka.utils.config.base import ConfigDict
 from sifaka.utils.errors.component import RetrievalError
-from sifaka.utils.errors.common import ValidationError
+from sifaka.utils.errors import ValidationError
 from sifaka.utils.common import record_error
-from sifaka.utils.errors.safe_execution import safely_execute_operation
+from sifaka.utils.errors.safe_execution import safely_execute_component_operation
 
 logger = get_logger(__name__)
 
@@ -432,7 +432,20 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
                 and getattr(self.config, "cache_enabled", False)
             ):
                 self._state_manager.set_metadata("cache_hit", True)
-                return cache[key]
+                # Ensure we're returning List[MemoryResult]
+                cached_result = cache[key]
+                if isinstance(cached_result, list):
+                    # Check that each item is a MemoryResult
+                    if all(isinstance(item, MemoryResult) for item in cached_result):
+                        return cached_result
+                    else:
+                        logger.warning(
+                            f"Cache contained invalid items for key '{key}', ignoring cache"
+                        )
+                else:
+                    logger.warning(
+                        f"Cache contained non-list value for key '{key}', ignoring cache"
+                    )
 
             # Mark as cache miss
             self._state_manager.set_metadata("cache_hit", False)
