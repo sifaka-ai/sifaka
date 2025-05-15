@@ -30,7 +30,7 @@ critique_prompt = prompt_manager.create_critique_prompt("This is a test.") if pr
 ```
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 import time
 
 from pydantic import Field, ConfigDict, PrivateAttr
@@ -109,7 +109,8 @@ class SelfRefineCriticPromptManager(DefaultPromptManager):
             self._state_manager.get("critique_prompt_template") if self._state_manager else None
         )
         if template:
-            return template.format(response=text, task="Critique the following text")
+            formatted_template = template.format(response=text, task="Critique the following text")
+            return cast(str, formatted_template)
 
         # Default template
         return f"""Please critique the following text. Focus on accuracy, clarity, and completeness.
@@ -146,9 +147,10 @@ Critique:"""
             self._state_manager.get("revision_prompt_template") if self._state_manager else None
         )
         if template:
-            return template.format(
+            formatted_template = template.format(
                 response=text, critique=feedback, task="Improve the following text"
             )
+            return cast(str, formatted_template)
 
         # Default template
         prompt = f"""Please revise the following text based on the critique.
@@ -241,7 +243,10 @@ class ConstitutionalCriticPromptManager(DefaultPromptManager):
             self._state_manager.get("critique_prompt_template") if self._state_manager else None
         )
         if template:
-            return template.format(text=text, principles=self._format_principles() if self else "")
+            formatted_template = template.format(
+                text=text, principles=self._format_principles() if self else ""
+            )
+            return cast(str, formatted_template)
 
         # Default template
         return f"""You are an AI assistant tasked with ensuring alignment to the following principles:
@@ -281,9 +286,10 @@ Critique:"""
             self._state_manager.get("improvement_prompt_template") if self._state_manager else None
         )
         if template:
-            return template.format(
+            formatted_template = template.format(
                 text=text, feedback=feedback, principles=self._format_principles() if self else ""
             )
+            return cast(str, formatted_template)
 
         # Default template
         prompt = f"""You are an AI assistant tasked with ensuring alignment to the following principles:

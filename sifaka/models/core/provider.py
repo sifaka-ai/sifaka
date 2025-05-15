@@ -6,7 +6,7 @@ for model providers, delegating to specialized components for better separation 
 """
 
 from abc import abstractmethod
-from typing import Any, Generic, Optional, TypeVar
+from typing import Any, Generic, Optional, TypeVar, cast
 from sifaka.interfaces.client import APIClientProtocol as APIClient
 from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
 from sifaka.interfaces.model import ModelProviderProtocol
@@ -19,6 +19,7 @@ from .generation import process_input
 from .token_counting import count_tokens_impl
 from .error_handling import record_error
 from .utils import update_statistics, update_token_count_statistics
+from numbers import Number
 
 logger = get_logger(__name__)
 T = TypeVar("T", bound="ModelProviderCore")
@@ -178,9 +179,15 @@ class ModelProviderCore(ModelProviderProtocol, Generic[C]):
             return 0
 
         # Convert token_count to int safely
-        try:
-            token_count_int = int(token_count)
-        except (ValueError, TypeError):
+        if isinstance(token_count, int):
+            token_count_int = token_count
+        elif isinstance(token_count, (float, str)):
+            try:
+                token_count_int = int(token_count)
+            except (ValueError, TypeError):
+                token_count_int = 0
+        else:
+            # If we can't safely convert, return 0
             token_count_int = 0
 
         update_token_count_statistics(

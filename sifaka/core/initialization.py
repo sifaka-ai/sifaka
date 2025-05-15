@@ -659,7 +659,7 @@ class BaseInitializable(BaseModel, InitializableMixin):
     name: str = Field(description="Component name", min_length=1)
     description: str = Field(description="Component description", min_length=1)
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    _state_manager = PrivateAttr(default_factory=create_state_manager)
+    _state_manager = PrivateAttr(default_factory=lambda: create_state_manager(ComponentState))
     _resource_manager = PrivateAttr(default_factory=ResourceManager)
 
     def __init__(self, **data: Any) -> None:

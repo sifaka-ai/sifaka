@@ -56,7 +56,7 @@ Factory functions use the standardize_model_config function from utils.config
 to ensure consistent configuration across all model providers.
 """
 
-from typing import Any, Optional, Type, TypeVar, TYPE_CHECKING
+from typing import Any, Optional, Type, TypeVar, TYPE_CHECKING, Dict
 
 # Import interfaces directly to avoid circular dependencies
 from sifaka.interfaces.model import ModelProviderProtocol
@@ -64,7 +64,7 @@ from sifaka.utils.config.models import standardize_model_config
 from sifaka.utils.logging import get_logger
 
 # Type variables
-T = TypeVar("T", bound="ModelProviderProtocol")
+T = TypeVar("T")  # General type parameter for providers
 
 logger = get_logger(__name__)
 
@@ -134,7 +134,7 @@ def create_model_provider(
     """
 
     # Create configuration using standardization function
-    config = standardize_model_config(
+    config: Dict[str, Any] = standardize_model_config(
         temperature=temperature,
         max_tokens=max_tokens,
         api_key=api_key,
@@ -144,7 +144,7 @@ def create_model_provider(
 
     # Create provider
     try:
-        return provider_type(model_name=model_name, config=config, **kwargs)
+        return provider_type(model_name=model_name, config=config, **kwargs)  # type: ignore
     except Exception as e:
         raise RuntimeError(f"Failed to create {provider_type.__name__}: {e}") from e
 
@@ -155,7 +155,7 @@ def create_openai_provider(
     temperature: float = 0.7,
     max_tokens: int = 1000,
     **kwargs: Any,
-) -> ModelProviderProtocol:
+) -> Any:
     """
     Create an OpenAI provider with the given configuration.
 
@@ -218,7 +218,7 @@ def create_anthropic_provider(
     temperature: float = 0.7,
     max_tokens: int = 1000,
     **kwargs: Any,
-) -> ModelProviderProtocol:
+) -> Any:
     """
     Create an Anthropic provider with the given configuration.
 
@@ -281,7 +281,7 @@ def create_gemini_provider(
     temperature: float = 0.7,
     max_tokens: int = 1000,
     **kwargs: Any,
-) -> ModelProviderProtocol:
+) -> Any:
     """
     Create a Gemini provider with the given configuration.
 
@@ -341,7 +341,7 @@ def create_gemini_provider(
 def create_mock_provider(
     model_name: str = "mock-model",
     **kwargs: Any,
-) -> ModelProviderProtocol:
+) -> Any:
     """
     Create a mock provider for testing.
 

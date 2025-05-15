@@ -74,7 +74,7 @@ class Improver(Generic[OutputType]):
         try:
             prompt = f"Original text: {text}\n\nFeedback: {feedback}\n\nImproved text:"
             improved_text = self._model.generate(prompt)
-            return ImprovementResult[OutputType](
+            return ImprovementResult[str](
                 output=improved_text,
                 confidence=0.9,
                 metadata={

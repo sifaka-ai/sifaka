@@ -73,7 +73,7 @@ The Classifier class supports configuration through the ClassifierConfig class:
 - min_confidence: Minimum confidence threshold
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypeVar, Generic, cast
 import time
 
 from .interfaces import ClassifierImplementation
@@ -85,11 +85,15 @@ from ..core.results import ClassificationResult
 from ..utils.config import ClassifierConfig
 from ..utils.errors import ClassifierError
 
+# Define type variables for label and metadata types
+L = TypeVar("L")
+M = TypeVar("M")
+
 # Configure logger
 logger = get_logger(__name__)
 
 
-class Classifier:
+class Classifier(Generic[L, M]):
     """
     Main user-facing class for classification.
 
@@ -132,7 +136,7 @@ class Classifier:
     def __init__(
         self,
         implementation: ClassifierImplementation,
-        config: Optional[Optional[ClassifierConfig]] = None,
+        config: Optional[ClassifierConfig] = None,
         name: str = "classifier",
         description: str = "Sifaka classifier for text classification",
     ):
@@ -217,7 +221,7 @@ class Classifier:
         if self._state_manager:
             self._state_manager.update("config", config)
 
-    def classify(self, text: str) -> ClassificationResult:
+    def classify(self, text: str) -> ClassificationResult[L, M]:
         """
         Classify the given text.
 
@@ -253,10 +257,10 @@ class Classifier:
                 cache_key = text
                 cached_result = self._state_manager.get("result_cache", {}).get(cache_key)
                 if cached_result:
-                    return cached_result
+                    return cast(ClassificationResult[L, M], cached_result)
 
             # Perform classification
-            result = self._engine.classify(text)
+            result = self._engine.classify(text, implementation=self._implementation)
 
             # Cache result if enabled
             if self._config.cache_enabled and self._state_manager:
@@ -271,7 +275,7 @@ class Classifier:
             execution_time = time.time() - start_time
             self._update_statistics(execution_time, True)
 
-            return result
+            return cast(ClassificationResult[L, M], result)
 
         except Exception as e:
             # Record error
@@ -288,7 +292,7 @@ class Classifier:
             # Raise standardized error
             raise ClassifierError(f"Classification failed: {str(e)}") from e
 
-    def classify_batch(self, texts: List[str]) -> List[ClassificationResult]:
+    def classify_batch(self, texts: List[str]) -> List[ClassificationResult[L, M]]:
         """
         Classify a batch of texts.
 
@@ -313,7 +317,14 @@ class Classifier:
             except Exception as e:
                 # Log error and continue with next text
                 logger.error(f"Failed to classify text: {str(e)}")
-                results.append(ClassificationResult(label="", confidence=0.0))
+                # Create a default result with empty string that will be cast internally
+                default_result: ClassificationResult[Any, Any] = ClassificationResult(
+                    label="",  # The constructor will handle type conversion
+                    confidence=0.0,
+                    passed=False,
+                    message="Classification failed",
+                )
+                results.append(cast(ClassificationResult[L, M], default_result))
         return results
 
     def _update_statistics(
@@ -341,12 +352,11 @@ class Classifier:
         execution_count = self._state_manager.get("execution_count", 0)
 
         # Update statistics
-        stats = update_statistics(
-            stats,
+        update_statistics(
+            self._state_manager,
             execution_time=execution_time,
             success=success,
             error=error,
-            execution_count=execution_count,
         )
 
         # Update state

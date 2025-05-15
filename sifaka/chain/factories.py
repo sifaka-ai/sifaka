@@ -70,13 +70,18 @@ Factory functions accept various configuration options:
 - Dependency resolution parameters (session_id, request_id)
 """
 
-from typing import Any, List, Optional, Type, TypeVar, cast
+from typing import Any, List, Optional, Type, TypeVar, cast, Generic, Protocol
 
 from .chain import Chain
-from .interfaces import Model, Validator, Improver, Formatter
+from .interfaces import Model, Validator, Improver, Formatter, ValidationResult
 from ..utils.config import ChainConfig
 from ..utils.config.chain import EngineConfig
 from ..adapters.chain import ModelAdapter, ValidatorAdapter, ImproverAdapter, FormatterAdapter
+
+# Define type variables for generic interfaces
+T = TypeVar("T")
+InputT = TypeVar("InputT", contravariant=True)
+OutputT = TypeVar("OutputT", covariant=True)
 
 
 def create_chain(
@@ -126,8 +131,9 @@ def create_chain(
                 if isinstance(validator, Validator):
                     adapted_validators.append(validator)
                 else:
-                    # Cast to the expected type to satisfy mypy
-                    adapted_validators.append(ValidatorAdapter(validator))
+                    # Need to use a type cast to satisfy mypy
+                    validator_adapter = ValidatorAdapter(validator)
+                    adapted_validators.append(cast(Validator[Any], validator_adapter))
 
         # Adapt improver if needed
         adapted_improver = None
@@ -136,7 +142,8 @@ def create_chain(
                 adapted_improver = improver
             else:
                 # Cast to the expected type to satisfy mypy
-                adapted_improver = cast(Improver[Any, Any], ImproverAdapter(improver))
+                improver_adapter = ImproverAdapter(improver)
+                adapted_improver = cast(Improver[Any, Any], improver_adapter)
 
         # Adapt formatter if needed
         adapted_formatter = None
@@ -145,18 +152,22 @@ def create_chain(
                 adapted_formatter = formatter
             else:
                 # Cast to the expected type to satisfy mypy
-                adapted_formatter = cast(Formatter[Any, Any], FormatterAdapter(formatter))
+                formatter_adapter = FormatterAdapter(formatter)
+                adapted_formatter = cast(Formatter[Any, Any], formatter_adapter)
 
-        # Create chain
-        # Cast the adapted components to the expected types for Chain constructor
+        # Import here to avoid circular imports
         from sifaka.interfaces.chain.components import Validator as ChainValidator
         from sifaka.interfaces.chain.components import Improver as ChainImprover
         from sifaka.interfaces.chain.components.formatter import ChainFormatter
 
-        # Cast to the expected types
-        chain_validators = cast(Optional[List[ChainValidator]], adapted_validators)
-        chain_improver = adapted_improver
-        chain_formatter = adapted_formatter
+        # Cast adapted components to the chain interfaces
+        chain_validators: Optional[List[ChainValidator]] = (
+            cast(Optional[List[ChainValidator]], adapted_validators) if adapted_validators else None
+        )
+        chain_improver: Optional[ChainImprover] = cast(Optional[ChainImprover], adapted_improver)
+        chain_formatter: Optional[ChainFormatter] = cast(
+            Optional[ChainFormatter], adapted_formatter
+        )
 
         chain = Chain(
             model=adapted_model,
