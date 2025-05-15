@@ -5,7 +5,7 @@ Pytest fixtures for utility tests.
 import pytest
 from sifaka.utils.config.models import ModelConfig
 from sifaka.utils.config.chain import ChainConfig
-from sifaka.utils.config.rules import RuleConfig
+from sifaka.utils.config.rules import RuleConfig, RulePriority
 from sifaka.utils.config.critics import CriticConfig
 from sifaka.utils.config.retrieval import RetrieverConfig
 
@@ -26,7 +26,7 @@ def chain_config():
     """Fixture for a chain configuration."""
     config = ChainConfig(
         max_attempts=3,
-        timeout=30,
+        timeout_seconds=30,
         retry_delay=1.0,
     )
     return config
@@ -40,7 +40,7 @@ def rule_config():
             "min_chars": 10,
             "max_chars": 100,
         },
-        priority=1,
+        priority=RulePriority.HIGH,
     )
     return config
 

@@ -11,7 +11,6 @@ from sifaka.classifiers.implementations.factories import create_toxicity_classif
 # Create toxicity classifier
 classifier = create_toxicity_classifier(
     general_threshold=0.5,
-    cache_enabled=True,
     cache_size=100
 )
 
@@ -21,97 +20,153 @@ print(f"Label: {result.label}")
 print(f"Confidence: {result.confidence:.2f}")
 ```
 """
+
 from typing import Any, Dict, List, Optional
 from .. import Classifier
 from ..factories import create_classifier
-from .adapters import ToxicityClassifierAdapter, SentimentClassifierAdapter, ProfanityClassifierAdapter
+from .adapters import (
+    ToxicityClassifierAdapter,
+    SentimentClassifierAdapter,
+    ProfanityClassifierAdapter,
+)
 
 
-def create_toxicity_classifier(name: str='toxicity_classifier', description:
-    str='Detects toxic content using Detoxify', general_threshold: float=
-    0.5, severe_toxic_threshold: float=0.7, threat_threshold: float=0.7,
-    cache_enabled: bool=True, cache_size: int=100, min_confidence: float=
-    0.0, **kwargs: Any) ->Any:
+def create_toxicity_classifier(
+    name: str = "toxicity_classifier",
+    description: str = "Detects toxic content using Detoxify",
+    general_threshold: float = 0.5,
+    severe_toxic_threshold: float = 0.7,
+    threat_threshold: float = 0.7,
+    cache_size: int = 100,
+    min_confidence: float = 0.0,
+    **kwargs: Any,
+) -> Classifier:
     """
     Create a toxicity classifier.
-    
+
     Args:
         name: Classifier name
         description: Classifier description
         general_threshold: Threshold for general toxicity
         severe_toxic_threshold: Threshold for severe toxicity
         threat_threshold: Threshold for threats
-        cache_enabled: Whether to enable result caching
         cache_size: Maximum number of cached results
         min_confidence: Minimum confidence threshold
         **kwargs: Additional parameters
-        
+
     Returns:
         A toxicity classifier
     """
-    implementation = ToxicityClassifierAdapter(name=name, description=
-        description, general_threshold=general_threshold,
-        severe_toxic_threshold=severe_toxic_threshold, threat_threshold=
-        threat_threshold, **kwargs)
-    return create_classifier(implementation=implementation, name=name,
-        description=description, cache_enabled=cache_enabled, cache_size=
-        cache_size, min_confidence=min_confidence, labels=['toxic',
-        'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate',
-        'non_toxic'], **kwargs)
+    # Set up labels for the implementation
+    implementation = ToxicityClassifierAdapter(
+        name=name,
+        description=description,
+        general_threshold=general_threshold,
+        severe_toxic_threshold=severe_toxic_threshold,
+        threat_threshold=threat_threshold,
+        **kwargs,
+    )
+
+    # Set labels in the implementation
+    if hasattr(implementation, "labels"):
+        implementation.labels = [
+            "toxic",
+            "severe_toxic",
+            "obscene",
+            "threat",
+            "insult",
+            "identity_hate",
+            "non_toxic",
+        ]
+
+    return create_classifier(
+        implementation=implementation,
+        name=name,
+        description=description,
+        cache_size=cache_size,
+        min_confidence=min_confidence,
+    )
 
 
-def create_sentiment_classifier(name: str='sentiment_classifier',
-    description: str='Classifies text sentiment using VADER',
-    positive_threshold: float=0.05, negative_threshold: float=-0.05,
-    cache_enabled: bool=True, cache_size: int=100, min_confidence: float=
-    0.0, **kwargs: Any) ->Any:
+def create_sentiment_classifier(
+    name: str = "sentiment_classifier",
+    description: str = "Classifies text sentiment using VADER",
+    positive_threshold: float = 0.05,
+    negative_threshold: float = -0.05,
+    cache_size: int = 100,
+    min_confidence: float = 0.0,
+    **kwargs: Any,
+) -> Classifier:
     """
     Create a sentiment classifier.
-    
+
     Args:
         name: Classifier name
         description: Classifier description
         positive_threshold: Threshold for positive sentiment
         negative_threshold: Threshold for negative sentiment
-        cache_enabled: Whether to enable result caching
         cache_size: Maximum number of cached results
         min_confidence: Minimum confidence threshold
         **kwargs: Additional parameters
-        
+
     Returns:
         A sentiment classifier
     """
-    implementation = SentimentClassifierAdapter(name=name, description=
-        description, positive_threshold=positive_threshold,
-        negative_threshold=negative_threshold, **kwargs)
-    return create_classifier(implementation=implementation, name=name,
-        description=description, cache_enabled=cache_enabled, cache_size=
-        cache_size, min_confidence=min_confidence, labels=['positive',
-        'negative', 'neutral', 'unknown'], **kwargs)
+    implementation = SentimentClassifierAdapter(
+        name=name,
+        description=description,
+        positive_threshold=positive_threshold,
+        negative_threshold=negative_threshold,
+        **kwargs,
+    )
+
+    # Set labels in the implementation
+    if hasattr(implementation, "labels"):
+        implementation.labels = ["positive", "negative", "neutral", "unknown"]
+
+    return create_classifier(
+        implementation=implementation,
+        name=name,
+        description=description,
+        cache_size=cache_size,
+        min_confidence=min_confidence,
+    )
 
 
-def create_profanity_classifier(name: str='profanity_classifier',
-    description: str='Detects profanity in text', threshold: float=0.5,
-    cache_enabled: bool=True, cache_size: int=100, min_confidence: float=
-    0.0, **kwargs: Any) ->Any:
+def create_profanity_classifier(
+    name: str = "profanity_classifier",
+    description: str = "Detects profanity in text",
+    threshold: float = 0.5,
+    cache_size: int = 100,
+    min_confidence: float = 0.0,
+    **kwargs: Any,
+) -> Classifier:
     """
     Create a profanity classifier.
-    
+
     Args:
         name: Classifier name
         description: Classifier description
         threshold: Threshold for profanity detection
-        cache_enabled: Whether to enable result caching
         cache_size: Maximum number of cached results
         min_confidence: Minimum confidence threshold
         **kwargs: Additional parameters
-        
+
     Returns:
         A profanity classifier
     """
-    implementation = ProfanityClassifierAdapter(name=name, description=
-        description, threshold=threshold, **kwargs)
-    return create_classifier(implementation=implementation, name=name,
-        description=description, cache_enabled=cache_enabled, cache_size=
-        cache_size, min_confidence=min_confidence, labels=['profane',
-        'clean'], **kwargs)
+    implementation = ProfanityClassifierAdapter(
+        name=name, description=description, threshold=threshold, **kwargs
+    )
+
+    # Set labels in the implementation
+    if hasattr(implementation, "labels"):
+        implementation.labels = ["profane", "clean"]
+
+    return create_classifier(
+        implementation=implementation,
+        name=name,
+        description=description,
+        cache_size=cache_size,
+        min_confidence=min_confidence,
+    )

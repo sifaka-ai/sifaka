@@ -26,9 +26,9 @@ class MockAPIClient(APIClient):
             api_key: Optional API key (not used but included for compatibility)
         """
         self.api_key = api_key or "mock-api-key"
-        self.calls = []
+        self.calls: List[Dict[str, Any]] = []
 
-    def send_prompt(self, prompt: str, config: ModelConfig) -> str:
+    def send_prompt(self, prompt: str, config: Dict[str, Any]) -> str:
         """
         Send a mock prompt and return a response.
 
@@ -43,7 +43,11 @@ class MockAPIClient(APIClient):
         self.calls.append({"prompt": prompt, "config": config})
 
         # Simulate different responses based on configuration
-        temperature = config.temperature if hasattr(config, "temperature") else 0.7
+        temperature = (
+            config.get("temperature", 0.7)
+            if isinstance(config, dict)
+            else getattr(config, "temperature", 0.7)
+        )
         prefix = "Detailed" if temperature < 0.5 else "Creative"
 
         return f"{prefix} mock response to: {prompt}"
@@ -64,7 +68,7 @@ class MockTokenCounter(TokenCounter):
             model: The model name (not used but included for compatibility)
         """
         self.model = model
-        self.calls = []
+        self.calls: List[str] = []
 
     def count_tokens(self, text: str) -> int:
         """
@@ -137,7 +141,7 @@ class MockProvider(ModelProviderProtocol):
         self._responses = responses or {}
         self._default_response = default_response
         self._token_count = token_count
-        self._calls = []
+        self._calls: List[Dict[str, Any]] = []
         self._client = MockAPIClient()
         self._token_counter = MockTokenCounter(model=model_name)
 
@@ -153,7 +157,10 @@ class MockProvider(ModelProviderProtocol):
         Returns:
             The model name
         """
-        return self._state_manager.get("model_name")
+        model_name = self._state_manager.get("model_name")
+        if not isinstance(model_name, str):
+            return "mock-model"  # Default value if not a string
+        return model_name
 
     @property
     def name(self) -> str:
@@ -163,7 +170,10 @@ class MockProvider(ModelProviderProtocol):
         Returns:
             The provider name
         """
-        return self._state_manager.get("name")
+        name = self._state_manager.get("name")
+        if not isinstance(name, str):
+            return "mock_provider"  # Default value if not a string
+        return name
 
     @property
     def description(self) -> str:
@@ -173,7 +183,10 @@ class MockProvider(ModelProviderProtocol):
         Returns:
             The provider description
         """
-        return self._state_manager.get("description")
+        description = self._state_manager.get("description")
+        if not isinstance(description, str):
+            return "Mock provider for testing"  # Default value if not a string
+        return description
 
     @property
     def config(self) -> ModelConfig:
@@ -183,7 +196,15 @@ class MockProvider(ModelProviderProtocol):
         Returns:
             The model configuration
         """
-        return self._state_manager.get("config")
+        config = self._state_manager.get("config")
+        if not isinstance(config, ModelConfig):
+            # Return default config if not a ModelConfig
+            return ModelConfig(
+                temperature=0.7,
+                max_tokens=100,
+                api_key="mock-api-key",
+            )
+        return config
 
     def update_config(self, config: ModelConfig) -> None:
         """
@@ -199,62 +220,103 @@ class MockProvider(ModelProviderProtocol):
         Generate a response for the given prompt.
 
         Args:
-            prompt: The prompt to generate a response for
-            **kwargs: Additional arguments
+            prompt: The prompt to send
+            **kwargs: Additional arguments to pass to the model
 
         Returns:
-            str: The generated response
+            The generated response
         """
         # Record the call
-        self._calls.append({"prompt": prompt, "kwargs": kwargs})
+        call_data = {"prompt": prompt, **kwargs}
+        self._calls.append(call_data)
 
-        # Get the response
-        response = self._responses.get(prompt, self._default_response)
+        # Return pre-defined response if available
+        if prompt in self._responses:
+            return self._responses[prompt]
 
-        # Update statistics
-        stats = self._state_manager.get("stats", {})
-        stats["generation_count"] = stats.get("generation_count", 0) + 1
-        self._state_manager.update("stats", stats)
+        return self._default_response
 
-        return response
+    def generate_with_details(self, prompt: str, **kwargs: Any) -> GenerationResult:
+        """
+        Generate a response with additional details.
+
+        Args:
+            prompt: The prompt to send
+            **kwargs: Additional arguments to pass to the model
+
+        Returns:
+            A GenerationResult with the response and metadata
+        """
+        # Call generate to record the call and get the response
+        text = self.generate(prompt, **kwargs)
+
+        # Create mock metadata
+        metadata = {
+            "model": self.model_name,
+            "tokens": self._token_count,
+            "prompt_tokens": len(prompt.split()),
+            "completion_tokens": self._token_count - len(prompt.split()),
+            "total_tokens": self._token_count,
+        }
+
+        return GenerationResult(
+            output=text,
+            prompt_tokens=len(prompt.split()),
+            completion_tokens=self._token_count - len(prompt.split()),
+            metadata=metadata,
+        )
 
     def count_tokens(self, text: str) -> int:
         """
-        Count tokens in the given text.
+        Count tokens in the text.
 
         Args:
             text: The text to count tokens for
 
         Returns:
-            int: The number of tokens in the text
+            The number of tokens in the text
         """
-        # Update statistics
-        stats = self._state_manager.get("stats", {})
-        stats["token_count_calls"] = stats.get("token_count_calls", 0) + 1
-        self._state_manager.update("stats", stats)
+        return self._token_counter.count_tokens(text)
 
-        return self._token_count
+    def count_tokens_with_details(self, text: str) -> TokenCountResult:
+        """
+        Count tokens with additional details.
+
+        Args:
+            text: The text to count tokens for
+
+        Returns:
+            A TokenCountResult with the count and metadata
+        """
+        count = self.count_tokens(text)
+        metadata = {
+            "model": self.model_name,
+            "tokens": count,
+        }
+        return TokenCountResult(count=count, token_count=count, metadata=metadata)
 
     def get_calls(self) -> List[Dict[str, Any]]:
         """
-        Get the list of calls made to this provider.
+        Get the list of calls made to the provider.
 
         Returns:
-            List[Dict[str, Any]]: The list of calls
+            List of calls with their arguments
         """
         return self._calls
 
     def reset_calls(self) -> None:
         """Reset the list of calls."""
         self._calls = []
+        self._client.reset_calls()
+        self._token_counter.reset_calls()
 
     def set_response(self, prompt: str, response: str) -> None:
         """
-        Set a response for a specific prompt.
+        Set a specific response for a prompt.
 
         Args:
-            prompt: The prompt to set a response for
-            response: The response to return for the prompt
+            prompt: The prompt to match
+            response: The response to return
         """
         self._responses[prompt] = response
 
@@ -269,14 +331,16 @@ class MockProvider(ModelProviderProtocol):
 
     def get_state(self) -> Dict[str, Any]:
         """
-        Get the current state.
+        Get the current state of the provider.
 
         Returns:
-            Dict[str, Any]: The current state
+            Dictionary with the provider's state
         """
         return {
-            key: self._state_manager.get(key)
-            for key in ["initialized", "model_name", "name", "description"]
+            "model_name": self.model_name,
+            "name": self.name,
+            "description": self.description,
+            "config": self.config.dict() if self.config else {},
         }
 
     def get_statistics(self) -> Dict[str, Any]:
@@ -284,6 +348,9 @@ class MockProvider(ModelProviderProtocol):
         Get usage statistics.
 
         Returns:
-            Dict[str, Any]: Usage statistics
+            Dictionary with usage statistics
         """
-        return self._state_manager.get("stats", {})
+        return {
+            "calls": len(self._calls),
+            "tokens": sum(self.count_tokens(call["prompt"]) for call in self._calls),
+        }

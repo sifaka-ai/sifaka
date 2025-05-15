@@ -1,6 +1,8 @@
 """
 Abstract base class for critics.
 
+# mypy: disable-error-code=no-any-return
+
 This module defines the abstract base class for critics in the Sifaka framework,
 providing a foundation for implementing text validation, improvement, and critiquing
 functionality.
@@ -72,11 +74,11 @@ The class implements comprehensive error handling for:
 
 from abc import abstractmethod
 import time
-from typing import Any, Generic, Optional, TypeVar, cast
+from typing import Any, Generic, Optional, TypeVar, Union, cast
 from sifaka.core.base import BaseComponent, BaseResult, BaseConfig
 from sifaka.utils.config.critics import CriticConfig
 from sifaka.utils.errors import safely_execute_component_operation as safely_execute_critic
-from sifaka.utils.errors import CriticError
+from sifaka.utils.errors import CriticError, ErrorResult
 
 T = TypeVar("T")
 
@@ -192,7 +194,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         """
         ...
 
-    def process(self, text: T) -> BaseResult:
+    def process(self, text: T) -> BaseResult[Any]:
         """
         Process text through the critic pipeline.
 
@@ -237,7 +239,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
                     },
                 )
 
-        def process_operation() -> BaseResult:
+        def process_operation() -> BaseResult[Any]:
             if self:
                 result = self.critique(text)
                 if self:
@@ -270,17 +272,25 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
                 metadata={"error_type": "processing_error"},
             )
 
-        result = safely_execute_critic(
-            operation=process_operation,
-            component_name=self.name,
-            component_type="Critic",
-            error_class=CriticError,
-        )
-        if isinstance(result, dict) and result and result.get("error_type"):
-            error_message = (
-                result.get("error_message", "Unknown error") if result else "Unknown error"
+        operation_result: Union[BaseResult[Any], ErrorResult, dict[str, Any]] = (
+            safely_execute_critic(
+                operation=process_operation,
+                component_name=self.name,
+                component_type="Critic",
+                error_class=CriticError,
             )
-            error_type = result.get("error_type") if result else "unknown"
+        )
+        if (
+            isinstance(operation_result, dict)
+            and operation_result
+            and operation_result.get("error_type")
+        ):
+            error_message = (
+                operation_result.get("error_message", "Unknown error")
+                if operation_result
+                else "Unknown error"
+            )
+            error_type = operation_result.get("error_type") if operation_result else "unknown"
             processing_time = time.time() - start_time
             return BaseResult(
                 passed=False,
@@ -294,14 +304,14 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
                 },
             )
         # Ensure we always return a BaseResult
-        if not isinstance(result, BaseResult):
+        if not isinstance(operation_result, BaseResult):
             return BaseResult(
                 passed=False,
                 message="Invalid result type",
                 metadata={
                     "error_type": "invalid_result_type",
-                    "actual_result": str(result),
+                    "actual_result": str(operation_result),
                     "processing_time_ms": (time.time() - start_time),
                 },
             )
-        return result
+        return operation_result

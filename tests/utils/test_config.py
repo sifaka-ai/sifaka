@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 from sifaka.utils.config.models import ModelConfig
 from sifaka.utils.config.chain import ChainConfig
-from sifaka.utils.config.rules import RuleConfig
+from sifaka.utils.config.rules import RuleConfig, RulePriority
 from sifaka.utils.config.critics import CriticConfig
 from sifaka.utils.config.retrieval import RetrieverConfig
 
@@ -82,22 +82,22 @@ def test_rule_config():
             "min_chars": 10,
             "max_chars": 100,
         },
-        priority="HIGH",
+        priority=RulePriority.HIGH,
     )
 
     assert config.params["min_chars"] == 10
     assert config.params["max_chars"] == 100
-    assert config.priority == "HIGH"
+    assert config.priority == RulePriority.HIGH
 
     # Test with another valid priority
     config = RuleConfig(
-        priority="LOW",
+        priority=RulePriority.LOW,
     )
-    assert config.priority == "LOW"
+    assert config.priority == RulePriority.LOW
 
     # Test with default priority
     config = RuleConfig()
-    assert config.priority == "MEDIUM"  # Default value
+    assert config.priority == RulePriority.MEDIUM  # Default value
 
 
 def test_critic_config():

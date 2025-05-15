@@ -64,13 +64,19 @@ Factory functions accept configuration parameters directly or as configuration o
 - Mixed approach: Pass some options directly and others via configuration objects
 """
 
-from typing import Any, List, Optional, Type
-
-from .base import Rule
-from .validators import BaseValidator
-from sifaka.utils.config.rules import RuleConfig
-from .managers.validation import ValidationManager, ValidationConfig
+from typing import Any, Dict, List, Optional, Type, Union, cast
+from .base import FunctionValidator, create_rule_state
+from .base import Rule as BaseRule
+from .base import RuleConfig as BaseRuleConfig
+from .base import RuleResult, BaseValidator
+from .managers.validation import ValidationManager
+from .managers.validation import ValidationConfig
+from sifaka.utils.config.rules import RuleConfig as UtilsRuleConfig
 from sifaka.utils.logging import get_logger
+from sifaka.interfaces import RuleProtocol
+
+Rule = BaseRule
+RuleConfig = BaseRuleConfig
 
 logger = get_logger(__name__)
 
@@ -79,7 +85,7 @@ def create_rule(
     name: str,
     validator: BaseValidator,
     description: Optional[Optional[str]] = None,
-    config: Optional[Optional[RuleConfig]] = None,
+    config: Optional[Union[BaseRuleConfig, UtilsRuleConfig]] = None,
     rule_type: Type[Rule] = Rule,
     rule_id: Optional[Optional[str]] = None,
     **kwargs: Any,
@@ -88,17 +94,17 @@ def create_rule(
     Create a rule with the given validator and configuration.
 
     This factory function provides a consistent way to create rules
-    across the Sifaka framework. It handles configuration creation,
-    parameter validation, and error handling.
+    across the Sifaka framework. It handles the creation of default
+    configuration, rule ID, and other parameters.
 
     Args:
-        name: Name of the rule
-        validator: Validator to use for validation
+        name: Rule name
+        validator: Validator to use for the rule
         description: Description of the rule
-        config: Configuration for the rule
+        config: Configuration for the rule (either BaseRuleConfig or UtilsRuleConfig)
         rule_type: Type of rule to create
         rule_id: Unique identifier for the rule
-        **kwargs: Additional arguments for the rule constructor including:
+        **kwargs: Additional configuration parameters including:
             - severity: Severity level for rule violations (error, warning, info)
             - category: Category of the rule (formatting, content, etc.)
             - tags: List of tags for categorizing the rule
@@ -166,9 +172,18 @@ def create_rule(
         # Determine rule ID
         rule_id = rule_id or name
 
+        # Convert UtilsRuleConfig to BaseRuleConfig if needed
+        if config is not None and isinstance(config, UtilsRuleConfig):
+            # Extract parameters from UtilsRuleConfig and create a new BaseRuleConfig
+            config_dict = config.model_dump()
+            # Extract params to be passed directly to BaseRuleConfig
+            params = config_dict.pop("params", {})
+            # Create BaseRuleConfig with extracted parameters
+            config = BaseRuleConfig(**config_dict, **params)
+
         # Create config if not provided
         if config is None:
-            config = RuleConfig(
+            config = BaseRuleConfig(
                 name=name,
                 description=description,
                 rule_id=rule_id,
@@ -199,7 +214,7 @@ def create_rule(
 
 
 def create_validation_manager(
-    rules: Optional[Optional[List[Rule]]] = None,
+    rules: Optional[List[RuleProtocol]] = None,
     prioritize_by_cost: bool = False,
     **kwargs: Any,
 ) -> ValidationManager:

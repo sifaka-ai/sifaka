@@ -108,6 +108,87 @@ class Critic(BaseCritic[str]):
     - Detailed error reporting
     """
 
+    def is_valid_text(self, text: str) -> bool:
+        """
+        Check if the text is valid for processing.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            True if the text is valid, False otherwise
+        """
+        if text is None:
+            return False
+        if not isinstance(text, str):
+            return False
+        if not text.strip():
+            return False
+        return True
+
+    def validate_text_length(
+        self, text: str, min_length: int = 1, max_length: Optional[Optional[int]] = None
+    ) -> bool:
+        """
+        Validate text length.
+
+        Args:
+            text: The text to validate
+            min_length: Minimum acceptable length
+            max_length: Maximum acceptable length (if None, no maximum)
+
+        Returns:
+            True if text length is valid, False otherwise
+        """
+        if not text:
+            return False
+
+        if len(text) < min_length:
+            return False
+
+        if max_length is not None and len(text) > max_length:
+            return False
+
+        return True
+
+    def validate_text_contains(self, text: str, items: List[str]) -> bool:
+        """
+        Validate that text contains at least one of the specified items.
+
+        Args:
+            text: The text to validate
+            items: List of items to check for
+
+        Returns:
+            True if text contains at least one item, False otherwise
+        """
+        if not text or not items:
+            return False
+
+        for item in items:
+            if item in text:
+                return True
+
+        return False
+
+    def validate_text_pattern(self, text: str, pattern: str) -> bool:
+        """
+        Validate that text matches the specified regex pattern.
+
+        Args:
+            text: The text to validate
+            pattern: Regex pattern to match
+
+        Returns:
+            True if text matches pattern, False otherwise
+        """
+        import re
+
+        if not text or not pattern:
+            return False
+
+        return bool(re.search(pattern, text))
+
     def validate(self, text: str) -> bool:
         """
         Validate text.

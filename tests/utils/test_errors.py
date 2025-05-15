@@ -136,8 +136,8 @@ class TestErrorHandling:
         assert "traceback" in metadata
 
         # Test with SifakaError
-        error = SifakaError("Test error", metadata={"key": "value"})
-        metadata = handle_error(error, "TestComponent")
+        error_sifaka = SifakaError("Test error", metadata={"key": "value"})
+        metadata = handle_error(error_sifaka, "TestComponent")
         assert metadata["error_type"] == "SifakaError"
         # The error message includes the metadata
         assert "Test error" in metadata["error_message"]
@@ -152,14 +152,18 @@ class TestErrorHandling:
         assert result == "success"
 
         # Test failed operation with default value
-        result = try_operation(lambda: 1 / 0, "TestComponent", default_value="default")
+        def fail_op() -> str:
+            raise ZeroDivisionError("Division by zero")
+            return "never reached"  # Satisfy type checker
+
+        result = try_operation(fail_op, "TestComponent", default_value="default")
         assert result == "default"
 
         # Test failed operation with error handler
-        def error_handler(e):
+        def error_handler(e: Exception) -> str:
             return "handled"
 
-        result = try_operation(lambda: 1 / 0, "TestComponent", error_handler=error_handler)
+        result = try_operation(fail_op, "TestComponent", error_handler=error_handler)
         assert result == "handled"
 
 
@@ -187,19 +191,17 @@ class TestSafeExecution:
         """Test safely_execute_component_operation function."""
         # Test successful operation
         result = safely_execute_component_operation(
-            lambda: "success",
-            component_name="TestComponent",
-            component_type="Test",
-            error_class=SifakaError,
+            lambda: "success", "TestComponent", "Test", SifakaError, None, "error", True, None
         )
         assert result == "success"
 
         # Test failed operation
+        def fail_op() -> str:
+            raise ZeroDivisionError("Division by zero")
+            return "never reached"  # Satisfy type checker
+
         result = safely_execute_component_operation(
-            lambda: 1 / 0,
-            component_name="TestComponent",
-            component_type="Test",
-            error_class=SifakaError,
+            fail_op, "TestComponent", "Test", SifakaError, None, "error", True, None
         )
         assert isinstance(result, ErrorResult)
         assert result.error_type == "ZeroDivisionError"
@@ -208,11 +210,15 @@ class TestSafeExecution:
     def test_safely_execute_chain(self):
         """Test safely_execute_chain function."""
         # Test successful operation
-        result = safely_execute_chain(lambda: "success", "TestChain")
+        result = safely_execute_chain(lambda: "success", "TestChain", None, "error", True, None)
         assert result == "success"
 
         # Test failed operation
-        result = safely_execute_chain(lambda: 1 / 0, "TestChain")
+        def fail_op() -> str:
+            raise ZeroDivisionError("Division by zero")
+            return "never reached"  # Satisfy type checker
+
+        result = safely_execute_chain(fail_op, "TestChain", None, "error", True, None)
         assert isinstance(result, ErrorResult)
         assert result.error_type == "ZeroDivisionError"
         assert result.component_name == "TestChain"

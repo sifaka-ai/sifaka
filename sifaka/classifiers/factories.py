@@ -64,25 +64,23 @@ M = TypeVar("M", bound=Dict[str, Any])  # Metadata type
 def create_classifier(
     name: str,
     description: str,
-    labels: List[str],
+    implementation: ClassifierImplementation,
     cache_size: int = 100,
     min_confidence: float = 0.7,
-    implementation: Optional[ClassifierImplementation] = None,
 ) -> Classifier:
     """
     Create a classifier with the given configuration.
 
     This function creates a Classifier instance with the specified configuration
-    and optional implementation. It handles the initialization and setup of the
+    and implementation. It handles the initialization and setup of the
     classifier, ensuring consistent behavior.
 
     Args:
         name: The name of the classifier
         description: A description of the classifier's purpose
-        labels: The list of possible classification labels
+        implementation: The classifier implementation to use
         cache_size: Maximum number of cached results
-        min_confidence: Minimum confidence threshold
-        implementation: Optional classifier implementation
+        min_confidence: Minimum confidence threshold (stored in implementation)
 
     Returns:
         A configured Classifier instance
@@ -91,17 +89,20 @@ def create_classifier(
         ClassifierError: If classifier creation fails
         ConfigurationError: If configuration is invalid
     """
-    config = ClassifierConfig(
+    config: ClassifierConfig = ClassifierConfig(
         cache_enabled=True,
         cache_size=cache_size,
-        min_confidence=min_confidence,
     )
+
+    # Configure the implementation with min_confidence if it supports it
+    if hasattr(implementation, "min_confidence"):
+        implementation.min_confidence = min_confidence
+
     return Classifier(
         name=name,
         description=description,
-        labels=labels,
-        config=config,
         implementation=implementation,
+        config=config,
     )
 
 

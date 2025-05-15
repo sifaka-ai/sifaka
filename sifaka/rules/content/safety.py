@@ -51,7 +51,7 @@ print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 """
 
 import time
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, cast, TypeVar
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
@@ -63,7 +63,7 @@ from sifaka.rules.base import (
     RuleResult,
 )
 from sifaka.rules.content.base import CategoryAnalyzer
-
+from sifaka.core.results import ClassificationResult
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -260,48 +260,37 @@ class HarmfulContentAnalyzer(CategoryAnalyzer):
 
 class HarmfulContentValidator(BaseValidator[str]):
     """
-    Validator that checks for harmful content.
+    Validator for harmful content requirements.
 
-    This validator analyzes text for harmful content across various categories
-    such as violence, hate speech, misinformation, and harassment.
+    This class is responsible for validating text against harmful content requirements,
+    ensuring that the text does not contain harmful content above specified thresholds.
 
     ## Architecture
-    The HarmfulContentValidator follows a component-based architecture:
-    - Inherits from BaseValidator for common validation functionality
-    - Uses StateManager for state management via _state_manager
-    - Delegates analysis to HarmfulContentAnalyzer
-    - Uses RuleConfig for configuration
-    - Implements caching for performance optimization
-    - Provides detailed validation results with metadata
+    The class extends BaseValidator to leverage standard validation functionality
+    while specializing for harmful content validation.
 
     ## Lifecycle
-    1. **Initialization**: Set up with harmful content categories and threshold
-       - Initialize with RuleConfig containing harmful content parameters
-       - Create HarmfulContentConfig from params
-       - Create HarmfulContentAnalyzer with config
-       - Store components in state manager
-       - Set metadata for tracking and debugging
+    1. **Initialization**: Set up with configuration
+       - Initialize with RuleConfig containing params
+       - Extract parameters from config
+       - Set up analyzer and threshold
 
-    2. **Validation**: Analyze text for harmful content
-       - Handle empty text through BaseValidator.handle_empty_text
-       - Delegate to HarmfulContentAnalyzer for content analysis
-       - Add processing time and validator type to metadata
-       - Update validation statistics
-       - Cache results if caching is enabled
-
-    3. **Error Handling**: Manage validation errors
-       - Type checking for input text
-       - Try-except block for validation errors
-       - Detailed error reporting in result metadata
-       - Error logging for debugging
+    2. **Validation**: Validate text against harmful content requirements
+       - Check if text is empty
+       - Run analysis on text
+       - Compare results against thresholds
+       - Return RuleResult with validation results
 
     ## Examples
-        ```python
-        from sifaka.rules.content.safety import HarmfulContentValidator, HarmfulContentConfig
-        from sifaka.rules.base import RuleConfig
+    ```python
+    from sifaka.rules.content.safety import HarmfulContentValidator, HarmfulContentConfig
+    from sifaka.rules.base import RuleConfig
 
-        # Create config
-        params = {
+    # Create configuration
+    config = RuleConfig(
+        name="harmful_content_validator",
+        description="Validates text for harmful content",
+        params={
             "categories": {
                 "violence": ["violent", "threatening"],
                 "misinformation": ["false", "misleading"]
@@ -309,15 +298,15 @@ class HarmfulContentValidator(BaseValidator[str]):
             "threshold": 0.3,
             "fail_if_any": True
         }
-        config = RuleConfig(params=params)
+    )
 
-        # Create validator
-        validator = HarmfulContentValidator(config)
+    # Create validator
+    validator = HarmfulContentValidator(config)
 
-        # Validate text
-        result = validator.validate("This is a test.") if validator else ""
-        print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
-        ```
+    # Validate text
+    result = validator.validate("This is a test.") if validator else ""
+    print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
+    ```
     """
 
     def __init__(self, config: RuleConfig) -> None:
@@ -325,20 +314,31 @@ class HarmfulContentValidator(BaseValidator[str]):
         Initialize the validator.
 
         Args:
-            config: Rule configuration containing harmful content parameters
+            config: Configuration for the validator
         """
-        super().__init__(validation_type=str)
+        super().__init__()
 
-        # Store configuration in state
-        harmful_config = HarmfulContentConfig(**config.params)
-        self._state_manager.update("config", config)
-        self._state_manager.update("harmful_config", harmful_config)
-        self._state_manager.update("analyzer", HarmfulContentAnalyzer(config=harmful_config))
+        # Store config
+        self._config = config
 
-        # Set metadata
-        self._state_manager.set_metadata("validator_type", self.__class__.__name__)
-        if time:
-            self._state_manager.set_metadata("creation_time", time.time())
+        # Extract parameters from config
+        params = config.params if hasattr(config, "params") else {}
+        # Get categories or default
+        self.categories = params.get("categories", DEFAULT_HARMFUL_CATEGORIES)
+        # Get threshold or default
+        self.threshold = params.get("threshold", 0.0)
+        # Get fail_if_any or default
+        self.fail_if_any = params.get("fail_if_any", True)
+
+        # Create harmful content config
+        self.harmful_content_config = HarmfulContentConfig(
+            categories=self.categories,
+            threshold=self.threshold,
+            fail_if_any=self.fail_if_any,
+        )
+
+        # Create analyzer
+        self.analyzer = HarmfulContentAnalyzer(self.harmful_content_config)
 
     @property
     def config(self) -> RuleConfig:
@@ -471,8 +471,6 @@ class HarmfulContentValidator(BaseValidator[str]):
             if self is not None:
                 self.update_statistics(result)
             # Ensure we're returning a RuleResult
-            from typing import cast
-
             return result  # type: ignore[no-any-return]
 
 
@@ -585,7 +583,10 @@ class HarmfulContentRule(Rule[str]):
 
     def _create_default_validator(self) -> HarmfulContentValidator:
         """
-        Create a default validator from config.
+        Create the default validator.
+
+        This method creates a default validator with the rule's configuration.
+        It's used when no validator is provided during rule initialization.
 
         Returns:
             A configured HarmfulContentValidator
@@ -593,10 +594,10 @@ class HarmfulContentRule(Rule[str]):
         # Store config in state for reference
         self._state_manager.update("validator_config", self.config)
 
-        # Cast to RuleConfig to satisfy mypy
-        from typing import cast
+        # Ensure we're using a RuleConfig
+        rule_config = cast(RuleConfig, self.config)
 
-        return HarmfulContentValidator(self.config)
+        return HarmfulContentValidator(config=rule_config)
 
 
 def create_harmful_content_validator(
@@ -689,23 +690,79 @@ def create_toxicity_validator(
         ```
     """
     from sifaka.adapters.classifier import ClassifierAdapter
-    from typing import cast
     from sifaka.adapters.classifier.adapter import Classifier
 
     # Create classifier
     classifier = ToxicityClassifier()
 
-    # Create adapter with classifier
-    # Type cast to Classifier to satisfy mypy
+    # Create a wrapper class that implements the Classifier protocol correctly
+    class ToxicityClassifierWrapper:
+        def __init__(self, toxicity_classifier: ToxicityClassifier):
+            self.toxicity_classifier = toxicity_classifier
+
+        @property
+        def name(self) -> str:
+            return str(self.toxicity_classifier.name)
+
+        @property
+        def description(self) -> str:
+            return str(self.toxicity_classifier.description)
+
+        @property
+        def config(self) -> Any:
+            return self.toxicity_classifier.config
+
+        def classify(self, text: str) -> ClassificationResult[Any, Any]:
+            # Convert the result to the expected type
+            result = self.toxicity_classifier.classify(text)
+            # Create a new ClassificationResult with the same values
+            return ClassificationResult(
+                label=result.label,
+                confidence=result.confidence,
+                passed=result.passed,
+                message=result.message,
+                metadata=result.metadata,
+                score=result.score,
+                issues=result.issues,
+                suggestions=result.suggestions,
+                processing_time_ms=result.processing_time_ms,
+                timestamp=result.timestamp,
+            )
+
+        def batch_classify(self, texts: List[str]) -> List[ClassificationResult[Any, Any]]:
+            results = self.toxicity_classifier.batch_classify(texts)
+            # Convert each result to the expected type
+            return [
+                ClassificationResult(
+                    label=r.label,
+                    confidence=r.confidence,
+                    passed=r.passed,
+                    message=r.message,
+                    metadata=r.metadata,
+                    score=r.score,
+                    issues=r.issues,
+                    suggestions=r.suggestions,
+                    processing_time_ms=r.processing_time_ms,
+                    timestamp=r.timestamp,
+                )
+                for r in results
+            ]
+
+    # Wrap the toxicity classifier
+    wrapped_classifier = ToxicityClassifierWrapper(classifier)
+
+    # Cast the wrapped classifier to the Classifier protocol type
+    classifier_protocol: Classifier = cast(Classifier, wrapped_classifier)
+
     adapter = ClassifierAdapter(
-        classifier=classifier,
+        classifier=classifier_protocol,
         threshold=threshold,
         valid_labels=["non-toxic"],
         **kwargs,
     )
 
-    # Return with explicit type cast to satisfy mypy
-    return adapter
+    # Return adapter as BaseValidator[str]
+    return cast(BaseValidator[str], adapter)
 
 
 def create_toxicity_rule(
@@ -714,7 +771,7 @@ def create_toxicity_rule(
     threshold: float = 0.5,
     rule_id: Optional[str] = None,
     **kwargs: Any,
-) -> Rule:
+) -> Rule[str]:
     """
     Create a toxicity rule using the classifier adapter.
 
@@ -756,25 +813,37 @@ def create_toxicity_rule(
         )
         ```
     """
-    from sifaka.adapters.classifier import create_classifier_rule
-    from typing import cast
-    from sifaka.adapters.classifier.adapter import Classifier
+    # Create the validator
+    validator = create_toxicity_validator(threshold=threshold, **kwargs)
 
-    # Determine rule name
-    rule_name = name or rule_id or "toxicity_rule"
+    # Create a new RuleConfig for the rule
+    config = RuleConfig(
+        name=name or "toxicity_rule",
+        description=description or "Validates text for toxic content",
+        rule_id=rule_id or name or "toxicity_rule",
+        **{
+            k: v
+            for k, v in kwargs.items()
+            if k in ["severity", "category", "tags", "priority", "cache_size", "cost"]
+        },
+    )
 
-    # Create classifier
-    classifier = ToxicityClassifier()
+    # Create a concrete rule class that extends Rule
+    class ToxicityRule(Rule[str]):
+        def _create_default_validator(self) -> BaseValidator[str]:
+            return validator
 
-    # Create rule using create_classifier_rule with type cast
-    return create_classifier_rule(
-        classifier=classifier,
-        name=rule_name,
-        description=description,
-        threshold=threshold,
-        valid_labels=["non-toxic"],
-        rule_id=rule_id,
-        **kwargs,
+    # Create and return the rule
+    return ToxicityRule(
+        name=name or "toxicity_rule",
+        description=description or "Validates text for toxic content",
+        config=config,
+        validator=validator,
+        **{
+            k: v
+            for k, v in kwargs.items()
+            if k not in ["severity", "category", "tags", "priority", "cache_size", "cost"]
+        },
     )
 
 
@@ -811,14 +880,11 @@ def create_bias_validator(
         Requires the BiasDetector to be properly implemented in the codebase.
     """
     from sifaka.adapters.classifier import ClassifierAdapter
-    from typing import cast
     from sifaka.adapters.classifier.adapter import Classifier
 
     # Import BiasDetector here to avoid circular imports
-    from typing import Any as AnyType
-
     # Define a variable to hold the classifier
-    classifier: AnyType
+    classifier: Any
 
     try:
         from sifaka.classifiers.implementations.content.bias import BiasDetector
@@ -837,15 +903,75 @@ def create_bias_validator(
         # Use the toxicity classifier as a generic classifier type
         classifier = toxicity_classifier
 
-    # Create adapter with classifier
+    # Create a wrapper class that implements the Classifier protocol correctly
+    class ClassifierWrapper:
+        def __init__(self, classifier_impl: Any):
+            self.classifier_impl = classifier_impl
+
+        @property
+        def name(self) -> str:
+            return str(self.classifier_impl.name)
+
+        @property
+        def description(self) -> str:
+            return str(self.classifier_impl.description)
+
+        @property
+        def config(self) -> Any:
+            return self.classifier_impl.config
+
+        def classify(self, text: str) -> ClassificationResult[Any, Any]:
+            # Convert the result to the expected type
+            result = self.classifier_impl.classify(text)
+            # Create a new ClassificationResult with the same values
+            return ClassificationResult(
+                label=result.label,
+                confidence=result.confidence,
+                passed=result.passed,
+                message=result.message,
+                metadata=result.metadata,
+                score=result.score,
+                issues=result.issues,
+                suggestions=result.suggestions,
+                processing_time_ms=result.processing_time_ms,
+                timestamp=result.timestamp,
+            )
+
+        def batch_classify(self, texts: List[str]) -> List[ClassificationResult[Any, Any]]:
+            results = self.classifier_impl.batch_classify(texts)
+            # Convert each result to the expected type
+            return [
+                ClassificationResult(
+                    label=r.label,
+                    confidence=r.confidence,
+                    passed=r.passed,
+                    message=r.message,
+                    metadata=r.metadata,
+                    score=r.score,
+                    issues=r.issues,
+                    suggestions=r.suggestions,
+                    processing_time_ms=r.processing_time_ms,
+                    timestamp=r.timestamp,
+                )
+                for r in results
+            ]
+
+    # Wrap the classifier
+    wrapped_classifier = ClassifierWrapper(classifier)
+
+    # Cast the wrapped classifier to the Classifier protocol type
+    classifier_protocol: Classifier = cast(Classifier, wrapped_classifier)
+
+    # Create adapter with wrapped classifier
     adapter = ClassifierAdapter(
-        classifier=classifier,
+        classifier=classifier_protocol,
         threshold=threshold,
         valid_labels=valid_labels,
         **kwargs,
     )
 
-    return adapter
+    # Return adapter as BaseValidator[str]
+    return cast(BaseValidator[str], adapter)
 
 
 def create_bias_rule(
@@ -854,7 +980,7 @@ def create_bias_rule(
     threshold: float = 0.3,
     rule_id: Optional[str] = None,
     **kwargs: Any,
-) -> Rule:
+) -> Rule[str]:
     """
     Create a bias rule using the classifier adapter.
 
@@ -883,61 +1009,39 @@ def create_bias_rule(
 
         # Create a basic rule
         rule = create_bias_rule(threshold=0.3)
-
-        # Create a rule with metadata
-        rule = create_bias_rule(
-            threshold=0.3,
-            name="custom_bias_rule",
-            description="Validates text for biased content",
-            rule_id="bias_validator",
-            severity="warning",
-            category="content",
-            tags=["bias", "content", "validation"]
-        )
         ```
-
-    Note:
-        Requires the BiasDetector to be properly implemented in the codebase.
     """
-    from sifaka.adapters.classifier import create_classifier_rule
-    from typing import cast
-    from sifaka.adapters.classifier.adapter import Classifier
+    # Create the validator
+    validator = create_bias_validator(threshold=threshold, **kwargs)
 
-    # Import BiasDetector here to avoid circular imports
-    from typing import Any as AnyType
+    # Create a new RuleConfig for the rule
+    config = RuleConfig(
+        name=name or "bias_rule",
+        description=description or "Validates text for biased content",
+        rule_id=rule_id or name or "bias_rule",
+        **{
+            k: v
+            for k, v in kwargs.items()
+            if k in ["severity", "category", "tags", "priority", "cache_size", "cost"]
+        },
+    )
 
-    # Define variables to hold the classifier and valid labels
-    classifier: AnyType
-    valid_labels: List[str]
+    # Create a concrete rule class that extends Rule
+    class BiasRule(Rule[str]):
+        def _create_default_validator(self) -> BaseValidator[str]:
+            return validator
 
-    try:
-        from sifaka.classifiers.implementations.content.bias import BiasDetector
-    except ImportError:
-        if logger is not None:
-            logger.warning("BiasDetector not found. Using ToxicityClassifier as a fallback.")
-        # Use ToxicityClassifier as a fallback
-        toxicity_classifier = ToxicityClassifier()
-        valid_labels = ["non-toxic"]
-        # Use the toxicity classifier as a generic classifier type
-        classifier = toxicity_classifier
-    else:
-        # Create classifier
-        bias_classifier = BiasDetector()
-        valid_labels = ["unbiased"]
-        # Use the bias classifier as a generic classifier type
-        classifier = bias_classifier
-
-    # Determine rule name
-    rule_name = name or rule_id or "bias_rule"
-
-    return create_classifier_rule(
-        classifier=classifier,
-        name=rule_name,
-        description=description,
-        threshold=threshold,
-        valid_labels=valid_labels,
-        rule_id=rule_id,
-        **kwargs,
+    # Create and return the rule
+    return BiasRule(
+        name=name or "bias_rule",
+        description=description or "Validates text for biased content",
+        config=config,
+        validator=validator,
+        **{
+            k: v
+            for k, v in kwargs.items()
+            if k not in ["severity", "category", "tags", "priority", "cache_size", "cost"]
+        },
     )
 
 

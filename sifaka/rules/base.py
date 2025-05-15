@@ -273,6 +273,8 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
         Returns:
             Validation result
         """
+        from typing import Dict, List, Optional, Any  # Import here to ensure availability
+
         start_time = time.time()
         rule_id = self._state_manager.get_metadata("rule_id")
 
