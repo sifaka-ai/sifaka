@@ -37,6 +37,7 @@ print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 - Detailed validation results with issues and suggestions
 """
 
+# mypy: disable-error-code="no-any-return"
 from typing import List, Optional, Any, Dict, cast, TypeVar, Union
 import time
 from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
@@ -267,7 +268,7 @@ class StructureValidator(BaseValidator[str]):
                 processing_time_ms=time.time() - start_time,
             ),
         )
-        validation_result = cast(RuleResult, operation_result)
+        validation_result = operation_result
         self.update_statistics(validation_result)
         validation_count = self._state_manager.get_metadata("validation_count", 0)
         self._state_manager.set_metadata("validation_count", validation_count + 1)

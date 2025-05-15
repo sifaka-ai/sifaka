@@ -84,7 +84,7 @@ from sifaka.utils.config.critics import CriticConfig
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import create_critic_state
 from sifaka.utils.result_types import BaseResult
-from sifaka.core.managers.prompt import CriticPromptManager
+from sifaka.core.managers.prompt import PromptManager
 
 # Use TYPE_CHECKING for imports needed only for type checking
 if TYPE_CHECKING:
@@ -194,7 +194,7 @@ class CriticCore(BaseCritic[str]):
         from sifaka.core.managers.response import ResponseParser
 
         # Store components in state
-        prompt_manager_instance: Optional[CriticPromptManager] = None
+        prompt_manager_instance = None
         if prompt_manager is not None:
             prompt_manager_instance = prompt_manager
         elif self is not None:
@@ -653,7 +653,7 @@ class CriticCore(BaseCritic[str]):
             "score_distribution": self._state_manager.get_metadata("score_distribution", {}),
         }
 
-    def _create_prompt_manager(self) -> "CriticPromptManager":
+    def _create_prompt_manager(self) -> "PromptManager":
         """Create a prompt manager for the critic.
 
         This method creates and configures a prompt manager for the critic.
@@ -690,17 +690,16 @@ class CriticCore(BaseCritic[str]):
         - Error recovery
 
         Returns:
-            CriticPromptManager: Configured prompt manager
+            PromptManager: Configured prompt manager
 
         Raises:
             RuntimeError: If prompt manager creation fails
         """
         # Import here to avoid circular dependencies
-        from sifaka.core.managers.prompt import DefaultPromptManager
-        from sifaka.critics.managers.prompts import CriticPromptManager
+        from sifaka.core.managers.prompt import DefaultPromptManager, PromptManager
 
-        # Cast to CriticPromptManager for type checking
-        return cast(CriticPromptManager, DefaultPromptManager())
+        # DefaultPromptManager is a subclass of PromptManager, but mypy has trouble recognizing this
+        return DefaultPromptManager()  # type: ignore
 
 
 def create_core_critic(

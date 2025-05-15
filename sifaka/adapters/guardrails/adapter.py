@@ -123,6 +123,7 @@ ValidationResult: TypeAlias = "ValidationResultBase"
 PassResult: TypeAlias = "PassResultBase"
 FailResult: TypeAlias = "FailResultBase"
 
+# mypy: disable-error-code="import-untyped"
 # Try to import guardrails
 try:
     from guardrails.validator_base import Validator

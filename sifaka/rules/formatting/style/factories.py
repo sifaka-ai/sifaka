@@ -174,10 +174,9 @@ def create_style_rule(
         ```
     """
     # Extract RuleConfig parameters from kwargs
-    rule_config_params = {}
-    for param in ["priority", "cache_size", "cost"]:
-        if param in kwargs:
-            rule_config_params[param] = kwargs.pop(param) if kwargs else ""
+    priority: int = int(kwargs.pop("priority", 0)) if "priority" in kwargs else 0
+    cache_size: int = int(kwargs.pop("cache_size", 100)) if "cache_size" in kwargs else 100
+    cost: float = float(kwargs.pop("cost", 1.0)) if "cost" in kwargs else 1.0
 
     # Create validator using the validator factory
     validator = create_style_validator(
@@ -201,7 +200,14 @@ def create_style_rule(
     params["strip_whitespace"] = strip_whitespace
 
     # Create RuleConfig
-    config = RuleConfig(name=name, description=description, params=params, **rule_config_params)
+    config = RuleConfig(
+        name=name,
+        description=description,
+        params=params,
+        priority=priority,
+        cache_size=cache_size,
+        cost=cost,
+    )
 
     # Create rule
     return StyleRule(

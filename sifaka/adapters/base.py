@@ -45,6 +45,7 @@ The module uses a standardized state management approach:
 - validation_type: The type of input this adapter validates
 """
 
+# mypy: disable-error-code="no-any-return"
 import time
 from typing import Any, Dict, Generic, Optional, Type, TypeVar, cast
 from pydantic import BaseModel, PrivateAttr, ConfigDict

@@ -52,7 +52,7 @@ The module uses a standardized state management approach:
 """
 
 import time
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union, cast
 
 from pydantic import BaseModel
 
@@ -62,6 +62,12 @@ from sifaka.rules.base import Rule
 from sifaka.adapters.base import AdapterError
 from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.logging import get_logger
+
+# For type checking
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sifaka.critics.implementations.prompt import PromptCritic
 
 from .adapter import SifakaPydanticAdapter, SifakaPydanticConfig
 
@@ -347,10 +353,13 @@ def create_pydantic_adapter_with_critic(
             from sifaka.critics.implementations.prompt import create_prompt_critic
 
             # Create a prompt critic
-            critic = create_prompt_critic(
+            prompt_critic = create_prompt_critic(
                 llm_provider=model_provider,
                 system_prompt=system_prompt or default_system_prompt,
             )
+
+            # For type safety, cast prompt_critic to BaseCritic
+            critic = cast(BaseCritic[Any], prompt_critic)
 
             logger.debug(f"Created prompt critic for PydanticAI adapter")
 
