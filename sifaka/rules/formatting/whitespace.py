@@ -137,8 +137,17 @@ class WhitespaceValidator(BaseValidator[str]):
             Validation result
         """
         empty_result = self.handle_empty_text(text)
-        if empty_result:
-            return empty_result
+        if empty_result is not None:
+            # Ensure we return a properly typed RuleResult
+            return RuleResult(
+                passed=False,
+                message="Empty input not allowed",
+                metadata={"error": "Empty input not allowed"},
+                score=0.0,
+                issues=["Empty input not allowed"],
+                suggestions=["Provide non-empty input"],
+                processing_time_ms=0.0,
+            )
         raise NotImplementedError("Subclasses must implement validate method")
 
 
@@ -193,8 +202,17 @@ class DefaultWhitespaceValidator(WhitespaceValidator):
         """
         start_time = time.time()
         empty_result = self.handle_empty_text(text)
-        if empty_result:
-            return empty_result
+        if empty_result is not None:
+            # Ensure we return a properly typed RuleResult
+            return RuleResult(
+                passed=False,
+                message="Empty input not allowed",
+                metadata={"error": "Empty input not allowed"},
+                score=0.0,
+                issues=["Empty input not allowed"],
+                suggestions=["Provide non-empty input"],
+                processing_time_ms=0.0,
+            )
         original_text = text
         if self.config.normalize_whitespace:
             text = self._normalize_whitespace(text)
@@ -238,7 +256,7 @@ class DefaultWhitespaceValidator(WhitespaceValidator):
             score=1.0 if not errors else 0.0,
             issues=errors,
             suggestions=suggestions,
-            processing_time_ms=time.time() - start_time,
+            processing_time_ms=(time.time() - start_time) * 1000,
         )
         self.update_statistics(result)
         return result
@@ -329,7 +347,7 @@ class WhitespaceRule(Rule[str]):
         description: str = "Validates text whitespace",
         config: Optional[RuleConfig] = None,
         validator: Optional[WhitespaceValidator] = None,
-        **kwargs: Dict[str, Any],
+        **kwargs: Any,
     ) -> None:
         """
         Initialize the whitespace rule.
@@ -341,12 +359,16 @@ class WhitespaceRule(Rule[str]):
             validator: Optional validator implementation
             **kwargs: Additional keyword arguments for the rule
         """
+        # Extract rule_id from kwargs if present, ensure it's a string
+        rule_id_param = kwargs.pop("rule_id", None)
+        rule_id_str: Optional[str] = str(rule_id_param) if rule_id_param is not None else None
+
         super().__init__(
             name=name,
             description=description,
             config=config
             or RuleConfig(
-                name=name, description=description, rule_id=kwargs.pop("rule_id", name), **kwargs
+                name=name, description=description, rule_id=rule_id_str or name, **kwargs
             ),
             validator=validator,
         )
@@ -380,7 +402,7 @@ def create_whitespace_validator(
     allow_newlines: bool = True,
     max_newlines: Optional[int] = None,
     normalize_whitespace: bool = False,
-    **kwargs: Dict[str, Any],
+    **kwargs: Any,
 ) -> WhitespaceValidator:
     """
     Create a whitespace validator with the specified constraints.
@@ -420,6 +442,7 @@ def create_whitespace_validator(
         )
         ```
     """
+    # Create the config directly with explicit parameters
     config = WhitespaceConfig(
         allow_leading_whitespace=allow_leading_whitespace,
         allow_trailing_whitespace=allow_trailing_whitespace,
@@ -428,8 +451,8 @@ def create_whitespace_validator(
         allow_newlines=allow_newlines,
         max_newlines=max_newlines,
         normalize_whitespace=normalize_whitespace,
-        **kwargs,
     )
+
     return DefaultWhitespaceValidator(config)
 
 
@@ -444,7 +467,10 @@ def create_whitespace_rule(
     name: str = "whitespace_rule",
     description: str = "Validates text whitespace",
     rule_id: Optional[str] = None,
-    **kwargs: Dict[str, Any],
+    severity: Optional[str] = None,
+    category: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    **kwargs: Any,
 ) -> WhitespaceRule:
     """
     Create a whitespace validation rule with the specified constraints.
@@ -463,10 +489,10 @@ def create_whitespace_rule(
         name: The name of the rule
         description: Description of the rule
         rule_id: Unique identifier for the rule
+        severity: Severity level for rule violations
+        category: Category of the rule
+        tags: List of tags for categorizing the rule
         **kwargs: Additional keyword arguments including:
-            - severity: Severity level for rule violations
-            - category: Category of the rule
-            - tags: List of tags for categorizing the rule
             - priority: Priority level for validation
             - cache_size: Size of the validation cache
             - cost: Computational cost of validation
@@ -508,6 +534,8 @@ def create_whitespace_rule(
         max_newlines=max_newlines,
         normalize_whitespace=normalize_whitespace,
     )
+
+    # Create the whitespace validation parameters dict
     params = {
         "allow_leading_whitespace": allow_leading_whitespace,
         "allow_trailing_whitespace": allow_trailing_whitespace,
@@ -517,14 +545,21 @@ def create_whitespace_rule(
         "max_newlines": max_newlines,
         "normalize_whitespace": normalize_whitespace,
     }
-    rule_name = name or rule_id or "whitespace_rule"
+
+    # Use name or rule_id as the rule name
+    rule_name = name or (rule_id if rule_id is not None else "whitespace_rule")
+
+    # Create rule configuration with explicit parameters
     config = RuleConfig(
         name=rule_name,
         description=description,
         rule_id=rule_id or rule_name,
+        severity=severity or "warning",
+        category=category or "formatting",
+        tags=tags or ["whitespace", "formatting", "validation"],
         params=params,
-        **kwargs,
     )
+
     return WhitespaceRule(
         name=rule_name, description=description, config=config, validator=validator
     )

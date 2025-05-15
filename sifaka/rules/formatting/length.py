@@ -43,13 +43,14 @@ print(f"Word count: {result.metadata['word_count']}")
 - Caching for performance optimization
 """
 
-from typing import Optional, Any
+from typing import Optional, Any, Union, cast, TypeVar, Callable, Dict
 import time
 from pydantic import Field, ConfigDict, field_validator, BaseModel, PrivateAttr
 from sifaka.rules.base import Rule, RuleConfig, RuleResult, BaseValidator
-from sifaka.utils.errors.safe_execution import safely_execute_rule
 from sifaka.utils.logging import get_logger
 from sifaka.utils.state import StateManager, create_rule_state
+from sifaka.utils.errors import ErrorResult, RuleError
+from sifaka.utils.errors.safe_execution import safely_execute_component_operation
 
 logger = get_logger(__name__)
 __all__ = [
@@ -61,6 +62,31 @@ __all__ = [
     "create_length_validator",
     "create_length_rule",
 ]
+
+# Type variable for our rule operations
+T = TypeVar("T")
+
+
+# Create our own safely_execute_rule function that works properly with mypy
+def safely_execute_rule(
+    operation: Callable[[], T],
+    component_name: str,
+    default_result: Optional[Union[T, ErrorResult]] = None,
+    log_level: str = "error",
+    include_traceback: bool = True,
+    additional_metadata: Optional[Dict[str, Any]] = None,
+) -> Union[T, ErrorResult]:
+    """Safely execute a rule operation."""
+    return safely_execute_component_operation(
+        operation=operation,
+        component_name=component_name,
+        component_type="Rule",
+        error_class=RuleError,
+        default_result=default_result,
+        log_level=log_level,
+        include_traceback=include_traceback,
+        additional_metadata=additional_metadata,
+    )
 
 
 class LengthConfig(BaseModel):
@@ -175,8 +201,20 @@ class LengthValidator(BaseValidator[str]):
             Validation result
         """
         empty_result = self.handle_empty_text(text)
-        if empty_result:
-            return empty_result
+        if empty_result is not None:
+            # Ensure we return the correct type
+            if isinstance(empty_result, RuleResult):
+                return empty_result
+            # If it's not a RuleResult, create one
+            return RuleResult(
+                passed=False,
+                message="Empty input not allowed",
+                metadata={"error": "Empty input not allowed"},
+                score=0.0,
+                issues=["Empty input not allowed"],
+                suggestions=["Provide non-empty input"],
+                processing_time_ms=0.0,
+            )
         raise NotImplementedError("Subclasses must implement validate method")
 
 
@@ -241,10 +279,22 @@ class DefaultLengthValidator(LengthValidator):
         validation_count = self._state_manager.get("validation_count", 0)
         self._state_manager.update("validation_count", validation_count + 1)
 
-        def validation_operation() -> Any:
+        def validation_operation() -> RuleResult:
             empty_result = self.handle_empty_text(text)
-            if empty_result:
-                return empty_result
+            if empty_result is not None:
+                if isinstance(empty_result, RuleResult):
+                    return empty_result
+                # If it's not a RuleResult, create one
+                return RuleResult(
+                    passed=False,
+                    message="Empty input not allowed",
+                    metadata={"error": "Empty input not allowed"},
+                    score=0.0,
+                    issues=["Empty input not allowed"],
+                    suggestions=["Provide non-empty input"],
+                    processing_time_ms=0.0,
+                )
+
             errors = []
             suggestions = []
             config = self._state_manager.get("config")
@@ -291,19 +341,37 @@ class DefaultLengthValidator(LengthValidator):
             )
             return result
 
+        # Call safely_execute_rule with positional arguments
         result = safely_execute_rule(
-            operation=validation_operation,
-            component_name=self.__class__.__name__,
-            additional_metadata={"text_length": len(text)},
+            validation_operation,  # operation (1st positional arg)
+            self.__class__.__name__,  # component_name (2nd positional arg)
         )
-        if not getattr(result, "passed", False):
+
+        if isinstance(result, ErrorResult):
             error_count = self._state_manager.get("error_count", 0)
             self._state_manager.update("error_count", error_count + 1)
+            return RuleResult(
+                passed=False,
+                message=f"Validation error: {getattr(result, 'error_message', 'Unknown error')}",
+                metadata=getattr(result, "metadata", {}),
+                score=0.0,
+                issues=[f"Validation error: {getattr(result, 'error_message', 'Unknown error')}"],
+                suggestions=["Check your input and try again"],
+                processing_time_ms=(time.time() - start_time) * 1000,
+            )
+
+        if not result.passed:
+            error_count = self._state_manager.get("error_count", 0)
+            self._state_manager.update("error_count", error_count + 1)
+
         cache = self._state_manager.get("cache", {})
         if len(cache) < 100:
             cache_key = hash(text)
             cache[cache_key] = result
             self._state_manager.update("cache", cache)
+
+        # Since we've checked that result is not an ErrorResult, it must be a RuleResult
+        # or something compatible with RuleResult, so no need for a cast
         return result
 
 
@@ -354,7 +422,21 @@ class LengthRuleValidator:
         Returns:
             Validation result
         """
-        return self.validator.validate(output)
+        # Get the result from the validator
+        result = self.validator.validate(output)
+        # Ensure we return a RuleResult
+        if isinstance(result, RuleResult):
+            return result
+        # If it's not a RuleResult for some reason, create one
+        return RuleResult(
+            passed=False,
+            message="Validation failed with unknown error",
+            metadata={"error": "Unknown validation error"},
+            score=0.0,
+            issues=["Unknown validation error"],
+            suggestions=["Check your input and try again"],
+            processing_time_ms=0.0,
+        )
 
     def can_validate(self, output: str) -> bool:
         """
@@ -469,10 +551,10 @@ class LengthRule(Rule[str]):
             self._state_manager.update("initialized", True)
             logger.info(f"Rule {self.name} initialized successfully")
 
-        safely_execute_rule(
-            operation=warm_up_operation,
-            component_name=self.name,
-            additional_metadata={"method": "warm_up"},
+        # Call safely_execute_rule with positional arguments
+        _ = safely_execute_rule(
+            warm_up_operation,  # operation (1st positional arg)
+            self.name,  # component_name (2nd positional arg)
         )
 
     def cleanup(self) -> None:
@@ -489,10 +571,10 @@ class LengthRule(Rule[str]):
             self._state_manager.set_metadata("cleanup_time", time.time())
             logger.info(f"Rule {self.name} cleaned up successfully")
 
-        safely_execute_rule(
-            operation=cleanup_operation,
-            component_name=self.name,
-            additional_metadata={"method": "cleanup"},
+        # Call safely_execute_rule with positional arguments
+        _ = safely_execute_rule(
+            cleanup_operation,  # operation (1st positional arg)
+            self.name,  # component_name (2nd positional arg)
         )
 
     def _create_default_validator(self) -> LengthRuleValidator:
@@ -509,9 +591,9 @@ class LengthRule(Rule[str]):
 
 
 def create_length_validator(
-    min_chars: Optional[Optional[int]] = None,
-    max_chars: Optional[Optional[int]] = None,
-    min_words: Optional[Optional[int]] = None,
+    min_chars: Optional[int] = None,
+    max_chars: Optional[int] = None,
+    min_words: Optional[int] = None,
     max_words: Optional[int] = None,
     **kwargs,
 ) -> LengthValidator:
@@ -573,13 +655,13 @@ def create_length_validator(
 
 
 def create_length_rule(
-    min_chars: Optional[Optional[int]] = None,
+    min_chars: Optional[int] = None,
     max_chars: Optional[int] = None,
-    min_words: Optional[Optional[int]] = None,
-    max_words: Optional[Optional[int]] = None,
-    rule_id: Optional[Optional[str]] = None,
-    name: Optional[Optional[str]] = None,
-    description: Optional[Optional[str]] = None,
+    min_words: Optional[int] = None,
+    max_words: Optional[int] = None,
+    rule_id: Optional[str] = None,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
     **kwargs,
 ) -> LengthRule:
     """
@@ -641,7 +723,7 @@ def create_length_rule(
         ValueError: If max_chars < min_chars or max_words < min_words
     """
 
-    def factory_operation() -> Any:
+    def factory_operation() -> LengthRule:
         validator = create_length_validator(
             min_chars=min_chars, max_chars=max_chars, min_words=min_words, max_words=max_words
         )
@@ -667,17 +749,18 @@ def create_length_rule(
         rule = LengthRule(
             validator=validator, name=rule_name, description=rule_description, config=config
         )
-
-        rule.warm_up()
         return rule
 
-    return safely_execute_rule(
-        operation=factory_operation,
-        component_name="create_length_rule",
-        additional_metadata={
-            "min_chars": min_chars,
-            "max_chars": max_chars,
-            "min_words": min_words,
-            "max_words": max_words,
-        },
+    # Call safely_execute_rule with positional arguments
+    result = safely_execute_rule(
+        factory_operation,  # operation (1st positional arg)
+        "create_length_rule",  # component_name (2nd positional arg)
     )
+
+    if isinstance(result, ErrorResult):
+        raise ValueError(
+            f"Failed to create length rule: {getattr(result, 'error_message', 'Unknown error')}"
+        )
+
+    # Now since we know it's not an ErrorResult, it must be a LengthRule
+    return result

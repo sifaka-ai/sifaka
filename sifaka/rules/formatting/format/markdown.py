@@ -24,15 +24,15 @@ print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 """
 
 import time
-from typing import Dict, Any, List, Tuple, Set, TypeVar, Optional
+from typing import Dict, Any, List, Tuple, Set, TypeVar, Optional, cast
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict, PrivateAttr
 
-from sifaka.rules.base import BaseValidator, Rule as BaseRule, RuleConfig, RuleResult
+from sifaka.rules.base import BaseValidator, Rule as BaseRule, RuleConfig, RuleResult, RuleValidator
 from sifaka.utils.state import create_rule_state
 from sifaka.utils.logging import get_logger
 
-from .base import FormatValidator
+from .base import FormatValidator, FormatConfig
 from .utils import (
     handle_empty_text,
     create_validation_result,
@@ -153,7 +153,171 @@ class _MarkdownAnalyzer:
         return passed, found_elements
 
 
-class DefaultMarkdownValidator(BaseValidator[str], FormatValidator):
+class MarkdownValidator(BaseValidator[str]):
+    """
+    Base implementation of markdown validator for internal use.
+
+    We separate this from DefaultMarkdownValidator to avoid type conflicts.
+    """
+
+    # State management using StateManager
+    _state_manager = PrivateAttr(default_factory=create_rule_state)
+    _markdown_config: MarkdownConfig
+
+    def __init__(self, config: MarkdownConfig) -> None:
+        """
+        Initialize with configuration.
+
+        Args:
+            config: Markdown validation configuration
+        """
+        super().__init__(validation_type=str)
+
+        # Store the original MarkdownConfig
+        self._markdown_config = config
+
+        # Store configuration in state
+        self._state_manager.update("config", config)
+        self._state_manager.update(
+            "analyzer",
+            _MarkdownAnalyzer(
+                required_elements=config.required_elements, min_elements=config.min_elements
+            ),
+        )
+
+        # Set metadata
+        self._state_manager.set_metadata("validator_type", self.__class__.__name__)
+        self._state_manager.set_metadata("creation_time", time.time())
+
+    def validate(self, input: str) -> RuleResult:
+        """
+        Validate markdown format.
+
+        Args:
+            input: The text to validate
+
+        Returns:
+            Validation result
+        """
+        return self._validate_impl(input)
+
+    def _validate_impl(self, text: str) -> RuleResult:
+        """
+        Implementation of markdown validation.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            Validation result
+        """
+        start_time = time.time()
+
+        # Handle empty text
+        empty_result = handle_empty_text(text)
+        if empty_result is not None:
+            # Ensure we return a RuleResult
+            return RuleResult(
+                passed=False,
+                message="Empty input not allowed",
+                metadata={"error": "Empty input not allowed"},
+                score=0.0,
+                issues=["Empty input not allowed"],
+                suggestions=["Provide non-empty input"],
+                processing_time_ms=0.0,
+            )
+
+        try:
+            if not isinstance(text, str):
+                raise ValueError("Input must be a string")
+
+            # Get analyzer from state
+            analyzer = self._state_manager.get("analyzer")
+            if analyzer is None:
+                raise ValueError("Analyzer not initialized")
+
+            # Update validation count in metadata
+            validation_count = self._state_manager.get_metadata("validation_count", 0)
+            self._state_manager.set_metadata("validation_count", validation_count + 1)
+
+            passed, found_elements = analyzer.analyze(text)
+
+            suggestions = []
+            if not passed:
+                missing_elements = set(self._markdown_config.required_elements) - set(
+                    found_elements
+                )
+                if missing_elements:
+                    suggestions.append(
+                        f"Consider adding these markdown elements: {', '.join(missing_elements)}"
+                    )
+                else:
+                    suggestions.append(
+                        f"Add more markdown elements to meet the minimum requirement of {self._markdown_config.min_elements}"
+                    )
+
+            # Create a proper RuleResult directly
+            result = RuleResult(
+                passed=passed,
+                message=(
+                    f"Found {len(found_elements)} markdown elements"
+                    if passed
+                    else f"Insufficient markdown elements: found {len(found_elements)}, require {self._markdown_config.min_elements}"
+                ),
+                metadata={
+                    "found_elements": found_elements,
+                    "required_min": self._markdown_config.min_elements,
+                    "validator_type": self.__class__.__name__,
+                },
+                score=(
+                    len(found_elements) / self._markdown_config.min_elements
+                    if self._markdown_config.min_elements > 0
+                    else 1.0
+                ),
+                issues=(
+                    []
+                    if passed
+                    else [
+                        f"Insufficient markdown elements: found {len(found_elements)}, require {self._markdown_config.min_elements}"
+                    ]
+                ),
+                suggestions=suggestions,
+                processing_time_ms=(time.time() - start_time) * 1000,
+            )
+
+            # Update statistics
+            update_validation_statistics(self._state_manager, result)
+
+            return result
+
+        except Exception as e:
+            record_validation_error(self._state_manager, e)
+            if logger:
+                logger.error(f"Markdown validation failed: {e}")
+
+            error_message = f"Markdown validation failed: {str(e)}"
+
+            # Create a proper RuleResult directly for error case
+            result = RuleResult(
+                passed=False,
+                message=error_message,
+                metadata={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "validator_type": self.__class__.__name__,
+                },
+                score=0.0,
+                issues=[error_message],
+                suggestions=["Check input format and try again"],
+                processing_time_ms=(time.time() - start_time) * 1000,
+            )
+
+            update_validation_statistics(self._state_manager, result)
+            return result
+
+
+# Now create a class that satisfies the FormatValidator protocol
+class DefaultMarkdownValidator(MarkdownValidator):
     """
     Default implementation of markdown validation.
 
@@ -184,137 +348,34 @@ class DefaultMarkdownValidator(BaseValidator[str], FormatValidator):
         ```
     """
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_rule_state)
-
-    def __init__(self, config: MarkdownConfig) -> None:
-        """
-        Initialize with configuration.
-
-        Args:
-            config: Markdown validation configuration
-        """
-        super().__init__(validation_type=str)
-
-        # Store configuration in state
-        self._state_manager.update("config", config)
-        self._state_manager.update(
-            "analyzer",
-            _MarkdownAnalyzer(
-                required_elements=config.required_elements, min_elements=config.min_elements
-            ),
-        )
-
-        # Set metadata
-        self._state_manager.set_metadata("validator_type", self.__class__.__name__)
-        self._state_manager.set_metadata("creation_time", time.time())
+    _format_config: Optional[FormatConfig] = None
 
     @property
-    def config(self) -> MarkdownConfig:
+    def config(self) -> FormatConfig:
         """
-        Get the validator configuration.
+        Get the validator configuration as a FormatConfig.
+
+        This property fulfills the FormatValidator protocol requirement.
 
         Returns:
-            The markdown configuration
+            A FormatConfig representation of our configuration
         """
-        return self._state_manager.get("config")
-
-    def validate(self, text: str) -> RuleResult:
-        """
-        Validate markdown format.
-
-        Args:
-            text: The text to validate
-
-        Returns:
-            Validation result
-        """
-        start_time = time.time()
-
-        # Handle empty text
-        empty_result = handle_empty_text(text)
-        if empty_result:
-            return empty_result
-
-        try:
-            if not isinstance(text, str):
-                raise ValueError("Input must be a string")
-
-            # Get analyzer from state
-            analyzer = self._state_manager.get("analyzer")
-
-            # Update validation count in metadata
-            validation_count = self._state_manager.get_metadata("validation_count", 0)
-            self._state_manager.set_metadata("validation_count", validation_count + 1)
-
-            passed, found_elements = analyzer.analyze(text)
-
-            suggestions = []
-            if not passed:
-                missing_elements = set(self.config.required_elements) - set(found_elements)
-                if missing_elements:
-                    suggestions.append(
-                        f"Consider adding these markdown elements: {', '.join(missing_elements)}"
-                    )
-                else:
-                    suggestions.append(
-                        f"Add more markdown elements to meet the minimum requirement of {self.config.min_elements}"
-                    )
-
-            result = create_validation_result(
-                passed=passed,
-                message=(
-                    f"Found {len(found_elements)} markdown elements"
-                    if passed
-                    else f"Insufficient markdown elements: found {len(found_elements)}, require {self.config.min_elements}"
-                ),
-                metadata={
-                    "found_elements": found_elements,
-                    "required_min": self.config.min_elements,
-                    "validator_type": self.__class__.__name__,
-                },
-                score=(
-                    len(found_elements) / self.config.min_elements
-                    if self.config.min_elements > 0
-                    else 1.0
-                ),
-                issues=(
-                    []
-                    if passed
-                    else [
-                        f"Insufficient markdown elements: found {len(found_elements)}, require {self.config.min_elements}"
-                    ]
-                ),
-                suggestions=suggestions,
-                start_time=start_time,
+        # Create and cache a FormatConfig if we don't have one yet
+        if self._format_config is None:
+            self._format_config = FormatConfig(
+                required_format="markdown",
+                markdown_elements=set(self._markdown_config.required_elements),
+                min_length=1,  # Default value
+                cache_size=self._markdown_config.cache_size,
+                priority=self._markdown_config.priority,
+                cost=self._markdown_config.cost,
             )
 
-            # Update statistics
-            update_validation_statistics(self._state_manager, result)
+        return self._format_config
 
-            return result
 
-        except Exception as e:
-            record_validation_error(self._state_manager, e)
-            logger.error(f"Markdown validation failed: {e}")
-
-            error_message = f"Markdown validation failed: {str(e)}"
-            result = create_validation_result(
-                passed=False,
-                message=error_message,
-                metadata={
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "validator_type": self.__class__.__name__,
-                },
-                score=0.0,
-                issues=[error_message],
-                suggestions=["Check input format and try again"],
-                start_time=start_time,
-            )
-
-            update_validation_statistics(self._state_manager, result)
-            return result
+# Register FormatValidator as a virtual superclass
+FormatValidator.register(DefaultMarkdownValidator)
 
 
 class MarkdownRule(BaseRule[str]):
@@ -352,13 +413,15 @@ class MarkdownRule(BaseRule[str]):
         ```
     """
 
+    _markdown_config: Optional[MarkdownConfig]
+
     def __init__(
         self,
         name: str,
         description: str,
-        config: Optional[Optional[RuleConfig]] = None,
-        validator: Optional[Optional[DefaultMarkdownValidator]] = None,
-        markdown_config: Optional[Optional[MarkdownConfig]] = None,
+        config: Optional[RuleConfig] = None,
+        validator: Optional[RuleValidator[str]] = None,
+        markdown_config: Optional[MarkdownConfig] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -373,29 +436,25 @@ class MarkdownRule(BaseRule[str]):
             **kwargs: Additional configuration parameters
         """
         self._markdown_config = markdown_config
-        self._validator = validator
-        super().__init__(name, description, config, validator, **kwargs)
 
-    @property
-    def validator(self) -> DefaultMarkdownValidator:
-        """
-        Get the validator for this rule.
+        # Create the validator if it's not provided
+        actual_validator = validator
+        if actual_validator is None:
+            actual_validator = self._create_default_validator()
 
-        Returns:
-            The markdown validator
-        """
-        if not hasattr(self, "_validator") or self._validator is None:
-            self._validator = self._create_default_validator()
-        return self._validator
+        super().__init__(name, description, config, actual_validator, **kwargs)
 
-    def _create_default_validator(self) -> DefaultMarkdownValidator:
+    def _create_default_validator(self) -> RuleValidator[str]:
         """
         Create the default validator for this rule.
 
         Returns:
             Default markdown validator instance
         """
-        return DefaultMarkdownValidator(self._markdown_config or MarkdownConfig())
+        validator = DefaultMarkdownValidator(self._markdown_config or MarkdownConfig())
+        # Type cast to ensure mypy understands this is a RuleValidator[str]
+        # and not RuleValidator[str] | None
+        return cast(RuleValidator[str], validator)
 
 
 def create_markdown_rule(
@@ -430,7 +489,7 @@ def create_markdown_rule(
     """
     # Create config if not provided
     if config is None:
-        config_params = {}
+        config_params: Dict[str, Any] = {}
         if required_elements is not None:
             config_params["required_elements"] = required_elements
         if min_elements is not None:
@@ -452,12 +511,15 @@ def create_markdown_rule(
     # Create validator
     validator = DefaultMarkdownValidator(config)
 
+    # Use explicit type casting to help mypy
+    typed_validator = cast(RuleValidator[str], validator)
+
     # Create rule
     return MarkdownRule(
         name=name,
         description=description,
         config=rule_config,
-        validator=validator,
+        validator=typed_validator,
         markdown_config=config,
     )
 

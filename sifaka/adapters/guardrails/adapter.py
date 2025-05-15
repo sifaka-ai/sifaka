@@ -54,39 +54,113 @@ The module uses a standardized state management approach:
 """
 
 import time
-from typing import Any, Dict, Optional, Protocol, runtime_checkable, List, Type
+from typing import (
+    Any,
+    Dict,
+    Optional,
+    Protocol,
+    runtime_checkable,
+    List,
+    Type,
+    cast,
+    Union,
+    TypeVar,
+)
 from pydantic import PrivateAttr, BaseModel, Field
 
-try:
-    from guardrails.validator_base import Validator as GuardrailsValidator  # type: ignore[import-untyped]
-    from guardrails.classes import ValidationResult, PassResult, FailResult  # type: ignore[import-untyped]
+# Define type variables for better type hinting
+T = TypeVar("T")
 
+
+# Define base types for Guardrails functionality
+class GuardrailsValidatorBase:
+    """Placeholder for GuardrailsValidator when the package is not available."""
+
+    def validate(self, value: str, metadata: Optional[Dict[str, Any]] = None) -> Any:
+        """Placeholder validate method."""
+        return None
+
+    @property
+    def name(self) -> str:
+        """Placeholder name property."""
+        return "PlaceholderValidator"
+
+    @property
+    def description(self) -> str:
+        """Placeholder description property."""
+        return "Placeholder description"
+
+    @property
+    def __class__(self) -> type:
+        """Placeholder __class__ property."""
+        return type(self)
+
+
+class ValidationResultBase:
+    """Placeholder for ValidationResult when the package is not available."""
+
+    message: str = "Placeholder validation result"
+
+
+class PassResultBase(ValidationResultBase):
+    """Placeholder for PassResult when the package is not available."""
+
+    pass
+
+
+class FailResultBase(ValidationResultBase):
+    """Placeholder for FailResult when the package is not available."""
+
+    pass
+
+
+# Flag to track if guardrails is available
+GUARDRAILS_AVAILABLE = False
+
+# Try to import guardrails
+try:
+    from guardrails.validator_base import Validator
+    from guardrails.classes import ValidationResult as GRValidationResult
+    from guardrails.classes import PassResult as GRPassResult
+    from guardrails.classes import FailResult as GRFailResult
+
+    # Define type aliases using the imported types
+    GuardrailsValidator = Type[Validator]
+    ValidationResult = GRValidationResult
+    PassResult = GRPassResult
+    FailResult = GRFailResult
     GUARDRAILS_AVAILABLE = True
 except ImportError:
-    GUARDRAILS_AVAILABLE = False
-
-    class GuardrailsValidator:
-        pass
-
-    class ValidationResult:
-        pass
-
-    class PassResult(ValidationResult):
-        pass
-
-    class FailResult(ValidationResult):
-        pass
+    # Define type aliases using the placeholder types
+    GuardrailsValidator = Type[GuardrailsValidatorBase]
+    ValidationResult = ValidationResultBase
+    PassResult = PassResultBase
+    FailResult = FailResultBase
 
 
 from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
 from sifaka.rules.base import BaseValidator, RuleResult, Rule, RuleConfig
 from sifaka.utils.errors.base import ConfigurationError, ValidationError
-from sifaka.adapters.base import BaseAdapter, AdapterError
+from sifaka.adapters.base import BaseAdapter, AdapterError, Adaptable
 from sifaka.utils.state import StateManager, create_adapter_state
 from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+# Define a custom state class to help with type checking
+class GuardrailsState:
+    """State object for Guardrails adapters and rules."""
+
+    adaptee: GuardrailsValidatorBase
+    initialized: bool = False
+    execution_count: int = 0
+    error_count: int = 0
+    last_execution_time: Optional[float] = None
+    avg_execution_time: float = 0.0
+    cache: Dict[str, Any] = {}
+    config_cache: Dict[str, Any] = {}
 
 
 @runtime_checkable
@@ -140,7 +214,23 @@ class GuardrailsValidatable(Protocol):
         ...
 
 
-class GuardrailsAdapter(BaseAdapter[str, GuardrailsValidator]):
+# Make GuardrailsValidatorBase inherit from the Adaptable protocol to fix type compatibility
+class GuardrailsValidatorBaseAdapter(GuardrailsValidatorBase, Adaptable):
+    """Extended GuardrailsValidatorBase that implements the Adaptable protocol."""
+
+    # Implementation of the custom description
+    _custom_description: str = "Guardrails validator"
+
+    def get_description(self) -> str:
+        """Get the description of the validator."""
+        return self._custom_description
+
+    def set_description(self, value: str) -> None:
+        """Set the description of the validator."""
+        self._custom_description = value
+
+
+class GuardrailsAdapter(BaseAdapter[str, GuardrailsValidatorBaseAdapter]):
     """
     Adapter for using Guardrails validators as Sifaka validators.
 
@@ -196,7 +286,7 @@ class GuardrailsAdapter(BaseAdapter[str, GuardrailsValidator]):
     ```
     """
 
-    def __init__(self, guardrails_validator: GuardrailsValidator) -> None:
+    def __init__(self, guardrails_validator: GuardrailsValidatorBaseAdapter) -> None:
         """
         Initialize the adapter with a Guardrails validator.
 
@@ -215,18 +305,12 @@ class GuardrailsAdapter(BaseAdapter[str, GuardrailsValidator]):
                 )
             super().__init__(guardrails_validator)
             self._state_manager.set_metadata("adapter_type", "guardrails")
-            self._state_manager.set_metadata(
-                "validator_type", guardrails_validator.__class__.__name__
-            )
-            logger.debug(
-                f"Initialized GuardrailsAdapter for {guardrails_validator.__class__.__name__}"
-            )
+            self._state_manager.set_metadata("validator_type", type(guardrails_validator).__name__)
+            logger.debug(f"Initialized GuardrailsAdapter for {type(guardrails_validator).__name__}")
         except Exception as e:
             if isinstance(e, ImportError):
                 raise
-            error_info = handle_error(
-                e, f"GuardrailsAdapter:{guardrails_validator.__class__.__name__}"
-            )
+            error_info = handle_error(e, f"GuardrailsAdapter:{type(guardrails_validator).__name__}")
             raise AdapterError(
                 f"Failed to initialize GuardrailsAdapter: {str(e)}", metadata=error_info
             ) from e
@@ -241,18 +325,22 @@ class GuardrailsAdapter(BaseAdapter[str, GuardrailsValidator]):
         Returns:
             RuleResult: The converted Sifaka rule result
         """
-        if isinstance(gr_result, PassResult):
+        # Use a safer approach to check for pass/fail status
+        is_pass_result = (
+            hasattr(gr_result, "__class__") and gr_result.__class__.__name__ == "PassResult"
+        )
+
+        if is_pass_result:
             return RuleResult(
                 passed=True,
                 message="Validation passed",
                 metadata={"guardrails_result": str(gr_result)},
             )
         else:
+            message = getattr(gr_result, "message", "Validation failed")
             return RuleResult(
                 passed=False,
-                message=(
-                    str(gr_result.message) if hasattr(gr_result, "message") else "Validation failed"
-                ),
+                message=str(message),
                 metadata={"guardrails_result": str(gr_result)},
             )
 
@@ -285,7 +373,7 @@ class GuardrailsAdapter(BaseAdapter[str, GuardrailsValidator]):
         except Exception as e:
             if isinstance(e, (ValidationError, AdapterError)):
                 raise
-            error_info = handle_error(e, f"GuardrailsAdapter:{self.adaptee.__class__.__name__}")
+            error_info = handle_error(e, f"GuardrailsAdapter:{type(self.adaptee).__name__}")
             raise ValidationError(
                 f"Guardrails validation failed: {str(e)}", metadata=error_info
             ) from e
@@ -301,13 +389,13 @@ class GuardrailsAdapter(BaseAdapter[str, GuardrailsValidator]):
         stats.update(
             {
                 "validator_type": self._state_manager.get_metadata("validator_type", "unknown"),
-                "validator_class": self.adaptee.__class__.__name__,
+                "validator_class": type(self.adaptee).__name__,
             }
         )
         return stats
 
 
-class GuardrailsRule(Rule, BaseComponent):
+class GuardrailsRule(Rule[str]):
     """
     Rule that uses a Guardrails validator for validation.
 
@@ -338,14 +426,16 @@ class GuardrailsRule(Rule, BaseComponent):
     """
 
     _state_manager = PrivateAttr(default_factory=create_adapter_state)
+    _guardrails_validator: GuardrailsValidatorBase
+    _state: GuardrailsState
 
     def __init__(
         self,
-        guardrails_validator: GuardrailsValidator,
-        rule_id: Optional[Optional[str]] = None,
-        name: Optional[Optional[str]] = None,
-        description: Optional[str] = None,
-        config: Optional[Dict[str, Any]] = None,
+        guardrails_validator: GuardrailsValidatorBase,
+        rule_id: Optional[str] = None,
+        name: str = "Guardrails Rule",
+        description: str = "Rule using Guardrails validator",
+        config: Optional[RuleConfig] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -354,36 +444,46 @@ class GuardrailsRule(Rule, BaseComponent):
         Args:
             guardrails_validator: The Guardrails validator to use
             rule_id: Optional unique identifier for the rule
-            name: Optional human-readable name for the rule
-            description: Optional description of the rule's purpose
+            name: Human-readable name for the rule
+            description: Description of the rule's purpose
             config: Optional additional configuration
             **kwargs: Additional keyword arguments
 
         Raises:
             ImportError: If Guardrails is not installed
         """
-        super().__init__()
+        # Initialize the Rule base class
+        super().__init__(
+            name=name,
+            description=description,
+            config=config
+            or RuleConfig(name=name, description=description, rule_id=rule_id or "guardrails_rule"),
+        )
+
         if not GUARDRAILS_AVAILABLE:
             raise ImportError(
                 "Guardrails is not installed. Please install it with 'pip install guardrails-ai'"
             )
-        state = self._state_manager.get_state()
-        state.adaptee = guardrails_validator
-        state.initialized = True
-        state.execution_count = 0
-        state.error_count = 0
-        state.last_execution_time = None
-        state.avg_execution_time = 0
-        state.cache = {}
-        state.config_cache = {"config": config or {}}
+
+        # Store the guardrails validator directly
+        self._guardrails_validator = guardrails_validator
+
+        # Initialize state
+        self._state = GuardrailsState()
+        self._state.adaptee = guardrails_validator
+        self._state.initialized = True
+        self._state.execution_count = 0
+        self._state.error_count = 0
+        self._state.last_execution_time = None
+        self._state.avg_execution_time = 0.0
+        self._state.cache = {}
+        self._state.config_cache = {"config": kwargs}
+
+        # Set metadata
         self._state_manager.set_metadata("component_type", "rule")
         self._state_manager.set_metadata("creation_time", time.time())
         self._state_manager.set_metadata("rule_id", rule_id or "guardrails_rule")
-        self._state_manager.set_metadata("name", name or "Guardrails Rule")
-        self._state_manager.set_metadata(
-            "description", description or "Rule using Guardrails validator"
-        )
-        self._state_manager.set_metadata("validator_type", guardrails_validator.__class__.__name__)
+        self._state_manager.set_metadata("validator_type", type(guardrails_validator).__name__)
 
     def _convert_guardrails_result(self, gr_result: ValidationResult) -> RuleResult:
         """
@@ -395,18 +495,22 @@ class GuardrailsRule(Rule, BaseComponent):
         Returns:
             RuleResult: The converted Sifaka rule result
         """
-        if isinstance(gr_result, PassResult):
+        # Use a safer approach to check for pass/fail status
+        is_pass_result = (
+            hasattr(gr_result, "__class__") and gr_result.__class__.__name__ == "PassResult"
+        )
+
+        if is_pass_result:
             return RuleResult(
                 passed=True,
                 message="Validation passed",
                 metadata={"guardrails_result": str(gr_result)},
             )
         else:
+            message = getattr(gr_result, "message", "Validation failed")
             return RuleResult(
                 passed=False,
-                message=(
-                    str(gr_result.message) if hasattr(gr_result, "message") else "Validation failed"
-                ),
+                message=str(message),
                 metadata={"guardrails_result": str(gr_result)},
             )
 
@@ -424,14 +528,18 @@ class GuardrailsRule(Rule, BaseComponent):
         Raises:
             ValidationError: If validation fails due to an error
         """
-        state = self._state_manager.get_state()
+        state = self._state
         state.execution_count += 1
         start_time = time.time()
+
         try:
             cache_key = self._get_cache_key(text, kwargs)
             if cache_key and cache_key in state.cache:
-                logger.debug(f"Cache hit for guardrails rule")
-                return state.cache[cache_key]
+                logger.debug("Cache hit for guardrails rule")
+                cached_result = state.cache[cache_key]
+                # Ensure we're returning a RuleResult
+                return cast(RuleResult, cached_result)
+
             if not text:
                 result = RuleResult(
                     passed=False,
@@ -441,13 +549,29 @@ class GuardrailsRule(Rule, BaseComponent):
             else:
                 gr_result = state.adaptee.validate(text, metadata=kwargs)
                 result = self._convert_guardrails_result(gr_result)
+
             if cache_key:
                 state.cache[cache_key] = result
+
             return result
+
         except Exception as e:
             state.error_count += 1
             logger.error(f"Validation error: {str(e)}")
-            raise ValidationError(f"Guardrails validation failed: {str(e)}")
+
+            # Create a RuleResult for the error
+            error_result = RuleResult(
+                passed=False,
+                message=f"Guardrails validation failed: {str(e)}",
+                metadata={"error": str(e), "error_type": type(e).__name__},
+                score=0.0,
+                issues=[f"Validation error: {str(e)}"],
+                suggestions=["Check your input and try again"],
+                processing_time_ms=(time.time() - start_time) * 1000,
+            )
+
+            return error_result
+
         finally:
             execution_time = time.time() - start_time
             state.last_execution_time = execution_time
@@ -478,7 +602,7 @@ class GuardrailsRule(Rule, BaseComponent):
         Returns:
             Dict[str, Any]: Dictionary with usage statistics
         """
-        state = self._state_manager.get_state()
+        state = self._state
         return {
             "execution_count": state.execution_count,
             "error_count": state.error_count,
@@ -491,14 +615,35 @@ class GuardrailsRule(Rule, BaseComponent):
 
     def clear_cache(self) -> None:
         """Clear the rule result cache."""
-        self._state_manager.get_state().cache = {}
+        self._state.cache = {}
         logger.debug("Rule cache cleared")
+
+    def _create_default_validator(self) -> BaseValidator[str]:
+        """
+        Create a default validator for this rule.
+
+        This is an implementation of the abstract method required by the Rule base class.
+
+        Returns:
+            BaseValidator[str]: A validator that uses the Guardrails validator
+        """
+
+        # Create a simple adapter that wraps the Guardrails validator
+        class GuardrailsValidatorAdapter(BaseValidator[str]):
+            def __init__(self, guardrails_rule: GuardrailsRule):
+                super().__init__(validation_type=str)
+                self.guardrails_rule = guardrails_rule
+
+            def validate(self, text: str) -> RuleResult:
+                return self.guardrails_rule.validate(text)
+
+        return GuardrailsValidatorAdapter(self)
 
 
 def create_guardrails_adapter(
-    guardrails_validator: GuardrailsValidator,
-    name: Optional[Optional[str]] = None,
-    description: Optional[Optional[str]] = None,
+    guardrails_validator: GuardrailsValidatorBase,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
     initialize: bool = True,
     **kwargs: Any,
 ) -> GuardrailsAdapter:
@@ -552,20 +697,37 @@ def create_guardrails_adapter(
             raise ImportError(
                 "Guardrails is not installed. Please install it with 'pip install guardrails-ai'"
             )
-        adapter = GuardrailsAdapter(guardrails_validator)
+        # Cast the validator to our adapter class that implements Adaptable
+        adapted_validator = GuardrailsValidatorBaseAdapter()
+
+        # Copy attributes from the original validator to the adapter
+        for attr_name in dir(guardrails_validator):
+            if not attr_name.startswith("__") and attr_name != "description":
+                try:
+                    setattr(adapted_validator, attr_name, getattr(guardrails_validator, attr_name))
+                except (AttributeError, TypeError):
+                    pass  # Skip attributes that can't be set
+
+        # Set the description property
+        if description:
+            adapted_validator.set_description(description)
+        elif hasattr(guardrails_validator, "description"):
+            adapted_validator.set_description(getattr(guardrails_validator, "description"))
+
+        adapter = GuardrailsAdapter(adapted_validator)
         if name:
             adapter._state_manager.set_metadata("name", name)
         if description:
             adapter._state_manager.set_metadata("description", description)
         if initialize:
             adapter.warm_up()
-        logger.debug(f"Created GuardrailsAdapter for {guardrails_validator.__class__.__name__}")
+        logger.debug(f"Created GuardrailsAdapter for {type(guardrails_validator).__name__}")
         return adapter
     except Exception as e:
         if isinstance(e, (ImportError, AdapterError)):
             raise
         error_info = handle_error(
-            e, f"GuardrailsAdapterFactory:{guardrails_validator.__class__.__name__}"
+            e, f"GuardrailsAdapterFactory:{type(guardrails_validator).__name__}"
         )
         raise AdapterError(
             f"Failed to create GuardrailsAdapter: {str(e)}", metadata=error_info
@@ -573,11 +735,11 @@ def create_guardrails_adapter(
 
 
 def create_guardrails_rule(
-    guardrails_validator: GuardrailsValidator,
-    rule_id: Optional[Optional[str]] = None,
-    name: Optional[Optional[str]] = None,
-    description: Optional[Optional[str]] = None,
-    config: Optional[Dict[str, Any]] = None,
+    guardrails_validator: GuardrailsValidatorBase,
+    rule_id: Optional[str] = None,
+    name: str = "Guardrails Rule",
+    description: str = "Rule using Guardrails validator",
+    config: Optional[RuleConfig] = None,
     **kwargs,
 ) -> GuardrailsRule:
     """
@@ -589,8 +751,8 @@ def create_guardrails_rule(
     Args:
         guardrails_validator: The Guardrails validator to use
         rule_id: Optional unique identifier for the rule
-        name: Optional human-readable name for the rule
-        description: Optional description of the rule's purpose
+        name: Human-readable name for the rule
+        description: Description of the rule's purpose
         config: Optional additional configuration
         **kwargs: Additional keyword arguments
 

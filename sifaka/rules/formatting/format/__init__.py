@@ -114,12 +114,12 @@ class FormatRule(BaseRule[str]):
         required_format: FormatType = "plain_text",
         markdown_elements: Optional[Set[str]] = None,
         min_elements: Optional[int] = None,
-        json_schema: Dict[str, Any] = None,
+        json_schema: Optional[Dict[str, Any]] = None,
         strict: Optional[bool] = None,
         min_length: Optional[int] = None,
         max_length: Optional[int] = None,
         allow_empty: Optional[bool] = None,
-        config: Optional[Optional[RuleConfig]] = None,
+        config: Optional[RuleConfig] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -152,8 +152,7 @@ class FormatRule(BaseRule[str]):
             name=name,
             description=description,
             **kwargs,
-        ) if self else ""
-        self._validator = None
+        )
         super().__init__(name, description, config, None, **kwargs)
 
     @property
@@ -164,7 +163,9 @@ class FormatRule(BaseRule[str]):
         Returns:
             The validator from the delegate rule
         """
-        return self._delegate_rule.validator
+        if hasattr(self._delegate_rule, "validator"):
+            return self._delegate_rule.validator
+        return None
 
     def _create_default_validator(self) -> Any:
         """
@@ -173,14 +174,16 @@ class FormatRule(BaseRule[str]):
         Returns:
             The validator from the delegate rule
         """
-        return self._delegate_rule.validator
+        if hasattr(self._delegate_rule, "validator"):
+            return self._delegate_rule.validator
+        return None
 
     def _create_delegate_rule(
         self,
         required_format: FormatType,
         markdown_elements: Optional[Set[str]] = None,
         min_elements: Optional[int] = None,
-        json_schema: Dict[str, Any] = None,
+        json_schema: Optional[Dict[str, Any]] = None,
         strict: Optional[bool] = None,
         min_length: Optional[int] = None,
         max_length: Optional[int] = None,
@@ -262,7 +265,7 @@ def create_format_rule(
     required_format: FormatType = "plain_text",
     markdown_elements: Optional[Set[str]] = None,
     min_elements: Optional[int] = None,
-    json_schema: Dict[str, Any] = None,
+    json_schema: Optional[Dict[str, Any]] = None,
     strict: Optional[bool] = None,
     min_length: Optional[int] = None,
     max_length: Optional[int] = None,

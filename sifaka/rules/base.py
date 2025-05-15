@@ -73,7 +73,7 @@ Rules use the StateManager from sifaka.utils.state for managing internal state:
 """
 
 from abc import abstractmethod
-from typing import Any, Generic, List, Optional, Type, TypeVar
+from typing import Any, Generic, List, Optional, Type, TypeVar, Dict, Union
 import time
 from pydantic import Field, ConfigDict, PrivateAttr
 from sifaka.core.base import BaseComponent, BaseConfig
@@ -275,170 +275,236 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
         """
         start_time = time.time()
         rule_id = self._state_manager.get_metadata("rule_id")
+
+        # Helper method to update statistics with a result
+        def update_stats(result: RuleResult) -> None:
+            """Update statistics using the RuleResult's properties directly."""
+            # Import directly here to avoid circular imports
+            from sifaka.utils.result_types import BaseResult
+            from sifaka.utils.common import update_statistics
+
+            # Track execution time
+            execution_time = (time.time() - start_time) / 1000.0  # convert to seconds
+            success = result.passed
+
+            # Update the statistics using the common utility
+            update_statistics(
+                state_manager=self._state_manager,
+                execution_time=execution_time,
+                success=success,
+            )
+
+        # Helper method to create a RuleResult from common parameters
+        def create_rule_result(
+            passed: bool,
+            message: str,
+            metadata: Optional[Dict[str, Any]] = None,
+            score: float = 0.0,
+            issues: Optional[List[str]] = None,
+            suggestions: Optional[List[str]] = None,
+        ) -> RuleResult:
+            return RuleResult(
+                passed=passed,
+                message=message,
+                metadata={
+                    **(metadata or {}),
+                    "rule_id": rule_id,
+                    "rule_type": self.__class__.__name__,
+                },
+                score=score,
+                issues=issues or [],
+                suggestions=suggestions or [],
+                processing_time_ms=time.time() - start_time,
+                rule_id=rule_id,
+                severity=self.config.severity if isinstance(self.config, RuleConfig) else "error",
+                category=self.config.category if isinstance(self.config, RuleConfig) else "general",
+                tags=self.config.tags if isinstance(self.config, RuleConfig) else [],
+            )
+
+        # Helper function to handle empty input, returning a RuleResult
+        def handle_empty_text(text: str) -> Optional[RuleResult]:
+            """Handle empty text validation returning a RuleResult."""
+            from sifaka.utils.text import is_empty_text
+
+            if isinstance(text, str) and is_empty_text(text):
+                return create_rule_result(
+                    passed=False,
+                    message="Empty input",
+                    metadata={"error_type": "empty_input"},
+                    issues=["Input is empty"],
+                    suggestions=["Provide non-empty input"],
+                )
+            if not text:
+                return create_rule_result(
+                    passed=False,
+                    message="Empty input",
+                    metadata={"error_type": "empty_input"},
+                    issues=["Input is empty"],
+                    suggestions=["Provide non-empty input"],
+                )
+            return None
+
+        # Check if the input can be validated
         if not self.validate_input(input):
-            result = RuleResult(
+            result = create_rule_result(
                 passed=False,
                 message="Invalid input",
-                metadata={
-                    "error_type": "invalid_input",
-                    "rule_id": rule_id,
-                    "rule_type": self.__class__.__name__,
-                },
-                score=0.0,
+                metadata={"error_type": "invalid_input"},
                 issues=["Invalid input type"],
                 suggestions=["Provide valid input"],
-                processing_time_ms=time.time() - start_time,
-                rule_id=rule_id,
-                severity=self.config.severity if isinstance(self.config, RuleConfig) else "error",
-                category=self.config.category if isinstance(self.config, RuleConfig) else "general",
-                tags=self.config.tags if isinstance(self.config, RuleConfig) else [],
             )
-            # Cast RuleResult to BaseResult for update_statistics
-            from sifaka.utils.result_types import BaseResult
-            from typing import cast
-
-            base_result: BaseResult = BaseResult(
-                passed=result.passed,
-                message=result.message,
-                metadata=result.metadata,
-                score=result.score,
-                issues=result.issues,
-                suggestions=result.suggestions,
-                processing_time_ms=result.processing_time_ms,
-            )
-            self.update_statistics(base_result)
+            update_stats(result)
             return result
-        # Convert input to string for handle_empty_input which expects a string
-        empty_result = self.handle_empty_input(str(input) if input is not None else "")
+
+        # Check for empty input
+        text_input = str(input) if input is not None else ""
+        empty_result = handle_empty_text(text_input)
         if empty_result:
-            result = empty_result.with_metadata(
-                processing_time_ms=time.time() - start_time,
-                rule_id=rule_id,
-                rule_type=self.__class__.__name__,
-            )
-            if isinstance(self.config, RuleConfig):
-                result = (
-                    result.with_severity(self.config.severity)
-                    .with_category(self.config.category)
-                    .with_tags(self.config.tags)
-                )
-            # Cast RuleResult to BaseResult for update_statistics
-            from sifaka.utils.result_types import BaseResult
-            from typing import cast
+            update_stats(empty_result)
+            return empty_result
 
-            base_result2: BaseResult = BaseResult(
-                passed=result.passed,
-                message=result.message,
-                metadata=result.metadata,
-                score=result.score,
-                issues=result.issues,
-                suggestions=result.suggestions,
-                processing_time_ms=result.processing_time_ms,
-            )
-            self.update_statistics(base_result2)
-            return result
+        # Check if the validator can validate the input
         if not self._validator or not self._validator.can_validate(input):
-            result = RuleResult(
+            result = create_rule_result(
                 passed=False,
                 message="Invalid input type",
-                metadata={
-                    "error_type": "invalid_type",
+                metadata={"error_type": "invalid_type"},
+                issues=["Input type not supported"],
+                suggestions=["Use supported input type"],
+            )
+            update_stats(result)
+            return result
+
+        # Create validation operation
+        def validation_operation() -> RuleResult:
+            # Directly cast the validation result to RuleResult
+            # This helps mypy understand that we explicitly want a RuleResult
+            from typing import cast
+
+            # Get the raw validation result
+            raw_result = self._validator.validate(input)
+
+            # Create a dict of all the attributes we need
+            result_dict = {
+                "passed": getattr(raw_result, "passed", False),
+                "message": getattr(raw_result, "message", "Validation completed"),
+                "metadata": {
+                    **(getattr(raw_result, "metadata", {}) or {}),
+                    "processing_time_ms": time.time() - start_time,
                     "rule_id": rule_id,
                     "rule_type": self.__class__.__name__,
                 },
-                score=0.0,
-                issues=["Input type not supported"],
-                suggestions=["Use supported input type"],
-                processing_time_ms=time.time() - start_time,
-                rule_id=rule_id,
-                severity=self.config.severity if isinstance(self.config, RuleConfig) else "error",
-                category=self.config.category if isinstance(self.config, RuleConfig) else "general",
-                tags=self.config.tags if isinstance(self.config, RuleConfig) else [],
-            )
-            # Cast RuleResult to BaseResult for update_statistics
-            from sifaka.utils.result_types import BaseResult
-            from typing import cast
+                "score": getattr(raw_result, "score", 0.0),
+                "issues": getattr(raw_result, "issues", []) or [],
+                "suggestions": getattr(raw_result, "suggestions", []) or [],
+                "processing_time_ms": time.time() - start_time,
+                "rule_id": rule_id,
+            }
 
-            base_result3: BaseResult = BaseResult(
-                passed=result.passed,
-                message=result.message,
-                metadata=result.metadata,
-                score=result.score,
-                issues=result.issues,
-                suggestions=result.suggestions,
-                processing_time_ms=result.processing_time_ms,
-            )
-            self.update_statistics(base_result3)
-            return result
-
-        def validation_operation() -> RuleResult:
-            result = self._validator.validate(input)
-            # Update metadata without redundant cast
-            result = result.with_metadata(
-                processing_time_ms=time.time() - start_time,
-                rule_id=rule_id,
-                rule_type=self.__class__.__name__,
-            )
+            # Add rule-specific properties if we have a RuleConfig
             if isinstance(self.config, RuleConfig):
-                result = (
-                    result.with_rule_id(rule_id)
-                    .with_severity(self.config.severity)
-                    .with_category(self.config.category)
-                    .with_tags(self.config.tags)
-                )
-            return result
+                result_dict["severity"] = self.config.severity
+                result_dict["category"] = self.config.category
+                result_dict["tags"] = self.config.tags
+            else:
+                result_dict["severity"] = "error"
+                result_dict["category"] = "general"
+                result_dict["tags"] = []
+
+            # Create and return a new RuleResult
+            return RuleResult(**result_dict)
 
         # Import the correct function for safe execution
         from sifaka.utils.common import safely_execute
+        from typing import cast, Dict, Any
 
         # Call safely_execute with the correct parameters
-        result = safely_execute(
-            operation=validation_operation,
-            component_name=self.name,
-            state_manager=self._state_manager,
-            component_type="Rule",
-        )
-        if isinstance(result, dict) and result and result.get("error_type"):
-            self.record_error(Exception(result.get("error_message", "Unknown error")))
-            # Create a new RuleResult for error case
-            error_result = RuleResult(
+        try:
+            # Safely execute the validation operation
+            # We explicitly annotate the result to help mypy understand the type
+            operation_result: Union[RuleResult, Dict[str, Any]] = safely_execute(
+                operation=validation_operation,
+                component_name=self.name,
+                state_manager=self._state_manager,
+                component_type="Rule",
+            )
+        except Exception as e:
+            # Handle any exception from safely_execute
+            self.record_error(e)
+            result = create_rule_result(
                 passed=False,
-                message=(
-                    result.get("error_message", "Validation failed")
-                    if result
-                    else "Validation failed"
-                ),
-                metadata={
-                    "error_type": result.get("error_type") if result else None,
-                    "rule_id": rule_id,
-                    "rule_type": self.__class__.__name__,
-                },
-                score=0.0,
+                message=f"Validation failed: {str(e)}",
+                metadata={"error_type": "execution_error"},
+                issues=[f"Validation error: {str(e)}"],
+                suggestions=["Retry with different input"],
+            )
+            update_stats(result)
+            return result
+
+        # Handle the result based on type
+        if (
+            isinstance(operation_result, dict)
+            and operation_result
+            and operation_result.get("error_type")
+        ):
+            # Handle error result (dict with error info)
+            self.record_error(Exception(operation_result.get("error_message", "Unknown error")))
+            result = create_rule_result(
+                passed=False,
+                message=operation_result.get("error_message", "Validation failed"),
+                metadata={"error_type": operation_result.get("error_type")},
                 issues=[
-                    f"Validation error: {result.get('error_message') if result else 'Unknown error'}"
+                    f"Validation error: {operation_result.get('error_message', 'Unknown error')}"
                 ],
                 suggestions=["Retry with different input"],
-                processing_time_ms=time.time() - start_time,
-                rule_id=rule_id,
-                severity=self.config.severity if isinstance(self.config, RuleConfig) else "error",
-                category=self.config.category if isinstance(self.config, RuleConfig) else "general",
-                tags=self.config.tags if isinstance(self.config, RuleConfig) else [],
             )
-            result = error_result
-        # Cast RuleResult to BaseResult for update_statistics
-        from sifaka.utils.result_types import BaseResult
-        from typing import cast
+        elif isinstance(operation_result, RuleResult):
+            # Already a RuleResult, use it directly
+            result = operation_result
+        else:
+            # For any other type, create a new RuleResult
+            try:
+                passed = bool(getattr(operation_result, "passed", False))
+            except (AttributeError, TypeError):
+                passed = False
 
-        base_result4: BaseResult = BaseResult(
-            passed=result.passed,
-            message=result.message,
-            metadata=result.metadata,
-            score=result.score,
-            issues=result.issues,
-            suggestions=result.suggestions,
-            processing_time_ms=result.processing_time_ms,
-        )
-        self.update_statistics(base_result4)
+            try:
+                message = str(getattr(operation_result, "message", "Validation completed"))
+            except (AttributeError, TypeError):
+                message = "Validation completed"
+
+            try:
+                op_metadata = dict(getattr(operation_result, "metadata", {}))
+            except (AttributeError, TypeError):
+                op_metadata = {}
+
+            try:
+                score = float(getattr(operation_result, "score", 0.0))
+            except (AttributeError, TypeError, ValueError):
+                score = 0.0
+
+            try:
+                issues = list(getattr(operation_result, "issues", []))
+            except (AttributeError, TypeError):
+                issues = []
+
+            try:
+                suggestions = list(getattr(operation_result, "suggestions", []))
+            except (AttributeError, TypeError):
+                suggestions = []
+
+            # Create the RuleResult
+            result = create_rule_result(
+                passed=passed,
+                message=message,
+                metadata=op_metadata,
+                score=score,
+                issues=issues,
+                suggestions=suggestions,
+            )
+
+        # Update statistics and return the result
+        update_stats(result)
         return result
 
     def process(self, input: T) -> RuleResult:

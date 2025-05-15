@@ -30,7 +30,7 @@ Usage Example:
 """
 
 import time
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union, cast
 
 from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentResultEnum, Validatable
 from sifaka.rules.base import Rule as BaseRule, RuleConfig, RuleResult
@@ -156,8 +156,8 @@ class ValidationManager(InitializeStateMixin):
 
     def __init__(
         self,
-        rules: Optional[Optional[List[RuleProtocol]]] = None,
-        config: Optional[Optional[ValidationConfig]] = None,
+        rules: Optional[List[RuleProtocol]] = None,
+        config: Optional[ValidationConfig] = None,
     ):
         """
         Initialize the validation manager.
@@ -254,7 +254,8 @@ class ValidationManager(InitializeStateMixin):
         if cache_key in cache:
             self._state_manager.set_metadata("cache_hit", True)
             logger.debug(f"Cache hit for validation: {cache_key[:30]}...") if logger else ""
-            return cache[cache_key]
+            # Ensure we return the correct type from cache
+            return cast(List[RuleResult], cache[cache_key])
 
         # Mark as cache miss
         self._state_manager.set_metadata("cache_hit", False)
@@ -264,13 +265,13 @@ class ValidationManager(InitializeStateMixin):
         start_time = time.time()
 
         # Extract validation options
-        fail_fast = kwargs.pop("fail_fast", False) if kwargs else ""
-        timeout = kwargs.pop("timeout", None) if kwargs else ""
-        include_rules = kwargs.pop("include_rules", None) if kwargs else ""
-        exclude_rules = kwargs.pop("exclude_rules", None) if kwargs else ""
+        fail_fast = kwargs.pop("fail_fast", False)
+        timeout = kwargs.pop("timeout", None)
+        include_rules: Optional[List[str]] = kwargs.pop("include_rules", None)
+        exclude_rules: Optional[List[str]] = kwargs.pop("exclude_rules", None)
 
         # Filter rules if needed
-        rules_to_validate = self._get_prioritized_rules() if self else ""
+        rules_to_validate = self._get_prioritized_rules()
         if include_rules:
             rules_to_validate = [r for r in rules_to_validate if r.name in include_rules]
         if exclude_rules:
@@ -279,17 +280,17 @@ class ValidationManager(InitializeStateMixin):
         # Log validation start
         logger.debug(f"Starting validation with {len(rules_to_validate)} rules") if logger else None
 
-        results = []
+        results: List[RuleResult] = []
         for rule in rules_to_validate:
             # Check timeout
-            if timeout and time.time() - start_time > timeout:
+            if timeout is not None and time.time() - start_time > float(timeout):
                 logger.warning(f"Validation timeout after {timeout} seconds") if logger else ""
                 break
 
             try:
                 # Validate with the rule
-                result = rule.model_validate(text, **kwargs) if rule else ""
-                results.append(result) if results else ""
+                result = rule.model_validate(text, **kwargs)
+                results.append(result)
 
                 # Track pass/fail statistics
                 if result.passed:
@@ -323,7 +324,8 @@ class ValidationManager(InitializeStateMixin):
                 error_result = create_error_result(
                     message=str(e), component_name=rule.name, error_type=type(e).__name__
                 )
-                results.append(error_result) if results else ""
+                # Cast error_result to RuleResult to satisfy type checker
+                results.append(cast(RuleResult, error_result))
 
                 # Stop if fail_fast is enabled
                 if fail_fast:
@@ -382,8 +384,12 @@ class ValidationManager(InitializeStateMixin):
             Otherwise, rules are sorted by priority (descending).
         """
         if self.config.prioritize_by_cost:
-            return sorted(self.rules, key=lambda r: r.config.cost)
-        return sorted(self.rules, key=lambda r: r.config.priority.value, reverse=True)
+            return sorted(self.rules, key=lambda r: getattr(r.config, "cost", 0))
+        return sorted(
+            self.rules,
+            key=lambda r: getattr(getattr(r, "config", None), "priority", 0),
+            reverse=True,
+        )
 
     def add_rule(self, rule: RuleProtocol) -> None:
         """
@@ -410,7 +416,7 @@ class ValidationManager(InitializeStateMixin):
                 if logger
                 else ""
             )
-            self.remove_rule(rule.name) if self else ""
+            self.remove_rule(rule.name)
 
         # Add the rule
         self.rules.append(rule)
@@ -577,12 +583,9 @@ class ValidationManager(InitializeStateMixin):
         """
         if logger:
             logger.debug(f"Validating {len(texts)} texts")
-        results = {}
+        results: Dict[str, List[RuleResult]] = {}
 
         for text in texts:
-            if self:
-                results[text] = self.validate(text, **kwargs)
-            else:
-                results[text] = []
+            results[text] = self.validate(text, **kwargs)
 
         return results
