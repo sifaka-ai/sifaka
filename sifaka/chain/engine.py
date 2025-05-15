@@ -80,7 +80,7 @@ from sifaka.models.result import GenerationResult
 logger = get_logger(__name__)
 
 
-class Engine(BaseModel):
+class Engine(InitializeStateMixin, BaseModel):
     """
     Core execution engine for the Sifaka chain system.
 
@@ -157,8 +157,9 @@ class Engine(BaseModel):
 
     def _initialize_state(self) -> None:
         """Initialize the engine state."""
-        # Call super to ensure proper initialization of base state
-        super()._initialize_state()
+        # Check if super has _initialize_state method before calling it
+        if hasattr(super(), "_initialize_state"):
+            super()._initialize_state()
 
         self._state_manager.update("config", self.config)
         self._state_manager.update("initialized", True)
@@ -586,3 +587,5 @@ class Engine(BaseModel):
             cache[prompt] = result
             self._state_manager.update("result_cache", cache)
         return result
+
+from ..utils.mixins import InitializeStateMixin

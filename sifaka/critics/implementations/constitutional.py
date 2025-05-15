@@ -357,7 +357,7 @@ class ConstitutionalCritic(
             score = critique_result.get("score", 0)
             passed = score >= min_confidence
 
-            result = CriticResult(
+            result: CriticResult = CriticResult(
                 passed=passed,
                 message=critique_result.get("feedback", ""),
                 metadata={"operation": "process"},
@@ -458,9 +458,8 @@ class ConstitutionalCritic(
             validation_count = self._state_manager and self._state_manager.get_metadata(
                 "validation_count", 0
             )
-            self._state_manager and self._state_manager.set_metadata(
-                "validation_count", validation_count + 1
-            )
+            if self._state_manager:
+                self._state_manager.set_metadata("validation_count", (validation_count or 0) + 1)
 
             # Get task from metadata
             task = ""
@@ -481,16 +480,14 @@ class ConstitutionalCritic(
                 valid_count = self._state_manager and self._state_manager.get_metadata(
                     "valid_count", 0
                 )
-                self._state_manager and self._state_manager.set_metadata(
-                    "valid_count", valid_count + 1
-                )
+                if self._state_manager:
+                    self._state_manager.set_metadata("valid_count", (valid_count or 0) + 1)
             else:
                 invalid_count = self._state_manager and self._state_manager.get_metadata(
                     "invalid_count", 0
                 )
-                self._state_manager and self._state_manager.set_metadata(
-                    "invalid_count", invalid_count + 1
-                )
+                if self._state_manager:
+                    self._state_manager.set_metadata("invalid_count", (invalid_count or 0) + 1)
 
             # Track performance
             if self.config and self.config.track_performance:
@@ -501,7 +498,7 @@ class ConstitutionalCritic(
                     elapsed_time = time.time() - start_time
                     self._state_manager.set_metadata(
                         "total_validation_time_ms",
-                        total_time + (elapsed_time * 1000),
+                        (total_time or 0.0) + (elapsed_time * 1000),
                     )
 
             return is_valid
@@ -511,7 +508,7 @@ class ConstitutionalCritic(
             record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to validate text: {str(e)}") from e
 
-    def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:  # type: ignore
         """
         Analyze a response against the principles and provide detailed feedback.
 
@@ -547,9 +544,8 @@ class ConstitutionalCritic(
             critique_count = self._state_manager and self._state_manager.get_metadata(
                 "critique_count", 0
             )
-            self._state_manager and self._state_manager.set_metadata(
-                "critique_count", critique_count + 1
-            )
+            if self._state_manager:
+                self._state_manager.set_metadata("critique_count", (critique_count or 0) + 1)
 
             # Get task from metadata
             task = ""
@@ -576,9 +572,8 @@ class ConstitutionalCritic(
                 score_distribution[score_bucket_str] = (
                     score_distribution.get(score_bucket_str, 0) + 1
                 )
-                self._state_manager and self._state_manager.set_metadata(
-                    "score_distribution", score_distribution
-                )
+                if self._state_manager:
+                    self._state_manager.set_metadata("score_distribution", score_distribution)
 
             # Track performance
             if self.config and self.config.track_performance:
@@ -591,7 +586,7 @@ class ConstitutionalCritic(
                         elapsed_time = current_time - float(start_time)
                         self._state_manager.set_metadata(
                             "total_critique_time_ms",
-                            total_time + (elapsed_time * 1000),
+                            (total_time or 0.0) + (elapsed_time * 1000),
                         )
 
             return critique_result or {}
@@ -601,7 +596,7 @@ class ConstitutionalCritic(
             record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to critique text: {str(e)}") from e
 
-    def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+    def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:  # type: ignore
         """
         Improve a response based on principles.
 
@@ -637,9 +632,8 @@ class ConstitutionalCritic(
             improvement_count = self._state_manager and self._state_manager.get_metadata(
                 "improvement_count", 0
             )
-            self._state_manager and self._state_manager.set_metadata(
-                "improvement_count", improvement_count + 1
-            )
+            if self._state_manager:
+                self._state_manager.set_metadata("improvement_count", (improvement_count or 0) + 1)
 
             # Get task from metadata
             task = ""
@@ -672,7 +666,7 @@ class ConstitutionalCritic(
                 total_time = self._state_manager.get_metadata("total_improvement_time_ms", 0.0)
                 elapsed_time = time.time() - start_time
                 self._state_manager.set_metadata(
-                    "total_improvement_time_ms", total_time + (elapsed_time * 1000)
+                    "total_improvement_time_ms", (total_time or 0.0) + (elapsed_time * 1000)
                 )
 
             return improved_text
@@ -773,7 +767,7 @@ class ConstitutionalCritic(
                 elapsed_time = time.time() - start_time
                 self._state_manager.set_metadata(
                     "total_feedback_improvement_time_ms",
-                    total_time + (elapsed_time * 1000),
+                    (total_time or 0.0) + (elapsed_time * 1000),
                 )
 
             return improved_text

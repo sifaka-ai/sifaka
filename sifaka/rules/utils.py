@@ -1,4 +1,5 @@
 from typing import Any
+
 """
 Utility functions for rules in Sifaka.
 
@@ -267,7 +268,7 @@ def try_validate(
         if rule_result.metadata.get("processing_time_ms") is None:
             elapsed_ms = (time.time() - start_time) * 1000
             # Use cast to help mypy understand that with_metadata returns a RuleResult
-            rule_result = rule_result.with_metadata(processing_time_ms=elapsed_ms)
+            rule_result = cast(RuleResult, rule_result.with_metadata(processing_time_ms=elapsed_ms))
 
         return rule_result
 

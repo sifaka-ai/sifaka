@@ -112,11 +112,11 @@ def initialize_component_state(
 
     Example:
         ```python
-        from sifaka.utils.state import StateManager
+        from sifaka.utils.state import create_manager_state
         from sifaka.utils.common import initialize_component_state
 
         # Create and initialize state manager
-        state_manager = StateManager()
+        state_manager = create_manager_state()
         initialize_component_state(
             state_manager,
             component_type="Classifier",

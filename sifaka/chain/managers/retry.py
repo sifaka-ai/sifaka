@@ -75,6 +75,7 @@ from pydantic import PrivateAttr
 from ...utils.state import StateManager, create_manager_state
 from ...utils.logging import get_logger
 from ...utils.errors import ChainError
+from ...utils.mixins import InitializeStateMixin
 from sifaka.interfaces.chain.models import ValidationResult
 from sifaka.models.result import GenerationResult
 from ...core.results import ChainResult
@@ -82,7 +83,7 @@ from ...core.results import ChainResult
 logger = get_logger(__name__)
 
 
-class RetryManager:
+class RetryManager(InitializeStateMixin):
     """
     Manages retry logic for chain execution.
 
@@ -161,9 +162,9 @@ class RetryManager:
 
     def _initialize_state(self) -> None:
         """Initialize the retry manager state."""
-        # Call super to ensure proper initialization of base state
-        super()._initialize_state()
-
+        # Check if super has _initialize_state method before calling it
+        if hasattr(super(), "_initialize_state"):
+            super()._initialize_state()
         self._state_manager.update("initialized", True)
         self._state_manager.set_metadata("component_type", "retry_manager")
         self._state_manager.set_metadata("creation_time", time.time())

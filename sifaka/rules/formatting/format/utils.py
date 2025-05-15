@@ -113,24 +113,21 @@ def update_validation_statistics(state_manager: Any, result: RuleResult) -> None
         state_manager: State manager to update
         result: Validation result
     """
-    validation_count = state_manager.get_metadata("validation_count", 0) if state_manager else ""
-    state_manager.set_metadata("validation_count", validation_count + 1) if state_manager else ""
-    if result.passed:
-        success_count = state_manager.get_metadata("success_count", 0) if state_manager else ""
-        state_manager.set_metadata("success_count", success_count + 1) if state_manager else ""
-    else:
-        failure_count = state_manager.get_metadata("failure_count", 0) if state_manager else ""
-        state_manager.set_metadata("failure_count", failure_count + 1) if state_manager else ""
-    total_time = (
-        state_manager.get_metadata("total_processing_time_ms", 0.0) if state_manager else ""
-    )
-    (
+    if state_manager:
+        validation_count = state_manager.get_metadata("validation_count", 0)
+        state_manager.set_metadata("validation_count", validation_count + 1)
+
+        if result.passed:
+            success_count = state_manager.get_metadata("success_count", 0)
+            state_manager.set_metadata("success_count", success_count + 1)
+        else:
+            failure_count = state_manager.get_metadata("failure_count", 0)
+            state_manager.set_metadata("failure_count", failure_count + 1)
+
+        total_time = state_manager.get_metadata("total_processing_time_ms", 0.0)
         state_manager.set_metadata(
             "total_processing_time_ms", total_time + result.processing_time_ms
         )
-        if state_manager
-        else ""
-    )
 
 
 def record_validation_error(state_manager: Any, error: Exception) -> None:
@@ -143,19 +140,21 @@ def record_validation_error(state_manager: Any, error: Exception) -> None:
     """
     if logger:
         logger.error(f"Validation error: {error}")
+
     if state_manager:
         error_count = state_manager.get_metadata("error_count", 0)
         state_manager.set_metadata("error_count", error_count + 1)
+
         errors = state_manager.get("errors", [])
-    if errors:
-        errors.append(
-            {
-                "error_type": type(error).__name__,
-                "error_message": str(error),
-                "timestamp": time.time(),
-            }
-        )
-        state_manager.update("errors", errors[-100:])
+        if errors:
+            errors.append(
+                {
+                    "error_type": type(error).__name__,
+                    "error_message": str(error),
+                    "timestamp": time.time(),
+                }
+            )
+            state_manager.update("errors", errors[-100:])
 
 
 __all__ = [

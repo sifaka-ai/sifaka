@@ -295,6 +295,7 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
             )
             # Cast RuleResult to BaseResult for update_statistics
             from sifaka.utils.result_types import BaseResult
+            from typing import cast
 
             base_result: BaseResult = BaseResult(
                 passed=result.passed,
@@ -323,6 +324,7 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
                 )
             # Cast RuleResult to BaseResult for update_statistics
             from sifaka.utils.result_types import BaseResult
+            from typing import cast
 
             base_result2: BaseResult = BaseResult(
                 passed=result.passed,
@@ -355,6 +357,7 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
             )
             # Cast RuleResult to BaseResult for update_statistics
             from sifaka.utils.result_types import BaseResult
+            from typing import cast
 
             base_result3: BaseResult = BaseResult(
                 passed=result.passed,
@@ -368,23 +371,28 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
             self.update_statistics(base_result3)
             return result
 
-        def validation_operation() -> Any:
+        def validation_operation() -> RuleResult:
             result = self._validator.validate(input)
             # Cast to RuleResult to ensure type compatibility
             from typing import cast
 
-            result = result.with_metadata(
-                    processing_time_ms=time.time( - start_time,
+            result = cast(
+                RuleResult,
+                result.with_metadata(
+                    processing_time_ms=time.time() - start_time,
                     rule_id=rule_id,
                     rule_type=self.__class__.__name__,
                 ),
             )
             if isinstance(self.config, RuleConfig):
-                result = (
-                    result.with_rule_id(rule_id)
-                    .with_severity(self.config.severity)
-                    .with_category(self.config.category)
-                    .with_tags(self.config.tags)
+                result = cast(
+                    RuleResult,
+                    (
+                        result.with_rule_id(rule_id)
+                        .with_severity(self.config.severity)
+                        .with_category(self.config.category)
+                        .with_tags(self.config.tags)
+                    ),
                 )
             return result
 
@@ -427,6 +435,7 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
             result = error_result
         # Cast RuleResult to BaseResult for update_statistics
         from sifaka.utils.result_types import BaseResult
+        from typing import cast
 
         base_result4: BaseResult = BaseResult(
             passed=result.passed,

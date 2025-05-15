@@ -12,9 +12,10 @@ from sifaka.interfaces.chain.models import ValidationResult
 from sifaka.utils.errors.component import FormatterError
 from sifaka.utils.errors.safe_execution import safely_execute_component_operation
 from sifaka.utils.state import create_adapter_state
+from ...utils.mixins import InitializeStateMixin
 
 
-class FormatterAdapter(Formatter):
+class FormatterAdapter(InitializeStateMixin, Formatter):
     """
     Adapter for existing formatters.
 
@@ -70,8 +71,9 @@ class FormatterAdapter(Formatter):
 
     def _initialize_state(self) -> None:
         """Initialize adapter state."""
-        # Call super to ensure proper initialization of base state
-        super()._initialize_state()
+        # Check if super has _initialize_state method before calling it
+        if hasattr(super(), "_initialize_state"):
+            super()._initialize_state()
 
         # Initialize adapter-specific state
         self._state_manager.update("adaptee", self._formatter)

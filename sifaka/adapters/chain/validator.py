@@ -13,9 +13,10 @@ from sifaka.utils.errors.component import ValidationError
 from sifaka.utils.errors.results import ErrorResult
 from sifaka.utils.errors.safe_execution import safely_execute_component_operation
 from sifaka.utils.state import create_adapter_state
+from ...utils.mixins import InitializeStateMixin
 
 
-class ValidatorAdapter(Validator):
+class ValidatorAdapter(InitializeStateMixin, Validator):
     """
     Adapter for existing rules.
 
@@ -68,9 +69,9 @@ class ValidatorAdapter(Validator):
 
     def _initialize_state(self) -> None:
         """Initialize adapter state."""
-        # Call super to ensure proper initialization of base state
-        super()._initialize_state()
-
+        # Check if super has _initialize_state method before calling it
+        if hasattr(super(), "_initialize_state"):
+            super()._initialize_state()
         # Initialize adapter-specific state
         self._state_manager.update("adaptee", self._validator)
         self._state_manager.update("initialized", True)

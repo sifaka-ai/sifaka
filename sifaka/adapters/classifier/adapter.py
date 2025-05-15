@@ -319,14 +319,14 @@ class ClassifierRule(Rule):
             config: Optional rule configuration
         """
         super().__init__(
-            rule_id=rule_id,
             name=name or classifier.name,
             description=description or classifier.description,
-            severity=severity,
             config=config,
         )
         self._classifier = classifier
-        self._config = ClassifierRuleConfig(
+        self._rule_id = rule_id or self.name
+        self._severity = severity
+        self._classifier_config = ClassifierRuleConfig(
             threshold=threshold,
             valid_labels=valid_labels or [],
             invalid_labels=invalid_labels,
@@ -351,7 +351,7 @@ class ClassifierRule(Rule):
         Returns:
             float: The confidence threshold for accepting a classification
         """
-        return self._config.threshold
+        return self._classifier_config.threshold
 
     @property
     def valid_labels(self) -> List[str]:
@@ -361,7 +361,7 @@ class ClassifierRule(Rule):
         Returns:
             List[str]: The list of valid labels
         """
-        return self._config.valid_labels
+        return self._classifier_config.valid_labels
 
     @property
     def rule_id(self) -> str:
@@ -410,7 +410,10 @@ class ClassifierRule(Rule):
                     message=f"Text classified as {result.label} with confidence {result.confidence:.2f}",
                     metadata={"label": result.label, "confidence": result.confidence},
                 )
-            if self._config.invalid_labels and result.label in self._config.invalid_labels:
+            if (
+                self._classifier_config.invalid_labels
+                and result.label in self._classifier_config.invalid_labels
+            ):
                 return RuleResult(
                     passed=False,
                     message=f"Text classified as invalid label {result.label}",
@@ -446,8 +449,8 @@ class ClassifierRule(Rule):
                     metadata={"input_length": 0},
                 )
             text_to_classify = input_text
-            if self._config.extraction_function:
-                text_to_classify = self._config.extraction_function(input_text)
+            if self._classifier_config.extraction_function:
+                text_to_classify = self._classifier_config.extraction_function(input_text)
             return self._validate_text(text_to_classify)
         except Exception as e:
             raise ValidationError(f"Validation failed: {str(e)}") from e
@@ -539,9 +542,9 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
             invalid_labels: Optional list of invalid labels
             extraction_function: Optional function to extract text to classify
         """
-        super().__init__()
+        super().__init__(adaptee=classifier)
         self._classifier = classifier
-        self._config = ClassifierRuleConfig(
+        self._classifier_config = ClassifierRuleConfig(
             threshold=threshold,
             valid_labels=valid_labels or [],
             invalid_labels=invalid_labels,
@@ -556,7 +559,7 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         Returns:
             ClassifierRuleConfig: The adapter configuration
         """
-        return self._config
+        return self._classifier_config
 
     @property
     def classifier(self) -> Classifier:
@@ -576,7 +579,7 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         Returns:
             List[str]: The list of valid labels
         """
-        return self._config.valid_labels
+        return self._classifier_config.valid_labels
 
     @property
     def threshold(self) -> float:
@@ -586,7 +589,7 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         Returns:
             float: The confidence threshold for accepting a classification
         """
-        return self._config.threshold
+        return self._classifier_config.threshold
 
     def _validate_impl(self, input_value: str, **kwargs: Any) -> RuleResult:
         """
@@ -610,8 +613,8 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
                     metadata={"input_length": 0},
                 )
             text_to_classify = input_value
-            if self._config.extraction_function:
-                text_to_classify = self._config.extraction_function(input_value)
+            if self._classifier_config.extraction_function:
+                text_to_classify = self._classifier_config.extraction_function(input_value)
             result = self._classifier.classify(text_to_classify)
             if result.confidence < self.threshold:
                 return RuleResult(
@@ -625,7 +628,10 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
                     message=f"Text classified as {result.label} with confidence {result.confidence:.2f}",
                     metadata={"label": result.label, "confidence": result.confidence},
                 )
-            if self._config.invalid_labels and result.label in self._config.invalid_labels:
+            if (
+                self._classifier_config.invalid_labels
+                and result.label in self._classifier_config.invalid_labels
+            ):
                 return RuleResult(
                     passed=False,
                     message=f"Text classified as invalid label {result.label}",
@@ -650,7 +656,7 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
         Returns:
             Optional[str]: The cache key, or None if caching is not supported
         """
-        if not self._config.extraction_function:
+        if not self._classifier_config.extraction_function:
             return input_value
         return None
 
@@ -666,8 +672,8 @@ class ClassifierAdapter(BaseAdapter[str, Classifier]):
             "classifier_description": self._classifier.description,
             "threshold": self.threshold,
             "valid_labels": self.valid_labels,
-            "invalid_labels": self._config.invalid_labels,
-            "has_extraction_function": self._config.extraction_function is not None,
+            "invalid_labels": self._classifier_config.invalid_labels,
+            "has_extraction_function": self._classifier_config.extraction_function is not None,
         }
 
 
@@ -766,7 +772,7 @@ def create_classifier_adapter(
             extraction_function=extraction_function,
         )
         if initialize:
-            adapter.initialize()
+            adapter.warm_up()
         return adapter
     except Exception as e:
         raise ConfigurationError(f"Failed to create classifier adapter: {str(e)}") from e

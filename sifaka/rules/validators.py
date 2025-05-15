@@ -48,6 +48,7 @@ from sifaka.utils.text import handle_empty_text
 if TYPE_CHECKING:
     from sifaka.utils.state import StateManager
 from ..core.results import RuleResult
+from ..utils.mixins import InitializeStateMixin
 
 logger = get_logger(__name__)
 T = TypeVar("T")
@@ -74,7 +75,7 @@ class RuleValidator(Protocol[_T_contra]):
         ...
 
 
-class BaseValidator(Generic[T]):
+class BaseValidator(InitializeStateMixin, Generic[T]):
     """
     Base class for validators.
 
@@ -103,12 +104,17 @@ class BaseValidator(Generic[T]):
 
     def _initialize_state(self) -> None:
         """Initialize component state."""
-        # Call super to ensure proper initialization of base state
-        super()._initialize_state()
+        # Check if super has _initialize_state method before calling it
+        if hasattr(super(), "_initialize_state"):
+            super()._initialize_state()
 
         # Initialize validator-specific state
-        self._state_manager.update("pattern", self.pattern)
-        self._state_manager.update("case_sensitive", self.case_sensitive)
+        # Notice: These attributes should be properly defined in the class
+        pattern = getattr(self, "pattern", None)
+        case_sensitive = getattr(self, "case_sensitive", True)
+
+        self._state_manager.update("pattern", pattern)
+        self._state_manager.update("case_sensitive", case_sensitive)
         self._state_manager.update("compiled_pattern", None)
         self._state_manager.update("initialized", False)
 

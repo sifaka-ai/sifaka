@@ -12,9 +12,10 @@ from sifaka.utils.errors.component import ModelError
 from sifaka.utils.errors.results import ErrorResult
 from sifaka.utils.errors.safe_execution import safely_execute_component_operation
 from sifaka.utils.state import create_adapter_state
+from ...utils.mixins import InitializeStateMixin
 
 
-class ModelAdapter(Model):
+class ModelAdapter(InitializeStateMixin, Model):
     """
     Adapter for existing model providers.
 
@@ -66,9 +67,9 @@ class ModelAdapter(Model):
 
     def _initialize_state(self) -> None:
         """Initialize adapter state."""
-        # Call super to ensure proper initialization of base state
-        super()._initialize_state()
-
+        # Check if super has _initialize_state method before calling it
+        if hasattr(super(), "_initialize_state"):
+            super()._initialize_state()
         # Initialize adapter-specific state
         self._state_manager.update("adaptee", self._model)
         self._state_manager.update("initialized", True)

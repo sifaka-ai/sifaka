@@ -66,12 +66,13 @@ from ..utils.logging import get_logger
 from ..core.results import ClassificationResult
 from ..utils.config import ClassifierConfig
 from ..utils.errors import ClassifierError, safely_execute_component_operation as safely_execute
+from ..utils.mixins import InitializeStateMixin
 from .adapters import ImplementationError
 
 logger = get_logger(__name__)
 
 
-class Engine:
+class Engine(InitializeStateMixin):
     """
     Core classification engine for the Sifaka classifiers system.
 
@@ -141,9 +142,9 @@ class Engine:
 
     def _initialize_state(self) -> None:
         """Initialize the engine state."""
-        # Call super to ensure proper initialization of base state
-        super()._initialize_state()
-
+        # Check if super has _initialize_state method before calling it
+        if hasattr(super(), "_initialize_state"):
+            super()._initialize_state()
         self._state_manager.update("config", self._config)
         self._state_manager.update("initialized", True)
         self._state_manager.update("execution_count", 0)

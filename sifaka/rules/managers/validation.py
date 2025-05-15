@@ -36,6 +36,7 @@ from sifaka.core.base import BaseComponent, BaseConfig, BaseResult, ComponentRes
 from sifaka.rules.base import Rule as BaseRule, RuleConfig, RuleResult
 from sifaka.utils.state import StateManager, create_manager_state
 from sifaka.utils.logging import get_logger
+from sifaka.utils.mixins import InitializeStateMixin
 
 logger = get_logger(__name__)
 
@@ -110,7 +111,7 @@ class ValidationConfig(BaseModel):
         return ValidationConfig(**{**self.model_dump(), **kwargs})
 
 
-class ValidationManager:
+class ValidationManager(InitializeStateMixin):
     """
     Manager for rule validation.
 
@@ -182,6 +183,7 @@ class ValidationManager:
             )
             ```
         """
+        super().__init__()
         self.rules = rules or []
         self.config = config or ValidationConfig()
 

@@ -60,11 +60,12 @@ from pydantic import PrivateAttr
 from ...utils.state import StateManager, create_manager_state
 from ...utils.logging import get_logger
 from ...core.results import ChainResult
+from ...utils.mixins import InitializeStateMixin
 
 logger = get_logger(__name__)
 
 
-class CacheManager:
+class CacheManager(InitializeStateMixin):
     """
     Manages caching of chain results.
 
@@ -151,8 +152,9 @@ class CacheManager:
 
     def _initialize_state(self) -> None:
         """Initialize the cache manager state."""
-        # Call super to ensure proper initialization of base state
-        super()._initialize_state()
+        # Check if super has _initialize_state method before calling it
+        if hasattr(super(), "_initialize_state"):
+            super()._initialize_state()
 
         if not self._state_manager.get("result_cache"):
             self._state_manager.update("result_cache", {})

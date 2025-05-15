@@ -239,7 +239,7 @@ class BaseComponent(ABC, Generic[T, R]):
         """Initialize the component."""
         self._name = name
         self._description = description
-        object.__setattr__(self, "_state_manager", create_state_manager())
+        object.__setattr__(self, "_state_manager", create_state_manager(state_class=ComponentState))
         self._initialize_state()
         self._config = config or BaseConfig(name=name, description=description, **kwargs)
 
