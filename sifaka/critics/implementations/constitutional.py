@@ -23,7 +23,7 @@ The ConstitutionalCritic follows a principles-based architecture:
 - Uses standardized state management with _state_manager
 - Evaluates text against a set of configurable principles
 - Provides detailed feedback on principle violations
-- Implements both sync and async interfaces
+- Implements synchronous interfaces
 - Provides comprehensive error handling and recovery
 - Tracks performance and usage statistics
 
@@ -119,7 +119,7 @@ class ConstitutionalCritic(
     - Uses standardized state management with _state_manager
     - Evaluates text against a set of configurable principles
     - Provides detailed feedback on principle violations
-    - Implements both sync and async interfaces
+    - Implements synchronous interfaces
     - Provides comprehensive error handling and recovery
     - Tracks performance and usage statistics
 

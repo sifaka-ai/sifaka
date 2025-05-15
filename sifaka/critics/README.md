@@ -261,26 +261,6 @@ if constitutional_critic.validate(text):
     improved_text = prompt_critic.improve(text)
 ```
 
-### Asynchronous Critics
-
-All critics provide async versions of their methods:
-
-```python
-async def process_text(text):
-    critic = create_prompt_critic(llm_provider=model)
-
-    # Asynchronous operations
-    is_valid = await critic.avalidate(text)
-    critique = await critic.acritique(text)
-    improved = await critic.aimprove(text)
-
-    return {
-        "valid": is_valid,
-        "critique": critique,
-        "improved": improved
-    }
-```
-
 ## Best Practices
 
 1. **Match the critic to your use case**: Different critics excel at different types of feedback.

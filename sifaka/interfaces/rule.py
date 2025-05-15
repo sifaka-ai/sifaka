@@ -55,7 +55,6 @@ ConfigType = TypeVar("ConfigType")
 InputType = TypeVar("InputType", contravariant=True)
 ResultType = TypeVar("ResultType", covariant=True)
 HandlerResultType = TypeVar("HandlerResultType", contravariant=True)
-AsyncConfigType = TypeVar("AsyncConfigType", covariant=True)
 
 
 @runtime_checkable
@@ -203,99 +202,6 @@ class Rule(Identifiable, Configurable[ConfigType], Protocol[ConfigType, InputTyp
     def model_validate(self, input_value: InputType) -> ResultType:
         """
         Validate an input value against the rule.
-
-        Args:
-            input_value: The input value to validate
-
-        Returns:
-            A validation result
-
-        Raises:
-            ValueError: If the input value is invalid
-        """
-        pass
-
-
-@runtime_checkable
-class AsyncRule(Protocol[AsyncConfigType, InputType, ResultType]):
-    """
-    Interface for asynchronous rules.
-
-    This interface defines the contract for components that validate inputs
-    asynchronously against rules. It ensures that rules can validate inputs
-    asynchronously, return standardized validation results, and expose rule metadata.
-
-    ## Lifecycle
-
-    1. **Initialization**: Set up rule resources and configuration
-    2. **Validation**: Validate inputs against the rule asynchronously
-    3. **Result Handling**: Process validation results
-    4. **Configuration Management**: Manage rule configuration
-    5. **Cleanup**: Release resources when no longer needed
-
-    ## Implementation Requirements
-
-    Classes implementing this interface must:
-    - Provide an async validate method to validate inputs
-    - Return standardized validation results
-    - Provide name and description properties
-    - Provide a config property to access the rule configuration
-    - Provide an update_config method to update the rule configuration
-    - Implement state management using _state_manager
-    - Implement error handling and tracking
-    - Implement execution tracking and statistics
-    """
-
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """
-        Get the rule name.
-
-        Returns:
-            The rule name
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def description(self) -> str:
-        """
-        Get the rule description.
-
-        Returns:
-            The rule description
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def config(self) -> Any:
-        """
-        Get the rule configuration.
-
-        Returns:
-            The rule configuration
-        """
-        pass
-
-    @abstractmethod
-    def update_config(self, config: Any) -> None:
-        """
-        Update the rule configuration.
-
-        Args:
-            config: The new configuration object or values to update
-
-        Raises:
-            ValueError: If the configuration is invalid
-        """
-        pass
-
-    @abstractmethod
-    async def model_validate(self, input_value: InputType) -> ResultType:
-        """
-        Validate an input value against the rule asynchronously.
 
         Args:
             input_value: The input value to validate

@@ -24,7 +24,6 @@ The SelfRAGCritic follows a retrieval-augmented architecture:
 - Uses standardized state management with _state_manager
 - Implements a multi-stage process (retrieval decision, retrieval, generation, reflection)
 - Provides automatic retrieval decisions based on task requirements
-- Implements both sync and async interfaces
 - Provides comprehensive error handling and recovery
 - Tracks performance and retrieval statistics
 
@@ -132,7 +131,6 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
     - Uses standardized state management with _state_manager
     - Implements a multi-stage process (retrieval decision, retrieval, generation, reflection)
     - Provides automatic retrieval decisions based on task requirements
-    - Implements both sync and async interfaces
     - Provides comprehensive error handling and recovery
     - Tracks performance and retrieval statistics
 
@@ -440,9 +438,6 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
                 processing_time_ms=processing_time,
             )
 
-    # Note: We're not overriding the config property since it's already defined in the base class
-    # and mypy complains about redefining it. Instead, we'll use type casting when needed.
-
     def validate(self, text: str) -> bool:
         """
         Validate text.
@@ -727,70 +722,6 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
             "retrieved_context": context,
             "reflection": reflection,
         }
-
-    # Async methods are implemented similarly to the synchronous ones
-    async def avalidate(self, text: str) -> bool:
-        """Asynchronously validate text."""
-        self._check_input(text)
-        return True
-
-    async def acritique(self, text: str) -> CritiqueResult:
-        """Asynchronously analyze text and provide detailed feedback."""
-        self._check_input(text)
-        # Use a default task since the interface doesn't allow for metadata
-        metadata = {"task": "Analyze the text"}
-        task = self._get_task_from_metadata(metadata)
-        result = await self.arun(task, text, metadata)
-
-        # Extract reflection as feedback
-        reflection = result.get("reflection", "")
-        issues = []
-        suggestions = []
-
-        for line in reflection.split("\n"):
-            line = line.strip()
-            if line.startswith("- ") or line.startswith("* "):
-                if (
-                    "should" in line.lower()
-                    or "could" in line.lower()
-                    or "recommend" in line.lower()
-                ):
-                    suggestions.append(line[2:])
-                else:
-                    issues.append(line[2:])
-
-        score = 1.0 if not issues else 0.5
-
-        return {
-            "score": score,
-            "feedback": reflection,
-            "issues": issues,
-            "suggestions": suggestions,
-        }
-
-    async def aimprove(self, text: str, feedback: str = "") -> str:
-        """Asynchronously improve text through self-reflective retrieval-augmented generation."""
-        self._check_input(text)
-        # This implementation uses metadata instead of direct feedback parameter
-        metadata = {"task": "Improve the text"} if not feedback else {"task": feedback}
-        task = self._get_task_from_metadata(metadata)
-        result = await self.arun(task, text, metadata)
-
-        # Ensure we return a string
-        if isinstance(result, dict):
-            response = result.get("response", text)
-            return str(response)
-        return str(text)
-
-    async def arun(
-        self,
-        task: str,
-        response: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,  # Kept for compatibility
-    ) -> Dict[str, Any]:
-        """Asynchronously run the full Self-RAG process."""
-        # For simplicity, we'll use the synchronous implementation for now
-        return self.run(task, response, metadata)
 
 
 def create_self_rag_critic(

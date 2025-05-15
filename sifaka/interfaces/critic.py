@@ -15,29 +15,19 @@ modularity and extensibility.
    - **PromptFactory**: Interface for prompt factories
 
 2. **Text Validation Protocols**
-   - `SyncTextValidator`: Synchronous text validation
-   - `AsyncTextValidator`: Asynchronous text validation
-   - `TextValidator`: Combined synchronous protocol
+   - `TextValidator`: Synchronous text validation
 
 3. **Text Improvement Protocols**
-   - `SyncTextImprover`: Synchronous text improvement
-   - `AsyncTextImprover`: Asynchronous text improvement
-   - `TextImprover`: Combined synchronous protocol
+   - `TextImprover`: Synchronous text improvement
 
 4. **Text Critiquing Protocols**
-   - `SyncTextCritic`: Synchronous text critiquing
-   - `AsyncTextCritic`: Asynchronous text critiquing
-   - `TextCritic`: Combined synchronous protocol
+   - `TextCritic`: Synchronous text critiquing
 
 5. **Language Model Protocols**
-   - `SyncLLMProvider`: Synchronous language model provider
-   - `AsyncLLMProvider`: Asynchronous language model provider
-   - `LLMProvider`: Combined synchronous protocol
+   - `LLMProvider`: Synchronous language model provider
 
 6. **Prompt Factory Protocols**
-   - `SyncPromptFactory`: Synchronous prompt factory
-   - `AsyncPromptFactory`: Asynchronous prompt factory
-   - `PromptFactory`: Combined synchronous protocol
+   - `PromptFactory`: Synchronous prompt factory
 
 ## Usage Examples
 
@@ -81,10 +71,10 @@ ResultType = TypeVar("ResultType", covariant=True)
 
 
 @runtime_checkable
-class SyncTextValidator(Protocol):
-    """Protocol for synchronous text validation.
+class TextValidator(Protocol):
+    """Protocol for text validation.
 
-    This protocol defines the interface for synchronous text validation operations.
+    This protocol defines the interface for text validation operations.
     Implementations must provide a method to validate text against quality standards.
 
     ## Lifecycle Steps
@@ -116,46 +106,10 @@ class SyncTextValidator(Protocol):
 
 
 @runtime_checkable
-class AsyncTextValidator(Protocol):
-    """Protocol for asynchronous text validation.
+class TextImprover(Protocol):
+    """Protocol for text improvement.
 
-    This protocol defines the interface for asynchronous text validation operations.
-    Implementations must provide an async method to validate text against quality standards.
-    """
-
-    async def validate(self, text: str) -> bool:
-        """
-        Asynchronously validate text against quality standards.
-
-        Args:
-            text: The text to validate
-
-        Returns:
-            bool: True if the text passes validation, False otherwise
-
-        Raises:
-            ValueError: If text is empty or invalid
-            RuntimeError: If validation fails
-        """
-        ...
-
-
-@runtime_checkable
-class TextValidator(SyncTextValidator, Protocol):
-    """Protocol for text validation (sync version).
-
-    This protocol combines the synchronous text validation interface with
-    additional functionality for text validation operations.
-    """
-
-    ...
-
-
-@runtime_checkable
-class SyncTextImprover(Protocol):
-    """Protocol for synchronous text improvement.
-
-    This protocol defines the interface for synchronous text improvement operations.
+    This protocol defines the interface for text improvement operations.
     Implementations must provide a method to improve text based on feedback.
     """
 
@@ -175,43 +129,6 @@ class SyncTextImprover(Protocol):
             RuntimeError: If improvement fails
         """
         ...
-
-
-@runtime_checkable
-class AsyncTextImprover(Protocol):
-    """Protocol for asynchronous text improvement.
-
-    This protocol defines the interface for asynchronous text improvement operations.
-    Implementations must provide an async method to improve text based on feedback.
-    """
-
-    async def improve(self, text: str, feedback: str) -> str:
-        """
-        Asynchronously improve text based on feedback.
-
-        Args:
-            text: The text to improve
-            feedback: Feedback to guide the improvement
-
-        Returns:
-            str: The improved text
-
-        Raises:
-            ValueError: If text or feedback is empty or invalid
-            RuntimeError: If improvement fails
-        """
-        ...
-
-
-@runtime_checkable
-class TextImprover(SyncTextImprover, Protocol):
-    """Protocol for text improvement (sync version).
-
-    This protocol combines the synchronous text improvement interface with
-    additional functionality for text improvement operations.
-    """
-
-    ...
 
 
 class CritiqueResult(TypedDict):
@@ -234,10 +151,10 @@ class CritiqueResult(TypedDict):
 
 
 @runtime_checkable
-class SyncTextCritic(Protocol):
-    """Protocol for synchronous text critiquing.
+class TextCritic(Protocol):
+    """Protocol for text critiquing.
 
-    This protocol defines the interface for synchronous text critiquing operations.
+    This protocol defines the interface for text critiquing operations.
     Implementations must provide a method to critique text and provide feedback.
     """
 
@@ -259,46 +176,10 @@ class SyncTextCritic(Protocol):
 
 
 @runtime_checkable
-class AsyncTextCritic(Protocol):
-    """Protocol for asynchronous text critiquing.
+class LLMProvider(Protocol):
+    """Protocol for language model providers.
 
-    This protocol defines the interface for asynchronous text critiquing operations.
-    Implementations must provide an async method to critique text and provide feedback.
-    """
-
-    async def critique(self, text: str) -> CritiqueResult:
-        """
-        Asynchronously critique text and provide feedback.
-
-        Args:
-            text: The text to critique
-
-        Returns:
-            CritiqueResult: A dictionary containing critique information
-
-        Raises:
-            ValueError: If text is empty or invalid
-            RuntimeError: If critique fails
-        """
-        ...
-
-
-@runtime_checkable
-class TextCritic(SyncTextCritic, Protocol):
-    """Protocol for text critiquing (sync version).
-
-    This protocol combines the synchronous text critiquing interface with
-    additional functionality for text critiquing operations.
-    """
-
-    ...
-
-
-@runtime_checkable
-class SyncLLMProvider(Protocol):
-    """Protocol for synchronous language model providers.
-
-    This protocol defines the interface for synchronous language model providers.
+    This protocol defines the interface for language model providers.
     Implementations must provide a method to generate text from prompts.
     """
 
@@ -321,47 +202,10 @@ class SyncLLMProvider(Protocol):
 
 
 @runtime_checkable
-class AsyncLLMProvider(Protocol):
-    """Protocol for asynchronous language model providers.
+class PromptFactory(Protocol):
+    """Protocol for prompt factories.
 
-    This protocol defines the interface for asynchronous language model providers.
-    Implementations must provide an async method to generate text from prompts.
-    """
-
-    async def generate(self, prompt: str, **kwargs: Any) -> str:
-        """
-        Asynchronously generate text from a prompt.
-
-        Args:
-            prompt: The prompt to generate from
-            **kwargs: Additional arguments for the model
-
-        Returns:
-            str: The generated text
-
-        Raises:
-            ValueError: If prompt is empty or invalid
-            RuntimeError: If generation fails
-        """
-        ...
-
-
-@runtime_checkable
-class LLMProvider(SyncLLMProvider, Protocol):
-    """Protocol for language model providers (sync version).
-
-    This protocol combines the synchronous language model provider interface with
-    additional functionality for text generation operations.
-    """
-
-    ...
-
-
-@runtime_checkable
-class SyncPromptFactory(Protocol):
-    """Protocol for synchronous prompt factories.
-
-    This protocol defines the interface for synchronous prompt factories.
+    This protocol defines the interface for prompt factories.
     Implementations must provide a method to create prompts for language models.
     """
 
@@ -381,43 +225,6 @@ class SyncPromptFactory(Protocol):
             RuntimeError: If prompt creation fails
         """
         ...
-
-
-@runtime_checkable
-class AsyncPromptFactory(Protocol):
-    """Protocol for asynchronous prompt factories.
-
-    This protocol defines the interface for asynchronous prompt factories.
-    Implementations must provide an async method to create prompts for language models.
-    """
-
-    async def create_prompt(self, text: str, **kwargs: Any) -> str:
-        """
-        Asynchronously create a prompt for a language model.
-
-        Args:
-            text: The text to include in the prompt
-            **kwargs: Additional arguments for prompt creation
-
-        Returns:
-            str: The formatted prompt
-
-        Raises:
-            ValueError: If text is empty or invalid
-            RuntimeError: If prompt creation fails
-        """
-        ...
-
-
-@runtime_checkable
-class PromptFactory(SyncPromptFactory, Protocol):
-    """Protocol for prompt factories (sync version).
-
-    This protocol combines the synchronous prompt factory interface with
-    additional functionality for prompt creation operations.
-    """
-
-    ...
 
 
 @runtime_checkable
@@ -486,132 +293,6 @@ class Critic(
     def improve(self, text: InputType, feedback: Optional[Optional[str]] = None) -> OutputType:
         """
         Improve text.
-
-        Args:
-            text: The text to improve
-            feedback: Optional feedback to guide improvement
-
-        Returns:
-            Improved text
-
-        Raises:
-            ValueError: If the text is invalid
-        """
-        pass
-
-
-@runtime_checkable
-class AsyncCritic(Protocol[ConfigType, InputType, OutputType, ResultType]):
-    """
-    Interface for asynchronous critics.
-
-    This interface defines the contract for components that critique and improve text
-    asynchronously. It ensures that critics can validate, critique, and improve text
-    asynchronously, and expose critic metadata.
-
-    ## Lifecycle
-
-    1. **Initialization**: Set up critic resources and configuration
-    2. **Validation**: Validate text asynchronously
-    3. **Critique**: Critique text asynchronously
-    4. **Improvement**: Improve text asynchronously
-    5. **Configuration Management**: Manage critic configuration
-    6. **Cleanup**: Release resources when no longer needed
-
-    ## Implementation Requirements
-
-    Classes implementing this interface must:
-    - Provide async validate, critique, and improve methods
-    - Return standardized results
-    - Provide name and description properties
-    - Provide a config property to access the critic configuration
-    - Provide an update_config method to update the critic configuration
-    """
-
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """
-        Get the critic name.
-
-        Returns:
-            The critic name
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def description(self) -> str:
-        """
-        Get the critic description.
-
-        Returns:
-            The critic description
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def config(self) -> ConfigType:
-        """
-        Get the critic configuration.
-
-        Returns:
-            The critic configuration
-        """
-        pass
-
-    @abstractmethod
-    def update_config(self, config: ConfigType) -> None:
-        """
-        Update the critic configuration.
-
-        Args:
-            config: The new configuration object or values to update
-
-        Raises:
-            ValueError: If the configuration is invalid
-        """
-        pass
-
-    @abstractmethod
-    async def validate(self, text: InputType) -> bool:
-        """
-        Validate text asynchronously.
-
-        Args:
-            text: The text to validate
-
-        Returns:
-            True if the text is valid, False otherwise
-
-        Raises:
-            ValueError: If the text is invalid
-        """
-        pass
-
-    @abstractmethod
-    async def critique(self, text: InputType) -> ResultType:
-        """
-        Critique text asynchronously.
-
-        Args:
-            text: The text to critique
-
-        Returns:
-            A critique result
-
-        Raises:
-            ValueError: If the text is invalid
-        """
-        pass
-
-    @abstractmethod
-    async def improve(
-        self, text: InputType, feedback: Optional[Optional[str]] = None
-    ) -> OutputType:
-        """
-        Improve text asynchronously.
 
         Args:
             text: The text to improve

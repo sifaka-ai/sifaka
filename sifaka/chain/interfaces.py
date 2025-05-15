@@ -68,7 +68,6 @@ The interfaces define consistent error handling patterns:
 The interfaces are designed to work with the following components:
 - Pydantic models for data validation and serialization
 - Protocol classes for interface definition
-- Asynchronous methods with default implementations
 """
 
 from abc import abstractmethod
@@ -226,29 +225,6 @@ class Model(ChainComponent, Protocol[InputT, OutputT]):
         """
         ...
 
-    async def generate_async(self, prompt: InputT) -> OutputT:
-        """
-        Generate text asynchronously.
-
-        This method has a default implementation that calls the synchronous
-        generate method in an executor. Implementations can override this
-        method to provide a more efficient asynchronous implementation.
-
-        Args:
-            prompt: The prompt to generate text from
-
-        Returns:
-            The generated text
-
-        Raises:
-            ModelError: If text generation fails
-        """
-        import asyncio
-
-        loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(None, self.generate, prompt)
-        return result
-
 
 @runtime_checkable
 class Validator(ChainComponent, Protocol[InputT]):
@@ -275,29 +251,6 @@ class Validator(ChainComponent, Protocol[InputT]):
             ValidationError: If validation fails
         """
         ...
-
-    async def validate_async(self, output: InputT) -> ValidationResult:
-        """
-        Validate an output asynchronously.
-
-        This method has a default implementation that calls the synchronous
-        validate method in an executor. Implementations can override this
-        method to provide a more efficient asynchronous implementation.
-
-        Args:
-            output: The output to validate
-
-        Returns:
-            The validation result
-
-        Raises:
-            ValidationError: If validation fails
-        """
-        import asyncio
-
-        loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(None, self.validate, output)
-        return result
 
 
 @runtime_checkable
@@ -327,32 +280,6 @@ class Improver(ChainComponent, Protocol[InputT, OutputT]):
         """
         ...
 
-    async def improve_async(
-        self, output: InputT, validation_results: List[ValidationResult]
-    ) -> OutputT:
-        """
-        Improve an output asynchronously.
-
-        This method has a default implementation that calls the synchronous
-        improve method in an executor. Implementations can override this
-        method to provide a more efficient asynchronous implementation.
-
-        Args:
-            output: The output to improve
-            validation_results: The validation results to use for improvement
-
-        Returns:
-            The improved output
-
-        Raises:
-            ImproverError: If improvement fails
-        """
-        import asyncio
-
-        loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(None, lambda: self.improve(output, validation_results))
-        return result
-
 
 @runtime_checkable
 class Formatter(ChainComponent, Protocol[InputT, OutputT]):
@@ -380,32 +307,6 @@ class Formatter(ChainComponent, Protocol[InputT, OutputT]):
             FormatterError: If formatting fails
         """
         ...
-
-    async def format_async(
-        self, output: InputT, validation_results: List[ValidationResult]
-    ) -> OutputT:
-        """
-        Format a result asynchronously.
-
-        This method has a default implementation that calls the synchronous
-        format method in an executor. Implementations can override this
-        method to provide a more efficient asynchronous implementation.
-
-        Args:
-            output: The output to format
-            validation_results: The validation results to include
-
-        Returns:
-            The formatted result
-
-        Raises:
-            FormatterError: If formatting fails
-        """
-        import asyncio
-
-        loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(None, lambda: self.format(output, validation_results))
-        return result
 
 
 # Import the core Plugin interface

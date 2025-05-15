@@ -45,7 +45,9 @@ The provider implements simulated error handling for testing:
 """
 
 import time
-from typing import Dict, Any, Optional, ClassVar
+import logging
+import random
+from typing import Dict, Any, Optional, ClassVar, List, Union
 
 from sifaka.interfaces.client import APIClientProtocol as APIClient
 from sifaka.interfaces.counter import TokenCounterProtocol as TokenCounter
@@ -280,80 +282,6 @@ class MockProvider(ModelProviderCore):
 
         try:
             result = self.generate(prompt, **kwargs)
-
-            # Update statistics in state
-            stats = self._state_manager.get("stats", {}) if self._state_manager else {}
-            stats["generation_count"] = stats.get("generation_count", 0) + 1 if stats else 1
-            stats["total_processing_time"] = (
-                stats.get("total_processing_time", 0) + ((time.time() - start_time) * 1000)
-                if stats
-                else (time.time() - start_time) * 1000
-            )
-            if self._state_manager:
-                self._state_manager.update("stats", stats)
-
-            return result
-
-        except Exception:
-            # Update error count in state
-            stats = self._state_manager.get("stats", {}) if self._state_manager else {}
-            stats["error_count"] = stats.get("error_count", 0) + 1 if stats else 1
-            if self._state_manager:
-                self._state_manager.update("stats", stats)
-
-            # Re-raise the exception
-            raise
-
-    async def ainvoke(self, prompt: str, **kwargs: Any) -> str:
-        """
-        Asynchronously invoke the model with a prompt.
-
-        This method provides asynchronous invocation of the mock model. It delegates to
-        agenerate if it exists, or falls back to synchronous generate. It also tracks
-        statistics about the operation.
-
-        The async invocation process includes:
-        1. Tracking the start time
-        2. Calling agenerate if available, otherwise falling back to generate
-        3. Updating statistics in the state manager
-        4. Returning the generated text
-
-        Args:
-            prompt (str): The prompt to send to the model
-            **kwargs: Additional keyword arguments to override configuration
-                - temperature (float): Controls randomness (0.0-1.0)
-                - max_tokens (int): Maximum tokens to generate
-
-        Returns:
-            str: The mock generated text response
-
-        Raises:
-            RuntimeError: If generation fails (simulated errors)
-
-        Example:
-            ```python
-            import asyncio
-
-            async def generate_text():
-                provider = MockProvider(model_name="mock-model")
-                response = await provider.ainvoke("Explain quantum computing") if provider else ""
-                return response
-
-            # Run the async function
-            response = asyncio.run(generate_text() if asyncio else "")
-            ```
-        """
-        # Track generation count in state
-        import time
-
-        start_time = time.time()
-
-        try:
-            if hasattr(self, "agenerate"):
-                result = await self.agenerate(prompt, **kwargs)
-            else:
-                # Fall back to synchronous generate
-                result = self.generate(prompt, **kwargs)
 
             # Update statistics in state
             stats = self._state_manager.get("stats", {}) if self._state_manager else {}

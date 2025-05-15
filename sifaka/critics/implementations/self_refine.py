@@ -23,7 +23,6 @@ The SelfRefineCritic follows an iterative refinement architecture:
 - Uses standardized state management with _state_manager
 - Implements a multi-round refinement process
 - Provides automatic stopping criteria based on critique quality
-- Implements both sync and async interfaces
 - Provides comprehensive error handling and recovery
 - Tracks performance and iteration statistics
 
@@ -107,7 +106,6 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
     - Uses standardized state management with _state_manager
     - Implements a multi-round refinement process
     - Provides automatic stopping criteria based on critique quality
-    - Implements both sync and async interfaces
     - Provides comprehensive error handling and recovery
     - Tracks performance and iteration statistics
 

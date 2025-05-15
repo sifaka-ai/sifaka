@@ -128,35 +128,6 @@ response = provider.generate(
 )
 ```
 
-### Async Generation
-
-Model providers support asynchronous generation for non-blocking operations:
-
-```python
-import asyncio
-from sifaka.models import OpenAIProvider
-
-# Create provider
-provider = OpenAIProvider(model_name="gpt-4")
-
-# Define async function
-async def generate_texts(prompts):
-    results = []
-    for prompt in prompts:
-        # Use ainvoke for async generation
-        result = await provider.ainvoke(prompt)
-        results.append(result)
-    return results
-
-# Run async function
-prompts = [
-    "Write a short story",
-    "Explain quantum computing",
-    "Give me three healthy recipes"
-]
-results = asyncio.run(generate_texts(prompts))
-```
-
 ### Provider Statistics
 
 Model providers track statistics about their operations:

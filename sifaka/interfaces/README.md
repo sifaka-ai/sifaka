@@ -4,7 +4,7 @@ This package provides the interfaces that define the contracts for components in
 
 ## Architecture
 
-The interfaces architecture follows a domain-driven design with both synchronous and asynchronous variants:
+The interfaces architecture follows a domain-driven design:
 
 ```
 Interfaces
@@ -16,8 +16,7 @@ Interfaces
 │   ├── Classifier (text classification)
 │   └── Retriever (information retrieval)
 ├── Protocol Types
-│   ├── Synchronous Interfaces (standard operation)
-│   └── Asynchronous Interfaces (non-blocking operation)
+│   └── Synchronous Interfaces (standard operation)
 └── Specialized
     ├── Adapter (component adaptation)
     ├── Client (API interactions)
@@ -31,7 +30,6 @@ Interfaces
 Interfaces for components that orchestrate the flow between models, validators, and improvers:
 
 - **Chain**: Main interface for running a sequence of operations
-- **AsyncChain**: Asynchronous variant of Chain
 - **Components**: Model, Validator, Improver, Formatter
 
 ### Critic Interfaces
@@ -39,7 +37,6 @@ Interfaces for components that orchestrate the flow between models, validators, 
 Interfaces for components that validate, critique, and improve text:
 
 - **Critic**: Interface for text validation and improvement
-- **AsyncCritic**: Asynchronous variant of Critic
 - **TextValidator**: Interface for validating text quality
 - **TextImprover**: Interface for improving text based on feedback
 - **TextCritic**: Interface for critiquing text and providing feedback
@@ -49,7 +46,6 @@ Interfaces for components that validate, critique, and improve text:
 Interfaces for text generation models:
 
 - **ModelProviderProtocol**: Interface for model providers
-- **AsyncModelProviderProtocol**: Asynchronous variant of ModelProviderProtocol
 - **LLMProvider**: Interface for language model providers
 
 ### Rule Interfaces
@@ -57,7 +53,6 @@ Interfaces for text generation models:
 Interfaces for validation rules:
 
 - **Rule**: Interface for components that validate text against specific criteria
-- **AsyncRule**: Asynchronous variant of Rule
 - **RuleProtocol**: Lower-level protocol for rule implementation
 - **Validatable**: Interface for objects that can be validated
 
@@ -73,7 +68,6 @@ Interfaces for text classification:
 Interfaces for information retrieval:
 
 - **Retriever**: Interface for retrieving information
-- **AsyncRetriever**: Asynchronous variant of Retriever
 - **DocumentStore**: Interface for storing and retrieving documents
 - **IndexManager**: Interface for managing search indices
 - **QueryProcessor**: Interface for processing search queries
@@ -151,31 +145,6 @@ def analyze_results(results: List[CritiqueResult]) -> float:
     return sum(result["score"] for result in results) / len(results)
 ```
 
-### Using Asynchronous Interfaces
-
-Asynchronous interfaces can be used for non-blocking operations:
-
-```python
-import asyncio
-from sifaka.interfaces import AsyncCritic
-
-async def process_texts(critic: AsyncCritic, texts: list[str]) -> list[str]:
-    """Process multiple texts asynchronously."""
-    results = []
-    for text in texts:
-        if not await critic.validate(text):
-            # Text needs improvement
-            improved = await critic.improve(text, "Improve quality")
-            results.append(improved)
-        else:
-            results.append(text)
-    return results
-
-# Run asynchronous function
-texts = ["Text 1", "Text 2", "Text 3"]
-asyncio.run(process_texts(my_async_critic, texts))
-```
-
 ## Interface Design Principles
 
 Sifaka interfaces follow these design principles:
@@ -183,12 +152,11 @@ Sifaka interfaces follow these design principles:
 1. **Separation of Concerns**: Each interface focuses on a specific responsibility
 2. **Interface Segregation**: Smaller, focused interfaces over large, monolithic ones
 3. **Protocol Support**: Uses Python's Protocol class for structural typing
-4. **Async/Sync Variants**: Both synchronous and asynchronous variants where appropriate
-5. **Type Hinting**: Strong type hints for better developer experience
-6. **Method Documentation**: Detailed docstrings for all methods
-7. **Error Handling**: Standardized approach to error handling
-8. **Extensibility**: Designed for extension without modification
-9. **Composition**: Supports building complex systems through composition
+4. **Type Hinting**: Strong type hints for better developer experience
+5. **Method Documentation**: Detailed docstrings for all methods
+6. **Error Handling**: Standardized approach to error handling
+7. **Extensibility**: Designed for extension without modification
+8. **Composition**: Supports building complex systems through composition
 
 ## Extension Patterns
 

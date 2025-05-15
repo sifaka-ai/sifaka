@@ -1,8 +1,7 @@
-from typing import Any, List
 """
 Chain interfaces for Sifaka.
 
-This package provides interfaces for chains in the Sifaka framework.
+This module defines the interfaces for chains in the Sifaka framework.
 These interfaces establish a common contract for chain behavior, enabling better
 modularity and extensibility.
 
@@ -55,14 +54,47 @@ The interfaces support execution tracking:
 - Success/failure tracking
 - Performance statistics
 """
-from .async_chain import AsyncChain
-from .base import ChainComponent
+
+from typing import Any, Dict, List, Optional, Protocol, TypeVar, Union, runtime_checkable
+
+# Import interfaces
+from .model import Model
+from .validator import Validator
+from .improver import Improver
+from .formatter import ChainFormatter
+from .components import ChainComponent
+from .results import ValidationResult
 from .chain import Chain
-from .components import ChainFormatter, Improver, Model, Validator
-from .managers import PromptManager, ResultFormatter, RetryStrategy, ValidationManager
-from .models import ValidationResult
 from .plugin import ChainPlugin
-__all__: List[Any] = ['ChainComponent', 'ChainPlugin', 'Chain',
-    'AsyncChain', 'PromptManager', 'ValidationManager', 'RetryStrategy',
-    'ResultFormatter', 'Model', 'Validator', 'Improver', 'ChainFormatter',
-    'ValidationResult']
+from .manager import PromptManager, ValidationManager
+from .retry_strategy import RetryStrategy
+from .result_formatter import ResultFormatter
+
+# Type exports for type checking
+ChainType = TypeVar("ChainType")
+ResultType = TypeVar("ResultType")
+RetryStrategyType = TypeVar("RetryStrategyType")
+ValidationManagerType = TypeVar("ValidationManagerType")
+ResultFormatterType = TypeVar("ResultFormatterType")
+PromptManagerType = TypeVar("PromptManagerType")
+ModelType = TypeVar("ModelType")
+ValidatorType = TypeVar("ValidatorType")
+ImproverType = TypeVar("ImproverType")
+FormatterType = TypeVar("FormatterType")
+PluginType = TypeVar("PluginType")
+
+# Define exports
+__all__ = [
+    "Chain",
+    "Model",
+    "Validator",
+    "Improver",
+    "ChainFormatter",
+    "ChainComponent",
+    "ValidationResult",
+    "ChainPlugin",
+    "PromptManager",
+    "ValidationManager",
+    "RetryStrategy",
+    "ResultFormatter",
+]

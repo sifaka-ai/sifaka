@@ -7,8 +7,7 @@ validate, and improve text outputs based on rule violations.
 ## Overview
 The PromptCritic is a comprehensive implementation of the critic interface
 that uses language models to analyze and improve text. It provides methods
-for text validation, critique, and improvement, with both synchronous and
-asynchronous interfaces.
+for text validation, critique, and improvement, with synchronous interfaces.
 
 ## Components
 - **PromptCritic**: Main class implementing TextValidator, TextImprover, and TextCritic

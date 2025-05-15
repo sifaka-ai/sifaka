@@ -1,4 +1,5 @@
 from typing import Any, List
+
 """
 Retrieval module for Sifaka.
 
@@ -15,7 +16,6 @@ and utilities for different retrieval strategies.
 
 2. **Interfaces**
    - `Retriever`: Interface for retrievers
-   - `AsyncRetriever`: Interface for asynchronous retrievers
    - `DocumentStore`: Interface for document stores
    - `IndexManager`: Interface for index managers
    - `QueryProcessor`: Interface for query processors
@@ -52,18 +52,35 @@ result = retriever.retrieve("How does quantum computing work?") if retriever els
 print(result.get_formatted_results() if result else "")
 ```
 """
-from sifaka.interfaces import Retriever, AsyncRetriever, DocumentStore, IndexManager, QueryProcessor
+from sifaka.interfaces import Retriever, DocumentStore, IndexManager, QueryProcessor
 from .core import RetrieverCore
 from sifaka.utils.config.retrieval import RetrieverConfig
 from ..core.results import RetrievalResult
 from .result import StringRetrievalResult, RetrievedDocument
 from .implementations.simple import SimpleRetriever
 from .managers.query import QueryManager
-from .strategies.ranking import RankingStrategy, SimpleRankingStrategy, ScoreThresholdRankingStrategy
+from .strategies.ranking import (
+    RankingStrategy,
+    SimpleRankingStrategy,
+    ScoreThresholdRankingStrategy,
+)
 from .factories import create_simple_retriever, create_threshold_retriever
-__all__: List[Any] = ['Retriever', 'AsyncRetriever', 'DocumentStore',
-    'IndexManager', 'QueryProcessor', 'RetrieverCore', 'RetrieverConfig',
-    'RetrievalResult', 'StringRetrievalResult', 'RetrievedDocument',
-    'SimpleRetriever', 'QueryManager', 'RankingStrategy',
-    'SimpleRankingStrategy', 'ScoreThresholdRankingStrategy',
-    'create_simple_retriever', 'create_threshold_retriever']
+
+__all__: List[Any] = [
+    "Retriever",
+    "DocumentStore",
+    "IndexManager",
+    "QueryProcessor",
+    "RetrieverCore",
+    "RetrieverConfig",
+    "RetrievalResult",
+    "StringRetrievalResult",
+    "RetrievedDocument",
+    "SimpleRetriever",
+    "QueryManager",
+    "RankingStrategy",
+    "SimpleRankingStrategy",
+    "ScoreThresholdRankingStrategy",
+    "create_simple_retriever",
+    "create_threshold_retriever",
+]

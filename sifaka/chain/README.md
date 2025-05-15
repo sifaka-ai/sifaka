@@ -142,35 +142,6 @@ backoff_chain = create_backoff_chain(
 result = chain.run("Write a short story about a robot.")
 ```
 
-### Asynchronous Execution
-
-```python
-import asyncio
-from sifaka.chain import Chain
-from sifaka.models import OpenAIProvider
-from sifaka.rules import create_length_rule
-
-# Create components
-model = OpenAIProvider("gpt-3.5-turbo")
-validators = [create_length_rule(min_chars=10, max_chars=1000)]
-
-# Create chain with async enabled
-from sifaka.utils.config.chain import ChainConfig
-config = ChainConfig(max_attempts=3, async_enabled=True)
-chain = Chain(
-    model=model,
-    validators=validators,
-    config=config
-)
-
-# Run chain asynchronously
-async def run_async():
-    result = await chain.run_async("Write a short story about a robot.")
-    print(f"Output: {result.output}")
-
-asyncio.run(run_async())
-```
-
 ## Extending
 
 ### Creating a Custom Model
@@ -185,10 +156,6 @@ class MyCustomModel(Model):
     def generate(self, prompt: str) -> str:
         # Custom generation logic
         return f"Generated text for prompt: {prompt}"
-
-    async def generate_async(self, prompt: str) -> str:
-        # Custom async generation logic
-        return f"Async generated text for prompt: {prompt}"
 ```
 
 ### Creating a Custom Validator
@@ -225,10 +192,6 @@ class MyCustomValidator(Validator):
             message="Length validation passed",
             score=1.0
         )
-
-    async def validate_async(self, output: str) -> ValidationResult:
-        # For simple validators, async can just call the sync version
-        return self.validate(output)
 ```
 
 ### Creating a Custom Improver
@@ -255,10 +218,6 @@ class MyCustomImprover(Improver):
                 improved_output = improved_output[:len(improved_output)//2] + "..."
 
         return improved_output
-
-    async def improve_async(self, output: str, validation_results: List[ValidationResult]) -> str:
-        # For simple improvers, async can just call the sync version
-        return self.improve(output, validation_results)
 ```
 
 ### Error Handling and Monitoring

@@ -22,7 +22,6 @@ The ReflexionCritic follows a memory-augmented architecture:
 - Uses standardized state management with _state_manager
 - Maintains a buffer of past reflections in memory
 - Incorporates reflections into prompts for improved generation
-- Implements both sync and async interfaces
 - Provides comprehensive error handling and recovery
 - Tracks performance and usage statistics
 
