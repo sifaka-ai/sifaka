@@ -178,3 +178,13 @@ class Chain(Identifiable, Configurable[ConfigType], Protocol[ConfigType, InputTy
             ValueError: If the input value is invalid
             RuntimeError: If the chain execution fails
         """
+
+    @property
+    def name(self) -> str:
+        """
+        Get the chain name.
+
+        Returns:
+            The name of the chain
+        """
+        ...

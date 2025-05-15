@@ -64,6 +64,21 @@ about the validation failure.
 from typing import Any, Dict, List, Optional, Type, TypeVar, Union, cast
 from pydantic import Field
 from .base import BaseConfig
+from enum import Enum
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    Generic,
+    List,
+    Literal,
+    Optional,
+    Set,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+)
 
 T = TypeVar("T", bound="CriticConfig")
 
@@ -761,23 +776,47 @@ def standardize_critic_config(
             max_tokens=1000
         )
     """
-    if config_class is None:
-        config_class = CriticConfig  # type: ignore
+    # Handle None config_class by using CriticConfig as default
+    actual_config_class: Type[T] = cast(
+        Type[T], CriticConfig if config_class is None else config_class
+    )
 
-    # Ensure config_class is properly typed
-    actual_config_class = cast(Type[T], config_class)
+    # Initialize the final parameters dictionary
     final_params: Dict[str, Any] = {}
-    if params:
+
+    # Add params if provided
+    if params is not None:
         final_params.update(params)
-    if isinstance(config, dict):
-        dict_params = config.pop("params", {}) if config else {}
-        final_params.update(dict_params)
-        return actual_config_class(
-            **{} if config is None else config, params=final_params, **kwargs
-        )
+
+    # Handle different config types
+    if config is None:
+        # When config is None, just create a new instance with params and kwargs
+        return actual_config_class(params=final_params, **kwargs)
+    elif isinstance(config, dict):
+        # Extract params from config dict if present
+        params_from_config: Dict[str, Any] = {}
+        if "params" in config:
+            config_params = config["params"]
+            if config_params is not None:
+                params_from_config = config_params
+
+        # Update final params with params from config
+        final_params.update(params_from_config)
+
+        # Create a copy of config to avoid modifying the original
+        config_dict = dict(config)
+
+        # Remove params key to avoid duplication
+        if "params" in config_dict:
+            del config_dict["params"]
+
+        # Return new config instance
+        return actual_config_class(**config_dict, params=final_params, **kwargs)
     elif isinstance(config, CriticConfig):
+        # When config is a CriticConfig, extract its params and create a new instance
         final_params.update(config.params)
         config_dict = {**config.model_dump(), "params": final_params, **kwargs}
         return actual_config_class(**config_dict)
     else:
+        # For any other case, create a new instance with just params and kwargs
         return actual_config_class(params=final_params, **kwargs)

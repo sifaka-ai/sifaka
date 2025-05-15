@@ -163,7 +163,7 @@ class RuleConfig(BaseConfig):
 def standardize_rule_config(
     config: Optional[Union[Dict[str, Any], RuleConfig]] = None,
     params: Optional[Dict[str, Any]] = None,
-    config_class: Type[T] = None,  # type: ignore
+    config_class: Type[T] = None,
     **kwargs: Any,
 ) -> T:
     """
@@ -230,7 +230,7 @@ def standardize_rule_config(
         )
     """
     if config_class is None:
-        config_class = RuleConfig  # type: ignore
+        config_class = RuleConfig
     final_params: Dict[str, Any] = {}
     if params:
         final_params.update(params)
@@ -242,18 +242,16 @@ def standardize_rule_config(
                 config["priority"] = RulePriority(config["priority"])
             except ValueError:
                 config["priority"] = RulePriority.MEDIUM
-        return cast(
-            T, config_class(**{} if config is None else config, params=final_params, **kwargs)
-        )
+        return config_class(**{} if config is None else config, params=final_params, **kwargs)
     elif isinstance(config, RuleConfig):
         if config.params:
             final_params.update(config.params)
         config_dict = {**(config.model_dump() if config else {}), "params": final_params, **kwargs}
-        return cast(T, config_class(**config_dict))
+        return config_class(**config_dict)
     else:
         if "priority" in kwargs and isinstance(kwargs["priority"], str):
             try:
                 kwargs["priority"] = RulePriority(kwargs["priority"])
             except ValueError:
                 kwargs["priority"] = RulePriority.MEDIUM
-        return cast(T, config_class(params=final_params, **kwargs))
+        return config_class(params=final_params, **kwargs)

@@ -113,7 +113,7 @@ class BaseAdapter(ClassifierImplementation, Generic[L]):
         issues = getattr(result, "issues", [])
         suggestions = getattr(result, "suggestions", [])
         # Cast the label to the expected type to satisfy mypy
-        typed_label = cast(L, label)
+        typed_label = label
         return ClassificationResult(
             label=typed_label,
             confidence=confidence,

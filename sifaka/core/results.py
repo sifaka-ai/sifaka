@@ -516,8 +516,8 @@ class RetrievalResult(BaseResult, Generic[T]):
         top_doc = self.top_document
         if top_doc is None:
             return None
-        # Cast the content to the correct type to satisfy mypy
-        content: T = top_doc.content  # type: ignore
+        # Use a proper cast instead of a type: ignore comment
+        content = cast(T, top_doc.content)
         return content
 
     @property

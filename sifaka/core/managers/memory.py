@@ -427,7 +427,7 @@ class KeyValueMemoryManager(BaseComponent[Dict[str, Any], MemoryResult]):
                 and getattr(self.config, "cache_enabled", False)
             ):
                 self._state_manager.set_metadata("cache_hit", True)
-                return cast(List[MemoryResult], cache[key])
+                return cache[key]
 
             # Mark as cache miss
             self._state_manager.set_metadata("cache_hit", False)

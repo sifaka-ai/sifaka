@@ -473,7 +473,7 @@ class HarmfulContentValidator(BaseValidator[str]):
             # Ensure we're returning a RuleResult
             from typing import cast
 
-            return cast(RuleResult, result)
+            return result  # type: ignore[no-any-return]
 
 
 class HarmfulContentRule(Rule[str]):
@@ -596,7 +596,7 @@ class HarmfulContentRule(Rule[str]):
         # Cast to RuleConfig to satisfy mypy
         from typing import cast
 
-        return HarmfulContentValidator(cast(RuleConfig, self.config))
+        return HarmfulContentValidator(self.config)
 
 
 def create_harmful_content_validator(
@@ -698,14 +698,14 @@ def create_toxicity_validator(
     # Create adapter with classifier
     # Type cast to Classifier to satisfy mypy
     adapter = ClassifierAdapter(
-        classifier=cast(Classifier, classifier),
+        classifier=classifier,
         threshold=threshold,
         valid_labels=["non-toxic"],
         **kwargs,
     )
 
     # Return with explicit type cast to satisfy mypy
-    return cast(BaseValidator[str], adapter)
+    return adapter
 
 
 def create_toxicity_rule(
@@ -768,7 +768,7 @@ def create_toxicity_rule(
 
     # Create rule using create_classifier_rule with type cast
     return create_classifier_rule(
-        classifier=cast(Classifier, classifier),
+        classifier=classifier,
         name=rule_name,
         description=description,
         threshold=threshold,
@@ -839,13 +839,13 @@ def create_bias_validator(
 
     # Create adapter with classifier
     adapter = ClassifierAdapter(
-        classifier=cast(Classifier, classifier),
+        classifier=classifier,
         threshold=threshold,
         valid_labels=valid_labels,
         **kwargs,
     )
 
-    return cast(BaseValidator[str], adapter)
+    return adapter
 
 
 def create_bias_rule(
@@ -931,7 +931,7 @@ def create_bias_rule(
     rule_name = name or rule_id or "bias_rule"
 
     return create_classifier_rule(
-        classifier=cast(Classifier, classifier),
+        classifier=classifier,
         name=rule_name,
         description=description,
         threshold=threshold,

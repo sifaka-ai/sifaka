@@ -156,7 +156,7 @@ class PluginLoader:
         """
         plugins = {}
         try:
-            for entry_point in pkg_resources.iter_entry_points(group):  # type: ignore
+            for entry_point in pkg_resources.iter_entry_points(group):
                 try:
                     plugin_class = entry_point.load()
                     plugin = plugin_class()

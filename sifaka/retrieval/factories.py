@@ -147,7 +147,7 @@ def create_threshold_retriever(
         )
 
         # Get the ranking configuration from the retriever's config
-        ranking_config = cast(RankingConfig, getattr(retriever.config, "ranking", RankingConfig()))
+        ranking_config = getattr(retriever.config, "ranking", RankingConfig())
         
         # Replace the default ranking strategy with a threshold strategy
         base_strategy = SimpleRankingStrategy(ranking_config)

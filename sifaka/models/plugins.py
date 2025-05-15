@@ -46,38 +46,40 @@ logger = get_logger(__name__)
 class ModelPlugin(Plugin):
     """
     Interface for model plugins.
-    
+
     This interface extends the core Plugin interface with model-specific
     functionality. It ensures that model plugins can be discovered, registered,
     and used consistently with other plugins in the Sifaka framework.
     """
+
     pass
 
 
 class PluginRegistry(CorePluginRegistry):
     """
     Model-specific plugin registry.
-    
+
     This class extends the core PluginRegistry with model-specific functionality.
     It ensures that only model plugins can be registered.
     """
-    
+
     def register_plugin(self, name: str, plugin: Plugin) -> None:
         """
         Register a model plugin.
-        
+
         Args:
             name: Plugin name
             plugin: Plugin instance
-            
+
         Raises:
             PluginError: If plugin registration fails
         """
         # Ensure the plugin is a model plugin
         if not isinstance(plugin, ModelPlugin):
             from ..utils.errors import PluginError
+
             raise PluginError(f"Plugin '{name}' is not a model plugin")
-            
+
         # Register the plugin with the core registry
         super().register_plugin(name, plugin)
 
@@ -85,30 +87,30 @@ class PluginRegistry(CorePluginRegistry):
 class PluginLoader(CorePluginLoader):
     """
     Model-specific plugin loader.
-    
+
     This class extends the core PluginLoader with model-specific functionality.
     It ensures that only model plugins can be loaded.
     """
-    
+
     def __init__(self, registry: Optional[Optional[PluginRegistry]] = None) -> None:
         """
         Initialize the model plugin loader.
-        
+
         Args:
             registry: Optional model plugin registry to register plugins with
         """
         # Create a model plugin registry if none is provided
         model_registry = registry or PluginRegistry()
-        
+
         # Initialize the core plugin loader with the model registry
         super().__init__(model_registry)
-        
+
     def get_registry(self) -> PluginRegistry:
         """
         Get the model plugin registry.
-        
+
         Returns:
             Model plugin registry
         """
         # Cast the core registry to a model registry
-        return cast(PluginRegistry, super().get_registry())
+        return cast(PluginRegistry, super().get_registry())  # type: ignore[no-any-return]

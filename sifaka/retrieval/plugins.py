@@ -46,38 +46,40 @@ logger = get_logger(__name__)
 class RetrievalPlugin(Plugin):
     """
     Interface for retrieval plugins.
-    
+
     This interface extends the core Plugin interface with retrieval-specific
     functionality. It ensures that retrieval plugins can be discovered, registered,
     and used consistently with other plugins in the Sifaka framework.
     """
+
     pass
 
 
 class PluginRegistry(CorePluginRegistry):
     """
     Retrieval-specific plugin registry.
-    
+
     This class extends the core PluginRegistry with retrieval-specific functionality.
     It ensures that only retrieval plugins can be registered.
     """
-    
+
     def register_plugin(self, name: str, plugin: Plugin) -> None:
         """
         Register a retrieval plugin.
-        
+
         Args:
             name: Plugin name
             plugin: Plugin instance
-            
+
         Raises:
             PluginError: If plugin registration fails
         """
         # Ensure the plugin is a retrieval plugin
         if not isinstance(plugin, RetrievalPlugin):
             from ..utils.errors import PluginError
+
             raise PluginError(f"Plugin '{name}' is not a retrieval plugin")
-            
+
         # Register the plugin with the core registry
         super().register_plugin(name, plugin)
 
@@ -85,30 +87,30 @@ class PluginRegistry(CorePluginRegistry):
 class PluginLoader(CorePluginLoader):
     """
     Retrieval-specific plugin loader.
-    
+
     This class extends the core PluginLoader with retrieval-specific functionality.
     It ensures that only retrieval plugins can be loaded.
     """
-    
+
     def __init__(self, registry: Optional[Optional[PluginRegistry]] = None) -> None:
         """
         Initialize the retrieval plugin loader.
-        
+
         Args:
             registry: Optional retrieval plugin registry to register plugins with
         """
         # Create a retrieval plugin registry if none is provided
         retrieval_registry = registry or PluginRegistry()
-        
+
         # Initialize the core plugin loader with the retrieval registry
         super().__init__(retrieval_registry)
-        
+
     def get_registry(self) -> PluginRegistry:
         """
         Get the retrieval plugin registry.
-        
+
         Returns:
             Retrieval plugin registry
         """
         # Cast the core registry to a retrieval registry
-        return cast(PluginRegistry, super().get_registry())
+        return cast(PluginRegistry, super().get_registry())  # type: ignore[no-any-return]

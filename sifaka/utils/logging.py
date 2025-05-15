@@ -1,4 +1,5 @@
 from typing import Any
+
 """
 Logging Module
 
@@ -602,7 +603,7 @@ class LoggerFactory:
         )
         return handler
 
-    def get_logger(self, name: str, level: Optional[int] = None) -> EnhancedLogger:
+    def get_logger(self, name: str, level: Optional[int] = None) -> logging.Logger:
         """
         Get or create a logger with the given name and level.
 
@@ -626,7 +627,7 @@ class LoggerFactory:
             ```
         """
         if name in self._loggers:
-            return cast(EnhancedLogger, self._loggers[name])
+            return self._loggers[name]
         logger = logging.getLogger(name)
         logger.setLevel(level or self.config.level)
         if not logger.handlers:
@@ -635,13 +636,13 @@ class LoggerFactory:
             if file_handler:
                 logger.addHandler(file_handler)
         self._loggers[name] = logger
-        return cast(EnhancedLogger, logger)
+        return logger
 
 
 _logger_factory = LoggerFactory()
 
 
-def get_logger(name: str, level: Optional[int] = None) -> EnhancedLogger:
+def get_logger(name: str, level: Optional[int] = None) -> logging.Logger:
     """
     Get a logger with the given name and level.
 
@@ -777,7 +778,7 @@ def configure_logging(config: Optional[LogConfig] = None, level: Optional[str] =
 F = TypeVar("F", bound=Callable[..., Any])
 
 
-def log_operation(logger: Optional[EnhancedLogger] = None) -> Callable[[F], F]:
+def log_operation(logger: Optional[EnhancedLogger] = None) -> Callable[[F], Callable[..., Any]]:
     """
     Decorator to log function entry/exit with timing.
 
@@ -811,13 +812,13 @@ def log_operation(logger: Optional[EnhancedLogger] = None) -> Callable[[F], F]:
         ```
     """
 
-    def decorator(func: F) -> F:
+    def decorator(func: F) -> Callable[..., Any]:
 
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             nonlocal logger
             if logger is None:
-                logger = get_logger(func.__module__)
+                logger = cast(Optional[EnhancedLogger], get_logger(func.__module__))
             func_name = func.__name__
             if logger:
                 logger.start_operation(func_name)
@@ -835,6 +836,6 @@ def log_operation(logger: Optional[EnhancedLogger] = None) -> Callable[[F], F]:
                     )
                 raise
 
-        return cast(F, wrapper)
+        return wrapper
 
     return decorator

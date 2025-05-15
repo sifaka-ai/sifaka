@@ -222,7 +222,7 @@ def extract_classifier_config_params(config: Dict[str, Any]) -> Any:
 def standardize_classifier_config(
     config: Optional[Union[Dict[str, Any], ClassifierConfig]] = None,
     params: Optional[Dict[str, Any]] = None,
-    config_class: Type[T] = None,  # type: ignore
+    config_class: Type[T] = None,
     **kwargs: Any,
 ) -> T:
     """
@@ -277,19 +277,17 @@ def standardize_classifier_config(
         config = standardize_classifier_config(config=dict_config)
     """
     if config_class is None:
-        config_class = ClassifierConfig  # type: ignore
+        config_class = ClassifierConfig
     final_params: Dict[str, Any] = {}
     if params:
         final_params.update(params)
     if isinstance(config, dict):
         dict_params = config.pop("params", {}) if config else {}
         final_params.update(dict_params)
-        return cast(
-            T, config_class(**(config if config is not None else {}), params=final_params, **kwargs)
-        )
+        return config_class(**(config if config is not None else {}), params=final_params, **kwargs)
     elif isinstance(config, ClassifierConfig):
         final_params.update(config.params)
         config_dict = {**config.model_dump(), "params": final_params, **kwargs}
-        return cast(T, config_class(**config_dict))
+        return config_class(**config_dict)
     else:
-        return cast(T, config_class(params=final_params, **kwargs))
+        return config_class(params=final_params, **kwargs)

@@ -58,7 +58,18 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from enum import Enum, auto
 import re
-from typing import Any, Dict, Generic, List, Optional, Protocol, runtime_checkable, Type, TypeVar
+from typing import (
+    Any,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    runtime_checkable,
+    Type,
+    TypeVar,
+    Union,
+)
 from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 from sifaka.utils.common import update_statistics, record_error
 from sifaka.utils.errors.base import InitializationError
@@ -489,13 +500,13 @@ class BaseComponent(ABC, Generic[T, R]):
             self.update_statistics(dummy_result)
             # Cast to R to satisfy the type checker
             # This is safe because the caller will check for ErrorResult
-            return cast(R, result)
+            return result  # type: ignore[no-any-return]
         else:
             # Normal case - update statistics with the actual result
             # We know result is not an ErrorResult, so it's safe to cast to BaseResult
-            base_result: UtilsBaseResult = cast(UtilsBaseResult, result)
+            base_result: UtilsBaseResult = result
             self.update_statistics(base_result)
-            return cast(R, result)  # Explicitly cast to satisfy mypy
+            return result  # type: ignore[no-any-return]  # Explicitly cast to satisfy mypy
 
     def _process_input(self, input: T) -> R:
         """
@@ -732,3 +743,46 @@ class BaseComponent(ABC, Generic[T, R]):
             ```
         """
         return cls(name=name, description=description, config=BaseConfig(**kwargs))
+
+    def _create_error_result(
+        self, error: Union[Exception, str], component_name: Optional[str] = None
+    ) -> R:
+        """
+        Create an error result with the component's information.
+
+        Args:
+            error: The error that occurred
+            component_name: Optional component name override
+
+        Returns:
+            An error result
+        """
+        from sifaka.core.results import ErrorResult
+        from typing import cast
+
+        name = component_name or self.name
+        if isinstance(error, Exception):
+            error_msg = str(error)
+            error_type = error.__class__.__name__
+        else:
+            error_msg = error
+            error_type = "Error"
+
+        # Create metadata with component information
+        metadata = {
+            "component": name,
+            "component_type": self.__class__.__name__,
+        }
+
+        result = ErrorResult(
+            error_type=error_type,
+            error_message=error_msg,
+            passed=False,
+            message=error_msg,
+            metadata=metadata,
+            score=0.0,
+        )
+
+        # Cast the ErrorResult to the appropriate return type R
+        # This is a deliberate cast to satisfy the type system
+        return cast(R, result)

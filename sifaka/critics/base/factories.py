@@ -169,9 +169,8 @@ def create_critic(
         raise TypeError(f"critic_class must be a subclass of BaseCritic, got {critic_class}")
 
     # Create and return critic instance
-    # Use explicit cast to satisfy mypy type checking
     instance = critic_class(name, description, config)
-    return cast(C, instance)
+    return instance  # type: ignore[no-any-return]
 
 
 def create_basic_critic(

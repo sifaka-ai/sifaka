@@ -58,8 +58,8 @@ from typing import Any, Dict, Optional, Protocol, runtime_checkable, List, Type
 from pydantic import PrivateAttr, BaseModel, Field
 
 try:
-    from guardrails.validator_base import Validator as GuardrailsValidator
-    from guardrails.classes import ValidationResult, PassResult, FailResult
+    from guardrails.validator_base import Validator as GuardrailsValidator  # type: ignore[import-untyped]
+    from guardrails.classes import ValidationResult, PassResult, FailResult  # type: ignore[import-untyped]
 
     GUARDRAILS_AVAILABLE = True
 except ImportError:

@@ -127,7 +127,7 @@ def create_chain(
                     adapted_validators.append(validator)
                 else:
                     # Cast to the expected type to satisfy mypy
-                    adapted_validators.append(cast(Validator[Any], ValidatorAdapter(validator)))
+                    adapted_validators.append(ValidatorAdapter(validator))
 
         # Adapt improver if needed
         adapted_improver = None
@@ -155,8 +155,8 @@ def create_chain(
 
         # Cast to the expected types
         chain_validators = cast(Optional[List[ChainValidator]], adapted_validators)
-        chain_improver = cast(Optional[ChainImprover], adapted_improver)
-        chain_formatter = cast(Optional[ChainFormatter], adapted_formatter)
+        chain_improver = adapted_improver
+        chain_formatter = adapted_formatter
 
         chain = Chain(
             model=adapted_model,

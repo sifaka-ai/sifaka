@@ -142,4 +142,4 @@ class PluginLoader(CorePluginLoader):
             Chain plugin registry
         """
         # Cast the core registry to a chain registry
-        return cast(PluginRegistry, super().get_registry())
+        return cast(PluginRegistry, super().get_registry())  # type: ignore[no-any-return]

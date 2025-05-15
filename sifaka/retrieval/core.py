@@ -208,7 +208,7 @@ class RetrieverCore(BaseComponent):
 
         from typing import cast
 
-        return cast(RetrievalResult, result)
+        return result  # type: ignore[no-any-return]
 
     def _update_execution_stats(self, execution_time_ms: float) -> None:
         """

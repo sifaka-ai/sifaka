@@ -141,9 +141,9 @@ class RankingStrategy(BaseComponent, ABC):
         config = self._state_manager.get("config")
         if config is None:
             # Create a default config
-            return cast(BaseConfig, RankingConfig(name=self.name, description=self.description))
+            return RankingConfig(name=self.name, description=self.description)  # type: ignore[no-any-return]
         # Return the config
-        return cast(BaseConfig, config)
+        return config  # type: ignore[no-any-return]
 
     @config.setter
     def config(self, config: RankingConfig) -> None:
@@ -556,7 +556,7 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
         if strategy is None:
             raise RetrievalError("Base strategy not initialized")
         # Cast to RankingStrategy to satisfy mypy
-        return cast(RankingStrategy, strategy)
+        return strategy  # type: ignore[no-any-return]
 
     @base_strategy.setter
     def base_strategy(self, strategy: RankingStrategy) -> None:
@@ -589,7 +589,7 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
         if threshold is None:
             return 0.0  # Default threshold
         # Cast to float to satisfy mypy
-        return cast(float, threshold)
+        return threshold  # type: ignore[no-any-return]
 
     @threshold.setter
     def threshold(self, threshold: float) -> None:

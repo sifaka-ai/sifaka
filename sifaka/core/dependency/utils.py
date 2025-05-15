@@ -246,7 +246,7 @@ def get_dependency_by_type(
     if dependency is not None and not isinstance(dependency, dependency_type):
         logger.warning(f"Dependency {name} is not an instance of {dependency_type.__name__}")
 
-    return cast(T, dependency)
+    return dependency  # type: ignore[no-any-return]
 
 
 def create_session_scope(session_id: Optional[Optional[str]] = None) -> SessionScope:

@@ -373,10 +373,8 @@ class Rule(BaseComponent[T, RuleResult], Generic[T]):
             # Cast to RuleResult to ensure type compatibility
             from typing import cast
 
-            result = cast(
-                RuleResult,
-                result.with_metadata(
-                    processing_time_ms=time.time() - start_time,
+            result = result.with_metadata(
+                    processing_time_ms=time.time( - start_time,
                     rule_id=rule_id,
                     rule_type=self.__class__.__name__,
                 ),

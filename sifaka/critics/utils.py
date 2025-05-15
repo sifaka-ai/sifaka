@@ -147,14 +147,11 @@ def try_critique(
         ```
     """
     # Use try_operation with default result
-    return cast(
-        T,
-        try_operation(
-            operation=critique_func,
-            component_name=f"Critic:{critic_name}",
-            default_value=default_result,
-            log_level=log_level,
-        ),
+    return try_operation(
+        operation=critique_func,
+        component_name=f"Critic:{critic_name}",
+        default_value=default_result,
+        log_level=log_level,
     )
 
 

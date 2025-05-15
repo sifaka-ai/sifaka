@@ -149,7 +149,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         """
         # CriticConfig is a subclass of BaseConfig, so this is type-compatible
         # Use explicit cast to satisfy mypy type checking
-        base_config = cast(BaseConfig, config or CriticConfig(**kwargs))
+        base_config = config or CriticConfig(**kwargs)
         super().__init__(name, description, base_config)
 
     @abstractmethod
@@ -224,7 +224,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
             # Ensure we return a BaseResult
             if isinstance(empty_result, BaseResult):
                 result = empty_result.with_metadata(processing_time_ms=processing_time)
-                return cast(BaseResult[Any], result)  # Explicit cast to satisfy mypy
+                return result  # Explicit cast to satisfy mypy
             else:
                 # If empty_result is not a BaseResult, create one
                 return BaseResult(

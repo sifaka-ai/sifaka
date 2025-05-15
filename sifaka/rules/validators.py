@@ -97,7 +97,7 @@ class BaseValidator(Generic[T]):
         Args:
             validation_type: The type this validator can validate
         """
-        self._validation_type = validation_type if validation_type is not None else str  # type: ignore
+        self._validation_type = validation_type if validation_type is not None else str
         object.__setattr__(self, "_state_manager", create_rule_state())
         self._initialize_state()
 

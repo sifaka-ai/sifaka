@@ -526,7 +526,7 @@ class ValueCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, T
 
             # Store configuration in cache
             # Ensure config is a ValueCriticConfig
-            value_config = cast(ValueCriticConfig, config)
+            value_config = config
 
             # Check if value_prompt_template exists, otherwise use a default
             value_prompt_template = getattr(

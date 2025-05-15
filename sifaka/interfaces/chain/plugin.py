@@ -1,35 +1,30 @@
 """
 Plugin interfaces for chain components.
 
-This module defines the plugin interfaces for chain components in the Sifaka framework.
-These interfaces establish a common contract for plugin behavior, enabling better
-modularity and extensibility.
-
-## Interface Hierarchy
-
-1. **ChainPlugin**: Interface for chain plugins
-
-## Usage
-
-These interfaces are defined using Python's Protocol class from typing,
-which enables structural subtyping. This means that classes don't need to
-explicitly inherit from these interfaces; they just need to implement the
-required methods and properties.
+This module defines the ChainPlugin interface for plugins in the chain system.
 """
 
-from typing import Protocol, runtime_checkable
-
-from sifaka.core.interfaces import Plugin as CorePlugin
-
-from .base import ChainComponent
+from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable
-class ChainPlugin(ChainComponent, CorePlugin, Protocol):
+class ChainPlugin(Protocol):
     """
-    Interface for chain plugins.
+    Interface for plugins in the chain system.
+    """
 
-    This interface extends the core Plugin interface with chain-specific
-    functionality. It ensures that chain plugins can be discovered, registered,
-    and used consistently with other plugins in the Sifaka framework.
-    """
+    def initialize(self) -> None:
+        """
+        Initialize the plugin.
+        """
+        ...
+
+    @property
+    def name(self) -> str:
+        """
+        Get the plugin name.
+
+        Returns:
+            The name of the plugin
+        """
+        ...

@@ -337,7 +337,7 @@ class QueryProcessingConfig(BaseConfig):
 def standardize_retriever_config(
     config: Optional[Union[Dict[str, Any], RetrieverConfig]] = None,
     params: Optional[Dict[str, Any]] = None,
-    config_class: Type[T] = None,  # type: ignore
+    config_class: Type[T] = None,
     **kwargs: Any,
 ) -> T:
     """
@@ -405,19 +405,17 @@ def standardize_retriever_config(
         )
     """
     if config_class is None:
-        config_class = RetrieverConfig  # type: ignore
+        config_class = RetrieverConfig
     final_params: Dict[str, Any] = {}
     if params:
         final_params.update(params)
     if isinstance(config, dict):
         dict_params = config.pop("params", {}) if config else {}
         final_params.update(dict_params)
-        return cast(
-            T, config_class(**{} if config is None else config, params=final_params, **kwargs)
-        )
+        return config_class(**{} if config is None else config, params=final_params, **kwargs)
     elif isinstance(config, RetrieverConfig):
         final_params.update(config.params)
         config_dict = {**config.model_dump(), "params": final_params, **kwargs}
-        return cast(T, config_class(**config_dict))
+        return config_class(**config_dict)
     else:
-        return cast(T, config_class(params=final_params, **kwargs))
+        return config_class(params=final_params, **kwargs)

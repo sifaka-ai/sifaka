@@ -196,7 +196,7 @@ class CriticCore(BaseCritic[str]):
         # Store components in state
         prompt_manager_instance: Optional[CriticPromptManager] = None
         if prompt_manager is not None:
-            prompt_manager_instance = cast(CriticPromptManager, prompt_manager)
+            prompt_manager_instance = prompt_manager
         elif self is not None:
             prompt_manager_instance = self._create_prompt_manager()
         self._state_manager.update("prompt_manager", prompt_manager_instance)
@@ -699,7 +699,7 @@ class CriticCore(BaseCritic[str]):
         from sifaka.core.managers.prompt import DefaultPromptManager
 
         # Cast to CriticPromptManager for type checking
-        return cast(CriticPromptManager, DefaultPromptManager())
+        return cast(CriticPromptManager, DefaultPromptManager())  # type: ignore[no-any-return]
 
 
 def create_core_critic(

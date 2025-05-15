@@ -80,7 +80,7 @@ class DependencyProvider:
 
     # Register dependencies
     provider.register("model", OpenAIModel() if provider else "", scope=DependencyScope.SINGLETON)
-    provider.register_factory("database", lambda: (Database and Database.connect() if provider else "",
+    provider.register_factory("database", lambda: (Database and Database.connect(config.DB_URL) if provider else "",
                              scope=DependencyScope.SESSION)
 
     # Get dependencies
@@ -264,34 +264,16 @@ class DependencyProvider:
 
         Raises:
             DependencyError: If dependency not found and no default provided
-
-        Example:
-            ```python
-            provider = DependencyProvider()
-
-            # Get a dependency
-            model = provider.get("model") if provider else ""
-
-            # Get a dependency with default
-            validator = provider.get("validator", default=DefaultValidator() if provider else "")
-
-            # Get a session-scoped dependency
-            with provider.session_scope("user_1") if provider else "" as session:
-                db = provider.get("database") if provider else ""  # Session-specific instance
-
-            # Get a request-scoped dependency with explicit IDs
-            auth = provider.get(
-                "auth_service",
-                session_id="user_1",
-                request_id="request_123"
-            ) if provider else ""
-            ```
         """
+        # Use current session/request IDs if not provided
+        session_id = session_id or self._current_session_id
+        request_id = request_id or self._current_request_id
+
         try:
-            session_id = session_id or self._current_session_id
-            request_id = request_id or self._current_request_id
+            # Handle direct dependency
             if name in self._dependencies:
                 scope = self._scopes.get(name, DependencyScope.SINGLETON)
+
                 if scope == DependencyScope.SINGLETON:
                     return self._dependencies[name]
                 elif scope == DependencyScope.SESSION:
@@ -301,10 +283,14 @@ class DependencyProvider:
                 elif scope == DependencyScope.TRANSIENT:
                     return self._dependencies[name]
                 else:
+                    # Unknown scope - log warning and use singleton behavior
                     logger.warning(f"Unknown scope {scope} for dependency {name}")
                     return self._dependencies[name]
+
+            # Handle factory dependency
             elif name in self._factories:
                 scope = self._scopes.get(name, DependencyScope.SINGLETON)
+
                 if scope == DependencyScope.SINGLETON:
                     if name not in self._dependencies:
                         self._dependencies[name] = self._factories[name]()
@@ -316,17 +302,25 @@ class DependencyProvider:
                 elif scope == DependencyScope.TRANSIENT:
                     return self._factories[name]()
                 else:
+                    # Unknown scope - log warning and use factory directly
                     logger.warning(f"Unknown scope {scope} for factory {name}")
                     return self._factories[name]()
+
+            # Handle default case
             elif default is not None:
                 return default
+
+            # Handle not found case
             else:
                 raise DependencyError(f"Dependency {name} not found")
-        except Exception as e:
-            if not isinstance(e, DependencyError):
-                logger.error(f"Error getting dependency {name}: {e}")
-                raise DependencyError(f"Error getting dependency {name}: {e}")
+
+        except DependencyError:
+            # Re-raise dependency errors directly
             raise
+        except Exception as e:
+            # Wrap other exceptions
+            logger.error(f"Error resolving dependency {name}: {e}")
+            raise DependencyError(f"Error resolving dependency {name}: {e}") from e
 
     def session_scope(self, session_id: Optional[Optional[str]] = None) -> "SessionScope":
         """
@@ -542,3 +536,7 @@ class DependencyProvider:
         if name not in self._request_dependencies[session_request_key]:
             self._request_dependencies[session_request_key][name] = self._factories[name]()
         return self._request_dependencies[session_request_key][name]
+
+    def _handle_dependency_error(self, name: str, error: Exception) -> Any:
+        """Handle dependency errors by wrapping them in DependencyError."""
+        raise DependencyError(f"Error getting dependency {name}: {error}")

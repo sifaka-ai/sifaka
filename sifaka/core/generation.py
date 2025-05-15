@@ -75,7 +75,7 @@ class Generator(BaseComponent):
             cached_result = cache[prompt]
             # Return the cached result with explicit type casting
             # This tells mypy that we're returning the expected type
-            return cast(Optional[OutputType], cached_result)
+            return cached_result
         self._state_manager.set_metadata("cache_hit", False)
         start_time = time.time()
         try:
@@ -95,7 +95,7 @@ class Generator(BaseComponent):
                 # Store the output in the cache
                 cache[prompt] = output
                 self._state_manager.update("result_cache", cache)
-                return cast(Optional[OutputType], output)
+                return output
             return None
         except Exception as e:
             error_count = self._state_manager.get_metadata("error_count", 0)

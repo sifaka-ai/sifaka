@@ -364,7 +364,7 @@ class FormatterConfig(BaseConfig):
 def standardize_chain_config(
     config: Optional[Union[Dict[str, Any], ChainConfig]] = None,
     params: Optional[Dict[str, Any]] = None,
-    config_class: Type[T] = None,  # type: ignore
+    config_class: Type[T] = None,
     **kwargs: Any,
 ) -> T:
     """
@@ -424,7 +424,7 @@ def standardize_chain_config(
         )
     """
     if config_class is None:
-        config_class = ChainConfig  # type: ignore
+        config_class = ChainConfig
     final_params: Dict[str, Any] = {}
     if params and final_params:
         final_params.update(params)
@@ -436,14 +436,12 @@ def standardize_chain_config(
             final_params.update(dict_params)
         if config and "timeout" in config and "timeout_seconds" not in config:
             config["timeout_seconds"] = config.pop("timeout")
-        return cast(
-            T, config_class(**{} if config is None else config, params=final_params, **kwargs)
-        )
+        return config_class(**{} if config is None else config, params=final_params, **kwargs)
     elif isinstance(config, ChainConfig):
         if final_params and config.params:
             final_params.update(config.params)
         model_data = config.model_dump()
         config_dict = {**model_data, "params": final_params, **kwargs}
-        return cast(T, config_class(**config_dict))
+        return config_class(**config_dict)
     else:
-        return cast(T, config_class(params=final_params, **kwargs))
+        return config_class(params=final_params, **kwargs)

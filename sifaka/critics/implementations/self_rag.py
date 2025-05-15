@@ -250,7 +250,7 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
 
             # Create the config and cast to BaseConfig to satisfy type checker
             critic_config = SelfRAGCriticConfig.model_validate(config_dict)
-            config = cast(BaseConfig, critic_config)
+            config = critic_config
 
         # Initialize base component
         super().__init__(name=name, description=description, config=config)
@@ -262,7 +262,7 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
 
             # Store configuration in cache
             # Ensure config is a SelfRAGCriticConfig
-            self_rag_config = cast(SelfRAGCriticConfig, config)
+            self_rag_config = config
 
             # Define default values for missing attributes
             DEFAULT_RETRIEVAL_PROMPT_TEMPLATE = (
@@ -888,14 +888,14 @@ def create_self_rag_critic(
 
             # Create the config and cast to BaseConfig
             critic_config = SelfRAGCriticConfig.model_validate(config_dict)
-            final_config = cast(BaseConfig, critic_config)
+            final_config = critic_config
         elif isinstance(config, dict):
             # Create the config from dict and cast to BaseConfig
             critic_config = SelfRAGCriticConfig.model_validate(config)
-            final_config = cast(BaseConfig, critic_config)
+            final_config = critic_config
         elif isinstance(config, SelfRAGCriticConfig):
             # Use the provided config directly
-            final_config = cast(BaseConfig, config)
+            final_config = config
         else:
             raise ValueError("Invalid config type")
 

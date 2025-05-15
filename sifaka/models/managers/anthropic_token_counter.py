@@ -60,7 +60,7 @@ class AnthropicTokenCounter(TokenCounter):
             RuntimeError: If token counting fails
         """
         start_time = time.time()
-        self._last_count_time = start_time  # type: ignore
+        self._last_count_time = start_time
         try:
             if not isinstance(text, str):
                 raise ValueError("Text must be a string")

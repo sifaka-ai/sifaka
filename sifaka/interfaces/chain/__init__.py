@@ -55,20 +55,17 @@ The interfaces support execution tracking:
 - Performance statistics
 """
 
-from typing import Any, Dict, List, Optional, Protocol, TypeVar, Union, runtime_checkable
-
-# Import interfaces
-from .model import Model
-from .validator import Validator
-from .improver import Improver
-from .formatter import ChainFormatter
-from .components import ChainComponent
-from .results import ValidationResult
-from .chain import Chain
-from .plugin import ChainPlugin
-from .manager import PromptManager, ValidationManager
-from .retry_strategy import RetryStrategy
-from .result_formatter import ResultFormatter
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    TypeVar,
+    Union,
+    runtime_checkable,
+    TYPE_CHECKING,
+)
 
 # Type exports for type checking
 ChainType = TypeVar("ChainType")
@@ -82,6 +79,131 @@ ValidatorType = TypeVar("ValidatorType")
 ImproverType = TypeVar("ImproverType")
 FormatterType = TypeVar("FormatterType")
 PluginType = TypeVar("PluginType")
+
+# For type checking purposes, define placeholder objects
+if TYPE_CHECKING:
+
+    class Model(Protocol):
+        def generate(self, prompt: str, **kwargs: Any) -> str: ...
+        @property
+        def name(self) -> str: ...
+
+    class Validator(Protocol):
+        def validate(self, text: str, **kwargs: Any) -> "ValidationResult": ...
+        @property
+        def name(self) -> str: ...
+
+    class Improver(Protocol):
+        def improve(self, text: str, feedback: Optional[str] = None, **kwargs: Any) -> str: ...
+        @property
+        def name(self) -> str: ...
+
+    class ChainFormatter(Protocol):
+        def format(self, text: str, **kwargs: Any) -> str: ...
+        @property
+        def name(self) -> str: ...
+
+    class ChainComponent(Protocol):
+        @property
+        def name(self) -> str: ...
+        @property
+        def description(self) -> str: ...
+
+    class ValidationResult:
+        passed: bool
+        message: str
+        score: Optional[float] = None
+        issues: List[str] = []
+        suggestions: List[str] = []
+        metadata: Dict[str, Any] = {}
+
+    class Chain(Protocol):
+        def run(self, input_text: str, **kwargs: Any) -> str: ...
+        @property
+        def name(self) -> str: ...
+
+    class ChainPlugin(Protocol):
+        def initialize(self) -> None: ...
+        @property
+        def name(self) -> str: ...
+
+    class PromptManager(Protocol):
+        def create_prompt(self, template: str, variables: Dict[str, Any], **kwargs: Any) -> str: ...
+        @property
+        def name(self) -> str: ...
+
+    class ValidationManager(Protocol):
+        def validate(self, text: str, **kwargs: Any) -> ValidationResult: ...
+        @property
+        def name(self) -> str: ...
+
+    class RetryStrategy(Protocol):
+        def should_retry(self, attempt: int, result: Any, **kwargs: Any) -> bool: ...
+        @property
+        def name(self) -> str: ...
+
+    class ResultFormatter(Protocol):
+        def format_result(self, result: Any, **kwargs: Any) -> Any: ...
+        @property
+        def name(self) -> str: ...
+
+else:
+    # These imports are only used at runtime, not during type checking
+    try:
+        from .model import Model
+    except ImportError:
+        Model = None
+
+    try:
+        from .validator import Validator
+    except ImportError:
+        Validator = None
+
+    try:
+        from .improver import Improver
+    except ImportError:
+        Improver = None
+
+    try:
+        from .formatter import ChainFormatter
+    except ImportError:
+        ChainFormatter = None
+
+    try:
+        from .base import ChainComponent
+    except ImportError:
+        ChainComponent = None
+
+    try:
+        from .results import ValidationResult
+    except ImportError:
+        ValidationResult = None
+
+    try:
+        from .chain import Chain
+    except ImportError:
+        Chain = None
+
+    try:
+        from .plugin import ChainPlugin
+    except ImportError:
+        ChainPlugin = None
+
+    try:
+        from .manager import PromptManager, ValidationManager
+    except ImportError:
+        PromptManager = None
+        ValidationManager = None
+
+    try:
+        from .retry_strategy import RetryStrategy
+    except ImportError:
+        RetryStrategy = None
+
+    try:
+        from .result_formatter import ResultFormatter
+    except ImportError:
+        ResultFormatter = None
 
 # Define exports
 __all__ = [
