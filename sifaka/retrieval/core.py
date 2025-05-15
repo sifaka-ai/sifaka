@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union, cast
 import time
 import logging
 from sifaka.core.base import BaseComponent
@@ -9,6 +9,7 @@ from sifaka.utils.state import StateManager, create_retriever_state
 from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.common import record_error
 from sifaka.utils.errors.safe_execution import safely_execute_retrieval
+from sifaka.utils.errors.results import ErrorResult
 from .result import DocumentMetadata, RetrievedDocument
 from pydantic import PrivateAttr
 
@@ -224,7 +225,7 @@ class RetrieverCore(BaseComponent):
             record_error(self._state_manager, Exception(error_message))
             raise RetrievalError(error_message, metadata={"query": query, "error_type": error_type})
 
-        return result
+        return cast(RetrievalResult, result)
 
     def _update_execution_stats(self, execution_time_ms: float) -> None:
         """

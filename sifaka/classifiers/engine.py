@@ -6,9 +6,9 @@ It coordinates the flow between components, handles caching, and manages state.
 
 ## Overview
 The Engine class is the central component of the classification system, responsible
-for coordinating the classification process, managing caching, tracking statistics,
-and handling errors. It serves as an intermediary between the user-facing Classifier
-class and the implementation-specific classification logic.
+for coordinating the classification process, managing caching, and tracking statistics.
+It serves as an intermediary between the user-facing Classifier class and the
+implementation-specific classification logic.
 
 ## Components
 1. **Engine**: Core classification engine that coordinates the flow
@@ -250,7 +250,8 @@ class Engine(InitializeStateMixin):
             result = safely_execute(
                 operation=classify_operation,
                 component_name=implementation.__class__.__name__,
-                operation_name="classify",
+                component_type="ClassifierImplementation",
+                error_class=ImplementationError,
             )
             return result
         except Exception as e:

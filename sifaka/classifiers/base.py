@@ -67,11 +67,12 @@ The base classes support configuration through the ClassifierConfig class:
 - min_confidence: Minimum confidence threshold
 """
 
-from typing import Any, Dict, Generic, Optional, TypeVar, cast
+from typing import Any, Dict, Generic, Optional, TypeVar, cast, Union
 from ..core.results import ClassificationResult
 from ..utils.config import ClassifierConfig
 from ..utils.errors import ClassifierError
 from ..utils.errors import safely_execute_component_operation as safely_execute
+from ..utils.errors.results import ErrorResult
 from .interfaces import ClassifierImplementation
 
 # Define type variables for label and metadata types
@@ -160,7 +161,7 @@ class BaseClassifier(ClassifierImplementation, Generic[L, M]):
                 component_type="ClassifierImplementation",
                 error_class=ClassifierError,
             )
-            return result
+            return cast(ClassificationResult[L, M], result)
         except Exception as e:
             raise ClassifierError(f"Classification failed: {str(e)}") from e
 
@@ -311,8 +312,8 @@ class ConfigurableClassifier(BaseClassifier[L, M]):
 
         def _validate_config(self, config: ClassifierConfig) -> None:
             # Custom configuration validation
-            if config.min_confidence < 0.0 or config.min_confidence > 1.0:
-                raise ValueError("min_confidence must be between 0.0 and 1.0")
+            if config.threshold < 0.0 or config.threshold > 1.0:
+                raise ValueError("threshold must be between 0.0 and 1.0")
     ```
     """
 
@@ -346,5 +347,5 @@ class ConfigurableClassifier(BaseClassifier[L, M]):
         """
         if config.cache_size < 0:
             raise ValueError("cache_size must be non-negative")
-        if config.min_confidence < 0.0 or config.min_confidence > 1.0:
-            raise ValueError("min_confidence must be between 0.0 and 1.0")
+        if config.threshold < 0.0 or config.threshold > 1.0:
+            raise ValueError("threshold must be between 0.0 and 1.0")
