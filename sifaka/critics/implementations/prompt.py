@@ -134,15 +134,14 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
         self._initialize_components()
 
     def _initialize_components(self) -> None:
-        """Initialize critic components."""
-        # Initialize state manager
-        self._state_manager = StateManager()
-        self._state_manager.set("initialized", True)
+        """Initialize components."""
+        self._state_manager.update("initialized", True)
 
-        # Initialize cache
-        self._state_manager.set(
+        # Initialize state with defaults
+        self._state_manager.update(
             "cache",
             {
+                "prompt_templates": DEFAULT_PROMPT_TEMPLATES,
                 "system_prompt": DEFAULT_SYSTEM_PROMPT,
                 "temperature": 0.7,
                 "max_tokens": 1000,

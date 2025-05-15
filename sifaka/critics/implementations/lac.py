@@ -76,12 +76,12 @@ All critics support configuration through Pydantic models with options for:
 """
 
 import time
-from typing import Any, Dict, Optional, Union, List, cast
+from typing import Any, Dict, Optional, Union, List, Set, cast, TypedDict
 
 from pydantic import Field, PrivateAttr, ConfigDict
 
 from ...core.base import BaseComponent
-from ...utils.state import create_critic_state
+from ...utils.state import create_critic_state, StateManager
 from ...core.base import BaseResult
 from sifaka.utils.config.critics import FeedbackCriticConfig, ValueCriticConfig, LACCriticConfig
 from ...interfaces.critic import TextCritic, TextImprover, TextValidator, CritiqueResult
@@ -128,23 +128,27 @@ class FeedbackCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover
         improved_text = critic.improve(response, feedback)
     """
 
+    # Pydantic v2 configuration
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    # Configuration
+    config: FeedbackCriticConfig = Field(default_factory=FeedbackCriticConfig)
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """Initialize the feedback critic.
 
         Args:
             config: Optional configuration dictionary
         """
-        super().__init__(config)
+        name = "feedback_critic"
+        description = "Provides natural language feedback for text"
+        super().__init__(name=name, description=description, config=config)
         self._initialize_components()
 
     def _initialize_components(self) -> None:
         """Initialize critic components."""
-        # Initialize state manager
-        self._state_manager = StateManager()
-        self._state_manager.set("initialized", True)
-
         # Initialize cache
-        self._state_manager.set(
+        self._state_manager.update(
             "cache",
             {
                 "feedback_prompt_template": DEFAULT_FEEDBACK_PROMPT_TEMPLATE,
@@ -153,6 +157,8 @@ class FeedbackCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover
                 "max_tokens": 1000,
             },
         )
+        # Mark as initialized
+        self._state_manager.update("initialized", True)
 
     def run(self, task: str, response: str) -> str:
         """
@@ -172,11 +178,10 @@ class FeedbackCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover
         start_time = time.time()
 
         try:
-            if hasattr(self, "_check_input"):
-                self._check_input(response)
+            self._check_input(response)
 
             # Get cache from state
-            cache = self._state_manager.get("cache", {}) if hasattr(self, "_state_manager") else {}
+            cache = self._state_manager.get("cache", {})
 
             # Create feedback prompt
             template = (
@@ -190,7 +195,7 @@ class FeedbackCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover
             )
 
             # Get model from state
-            model = self._state_manager.get("model") if hasattr(self, "_state_manager") else None
+            model = self._state_manager.get("model")
             if not model:
                 raise RuntimeError("Model not initialized")
 
@@ -206,9 +211,8 @@ class FeedbackCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover
             # Update statistics
             if hasattr(self, "config") and self.config.track_performance:
                 total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
-                self._state_manager.set_metadata(
-                    "total_processing_time_ms", total_time + (time.time() - start_time) * 1000
-                )
+                total_time_ms = total_time + (time.time() - start_time) * 1000
+                self._state_manager.set_metadata("total_processing_time_ms", total_time_ms)
 
             feedback_count = self._state_manager.get_metadata("feedback_count", 0)
             self._state_manager.set_metadata("feedback_count", feedback_count + 1)
@@ -245,11 +249,10 @@ class FeedbackCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover
             validation_count = self._state_manager.get_metadata("validation_count", 0)
             self._state_manager.set_metadata("validation_count", validation_count + 1)
 
-            if hasattr(self, "config") and self.config.track_performance:
+            if self.config.track_performance:
                 total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
-                self._state_manager.set_metadata(
-                    "total_processing_time_ms", total_time + (time.time() - start_time) * 1000
-                )
+                total_time_ms = total_time + (time.time() - start_time) * 1000
+                self._state_manager.set_metadata("total_processing_time_ms", total_time_ms)
 
             return True
 
@@ -257,13 +260,13 @@ class FeedbackCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover
             self.record_error(e)
             raise RuntimeError(f"Failed to validate text: {str(e)}") from e
 
-    def improve(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> str:
+    def improve(self, text: str, feedback: str) -> str:
         """
         Improve text based on feedback.
 
         Args:
             text: The text to improve
-            metadata: Optional metadata containing the task
+            feedback: Feedback to guide improvement
 
         Returns:
             Improved text
@@ -277,11 +280,11 @@ class FeedbackCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover
         try:
             self._check_input(text)
 
-            # Get task from metadata
-            task = self._get_task_from_metadata(metadata)
-
-            # Generate feedback
-            feedback = self.run(task, text)
+            # If feedback is empty, generate it
+            task = "Improve the following text"
+            actual_feedback = feedback
+            if not actual_feedback:
+                actual_feedback = self.run(task, text)
 
             # Get model from state
             model = self._state_manager.get("model")
@@ -295,7 +298,7 @@ class FeedbackCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover
             prompt = (
                 f"Task:\n{task}\n\n"
                 f"Original response:\n{text}\n\n"
-                f"Feedback:\n{feedback}\n\n"
+                f"Feedback:\n{actual_feedback}\n\n"
                 f"Improved response:"
             )
 
@@ -315,9 +318,8 @@ class FeedbackCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover
 
             if self.config.track_performance:
                 total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
-                self._state_manager.set_metadata(
-                    "total_processing_time_ms", total_time + (time.time() - start_time) * 1000
-                )
+                total_time_ms = total_time + (time.time() - start_time) * 1000
+                self._state_manager.set_metadata("total_processing_time_ms", total_time_ms)
 
             return improved_text
 
@@ -325,13 +327,12 @@ class FeedbackCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover
             self.record_error(e)
             raise RuntimeError(f"Failed to improve text: {str(e)}") from e
 
-    def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> CritiqueResult:
+    def critique(self, text: str) -> CritiqueResult:
         """
         Analyze text and provide detailed feedback.
 
         Args:
             text: The text to critique
-            metadata: Optional metadata containing the task
 
         Returns:
             CritiqueResult containing feedback
@@ -345,10 +346,8 @@ class FeedbackCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover
         try:
             self._check_input(text)
 
-            # Get task from metadata
-            task = self._get_task_from_metadata(metadata)
-
-            # Generate feedback
+            # Generate feedback for a default task
+            task = "Evaluate the following text"
             feedback = self.run(task, text)
 
             # Create critique result
@@ -365,9 +364,8 @@ class FeedbackCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover
 
             if self.config.track_performance:
                 total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
-                self._state_manager.set_metadata(
-                    "total_processing_time_ms", total_time + (time.time() - start_time) * 1000
-                )
+                total_time_ms = total_time + (time.time() - start_time) * 1000
+                self._state_manager.set_metadata("total_processing_time_ms", total_time_ms)
 
             return result
 
@@ -387,18 +385,17 @@ class FeedbackCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text must be a non-empty string")
 
-    def _get_task_from_metadata(self, metadata: Optional[Dict[str, Any]] = None) -> str:
-        """Get task from metadata.
+    def record_error(self, error: Exception) -> None:
+        """Record an error in the state manager.
 
         Args:
-            metadata: Optional metadata dictionary
-
-        Returns:
-            Task string or default task
+            error: The error to record
         """
-        if metadata and isinstance(metadata, dict) and "task" in metadata:
-            return str(metadata["task"])
-        return "Improve the following text"
+        if hasattr(self, "config") and self.config.track_errors:
+            error_count = self._state_manager.get_metadata("error_count", 0)
+            self._state_manager.set_metadata("error_count", error_count + 1)
+            self._state_manager.set_metadata("last_error", str(error))
+            self._state_manager.set_metadata("last_error_time", time.time())
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -412,6 +409,7 @@ class FeedbackCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover
             "critique_count": self._state_manager.get_metadata("critique_count", 0),
             "improvement_count": self._state_manager.get_metadata("improvement_count", 0),
             "feedback_count": self._state_manager.get_metadata("feedback_count", 0),
+            "error_count": self._state_manager.get_metadata("error_count", 0),
             "total_processing_time_ms": self._state_manager.get_metadata(
                 "total_processing_time_ms", 0
             ),
@@ -477,9 +475,6 @@ class ValueCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, T
 
     # Configuration
     config: ValueCriticConfig = Field(description="Critic configuration")
-
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_critic_state)
 
     def __init__(
         self,
@@ -570,23 +565,6 @@ class ValueCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, T
         if not self._state_manager.get("initialized", False):
             raise RuntimeError("ValueCritic not properly initialized")
 
-    def _get_task_from_metadata(self, metadata: Optional[Dict[str, Any]]) -> str:
-        """
-        Extract task from metadata.
-
-        Args:
-            metadata: Optional metadata dictionary
-
-        Returns:
-            Task string
-
-        Raises:
-            ValueError: If metadata is None or missing task key
-        """
-        if metadata is None or "task" not in metadata:
-            raise ValueError("metadata must contain a 'task' key")
-        return metadata["task"]
-
     def run(self, task: str, response: str) -> float:
         """
         Generate a numeric value for a response to a task.
@@ -657,7 +635,7 @@ class ValueCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, T
 
         Args:
             text: The text to improve
-            feedback: Feedback to guide the improvement (not used directly, metadata is used instead)
+            feedback: Feedback to guide the improvement
 
         Returns:
             Improved text
@@ -666,12 +644,10 @@ class ValueCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, T
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        # This implementation uses metadata instead of direct feedback parameter
-        metadata = {"task": "Improve the text"} if not feedback else {"task": feedback}
         self._check_input(text)
 
-        # Get task from metadata
-        task = self._get_task_from_metadata(metadata)
+        # Use the feedback as the task or use a default task
+        task = feedback if feedback else "Improve the text"
 
         # Generate value
         value = self.run(task, text)
@@ -712,12 +688,10 @@ class ValueCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, T
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        # Use a default task since the interface doesn't allow for metadata
-        metadata = {"task": "Evaluate the text"}
         self._check_input(text)
 
-        # Get task from metadata
-        task = self._get_task_from_metadata(metadata)
+        # Use a default task
+        task = "Evaluate the text"
 
         # Generate value
         value = self.run(task, text)
@@ -729,6 +703,18 @@ class ValueCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, T
             "issues": [],
             "suggestions": [],
         }
+
+    def record_error(self, error: Exception) -> None:
+        """Record an error in the state manager.
+
+        Args:
+            error: The error to record
+        """
+        if hasattr(self, "config") and self.config.track_errors:
+            error_count = self._state_manager.get_metadata("error_count", 0)
+            self._state_manager.set_metadata("error_count", error_count + 1)
+            self._state_manager.set_metadata("last_error", str(error))
+            self._state_manager.set_metadata("last_error_time", time.time())
 
 
 class LACCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, TextCritic):
@@ -800,15 +786,12 @@ class LACCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, Tex
     # Configuration
     config: LACCriticConfig = Field(description="Critic configuration")
 
-    # State management using StateManager
-    _state_manager = PrivateAttr(default_factory=create_critic_state)
-
     def __init__(
         self,
         name: str,
         description: str,
         llm_provider: Any,
-        config: Optional[Optional[LACCriticConfig]] = None,
+        config: Optional[LACCriticConfig] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -828,10 +811,14 @@ class LACCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, Tex
         # Create config if not provided
         if config is None:
             from sifaka.utils.config.critics import DEFAULT_LAC_CRITIC_CONFIG
+            from copy import deepcopy
 
-            config = DEFAULT_LAC_CRITIC_CONFIG.model_copy(
-                update={"name": name, "description": description, **kwargs}
-            )
+            config_dict = deepcopy(DEFAULT_LAC_CRITIC_CONFIG)
+            config_dict.update({"name": name, "description": description, **kwargs})
+
+            from sifaka.utils.config.critics import LACCriticConfig
+
+            config = LACCriticConfig(**config_dict)
 
         # Initialize base component
         super().__init__(name=name, description=description, config=config)
@@ -842,12 +829,8 @@ class LACCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, Tex
 
             # Create feedback critic config
             feedback_config = FeedbackCriticConfig(
-                name=f"{config.name}_feedback" if hasattr(config, "name") else "feedback_component",
-                description=(
-                    f"Feedback component for {config.name}"
-                    if hasattr(config, "name")
-                    else "Feedback component"
-                ),
+                name=f"{name}_feedback",
+                description=f"Feedback component for {name}",
                 system_prompt=config.system_prompt if config else None,
                 temperature=config.temperature if config else None,
                 max_tokens=config.max_tokens if config else None,
@@ -857,19 +840,14 @@ class LACCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, Tex
                 priority=config.priority if config else None,
                 cost=config.cost if config else None,
                 feedback_prompt_template=config.feedback_prompt_template if config else None,
-                feedback_dimensions=config.feedback_dimensions if config else None,
                 track_performance=config.track_performance if config else None,
                 track_errors=config.track_errors if config else None,
             )
 
             # Create value critic config
             value_config = ValueCriticConfig(
-                name=f"{config.name}_value" if hasattr(config, "name") else "value_component",
-                description=(
-                    f"Value component for {config.name}"
-                    if hasattr(config, "name")
-                    else "Value component"
-                ),
+                name=f"{name}_value",
+                description=f"Value component for {name}",
                 system_prompt=config.system_prompt if config else None,
                 temperature=config.temperature if config else None,
                 max_tokens=config.max_tokens if config else None,
@@ -879,7 +857,6 @@ class LACCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, Tex
                 priority=config.priority if config else None,
                 cost=config.cost if config else None,
                 value_prompt_template=config.value_prompt_template if config else None,
-                value_dimensions=config.value_dimensions if config else None,
                 min_score=config.min_score if config else None,
                 max_score=config.max_score if config else None,
                 track_performance=config.track_performance if config else None,
@@ -888,23 +865,15 @@ class LACCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, Tex
 
             # Create feedback and value critics
             feedback_critic = create_feedback_critic(
-                name=f"{config.name}_feedback" if hasattr(config, "name") else "feedback_component",
-                description=(
-                    f"Feedback component for {config.name}"
-                    if hasattr(config, "name")
-                    else "Feedback component"
-                ),
+                name=f"{name}_feedback",
+                description=f"Feedback component for {name}",
                 llm_provider=llm_provider,
                 config=feedback_config,
             )
 
             value_critic = create_value_critic(
-                name=f"{config.name}_value" if hasattr(config, "name") else "value_component",
-                description=(
-                    f"Value component for {config.name}"
-                    if hasattr(config, "name")
-                    else "Value component"
-                ),
+                name=f"{name}_value",
+                description=f"Value component for {name}",
                 llm_provider=llm_provider,
                 config=value_config,
             )
@@ -943,23 +912,6 @@ class LACCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, Tex
 
         if not self._state_manager.get("initialized", False):
             raise RuntimeError("LACCritic not properly initialized")
-
-    def _get_task_from_metadata(self, metadata: Optional[Dict[str, Any]]) -> str:
-        """
-        Extract task from metadata.
-
-        Args:
-            metadata: Optional metadata dictionary
-
-        Returns:
-            Task string
-
-        Raises:
-            ValueError: If metadata is None or missing task key
-        """
-        if metadata is None or "task" not in metadata:
-            raise ValueError("metadata must contain a 'task' key")
-        return metadata["task"]
 
     def run(self, task: str, response: str) -> Dict[str, Any]:
         """
@@ -1017,7 +969,7 @@ class LACCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, Tex
 
         Args:
             text: The text to improve
-            feedback: Feedback to guide the improvement (not used directly, metadata is used instead)
+            feedback: Feedback to guide the improvement
 
         Returns:
             Improved text
@@ -1026,12 +978,10 @@ class LACCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, Tex
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        # This implementation uses metadata instead of direct feedback parameter
-        metadata = {"task": "Improve the text"} if not feedback else {"task": feedback}
         self._check_input(text)
 
-        # Get task from metadata
-        task = self._get_task_from_metadata(metadata)
+        # Use the feedback as the task or use a default task
+        task = feedback if feedback else "Improve the text"
 
         # Generate feedback and value
         result = self.run(task, text)
@@ -1073,12 +1023,10 @@ class LACCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, Tex
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        # Use a default task since the interface doesn't allow for metadata
-        metadata = {"task": "Evaluate the text"}
         self._check_input(text)
 
-        # Get task from metadata
-        task = self._get_task_from_metadata(metadata)
+        # Use a default task
+        task = "Evaluate the text"
 
         # Generate feedback and value
         result = self.run(task, text)
@@ -1086,13 +1034,26 @@ class LACCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, Tex
         value = result["value"]
 
         # Create critique result
-        return {
+        critique_result: CritiqueResult = {
             "score": value,
             "feedback": feedback,
-            "value": value,
             "issues": [],
             "suggestions": [],
         }
+
+        return critique_result
+
+    def record_error(self, error: Exception) -> None:
+        """Record an error in the state manager.
+
+        Args:
+            error: The error to record
+        """
+        if hasattr(self, "config") and self.config.track_errors:
+            error_count = self._state_manager.get_metadata("error_count", 0)
+            self._state_manager.set_metadata("error_count", error_count + 1)
+            self._state_manager.set_metadata("last_error", str(error))
+            self._state_manager.set_metadata("last_error_time", time.time())
 
 
 def create_feedback_critic(

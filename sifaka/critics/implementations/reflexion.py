@@ -137,15 +137,14 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
         self._initialize_components()
 
     def _initialize_components(self) -> None:
-        """Initialize critic components."""
-        # Initialize state manager
-        self._state_manager = StateManager()
-        self._state_manager.set("initialized", True)
+        """Initialize components."""
+        self._state_manager.update("initialized", True)
 
-        # Initialize cache
-        self._state_manager.set(
+        # Initialize state with defaults
+        self._state_manager.update(
             "cache",
             {
+                "feedback_prompt_template": DEFAULT_REFLEXION_PROMPT_TEMPLATE,
                 "system_prompt": DEFAULT_SYSTEM_PROMPT,
                 "temperature": 0.7,
                 "max_tokens": 1000,

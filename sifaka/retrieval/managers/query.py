@@ -176,7 +176,20 @@ class QueryManager(BaseComponent[Any, Any]):
         Returns:
             The set of stopwords
         """
-        return self._state_manager.get("stopwords")
+        result = self._state_manager.get("stopwords")
+        if result is None:
+            return set()
+        if isinstance(result, set):
+            return result
+        # In case the state manager returns something that's not a set
+        if isinstance(result, str) and not result:
+            return set()
+        try:
+            # Try to convert to set if it's a string or collection
+            return set(result)
+        except (TypeError, ValueError):
+            # If conversion fails, return empty set
+            return set()
 
     def _get_default_stopwords(self) -> Set[str]:
         """
@@ -185,6 +198,9 @@ class QueryManager(BaseComponent[Any, Any]):
         Returns:
             A set of common English stopwords
         """
+        if not self:
+            return set()
+
         return {
             "a",
             "an",
@@ -272,7 +288,9 @@ class QueryManager(BaseComponent[Any, Any]):
         Returns:
             The lowercase query
         """
-        return query.lower() if query else ""
+        if not query:
+            return ""
+        return query.lower()
 
     def _remove_stopwords(self, query: str) -> str:
         """
@@ -298,7 +316,8 @@ class QueryManager(BaseComponent[Any, Any]):
         Returns:
             The query with punctuation removed
         """
-        return replace_pattern(query, PUNCTUATION_PATTERN, "")
+        result = replace_pattern(query, PUNCTUATION_PATTERN, "")
+        return str(result)
 
     def _expand_query(self, query: str) -> str:
         """
@@ -316,22 +335,25 @@ class QueryManager(BaseComponent[Any, Any]):
         try:
             # Get expansion method from config
             config = cast(QueryProcessingConfig, self.config)
-            expansion_method = config.expansion_method
+            expansion_method: Optional[str] = config.expansion_method
             if expansion_method is None:
                 return query
 
             # Simple implementation for demonstration purposes
             if expansion_method == "synonym":
                 # Add some common synonyms (this is just a placeholder)
-                synonyms = {
+                synonyms: Dict[str, list[str]] = {
                     "good": ["great", "excellent"],
                     "bad": ["poor", "terrible"],
                     "big": ["large", "huge"],
                     "small": ["tiny", "little"],
                 }
 
-                words = query.split() if query else ""
-                expanded_words = []
+                if not query:
+                    return ""
+
+                words = query.split()
+                expanded_words: list[str] = []
 
                 for word in words:
                     expanded_words.append(word)
@@ -341,14 +363,23 @@ class QueryManager(BaseComponent[Any, Any]):
                 return " ".join(expanded_words)
 
             # Add more expansion methods here
-
-            return query
+            elif expansion_method == "wordnet":
+                # Placeholder for wordnet-based expansion (not implemented)
+                return query
+            elif expansion_method == "word2vec":
+                # Placeholder for word2vec-based expansion (not implemented)
+                return query
+            else:
+                # For any unknown expansion method, just return the original query
+                return query
 
         except Exception as e:
             error_info = handle_error(e, self.name, "error")
+            # Type-safe expansion method representation
+            expansion_method_str = str(expansion_method) if expansion_method is not None else "None"
             raise RetrievalError(
                 f"Query expansion failed: {str(e)}",
-                metadata={"query": query, "expansion_method": expansion_method, **error_info},
+                metadata={"query": query, "expansion_method": expansion_method_str, **error_info},
             )
 
     def process_query(self, query: str, **kwargs: Any) -> str:
@@ -393,7 +424,12 @@ class QueryManager(BaseComponent[Any, Any]):
             cache_key = f"{query}_{kwargs}"
             if cache_key in cache:
                 self._state_manager.set_metadata("cache_hit", True)
-                return cache[cache_key]
+                cached_result = cache[cache_key]
+                if isinstance(cached_result, str):
+                    return cached_result
+                else:
+                    # If somehow a non-string got into the cache, convert it
+                    return str(cached_result)
 
         # Mark as cache miss
         self._state_manager.set_metadata("cache_hit", False)
