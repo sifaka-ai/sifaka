@@ -131,7 +131,7 @@ class RankingStrategy(BaseComponent, ABC):
         self._state_manager.update("last_result_count", 0)
 
     @property
-    def config(self) -> RankingConfig:
+    def config(self) -> BaseConfig:
         """
         Get the ranking configuration.
 
@@ -140,10 +140,10 @@ class RankingStrategy(BaseComponent, ABC):
         """
         config = self._state_manager.get("config")
         if config is None:
-            # Create a default config
-            return RankingConfig(name=self.name, description=self.description)
-        # Return the config
-        return config
+            # Create a default config and cast to BaseConfig
+            return cast(BaseConfig, RankingConfig(name=self.name, description=self.description))
+        # Cast to BaseConfig to satisfy the interface
+        return cast(BaseConfig, config)
 
     @config.setter
     def config(self, config: RankingConfig) -> None:
@@ -519,155 +519,73 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
             config: The ranking configuration
             name: Name of the ranking strategy
             description: Description of the ranking strategy
-
-        Raises:
-            RetrievalError: If initialization fails
         """
         super().__init__(config=config, name=name, description=description)
 
-        if not isinstance(base_strategy, RankingStrategy):
-            raise RetrievalError(
-                "Base strategy must be an instance of RankingStrategy",
-                metadata={"base_strategy_type": type(base_strategy).__name__},
-            )
-
-        if not isinstance(threshold, (int, float)) or threshold < 0 or threshold > 1:
-            raise RetrievalError(
-                "Threshold must be a number between 0 and 1",
-                metadata={"threshold": threshold, "threshold_type": type(threshold).__name__},
-            )
-
-        # Store base strategy and threshold in state
-        self._state_manager.update("base_strategy", base_strategy)
-        self._state_manager.update("threshold", threshold)
-
-        # Set metadata
-        self._state_manager.set_metadata("base_strategy_name", base_strategy.name)
-
-    @property
-    def base_strategy(self) -> RankingStrategy:
-        """
-        Get the base ranking strategy.
-
-        Returns:
-            The base ranking strategy
-        """
-        strategy = self._state_manager.get("base_strategy")
-        if strategy is None:
-            raise RetrievalError("Base strategy not initialized")
-        # Cast to RankingStrategy to satisfy mypy
-        return strategy  # type: ignore[no-any-return]
-
-    @base_strategy.setter
-    def base_strategy(self, strategy: RankingStrategy) -> None:
-        """
-        Set the base ranking strategy.
-
-        Args:
-            strategy: The new base strategy
-
-        Raises:
-            RetrievalError: If the strategy is invalid
-        """
-        if not isinstance(strategy, RankingStrategy):
-            raise RetrievalError(
-                "Base strategy must be an instance of RankingStrategy",
-                metadata={"base_strategy_type": type(strategy).__name__},
-            )
-        self._state_manager.update("base_strategy", strategy)
-        self._state_manager.set_metadata("base_strategy_name", strategy.name)
-
-    @property
-    def threshold(self) -> float:
-        """
-        Get the score threshold.
-
-        Returns:
-            The score threshold
-        """
-        threshold = self._state_manager.get("threshold")
-        if threshold is None:
-            return 0.0  # Default threshold
-        # Cast to float to satisfy mypy
-        return threshold  # type: ignore[no-any-return]
-
-    @threshold.setter
-    def threshold(self, threshold: float) -> None:
-        """
-        Set the score threshold.
-
-        Args:
-            threshold: The new threshold
-
-        Raises:
-            RetrievalError: If the threshold is invalid
-        """
-        if not isinstance(threshold, (int, float)) or threshold < 0 or threshold > 1:
-            raise RetrievalError(
-                "Threshold must be a number between 0 and 1",
-                metadata={"threshold": threshold, "threshold_type": type(threshold).__name__},
-            )
-        self._state_manager.update("threshold", threshold)
+        self._base_strategy = base_strategy
+        self._threshold = threshold
 
     def rank(
         self, query: str, documents: List[Dict[str, Any]], **kwargs: Any
     ) -> List[Dict[str, Any]]:
         """
-        Rank documents and apply a score threshold.
+        Rank documents based on their relevance to the query.
 
         Args:
             query: The query to rank documents for
             documents: The documents to rank
             **kwargs: Additional ranking parameters
-                - top_k: Override the configured top_k value
-                - threshold: Override the configured threshold value
 
         Returns:
-            A list of ranked documents with scores above the threshold
+            A list of ranked documents with scores
 
         Raises:
             InputError: If the query or documents are invalid
             RetrievalError: If ranking fails
         """
-        # Call parent method to handle state tracking
-        super().rank(query, documents, **kwargs)
+        # Track ranking count
+        ranking_count = self._state_manager.get("ranking_count", 0)
+        self._state_manager.update("ranking_count", ranking_count + 1)
+
+        # Store the query in state
+        self._state_manager.update("last_query", query)
+
+        # Validate input
+        if not query or not isinstance(query, str):
+            raise InputError(
+                "Query must be a non-empty string",
+                metadata={
+                    "query_type": type(query).__name__,
+                    "query_length": len(str(query)) if query else 0,
+                },
+            )
+
+        if not isinstance(documents, list):
+            raise InputError(
+                "Documents must be a list", metadata={"documents_type": type(documents).__name__}
+            )
 
         # Record start time
-        start_time = time.time()
+        self._state_manager.set_metadata("last_ranking_start_time", time.time())
 
         try:
-            # Get threshold from kwargs or state
-            threshold = kwargs.get("threshold", self.threshold)
-
-            # Get top_k from kwargs or config
-            # Handle the case where config might be a dict
-            if isinstance(self.config, dict):
-                top_k = kwargs.get("top_k", self.config.get("top_k", 5))
-            else:
-                top_k = kwargs.get("top_k", getattr(self.config, "top_k", 5))
-
             # Use the base strategy to rank documents
-            ranked_docs = self.base_strategy.rank(query, documents, **kwargs)
+            ranked_docs = self._base_strategy.rank(query, documents, **kwargs)
 
             # Filter out documents with scores below the threshold
-            filtered_docs = [doc for doc in ranked_docs if doc.get("score", 0.0) >= threshold]
-
-            # Return the filtered documents (up to top_k)
-            result = filtered_docs[:top_k]
+            filtered_docs = [doc for doc in ranked_docs if doc["score"] >= self._threshold]
 
             # Update execution statistics
             end_time = time.time()
-            execution_time_ms = (end_time - start_time) * 1000
-            self._update_execution_stats(execution_time_ms, len(result))
+            execution_time_ms = (
+                end_time - self._state_manager.get_metadata("last_ranking_start_time", 0)
+            ) * 1000
+            self._update_execution_stats(execution_time_ms, len(filtered_docs))
 
-            # Store filtering statistics
-            self._state_manager.set_metadata("pre_filter_count", len(ranked_docs))
-            self._state_manager.set_metadata("post_filter_count", len(filtered_docs))
-            self._state_manager.set_metadata(
-                "filter_ratio", len(filtered_docs) / len(ranked_docs) if ranked_docs else 0
-            )
+            # Store keyword statistics
+            self._state_manager.set_metadata("last_keyword_count", len(ranked_docs))
 
-            return result
+            return filtered_docs
 
         except Exception as e:
             # Use the standardized utility function
@@ -680,7 +598,7 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
             # Otherwise, wrap in RetrievalError
             error_info = handle_error(e, self.name, "error")
             raise RetrievalError(
-                f"Threshold ranking failed: {str(e)}",
+                f"Ranking failed: {str(e)}",
                 metadata={"query": query, "document_count": len(documents), **error_info},
             )
 
@@ -694,11 +612,9 @@ class ScoreThresholdRankingStrategy(RankingStrategy):
         stats = super().get_statistics()
         stats.update(
             {
-                "threshold": self.threshold,
-                "base_strategy": self.base_strategy.name,
-                "pre_filter_count": self._state_manager.get_metadata("pre_filter_count", 0),
-                "post_filter_count": self._state_manager.get_metadata("post_filter_count", 0),
-                "filter_ratio": self._state_manager.get_metadata("filter_ratio", 0),
+                "base_strategy_name": self._base_strategy.name,
+                "threshold": self._threshold,
+                "last_keyword_count": self._state_manager.get_metadata("last_keyword_count", 0),
             }
         )
         return stats

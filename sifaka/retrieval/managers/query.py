@@ -23,9 +23,9 @@ query preprocessing, expansion, and other query-related operations.
 """
 
 import time
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Optional, Set, cast
 
-from sifaka.core.base import BaseComponent
+from sifaka.core.base import BaseComponent, BaseConfig
 from sifaka.utils.errors.component import RetrievalError
 from sifaka.utils.errors.base import InputError
 from sifaka.utils.errors.handling import handle_error
@@ -37,34 +37,56 @@ from sifaka.interfaces.retrieval import QueryProcessor
 logger = get_logger(__name__)
 
 
-class QueryManager(BaseComponent, QueryProcessor):
+class QueryManager(BaseComponent[Any, Any]):
     """
-    Manager for query processing.
+    Query processing manager.
 
-    This class handles query preprocessing, expansion, and other query-related
-    operations for retrieval components in the Sifaka framework.
+    This class manages query processing for retrieval, handling preprocessing and
+    query expansion operations. It implements the BaseComponent interface for
+    general component functionality and follows the QueryProcessor protocol via adapter
+    methods.
 
-    ## Preprocessing Steps
+    The component handles various query processing tasks:
+    - Text normalization (lowercase, punctuation removal)
+    - Stopword removal
+    - Query expansion (synonyms and related terms)
+    - Caching for performance optimization
 
-    1. **Lowercase**: Convert the query to lowercase
-    2. **Remove Stopwords**: Remove common stopwords from the query
-    3. **Remove Punctuation**: Remove punctuation from the query
-    4. **Stemming**: Apply stemming to the query terms
-    5. **Lemmatization**: Apply lemmatization to the query terms
+    ## Architecture
+    QueryManager follows a modular architecture:
+    - Input validation and normalization
+    - Preprocessing pipeline (configurable steps)
+    - Expansion strategies (configurable)
+    - Caching and state management
 
-    ## Query Expansion Methods
+    ## Configuration
+    The component accepts a QueryProcessingConfig, which defines:
+    - Preprocessing steps and their order
+    - Expansion method and parameters
+    - Cache settings
 
-    1. **Synonym Expansion**: Add synonyms of query terms
-    2. **Word Embedding Expansion**: Add related terms based on word embeddings
-    3. **Knowledge Graph Expansion**: Add related terms from a knowledge graph
+    ## Interface
+    QueryManager implements:
+    - BaseComponent: For general component functionality and lifecycle management
+    - And provides a process_query_interface method to be compatible with the QueryProcessor protocol
 
-    ## State Management
+    ## Usage Examples
+    ```python
+    # Create a query manager
+    query_manager = QueryManager(
+        name="standard_query_processor",
+        description="Standard query processor with stopword removal and synonym expansion"
+    )
 
-    The QueryManager maintains state for:
-    - Configuration
-    - Stopwords
-    - Processing statistics
-    - Cache of processed queries
+    # Configure preprocessing
+    query_manager.config = QueryProcessingConfig(
+        preprocessing_steps=["lowercase", "remove_stopwords"],
+        expansion_method="synonym"
+    )
+
+    # Process a query
+    processed_query = query_manager.process_query("What is machine learning?")
+    ```
     """
 
     # State management is handled by BaseComponent
@@ -114,14 +136,19 @@ class QueryManager(BaseComponent, QueryProcessor):
         self._state_manager.update("query_cache", {})
 
     @property
-    def config(self) -> QueryProcessingConfig:
+    def config(self) -> BaseConfig:
         """
         Get the query processing configuration.
 
         Returns:
             The query processing configuration
         """
-        return self._state_manager.get("config")
+        config = self._state_manager.get("config")
+        if config is None:
+            # Create a default config and cast to BaseConfig
+            return cast(BaseConfig, QueryProcessingConfig())
+        # Cast to BaseConfig to satisfy the interface
+        return cast(BaseConfig, config)
 
     @config.setter
     def config(self, config: QueryProcessingConfig) -> None:
@@ -288,7 +315,8 @@ class QueryManager(BaseComponent, QueryProcessor):
         """
         try:
             # Get expansion method from config
-            expansion_method = self.config.expansion_method
+            config = cast(QueryProcessingConfig, self.config)
+            expansion_method = config.expansion_method
             if expansion_method is None:
                 return query
 
@@ -375,9 +403,11 @@ class QueryManager(BaseComponent, QueryProcessor):
 
         try:
             processed_query = query
+            from typing import cast
 
             # Get preprocessing steps (from kwargs or config)
-            preprocessing_steps = kwargs.get("preprocessing_steps", self.config.preprocessing_steps)
+            config = cast(QueryProcessingConfig, self.config)
+            preprocessing_steps = kwargs.get("preprocessing_steps", config.preprocessing_steps)
 
             # Apply preprocessing steps in the configured order
             for step in preprocessing_steps:
@@ -389,19 +419,19 @@ class QueryManager(BaseComponent, QueryProcessor):
                     processed_query = self._remove_punctuation(processed_query)
 
             # Get expansion method (from kwargs or config)
-            expansion_method = kwargs.get("expansion_method", self.config.expansion_method)
+            expansion_method = kwargs.get("expansion_method", config.expansion_method)
 
             # Apply query expansion if configured
             if expansion_method:
                 # Update config temporarily for expansion
-                original_expansion = self.config.expansion_method
-                self.config.expansion_method = expansion_method
+                original_expansion = config.expansion_method
+                config.expansion_method = expansion_method
 
                 # Expand query
                 processed_query = self._expand_query(processed_query)
 
                 # Restore original config
-                self.config.expansion_method = original_expansion
+                config.expansion_method = original_expansion
 
             # Record execution time
             end_time = time.time()
@@ -439,14 +469,18 @@ class QueryManager(BaseComponent, QueryProcessor):
         Returns:
             Dictionary with usage statistics
         """
+        from typing import cast
+
+        config = cast(QueryProcessingConfig, self.config)
+
         return {
             "name": self.name,
             "query_count": self._state_manager.get("query_count", 0),
             "avg_execution_time_ms": self._state_manager.get_metadata("avg_execution_time_ms", 0),
             "cache_size": len(self._state_manager.get("query_cache", {})),
             "stopwords_count": len(self.stopwords),
-            "preprocessing_steps": self.config.preprocessing_steps,
-            "expansion_method": self.config.expansion_method,
+            "preprocessing_steps": config.preprocessing_steps,
+            "expansion_method": config.expansion_method,
         }
 
     def clear_cache(self) -> None:
@@ -456,16 +490,120 @@ class QueryManager(BaseComponent, QueryProcessor):
         self._state_manager.update("query_cache", {})
         logger.debug(f"Cleared cache for query manager {self.name}")
 
-    def process(self, input: str) -> str:
+    # This is the BaseComponent.process method implementation
+    def process(self, input: Any) -> Any:
         """
-        Process the input query.
+        Process the input.
 
-        This method is required by the BaseComponent interface.
+        This method implements the BaseComponent interface.
+        It determines how to handle the input based on its type and then delegates
+        to the process_query method for actual processing.
 
         Args:
-            input: The query to process
+            input: The input to process (either a string query or a dict with query and kwargs)
+
+        Returns:
+            The processed query string
+
+        Raises:
+            InputError: If the query is invalid
+            RetrievalError: If processing fails
+        """
+        # Handle different input types
+        kwargs = {}
+        if isinstance(input, dict) and "query" in input:
+            # Extract query and kwargs from the input dict
+            query = input["query"]
+            # Remove query key from the dict to get the kwargs
+            kwargs = {k: v for k, v in input.items() if k != "query"}
+        else:
+            # Treat input as the query itself
+            query = input
+
+        # Ensure query is a string
+        if not isinstance(query, str):
+            try:
+                query = str(query)
+            except Exception as e:
+                raise InputError(
+                    f"Query must be convertible to a string, got {type(query).__name__}",
+                    metadata={"error": str(e)},
+                )
+
+        # Process the query using the process_query method
+        return self.process_query(query, **kwargs)
+
+    # This method provides QueryProcessor interface compatibility
+    def query_processor_process(self, query: Any, **kwargs: Any) -> Any:
+        """
+        Process a query with additional parameters.
+
+        This method is provided for compatibility with the QueryProcessor interface.
+        Consumer code that expects a QueryProcessor can call this method.
+
+        Args:
+            query: The query to process
+            **kwargs: Additional processing parameters
 
         Returns:
             The processed query
+
+        Raises:
+            InputError: If the query is invalid
+            RetrievalError: If processing fails
         """
-        return self.process_query(input)
+        # Ensure query is a string
+        if not isinstance(query, str):
+            try:
+                query = str(query)
+            except Exception as e:
+                raise InputError(
+                    f"Query must be convertible to a string, got {type(query).__name__}",
+                    metadata={"error": str(e)},
+                )
+
+        # Process the query using the process_query method
+        return self.process_query(query, **kwargs)
+
+    def as_query_processor(self) -> QueryProcessor[Any, Any]:
+        """
+        Get a QueryProcessor-compatible interface for this QueryManager.
+
+        This method returns an adapter that implements the QueryProcessor interface
+        by delegating to this QueryManager's query_processor_process method.
+
+        Returns:
+            A QueryProcessor-compatible adapter for this QueryManager
+
+        Example:
+            ```python
+            # Get the QueryProcessor-compatible interface
+            processor = query_manager.as_query_processor()
+
+            # Use the interface
+            result = processor.process("What is machine learning?")
+            ```
+        """
+        from typing import Protocol, runtime_checkable
+
+        @runtime_checkable
+        class QueryProcessorAdapter(Protocol):
+            def process(self, query: Any, **kwargs: Any) -> Any: ...
+
+        # Create a simple adapter that delegates to our query_processor_process method
+        class QueryManagerAdapter:
+            def __init__(self, manager: QueryManager):
+                self.manager = manager
+
+            def process(self, query: Any, **kwargs: Any) -> Any:
+                return self.manager.query_processor_process(query, **kwargs)
+
+        # Return an instance of the adapter
+        adapter = QueryManagerAdapter(self)
+
+        # Verify the adapter implements the QueryProcessor protocol
+        if not isinstance(adapter, QueryProcessorAdapter):
+            raise TypeError("QueryManagerAdapter does not implement QueryProcessor protocol")
+
+        # Return the adapter as a QueryProcessor
+        return cast(QueryProcessor[Any, Any], adapter)
