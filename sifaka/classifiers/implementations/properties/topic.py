@@ -93,7 +93,7 @@ Key configuration options include:
 # import os
 # import pickle
 import importlib
-from typing import List, Optional, Any, Dict, ClassVar
+from typing import List, Optional, Any, Dict, ClassVar, Union, Tuple
 
 from pydantic import ConfigDict
 from sifaka.classifiers.classifier import Classifier
@@ -205,15 +205,13 @@ class TopicClassifier(Classifier):
         "other",
     ]
 
-    # State is inherited from BaseClassifier as _state_manager
-
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def __init__(
         self,
         name: str = "topic_classifier",
         description: str = "Classifies text by topic",
-        config: Optional[Optional[ClassifierConfig[str]]] = None,
+        config: Optional[ClassifierConfig[str]] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -235,7 +233,8 @@ class TopicClassifier(Classifier):
             min_confidence = params.get("min_confidence", 0.1)
 
             # Create config with remaining kwargs
-            config = ClassifierConfig(
+            config = ClassifierConfig[str](
+                implementation="topic",
                 labels=[f"topic_{i}" for i in range(num_topics)],
                 cost=self.DEFAULT_COST,
                 min_confidence=min_confidence,
@@ -244,285 +243,157 @@ class TopicClassifier(Classifier):
             )
 
         # Initialize base class
-        super().__init__(name=name, description=description, config=config)
+        super().__init__(name=name, description=description, config=config, implementation="topic")
 
         # Initialize state
-        cache = {}
-        cache["initialized"] = False
-        cache["model"] = None
-        self._state_manager.update("cache", cache)
+        self._state_manager = create_classifier_state(self)
+        self._is_initialized = False
 
     @property
     def num_topics(self) -> int:
         """Get the number of topics."""
-        return self.config.params.get("num_topics", 5)
+        return len(self.config.labels) if self.config and self.config.labels else 5
 
     @property
     def top_words_per_topic(self) -> int:
         """Get the number of top words per topic."""
-        return self.config.params.get("top_words_per_topic", 10)
-
-    def _load_dependencies(self) -> Dict[str, Any]:
-        """
-        Load required dependencies for topic classification.
-
-        This method imports and initializes the necessary scikit-learn
-        components for LDA topic modeling.
-
-        Returns:
-            Dictionary containing loaded dependencies:
-            - 'CountVectorizer': For text vectorization
-            - 'LatentDirichletAllocation': For topic modeling
-            - 'TfidfTransformer': For TF-IDF transformation
-
-        Raises:
-            ImportError: If scikit-learn is not installed
-        """
-        try:
-            # Import necessary scikit-learn modules
-            sklearn_modules = {
-                "feature_extraction_text": importlib.import_module(
-                    "sklearn.feature_extraction.text"
-                ),
-                "decomposition": importlib.import_module("sklearn.decomposition"),
-            }
-            return sklearn_modules
-        except ImportError:
-            raise ImportError(
-                "scikit-learn is required for TopicClassifier. "
-                "Install it with: pip install scikit-learn"
-            )
-        except Exception as e:
-            raise RuntimeError(f"Failed to load scikit-learn modules: {e}")
-
-    def warm_up(self) -> None:
-        """
-        Warm up the classifier by initializing the LDA model.
-
-        This method prepares the classifier for use by:
-        1. Loading required dependencies
-        2. Initializing the vectorizer and LDA model
-        3. Setting up the topic-word matrix
-
-        Raises:
-            RuntimeError: If model initialization fails
-        """
-        # Get state
-        cache = self._state_manager.get("cache", {})
-
-        # Check if already initialized
-        if not cache.get("initialized", False):
-            # Load dependencies
-            sklearn = self._load_dependencies()
-            cache["dependencies_loaded"] = True
-
-            # Get configuration from params
-            max_features = self.config.params.get("max_features", 1000)
-            random_state = self.config.params.get("random_state", 42)
-
-            # Create vectorizer
-            cache["vectorizer"] = sklearn["feature_extraction_text"].TfidfVectorizer(
-                max_features=max_features,
-                stop_words="english",
-            )
-
-            # Create LDA model
-            cache["model"] = sklearn["decomposition"].LatentDirichletAllocation(
-                n_components=self.num_topics,
-                random_state=random_state,
-            )
-
-            # Mark as initialized
-            cache["initialized"] = True
-
-            # Update state manager
-            self._state_manager.update("cache", cache)
-
-    def fit(self, texts: List[str]) -> "TopicClassifier":
-        """
-        Fit the topic model on a corpus of texts.
-
-        Args:
-            texts: List of texts to fit the model on
-
-        Returns:
-            self: The fitted classifier
-        """
-        # Get state
-        cache = self._state_manager.get("cache", {})
-
-        # Ensure initialized
-        self.warm_up()
-
-        # Transform texts to TF-IDF features
-        X = cache["vectorizer"].fit_transform(texts)
-
-        # Fit LDA model
-        cache["model"].fit(X)
-
-        # Get feature names for later interpretation
-        feature_names = cache["vectorizer"].get_feature_names_out()
-        cache["feature_names"] = feature_names
-
-        # Extract the words that define each topic
-        topic_words = []
-        for _, topic in enumerate(cache["model"].components_):
-            top_features_ind = topic.argsort()[: -self.top_words_per_topic - 1 : -1]
-            top_features = [feature_names[i] for i in top_features_ind]
-            topic_words.append(top_features)
-
-        # Store topic words in cache
-        if "topic_words" not in cache:
-            cache["topic_words"] = {}
-        cache["topic_words"] = topic_words
-
-        # Update labels with meaningful topic names
-        labels = [f"topic_{i}_{'+'.join(words[:3])}" for i, words in enumerate(topic_words)]
-        self.config = ClassifierConfig(
-            labels=labels,
-            cost=self.config.cost,
-            min_confidence=self.config.min_confidence,
-            params=self.config.params,
+        return (
+            self.config.params.get("top_words_per_topic", 10)
+            if self.config and self.config.params
+            else 10
         )
 
-        # Update state manager
-        self._state_manager.update("cache", cache)
+    def _load_dependencies(self) -> Dict[str, Any]:
+        """Load required dependencies."""
+        try:
+            sklearn = importlib.import_module("sklearn")
+            return {
+                "vectorizer": sklearn.feature_extraction.text.TfidfVectorizer(
+                    max_features=(
+                        self.config.params.get("max_features", 1000)
+                        if self.config and self.config.params
+                        else 1000
+                    )
+                ),
+                "lda": sklearn.decomposition.LatentDirichletAllocation(
+                    n_components=self.num_topics,
+                    random_state=(
+                        self.config.params.get("random_state", 42)
+                        if self.config and self.config.params
+                        else 42
+                    ),
+                ),
+            }
+        except ImportError as e:
+            raise ImportError("scikit-learn is required for topic classification") from e
+
+    def warm_up(self) -> None:
+        """Initialize the classifier."""
+        if not self._is_initialized:
+            self._dependencies = self._load_dependencies()
+            self._is_initialized = True
+
+    def fit(self, texts: List[str]) -> "TopicClassifier":
+        """Train the classifier on a corpus of texts."""
+        self.warm_up()
+
+        # Vectorize the corpus
+        vectorizer = self._dependencies["vectorizer"]
+        lda = self._dependencies["lda"]
+
+        # Fit and transform
+        X = vectorizer.fit_transform(texts)
+        lda.fit(X)
+
+        # Get feature names
+        feature_names = vectorizer.get_feature_names_out()
+
+        # Store topic words
+        topic_words = {}
+        for topic_idx, topic in enumerate(lda.components_):
+            top_words_idx = topic.argsort()[: -self.top_words_per_topic - 1 : -1]
+            top_words = [feature_names[i] for i in top_words_idx]
+            topic_words[f"topic_{topic_idx}"] = top_words
+
+        # Update state
+        self._state_manager.set_metadata("topic_words", topic_words)
 
         return self
 
     def _classify_impl(self, text: str) -> ClassificationResult:
-        """
-        Classify a single text into topics.
+        """Classify a single text."""
+        self.warm_up()
 
-        This method:
-        1. Vectorizes the input text
-        2. Applies the LDA model to get topic distributions
-        3. Returns the dominant topic and confidence scores
+        # Vectorize the text
+        vectorizer = self._dependencies["vectorizer"]
+        lda = self._dependencies["lda"]
 
-        Args:
-            text: The text to classify
-
-        Returns:
-            ClassificationResult containing:
-            - dominant_topic: The most likely topic
-            - confidence: Confidence score for the dominant topic
-            - topic_distribution: Distribution across all topics
-            - top_words: Most representative words for each topic
-
-        Raises:
-            ValueError: If text is empty or invalid
-            RuntimeError: If classification fails
-        """
-        # Get state
-        cache = self._state_manager.get("cache", {})
-
-        if not cache.get("model") or not cache.get("vectorizer"):
-            raise RuntimeError(
-                "Model not initialized. You must call fit() with a corpus before classification."
-            )
-
-        # Transform the input text
-        X = cache["vectorizer"].transform([text])
-
-        # Get topic distribution
-        topic_distribution = cache["model"].transform(X)[0]
+        # Transform
+        X = vectorizer.transform([text])
+        topic_dist = lda.transform(X)[0]
 
         # Get dominant topic
-        dominant_topic_idx = topic_distribution.argmax()
-        confidence = float(topic_distribution[dominant_topic_idx])
+        dominant_topic_idx = topic_dist.argmax()
+        confidence = float(topic_dist[dominant_topic_idx])
 
-        # Get topic words from cache
-        topic_words = cache.get("topic_words", [])
+        # Get topic words
+        topic_words = self._state_manager.get_metadata("topic_words", {})
 
-        # Create detailed metadata
-        all_topics = {}
-        labels = list(self.config.labels)  # Convert FieldInfo to list
-        for i, prob in enumerate(topic_distribution):
-            all_topics[labels[i]] = {
-                "probability": float(prob),
-                "words": topic_words[i][: self.top_words_per_topic] if i < len(topic_words) else [],
-            }
-
-        metadata = {
-            "all_topics": all_topics,
-            "topic_words": (
-                topic_words[dominant_topic_idx] if dominant_topic_idx < len(topic_words) else []
-            ),
-            "topic_distribution": topic_distribution.tolist(),
-        }
-
+        # Create result
         return ClassificationResult(
-            label=labels[dominant_topic_idx],
+            label=f"topic_{dominant_topic_idx}",
             confidence=confidence,
-            metadata=metadata,
+            passed=confidence >= self.config.min_confidence if self.config else True,
+            message=f"Classified as topic_{dominant_topic_idx} with confidence {confidence:.2f}",
+            metadata={
+                "all_topics": {
+                    f"topic_{i}": {
+                        "probability": float(prob),
+                        "words": topic_words.get(f"topic_{i}", []),
+                    }
+                    for i, prob in enumerate(topic_dist)
+                }
+            },
         )
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
-        """
-        Classify multiple texts into topics.
+        """Classify multiple texts."""
+        self.warm_up()
 
-        This method efficiently processes multiple texts by:
-        1. Vectorizing all texts at once
-        2. Applying the LDA model in batch
-        3. Returning topic distributions for each text
+        # Vectorize the texts
+        vectorizer = self._dependencies["vectorizer"]
+        lda = self._dependencies["lda"]
 
-        Args:
-            texts: List of texts to classify
+        # Transform
+        X = vectorizer.transform(texts)
+        topic_dists = lda.transform(X)
 
-        Returns:
-            List of ClassificationResults, one for each input text
+        # Get topic words
+        topic_words = self._state_manager.get_metadata("topic_words", {})
 
-        Raises:
-            ValueError: If texts list is empty or contains invalid entries
-            RuntimeError: If batch classification fails
-        """
-        # Get state
-        cache = self._state_manager.get("cache", {})
+        # Process results
+        results: List[ClassificationResult] = []
+        for text, topic_dist in zip(texts, topic_dists):
+            # Get dominant topic
+            dominant_topic_idx = topic_dist.argmax()
+            confidence = float(topic_dist[dominant_topic_idx])
 
-        self.validate_batch_input(texts)
-
-        if not cache.get("model") or not cache.get("vectorizer"):
-            raise RuntimeError(
-                "Model not initialized. You must call fit() with a corpus before classification."
-            )
-
-        # Transform all texts at once
-        X = cache["vectorizer"].transform(texts)
-
-        # Get topic distributions for all texts
-        topic_distributions = cache["model"].transform(X)
-
-        # Get topic words from cache
-        topic_words = cache.get("topic_words", [])
-
-        results = []
-        labels = list(self.config.labels)  # Convert FieldInfo to list
-        for distribution in topic_distributions:
-            dominant_topic_idx = distribution.argmax()
-            confidence = float(distribution[dominant_topic_idx])
-
-            all_topics = {}
-            for j, prob in enumerate(distribution):
-                all_topics[labels[j]] = {
-                    "probability": float(prob),
-                    "words": (
-                        topic_words[j][: self.top_words_per_topic] if j < len(topic_words) else []
-                    ),
-                }
-
-            metadata = {
-                "all_topics": all_topics,
-                "topic_words": (
-                    topic_words[dominant_topic_idx] if dominant_topic_idx < len(topic_words) else []
-                ),
-                "topic_distribution": distribution.tolist(),
-            }
-
+            # Create result
             results.append(
                 ClassificationResult(
-                    label=labels[dominant_topic_idx],
+                    label=f"topic_{dominant_topic_idx}",
                     confidence=confidence,
-                    metadata=metadata,
+                    passed=confidence >= self.config.min_confidence if self.config else True,
+                    message=f"Classified as topic_{dominant_topic_idx} with confidence {confidence:.2f}",
+                    metadata={
+                        "all_topics": {
+                            f"topic_{i}": {
+                                "probability": float(prob),
+                                "words": topic_words.get(f"topic_{i}", []),
+                            }
+                            for i, prob in enumerate(topic_dist)
+                        }
+                    },
                 )
             )
 
@@ -535,59 +406,16 @@ class TopicClassifier(Classifier):
         name: str = "pretrained_topic_classifier",
         description: str = "Pre-trained topic classifier",
         config: Optional[Dict[str, Any]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> "TopicClassifier":
-        """
-        Create a pre-trained topic classifier from a corpus.
+        """Create a pre-trained topic classifier."""
+        # Create classifier
+        classifier = cls(name=name, description=description, config=config, **kwargs)
 
-        This method:
-        1. Creates a new classifier instance
-        2. Fits the LDA model on the provided corpus
-        3. Returns the trained classifier
+        # Train on corpus
+        classifier.fit(corpus)
 
-        Args:
-            corpus: List of texts to train the model on
-            name: Name for the classifier
-            description: Description of the classifier
-            config: Optional classifier configuration
-            **kwargs: Additional keyword arguments for configuration
-
-        Returns:
-            A trained TopicClassifier instance
-
-        Raises:
-            ValueError: If corpus is empty or invalid
-            RuntimeError: If model training fails
-        """
-        # Create default config if not provided
-        if config is None:
-            # Extract configuration parameters
-            params = kwargs.pop("params", {})
-            num_topics = params.get("num_topics", 5)
-            min_confidence = params.get("min_confidence", 0.1)
-            max_features = params.get("max_features", 1000)
-            random_state = params.get("random_state", 42)
-            top_words_per_topic = params.get("top_words_per_topic", 10)
-
-            # Create config with standardized approach
-            config = standardize_classifier_config(
-                labels=[f"topic_{i}" for i in range(num_topics)],
-                cost=cls.DEFAULT_COST,
-                min_confidence=min_confidence,
-                params={
-                    "num_topics": num_topics,
-                    "max_features": max_features,
-                    "random_state": random_state,
-                    "top_words_per_topic": top_words_per_topic,
-                },
-                **kwargs,
-            )
-
-        # Create instance with provided configuration
-        classifier = cls(name=name, description=description, config=config)
-
-        # Train the classifier and return it
-        return classifier.fit(corpus)
+        return classifier
 
 
 def create_topic_classifier(
@@ -603,106 +431,34 @@ def create_topic_classifier(
     config: Optional[Dict[str, Any]] = None,
     **kwargs: Any,
 ) -> TopicClassifier:
-    """
-    Factory function to create a topic classifier.
+    """Create a topic classifier with the given configuration."""
+    # Create config
+    if config is None:
+        config = {}
 
-    This function provides a simpler interface for creating a topic classifier
-    with the specified parameters, handling the creation of the ClassifierConfig
-    object and setting up the classifier with the appropriate parameters.
-
-    ## Architecture
-    The factory function follows a standardized pattern:
-    1. Extract and prepare parameters for configuration
-    2. Create a configuration dictionary with standardized structure
-    3. Pass the configuration to the classifier constructor
-    4. Return the fully configured classifier instance
-
-    ## Examples
-    ```python
-    from sifaka.classifiers.implementations.properties.topic import create_topic_classifier
-
-    # Create with default settings
-    classifier = create_topic_classifier()
-
-    # Create with custom topic settings
-    custom_classifier = create_topic_classifier(
-        num_topics=10,           # Extract 10 topics instead of default 5
-        max_features=2000,       # Use more features for better topic modeling
-        top_words_per_topic=15,  # Extract more words per topic
-        random_state=42          # Set random seed for reproducible results
-    )
-
-    # Create with custom name and description
-    named_classifier = create_topic_classifier(
-        name="custom_topic_classifier",
-        description="Custom topic classifier for document analysis",
-        min_confidence=0.2       # Higher threshold for topic confidence
-    )
-    ```
-
-    Args:
-        name: Name of the classifier for identification and logging
-        description: Human-readable description of the classifier's purpose
-        num_topics: Number of topics to extract from the text corpus
-        min_confidence: Minimum confidence threshold for topic assignment
-        max_features: Maximum number of features for the TF-IDF vectorizer
-        random_state: Random seed for reproducible topic modeling results
-        top_words_per_topic: Number of representative words to extract per topic
-        cache_size: Size of the classification cache (0 to disable caching)
-        cost: Computational cost metric for resource allocation decisions
-        config: Optional classifier configuration (dict or ClassifierConfig)
-        **kwargs: Additional configuration parameters to pass to the classifier
-
-    Returns:
-        Configured TopicClassifier instance ready for training and use
-
-    Examples:
-        ```python
-        from sifaka.classifiers.implementations.properties.topic import create_topic_classifier
-
-        # Create a topic classifier with default settings
-        classifier = create_topic_classifier()
-
-        # Create a topic classifier with custom settings
-        classifier = create_topic_classifier(
-            name="custom_topic_classifier",
-            description="Custom topic classifier with specific settings",
-            num_topics=10,
-            min_confidence=0.2,
-            max_features=2000,
-            top_words_per_topic=15,
-            cache_size=200
-        )
-
-        # Fit the classifier on a corpus
-        corpus = ["This is a document about technology.",
-                 "This is a document about sports.",
-                 "This is a document about politics."]
-        classifier.fit(corpus)
-
-        # Classify text
-        result = classifier.classify("This is a document about artificial intelligence.")
-        print(f"Topic: {result.label}, Confidence: {result.confidence:.2f}")
-        ```
-    """
-    # Use standardize_classifier_config to handle different config formats
-    classifier_config = standardize_classifier_config(
-        config=config,
-        labels=[f"topic_{i}" for i in range(num_topics)],
-        min_confidence=min_confidence,
-        cost=cost,
-        cache_size=cache_size,
-        params={
+    # Update config with parameters
+    config.update(
+        {
             "num_topics": num_topics,
+            "min_confidence": min_confidence,
             "max_features": max_features,
             "random_state": random_state,
             "top_words_per_topic": top_words_per_topic,
-        },
-        **kwargs,
+            "cache_size": cache_size,
+            "cost": cost,
+        }
     )
 
+    # Create classifier
     return TopicClassifier(
         name=name,
         description=description,
-        config=classifier_config,
+        config=ClassifierConfig[str](
+            implementation="topic",
+            labels=[f"topic_{i}" for i in range(num_topics)],
+            cost=cost,
+            min_confidence=min_confidence,
+            params=config,
+            **kwargs,
+        ),
     )
