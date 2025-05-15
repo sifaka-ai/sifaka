@@ -211,11 +211,12 @@ class SpamClassifier(Classifier):
 
             # Create config with remaining kwargs
             config = ClassifierConfig[str](
-                labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, params=model_params, **kwargs
+                params={**model_params, "labels": self.DEFAULT_LABELS, "cost": self.DEFAULT_COST},
+                **kwargs,
             )
 
         # Initialize base class
-        super().__init__(name=name, description=description, config=config)
+        super().__init__(implementation=self, name=name, description=description, config=config)
 
         # Try to load model if path is provided
         model_path = (
@@ -413,11 +414,12 @@ class SpamClassifier(Classifier):
         if len(texts) != len(labels):
             raise ValueError("Number of texts and labels must match")
 
-        if not all(label in self.config.labels for label in labels):
-            raise ValueError(f"Labels must be one of {self.config.labels}")
+        config_labels = self.config.params.get("labels", self.DEFAULT_LABELS)
+        if not all(label in config_labels for label in labels):
+            raise ValueError(f"Labels must be one of {config_labels}")
 
         # Convert string labels to integers for scikit-learn
-        label_indices = [self.config.labels.index(label) for label in labels]
+        label_indices = [config_labels.index(label) for label in labels]
 
         # Ensure model is initialized
         self.warm_up()
@@ -469,13 +471,19 @@ class SpamClassifier(Classifier):
             confidence = float(proba[label_idx])
 
             # Get label from index
-            label = self.config.labels[label_idx]
+            labels = self.config.params.get("labels", self.DEFAULT_LABELS)
+            label = labels[label_idx]
 
-            result = ClassificationResult(
+            result: ClassificationResult = ClassificationResult(
                 label=label,
                 confidence=confidence,
                 metadata={
-                    "probabilities": {l: float(p) for l, p in zip(self.config.labels, proba)}
+                    "probabilities": {
+                        l: float(p)
+                        for l, p in zip(
+                            self.config.params.get("labels", self.DEFAULT_LABELS), proba
+                        )
+                    }
                 },
                 passed=True,
                 message="",
@@ -503,6 +511,21 @@ class SpamClassifier(Classifier):
                 passed=False,
                 message=f"Classification error: {str(e)}",
             )
+
+    def validate_batch_input(self, texts: List[str]) -> None:
+        """
+        Validate batch input before processing.
+
+        Args:
+            texts: List of texts to validate
+
+        Raises:
+            ValueError: If texts is empty or not a list
+        """
+        if not texts:
+            raise ValueError("Batch classify requires at least one text")
+        if not isinstance(texts, list):
+            raise ValueError(f"Expected list of texts, got {type(texts)}")
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
         """
@@ -536,21 +559,18 @@ class SpamClassifier(Classifier):
             pipeline = self._state_manager.get("pipeline")
             probas = pipeline.predict_proba(texts)
 
-            results = []
+            results: List[ClassificationResult] = []
             for proba in probas:
                 label_idx = proba.argmax()
                 confidence = float(proba[label_idx])
-                label = self.config.labels[label_idx]
+                labels = self.config.params.get("labels", self.DEFAULT_LABELS)
+                label = labels[label_idx]
 
                 results.append(
                     ClassificationResult(
                         label=label,
                         confidence=confidence,
-                        metadata={
-                            "probabilities": {
-                                l: float(p) for l, p in zip(self.config.labels, proba)
-                            }
-                        },
+                        metadata={"probabilities": {l: float(p) for l, p in zip(labels, proba)}},
                         passed=True,
                         message="",
                     )
@@ -761,10 +781,8 @@ def create_spam_classifier(
 
     # Create config
     config = ClassifierConfig[str](
-        labels=SpamClassifier.DEFAULT_LABELS,
         cache_size=cache_size,
-        cost=cost,
-        params=params,
+        params={**params, "labels": SpamClassifier.DEFAULT_LABELS, "cost": cost},
     )
 
     # Create classifier

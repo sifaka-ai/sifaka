@@ -259,12 +259,10 @@ class ToxicityClassifier(Classifier):
             )
 
             # Create config
-            config = ClassifierConfig[str](
-                labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, params=params, **kwargs
-            )
+            config = ClassifierConfig[str](params=params, **kwargs)
 
         # Initialize base class
-        super().__init__(name=name, description=description, config=config)
+        super().__init__(implementation=self, name=name, description=description, config=config)
 
     def _validate_model(self, model: Any) -> TypeGuard[ToxicityModel]:
         """
@@ -600,7 +598,20 @@ class ToxicityClassifier(Classifier):
 
         # If all texts were empty, return early
         if not non_empty_texts:
-            return results
+            # Create a list of valid ClassificationResult objects
+            valid_results: List[ClassificationResult] = []
+            for result in results:
+                if result is not None and isinstance(result, ClassificationResult):
+                    valid_results.append(
+                        ClassificationResult(
+                            label=result.label,
+                            confidence=result.confidence,
+                            metadata=result.metadata,
+                            passed=result.passed,
+                            message=result.message,
+                        )
+                    )
+            return valid_results
 
         try:
             # Get batch predictions for non-empty texts
@@ -623,26 +634,46 @@ class ToxicityClassifier(Classifier):
                     )
                 )
 
-            # Merge results in the original order
-            final_results: List[ClassificationResult] = [None] * len(texts)  # type: ignore
+            # Create a list of results with the same length as texts
+            final_results: List[ClassificationResult] = []
+            # Initialize with placeholder results
+            for _ in range(len(texts)):
+                final_results.append(
+                    ClassificationResult(
+                        label="unknown",
+                        confidence=0.0,
+                        metadata={"error": "Placeholder result"},
+                        passed=False,
+                        message="Placeholder result",
+                    )
+                )
+
+            # Add non-empty results
             for i, result in zip(non_empty_indices, non_empty_results):
-                final_results[i] = result
+                if i < len(final_results) and isinstance(result, ClassificationResult):
+                    # Create a new instance to ensure type safety
+                    final_results[i] = ClassificationResult(
+                        label=result.label,
+                        confidence=result.confidence,
+                        metadata=result.metadata,
+                        passed=result.passed,
+                        message=result.message,
+                    )
 
             # Fill in the empty text results
             for i, result in enumerate(results):
-                if final_results[i] is None:
-                    final_results[i] = result
-
-            # Ensure all results are properly set
-            for i in range(len(final_results)):
-                if final_results[i] is None:
-                    # This should never happen, but just in case
+                if (
+                    i < len(final_results)
+                    and result is not None
+                    and isinstance(result, ClassificationResult)
+                ):
+                    # Create a new instance to ensure type safety
                     final_results[i] = ClassificationResult(
-                        label="unknown",
-                        confidence=0.0,
-                        metadata={"error": "Failed to process text"},
-                        passed=False,
-                        message="Failed to process text",
+                        label=result.label,
+                        confidence=result.confidence,
+                        metadata=result.metadata,
+                        passed=result.passed,
+                        message=result.message,
                     )
 
             return final_results
@@ -670,29 +701,49 @@ class ToxicityClassifier(Classifier):
                 for _ in non_empty_texts
             ]
 
-            # Merge error results in the original order
-            final_results: List[ClassificationResult] = [None] * len(texts)  # type: ignore
+            # Create a list of error results with the same length as texts
+            error_final_results: List[ClassificationResult] = []
+            # Initialize with placeholder results
+            for _ in range(len(texts)):
+                error_final_results.append(
+                    ClassificationResult(
+                        label="unknown",
+                        confidence=0.0,
+                        metadata={"error": "Placeholder result"},
+                        passed=False,
+                        message="Placeholder result",
+                    )
+                )
+
+            # Add error results for non-empty texts
             for i, result in zip(non_empty_indices, error_results):
-                final_results[i] = result
+                if i < len(error_final_results) and isinstance(result, ClassificationResult):
+                    # Create a new instance to ensure type safety
+                    error_final_results[i] = ClassificationResult(
+                        label=result.label,
+                        confidence=result.confidence,
+                        metadata=result.metadata,
+                        passed=result.passed,
+                        message=result.message,
+                    )
 
             # Fill in the empty text results
             for i, result in enumerate(results):
-                if final_results[i] is None:
-                    final_results[i] = result
-
-            # Ensure all results are properly set
-            for i in range(len(final_results)):
-                if final_results[i] is None:
-                    # This should never happen, but just in case
-                    final_results[i] = ClassificationResult(
-                        label="unknown",
-                        confidence=0.0,
-                        metadata={"error": "Failed to process text"},
-                        passed=False,
-                        message="Failed to process text",
+                if (
+                    i < len(error_final_results)
+                    and result is not None
+                    and isinstance(result, ClassificationResult)
+                ):
+                    # Create a new instance to ensure type safety
+                    error_final_results[i] = ClassificationResult(
+                        label=result.label,
+                        confidence=result.confidence,
+                        metadata=result.metadata,
+                        passed=result.passed,
+                        message=result.message,
                     )
 
-            return final_results
+            return error_final_results
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -788,11 +839,7 @@ class ToxicityClassifier(Classifier):
             merged_params.update(params)
 
         # Create config with merged parameters
-        config_dict = {
-            "cache_size": cache_size,
-            "params": merged_params,
-        }
-        config = ClassifierConfig[str](**config_dict)
+        config = ClassifierConfig[str](cache_size=cache_size, params=merged_params)
 
         # Create and return the classifier instance
         return cls(name=name, description=description, config=config)

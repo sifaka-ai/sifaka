@@ -3,7 +3,7 @@
 ## Steps:
 
 1. **Examine the current file and identify mypy errors**
-   - Use the str-replace-editor to view the content of `sifaka/rules/content/prohibited.py`
+   - Use the str-replace-editor to view the content of `sifaka/classifiers/implementations/properties/language.py`
    - Run mypy on the file to see the specific errors
 
 2. **Understand the context**
