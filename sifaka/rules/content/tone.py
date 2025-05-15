@@ -265,7 +265,7 @@ class ToneValidator(BaseValidator[str]):
         Returns:
             Validation result
         """
-        start_time = time.time() if time else ""
+        start_time = time.time()
 
         # Handle empty text
         empty_result = self.handle_empty_text(text) if self else ""

@@ -93,7 +93,7 @@ def create_validation_result(
     Returns:
         Standardized RuleResult
     """
-    processing_time = (time.time() if time else "" - start_time) * 1000
+    processing_time = (time.time() - start_time) * 1000
     return RuleResult(
         passed=passed,
         message=message,

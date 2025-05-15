@@ -157,7 +157,7 @@ class ContentValidator:
         Returns:
             Validation result
         """
-        start_time = time.time() if time else ""
+        start_time = time.time()
 
         # Handle empty text
         empty_result = self.handle_empty_text(text) if self else ""
@@ -185,7 +185,7 @@ class ContentValidator:
                 score=1.0 if passed else 0.0,
                 issues=[] if passed else ["Content validation failed"],
                 suggestions=[] if passed else ["Provide non-empty content"],
-                processing_time_ms=time.time() if time else "" - start_time,
+                processing_time_ms=time.time() - start_time,
             )
 
             # Update statistics
@@ -209,7 +209,7 @@ class ContentValidator:
                 score=0.0,
                 issues=[error_message],
                 suggestions=["Check input format and try again"],
-                processing_time_ms=time.time() if time else "" - start_time,
+                processing_time_ms=time.time() - start_time,
             )
 
             self.update_statistics(result) if self else ""
@@ -423,7 +423,7 @@ class IndicatorAnalyzer(BaseModel):
         Raises:
             ValueError: If input is not a string
         """
-        start_time = time.time() if time else ""
+        start_time = time.time()
 
         try:
             if not isinstance(text, str):
@@ -433,7 +433,7 @@ class IndicatorAnalyzer(BaseModel):
             indicators_to_check = (
                 self.indicators
                 if self.case_sensitive
-                else [i.lower() if i else "" for i in self.indicators]
+                else [i.lower() for i in self.indicators if i is not None]
             )
 
             found = [ind for ind in indicators_to_check if ind in text_to_check]
@@ -466,7 +466,7 @@ class IndicatorAnalyzer(BaseModel):
                     "threshold": self.threshold,
                     "higher_is_better": self.higher_is_better,
                     "analyzer_type": self.__class__.__name__,
-                    "processing_time_ms": (time.time() - start_time) * 1000 if time else 0,
+                    "processing_time_ms": (time.time() - start_time) * 1000,
                 },
                 score=score,
                 issues=(
@@ -475,7 +475,7 @@ class IndicatorAnalyzer(BaseModel):
                     else [f"Score ({score:.2f}) does not meet threshold ({self.threshold})"]
                 ),
                 suggestions=suggestions,
-                processing_time_ms=time.time() if time else "" - start_time,
+                processing_time_ms=(time.time() - start_time) * 1000,
             )
 
         except Exception as e:
@@ -493,7 +493,7 @@ class IndicatorAnalyzer(BaseModel):
                 score=0.0,
                 issues=[error_message],
                 suggestions=["Check input format and try again"],
-                processing_time_ms=(time.time() - start_time) if time else 0,
+                processing_time_ms=(time.time() - start_time) * 1000,
             )
 
 
@@ -559,22 +559,22 @@ class CategoryAnalyzer(BaseModel):
         Raises:
             ValueError: If input is not a string
         """
-        start_time = time.time() if time else ""
+        start_time = time.time()
 
         try:
             if not isinstance(text, str):
                 raise ValueError("Input must be a string")
 
-            text_to_check = text if self.case_sensitive else text.lower() if text else ""
+            text_to_check = text if self.case_sensitive else text.lower()
             scores = {}
             found_indicators = {}
 
             # Check each category
-            for category, indicators in self.categories.items() if self.categories else {}:
+            for category, indicators in self.categories.items():
                 indicators_to_check = (
                     indicators
                     if self.case_sensitive
-                    else [i.lower() if i else "" for i in indicators]
+                    else [i.lower() for i in indicators if i is not None]
                 )
                 found = [ind for ind in indicators_to_check if ind in text_to_check]
                 score = len(found) / len(indicators_to_check) if indicators_to_check else 0.0
@@ -626,7 +626,7 @@ class CategoryAnalyzer(BaseModel):
                                 for ind in (
                                     self.categories[cat]
                                     if self.case_sensitive
-                                    else [i.lower() if i else "" for i in self.categories[cat]]
+                                    else [i.lower() for i in self.categories[cat] if i is not None]
                                 )
                                 if ind not in found_indicators[cat]
                             ]
@@ -692,12 +692,12 @@ class CategoryAnalyzer(BaseModel):
                     "fail_if_any": self.fail_if_any,
                     "higher_is_better": self.higher_is_better,
                     "analyzer_type": self.__class__.__name__,
-                    "processing_time_ms": (time.time() - start_time) if time else 0,
+                    "processing_time_ms": (time.time() - start_time) * 1000,
                 },
                 score=overall_score,
                 issues=issues,
                 suggestions=suggestions,
-                processing_time_ms=(time.time() - start_time) if time else 0,
+                processing_time_ms=(time.time() - start_time) * 1000,
             )
 
         except Exception as e:
@@ -715,7 +715,7 @@ class CategoryAnalyzer(BaseModel):
                 score=0.0,
                 issues=[error_message],
                 suggestions=["Check input format and try again"],
-                processing_time_ms=(time.time() - start_time) if time else 0,
+                processing_time_ms=(time.time() - start_time) * 1000,
             )
 
 

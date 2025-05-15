@@ -222,7 +222,7 @@ class CritiqueService(BaseModel):
         self._state_manager.update("error_count", 0)
         self._state_manager.update("cache", {})
         self._state_manager.set_metadata("component_type", self.__class__.__name__)
-        self._state_manager.set_metadata("initialization_time", time.time() if time else "")
+        self._state_manager.set_metadata("initialization_time", time.time())
 
     def validate(self, text: str) -> bool:
         """
@@ -266,7 +266,7 @@ class CritiqueService(BaseModel):
             result = response_parser.parse_validation_response(response) if response_parser else ""
             stats = self._state_manager.get("stats", {})
             stats["validation_count"] = stats.get("validation_count", 0) + 1 if stats else 1
-            stats["last_validation_time"] = time.time() if time else ""
+            stats["last_validation_time"] = time.time()
             self._state_manager.update("stats", stats)
             return result
 
@@ -325,7 +325,7 @@ class CritiqueService(BaseModel):
             result = response_parser.parse_critique_response(response) if response_parser else ""
             stats = self._state_manager.get("stats", {})
             stats["critique_count"] = stats.get("critique_count", 0) + 1 if stats else 1
-            stats["last_critique_time"] = time.time() if time else ""
+            stats["last_critique_time"] = time.time()
             score_distribution = stats.get("score_distribution", {}) if stats else {}
             score_bucket = round(result.get("score", 0) * 10) / 10 if result else 0
             score_distribution[str(score_bucket)] = (
@@ -410,7 +410,7 @@ class CritiqueService(BaseModel):
             self._generate_reflection(text, processed_feedback, improved_text) if self else ""
             stats = self._state_manager.get("stats", {})
             stats["improvement_count"] = stats.get("improvement_count", 0) + 1 if stats else 1
-            stats["last_improvement_time"] = time.time() if time else ""
+            stats["last_improvement_time"] = time.time()
             self._state_manager.update("stats", stats)
             return improved_text
 

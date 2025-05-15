@@ -301,7 +301,7 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
             # Mark as initialized
             self._state_manager.update("initialized", True)
             self._state_manager.set_metadata("component_type", self.__class__.__name__)
-            self._state_manager.set_metadata("initialization_time", time.time() if time else 0)
+            self._state_manager.set_metadata("initialization_time", time.time())
         except Exception as e:
             self.record_error(e)
             raise ValueError(f"Failed to initialize SelfRAGCritic: {str(e)}") from e

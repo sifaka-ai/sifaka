@@ -280,7 +280,7 @@ class PromptManager(BaseComponent[Dict[str, Any], PromptResult]):
 
             # Set metadata
             self._state_manager.set_metadata("component_type", "prompt_manager")
-            self._state_manager.set_metadata("creation_time", time.time() if time else 0)
+            self._state_manager.set_metadata("creation_time", time.time())
             self._state_manager.set_metadata("prompt_count", len(prompts or []))
 
     def process(self, input: Dict[str, Any]) -> PromptResult:

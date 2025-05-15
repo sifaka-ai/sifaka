@@ -172,7 +172,7 @@ class StructureValidator(BaseValidator[str]):
         super().__init__(validation_type=str)
         self._state_manager.update("config", config or StructureConfig())
         self._state_manager.set_metadata("validator_type", self.__class__.__name__)
-        self._state_manager.set_metadata("creation_time", time.time() if time else "")
+        self._state_manager.set_metadata("creation_time", time.time())
         self._state_manager.update("cache", {})
 
     @property

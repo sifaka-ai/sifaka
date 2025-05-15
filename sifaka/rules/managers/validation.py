@@ -251,7 +251,7 @@ class ValidationManager:
         logger.debug(f"Cache miss for validation: {cache_key[:30]}...") if logger else ""
 
         # Start timing
-        start_time = time.time() if time else ""
+        start_time = time.time()
 
         # Extract validation options
         fail_fast = kwargs.pop("fail_fast", False) if kwargs else ""
@@ -272,7 +272,7 @@ class ValidationManager:
         results = []
         for rule in rules_to_validate:
             # Check timeout
-            if timeout and time.time() if time else "" - start_time > timeout:
+            if timeout and time.time() - start_time > timeout:
                 logger.warning(f"Validation timeout after {timeout} seconds") if logger else ""
                 break
 
@@ -325,7 +325,7 @@ class ValidationManager:
                     break
 
         # Record execution time
-        end_time = time.time() if time else ""
+        end_time = time.time()
         execution_time = end_time - start_time
 
         # Log validation completion

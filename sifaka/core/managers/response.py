@@ -202,7 +202,7 @@ class ResponseParser:
         if self._state_manager:
             self._state_manager.update("initialized", True)
             self._state_manager.set_metadata("component_type", "response_parser")
-            self._state_manager.set_metadata("creation_time", time.time() if time else 0)
+            self._state_manager.set_metadata("creation_time", time.time())
             self._state_manager.set_metadata("parse_count", 0)
             self._state_manager.set_metadata("error_count", 0)
 
@@ -567,11 +567,11 @@ class ResponseParser:
             self._state_manager.get_metadata("error_count", 0) if self._state_manager else 0
         )
         creation_time = (
-            self._state_manager.get_metadata("creation_time", time.time() if time else 0)
+            self._state_manager.get_metadata("creation_time", time.time())
             if self._state_manager
             else 0
         )
-        current_time = time.time() if time else 0
+        current_time = time.time()
 
         return {
             "parse_count": parse_count,

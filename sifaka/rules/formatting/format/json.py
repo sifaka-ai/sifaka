@@ -266,7 +266,7 @@ class DefaultJsonValidator(BaseValidator[str], FormatValidator):
 
         # Set metadata
         self._state_manager.set_metadata("validator_type", self.__class__.__name__)
-        self._state_manager.set_metadata("creation_time", time.time() if time else "")
+        self._state_manager.set_metadata("creation_time", time.time())
 
     @property
     def config(self) -> JsonConfig:
@@ -288,7 +288,7 @@ class DefaultJsonValidator(BaseValidator[str], FormatValidator):
         Returns:
             Validation result
         """
-        start_time = time.time() if time else ""
+        start_time = time.time()
 
         # Handle empty text
         empty_result = handle_empty_text(text)
@@ -306,12 +306,12 @@ class DefaultJsonValidator(BaseValidator[str], FormatValidator):
             validation_count = self._state_manager.get_metadata("validation_count", 0)
             self._state_manager.set_metadata("validation_count", validation_count + 1)
 
-            result = analyzer.analyze(text) if analyzer else ""
+            result = analyzer.analyze(text)
 
             # Add additional metadata
             result = result.with_metadata(
                 validator_type=self.__class__.__name__,
-                processing_time_ms=time.time() - start_time if time else "",
+                processing_time_ms=(time.time() - start_time) * 1000,
             )
 
             # Update statistics

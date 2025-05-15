@@ -440,7 +440,7 @@ class DefaultProhibitedContentValidator(BaseValidator[str]):
         Returns:
             RuleResult: The result of the validation
         """
-        start_time = time.time() if time else 0.0
+        start_time = time.time()
 
         # Handle empty text
         empty_result = self.handle_empty_text(text)

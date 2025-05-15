@@ -148,7 +148,7 @@ class DefaultStyleValidator(StyleValidator):
         Returns:
             Validation result
         """
-        start_time = time.time() if time else ""
+        start_time = time.time()
         empty_result = self.handle_empty_text(text) if self else ""
         if empty_result:
             return empty_result

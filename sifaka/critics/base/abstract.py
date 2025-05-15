@@ -202,7 +202,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
         Returns:
             BaseResult containing the processing results
         """
-        start_time = time.time() if time else 0
+        start_time = time.time()
         if self and not self.validate_input(text):
             return BaseResult(
                 passed=False,
@@ -212,7 +212,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
                     "score": 0.0,
                     "issues": ["Invalid input type"],
                     "suggestions": ["Provide valid input"],
-                    "processing_time_ms": time.time() - start_time if time else 0,
+                    "processing_time_ms": (time.time() - start_time),
                 },
             )
         # Convert to string for handle_empty_input which expects a string
@@ -220,7 +220,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
             self.handle_empty_input(str(text) if text is not None else "") if self else None
         )
         if empty_result:
-            processing_time = time.time() - start_time if time else 0
+            processing_time = (time.time() - start_time)
             # Ensure we return a BaseResult
             if isinstance(empty_result, BaseResult):
                 result = empty_result.with_metadata(processing_time_ms=processing_time)
@@ -256,7 +256,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
                     )
                     improved_text = self.improve(text, feedback) if self else None
                     if result:
-                        processing_time = time.time() - start_time if time else 0
+                        processing_time = (time.time() - start_time)
                         result = result.with_metadata(
                             improved_text=improved_text,
                             improvement_applied=True,
@@ -281,7 +281,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
                 result.get("error_message", "Unknown error") if result else "Unknown error"
             )
             error_type = result.get("error_type") if result else "unknown"
-            processing_time = time.time() - start_time if time else 0
+            processing_time = (time.time() - start_time)
             return BaseResult(
                 passed=False,
                 message=error_message,
@@ -301,7 +301,7 @@ class BaseCritic(BaseComponent[T, BaseResult], Generic[T]):
                 metadata={
                     "error_type": "invalid_result_type",
                     "actual_result": str(result),
-                    "processing_time_ms": time.time() - start_time if time else 0,
+                    "processing_time_ms": (time.time() - start_time),
                 },
             )
         return result

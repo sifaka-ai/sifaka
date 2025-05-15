@@ -82,16 +82,22 @@ The module implements comprehensive error handling for:
 
 import json
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast, Union
 
 from pydantic import PrivateAttr, ConfigDict, Field
 
 from ...core.base import BaseComponent
-from ...utils.state import create_critic_state
+from ...utils.state import StateManager, create_critic_state
 from ...utils.common import record_error
 from ...core.base import BaseResult as CriticResult
 from ...utils.config import PromptCriticConfig
 from ...interfaces.critic import TextCritic, TextImprover, TextValidator
+
+
+# Default system prompt used if none is provided
+DEFAULT_SYSTEM_PROMPT = (
+    "You are a helpful assistant that provides high-quality feedback and improvements for text."
+)
 
 
 class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, TextCritic):
@@ -115,6 +121,8 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
         critique = critic.critique(text)
         improved_text = critic.improve(text, feedback)
     """
+
+    _state_manager: StateManager = PrivateAttr()
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """Initialize the prompt critic.
@@ -207,7 +215,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to validate text: {str(e)}") from e
 
-    def critique(self, text: str) -> dict:
+    def critique(self, text: str) -> Dict[str, Any]:
         """Analyze text and provide detailed feedback.
 
         Args:
@@ -281,7 +289,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             TypeError: If model returns non-string output
             RuntimeError: If critic is not properly initialized
         """
-        start_time = time.time() if time else ""
+        start_time = time.time()
 
         try:
             # Ensure initialized
@@ -289,7 +297,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 raise RuntimeError("PromptCritic not properly initialized")
 
             # Validate input
-            if not isinstance(text, str) or not text.strip() if text else "":
+            if not isinstance(text, str) or not text.strip():
                 raise ValueError("text must be a non-empty string")
 
             # Set default feedback if none provided
@@ -298,12 +306,12 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
 
             # Get critique service from state
             cache = self._state_manager.get("cache", {})
-            critique_service = cache.get("critique_service") if cache else ""
+            critique_service = cache.get("critique_service")
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
             # Improve text
-            improved_text = critique_service.improve(text, feedback) if critique_service else ""
+            improved_text = critique_service.improve(text, feedback)
 
             # Track improvement in memory manager
             memory_manager = self._state_manager.get("memory_manager")
@@ -313,15 +321,15 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                         "original_text": text,
                         "feedback": feedback,
                         "improved_text": improved_text,
-                        "timestamp": time.time() if time else "",
+                        "timestamp": time.time(),
                     }
                 )
-                memory_manager.add_to_memory(memory_item) if memory_manager else ""
+                memory_manager.add_to_memory(memory_item)
 
             # Update statistics
             improvement_count = self._state_manager.get_metadata("improvement_count", 0)
             self._state_manager.set_metadata("improvement_count", improvement_count + 1)
-            self._state_manager.set_metadata("last_improvement_time", time.time() if time else "")
+            self._state_manager.set_metadata("last_improvement_time", time.time())
 
             # Track performance
             track_performance = getattr(self.config, "track_performance", True)
@@ -329,13 +337,16 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
                 self._state_manager.set_metadata(
                     "total_processing_time_ms",
-                    total_time + (time.time() - start_time) * 1000 if time else 0,
+                    total_time + (time.time() - start_time) * 1000,
                 )
 
             return improved_text
 
         except Exception as e:
-            self.record_error(e) if self else ""
+            if hasattr(self, "record_error"):
+                self.record_error(e)
+            else:
+                record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to improve text: {str(e)}") from e
 
     def close_feedback_loop(
@@ -356,7 +367,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             TypeError: If model returns non-string output
             RuntimeError: If critic is not properly initialized
         """
-        start_time = time.time() if time else ""
+        start_time = time.time()
 
         try:
             # Ensure initialized
@@ -364,22 +375,18 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 raise RuntimeError("PromptCritic not properly initialized")
 
             # Validate input
-            if not isinstance(text, str) or not text.strip() if text else "":
+            if not isinstance(text, str) or not text.strip():
                 raise ValueError("text must be a non-empty string")
-            if (
-                not isinstance(generator_response, str) or not generator_response.strip()
-                if generator_response
-                else ""
-            ):
+            if not isinstance(generator_response, str) or not generator_response.strip():
                 raise ValueError("generator_response must be a non-empty string")
 
             # Generate feedback if not provided
             if feedback is None:
-                critique = self.critique(generator_response) if self else ""
+                critique = self.critique(generator_response)
                 feedback = critique["feedback"]
 
             # Improve the response
-            improved_text = self.improve(generator_response, feedback) if self else ""
+            improved_text = self.improve(generator_response, feedback)
 
             # Create report
             report = {
@@ -388,7 +395,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 "critic_feedback": feedback,
                 "improved_response": improved_text,
                 "has_changes": improved_text != generator_response,
-                "processing_time_ms": (time.time() - start_time) * 1000 if time else 0,
+                "processing_time_ms": (time.time() - start_time) * 1000,
             }
 
             # Track performance
@@ -397,14 +404,25 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
                 self._state_manager.set_metadata(
                     "total_processing_time_ms",
-                    total_time + (time.time() - start_time) * 1000 if time else 0,
+                    total_time + (time.time() - start_time) * 1000,
                 )
 
             return improved_text, report
 
         except Exception as e:
-            self.record_error(e) if self else ""
+            if hasattr(self, "record_error"):
+                self.record_error(e)
+            else:
+                record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to close feedback loop: {str(e)}") from e
+
+    def record_error(self, error: Exception) -> None:
+        """Record an error in the state manager.
+
+        Args:
+            error: The exception to record
+        """
+        record_error(self._state_manager, error)
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -547,7 +565,8 @@ def create_prompt_critic(
     try:
         # Resolve dependencies if not provided
         if llm_provider is None:
-            from sifaka.core.dependency.provider import DependencyProvider, DependencyError
+            from sifaka.core.dependency.provider import DependencyProvider
+            from sifaka.core.dependency.provider import DependencyError
 
             # Get dependency provider
             provider = DependencyProvider()
@@ -569,7 +588,8 @@ def create_prompt_critic(
 
         # Resolve prompt_factory if not provided
         if prompt_factory is None:
-            from sifaka.core.dependency.provider import DependencyProvider, DependencyError
+            from sifaka.core.dependency.provider import DependencyProvider
+            from sifaka.core.dependency.provider import DependencyError
 
             # Get dependency provider
             provider = DependencyProvider()
@@ -643,14 +663,19 @@ def create_prompt_critic(
             # Create a new config object
             config = PromptCriticConfig(**config_dict)
 
-        # Create and return the critic with standardized state management
-        return PromptCritic(
-            name=name,
-            description=description,
-            llm_provider=llm_provider,
-            prompt_factory=prompt_factory,
-            config=config,
+        # Create critic instance with configured parameters
+        critic = PromptCritic(
+            config={
+                "name": name,
+                "description": description,
+                "llm_provider": llm_provider,
+                "prompt_factory": prompt_factory,
+                "config": config,
+            }
         )
+
+        return critic
+
     except Exception as e:
         # Log the error and re-raise with a clear message
         from ...utils.logging import get_logger
