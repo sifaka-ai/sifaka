@@ -34,7 +34,8 @@ plugin = loader.load_plugin_from_module("my_plugin_module") if loader else ""
 
 from typing import Optional, cast
 
-from sifaka.interfaces.chain.plugin import ChainPlugin as Plugin
+from sifaka.interfaces.chain.plugin import ChainPlugin
+from sifaka.core.interfaces import Plugin
 from sifaka.core.plugins import PluginRegistry as CorePluginRegistry
 from sifaka.core.plugins import PluginLoader as CorePluginLoader
 from ..utils.logging import get_logger
@@ -83,7 +84,7 @@ class PluginRegistry(CorePluginRegistry):
             PluginError: If plugin registration fails
         """
         # Ensure the plugin is a chain plugin
-        if not isinstance(plugin, Plugin):
+        if not isinstance(plugin, ChainPlugin):
             from ..utils.errors import PluginError
 
             raise PluginError(f"Plugin '{name}' is not a chain plugin")
@@ -142,4 +143,4 @@ class PluginLoader(CorePluginLoader):
             Chain plugin registry
         """
         # Cast the core registry to a chain registry
-        return cast(PluginRegistry, super().get_registry())  # type: ignore[no-any-return]
+        return cast(PluginRegistry, super().get_registry())

@@ -206,9 +206,7 @@ class RetrieverCore(BaseComponent):
             record_error(self._state_manager, Exception(error_message))
             raise RetrievalError(error_message, metadata={"query": query, "error_type": error_type})
 
-        from typing import cast
-
-        return result  # type: ignore[no-any-return]
+        return result
 
     def _update_execution_stats(self, execution_time_ms: float) -> None:
         """

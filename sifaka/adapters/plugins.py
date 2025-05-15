@@ -267,4 +267,4 @@ class PluginLoader(CorePluginLoader):
             ```
         """
         # Cast the core registry to an adapter registry
-        return cast(PluginRegistry, super().get_registry())  # type: ignore[no-any-return]
+        return cast(PluginRegistry, super().get_registry())

@@ -184,7 +184,7 @@ class ReadabilityClassifier(Classifier):
                 return level
         return "graduate"
 
-    def _get_flesch_interpretation(self, score: float) -> str:  # type: ignore[no-any-return]
+    def _get_flesch_interpretation(self, score: float) -> str:
         """Interpret Flesch reading ease score."""
         interpretations: List[Tuple[float, str]] = [
             (90, "Very Easy - 5th grade"),
@@ -196,7 +196,6 @@ class ReadabilityClassifier(Classifier):
             (0, "Very Difficult - College Graduate"),
         ]
         for threshold, interpretation in interpretations:
-            interpretation: str  # type: ignore[no-redef]
             if isinstance(score, (int, float)) and score >= threshold:
                 return interpretation
         return "Very Difficult - College Graduate"

@@ -170,7 +170,7 @@ def create_critic(
 
     # Create and return critic instance
     instance = critic_class(name, description, config)
-    return instance  # type: ignore[no-any-return]
+    return instance
 
 
 def create_basic_critic(

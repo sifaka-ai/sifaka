@@ -131,7 +131,7 @@ class RankingStrategy(BaseComponent, ABC):
         self._state_manager.update("last_result_count", 0)
 
     @property
-    def config(self) -> BaseConfig:
+    def config(self) -> RankingConfig:
         """
         Get the ranking configuration.
 
@@ -141,9 +141,9 @@ class RankingStrategy(BaseComponent, ABC):
         config = self._state_manager.get("config")
         if config is None:
             # Create a default config
-            return RankingConfig(name=self.name, description=self.description)  # type: ignore[no-any-return]
+            return RankingConfig(name=self.name, description=self.description)
         # Return the config
-        return config  # type: ignore[no-any-return]
+        return config
 
     @config.setter
     def config(self, config: RankingConfig) -> None:

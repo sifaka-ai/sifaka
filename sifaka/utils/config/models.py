@@ -312,13 +312,13 @@ class GeminiConfig(ModelConfig):
 def standardize_model_config(
     config: Optional[Union[Dict[str, Any], ModelConfig]] = None,
     params: Optional[Dict[str, Any]] = None,
-    config_class: Type[T] = None,
+    config_class: Optional[Type[T]] = None,
     **kwargs: Any,
 ) -> T:
     """
-    Standardize model provider configuration.
+    Standardize model configuration.
 
-    This utility function ensures that model provider configuration is consistently
+    This utility function ensures that model configuration is consistently
     handled across the framework. It accepts various input formats and
     returns a standardized ModelConfig object or a subclass.
 
@@ -365,18 +365,21 @@ def standardize_model_config(
             params={"top_p": 0.9}
         )
     """
-    if config_class is None:
-        config_class = ModelConfig
+    # Use ModelConfig as default if config_class is None
+    actual_config_class: Type[T] = config_class or cast(Type[T], ModelConfig)
+
     final_params: Dict[str, Any] = {}
     if params:
         final_params.update(params)
     if isinstance(config, dict):
         dict_params = config.pop("params", {}) if config else {}
         final_params.update(dict_params)
-        return config_class(**{} if config is None else config, params=final_params, **kwargs)
+        return actual_config_class(
+            **{} if config is None else config, params=final_params, **kwargs
+        )
     elif isinstance(config, ModelConfig):
         final_params.update(config.params)
         config_dict = {**config.model_dump(), "params": final_params, **kwargs}
-        return config_class(**config_dict)
+        return actual_config_class(**config_dict)
     else:
-        return config_class(params=final_params, **kwargs)
+        return actual_config_class(params=final_params, **kwargs)

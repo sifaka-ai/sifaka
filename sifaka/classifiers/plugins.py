@@ -101,4 +101,4 @@ class PluginLoader(CorePluginLoader):
             Classifier plugin registry
         """
         # Cast the core registry to a classifier registry
-        return cast(PluginRegistry, super().get_registry())  # type: ignore[no-any-return]
+        return cast(PluginRegistry, super().get_registry())

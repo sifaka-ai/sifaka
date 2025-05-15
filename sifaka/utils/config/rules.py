@@ -163,7 +163,7 @@ class RuleConfig(BaseConfig):
 def standardize_rule_config(
     config: Optional[Union[Dict[str, Any], RuleConfig]] = None,
     params: Optional[Dict[str, Any]] = None,
-    config_class: Type[T] = None,
+    config_class: Optional[Type[T]] = None,
     **kwargs: Any,
 ) -> T:
     """
@@ -229,29 +229,21 @@ def standardize_rule_config(
             }
         )
     """
-    if config_class is None:
-        config_class = RuleConfig
+    # Use RuleConfig as default if config_class is None
+    actual_config_class: Type[T] = config_class or cast(Type[T], RuleConfig)
+
     final_params: Dict[str, Any] = {}
     if params:
         final_params.update(params)
     if isinstance(config, dict):
         dict_params = config.pop("params", {}) if config else {}
         final_params.update(dict_params)
-        if config and "priority" in config and isinstance(config["priority"], str):
-            try:
-                config["priority"] = RulePriority(config["priority"])
-            except ValueError:
-                config["priority"] = RulePriority.MEDIUM
-        return config_class(**{} if config is None else config, params=final_params, **kwargs)
+        return actual_config_class(
+            **{} if config is None else config, params=final_params, **kwargs
+        )
     elif isinstance(config, RuleConfig):
-        if config.params:
-            final_params.update(config.params)
-        config_dict = {**(config.model_dump() if config else {}), "params": final_params, **kwargs}
-        return config_class(**config_dict)
+        final_params.update(config.params)
+        config_dict = {**config.model_dump(), "params": final_params, **kwargs}
+        return actual_config_class(**config_dict)
     else:
-        if "priority" in kwargs and isinstance(kwargs["priority"], str):
-            try:
-                kwargs["priority"] = RulePriority(kwargs["priority"])
-            except ValueError:
-                kwargs["priority"] = RulePriority.MEDIUM
-        return config_class(params=final_params, **kwargs)
+        return actual_config_class(params=final_params, **kwargs)

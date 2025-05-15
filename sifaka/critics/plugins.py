@@ -113,4 +113,4 @@ class PluginLoader(CorePluginLoader):
             Critic plugin registry
         """
         # Cast the core registry to a critic registry
-        return cast(PluginRegistry, super().get_registry())  # type: ignore[no-any-return]
+        return cast(PluginRegistry, super().get_registry())

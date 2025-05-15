@@ -113,4 +113,4 @@ class PluginLoader(CorePluginLoader):
             Model plugin registry
         """
         # Cast the core registry to a model registry
-        return cast(PluginRegistry, super().get_registry())  # type: ignore[no-any-return]
+        return cast(PluginRegistry, super().get_registry())

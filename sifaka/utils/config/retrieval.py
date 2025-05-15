@@ -334,16 +334,16 @@ class QueryProcessingConfig(BaseConfig):
     )
 
 
-def standardize_retriever_config(
+def standardize_retrieval_config(
     config: Optional[Union[Dict[str, Any], RetrieverConfig]] = None,
     params: Optional[Dict[str, Any]] = None,
-    config_class: Type[T] = None,
+    config_class: Optional[Type[T]] = None,
     **kwargs: Any,
 ) -> T:
     """
-    Standardize retriever configuration.
+    Standardize retrieval configuration.
 
-    This utility function ensures that retriever configuration is consistently
+    This utility function ensures that retrieval configuration is consistently
     handled across the framework. It accepts various input formats and
     returns a standardized RetrieverConfig object or a subclass.
 
@@ -357,10 +357,10 @@ def standardize_retriever_config(
         Standardized RetrieverConfig object or subclass
 
     Examples:
-        from sifaka.utils.config.retrieval import standardize_retriever_config, RankingConfig
+        from sifaka.utils.config.retrieval import standardize_retrieval_config, RankingConfig
 
         # Create from parameters
-        config = standardize_retriever_config(
+        config = standardize_retrieval_config(
             top_k=10,
             min_score=0.7,
             params={
@@ -373,7 +373,7 @@ def standardize_retriever_config(
         # Create from existing config
         from sifaka.utils.config.retrieval import RetrieverConfig
         existing = RetrieverConfig(top_k=10)
-        updated = standardize_retriever_config(
+        updated = standardize_retrieval_config(
             config=existing,
             params={
                 "algorithm": "bm25",
@@ -392,10 +392,10 @@ def standardize_retriever_config(
                 "b": 0.75
             }
         }
-        config = standardize_retriever_config(config=dict_config)
+        config = standardize_retrieval_config(config=dict_config)
 
         # Create specialized config
-        ranking_config = standardize_retriever_config(
+        ranking_config = standardize_retrieval_config(
             config_class=RankingConfig,
             algorithm="bm25",
             weights={
@@ -404,18 +404,21 @@ def standardize_retriever_config(
             }
         )
     """
-    if config_class is None:
-        config_class = RetrieverConfig
+    # Use RetrieverConfig as default if config_class is None
+    actual_config_class: Type[T] = config_class or cast(Type[T], RetrieverConfig)
+
     final_params: Dict[str, Any] = {}
     if params:
         final_params.update(params)
     if isinstance(config, dict):
         dict_params = config.pop("params", {}) if config else {}
         final_params.update(dict_params)
-        return config_class(**{} if config is None else config, params=final_params, **kwargs)
+        return actual_config_class(
+            **{} if config is None else config, params=final_params, **kwargs
+        )
     elif isinstance(config, RetrieverConfig):
         final_params.update(config.params)
         config_dict = {**config.model_dump(), "params": final_params, **kwargs}
-        return config_class(**config_dict)
+        return actual_config_class(**config_dict)
     else:
-        return config_class(params=final_params, **kwargs)
+        return actual_config_class(params=final_params, **kwargs)

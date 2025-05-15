@@ -697,9 +697,10 @@ class CriticCore(BaseCritic[str]):
         """
         # Import here to avoid circular dependencies
         from sifaka.core.managers.prompt import DefaultPromptManager
+        from sifaka.critics.managers.prompts import CriticPromptManager
 
         # Cast to CriticPromptManager for type checking
-        return cast(CriticPromptManager, DefaultPromptManager())  # type: ignore[no-any-return]
+        return cast(CriticPromptManager, DefaultPromptManager())
 
 
 def create_core_critic(

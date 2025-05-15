@@ -113,4 +113,4 @@ class PluginLoader(CorePluginLoader):
             Rule plugin registry
         """
         # Cast the core registry to a rule registry
-        return cast(PluginRegistry, super().get_registry())  # type: ignore[no-any-return]
+        return cast(PluginRegistry, super().get_registry())

@@ -500,13 +500,13 @@ class BaseComponent(ABC, Generic[T, R]):
             self.update_statistics(dummy_result)
             # Cast to R to satisfy the type checker
             # This is safe because the caller will check for ErrorResult
-            return result  # type: ignore[no-any-return]
+            return cast(R, result)
         else:
             # Normal case - update statistics with the actual result
             # We know result is not an ErrorResult, so it's safe to cast to BaseResult
             base_result: UtilsBaseResult = result
             self.update_statistics(base_result)
-            return result  # type: ignore[no-any-return]  # Explicitly cast to satisfy mypy
+            return cast(R, result)  # Explicitly cast to satisfy mypy
 
     def _process_input(self, input: T) -> R:
         """
