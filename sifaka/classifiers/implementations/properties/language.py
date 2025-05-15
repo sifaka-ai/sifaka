@@ -721,7 +721,7 @@ def create_language_classifier(
         print(f"Confidence: {result.confidence:.2f}")
         ```
     """
-    classifier_config = standardize_classifier_config(
+    classifier_config: ClassifierConfig[str] = standardize_classifier_config(
         config=config,
         cache_size=cache_size,
         params={

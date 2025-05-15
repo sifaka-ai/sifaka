@@ -7,7 +7,18 @@ This module provides classifiers for assessing the readability of text content.
 import importlib
 import statistics
 from abc import abstractmethod
-from typing import Any, Dict, List, Optional, Protocol, runtime_checkable, Tuple, ClassVar, Type
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    runtime_checkable,
+    Tuple,
+    ClassVar,
+    Type,
+    cast,
+)
 from typing_extensions import TypeGuard
 from pydantic import ConfigDict
 from sifaka.classifiers.classifier import Classifier
@@ -181,24 +192,36 @@ class ReadabilityClassifier(Classifier):
         )
         for level, (lower, upper) in grade_level_bounds.items():
             if lower <= grade < upper:
-                return level
+                return str(level)
         return "graduate"
 
-    def _get_flesch_interpretation(self, score: float) -> str:
-        """Interpret Flesch reading ease score."""
-        interpretations: List[Tuple[float, str]] = [
-            (90, "Very Easy - 5th grade"),
-            (80, "Easy - 6th grade"),
-            (70, "Fairly Easy - 7th grade"),
-            (60, "Standard - 8th/9th grade"),
-            (50, "Fairly Difficult - 10th/12th grade"),
-            (30, "Difficult - College"),
-            (0, "Very Difficult - College Graduate"),
-        ]
-        for threshold, interpretation in interpretations:
-            if isinstance(score, (int, float)) and score >= threshold:
-                return interpretation
+    def _get_flesch_interpretation_string(self, score: float) -> str:
+        """Get the string interpretation of a Flesch reading ease score."""
+        if score >= 90.0:
+            return "Very Easy - 5th grade"
+        if score >= 80.0:
+            return "Easy - 6th grade"
+        if score >= 70.0:
+            return "Fairly Easy - 7th grade"
+        if score >= 60.0:
+            return "Standard - 8th/9th grade"
+        if score >= 50.0:
+            return "Fairly Difficult - 10th/12th grade"
+        if score >= 30.0:
+            return "Difficult - College"
         return "Very Difficult - College Graduate"
+
+    def _get_flesch_interpretation(self, score: float) -> str:
+        """
+        Interpret Flesch reading ease score.
+
+        Args:
+            score: Flesch reading ease score to interpret
+
+        Returns:
+            String interpretation of the score
+        """
+        return self._get_flesch_interpretation_string(score)
 
     def _calculate_metrics(self, text: str) -> ReadabilityMetrics:
         """Calculate comprehensive readability metrics."""

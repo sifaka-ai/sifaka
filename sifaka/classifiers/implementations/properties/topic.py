@@ -94,8 +94,9 @@ Key configuration options include:
 # import pickle
 import importlib
 from typing import List, Optional, Any, Dict, ClassVar, Union, Tuple
+import time
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, PrivateAttr
 from sifaka.classifiers.classifier import Classifier, ClassifierImplementation
 from sifaka.core.results import ClassificationResult
 from sifaka.utils.config.classifiers import ClassifierConfig, standardize_classifier_config
@@ -215,40 +216,30 @@ class TopicClassifier(Classifier):
         **kwargs: Any,
     ) -> None:
         """
-        Initialize the topic classifier.
+        Initialize the classifier.
 
         Args:
-            name: The name of the classifier
+            name: Name of the classifier
             description: Description of the classifier
-            config: Optional classifier configuration
-            **kwargs: Additional configuration parameters
+            config: Configuration for the classifier
+            **kwargs: Additional arguments
         """
-        # Create standardized config if not provided
-        if config is None:
-            # Extract params from kwargs if present
-            params = kwargs.pop("params", {})
+        # Create a dummy implementation that will be replaced by self
+        dummy_implementation: ClassifierImplementation = self
 
-            # Get num_topics from params or use default
-            num_topics = params.get("num_topics", 5)
-            min_confidence = params.get("min_confidence", 0.1)
-
-            # Create params dictionary
-            config_params = {
-                "min_confidence": min_confidence,
-                "labels": [f"topic_{i}" for i in range(num_topics)],
-                "cost": self.DEFAULT_COST,
-                "params": params,
-            }
-            config_params.update(kwargs)
-
-            # Create standardized config
-            config = standardize_classifier_config(config=config_params)
-
-        # Initialize base class with implementation type
-        super().__init__(name=name, description=description, config=config, implementation="topic")
+        # Initialize classifier
+        super().__init__(
+            name=name,
+            description=description,
+            config=config,
+            implementation=dummy_implementation,
+        )
 
         # Initialize state
-        self._state_manager = create_classifier_state(self)
+        self._state_manager = create_classifier_state()
+
+        # Initialize dependencies
+        self._dependencies: Dict[str, Any] = {}
         self._is_initialized = False
 
     @property
@@ -419,7 +410,7 @@ class TopicClassifier(Classifier):
         corpus: List[str],
         name: str = "pretrained_topic_classifier",
         description: str = "Pre-trained topic classifier",
-        config: Optional[Dict[str, Any]] = None,
+        config: Optional[ClassifierConfig] = None,
         **kwargs: Any,
     ) -> "TopicClassifier":
         """Create a pre-trained topic classifier."""
@@ -465,7 +456,7 @@ def create_topic_classifier(
     config_dict.update(kwargs)
 
     # Create standardized config
-    classifier_config = standardize_classifier_config(config=config_dict)
+    classifier_config: ClassifierConfig = standardize_classifier_config(config=config_dict)
 
     # Create classifier
     return TopicClassifier(

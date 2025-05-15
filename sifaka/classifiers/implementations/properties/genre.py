@@ -703,7 +703,7 @@ def create_genre_classifier(
         ```
     """
     # Use standardize_classifier_config to handle different config formats
-    classifier_config = standardize_classifier_config(
+    classifier_config: ClassifierConfig = standardize_classifier_config(
         config=config,
         threshold=min_confidence,
         cache_size=cache_size,

@@ -46,7 +46,7 @@ The module uses a standardized state management approach:
 """
 
 import time
-from typing import Any, Dict, Generic, Optional, Type, TypeVar
+from typing import Any, Dict, Generic, Optional, Type, TypeVar, cast
 from pydantic import BaseModel, PrivateAttr, ConfigDict
 from sifaka.rules.base import RuleResult
 from sifaka.utils.errors.base import ConfigurationError, ValidationError
@@ -259,10 +259,10 @@ class BaseAdapter(BaseModel, Generic[T, C]):
 
     def _validate_impl(self, input_value: Any, **kwargs: Any) -> RuleResult:
         """
-        Implementation of validation logic for the adapter.
+        Implement validation logic specific to this adapter.
 
-        This method must be implemented by subclasses to provide the specific
-        validation logic for the adapted component.
+        This method must be implemented by subclasses to define
+        how validation is performed using the adapted component.
 
         Args:
             input_value (Any): The value to validate
@@ -280,7 +280,7 @@ class BaseAdapter(BaseModel, Generic[T, C]):
             f"_validate_impl must be implemented by subclass {self.__class__.__name__}"
         )
 
-    def validate(self, input_value: Any, **kwargs: Any) -> RuleResult:
+    def validate(self, input_value: Any, **kwargs: Any) -> RuleResult:  # type: ignore[override]
         """
         Validate the input value using the adapted component.
 

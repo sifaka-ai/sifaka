@@ -22,7 +22,7 @@ Usage Example:
 
 import importlib
 import time
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict, Union, cast
 from pydantic import Field, PrivateAttr
 from sifaka.rules.base import Rule, RuleConfig, RuleResult, BaseValidator
 from sifaka.utils.logging import get_logger
@@ -77,7 +77,7 @@ class LanguageValidator(BaseValidator[str]):
         **kwargs,
     ) -> None:
         """
-        Initialize the validator.
+        Initialize the language validator.
 
         Args:
             allowed_languages: List of language codes that are allowed
@@ -89,7 +89,8 @@ class LanguageValidator(BaseValidator[str]):
             self.allowed_languages = allowed_languages
         self.threshold = threshold
         try:
-            self._langdetect = importlib.import_module("langdetect") if importlib else ""
+            # Import and initialize langdetect
+            self._langdetect = importlib.import_module("langdetect")
             self._langdetect.DetectorFactory.seed = 0
         except ImportError:
             self._langdetect = None
@@ -114,7 +115,7 @@ class LanguageValidator(BaseValidator[str]):
         start_time = time.time()
         empty_result = self.handle_empty_text(text)
         if empty_result:
-            return empty_result
+            return cast(RuleResult, empty_result)
         if self._langdetect is None:
             result = RuleResult(
                 passed=False,
@@ -131,15 +132,21 @@ class LanguageValidator(BaseValidator[str]):
             self.update_statistics(result)
             return result
         try:
-            lang_probs = self._langdetect.detect_langs(text)
-            best_lang = None
-            best_prob = 0.0
-            for lang_prob in lang_probs:
-                lang_code = getattr(lang_prob, "lang", None)
-                prob = float(getattr(lang_prob, "prob", 0.0))
-                if lang_code and prob > best_prob:
-                    best_lang = lang_code
-                    best_prob = prob
+            # Use langdetect only if it's properly imported (not a string)
+            if hasattr(self._langdetect, "detect_langs"):
+                lang_probs = self._langdetect.detect_langs(text)
+                best_lang = None
+                best_prob = 0.0
+                for lang_prob in lang_probs:
+                    lang_code = getattr(lang_prob, "lang", None)
+                    prob = float(getattr(lang_prob, "prob", 0.0))
+                    if lang_code and prob > best_prob:
+                        best_lang = lang_code
+                        best_prob = prob
+            else:
+                # Fallback in case _langdetect is not properly initialized
+                raise ImportError("langdetect module not properly initialized")
+
             if best_lang in self.allowed_languages and best_prob >= self.threshold:
                 result = RuleResult(
                     passed=True,

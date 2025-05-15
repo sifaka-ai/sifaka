@@ -37,7 +37,7 @@ print(f"Validation {'passed' if result.passed else 'failed'}: {result.message}")
 - Detailed validation results with issues and suggestions
 """
 
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict, cast, TypeVar, Union
 import time
 from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 from sifaka.rules.base import BaseValidator, Rule, RuleConfig, RuleResult
@@ -46,6 +46,8 @@ from sifaka.utils.state import create_rule_state
 from sifaka.utils.errors.handling import try_operation
 
 logger = get_logger(__name__)
+
+T = TypeVar("T")
 
 
 class StructureConfig(BaseModel):
@@ -265,17 +267,17 @@ class StructureValidator(BaseValidator[str]):
                 processing_time_ms=time.time() - start_time,
             ),
         )
-        result: RuleResult = operation_result
-        self.update_statistics(result)
+        validation_result = cast(RuleResult, operation_result)
+        self.update_statistics(validation_result)
         validation_count = self._state_manager.get_metadata("validation_count", 0)
         self._state_manager.set_metadata("validation_count", validation_count + 1)
         if cache_size > 0:
             cache = self._state_manager.get("cache", {})
             if len(cache) >= cache_size:
                 cache = {}
-            cache[text] = result
+            cache[text] = validation_result
             self._state_manager.update("cache", cache)
-        return result
+        return validation_result
 
     def _analyze_sections(self, text: str) -> List[str]:
         """
