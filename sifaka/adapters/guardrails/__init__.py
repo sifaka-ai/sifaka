@@ -1,4 +1,5 @@
 from typing import Any, List
+
 """
 Adapter for using Guardrails validators as rules.
 
@@ -45,7 +46,22 @@ phone_rule = create_guardrails_rule(
 result = chain.run("What's a good phone number format?") if chain else ""
 ```
 """
-from sifaka.adapters.guardrails.adapter import GuardrailsValidatable, GuardrailsAdapter, GuardrailsValidatorAdapter, GuardrailsRule, create_guardrails_adapter, create_guardrails_rule
-__all__: List[Any] = ['GuardrailsValidatable', 'GuardrailsAdapter',
-    'GuardrailsValidatorAdapter', 'GuardrailsRule',
-    'create_guardrails_adapter', 'create_guardrails_rule']
+from sifaka.adapters.guardrails.adapter import (
+    GuardrailsValidatable,
+    GuardrailsAdapter,
+    GuardrailsValidatorAdapter,
+    GuardrailsRule,
+    create_guardrails_adapter,
+    create_guardrails_rule,
+    convert_guardrails_result,
+)
+
+__all__: List[Any] = [
+    "GuardrailsValidatable",
+    "GuardrailsAdapter",
+    "GuardrailsValidatorAdapter",
+    "GuardrailsRule",
+    "create_guardrails_adapter",
+    "create_guardrails_rule",
+    "convert_guardrails_result",
+]

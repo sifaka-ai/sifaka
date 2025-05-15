@@ -105,14 +105,25 @@ Based on Self-RAG: https://arxiv.org/abs/2310.11511
 
 import time
 from typing import Any, Dict, List, Optional, Union, cast
+from copy import deepcopy
 
 from pydantic import ConfigDict, Field, PrivateAttr
 
 from ...core.base import BaseComponent, BaseConfig, BaseResult
 from ...utils.state import create_critic_state
-from sifaka.utils.config.critics import SelfRAGCriticConfig
-from sifaka.interfaces.critic import TextCritic, TextImprover, TextValidator, CritiqueResult
+from ...utils.config import SelfRAGCriticConfig
+from ...interfaces.critic import TextCritic, TextImprover, TextValidator, CritiqueResult
 from ...retrieval import Retriever
+from ...utils.logging import get_logger
+
+# Configure logging
+logger = get_logger(__name__)
+
+# Default values
+DEFAULT_RETRIEVAL_PROMPT_TEMPLATE = "Decide whether to retrieve information for: {query}"
+DEFAULT_GENERATION_PROMPT_TEMPLATE = "Generate a response for: {query}"
+DEFAULT_REFLECTION_PROMPT_TEMPLATE = "Reflect on the quality of this response: {response}"
+DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant."
 
 
 class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, TextCritic):
@@ -200,8 +211,8 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
     # Pydantic v2 configuration
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    # Configuration - using BaseConfig as the type to match BaseComponent
-    config: BaseConfig = Field(description="Critic configuration")
+    # Private attribute to store the actual SelfRAGCriticConfig
+    _self_rag_config: SelfRAGCriticConfig = PrivateAttr()
 
     # State management using StateManager
     _state_manager = PrivateAttr(default_factory=create_critic_state)
@@ -238,62 +249,96 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
 
         # Create config if not provided
         if config is None:
-            from sifaka.utils.config.critics import DEFAULT_SELF_RAG_CRITIC_CONFIG
-            from copy import deepcopy
+            # Import only needed here, the class was already imported at the module level
+            from ...utils.config.critics import DEFAULT_SELF_RAG_CRITIC_CONFIG
 
             # Create a copy of the default config and update it
             config_dict = deepcopy(DEFAULT_SELF_RAG_CRITIC_CONFIG)
             config_dict.update({"name": name, "description": description, **kwargs})
 
-            # Create a new SelfRAGCriticConfig from the updated dict
-            from sifaka.utils.config.critics import SelfRAGCriticConfig
-
-            # Create the config and cast to BaseConfig to satisfy type checker
+            # Create the critic config using the already imported class
             critic_config = SelfRAGCriticConfig.model_validate(config_dict)
-            config = critic_config
 
-        # Initialize base component
-        super().__init__(name=name, description=description, config=config)
+            # Store it for later access
+            self._self_rag_config = critic_config
+
+            # Create a BaseConfig wrapper for BaseComponent
+            base_config = BaseConfig(
+                name=name,
+                description=description,
+                params={
+                    "config": critic_config,
+                    "llm_provider": llm_provider,
+                    "retriever": retriever,
+                },
+            )
+
+            # Initialize base component with the base config
+            super().__init__(name=name, description=description, config=base_config)
+        else:
+            # Check if it's a SelfRAGCriticConfig directly or inside a BaseConfig
+            if isinstance(config, SelfRAGCriticConfig):
+                self._self_rag_config = config
+
+                # Create a BaseConfig wrapper
+                base_config = BaseConfig(
+                    name=name, description=description, params={"config": config}
+                )
+
+                # Initialize with the wrapped config
+                super().__init__(name=name, description=description, config=base_config)
+            else:
+                # For BaseConfig, try to extract SelfRAGCriticConfig from params
+                params = getattr(config, "params", {})
+                config_obj = params.get("config")
+
+                if isinstance(config_obj, SelfRAGCriticConfig):
+                    self._self_rag_config = config_obj
+                else:
+                    # Create a new SelfRAGCriticConfig using the already imported class
+                    self._self_rag_config = SelfRAGCriticConfig(
+                        name=name, description=description, **kwargs
+                    )
+
+                # Initialize with the original config
+                super().__init__(name=name, description=description, config=config)
 
         try:
             # Store components in state
             self._state_manager.update("model", llm_provider)
             self._state_manager.update("retriever", retriever)
 
-            # Store configuration in cache
-            # Ensure config is a SelfRAGCriticConfig
-            self_rag_config = config
-
-            # Define default values for missing attributes
-            DEFAULT_RETRIEVAL_PROMPT_TEMPLATE = (
-                "Decide whether to retrieve information for: {query}"
-            )
-            DEFAULT_GENERATION_PROMPT_TEMPLATE = "Generate a response for: {query}"
-            DEFAULT_REFLECTION_PROMPT_TEMPLATE = (
-                "Reflect on the quality of this response: {response}"
-            )
-
+            # Define default values for missing attributes - using constants defined at module level
             # Get attributes with fallbacks for missing ones
-            retrieval_threshold = getattr(self_rag_config, "retrieval_threshold", 0.7)
+            retrieval_threshold = getattr(self._self_rag_config, "retrieval_threshold", 0.7)
             retrieval_prompt_template = getattr(
-                self_rag_config, "retrieval_prompt_template", DEFAULT_RETRIEVAL_PROMPT_TEMPLATE
+                self._self_rag_config,
+                "retrieval_prompt_template",
+                DEFAULT_RETRIEVAL_PROMPT_TEMPLATE,
             )
             generation_prompt_template = getattr(
-                self_rag_config, "generation_prompt_template", DEFAULT_GENERATION_PROMPT_TEMPLATE
+                self._self_rag_config,
+                "generation_prompt_template",
+                DEFAULT_GENERATION_PROMPT_TEMPLATE,
             )
             reflection_prompt_template = getattr(
-                self_rag_config, "reflection_prompt_template", DEFAULT_REFLECTION_PROMPT_TEMPLATE
+                self._self_rag_config,
+                "reflection_prompt_template",
+                DEFAULT_REFLECTION_PROMPT_TEMPLATE,
             )
-            reflection_enabled = getattr(self_rag_config, "reflection_enabled", True)
+            reflection_enabled = getattr(self._self_rag_config, "reflection_enabled", True)
+            system_prompt = getattr(self._self_rag_config, "system_prompt", DEFAULT_SYSTEM_PROMPT)
+            temperature = getattr(self._self_rag_config, "temperature", 0.7)
+            max_tokens = getattr(self._self_rag_config, "max_tokens", 1000)
 
             cache = {
                 "retrieval_threshold": retrieval_threshold,
                 "retrieval_prompt_template": retrieval_prompt_template,
                 "generation_prompt_template": generation_prompt_template,
                 "reflection_prompt_template": reflection_prompt_template,
-                "system_prompt": self_rag_config.system_prompt,
-                "temperature": self_rag_config.temperature,
-                "max_tokens": self_rag_config.max_tokens,
+                "system_prompt": system_prompt,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
                 "reflection_enabled": reflection_enabled,
             }
             self._state_manager.update("cache", cache)
@@ -841,70 +886,74 @@ def create_self_rag_critic(
         TypeError: If llm_provider or retriever is not a valid provider
     """
     try:
-        # Import the config class
-        from sifaka.utils.config.critics import SelfRAGCriticConfig
-
         # Create config if not provided
         if config is None:
-            from sifaka.utils.config.critics import DEFAULT_SELF_RAG_CRITIC_CONFIG
-            from copy import deepcopy
+            # Create a default config with provided values
+            # Build config dict with only non-None values
+            config_dict: Dict[str, Any] = {
+                "name": name,
+                "description": description,
+            }
 
-            # Create a copy of the default config
-            config_dict = deepcopy(DEFAULT_SELF_RAG_CRITIC_CONFIG)
-
-            # Update with provided values
-            updates: Dict[str, Any] = {"name": name, "description": description}
-
-            if system_prompt is not None:
-                updates["system_prompt"] = system_prompt
-            if temperature is not None:
-                updates["temperature"] = temperature
-            if max_tokens is not None:
-                updates["max_tokens"] = max_tokens
+            # Add optional parameters only if they're not None
             if min_confidence is not None:
-                updates["min_confidence"] = min_confidence
+                config_dict["min_confidence"] = min_confidence
             if max_attempts is not None:
-                updates["max_attempts"] = max_attempts
+                config_dict["max_attempts"] = max_attempts
             if cache_size is not None:
-                updates["cache_size"] = cache_size
+                config_dict["cache_size"] = cache_size
             if priority is not None:
-                updates["priority"] = priority
+                config_dict["priority"] = priority
             if cost is not None:
-                updates["cost"] = cost
+                config_dict["cost"] = cost
+            if system_prompt is not None:
+                config_dict["system_prompt"] = system_prompt
+            if temperature is not None:
+                config_dict["temperature"] = temperature
+            if max_tokens is not None:
+                config_dict["max_tokens"] = max_tokens
             if retrieval_threshold is not None:
-                updates["retrieval_threshold"] = retrieval_threshold
+                config_dict["retrieval_threshold"] = retrieval_threshold
+
+            # Initialize params as a dictionary if any custom templates are provided
+            params: Dict[str, Any] = {}
+
+            # Add custom parameters to the params dictionary
             if retrieval_prompt_template is not None:
-                updates["retrieval_prompt_template"] = retrieval_prompt_template
+                params["retrieval_prompt_template"] = retrieval_prompt_template
             if generation_prompt_template is not None:
-                updates["generation_prompt_template"] = generation_prompt_template
+                params["generation_prompt_template"] = generation_prompt_template
             if reflection_prompt_template is not None:
-                updates["reflection_prompt_template"] = reflection_prompt_template
+                params["reflection_prompt_template"] = reflection_prompt_template
+
+            # Only add params to config_dict if it's not empty
+            if params:
+                config_dict["params"] = params
 
             # Add any additional kwargs
-            updates.update(kwargs)
+            config_dict.update(kwargs)
 
-            # Update config with all updates
-            config_dict.update(updates)
-
-            # Create the config and cast to BaseConfig
-            critic_config = SelfRAGCriticConfig.model_validate(config_dict)
-            final_config = critic_config
+            # Create the config using config_dict
+            config = SelfRAGCriticConfig(**config_dict)
         elif isinstance(config, dict):
-            # Create the config from dict and cast to BaseConfig
+            # Convert dict to config
             critic_config = SelfRAGCriticConfig.model_validate(config)
-            final_config = critic_config
-        elif isinstance(config, SelfRAGCriticConfig):
-            # Use the provided config directly
-            final_config = config
-        else:
-            raise ValueError("Invalid config type")
+            config = critic_config
+        # Otherwise, use the provided config
+
+        # Create the critic with wrapped BaseConfig
+        base_config = BaseConfig(
+            name=name,
+            description=description,
+            params={"config": config, "llm_provider": llm_provider, "retriever": retriever},
+        )
 
         return SelfRAGCritic(
             name=name,
             description=description,
             llm_provider=llm_provider,
             retriever=retriever,
-            config=final_config,
+            config=base_config,
         )
     except Exception as e:
         raise ValueError(f"Failed to create Self-RAG critic: {str(e)}") from e

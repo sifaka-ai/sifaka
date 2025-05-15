@@ -90,22 +90,37 @@ The module implements comprehensive error handling for:
 
 import json
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 from pydantic import PrivateAttr, ConfigDict, Field
 
-from ...core.base import BaseComponent
+from ...core.base import BaseComponent, BaseConfig
 from ...utils.state import create_critic_state
 from ...utils.logging import get_logger
-from ...core.base import BaseResult as CriticResult
+from ...core.base import BaseResult
 from ...utils.config import ReflexionCriticConfig
-from sifaka.interfaces import TextCritic, TextImprover, TextValidator
+from ...interfaces.critic import TextCritic, TextImprover, TextValidator, CritiqueResult
 
 # Configure logging
 logger = get_logger(__name__)
 
+# Default system prompt
+DEFAULT_SYSTEM_PROMPT = """You are an expert editor that improves text through reflection.
+You maintain a memory of past improvements and use these reflections to guide
+future improvements. Focus on learning patterns from past feedback and applying
+them to new situations."""
 
-class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, TextCritic):
+# Default reflexion prompt template
+DEFAULT_REFLEXION_PROMPT_TEMPLATE = """Given the following text and feedback, provide a reflection on how to improve it:
+
+Text: {text}
+
+Feedback: {feedback}
+
+Reflection:"""
+
+
+class ReflexionCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, TextCritic):
     """A critic that uses reflection to improve text quality.
 
     This critic uses a language model to analyze text and provide detailed
@@ -127,13 +142,20 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
         improved_text = critic.improve(text, feedback)
     """
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        name: str = "reflexion_critic",
+        description: str = "A critic that uses reflection to improve text quality",
+        config: Optional[BaseConfig] = None,
+    ):
         """Initialize the reflexion critic.
 
         Args:
-            config: Optional configuration dictionary
+            name: The name of the critic
+            description: The description of the critic
+            config: Optional configuration
         """
-        super().__init__(config)
+        super().__init__(name=name, description=description, config=config)
         self._initialize_components()
 
     def _initialize_components(self) -> None:
@@ -185,43 +207,33 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             result = critique_service.validate(text)
 
             # Ensure result is a boolean
-            if not isinstance(result, bool):
-                result = bool(result)
+            is_valid = bool(result)
 
             # Update statistics
             validation_count = self._state_manager.get_metadata("validation_count", 0)
             self._state_manager.set_metadata("validation_count", validation_count + 1)
 
-            if result:
+            if is_valid:
                 valid_count = self._state_manager.get_metadata("valid_count", 0)
                 self._state_manager.set_metadata("valid_count", valid_count + 1)
             else:
                 invalid_count = self._state_manager.get_metadata("invalid_count", 0)
                 self._state_manager.set_metadata("invalid_count", invalid_count + 1)
 
-            # Track performance
-            track_performance = getattr(self.config, "track_performance", True)
-            if track_performance:
-                total_time = self._state_manager.get_metadata("total_validation_time_ms", 0.0)
-                self._state_manager.set_metadata(
-                    "total_validation_time_ms",
-                    total_time + (time.time() - start_time) * 1000,
-                )
-
-            return result
+            return is_valid
 
         except Exception as e:
-            self.record_error(e) if self else ""
+            self.record_error(e)
             raise RuntimeError(f"Failed to validate text: {str(e)}") from e
 
-    def critique(self, text: str) -> CriticResult:
-        """Analyze text and provide detailed feedback.
+    def critique(self, text: str) -> CritiqueResult:
+        """Critique text and provide feedback.
 
         Args:
             text: The text to critique
 
         Returns:
-            CriticResult containing feedback
+            CritiqueResult: A dictionary containing critique information
 
         Raises:
             ValueError: If text is empty
@@ -244,12 +256,8 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
-            # Get critique
+            # Critique text
             result = critique_service.critique(text)
-
-            # Ensure result is a dictionary
-            if not isinstance(result, dict):
-                result = {"feedback": str(result), "score": 0.0}
 
             # Update statistics
             critique_count = self._state_manager.get_metadata("critique_count", 0)
@@ -260,24 +268,29 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             if track_performance:
                 total_time = self._state_manager.get_metadata("total_critique_time_ms", 0.0)
                 self._state_manager.set_metadata(
-                    "total_critique_time_ms",
-                    total_time + (time.time() - start_time) * 1000,
+                    "total_critique_time_ms", total_time + (time.time() - start_time) * 1000
                 )
 
-            return result
+                # Track score distribution
+                score = result.get("score", 0.0)
+                score_distribution = self._state_manager.get_metadata("score_distribution", {})
+                score_bucket = f"{int(score * 10) / 10:.1f}"
+                score_distribution[score_bucket] = score_distribution.get(score_bucket, 0) + 1
+                self._state_manager.set_metadata("score_distribution", score_distribution)
+
+            # Convert result to CritiqueResult
+            critique_result: CritiqueResult = {
+                "score": result.get("score", 0.0),
+                "feedback": result.get("feedback", ""),
+                "issues": result.get("issues", []),
+                "suggestions": result.get("suggestions", []),
+            }
+
+            return critique_result
 
         except Exception as e:
-            self.record_error(e) if self else ""
-            processing_time = (time.time() - start_time) * 1000 if time else 0
-            return CriticResult(
-                passed=False,
-                message=f"Error: {str(e)}",
-                metadata={"error_type": type(e).__name__},
-                score=0.0,
-                issues=[f"Processing error: {str(e)}"],
-                suggestions=["Retry with different input"],
-                processing_time_ms=processing_time,
-            )
+            self.record_error(e)
+            raise RuntimeError(f"Failed to critique text: {str(e)}") from e
 
     def improve(self, text: str, feedback: str) -> str:
         """Improve text based on feedback.
@@ -290,8 +303,7 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             str: The improved text
 
         Raises:
-            ValueError: If text is empty
-            TypeError: If model returns non-string output
+            ValueError: If text or feedback is empty
             RuntimeError: If critic is not properly initialized
         """
         start_time = time.time()
@@ -325,18 +337,18 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
             if track_performance:
                 total_time = self._state_manager.get_metadata("total_improvement_time_ms", 0.0)
                 self._state_manager.set_metadata(
-                    "total_improvement_time_ms",
-                    total_time + (time.time() - start_time) * 1000,
+                    "total_improvement_time_ms", total_time + (time.time() - start_time) * 1000
                 )
 
-            return improved_text
+            # Ensure we return a string
+            return str(improved_text)
 
         except Exception as e:
-            self.record_error(e) if self else ""
+            self.record_error(e)
             raise RuntimeError(f"Failed to improve text: {str(e)}") from e
 
     def improve_with_feedback(self, text: str, feedback: str) -> str:
-        """Improve text based on specific feedback.
+        """Improve text with feedback without generating a critique.
 
         Args:
             text: The text to improve
@@ -347,7 +359,6 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
 
         Raises:
             ValueError: If text or feedback is empty
-            TypeError: If model returns non-string output
             RuntimeError: If critic is not properly initialized
         """
         start_time = time.time()
@@ -387,11 +398,34 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
                     total_time + (time.time() - start_time) * 1000,
                 )
 
-            return improved_text
+            # Ensure we return a string
+            return str(improved_text)
 
         except Exception as e:
-            self.record_error(e) if self else ""
+            self.record_error(e)
             raise RuntimeError(f"Failed to improve text with feedback: {str(e)}") from e
+
+    def process(self, input: str) -> BaseResult:
+        """Process input text with the critic.
+
+        This is required by BaseComponent and serves as a bridge to critique().
+
+        Args:
+            input: The text to process
+
+        Returns:
+            BaseResult containing critique results
+        """
+        critique_result = self.critique(input)
+
+        # Convert CritiqueResult to BaseResult
+        return BaseResult(
+            passed=critique_result.get("score", 0.0) >= 0.7,  # Assuming 0.7 is the threshold
+            message=critique_result.get("feedback", ""),
+            score=critique_result.get("score", 0.0),
+            issues=critique_result.get("issues", []),
+            suggestions=critique_result.get("suggestions", []),
+        )
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -420,13 +454,6 @@ class ReflexionCritic(BaseComponent[str, CriticResult], TextValidator, TextImpro
         }
 
 
-# Default system prompt
-DEFAULT_SYSTEM_PROMPT = """You are an expert editor that improves text through reflection.
-You maintain a memory of past improvements and use these reflections to guide
-future improvements. Focus on learning patterns from past feedback and applying
-them to new situations."""
-
-
 def create_reflexion_critic(
     llm_provider: Any,
     name: str = "reflexion_critic",
@@ -439,10 +466,10 @@ def create_reflexion_critic(
     memory_buffer_size: int = 5,
     reflection_depth: int = 1,
     track_performance: bool = True,
-    cache_size: Optional[Optional[int]] = None,
-    priority: Optional[Optional[int]] = None,
-    cost: Optional[Optional[float]] = None,
-    prompt_factory: Optional[Optional[Any]] = None,
+    cache_size: Optional[int] = None,
+    priority: int = 1,
+    cost: Optional[float] = None,
+    prompt_factory: Optional[Any] = None,
     config: Optional[Union[Dict[str, Any], ReflexionCriticConfig]] = None,
     **kwargs: Any,
 ) -> ReflexionCritic:
@@ -496,7 +523,7 @@ def create_reflexion_critic(
         temperature=0.5,
         max_tokens=2000,
         memory_buffer_size=10,
-        reflection_depth=3
+        reflection_count=3  # Note: use reflection_count instead of reflection_depth
     )
     critic = create_reflexion_critic(
         llm_provider=provider,
@@ -533,32 +560,55 @@ def create_reflexion_critic(
     try:
         # Create config if not provided
         if config is None:
-            # Create a default config with provided values
-            config = ReflexionCriticConfig(
-                name=name,
-                description=description,
-                system_prompt=system_prompt
-                or "You are a helpful assistant that provides high-quality feedback and improvements for text, using reflections on past feedback to guide your improvements.",
-                temperature=temperature or 0.7,
-                max_tokens=max_tokens or 1000,
-                min_confidence=min_confidence or 0.7,
-                max_attempts=max_attempts or 3,
-                cache_size=cache_size or 100,
-                memory_buffer_size=memory_buffer_size or 5,
-                reflection_depth=reflection_depth or 1,
-                track_performance=track_performance if track_performance is not None else True,
-                priority=priority,
-                cost=cost,
-                **kwargs,
-            )
-        elif isinstance(config, dict):
-            # Convert dict to ReflexionCriticConfig
-            config = ReflexionCriticConfig(**config)
+            # Create a BaseConfig for the component, wrapping the params
+            critic_params = {
+                "llm_provider": llm_provider,
+                "system_prompt": system_prompt or DEFAULT_SYSTEM_PROMPT,
+                "temperature": temperature or 0.7,
+                "max_tokens": max_tokens or 1000,
+                "min_confidence": min_confidence or 0.7,
+                "max_attempts": max_attempts or 3,
+                "cache_size": cache_size or 100,
+                "memory_buffer_size": memory_buffer_size or 5,
+                "reflection_count": reflection_depth
+                or 1,  # Map reflection_depth to reflection_count
+                "track_performance": track_performance if track_performance is not None else True,
+                "priority": priority,
+                "cost": cost,
+                "prompt_factory": prompt_factory,
+            }
 
-        # Create and return the critic
-        return ReflexionCritic(
-            config=config,
-        )
+            # Add any additional kwargs
+            critic_params.update(kwargs)
+
+            # Create a BaseConfig
+            base_config = BaseConfig(name=name, description=description, params=critic_params)
+
+            return ReflexionCritic(name=name, description=description, config=base_config)
+
+        elif isinstance(config, dict):
+            # Convert dict to ReflexionCriticConfig and wrap in BaseConfig
+            critic_config = ReflexionCriticConfig(**config)
+            base_config = BaseConfig(
+                name=critic_config.name,
+                description=critic_config.description or description,
+                params={"config": critic_config},
+            )
+            return ReflexionCritic(
+                name=critic_config.name,
+                description=critic_config.description or description,
+                config=base_config,
+            )
+        else:
+            # Config is already a ReflexionCriticConfig, wrap in BaseConfig
+            base_config = BaseConfig(
+                name=config.name,
+                description=config.description or description,
+                params={"config": config},
+            )
+            return ReflexionCritic(
+                name=config.name, description=config.description or description, config=base_config
+            )
     except Exception as e:
         logger.error(f"Failed to create reflexion critic: {str(e)}")
         raise ValueError(f"Failed to create reflexion critic: {str(e)}") from e

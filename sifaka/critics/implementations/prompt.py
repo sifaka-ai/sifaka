@@ -82,25 +82,34 @@ The module implements comprehensive error handling for:
 
 import json
 import time
-from typing import Any, Dict, List, Optional, Tuple, cast, Union
+from typing import Any, Dict, List, Optional, Tuple, cast, Union, TypeVar, TypeAlias
 
 from pydantic import PrivateAttr, ConfigDict, Field
 
-from ...core.base import BaseComponent
+from ...core.base import BaseComponent, BaseConfig
 from ...utils.state import StateManager, create_critic_state
 from ...utils.common import record_error
-from ...core.base import BaseResult as CriticResult
+from ...core.base import BaseResult
 from ...utils.config import PromptCriticConfig
-from ...interfaces.critic import TextCritic, TextImprover, TextValidator
+from ...interfaces.critic import TextCritic, TextImprover, TextValidator, CritiqueResult
 
+# For improved type checking
+T = TypeVar("T")
 
 # Default system prompt used if none is provided
 DEFAULT_SYSTEM_PROMPT = (
     "You are a helpful assistant that provides high-quality feedback and improvements for text."
 )
 
+# Default prompt templates
+DEFAULT_PROMPT_TEMPLATES = {
+    "validation": "Please validate the following text. Is it clear, concise, and effective?",
+    "critique": "Please critique the following text. Provide detailed feedback on strengths and weaknesses.",
+    "improvement": "Please improve the following text based on the provided feedback.",
+}
 
-class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover, TextCritic):
+
+class PromptCritic(BaseComponent[str, BaseResult[Any]], TextValidator, TextImprover, TextCritic):
     """A critic that uses a language model to evaluate and improve text.
 
     This critic uses a language model to analyze text quality and provide
@@ -122,15 +131,27 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
         improved_text = critic.improve(text, feedback)
     """
 
-    _state_manager: StateManager = PrivateAttr()
+    _state_manager: StateManager = PrivateAttr(default_factory=create_critic_state)
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        name: str = "prompt_critic",
+        description: str = "A critic that uses prompts to improve text",
+        config: Optional[Dict[str, Any]] = None,
+    ):
         """Initialize the prompt critic.
 
         Args:
+            name: The name of the critic
+            description: A description of the critic
             config: Optional configuration dictionary
         """
-        super().__init__(config)
+        # Convert dict config to BaseConfig for BaseComponent
+        base_config = BaseConfig(name=name, description=description)
+        if config:
+            base_config.params = config
+
+        super().__init__(name=name, description=description, config=base_config)
         self._initialize_components()
 
     def _initialize_components(self) -> None:
@@ -146,6 +167,34 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 "temperature": 0.7,
                 "max_tokens": 1000,
             },
+        )
+
+    def process(self, input_text: str) -> BaseResult[Any]:
+        """Process input text with the critic.
+
+        This is the main entry point required by BaseComponent.
+
+        Args:
+            input_text: The text to process
+
+        Returns:
+            BaseResult: Result of the processing
+        """
+        critique_result = self.critique(input_text)
+
+        # Convert CritiqueResult to regular dict for metadata
+        critique_dict: Dict[str, Any] = {
+            "score": critique_result.get("score", 0.0),
+            "feedback": critique_result.get("feedback", ""),
+            "issues": critique_result.get("issues", []),
+            "suggestions": critique_result.get("suggestions", []),
+        }
+
+        return BaseResult(
+            passed=critique_dict["score"] >= 0.5,
+            message=critique_dict["feedback"],
+            score=critique_dict["score"],
+            metadata=critique_dict,
         )
 
     def validate(self, text: str) -> bool:
@@ -205,7 +254,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                     total_time + (time.time() - start_time) * 1000,
                 )
 
-            return result
+            return bool(result)
 
         except Exception as e:
             if hasattr(self, "record_error"):
@@ -214,14 +263,14 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                 record_error(self._state_manager, e)
             raise RuntimeError(f"Failed to validate text: {str(e)}") from e
 
-    def critique(self, text: str) -> Dict[str, Any]:
+    def critique(self, text: str) -> CritiqueResult:
         """Analyze text and provide detailed feedback.
 
         Args:
             text: The text to critique
 
         Returns:
-            dict: A dictionary containing critique information
+            CritiqueResult: A dictionary containing critique information
 
         Raises:
             ValueError: If text is empty
@@ -247,9 +296,19 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             # Get critique
             result = critique_service.critique(text)
 
-            # Ensure result is a dictionary
+            # Ensure result is a dictionary with the correct structure
             if not isinstance(result, dict):
-                result = {"feedback": str(result), "score": 0.0}
+                result = {"score": 0.0, "feedback": str(result), "issues": [], "suggestions": []}
+
+            # Ensure the result has all required fields for CritiqueResult
+            if "score" not in result:
+                result["score"] = 0.0
+            if "feedback" not in result:
+                result["feedback"] = ""
+            if "issues" not in result:
+                result["issues"] = []
+            if "suggestions" not in result:
+                result["suggestions"] = []
 
             # Update statistics
             critique_count = self._state_manager.get_metadata("critique_count", 0)
@@ -264,7 +323,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                     total_time + (time.time() - start_time) * 1000,
                 )
 
-            return result
+            return cast(CritiqueResult, result)
 
         except Exception as e:
             if hasattr(self, "record_error"):
@@ -312,6 +371,10 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
             # Improve text
             improved_text = critique_service.improve(text, feedback)
 
+            # Ensure the result is a string
+            if not isinstance(improved_text, str):
+                improved_text = str(improved_text)
+
             # Track improvement in memory manager
             memory_manager = self._state_manager.get("memory_manager")
             if memory_manager:
@@ -339,7 +402,7 @@ class PromptCritic(BaseComponent[str, CriticResult], TextValidator, TextImprover
                     total_time + (time.time() - start_time) * 1000,
                 )
 
-            return improved_text
+            return str(improved_text)
 
         except Exception as e:
             if hasattr(self, "record_error"):
@@ -578,8 +641,9 @@ def create_prompt_critic(
                     # Try to get by type if not found by name
                     from sifaka.interfaces.model import ModelProviderProtocol
 
-                    llm_provider = provider.get_by_type(
-                        ModelProviderProtocol, None, session_id, request_id
+                    # Using get method instead of get_by_type which might not exist
+                    llm_provider = provider.get(
+                        ModelProviderProtocol.__name__, None, session_id, request_id
                     )
                 except (DependencyError, ImportError):
                     # This is a required dependency, so we need to raise an error
@@ -602,76 +666,62 @@ def create_prompt_critic(
 
         # Create config if not provided
         if config is None:
-            from copy import deepcopy
+            # Build the config dictionary with proper types
+            config_kwargs: Dict[str, Any] = {}
 
-            # Create a default config dictionary
-            config_dict = {
-                "name": "prompt_critic",
-                "description": "A critic that uses prompts to improve text",
-                "system_prompt": "You are a helpful assistant that provides high-quality feedback and improvements for text.",
-                "temperature": 0.7,
-                "max_tokens": 1000,
-                "min_confidence": 0.7,
-                "max_attempts": 3,
-                "cache_size": 100,
-                "eager_initialization": False,
-                "memory_buffer_size": 10,
-                "track_performance": True,
-                "track_errors": True,
-            }
+            # Add all provided parameters to config_kwargs with proper typing
+            config_kwargs["name"] = name
+            config_kwargs["description"] = description
 
-            # Add all provided parameters to config_dict
-            if name is not None:
-                config_dict["name"] = name
-            if description is not None:
-                config_dict["description"] = description
             if system_prompt is not None:
-                config_dict["system_prompt"] = system_prompt
+                config_kwargs["system_prompt"] = system_prompt
             if temperature is not None:
-                config_dict["temperature"] = temperature
+                config_kwargs["temperature"] = temperature
             if max_tokens is not None:
-                config_dict["max_tokens"] = max_tokens
+                config_kwargs["max_tokens"] = max_tokens
             if min_confidence is not None:
-                config_dict["min_confidence"] = min_confidence
+                config_kwargs["min_confidence"] = min_confidence
             if max_attempts is not None:
-                config_dict["max_attempts"] = max_attempts
+                config_kwargs["max_attempts"] = max_attempts
             if cache_size is not None:
-                config_dict["cache_size"] = cache_size
+                config_kwargs["cache_size"] = cache_size
             if priority is not None:
-                config_dict["priority"] = priority
+                config_kwargs["priority"] = priority
             if cost is not None:
-                config_dict["cost"] = cost
+                config_kwargs["cost"] = cost
             if track_performance is not None:
-                config_dict["track_performance"] = track_performance
+                config_kwargs["track_performance"] = track_performance
             if track_errors is not None:
-                config_dict["track_errors"] = track_errors
+                config_kwargs["track_errors"] = track_errors
             if eager_initialization is not None:
-                config_dict["eager_initialization"] = eager_initialization
+                config_kwargs["eager_initialization"] = eager_initialization
             if memory_buffer_size is not None:
-                config_dict["memory_buffer_size"] = memory_buffer_size
+                config_kwargs["memory_buffer_size"] = memory_buffer_size
 
             # Add any additional kwargs to params
             params = kwargs.pop("params", {})
             for key, value in kwargs.items():
-                if key not in config_dict and key not in ["session_id", "request_id"]:
+                if key not in config_kwargs and key not in ["session_id", "request_id"]:
                     params[key] = value
 
             if params:
-                config_dict["params"] = params
+                config_kwargs["params"] = params
 
             # Create a new config object
-            config = PromptCriticConfig(**config_dict)
+            config = PromptCriticConfig(**config_kwargs)
 
         # Create critic instance with configured parameters
-        critic = PromptCritic(
-            config={
-                "name": name,
-                "description": description,
-                "llm_provider": llm_provider,
-                "prompt_factory": prompt_factory,
-                "config": config,
-            }
-        )
+        critic_config_dict = {
+            "llm_provider": llm_provider,
+            "prompt_factory": prompt_factory,
+            "config": config,
+        }
+
+        # Create a BaseConfig for the component
+        base_config = BaseConfig(name=name, description=description, params=critic_config_dict)
+
+        # Use the created BaseConfig object
+        critic = PromptCritic(name=name, description=description, config=base_config.params)
 
         return critic
 

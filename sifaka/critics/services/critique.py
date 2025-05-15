@@ -91,7 +91,7 @@ critiquing, validating, and improving text.
 """
 
 import time
-from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING, cast, TypeVar, ClassVar, Type
 from pydantic import BaseModel, PrivateAttr
 
 if TYPE_CHECKING:
@@ -102,6 +102,7 @@ from ...utils.logging import get_logger
 from ...utils.errors import safely_execute_component_operation as safely_execute_critic
 from ...utils.errors.component import CriticError
 from ...utils.state import StateManager, create_critic_state
+from ...utils.errors import ErrorResult
 
 logger = get_logger(__name__)
 
@@ -181,6 +182,27 @@ class CritiqueService(BaseModel):
 
     _state_manager: StateManager = PrivateAttr(default_factory=create_critic_state)
 
+    @classmethod
+    def model_validate(
+        cls: Type["CritiqueService"],
+        obj: Any,
+        *,
+        strict: Optional[bool] = None,
+        from_attributes: Optional[bool] = None,
+        context: Optional[Dict[str, Any]] = None,
+        by_alias: Optional[bool] = None,
+        by_name: Optional[bool] = None,
+    ) -> "CritiqueService":
+        """Validate a model instance."""
+        return super().model_validate(
+            obj,
+            strict=strict,
+            from_attributes=from_attributes,
+            context=context,
+            by_alias=by_alias,
+            by_name=by_name,
+        )
+
     def __init__(
         self,
         llm_provider: Any,
@@ -224,7 +246,7 @@ class CritiqueService(BaseModel):
         self._state_manager.set_metadata("component_type", self.__class__.__name__)
         self._state_manager.set_metadata("initialization_time", time.time())
 
-    def validate(self, text: str) -> bool:
+    def validate_text(self, text: str) -> bool:
         """
         Validate text against quality standards.
 
@@ -251,7 +273,7 @@ class CritiqueService(BaseModel):
         validation_count = self._state_manager.get("validation_count", 0)
         self._state_manager.update("validation_count", validation_count + 1)
 
-        def validation_operation() -> Any:
+        def validation_operation() -> bool:
             if not isinstance(text, str) or not text.strip() if text else "":
                 raise ValueError("text must be a non-empty string")
             prompt_manager = self._state_manager.get("prompt_manager")
@@ -268,21 +290,36 @@ class CritiqueService(BaseModel):
             stats["validation_count"] = stats.get("validation_count", 0) + 1 if stats else 1
             stats["last_validation_time"] = time.time()
             self._state_manager.update("stats", stats)
-            return result
+            return bool(result)
 
         try:
-            return safely_execute_critic(
+            result = safely_execute_critic(
                 operation=validation_operation,
                 component_name=self.__class__.__name__,
                 component_type="Critic",
                 error_class=CriticError,
                 additional_metadata={"text_length": len(text), "method": "validate"},
             )
+            return bool(result)
         except Exception as e:
             error_count = self._state_manager.get("error_count", 0)
             self._state_manager.update("error_count", error_count + 1)
             logger.error(f'Failed to validate text: {str(e) if logger else ""}')
             return False
+
+    def validate(self, text: str) -> bool:  # type: ignore
+        """
+        Validate text against quality standards (alias for validate_text).
+
+        This is provided for backwards compatibility.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            True if the text meets quality standards, False otherwise
+        """
+        return self.validate_text(text)
 
     def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -312,7 +349,7 @@ class CritiqueService(BaseModel):
         critique_count = self._state_manager.get("critique_count", 0)
         self._state_manager.update("critique_count", critique_count + 1)
 
-        def critique_operation() -> Any:
+        def critique_operation() -> Dict[str, Any]:
             if not isinstance(text, str) or not text.strip() if text else "":
                 raise ValueError("text must be a non-empty string")
             prompt_manager = self._state_manager.get("prompt_manager")
@@ -322,21 +359,26 @@ class CritiqueService(BaseModel):
                 raise RuntimeError("CritiqueService not properly initialized")
             critique_prompt = prompt_manager.create_critique_prompt(text) if prompt_manager else ""
             response = model.invoke(critique_prompt) if model else ""
-            result = response_parser.parse_critique_response(response) if response_parser else ""
+            result = response_parser.parse_critique_response(response) if response_parser else {}
             stats = self._state_manager.get("stats", {})
             stats["critique_count"] = stats.get("critique_count", 0) + 1 if stats else 1
             stats["last_critique_time"] = time.time()
             score_distribution = stats.get("score_distribution", {}) if stats else {}
-            score_bucket = round(result.get("score", 0) * 10) / 10 if result else 0
+
+            # Handle the case where result might be a string or None
+            result_dict = result if isinstance(result, dict) else {}
+            score = result_dict.get("score", 0.0)
+
+            score_bucket = round(score * 10) / 10
             score_distribution[str(score_bucket)] = (
                 score_distribution.get(str(score_bucket), 0) + 1 if score_distribution else 1
             )
             stats["score_distribution"] = score_distribution
             self._state_manager.update("stats", stats)
-            return result
+            return result_dict
 
         try:
-            return safely_execute_critic(
+            result = safely_execute_critic(
                 operation=critique_operation,
                 component_name=self.__class__.__name__,
                 component_type="Critic",
@@ -347,6 +389,23 @@ class CritiqueService(BaseModel):
                     **(metadata or {}),
                 },
             )
+            if isinstance(result, dict):
+                return result
+            if isinstance(result, ErrorResult):
+                error_msg = str(result)
+                return {
+                    "score": 0.0,
+                    "feedback": f"Failed to critique text: {error_msg}",
+                    "issues": ["Critique process failed"],
+                    "suggestions": ["Try again with clearer text"],
+                }
+            # Fallback for any other unexpected result type
+            return {
+                "score": 0.0,
+                "feedback": "Failed to critique text: Unknown error",
+                "issues": ["Critique process failed"],
+                "suggestions": ["Try again with clearer text"],
+            }
         except Exception as e:
             error_count = self._state_manager.get("error_count", 0)
             self._state_manager.update("error_count", error_count + 1)
@@ -387,7 +446,7 @@ class CritiqueService(BaseModel):
         improvement_count = self._state_manager.get("improvement_count", 0)
         self._state_manager.update("improvement_count", improvement_count + 1)
 
-        def improvement_operation() -> Any:
+        def improvement_operation() -> str:
             if not isinstance(text, str) or not text.strip() if text else "":
                 raise ValueError("text must be a non-empty string")
             prompt_manager = self._state_manager.get("prompt_manager")
@@ -398,24 +457,37 @@ class CritiqueService(BaseModel):
             processed_feedback = feedback
             if isinstance(feedback, list):
                 processed_feedback = self._violations_to_feedback(feedback) if self else ""
+
+            # Get the reflections as a string
+            reflections = self._get_relevant_reflections() if self else []
+            reflections_str = "\n".join(reflections) if reflections else ""
+
             improvement_prompt = prompt_manager.create_improvement_prompt(
                 text,
                 processed_feedback,
-                self._get_relevant_reflections() if self else "" if prompt_manager else "",
+                reflections_str if prompt_manager else "",
             )
             response = model.invoke(improvement_prompt) if model else ""
             improved_text = (
                 response_parser.parse_improvement_response(response) if response_parser else ""
             )
-            self._generate_reflection(text, processed_feedback, improved_text) if self else ""
+
+            # Convert processed_feedback to string for _generate_reflection
+            feedback_str = (
+                processed_feedback
+                if isinstance(processed_feedback, str)
+                else str(processed_feedback)
+            )
+            self._generate_reflection(text, feedback_str, improved_text) if self else ""
+
             stats = self._state_manager.get("stats", {})
             stats["improvement_count"] = stats.get("improvement_count", 0) + 1 if stats else 1
             stats["last_improvement_time"] = time.time()
             self._state_manager.update("stats", stats)
-            return improved_text
+            return str(improved_text)
 
         try:
-            return safely_execute_critic(
+            result = safely_execute_critic(
                 operation=improvement_operation,
                 component_name=self.__class__.__name__,
                 component_type="Critic",
@@ -426,6 +498,7 @@ class CritiqueService(BaseModel):
                     "feedback_type": "list" if isinstance(feedback, list) else "string",
                 },
             )
+            return str(result) if result is not None else text
         except Exception as e:
             error_count = self._state_manager.get("error_count", 0)
             self._state_manager.update("error_count", error_count + 1)
@@ -551,17 +624,27 @@ class CritiqueService(BaseModel):
         if not memory_manager:
             return []
 
-        def retrieval_operation() -> Any:
-            return memory_manager and memory_manager.get_memory() if memory_manager else ""
+        def retrieval_operation() -> List[str]:
+            if memory_manager:
+                memory = memory_manager.get_memory()
+                return cast(List[str], memory) if memory else []
+            return []
 
         try:
-            return safely_execute_critic(
+            result = safely_execute_critic(
                 operation=retrieval_operation,
                 component_name=self.__class__.__name__,
                 component_type="Critic",
                 error_class=CriticError,
                 additional_metadata={"method": "get_relevant_reflections"},
             )
+            if isinstance(result, list):
+                return result
+            if isinstance(result, ErrorResult):
+                logger.error(f"Failed to get reflections: {str(result)}")
+                return []
+            # Fallback for any other unexpected result type
+            return []
         except Exception as e:
             error_count = self._state_manager.get("error_count", 0)
             self._state_manager.update("error_count", error_count + 1)

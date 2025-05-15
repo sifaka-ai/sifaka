@@ -84,25 +84,22 @@ Based on Constitutional AI: https://arxiv.org/abs/2212.08073
 
 import json
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 from pydantic import PrivateAttr, ConfigDict, Field
 
-from ...core.base import BaseComponent
+from ...core.base import BaseComponent, BaseConfig, BaseResult
 from ...utils.state import create_critic_state
 from ...utils.common import record_error
 from ...utils.logging import get_logger
-from ...core.base import BaseResult as CriticResult
 from ...utils.config import ConstitutionalCriticConfig
-from ...interfaces.critic import TextCritic, TextImprover, TextValidator
+from ...interfaces.critic import TextCritic, TextImprover, TextValidator, CritiqueResult
 
 # Configure logging
 logger = get_logger(__name__)
 
 
-class ConstitutionalCritic(
-    BaseComponent[str, CriticResult], TextValidator, TextImprover, TextCritic
-):
+class ConstitutionalCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, TextCritic):
     """
     A critic that evaluates responses against a list of principles (a "constitution")
     and provides natural language feedback for revision.
@@ -194,8 +191,8 @@ class ConstitutionalCritic(
     # Pydantic v2 configuration
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    # Configuration
-    config: ConstitutionalCriticConfig = Field(description="Critic configuration")
+    # Configuration attributes
+    _config: BaseConfig = PrivateAttr()
 
     # State management using StateManager
     _state_manager = PrivateAttr(default_factory=create_critic_state)
@@ -206,7 +203,7 @@ class ConstitutionalCritic(
         description: str,
         llm_provider: Any,
         principles: Optional[List[str]] = None,
-        config: Optional[ConstitutionalCriticConfig] = None,
+        config: Optional[BaseConfig] = None,
         **kwargs: Any,
     ) -> None:
         """
@@ -235,7 +232,7 @@ class ConstitutionalCritic(
                 "The text should be appropriate for the intended audience.",
             ]
 
-            config = ConstitutionalCriticConfig(
+            constitutional_config = ConstitutionalCriticConfig(
                 name=name,
                 description=description,
                 system_prompt="You are a helpful assistant that provides high-quality feedback and improvements for text, ensuring that the text adheres to a set of principles.",
@@ -248,10 +245,16 @@ class ConstitutionalCritic(
                 **kwargs,
             )
 
-            # Principles are already set in the constructor
+            # Store as private attr for access in methods
+            self._config = cast(BaseConfig, constitutional_config)
 
-        # Initialize base component
-        super().__init__(name=name, description=description, config=config)
+            # Initialize base component with the base_config
+            super().__init__(name=name, description=description, config=self._config)
+        else:
+            # Store the config for later use
+            self._config = config
+            # Initialize base component
+            super().__init__(name=name, description=description, config=config)
 
         try:
             # Import required components
@@ -264,7 +267,7 @@ class ConstitutionalCritic(
             if self._state_manager:
                 self._state_manager.update("model", llm_provider)
                 self._state_manager.update(
-                    "prompt_manager", ConstitutionalCriticPromptManager(config)
+                    "prompt_manager", ConstitutionalCriticPromptManager(self._config)
                 )
                 self._state_manager.update("response_parser", ResponseParser())
                 self._state_manager.update(
@@ -287,13 +290,43 @@ class ConstitutionalCritic(
                     memory_manager=memory_manager,
                 )
 
-                if config:
-                    cache["principles"] = config.principles
-                    cache["critique_prompt_template"] = config.critique_prompt_template
-                    cache["improvement_prompt_template"] = config.improvement_prompt_template
-                    cache["system_prompt"] = config.system_prompt
-                    cache["temperature"] = config.temperature
-                    cache["max_tokens"] = config.max_tokens
+                # Access attributes via the config object directly
+                if isinstance(self._config, ConstitutionalCriticConfig):
+                    cache["principles"] = self._config.principles
+                    # Set default prompt templates if not specified in the config
+                    cache["critique_prompt_template"] = getattr(
+                        self._config,
+                        "critique_prompt_template",
+                        "Provide a critique of the following text based on the principles:\n\n{principles}\n\nText: {text}",
+                    )
+                    cache["improvement_prompt_template"] = getattr(
+                        self._config,
+                        "improvement_prompt_template",
+                        "Improve the following text based on the principles and feedback:\n\n{principles}\n\nText: {text}\n\nFeedback: {feedback}",
+                    )
+                    cache["system_prompt"] = self._config.system_prompt
+                    cache["temperature"] = self._config.temperature
+                    cache["max_tokens"] = self._config.max_tokens
+                else:
+                    # Extract from params if it's a BaseConfig
+                    params = getattr(self._config, "params", {})
+                    config_obj = params.get("config", {})
+                    cache["principles"] = getattr(config_obj, "principles", default_principles)
+                    cache["critique_prompt_template"] = getattr(
+                        config_obj,
+                        "critique_prompt_template",
+                        "Provide a critique of the following text based on the principles:\n\n{principles}\n\nText: {text}",
+                    )
+                    cache["improvement_prompt_template"] = getattr(
+                        config_obj,
+                        "improvement_prompt_template",
+                        "Improve the following text based on the principles and feedback:\n\n{principles}\n\nText: {text}\n\nFeedback: {feedback}",
+                    )
+                    cache["system_prompt"] = getattr(
+                        config_obj, "system_prompt", "You are a helpful assistant"
+                    )
+                    cache["temperature"] = getattr(config_obj, "temperature", 0.7)
+                    cache["max_tokens"] = getattr(config_obj, "max_tokens", 1000)
 
                 self._state_manager.update("cache", cache)
 
@@ -307,7 +340,7 @@ class ConstitutionalCritic(
                 self.record_error(e)
             raise ValueError(f"Failed to initialize ConstitutionalCritic: {str(e)}") from e
 
-    def process(self, input: str) -> CriticResult:
+    def process(self, input: str) -> BaseResult:
         """
         Process the input text and return a result.
 
@@ -317,7 +350,7 @@ class ConstitutionalCritic(
             input: The text to process
 
         Returns:
-            CriticResult: The result of processing the text
+            BaseResult: The result of processing the text
 
         Raises:
             ValueError: If text is empty
@@ -357,7 +390,7 @@ class ConstitutionalCritic(
             score = critique_result.get("score", 0)
             passed = score >= min_confidence
 
-            result: CriticResult = CriticResult(
+            result: BaseResult = BaseResult(
                 passed=passed,
                 message=critique_result.get("feedback", ""),
                 metadata={"operation": "process"},
@@ -381,7 +414,7 @@ class ConstitutionalCritic(
             elapsed_time = time.time() - start_time
             processing_time = float(elapsed_time) * 1000.0
 
-            return CriticResult(
+            return BaseResult(
                 passed=False,
                 message=f"Error: {str(e)}",
                 metadata={"error_type": type(e).__name__},
@@ -969,15 +1002,22 @@ def create_constitutional_critic(
 
             config = ConstitutionalCriticConfig(**config)
 
-        # Create and return the critic
-        return ConstitutionalCritic(
-            name=name,
-            description=description,
-            llm_provider=llm_provider,
-            principles=principles,
-            config=config,
-            **kwargs,
-        )
+        # Create the critic with a proper BaseConfig
+        if isinstance(config, ConstitutionalCriticConfig):
+            base_config = BaseConfig(
+                name=name,
+                description=description,
+                params={"config": config, "llm_provider": llm_provider},
+            )
+            return ConstitutionalCritic(
+                name=name,
+                description=description,
+                llm_provider=llm_provider,
+                principles=principles,
+                config=base_config,
+            )
+        else:
+            raise ValueError(f"Invalid configuration type: {type(config)}")
     except Exception as e:
         logger.error(f"Failed to create constitutional critic: {str(e)}")
         raise ValueError(f"Failed to create constitutional critic: {str(e)}") from e

@@ -37,12 +37,18 @@ result = rule.validate("This is a test.") if rule else ""
 print(f"Valid: {result.passed}")
 ```
 """
-from typing import Optional
+
+from typing import Optional, cast, List, Any
 from sifaka.rules.base import Rule, RuleConfig, RuleResult
 from sifaka.rules.formatting.style.validators import StyleValidator, FormattingValidator
-from sifaka.rules.formatting.style.implementations import DefaultStyleValidator, DefaultFormattingValidator
+from sifaka.rules.formatting.style.implementations import (
+    DefaultStyleValidator,
+    DefaultFormattingValidator,
+)
 from sifaka.rules.formatting.style.config import StyleConfig, FormattingConfig
-__all__ = ['StyleRule', 'FormattingRule']
+from sifaka.rules.formatting.style.enums import CapitalizationStyle
+
+__all__ = ["StyleRule", "FormattingRule"]
 
 
 class StyleRule(Rule[str]):
@@ -130,9 +136,14 @@ class StyleRule(Rule[str]):
     ```
     """
 
-    def __init__(self, name: str='style_rule', description: str=
-        'Validates text style', config: Optional[Optional[RuleConfig]] = None,
-        validator: Optional[Optional[StyleValidator]] = None, **kwargs) ->None:
+    def __init__(
+        self,
+        name: str = "style_rule",
+        description: str = "Validates text style",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[StyleValidator] = None,
+        **kwargs,
+    ) -> None:
         """
         Initialize the style rule.
 
@@ -143,12 +154,18 @@ class StyleRule(Rule[str]):
             validator: Optional validator implementation
             **kwargs: Additional keyword arguments for the rule
         """
-        super().__init__(name=name, description=description, config=config or
-            RuleConfig(name=name, description=description, rule_id=kwargs.
-            pop('rule_id', name), **kwargs), validator=validator)
-        self._style_validator = validator or self._create_default_validator() if self else ""
+        super().__init__(
+            name=name,
+            description=description,
+            config=config
+            or RuleConfig(
+                name=name, description=description, rule_id=kwargs.pop("rule_id", name), **kwargs
+            ),
+            validator=validator,
+        )
+        self._style_validator = validator or self._create_default_validator()
 
-    def _create_default_validator(self) ->StyleValidator:
+    def _create_default_validator(self) -> StyleValidator:
         """
         Create a default validator from config.
 
@@ -156,14 +173,40 @@ class StyleRule(Rule[str]):
             A configured StyleValidator
         """
         params = self.config.params
-        config = StyleConfig(capitalization=params.get('capitalization') if params else "",
-            require_end_punctuation=params.get('require_end_punctuation', 
-            False) if params else "", allowed_end_chars=params.get('allowed_end_chars') if params else "",
-            disallowed_chars=params.get('disallowed_chars') if params else "",
-            strip_whitespace=params.get('strip_whitespace', True) if params else "")
+
+        # Convert params to appropriate types
+        cap_value = params.get("capitalization") if params else None
+        capitalization = cap_value if isinstance(cap_value, CapitalizationStyle) else None
+
+        require_end_punct = params.get("require_end_punctuation", False) if params else False
+        require_end_punctuation = bool(require_end_punct)
+
+        allowed_chars = params.get("allowed_end_chars") if params else None
+        allowed_end_chars: Optional[List[str]] = (
+            cast(List[str], allowed_chars) if isinstance(allowed_chars, list) else None
+        )
+
+        disallowed_chars_value = params.get("disallowed_chars") if params else None
+        disallowed_chars: Optional[List[str]] = (
+            cast(List[str], disallowed_chars_value)
+            if isinstance(disallowed_chars_value, list)
+            else None
+        )
+
+        strip_ws = params.get("strip_whitespace", True) if params else True
+        strip_whitespace = bool(strip_ws)
+
+        config = StyleConfig(
+            capitalization=capitalization,
+            require_end_punctuation=require_end_punctuation,
+            allowed_end_chars=allowed_end_chars,
+            disallowed_chars=disallowed_chars,
+            strip_whitespace=strip_whitespace,
+        )
+
         return DefaultStyleValidator(config)
 
-    def validate(self, text: str, **kwargs) ->RuleResult:
+    def validate(self, text: str, **kwargs) -> RuleResult:
         """
         Evaluate text against style constraints.
 
@@ -174,8 +217,24 @@ class StyleRule(Rule[str]):
         Returns:
             RuleResult containing validation results
         """
-        result = self._validator.validate(text, **kwargs) if _validator else ""
-        return result.with_metadata(rule_id=self._name) if result else ""
+        # Use self._validator which is set by BaseComponent
+        result = self._validator.validate(text, **kwargs)
+        # Ensure we're returning a RuleResult
+        if isinstance(result, RuleResult):
+            # Cast to ensure mypy understands the return type
+            return cast(RuleResult, result.with_metadata(rule_id=self._name))
+        else:
+            # Create a new RuleResult directly if we got something else
+            return RuleResult(
+                passed=getattr(result, "passed", False),
+                message=getattr(result, "message", "Style validation completed"),
+                metadata={**getattr(result, "metadata", {}), "rule_id": self._name},
+                score=getattr(result, "score", 0.0),
+                issues=getattr(result, "issues", []),
+                suggestions=getattr(result, "suggestions", []),
+                processing_time_ms=getattr(result, "processing_time_ms", 0.0),
+                rule_name=self._name,
+            )
 
 
 class FormattingRule(Rule[str]):
@@ -271,9 +330,14 @@ class FormattingRule(Rule[str]):
     ```
     """
 
-    def __init__(self, name: str='formatting_rule', description: str=
-        'Validates text formatting', config: Optional[Optional[RuleConfig]] = None,
-        validator: Optional[Optional[FormattingValidator]] = None, **kwargs) ->None:
+    def __init__(
+        self,
+        name: str = "formatting_rule",
+        description: str = "Validates text formatting",
+        config: Optional[RuleConfig] = None,
+        validator: Optional[FormattingValidator] = None,
+        **kwargs,
+    ) -> None:
         """
         Initialize the formatting rule.
 
@@ -284,13 +348,18 @@ class FormattingRule(Rule[str]):
             validator: Optional validator implementation
             **kwargs: Additional keyword arguments for the rule
         """
-        super().__init__(name=name, description=description, config=config or
-            RuleConfig(name=name, description=description, rule_id=kwargs.
-            pop('rule_id', name), **kwargs), validator=validator)
-        self._formatting_validator = (validator or self.
-            _create_default_validator())
+        super().__init__(
+            name=name,
+            description=description,
+            config=config
+            or RuleConfig(
+                name=name, description=description, rule_id=kwargs.pop("rule_id", name), **kwargs
+            ),
+            validator=validator,
+        )
+        self._formatting_validator = validator or self._create_default_validator()
 
-    def _create_default_validator(self) ->FormattingValidator:
+    def _create_default_validator(self) -> FormattingValidator:
         """
         Create a default validator from config.
 
@@ -298,8 +367,57 @@ class FormattingRule(Rule[str]):
             A configured FormattingValidator
         """
         params = self.config.params
-        config = FormattingConfig(style_config=params.get('style_config') if params else "",
-            strip_whitespace=params.get('strip_whitespace', True) if params else "",
-            normalize_whitespace=params.get('normalize_whitespace', False) if params else "",
-            remove_extra_lines=params.get('remove_extra_lines', False) if params else "")
+
+        # Convert params to appropriate types
+        style_config_value = params.get("style_config") if params else None
+        style_config: Optional[StyleConfig] = (
+            style_config_value if isinstance(style_config_value, StyleConfig) else None
+        )
+
+        strip_ws = params.get("strip_whitespace", True) if params else True
+        strip_whitespace = bool(strip_ws)
+
+        norm_ws = params.get("normalize_whitespace", False) if params else False
+        normalize_whitespace = bool(norm_ws)
+
+        remove_lines = params.get("remove_extra_lines", False) if params else False
+        remove_extra_lines = bool(remove_lines)
+
+        config = FormattingConfig(
+            style_config=style_config,
+            strip_whitespace=strip_whitespace,
+            normalize_whitespace=normalize_whitespace,
+            remove_extra_lines=remove_extra_lines,
+        )
+
         return DefaultFormattingValidator(config)
+
+    def validate(self, text: str, **kwargs) -> RuleResult:
+        """
+        Evaluate text against formatting constraints.
+
+        Args:
+            text: The text to evaluate
+            **kwargs: Additional validation context
+
+        Returns:
+            RuleResult containing validation results
+        """
+        # Use self._validator which is set by BaseComponent
+        result = self._validator.validate(text, **kwargs)
+        # Ensure we're returning a RuleResult
+        if isinstance(result, RuleResult):
+            # Cast to ensure mypy understands the return type
+            return cast(RuleResult, result.with_metadata(rule_id=self._name))
+        else:
+            # Create a new RuleResult directly if we got something else
+            return RuleResult(
+                passed=getattr(result, "passed", False),
+                message=getattr(result, "message", "Formatting validation completed"),
+                metadata={**getattr(result, "metadata", {}), "rule_id": self._name},
+                score=getattr(result, "score", 0.0),
+                issues=getattr(result, "issues", []),
+                suggestions=getattr(result, "suggestions", []),
+                processing_time_ms=getattr(result, "processing_time_ms", 0.0),
+                rule_name=self._name,
+            )

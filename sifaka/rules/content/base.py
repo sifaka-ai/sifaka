@@ -128,8 +128,7 @@ class ContentValidator:
         Args:
             analyzer: The content analyzer to use for validation
         """
-        super().__init__(validation_type=str)
-        self._validate_analyzer(analyzer) if self else ""
+        self._validate_analyzer(analyzer)
         self._analyzer = analyzer
 
     def _validate_analyzer(self, analyzer: Any) -> None:
@@ -147,6 +146,48 @@ class ContentValidator:
                 f"Analyzer must implement ContentAnalyzer protocol, got {type(analyzer)}"
             )
 
+    def handle_empty_text(self, text: str) -> Optional[RuleResult]:
+        """
+        Handle empty text validation.
+
+        Args:
+            text: The text to validate
+
+        Returns:
+            RuleResult if text is empty, None otherwise
+        """
+        if not text or not text.strip():
+            return RuleResult(
+                passed=False,
+                message="Empty text is not valid",
+                metadata={"validator_type": self.__class__.__name__},
+                score=0.0,
+                issues=["Text is empty"],
+                suggestions=["Provide non-empty content"],
+                processing_time_ms=0.0,
+            )
+        return None
+
+    def update_statistics(self, result: RuleResult) -> None:
+        """
+        Update validation statistics based on result.
+
+        Args:
+            result: The validation result
+        """
+        # This is a stub method that would be implemented in subclasses
+        pass
+
+    def record_error(self, error: Exception) -> None:
+        """
+        Record an error for logging/tracking.
+
+        Args:
+            error: The exception to record
+        """
+        # This is a stub method that would be implemented in subclasses
+        pass
+
     def validate(self, text: str) -> RuleResult:
         """
         Validate text content.
@@ -160,13 +201,17 @@ class ContentValidator:
         start_time = time.time()
 
         # Handle empty text
-        empty_result = self.handle_empty_text(text) if self else ""
+        empty_result = self.handle_empty_text(text)
         if empty_result:
             return empty_result
 
         try:
             # Analyze the content
-            analysis = self._analyzer.analyze(text) if self._analyzer else None
+            analysis = self._analyzer.analyze(text)
+
+            # Make sure analysis is not None before accessing attributes
+            if analysis is None:
+                raise ValueError("Content analysis failed")
 
             # Determine if the content passes validation
             passed = analysis.has_content
@@ -189,13 +234,14 @@ class ContentValidator:
             )
 
             # Update statistics
-            self.update_statistics(result) if self else ""
+            self.update_statistics(result)
 
             return result
 
         except Exception as e:
-            self.record_error(e) if self else ""
-            logger.error(f"Content validation failed: {e}") if logger else ""
+            self.record_error(e)
+            if logger:
+                logger.error(f"Content validation failed: {e}")
 
             error_message = f"Content validation failed: {str(e)}"
             result = RuleResult(
@@ -212,7 +258,7 @@ class ContentValidator:
                 processing_time_ms=time.time() - start_time,
             )
 
-            self.update_statistics(result) if self else ""
+            self.update_statistics(result)
             return result
 
 
@@ -235,7 +281,7 @@ class DefaultContentAnalyzer(BaseModel):
         analyzer = DefaultContentAnalyzer()
 
         # Analyze text
-        analysis = analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer.analyze("This is a test.") if analyzer else ""
+        analysis = analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer and analyzer.analyze("This is a test.") if analyzer else ""
         print(f"Length: {analysis.length}, Words: {analysis.word_count}")
         ```
     """
@@ -321,12 +367,21 @@ class DefaultToneAnalyzer(BaseModel):
         if not isinstance(text, str):
             raise ValueError("Input must be a string")
 
-        words = text.lower() if text else "".split()
-        unique_words = set(words)
+        # Split into words for analysis
+        words = text.split() if text else []
 
         # Calculate metrics
-        formality = sum(1 for w in words if len(w) > 6) / len(words) if words else 0
-        complexity = len(unique_words) / len(words) if words else 0
+        unique_words = set(words)
+        if words:
+            # Calculate formality (based on avg word length)
+            avg_word_length = sum(len(w) for w in words) / len(words)
+            formality = min(avg_word_length / 8, 1.0)  # Scale to 0-1
+
+            # Calculate complexity (based on vocabulary diversity)
+            complexity = min(len(unique_words) / len(words), 1.0)
+        else:
+            formality = 0.0
+            complexity = 0.0
 
         # Determine tone based on metrics
         tone = "formal" if formality > 0.3 else "informal"
@@ -337,15 +392,11 @@ class DefaultToneAnalyzer(BaseModel):
         confidence = (formality + complexity) / 2
 
         # Find indicators
-        indicators = []
+        indicators: List[str] = []
         if formality > 0.3:
-            indicators and indicators and indicators.append("long_words") if indicators else ""
+            indicators.append("long_words")
         if complexity > 0.7:
-            (
-                indicators and indicators and indicators.append("diverse_vocabulary")
-                if indicators
-                else ""
-            )
+            indicators.append("diverse_vocabulary")
 
         return ToneAnalysis(
             tone=tone,
@@ -784,10 +835,10 @@ def create_tone_analyzer(**kwargs: Any) -> DefaultToneAnalyzer:
 
 
 def create_indicator_analyzer(
-    indicators: Optional[Optional[List[str]]] = None,
-    threshold: Optional[Optional[float]] = None,
-    higher_is_better: Optional[Optional[bool]] = None,
-    case_sensitive: Optional[Optional[bool]] = None,
+    indicators: Optional[List[str]] = None,
+    threshold: Optional[float] = None,
+    higher_is_better: Optional[bool] = None,
+    case_sensitive: Optional[bool] = None,
     **kwargs: Any,
 ) -> IndicatorAnalyzer:
     """
@@ -825,7 +876,7 @@ def create_indicator_analyzer(
     """
     try:
         # Create config with default or provided values
-        config_params = {}
+        config_params: Dict[str, Any] = {}
         if indicators is not None:
             config_params["indicators"] = indicators
         if threshold is not None:
@@ -842,16 +893,17 @@ def create_indicator_analyzer(
         return IndicatorAnalyzer(**config_params)
 
     except Exception as e:
-        logger.error(f"Error creating indicator analyzer: {e}") if logger else ""
+        if logger:
+            logger.error(f"Error creating indicator analyzer: {e}")
         raise ValueError(f"Error creating indicator analyzer: {str(e)}")
 
 
 def create_category_analyzer(
     categories: Optional[Dict[str, List[str]]] = None,
-    threshold: Optional[Optional[float]] = None,
-    fail_if_any: Optional[Optional[bool]] = None,
-    higher_is_better: Optional[Optional[bool]] = None,
-    case_sensitive: Optional[Optional[bool]] = None,
+    threshold: Optional[float] = None,
+    fail_if_any: Optional[bool] = None,
+    higher_is_better: Optional[bool] = None,
+    case_sensitive: Optional[bool] = None,
     **kwargs: Any,
 ) -> CategoryAnalyzer:
     """
@@ -895,7 +947,7 @@ def create_category_analyzer(
     """
     try:
         # Create config with default or provided values
-        config_params = {}
+        config_params: Dict[str, Any] = {}
         if categories is not None:
             config_params["categories"] = categories
         if threshold is not None:
@@ -914,12 +966,13 @@ def create_category_analyzer(
         return CategoryAnalyzer(**config_params)
 
     except Exception as e:
-        logger.error(f"Error creating category analyzer: {e}") if logger else ""
+        if logger:
+            logger.error(f"Error creating category analyzer: {e}")
         raise ValueError(f"Error creating category analyzer: {str(e)}")
 
 
 def create_content_validator(
-    analyzer: Optional[Optional[ContentAnalyzer]] = None,
+    analyzer: Optional[ContentAnalyzer] = None,
     **kwargs: Any,
 ) -> ContentValidator:
     """
@@ -961,5 +1014,6 @@ def create_content_validator(
         return ContentValidator(analyzer)
 
     except Exception as e:
-        logger.error(f"Error creating content validator: {e}")
+        if logger:
+            logger.error(f"Error creating content validator: {e}")
         raise ValueError(f"Error creating content validator: {str(e)}")

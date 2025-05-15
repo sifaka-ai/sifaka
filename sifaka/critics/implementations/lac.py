@@ -86,9 +86,7 @@ from ...core.base import BaseResult
 from sifaka.utils.config.critics import FeedbackCriticConfig, ValueCriticConfig, LACCriticConfig
 from ...interfaces.critic import TextCritic, TextImprover, TextValidator, CritiqueResult
 
-# Add type ignores for imports used at runtime
-if False:  # This will never execute, just for mypy
-    from ..implementations.factories import create_feedback_critic, create_value_critic
+# We'll import these later at runtime to avoid circular imports
 
 # Default prompt templates
 DEFAULT_SYSTEM_PROMPT = (
@@ -108,6 +106,13 @@ DEFAULT_VALUE_PROMPT_TEMPLATE = (
     "Task:\n{task}\n\n"
     "Response:\n{response}\n\n"
     "Score (0-10):"
+)
+
+DEFAULT_IMPROVEMENT_PROMPT_TEMPLATE = (
+    "Please improve the following text based on the feedback provided.\n\n"
+    "Text:\n{text}\n\n"
+    "Feedback:\n{feedback}\n\n"
+    "Improved Text:"
 )
 
 
@@ -960,61 +965,54 @@ class LACCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, Tex
 
     def run(self, task: str, response: str) -> Dict[str, Any]:
         """
-        Generate feedback and value for a response to a task.
+        Run the LAC critic to generate feedback and value.
 
         Args:
             task: The task that the response is addressing
             response: The response to evaluate
 
         Returns:
-            Dictionary with feedback and value
+            Dict with feedback and value
 
         Raises:
             ValueError: If response is empty
             RuntimeError: If critic is not properly initialized
         """
-        self._check_input(response)
+        start_time = time.time()
 
-        # Get components
-        cache = self._state_manager.get("cache", {})
-        feedback_critic = cache.get("feedback_critic")
-        value_critic = cache.get("value_critic")
+        try:
+            self._check_input(response)
 
-        # Create components if not initialized
-        if not feedback_critic or not value_critic:
-            # Import here to avoid circular import issues
-            from ..implementations.factories import create_feedback_critic as create_fb_critic  # type: ignore
-            from ..implementations.factories import create_value_critic as create_val_critic  # type: ignore
+            # Get feedback and value critics from cache
+            cache = self._state_manager.get("cache", {})
+            feedback_critic = cache.get("feedback_critic")
+            value_critic = cache.get("value_critic")
 
-            model = self._state_manager.get("model")
+            if not feedback_critic or not value_critic:
+                raise RuntimeError("Feedback or value critic not initialized")
 
-            if not feedback_critic:
-                feedback_critic = create_fb_critic(
-                    llm_provider=model,
-                    name=f"{self.name}_feedback",
-                    description=f"Feedback component for {self.name}",
-                )
-                cache["feedback_critic"] = feedback_critic
+            # Generate feedback
+            feedback = feedback_critic.run(task, response)
 
-            if not value_critic:
-                value_critic = create_val_critic(
-                    llm_provider=model,
-                    name=f"{self.name}_value",
-                    description=f"Value component for {self.name}",
-                )
-                cache["value_critic"] = value_critic
+            # Generate value
+            value = value_critic.run(task, response)
 
-            self._state_manager.update("cache", cache)
+            # Update statistics
+            run_count = self._state_manager.get_metadata("run_count", 0)
+            self._state_manager.set_metadata("run_count", run_count + 1)
 
-        # Generate feedback and value
-        feedback = str(feedback_critic.run(task, response) if feedback_critic else "")
-        value = float(value_critic.run(task, response) if value_critic else 0.5)
+            # Track performance
+            if hasattr(self, "_critic_config") and self._critic_config.track_performance:
+                total_time = self._state_manager.get_metadata("total_processing_time_ms", 0.0)
+                total_time_ms = total_time + (time.time() - start_time) * 1000
+                self._state_manager.set_metadata("total_processing_time_ms", total_time_ms)
 
-        # Return combined results
-        return {
-            "feedback": feedback,
-            "value": value,
-        }
+            # Return result
+            return {"feedback": feedback, "value": value}
+
+        except Exception as e:
+            self.record_error(e)
+            raise RuntimeError(f"Failed to generate feedback and value: {str(e)}") from e
 
     def validate(self, text: str) -> bool:
         """
@@ -1040,7 +1038,7 @@ class LACCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, Tex
 
         Args:
             text: The text to improve
-            feedback: Optional feedback to guide improvement
+            feedback: Feedback to guide the improvement (optional)
 
         Returns:
             Improved text
@@ -1049,51 +1047,69 @@ class LACCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover, Tex
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        self._check_input(text)
+        start_time = time.time()
 
-        # Get components
-        cache = self._state_manager.get("cache", {})
-        feedback_critic = cache.get("feedback_critic")
-        value_critic = cache.get("value_critic")
+        try:
+            self._check_input(text)
 
-        # Create components if not initialized
-        if not feedback_critic:
-            # Import here to avoid circular import issues
-            from ..implementations.factories import create_feedback_critic as create_fb_critic  # type: ignore
+            # Get feedback critic from cache
+            cache = self._state_manager.get("cache", {})
+            feedback_critic = cache.get("feedback_critic")
 
+            if not feedback_critic:
+                raise RuntimeError("Feedback critic not initialized")
+
+            # If feedback is not provided, generate it
+            if not feedback:
+                task = "Improve this text"
+                feedback = feedback_critic.run(task, text)
+
+            # Use feedback to improve text
+            # Create a prompt to guide improvement
             model = self._state_manager.get("model")
-            feedback_critic = create_fb_critic(
-                llm_provider=model,
-                name=f"{self.name}_feedback",
-                description=f"Feedback component for {self.name}",
+            if not model:
+                raise RuntimeError("Model not initialized")
+
+            improvement_prompt = DEFAULT_IMPROVEMENT_PROMPT_TEMPLATE.format(
+                text=text, feedback=feedback
             )
-            cache["feedback_critic"] = feedback_critic
-            self._state_manager.update("cache", cache)
 
-        # Improve text
-        if not feedback:
-            # Generate feedback if not provided
-            task = "Improve the following text"
-            feedback = str(feedback_critic.run(task, text) if feedback_critic else "")
+            # Improve the text based on feedback
+            improved_text = model.generate(
+                improvement_prompt,
+                system_prompt=cache.get(
+                    "system_prompt", "You are a helpful assistant that improves text."
+                ),
+                temperature=cache.get("temperature", 0.7),
+                max_tokens=cache.get("max_tokens", 1000),
+            )
 
-        # Get improved text using feedback critic
-        if feedback_critic:
-            improved_text = feedback_critic.improve(text, feedback)
-            # Make sure we always return a string
-            return str(improved_text if improved_text is not None else "")
-        else:
-            # If no feedback_critic is available, return the original text
-            return str(text)
+            # Update statistics
+            improvement_count = self._state_manager.get_metadata("improvement_count", 0)
+            self._state_manager.set_metadata("improvement_count", improvement_count + 1)
+
+            # Track performance
+            if hasattr(self, "_critic_config") and self._critic_config.track_performance:
+                total_time = self._state_manager.get_metadata("total_improvement_time_ms", 0.0)
+                total_time_ms = total_time + (time.time() - start_time) * 1000
+                self._state_manager.set_metadata("total_improvement_time_ms", total_time_ms)
+
+            # Return improved text
+            return str(improved_text) if improved_text else text
+
+        except Exception as e:
+            self.record_error(e)
+            raise RuntimeError(f"Failed to improve text: {str(e)}") from e
 
     def critique(self, text: str) -> CritiqueResult:
         """
-        Analyze text and provide feedback and value.
+        Critique text and provide feedback.
 
         Args:
             text: The text to critique
 
         Returns:
-            CritiqueResult containing feedback and value
+            CritiqueResult: A dictionary containing critique information
 
         Raises:
             ValueError: If text is empty
@@ -1244,88 +1260,6 @@ def create_feedback_critic(
     return critic
 
 
-def create_value_critic(
-    llm_provider: Any,
-    name: str = "value_critic",
-    description: str = "Provides numeric value scoring for text",
-    min_confidence: Optional[float] = None,
-    max_attempts: Optional[int] = None,
-    cache_size: Optional[int] = None,
-    priority: Optional[int] = None,
-    cost: Optional[float] = None,
-    system_prompt: Optional[str] = None,
-    temperature: Optional[float] = None,
-    max_tokens: Optional[int] = None,
-    value_prompt: Optional[str] = None,
-    min_score: float = 0.0,
-    max_score: float = 10.0,
-    config: Optional[Union[Dict[str, Any], ValueCriticConfig]] = None,
-    **kwargs: Any,
-) -> ValueCritic:
-    """
-    Create a value critic.
-
-    Args:
-        llm_provider: The language model provider to use
-        name: The name of the critic
-        description: A description of the critic
-        min_confidence: Minimum confidence threshold
-        max_attempts: Maximum number of improvement attempts
-        cache_size: Size of the result cache
-        priority: Priority of the critic
-        cost: Computational cost of the critic
-        system_prompt: System prompt for the model
-        temperature: Temperature for text generation
-        max_tokens: Maximum number of tokens to generate
-        value_prompt: Prompt for value scoring
-        min_score: Minimum score value
-        max_score: Maximum score value
-        config: Optional configuration for the critic
-        **kwargs: Additional configuration parameters
-
-    Returns:
-        ValueCritic: The created critic
-
-    Raises:
-        ValueError: If configuration is invalid
-    """
-    # Merge configuration from all sources
-    config_data: Dict[str, Any] = {}
-
-    # Start with defaults
-    if not config:
-        config_data = {
-            "min_confidence": 0.7 if min_confidence is None else min_confidence,
-            "max_attempts": 3 if max_attempts is None else max_attempts,
-            "cache_size": 100 if cache_size is None else cache_size,
-            "priority": 1 if priority is None else priority,
-            "cost": cost,
-            "track_performance": True,
-            "system_prompt": system_prompt
-            or "You are a helpful critic that evaluates text quality.",
-            "temperature": 0.7 if temperature is None else temperature,
-            "max_tokens": 1000 if max_tokens is None else max_tokens,
-            "value_prompt": value_prompt
-            or "Evaluate the quality of the following text on a scale from 0 to 10.",
-        }
-
-    # Update with provided config
-    if isinstance(config, dict):
-        config_data.update(config)
-    elif config:
-        # If it's a ValueCriticConfig, extract its attributes
-        config_data = config.model_dump()
-
-    # Add min_score and max_score to kwargs
-    kwargs["min_score"] = min_score
-    kwargs["max_score"] = max_score
-
-    # Create the critic
-    return ValueCritic(
-        name=name, description=description, llm_provider=llm_provider, config=config_data, **kwargs
-    )
-
-
 def create_lac_critic(
     llm_provider: Any,
     name: str = "lac_critic",
@@ -1393,23 +1327,6 @@ def create_lac_critic(
     elif config:
         # If it's a LACCriticConfig, extract its attributes
         config_data = config.model_dump()
-
-    # Create the feedback and value critic configurations
-    feedback_config = {
-        "system_prompt": system_prompt
-        or "You are a helpful critic that provides detailed feedback.",
-        "temperature": 0.7 if temperature is None else temperature,
-        "max_tokens": 1000 if max_tokens is None else max_tokens,
-        "feedback_prompt": feedback_prompt or "Provide feedback on the following text.",
-    }
-
-    value_config = {
-        "system_prompt": system_prompt or "You are a helpful critic that evaluates text quality.",
-        "temperature": 0.7 if temperature is None else temperature,
-        "max_tokens": 1000 if max_tokens is None else max_tokens,
-        "value_prompt": value_prompt
-        or "Evaluate the quality of the following text on a scale from 0 to 10.",
-    }
 
     # Create the critic
     critic = LACCritic(
