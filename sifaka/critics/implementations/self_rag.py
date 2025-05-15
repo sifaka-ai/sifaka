@@ -897,8 +897,7 @@ def create_self_rag_critic(
             # Use the provided config directly
             final_config = cast(BaseConfig, config)
         else:
-            # Use the provided config as is
-            final_config = cast(BaseConfig, config)
+            raise ValueError("Invalid config type")
 
         return SelfRAGCritic(
             name=name,

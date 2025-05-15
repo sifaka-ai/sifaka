@@ -556,7 +556,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
         """
         if metadata is None or "task" not in metadata:
             raise ValueError("metadata must contain a 'task' key")
-        return metadata["task"]
+        return str(metadata["task"])
 
     def validate(self, text: str) -> bool:
         """
@@ -670,12 +670,12 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                 raise RuntimeError("SelfRefineCritic not properly initialized")
 
             # Validate input
-            if not isinstance(text, str) or not text.strip() if text else "":
+            if not isinstance(text, str) or not text.strip():
                 raise ValueError("text must be a non-empty string")
 
             # Get critique service from state
             cache = self._state_manager.get("cache", {})
-            critique_service = cache.get("critique_service") if cache else ""
+            critique_service = cache.get("critique_service") if cache else None
             if not critique_service:
                 raise RuntimeError("Critique service not initialized")
 
@@ -700,9 +700,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             model = self._state_manager.get("model")
             critique_text = model.generate(
                 prompt,
-                system_prompt=(
-                    self._state_manager.get("cache", {}).get("system_prompt", "") if model else ""
-                ),
+                system_prompt=self._state_manager.get("cache", {}).get("system_prompt", ""),
                 temperature=self._state_manager.get("cache", {}).get("temperature", 0.7),
                 max_tokens=self._state_manager.get("cache", {}).get("max_tokens", 1000),
             ).strip()
@@ -712,21 +710,17 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             suggestions: List[str] = []
 
             # Extract issues and suggestions from critique
-            for line in critique_text.split("\n") if critique_text else "":
-                line = line.strip() if line else ""
-                if line.startswith("- ") if line else "" or line.startswith("* ") if line else "":
+            for line in critique_text.split("\n"):
+                line = line.strip()
+                if line.startswith("- ") or line.startswith("* "):
                     if (
                         "should" in line.lower()
-                        if line
-                        else (
-                            "" or "could" in line.lower()
-                            if line
-                            else "" or "recommend" in line.lower() if line else ""
-                        )
+                        or "could" in line.lower()
+                        or "recommend" in line.lower()
                     ):
-                        suggestions.append(line[2:]) if suggestions else ""
+                        suggestions.append(line[2:])
                     else:
-                        issues.append(line[2:]) if issues else ""
+                        issues.append(line[2:])
 
             # Calculate score based on issues
             score = 1.0 if not issues else max(0.0, 1.0 - (len(issues) * 0.1))
@@ -755,7 +749,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             return critique_result
 
         except Exception as e:
-            self.record_error(e) if self else ""
+            self.record_error(e)
             raise RuntimeError(f"Failed to critique text: {str(e)}") from e
 
     def improve(self, text: str, feedback: str) -> str:
@@ -773,7 +767,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
             ValueError: If text is empty
             RuntimeError: If critic is not properly initialized
         """
-        start_time = time.time() if time else ""
+        start_time = time.time()
 
         try:
             # Ensure initialized
@@ -781,7 +775,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                 raise RuntimeError("SelfRefineCritic not properly initialized")
 
             # Validate input
-            if not isinstance(text, str) or not text.strip() if text else "":
+            if not isinstance(text, str) or not text.strip():
                 raise ValueError("text must be a non-empty string")
 
             # Track improvement count
@@ -812,11 +806,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                 model = self._state_manager.get("model")
                 critique = model.generate(
                     critique_prompt,
-                    system_prompt=(
-                        self._state_manager.get("cache", {}).get("system_prompt", "")
-                        if model
-                        else ""
-                    ),
+                    system_prompt=self._state_manager.get("cache", {}).get("system_prompt", ""),
                     temperature=self._state_manager.get("cache", {}).get("temperature", 0.7),
                     max_tokens=self._state_manager.get("cache", {}).get("max_tokens", 1000),
                 ).strip()
@@ -830,9 +820,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                     "great job",
                     "perfect",
                 ]
-                if any(
-                    phrase in critique.lower() if critique else "" for phrase in no_issues_phrases
-                ):
+                if any(phrase in critique.lower() for phrase in no_issues_phrases):
                     # Track iterations
                     self._state_manager.set_metadata("last_improvement_iterations", iteration + 1)
                     break
@@ -850,11 +838,7 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
 
                 revised_output = model.generate(
                     revision_prompt,
-                    system_prompt=(
-                        self._state_manager.get("cache", {}).get("system_prompt", "")
-                        if model
-                        else ""
-                    ),
+                    system_prompt=self._state_manager.get("cache", {}).get("system_prompt", ""),
                     temperature=self._state_manager.get("cache", {}).get("temperature", 0.7),
                     max_tokens=self._state_manager.get("cache", {}).get("max_tokens", 1000),
                 ).strip()
@@ -890,7 +874,9 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                     float(total_time) + (elapsed_time * 1000),
                 )
 
-            return str(current_output)
+            return (
+                current_output  # Return without str() cast since current_output is already a string
+            )
 
         except Exception as e:
             self.record_error(e)
@@ -971,9 +957,10 @@ class SelfRefineCritic(BaseComponent[str, CriticResult], TextValidator, TextImpr
                 elapsed_time = time.time() - start_time
                 self._state_manager.set_metadata(
                     "total_feedback_improvement_time_ms",
-                    total_time + (float(elapsed_time) * 1000),
+                    float(total_time) + (float(elapsed_time) * 1000),
                 )
 
+            # Ensure return type is explicitly str to avoid mypy error
             return str(improved_text)
 
         except Exception as e:
@@ -1026,8 +1013,8 @@ def create_self_refine_critic(
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
     max_iterations: Optional[int] = None,
-    critique_prompt_template: Optional[Optional[str]] = None,
-    revision_prompt_template: Optional[Optional[str]] = None,
+    critique_prompt_template: Optional[str] = None,
+    revision_prompt_template: Optional[str] = None,
     config: Optional[Union[Dict[str, Any], SelfRefineCriticConfig]] = None,
     **kwargs: Any,
 ) -> SelfRefineCritic:
@@ -1130,14 +1117,14 @@ def create_self_refine_critic(
                 config = DEFAULT_SELF_REFINE_CRITIC_CONFIG.model_copy()
 
             # Update with provided values
-            updates = {
+            updates: Dict[str, Any] = {
                 "name": name,
                 "description": description,
             }
 
             # Add optional parameters if provided
             if system_prompt is not None:
-                updates["system_prompt"] = str(system_prompt)
+                updates["system_prompt"] = system_prompt
             if temperature is not None:
                 if isinstance(temperature, (int, float)):
                     updates["temperature"] = float(temperature)
@@ -1218,17 +1205,30 @@ def create_self_refine_critic(
                 config_dict.update(updates)
                 from sifaka.utils.config.critics import standardize_critic_config
 
+                # Filter the updates to ensure we only pass valid types
+                config_dict_filtered: Dict[str, Any] = {}
+                for key, value in config_dict.items():
+                    if isinstance(value, (str, int, float, bool, list, dict)) or value is None:
+                        config_dict_filtered[key] = value
+
                 config = standardize_critic_config(
-                    config_class=SelfRefineCriticConfig, config=config_dict
+                    config_class=SelfRefineCriticConfig, config=config_dict_filtered
                 )
             else:
                 # Create a new config with updates
                 from sifaka.utils.config.critics import standardize_critic_config
 
-                config = standardize_critic_config(config_class=SelfRefineCriticConfig, **updates)
+                # Filter the updates to ensure we only pass valid types
+                updates_filtered: Dict[str, Any] = {}
+                for key, value in updates.items():
+                    if isinstance(value, (str, int, float, bool, list, dict)) or value is None:
+                        updates_filtered[key] = value
+
+                config = standardize_critic_config(
+                    config_class=SelfRefineCriticConfig, config=updates_filtered
+                )
         elif isinstance(config, dict):
             from sifaka.utils.config.critics import SelfRefineCriticConfig
-
             from sifaka.utils.config.critics import standardize_critic_config
 
             config = standardize_critic_config(config_class=SelfRefineCriticConfig, config=config)
