@@ -13,10 +13,11 @@ from typing import Dict, List, Optional, Any, ClassVar
 from pydantic import ConfigDict
 
 from sifaka.classifiers.classifier import Classifier
+from sifaka.classifiers.interfaces import ClassifierImplementation
 from sifaka.core.results import ClassificationResult
 from sifaka.utils.config.classifiers import ClassifierConfig, standardize_classifier_config
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import create_classifier_state
+from sifaka.utils.state import ClassifierState
 
 logger = get_logger(__name__)
 
@@ -68,18 +69,22 @@ class GenreClassifier(Classifier):
         validate_assignment=True,
     )
 
-    def model_post_init(self, __context: Any) -> None:
-        """Initialize the model after Pydantic initialization."""
-        super().model_post_init(__context)
-
-        # Create config if not provided
-        if not self.config:
+    def __init__(
+        self,
+        implementation: Optional[ClassifierImplementation] = None,
+        config: Optional[ClassifierConfig] = None,
+        name: str = "genre_classifier",
+        description: str = "Classifies text into different genres",
+    ) -> None:
+        """Initialize the genre classifier."""
+        # Create default config if not provided
+        if not config:
             # Create default config
-            self.config = ClassifierConfig(
-                labels=DEFAULT_GENRES,
-                cost=self.DEFAULT_COST,
-                min_confidence=0.6,
+            config = ClassifierConfig(
+                threshold=0.6,
                 params={
+                    "labels": DEFAULT_GENRES,
+                    "cost": self.DEFAULT_COST,
                     "min_confidence": 0.6,
                     "max_features": 2000,
                     "random_state": 42,
@@ -90,10 +95,18 @@ class GenreClassifier(Classifier):
                 },
             )
 
+        # Initialize the base class
+        super().__init__(
+            implementation=implementation or self,
+            config=config,
+            name=name,
+            description=description,
+        )
+
         # Initialize state
-        state = self._state_manager.get_state()
-        state.initialized = False
-        state.cache = {}
+        if self._state_manager:
+            self._state_manager.update("initialized", False)
+            self._state_manager.update("cache", {})
 
     def _load_dependencies(self) -> Dict[str, Any]:
         """
@@ -141,14 +154,15 @@ class GenreClassifier(Classifier):
         Raises:
             RuntimeError: If model initialization fails
         """
-        # Get state
-        state = self._state_manager.get_state()
+        # Check if state manager exists
+        if not self._state_manager:
+            return
 
         # Check if already initialized
-        if not state.initialized:
+        if not self._state_manager.get("initialized", False):
             # Load dependencies
             sklearn = self._load_dependencies()
-            state.dependencies_loaded = True
+            self._state_manager.update("dependencies_loaded", True)
 
             # Get configuration from params
             model_path = self.config.params.get("model_path")
@@ -162,28 +176,31 @@ class GenreClassifier(Classifier):
             else:
                 # Create TF-IDF vectorizer
                 ngram_range = (1, 3) if use_ngrams else (1, 1)
-                state.vectorizer = sklearn["feature_extraction_text"].TfidfVectorizer(
+                vectorizer = sklearn["feature_extraction_text"].TfidfVectorizer(
                     max_features=max_features,
                     stop_words="english",
                     ngram_range=ngram_range,
                 )
+                self._state_manager.update("vectorizer", vectorizer)
 
                 # Create RandomForest model
-                state.model = sklearn["ensemble"].RandomForestClassifier(
+                model = sklearn["ensemble"].RandomForestClassifier(
                     n_estimators=n_estimators,
                     random_state=random_state,
                 )
+                self._state_manager.update("model", model)
 
                 # Create pipeline
-                state.pipeline = sklearn["pipeline"].Pipeline(
+                pipeline = sklearn["pipeline"].Pipeline(
                     [
-                        ("vectorizer", state.vectorizer),
-                        ("classifier", state.model),
+                        ("vectorizer", vectorizer),
+                        ("classifier", model),
                     ]
                 )
+                self._state_manager.update("pipeline", pipeline)
 
             # Mark as initialized
-            state.initialized = True
+            self._state_manager.update("initialized", True)
 
     def _save_model(self, path: str) -> None:
         """
@@ -201,19 +218,24 @@ class GenreClassifier(Classifier):
             IOError: If model saving fails
             RuntimeError: If model is not trained
         """
-        # Get state
-        state = self._state_manager.get_state()
+        # Check if state manager exists
+        if not self._state_manager:
+            return
 
         try:
             # Get custom labels from state cache
-            custom_labels = state.cache.get("custom_labels") or self.config.params.get(
-                "default_genres", self.config.labels
+            cache = self._state_manager.get("cache", {})
+            custom_labels = cache.get("custom_labels") or self.config.params.get(
+                "default_genres", self.config.params.get("labels", DEFAULT_GENRES)
             )
 
+            pipeline = self._state_manager.get("pipeline")
+            feature_importances = cache.get("feature_importances", {})
+
             model_data = {
-                "pipeline": state.pipeline,
+                "pipeline": pipeline,
                 "labels": custom_labels,
-                "feature_importances": state.cache.get("feature_importances", {}),
+                "feature_importances": feature_importances,
             }
 
             with open(path, "wb") as f:
@@ -221,7 +243,7 @@ class GenreClassifier(Classifier):
             logger.info(f"Model saved to {path}")
         except Exception as e:
             logger.error(f"Failed to save model: {e}")
-            state.error = f"Failed to save model: {e}"
+            self._state_manager.update("error", f"Failed to save model: {e}")
 
     def _load_model(self, path: str) -> None:
         """
@@ -239,37 +261,53 @@ class GenreClassifier(Classifier):
             IOError: If model loading fails
             ValueError: If model files are invalid
         """
-        # Get state
-        state = self._state_manager.get_state()
+        # Check if state manager exists
+        if not self._state_manager:
+            return
 
         try:
             with open(path, "rb") as f:
                 model_data = pickle.load(f)
 
                 # Extract model data
-                state.pipeline = model_data["pipeline"]
+                pipeline = model_data["pipeline"]
                 custom_labels = model_data.get("labels")
-                state.cache["feature_importances"] = model_data.get("feature_importances", {})
-                state.cache["custom_labels"] = custom_labels
+
+                # Update state
+                self._state_manager.update("pipeline", pipeline)
+
+                # Get current cache and update it
+                cache = self._state_manager.get("cache", {})
+                cache["feature_importances"] = model_data.get("feature_importances", {})
+                cache["custom_labels"] = custom_labels
+                self._state_manager.update("cache", cache)
 
                 # Update config with loaded labels if available
                 if custom_labels:
-                    self._config = ClassifierConfig(
-                        labels=custom_labels,
-                        cost=self.DEFAULT_COST,
-                        min_confidence=self.config.min_confidence,
-                        params=self.config.params,
+                    # Create a new config with updated params
+                    new_config: ClassifierConfig = ClassifierConfig(
+                        threshold=self.config.threshold,
+                        cache_size=self.config.cache_size,
+                        params={
+                            **self.config.params,
+                            "labels": custom_labels,
+                            "cost": self.DEFAULT_COST,
+                            "min_confidence": self.config.params.get("min_confidence", 0.6),
+                        },
                     )
+                    self.update_config(new_config)
 
                 # Extract vectorizer and model from pipeline
-                state.vectorizer = state.pipeline.named_steps["vectorizer"]
-                state.model = state.pipeline.named_steps["classifier"]
+                vectorizer = pipeline.named_steps["vectorizer"]
+                model = pipeline.named_steps["classifier"]
+                self._state_manager.update("vectorizer", vectorizer)
+                self._state_manager.update("model", model)
 
             logger.info(f"Model loaded from {path}")
-            state.initialized = True
+            self._state_manager.update("initialized", True)
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
-            state.error = f"Failed to load model: {e}"
+            self._state_manager.update("error", f"Failed to load model: {e}")
             raise RuntimeError(f"Failed to load model: {e}")
 
     def fit(self, texts: List[str], labels: List[str]) -> "GenreClassifier":
@@ -283,8 +321,9 @@ class GenreClassifier(Classifier):
         Returns:
             self: The fitted classifier
         """
-        # Get state
-        state = self._state_manager.get_state()
+        # Check if state manager exists
+        if not self._state_manager:
+            return self
 
         if len(texts) != len(labels):
             raise ValueError("Number of texts and labels must match")
@@ -299,21 +338,34 @@ class GenreClassifier(Classifier):
         numeric_labels = [label_mapping[label] for label in labels]
 
         # Store custom labels in state cache
-        state.cache["custom_labels"] = unique_labels
+        cache = self._state_manager.get("cache", {})
+        cache["custom_labels"] = unique_labels
+        self._state_manager.update("cache", cache)
 
         # Update config with custom labels
-        self._config = ClassifierConfig(
-            labels=unique_labels,
-            cost=self.DEFAULT_COST,
-            min_confidence=self.config.min_confidence,
-            params=self.config.params,
+        new_config: ClassifierConfig = ClassifierConfig(
+            threshold=self.config.threshold,
+            cache_size=self.config.cache_size,
+            params={
+                **self.config.params,
+                "labels": unique_labels,
+                "cost": self.DEFAULT_COST,
+                "min_confidence": self.config.params.get("min_confidence", 0.6),
+            },
         )
+        self.update_config(new_config)
 
         # Fit the pipeline
-        state.pipeline.fit(texts, numeric_labels)
+        pipeline = self._state_manager.get("pipeline")
+        if pipeline:
+            pipeline.fit(texts, numeric_labels)
+            self._state_manager.update("pipeline", pipeline)
 
         # Extract feature importances
-        state.cache["feature_importances"] = self._extract_feature_importances()
+        feature_importances = self._extract_feature_importances()
+        cache = self._state_manager.get("cache", {})
+        cache["feature_importances"] = feature_importances
+        self._state_manager.update("cache", cache)
 
         # Save the model if path is provided
         model_path = self.config.params.get("model_path")
@@ -337,19 +389,28 @@ class GenreClassifier(Classifier):
         Raises:
             RuntimeError: If model is not trained
         """
-        # Get state
-        state = self._state_manager.get_state()
+        # Check if state manager exists
+        if not self._state_manager:
+            return {}
 
-        if not state.model or not hasattr(state.model, "feature_importances_"):
+        model = self._state_manager.get("model")
+        if not model or not hasattr(model, "feature_importances_"):
             return {}
 
         try:
-            feature_names = state.vectorizer.get_feature_names_out()
-            importances = state.model.feature_importances_
+            vectorizer = self._state_manager.get("vectorizer")
+            model = self._state_manager.get("model")
+
+            if not vectorizer or not model:
+                return {}
+
+            feature_names = vectorizer.get_feature_names_out()
+            importances = model.feature_importances_
 
             # Get the top features
             top_features = {}
-            for label in self._config.labels:
+            labels = self.config.params.get("labels", DEFAULT_GENRES)
+            for label in labels:
                 # For RandomForest, we need to extract class-specific importances differently
                 # Here we use the overall feature importance as a simplification
                 top_indices = importances.argsort()[-20:][::-1]
@@ -358,7 +419,7 @@ class GenreClassifier(Classifier):
             return top_features
         except Exception as e:
             logger.warning(f"Could not extract feature importances: {e}")
-            state.error = f"Could not extract feature importances: {e}"
+            self._state_manager.update("error", f"Could not extract feature importances: {e}")
             return {}
 
     def _classify_impl(self, text: str) -> ClassificationResult:
@@ -384,29 +445,35 @@ class GenreClassifier(Classifier):
             ValueError: If text is empty or invalid
             RuntimeError: If classification fails
         """
-        # Get state
-        state = self._state_manager.get_state()
+        # Check if state manager exists
+        if not self._state_manager:
+            raise RuntimeError("State manager not initialized")
 
-        if not state.pipeline:
+        pipeline = self._state_manager.get("pipeline")
+        if not pipeline:
             raise RuntimeError(
                 "Model not initialized. You must either provide a model_path or call fit() before classification."
             )
 
         # Predict probability
-        proba = state.pipeline.predict_proba([text])[0]
+        proba = pipeline.predict_proba([text])[0]
 
         # Get dominant class
         dominant_class_idx = proba.argmax()
         confidence = float(proba[dominant_class_idx])
 
+        # Get labels from config
+        labels = self.config.params.get("labels", DEFAULT_GENRES)
+
         # Create metadata
-        all_probs = {self._config.labels[i]: float(prob) for i, prob in enumerate(proba)}
+        all_probs = {labels[i]: float(prob) for i, prob in enumerate(proba)}
 
         # Get top features for explanation
         top_features = {}
-        feature_importances = state.cache.get("feature_importances", {})
-        if feature_importances and self._config.labels[dominant_class_idx] in feature_importances:
-            top_features = feature_importances[self._config.labels[dominant_class_idx]]
+        cache = self._state_manager.get("cache", {})
+        feature_importances = cache.get("feature_importances", {})
+        if feature_importances and labels[dominant_class_idx] in feature_importances:
+            top_features = feature_importances[labels[dominant_class_idx]]
 
         # Get min_confidence from config
         min_confidence = self.config.params.get("min_confidence", 0.6)
@@ -419,9 +486,11 @@ class GenreClassifier(Classifier):
         }
 
         return ClassificationResult(
-            label=self._config.labels[dominant_class_idx],
+            label=labels[dominant_class_idx],
             confidence=confidence,
             metadata=metadata,
+            passed=confidence >= min_confidence,
+            message=f"Genre classification with confidence {confidence:.2f}",
         )
 
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
@@ -443,35 +512,43 @@ class GenreClassifier(Classifier):
             ValueError: If texts list is empty or contains invalid entries
             RuntimeError: If batch classification fails
         """
-        # Get state
-        state = self._state_manager.get_state()
+        # Check if state manager exists
+        if not self._state_manager:
+            raise RuntimeError("State manager not initialized")
 
-        self.validate_batch_input(texts)
+        # Validate input
+        if not texts:
+            raise ValueError("Texts list cannot be empty")
 
-        if not state.pipeline:
+        if any(not isinstance(text, str) for text in texts):
+            raise ValueError("All texts must be strings")
+
+        pipeline = self._state_manager.get("pipeline")
+        if not pipeline:
             raise RuntimeError(
                 "Model not initialized. You must either provide a model_path or call fit() before classification."
             )
 
         # Predict probabilities for all texts
-        probas = state.pipeline.predict_proba(texts)
+        probas = pipeline.predict_proba(texts)
 
-        results = []
-        feature_importances = state.cache.get("feature_importances", {})
+        # Get labels from config
+        labels = self.config.params.get("labels", DEFAULT_GENRES)
+
+        results: List[ClassificationResult] = []
+        cache = self._state_manager.get("cache", {})
+        feature_importances = cache.get("feature_importances", {})
 
         for proba in probas:
             dominant_class_idx = proba.argmax()
             confidence = float(proba[dominant_class_idx])
 
-            all_probs = {self._config.labels[i]: float(prob) for i, prob in enumerate(proba)}
+            all_probs = {labels[i]: float(prob) for i, prob in enumerate(proba)}
 
             # Get top features for explanation
             top_features = {}
-            if (
-                feature_importances
-                and self._config.labels[dominant_class_idx] in feature_importances
-            ):
-                top_features = feature_importances[self._config.labels[dominant_class_idx]]
+            if feature_importances and labels[dominant_class_idx] in feature_importances:
+                top_features = feature_importances[labels[dominant_class_idx]]
 
             # Get min_confidence from config
             min_confidence = self.config.params.get("min_confidence", 0.6)
@@ -485,9 +562,11 @@ class GenreClassifier(Classifier):
 
             results.append(
                 ClassificationResult(
-                    label=self._config.labels[dominant_class_idx],
+                    label=labels[dominant_class_idx],
                     confidence=confidence,
                     metadata=metadata,
+                    passed=confidence >= min_confidence,
+                    message=f"Genre classification with confidence {confidence:.2f}",
                 )
             )
 
@@ -500,8 +579,8 @@ class GenreClassifier(Classifier):
         labels: List[str],
         name: str = "pretrained_genre_classifier",
         description: str = "Pre-trained genre classifier",
-        config: Optional[Dict[str, Any]] = None,
-        **kwargs,
+        config: Optional[ClassifierConfig] = None,
+        **kwargs: Any,
     ) -> "GenreClassifier":
         """
         Create a pre-trained genre classifier from labeled data.
@@ -538,10 +617,11 @@ class GenreClassifier(Classifier):
 
             # Create config with standardized approach
             config = standardize_classifier_config(
-                labels=DEFAULT_GENRES,
-                cost=cls.DEFAULT_COST,
-                min_confidence=min_confidence,
+                threshold=min_confidence,
                 params={
+                    "labels": DEFAULT_GENRES,
+                    "cost": cls.DEFAULT_COST,
+                    "min_confidence": min_confidence,
                     "max_features": max_features,
                     "random_state": random_state,
                     "model_path": model_path,
@@ -562,16 +642,16 @@ class GenreClassifier(Classifier):
 def create_genre_classifier(
     name: str = "genre_classifier",
     description: str = "Classifies text into different genres",
-    labels: Optional[Optional[List[str]]] = None,
+    labels: Optional[List[str]] = None,
     min_confidence: float = 0.6,
     max_features: int = 2000,
     random_state: int = 42,
-    model_path: Optional[Optional[str]] = None,
+    model_path: Optional[str] = None,
     use_ngrams: bool = True,
     n_estimators: int = 100,
     cache_size: int = 100,
     cost: float = GenreClassifier.DEFAULT_COST,
-    config: Optional[Dict[str, Any]] = None,
+    config: Optional[ClassifierConfig] = None,
     **kwargs: Any,
 ) -> GenreClassifier:
     """
@@ -625,11 +705,12 @@ def create_genre_classifier(
     # Use standardize_classifier_config to handle different config formats
     classifier_config = standardize_classifier_config(
         config=config,
-        labels=labels or DEFAULT_GENRES,
-        min_confidence=min_confidence,
-        cost=cost,
+        threshold=min_confidence,
         cache_size=cache_size,
         params={
+            "labels": labels or DEFAULT_GENRES,
+            "min_confidence": min_confidence,
+            "cost": cost,
             "max_features": max_features,
             "random_state": random_state,
             "model_path": model_path,
@@ -640,7 +721,15 @@ def create_genre_classifier(
         **kwargs,
     )
 
+    # Create a dummy implementation that will be replaced by the GenreClassifier itself
+    implementation = GenreClassifier(
+        name=name,
+        description=description,
+        config=classifier_config,
+    )
+
     return GenreClassifier(
+        implementation=implementation,
         name=name,
         description=description,
         config=classifier_config,

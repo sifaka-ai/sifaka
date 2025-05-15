@@ -318,7 +318,8 @@ class ToxicityClassifier(Classifier):
             # Get model name from config params
             model_name = self.config.params.get("model_name", "original")
             model = detoxify_module.Detoxify(model_type=model_name)
-            self._validate_model(model)
+            if not self._validate_model(model):
+                raise ValueError("Failed to validate detoxify model")
             return model
         except ImportError:
             raise ImportError(
@@ -531,6 +532,22 @@ class ToxicityClassifier(Classifier):
                 message=f"Classification failed: {str(e)}",
             )
 
+    def validate_batch_input(self, texts: List[str]) -> None:
+        """
+        Validate batch input before processing.
+
+        Args:
+            texts: List of texts to validate
+
+        Raises:
+            ValueError: If the input is invalid
+        """
+        if not isinstance(texts, list):
+            raise ValueError(f"Expected list of texts, got {type(texts)}")
+
+        if not all(isinstance(text, str) for text in texts):
+            raise ValueError("All items in the list must be strings")
+
     def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
         """
         Classify multiple texts efficiently.
@@ -607,7 +624,7 @@ class ToxicityClassifier(Classifier):
                 )
 
             # Merge results in the original order
-            final_results = [None] * len(texts)
+            final_results: List[ClassificationResult] = [None] * len(texts)  # type: ignore
             for i, result in zip(non_empty_indices, non_empty_results):
                 final_results[i] = result
 
@@ -615,6 +632,18 @@ class ToxicityClassifier(Classifier):
             for i, result in enumerate(results):
                 if final_results[i] is None:
                     final_results[i] = result
+
+            # Ensure all results are properly set
+            for i in range(len(final_results)):
+                if final_results[i] is None:
+                    # This should never happen, but just in case
+                    final_results[i] = ClassificationResult(
+                        label="unknown",
+                        confidence=0.0,
+                        metadata={"error": "Failed to process text"},
+                        passed=False,
+                        message="Failed to process text",
+                    )
 
             return final_results
         except Exception as e:
@@ -642,7 +671,7 @@ class ToxicityClassifier(Classifier):
             ]
 
             # Merge error results in the original order
-            final_results = [None] * len(texts)
+            final_results: List[ClassificationResult] = [None] * len(texts)  # type: ignore
             for i, result in zip(non_empty_indices, error_results):
                 final_results[i] = result
 
@@ -650,6 +679,18 @@ class ToxicityClassifier(Classifier):
             for i, result in enumerate(results):
                 if final_results[i] is None:
                     final_results[i] = result
+
+            # Ensure all results are properly set
+            for i in range(len(final_results)):
+                if final_results[i] is None:
+                    # This should never happen, but just in case
+                    final_results[i] = ClassificationResult(
+                        label="unknown",
+                        confidence=0.0,
+                        metadata={"error": "Failed to process text"},
+                        passed=False,
+                        message="Failed to process text",
+                    )
 
             return final_results
 
@@ -716,12 +757,8 @@ class ToxicityClassifier(Classifier):
         cls: Type[T],
         name: str = "toxicity_classifier",
         description: str = "Detects toxic content using Detoxify",
-        labels: Optional[List[str]] = None,
         cache_size: int = 0,
-        min_confidence: float = 0.0,
-        cost: Optional[float] = None,
         params: Optional[Dict[str, Any]] = None,
-        **kwargs: Any,
     ) -> T:
         """
         Factory method to create a toxicity classifier.
@@ -729,17 +766,13 @@ class ToxicityClassifier(Classifier):
         Args:
             name: Name of the classifier
             description: Description of what the classifier does
-            labels: Optional list of labels (defaults to predefined labels)
             cache_size: Size of the classification cache (0 for no caching)
-            min_confidence: Minimum confidence threshold for results
-            cost: Computational cost metric (defaults to class default)
             params: Optional dictionary of additional parameters
-            **kwargs: Additional configuration parameters
 
         Returns:
             Configured ToxicityClassifier instance
         """
-        from sifaka.utils.config.classifiers import extract_classifier_config_params
+        from sifaka.utils.config.classifiers import ClassifierConfig
 
         # Set up default params with thresholds
         default_params = {
@@ -749,18 +782,16 @@ class ToxicityClassifier(Classifier):
             "model_name": "original",
         }
 
-        # Extract and merge configuration parameters
-        config_dict = extract_classifier_config_params(
-            labels=labels if labels else cls.DEFAULT_LABELS,
-            cache_size=cache_size,
-            min_confidence=min_confidence,
-            cost=cost if cost is not None else cls.DEFAULT_COST,
-            provided_params=params,
-            default_params=default_params,
-            **kwargs,
-        )
+        # Merge provided params with defaults
+        merged_params = default_params.copy()
+        if params:
+            merged_params.update(params)
 
         # Create config with merged parameters
+        config_dict = {
+            "cache_size": cache_size,
+            "params": merged_params,
+        }
         config = ClassifierConfig[str](**config_dict)
 
         # Create and return the classifier instance
@@ -819,9 +850,6 @@ def create_toxicity_classifier(
     severe_toxic_threshold: float = 0.7,
     threat_threshold: float = 0.7,
     cache_size: int = 0,
-    min_confidence: float = 0.0,
-    cost: int = 2,
-    **kwargs: Any,
 ) -> ToxicityClassifier:
     """
     Factory function to create a toxicity classifier.
@@ -864,9 +892,6 @@ def create_toxicity_classifier(
         severe_toxic_threshold: Severe toxicity threshold (0-1) for high-priority detection
         threat_threshold: Threat threshold (0-1) for detecting threatening content
         cache_size: Size of the classification cache (0 to disable caching)
-        min_confidence: Minimum confidence threshold for classification results
-        cost: Computational cost metric for resource allocation decisions
-        **kwargs: Additional configuration parameters to pass to the classifier
 
     Returns:
         Configured ToxicityClassifier instance ready for immediate use
@@ -888,23 +913,17 @@ def create_toxicity_classifier(
         ```
     """
     # Prepare params
-    params: Dict[str, Any] = kwargs.pop("params", {})
-    params.update(
-        {
-            "model_name": model_name,
-            "general_threshold": general_threshold,
-            "severe_toxic_threshold": severe_toxic_threshold,
-            "threat_threshold": threat_threshold,
-        }
-    )
+    params: Dict[str, Any] = {
+        "model_name": model_name,
+        "general_threshold": general_threshold,
+        "severe_toxic_threshold": severe_toxic_threshold,
+        "threat_threshold": threat_threshold,
+    }
 
     # Create and return classifier using the class factory method
     return ToxicityClassifier.create(
         name=name,
         description=description,
         cache_size=cache_size,
-        min_confidence=min_confidence,
-        cost=cost,
         params=params,
-        **kwargs,
     )

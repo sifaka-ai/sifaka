@@ -110,14 +110,13 @@ from typing import (
 )
 
 from typing_extensions import TypeGuard
-from pydantic import ConfigDict, PrivateAttr
+from pydantic import ConfigDict
 
 from sifaka.classifiers.classifier import Classifier
 from sifaka.core.results import ClassificationResult
 from sifaka.utils.config.classifiers import ClassifierConfig
 from sifaka.utils.logging import get_logger
-from sifaka.utils.state import create_classifier_state
-from sifaka.utils.config.classifiers import extract_classifier_config_params
+
 
 logger = get_logger(__name__)
 
@@ -326,11 +325,13 @@ class SentimentClassifier(Classifier):
 
             # Create config with remaining kwargs
             config = ClassifierConfig[str](
-                labels=self.DEFAULT_LABELS, cost=self.DEFAULT_COST, params=params, **kwargs
+                threshold=params.get("min_confidence", 0.7),
+                params={**params, "labels": self.DEFAULT_LABELS, "cost": self.DEFAULT_COST},
+                **kwargs,
             )
 
         # Initialize base class
-        super().__init__(name=name, description=description, config=config)
+        super().__init__(implementation=self, name=name, description=description, config=config)
 
         # Initialize state - this is now handled by BaseClassifier in model_post_init
         # Store thresholds in state
@@ -528,19 +529,24 @@ class SentimentClassifier(Classifier):
             self.warm_up()
 
         # Handle empty or whitespace-only text
-        from sifaka.utils.text import handle_empty_text_for_classifier
+        from sifaka.utils.text import is_empty_text
 
-        empty_result = handle_empty_text_for_classifier(
-            text,
-            metadata={
-                "compound_score": 0.0,
-                "pos_score": 0.0,
-                "neg_score": 0.0,
-                "neu_score": 1.0,
-            },
-        )
-        if empty_result:
-            return empty_result
+        if is_empty_text(text):
+            # Create our own empty result using the correct ClassificationResult type
+            return ClassificationResult(
+                label="unknown",
+                confidence=0.0,
+                passed=True,
+                message="Empty text provided",
+                metadata={
+                    "reason": "empty_input",
+                    "input_length": len(text),
+                    "compound_score": 0.0,
+                    "pos_score": 0.0,
+                    "neg_score": 0.0,
+                    "neu_score": 1.0,
+                },
+            )
 
         try:
             # Get analyzer from state
@@ -560,9 +566,11 @@ class SentimentClassifier(Classifier):
                 confidence = 0.0
 
             # Return result with detailed metadata
-            result = ClassificationResult(
+            result: ClassificationResult = ClassificationResult(
                 label=label,
                 confidence=confidence,
+                passed=True,
+                message="Sentiment analysis completed successfully",
                 metadata={
                     "compound_score": compound_score,
                     "pos_score": scores["pos"],
@@ -591,6 +599,8 @@ class SentimentClassifier(Classifier):
             return ClassificationResult(
                 label="unknown",
                 confidence=0.0,
+                passed=False,
+                message=f"Error during sentiment analysis: {str(e)}",
                 metadata={
                     "error": str(e),
                     "error_type": type(e).__name__,
@@ -707,7 +717,6 @@ class SentimentClassifier(Classifier):
         Returns:
             Configured SentimentClassifier instance
         """
-        from sifaka.utils.config.classifiers import extract_classifier_config_params
 
         # Set up default params with thresholds
         default_params = {
@@ -715,19 +724,18 @@ class SentimentClassifier(Classifier):
             "negative_threshold": negative_threshold,
         }
 
-        # Extract and merge configuration parameters
-        config_dict = extract_classifier_config_params(
-            labels=labels if labels else cls.DEFAULT_LABELS,
-            cache_size=cache_size,
-            min_confidence=min_confidence,
-            cost=cost if cost is not None else cls.DEFAULT_COST,
-            provided_params=params,
-            default_params=default_params,
-            **kwargs,
-        )
+        # Create a config dictionary with all parameters
+        config_params = {
+            **default_params,
+            **(params or {}),
+            "labels": labels if labels else cls.DEFAULT_LABELS,
+            "cost": cost if cost is not None else cls.DEFAULT_COST,
+        }
 
         # Create config with merged parameters
-        config = ClassifierConfig[str](**config_dict)
+        config = ClassifierConfig[str](
+            threshold=min_confidence, cache_size=cache_size, params=config_params, **kwargs
+        )
 
         # Create and return the classifier instance
         return cls(name=name, description=description, config=config)

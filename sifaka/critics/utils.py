@@ -9,10 +9,8 @@ from typing import Any, Dict, List, Optional, TypeVar, Callable, cast
 
 from pydantic import BaseModel
 
-from .base import CriticResultEnum
-from sifaka.utils.errors.component import CriticError
 from sifaka.utils.errors.handling import try_operation
-from sifaka.utils.errors.results import create_critic_error_result, ErrorResult
+from sifaka.utils.errors.results import create_critic_error_result
 
 # Type variable for return type
 T = TypeVar("T")
@@ -89,11 +87,7 @@ def create_error_metadata(
         Critic metadata representing the error
     """
     # Handle the error
-    error_result = create_critic_error_result(
-        error=error,
-        component_name=critic_name,
-        log_level=log_level,
-    )
+    error_result = create_critic_error_result(error, critic_name, log_level, True, None)
 
     # Create critic metadata
     return create_critic_metadata(
@@ -153,11 +147,14 @@ def try_critique(
         ```
     """
     # Use try_operation with default result
-    return try_operation(
-        operation=critique_func,
-        component_name=f"Critic:{critic_name}",
-        default_value=default_result,
-        log_level=log_level,
+    return cast(
+        T,
+        try_operation(
+            operation=critique_func,
+            component_name=f"Critic:{critic_name}",
+            default_value=default_result,
+            log_level=log_level,
+        ),
     )
 
 
