@@ -11,6 +11,7 @@ from sifaka.critics.prompt import PromptCritic, create_prompt_critic
 from sifaka.critics.lac import LACCritic, create_lac_critic
 from sifaka.critics.self_rag import SelfRAGCritic, create_self_rag_critic
 from sifaka.critics.self_refine import SelfRefineCritic, create_self_refine_critic
+from sifaka.critics.n_critics import NCriticsCritic, create_n_critics_critic
 
 __all__ = [
     "Critic",
@@ -26,4 +27,6 @@ __all__ = [
     "create_self_rag_critic",
     "SelfRefineCritic",
     "create_self_refine_critic",
+    "NCriticsCritic",
+    "create_n_critics_critic",
 ]
