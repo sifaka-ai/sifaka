@@ -6,7 +6,7 @@ import pytest
 from typing import List, Optional
 
 from sifaka.chain import Chain
-from sifaka.interfaces import ChainValidatorProtocol as Validator, ChainImproverProtocol as Improver
+from sifaka.interfaces import ValidatorProtocol as Validator, ImproverProtocol as Improver
 
 from tests.utils.mock_provider import MockProvider
 

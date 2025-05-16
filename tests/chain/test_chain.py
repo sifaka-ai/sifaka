@@ -7,11 +7,12 @@ from pydantic import PrivateAttr
 
 from sifaka.chain import Chain
 from sifaka.interfaces import (
-    ChainValidatorProtocol as Validator,
-    ChainImproverProtocol as Improver,
-    ModelProtocol as Model,
+    ModelProtocol,
+    ValidationResult,
+    ValidatorProtocol as Validator,
+    ImproverProtocol as Improver,
 )
-from sifaka.core.results import ChainResult, ValidationResult
+from sifaka.core.results import ChainResult
 from sifaka.utils.state import StateManager, create_rule_state, create_critic_state
 
 from tests.utils.mock_provider import MockProvider
@@ -23,7 +24,7 @@ class MockChain:
 
     def __init__(
         self,
-        model: Model,
+        model: ModelProtocol,
         validators: List[Validator] = None,
         improver: Optional[Improver] = None,
         max_attempts: int = 3,
