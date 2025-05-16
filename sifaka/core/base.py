@@ -249,7 +249,9 @@ class BaseComponent(ABC, Generic[T, R]):
         # There is no super() to call since this is the root implementation for components
         self._state_manager.update("initialized", False)
         self._state_manager.update("cache", {})
-        self._state_manager.set_metadata("component_type", self.__class__.__name__)
+        self._state_manager.update("warm_up_called", False)
+        self._state_manager.update("ready", False)
+        self._state_manager.set_metadata("creation_time", time.time())
         self._state_manager.set_metadata("validation_count", 0)
         self._state_manager.set_metadata("success_count", 0)
         self._state_manager.set_metadata("failure_count", 0)
@@ -258,24 +260,6 @@ class BaseComponent(ABC, Generic[T, R]):
         self._state_manager.set_metadata("error_count", 0)
         self._state_manager.set_metadata("last_error", None)
         self._state_manager.set_metadata("last_error_time", None)
-
-    # These methods are provided for backward compatibility
-    # since the properties are now defined as class attributes
-    def get_name(self) -> str:
-        """Get component name."""
-        return self._name
-
-    def get_description(self) -> str:
-        """Get component description."""
-        return self._description
-
-    def get_config(self) -> BaseConfig:
-        """Get component configuration."""
-        return self._config
-
-    def set_config(self, value: BaseConfig) -> None:
-        """Set component configuration."""
-        self._config = value
 
     @property
     def min_confidence(self) -> float:
@@ -461,70 +445,72 @@ class BaseComponent(ABC, Generic[T, R]):
                 print(f"Issues: {', '.join(result.issues))")
             ```
         """
-        if not self._state_manager.get("initialized", False):
-            self.warm_up()
         start_time = time.time()
+        try:
+            # If not initialized, call warm_up
+            if not self._state_manager.get("warm_up_called", False):
+                self.warm_up()
 
-        def operation() -> Any:
-            result = self._process_input(input)
+            # Validate input
+            empty_result = self.handle_empty_input(input)
+            if empty_result:
+                return cast(R, empty_result)
+
+            # Check cache for existing result
+            cache = self._state_manager.get("cache", {})
+            input_hash = str(hash(str(input))) if isinstance(input, str) else str(hash(str(input)))
+            if input_hash in cache:
+                return cast(R, cache[input_hash])
+
+            # Call _process_input to perform actual processing
+            def operation() -> Any:
+                try:
+                    result = self._process_input(input)
+                    return result
+                except Exception as e:
+                    self.record_error(e)
+                    if hasattr(self, "_create_error_result"):
+                        return self._create_error_result(e, self.name)
+                    raise
+
+            # Process the input with error handling
+            result = operation()
+
+            # Safety check for abstract method
+            if not result:
+                raise NotImplementedError(
+                    f"The _process_input method in {self.__class__.__name__} "
+                    f"must be implemented and return a result."
+                )
+
+            # Get processing time and update statistics
+            processing_time_ms = (time.time() - start_time) * 1000
+            track_performance = getattr(self.config, "track_performance", True)
+            if track_performance:
+                self.update_statistics(result, processing_time_ms)
+
+            # Cache the result if caching is enabled
+            cache_size = getattr(self.config, "cache_size", 0)
+            if cache_size > 0:
+                cache[input_hash] = result
+                self._state_manager.update("cache", cache)
+
             return result
-
-        from sifaka.utils.errors.safe_execution import safely_execute_component_operation
-        from sifaka.utils.errors.base import ComponentError
-
-        result = safely_execute_component_operation(
-            operation=operation,
-            component_name=self.name,
-            component_type=self.__class__.__name__,
-            error_class=ComponentError,
-            additional_metadata={"input_type": type(input).__name__},
-        )
-        processing_time = time.time() - start_time
-
-        # Handle the case where result might be an ErrorResult
-        from sifaka.utils.errors.results import ErrorResult
-        from typing import cast
-        from sifaka.utils.result_types import BaseResult as UtilsBaseResult
-
-        # Create a BaseResult for statistics if result is an ErrorResult
-        if isinstance(result, ErrorResult):
-            # Use a dummy BaseResult for statistics
-            # Create a dummy result for statistics
-            dummy_result: UtilsBaseResult = UtilsBaseResult(
-                passed=False,
-                message=result.error_message,
-                processing_time_ms=processing_time * 1000,
-                metadata={
-                    "component_name": self.name,
-                    "component_type": self.__class__.__name__,
-                },
-            )
-            self.update_statistics(dummy_result)
-            # Cast to R to satisfy the type checker
-            # This is safe because the caller will check for ErrorResult
-            return cast(R, result)
-        else:
-            # Normal case - update statistics with the actual result
-            # We know result is not an ErrorResult, so it's safe to cast to BaseResult
-            base_result: UtilsBaseResult = result
-            self.update_statistics(base_result)
-            return cast(R, result)  # Explicitly cast to satisfy mypy
+        except Exception as e:
+            # Record error and re-raise
+            self.record_error(e)
+            if hasattr(self, "_create_error_result"):
+                return cast(R, self._create_error_result(e, self.name))
+            raise
 
     def _process_input(self, input: T) -> R:
         """
         Process the input and return a result.
 
-        This method is called by the process method to perform the actual
-        processing logic. Subclasses must override this method to implement
-        component-specific processing logic. The process method handles common
-        concerns like initialization, error handling, and statistics tracking.
-
-        ## Implementation Guidelines
-        When implementing this method in subclasses:
-        1. Focus on the core processing logic specific to the component
-        2. Assume input has already been validated
-        3. Don't worry about error handling (handled by process method)
-        4. Return a properly formatted result object
+        This abstract method must be implemented by subclasses to provide
+        the core processing logic for the component. It will be called by
+        the process method after input validation and before caching and
+        statistics tracking.
 
         Args:
             input: The input to process (type depends on component implementation)
@@ -532,259 +518,256 @@ class BaseComponent(ABC, Generic[T, R]):
         Returns:
             The processing result (type depends on component implementation)
 
-        Example:
-            ```python
-            def _process_input(self, input: str) -> BaseResult:
-                # Implement component-specific logic
-                score = (self._calculate_score(input)
-                issues = (self._identify_issues(input)
-
-                return BaseResult(
-                    passed=score >= self.min_confidence,
-                    message="Input processed successfully" if score >= self.min_confidence else "Input failed validation",
-                    score=score,
-                    issues=issues,
-                    suggestions=(self._generate_suggestions(issues)
-                )
-            ```
+        Raises:
+            NotImplementedError: If not implemented by subclass
         """
-        raise NotImplementedError("Subclasses must implement _process_input")
+        raise NotImplementedError(
+            f"The _process_input method must be implemented by {self.__class__.__name__}"
+        )
 
     def warm_up(self) -> None:
         """
-        Prepare the component for use.
+        Warm up the component.
 
-        This method prepares the component for use, performing any necessary
-        initialization operations like loading resources, connecting to services,
-        or preparing caches. It's safe to call multiple times, as it checks if
-        the component is already initialized.
+        This method initializes the component resources and ensures it's
+        ready for processing. It's called automatically by process() if
+        not previously called, but can also be called explicitly to
+        pre-initialize resources.
 
-        ## Workflow
-        1. Checks if the component is already initialized
-        2. Calls _initialize_resources() for component-specific initialization
-        3. Updates the initialization state
-        4. Records initialization time
-
-        ## Error Handling
-        If initialization fails, an InitializationError is raised with details
-        about the failure. The error is also recorded in the component's state
-        for later inspection.
+        ## Lifecycle
+        1. Checks if already warmed up
+        2. Initializes resources through _initialize_resources
+        3. Marks the component as ready
 
         Raises:
-            InitializationError: If initialization fails for any reason
-
-        Example:
-            ```python
-            # Initialize a component
-            try:
-                (component.warm_up()
-                print("Component initialized successfully")
-            except InitializationError as e:
-                print(f"Initialization failed: {e}")
-            ```
+            InitializationError: If initialization fails
         """
+        if self._state_manager.get("warm_up_called", False):
+            return
+
         try:
-            if self._state_manager.get("initialized", False):
-                logger.debug(f"Component {self.name} already initialized")
-                return
-            self._initialize_resources()
-            self._state_manager.update("initialized", True)
+            # Check if already initialized
+            already_initialized = self._state_manager.get("initialized", False)
+            if not already_initialized:
+                # Initialize resources
+                self._initialize_resources()
+                self._state_manager.update("initialized", True)
+
+            # Mark ready for use
+            self._state_manager.update("ready", True)
             self._state_manager.set_metadata("warm_up_time", time.time())
-            logger.debug(f"Component {self.name} warmed up successfully")
+            self._state_manager.update("warm_up_called", True)
+
         except Exception as e:
+            # Record initialization error
             self.record_error(e)
-            logger.error(f"Failed to warm up component {self.name}: {str(e)}")
-            raise InitializationError(f"Failed to warm up component {self.name}: {str(e)}") from e
+            self._state_manager.update("initialized", False)
+            self._state_manager.update("ready", False)
+            self._state_manager.update("warm_up_called", True)  # Mark as called even if it failed
+            self._state_manager.set_metadata("initialization_error", str(e))
+
+            # Raise initialization error
+            raise InitializationError(
+                f"Failed to initialize {self.__class__.__name__}: {str(e)}"
+            ) from e
 
     def _initialize_resources(self) -> None:
         """
         Initialize component resources.
 
-        This method is called during warm-up to initialize any resources
-        needed by the component. Subclasses should override this method
-        to perform component-specific initialization such as loading models,
-        connecting to services, or preparing caches.
+        This method initializes the resources required by the component.
+        It can be overridden by subclasses to provide component-specific
+        resource initialization.
 
-        ## Implementation Guidelines
-        When implementing this method in subclasses:
-        1. Initialize all resources needed for component operation
-        2. Handle resource-specific errors and convert to InitializationError
-        3. Log initialization steps for debugging
-        4. Set component-specific state in the _state_manager
+        ## Resource Types
+        1. **Database Connections**: Connections to data sources
+        2. **File Handles**: Open files for reading or writing
+        3. **Network Connections**: Connections to remote services
+        4. **Memory Buffers**: Buffers for data processing
+        5. **Caches**: Caches for expensive operations
 
-        Example:
-            ```python
-            def _initialize_resources(self) -> None:
-                # Load model
-                try:
-                    model_path = self.config.params.get("model_path", "default_model.pkl") if params else ""
-                    self.(_state_manager.update("model", load_model(model_path))
-                    (logger.debug(f"Loaded model from {model_path}")
-                except Exception as e:
-                    raise InitializationError(f"Failed to load model: {str(e))") from e
-
-                # Initialize cache
-                cache_size = self.config.cache_size
-                self.(_state_manager.update("cache", LRUCache(max_size=cache_size))
-                (logger.debug(f"Initialized cache with size {cache_size}")
-            ```
+        Raises:
+            InitializationError: If resource initialization fails
         """
+        # Base implementation does nothing
+        # Subclasses should override this method to initialize their resources
         pass
 
     def cleanup(self) -> None:
         """
         Clean up component resources.
 
-        This method cleans up component resources, releasing any resources
-        that were acquired during initialization or use. It's safe to call
-        multiple times and handles errors gracefully to ensure resources
-        are released even if cleanup encounters problems.
+        This method cleans up resources used by the component, such as
+        file handles, network connections, and memory buffers. It should
+        be called when the component is no longer needed to avoid resource
+        leaks.
 
-        ## Workflow
-        1. Calls _release_resources() for component-specific cleanup
-        2. Clears the component's cache
-        3. Resets the initialization state
+        ## Lifecycle
+        1. Checks if resources need cleanup
+        2. Releases resources through _release_resources
+        3. Marks the component as not initialized
 
-        ## Error Handling
-        If cleanup encounters errors, they are logged but not raised, ensuring
-        that cleanup operations can continue even if some steps fail. This
-        prevents resource leaks in error scenarios.
+        ## Resource Management
+        The cleanup method follows a structured approach:
+        1. **Resource Identification**: Identify resources to clean up
+        2. **Safe Release**: Release resources safely, handling errors
+        3. **State Reset**: Reset component state after cleanup
+        4. **Verification**: Verify that resources were properly released
 
-        Example:
-            ```python
-            # Use a component and clean up afterward
-            try:
-                (component.warm_up()
-                result = (component.process("Hello, world!")
-                # Process the result...
-            finally:
-                # Always clean up, even if processing fails
-                (component.cleanup()
-            ```
+        Raises:
+            Exception: If cleanup fails (but attempts to continue cleaning up other resources)
         """
+        # Only clean up if initialized
+        if not self._state_manager.get("initialized", False):
+            return
+
         try:
+            # Release resources
             self._release_resources()
-            if hasattr(self, "clear_cache") and callable(getattr(self, "clear_cache")):
-                self.clear_cache()
+
+            # Reset state
             self._state_manager.update("initialized", False)
-            logger.debug(f"Component {self.name} cleaned up successfully")
+            self._state_manager.update("ready", False)
+            self._state_manager.update("warm_up_called", False)
+            self._state_manager.set_metadata("cleanup_time", time.time())
         except Exception as e:
-            logger.error(f"Failed to clean up component {self.name}: {str(e)}")
+            # Record cleanup error but don't re-raise
+            self.record_error(e)
+            self._state_manager.set_metadata("cleanup_error", str(e))
+
+            # Still mark as not initialized to avoid using the component after failed cleanup
+            self._state_manager.update("initialized", False)
+            self._state_manager.update("ready", False)
 
     def _release_resources(self) -> None:
         """
         Release component resources.
 
-        This method is called during cleanup to release any resources
-        acquired during initialization or use. Subclasses should override
-        this method to perform component-specific cleanup such as closing
-        connections, releasing memory, or shutting down services.
+        This method releases the resources used by the component. It can
+        be overridden by subclasses to provide component-specific resource
+        cleanup.
 
-        ## Implementation Guidelines
-        When implementing this method in subclasses:
-        1. Release all resources acquired during initialization
-        2. Handle errors gracefully (log but don't raise)
-        3. Ensure resources are released even if errors occur
-        4. Clear component-specific state from the _state_manager
+        ## Resource Types
+        1. **Database Connections**: Close connections to data sources
+        2. **File Handles**: Close open files
+        3. **Network Connections**: Close connections to remote services
+        4. **Memory Buffers**: Release memory buffers
+        5. **Caches**: Clear caches
 
-        Example:
-            ```python
-            def _release_resources(self) -> None:
-                # Close database connection
-                try:
-                    if db_conn := self.(_state_manager.get("db_connection"):
-                        (db_conn.close()
-                        (logger.debug("Closed database connection")
-                except Exception as e:
-                    (logger.error(f"Error closing database connection: {str(e))")
+        ## Error Handling
+        The method handles errors during resource release:
+        1. **Individual Resource Errors**: Try to clean up each resource separately
+        2. **Error Recording**: Record errors during cleanup
+        3. **Continued Cleanup**: Continue cleaning up other resources if one fails
 
-                # Release model resources
-                try:
-                    if model := self.(_state_manager.get("model"):
-                        (model.unload()
-                        (logger.debug("Unloaded model")
-                except Exception as e:
-                    (logger.error(f"Error unloading model: {str(e))")
-
-                # Clear component-specific state
-                self.(_state_manager.remove("model")
-                self.(_state_manager.remove("db_connection")
-            ```
+        Raises:
+            Exception: If resource release fails (but attempts to continue with other resources)
         """
+        # Base implementation does nothing
+        # Subclasses should override this method to release their resources
         pass
 
     @classmethod
     def create(cls: Type[C], name: str, description: str, **kwargs: Any) -> C:
         """
-        Create a new component instance.
+        Create a component instance with the specified parameters.
 
-        This factory method provides a convenient way to create component instances
-        with standardized configuration. It handles the creation of the BaseConfig
-        object and passes it to the component constructor.
+        This factory method creates a component instance with the specified
+        parameters, providing a convenient way to create components without
+        specifying all parameters explicitly.
+
+        ## Usage
+        ```python
+        # Create a component with minimal parameters
+        component = MyComponent.create(
+            name="my_component",
+            description="A custom component"
+        )
+
+        # Create a component with additional parameters
+        component = MyComponent.create(
+            name="my_component",
+            description="A custom component",
+            min_confidence=0.8,
+            cache_size=200,
+            priority=2,
+            cost=1.5,
+            params={"threshold": 0.7}
+        )
+        ```
 
         Args:
             name: Component name
             description: Component description
-            **kwargs: Additional configuration parameters
+            **kwargs: Additional parameters for the component
 
         Returns:
-            A new instance of the component class
-
-        Example:
-            ```python
-            # Create a component using the factory method
-            component = (MyComponent and MyComponent.create(
-                name="my_component",
-                description="A custom component",
-                min_confidence=0.8,
-                cache_size=200,
-                priority=2,
-                cost=1.5,
-                params={"threshold": 0.7}
-            )
-            ```
+            A component instance
         """
-        return cls(name=name, description=description, config=BaseConfig(**kwargs))
+        # Extract configuration parameters
+        config_params = {}
+        component_params = {}
+
+        # Get field names from BaseConfig
+        config_fields = set(BaseConfig.__annotations__.keys())
+
+        # Separate config parameters from component parameters
+        for key, value in kwargs.items():
+            if key in config_fields:
+                config_params[key] = value
+            else:
+                component_params[key] = value
+
+        # Create configuration
+        config_params["name"] = name
+        config_params["description"] = description
+        config = BaseConfig(**config_params)
+
+        # Create component
+        return cls(name=name, description=description, config=config, **component_params)
 
     def _create_error_result(
         self, error: Union[Exception, str], component_name: Optional[str] = None
     ) -> R:
         """
-        Create an error result with the component's information.
+        Create a result for an error.
+
+        This method creates a standardized result for an error, including
+        error type, message, and metadata. It can be overridden by subclasses
+        to provide component-specific error handling.
 
         Args:
-            error: The error that occurred
-            component_name: Optional component name override
+            error: The error to create a result for
+            component_name: Optional name of the component
 
         Returns:
-            An error result
+            A result representing the error
         """
         from sifaka.core.results import ErrorResult
-        from typing import cast
 
-        name = component_name or self.name
+        # Extract error details
         if isinstance(error, Exception):
-            error_msg = str(error)
-            error_type = error.__class__.__name__
+            error_type = type(error).__name__
+            error_message = str(error)
         else:
-            error_msg = error
             error_type = "Error"
+            error_message = str(error)
 
-        # Create metadata with component information
+        # Create error result metadata
         metadata = {
-            "component": name,
+            "component": component_name or self.name,
             "component_type": self.__class__.__name__,
+            "error_type": error_type,
+            "error_message": error_message,
         }
 
-        result = ErrorResult(
+        # Create error result
+        error_result = ErrorResult(
             error_type=error_type,
-            error_message=error_msg,
+            error_message=error_message,
             passed=False,
-            message=error_msg,
+            message=f"Error in {component_name or self.name}: {error_message}",
             metadata=metadata,
-            score=0.0,
         )
 
-        # Cast the ErrorResult to the appropriate return type R
-        # This is a deliberate cast to satisfy the type system
-        return cast(R, result)
+        return cast(R, error_result)

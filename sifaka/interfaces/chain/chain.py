@@ -48,7 +48,7 @@ The interfaces support execution tracking:
 from abc import abstractmethod
 from typing import Any, Dict, Protocol, TypeVar, runtime_checkable
 
-from sifaka.core.interfaces import Configurable, Identifiable
+from sifaka.interfaces.core import ConfigurableProtocol, IdentifiableProtocol
 
 # Type variables
 ConfigType = TypeVar("ConfigType")
@@ -57,7 +57,11 @@ OutputType = TypeVar("OutputType", covariant=True)
 
 
 @runtime_checkable
-class Chain(Identifiable, Configurable[ConfigType], Protocol[ConfigType, InputType, OutputType]):
+class Chain(
+    IdentifiableProtocol,
+    ConfigurableProtocol[ConfigType],
+    Protocol[ConfigType, InputType, OutputType],
+):
     """
     Interface for chains.
 

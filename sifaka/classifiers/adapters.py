@@ -32,7 +32,9 @@ print(f"Confidence: {result.confidence:.2f}")
 """
 
 from typing import Any, TypeVar, Generic, cast
-from .interfaces import ClassifierImplementation
+from sifaka.interfaces.classifier import (
+    ClassifierImplementationProtocol as ClassifierImplementation,
+)
 from ..core.results import ClassificationResult
 from ..utils.errors import ClassifierError
 from ..utils.errors import safely_execute_component_operation as safely_execute

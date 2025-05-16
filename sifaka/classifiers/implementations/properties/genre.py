@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Any, ClassVar
 from pydantic import ConfigDict
 
 from sifaka.classifiers.classifier import Classifier
-from sifaka.classifiers.interfaces import ClassifierImplementation
+from sifaka.interfaces import ClassifierImplementationProtocol
 from sifaka.core.results import ClassificationResult
 from sifaka.utils.config.classifiers import ClassifierConfig, standardize_classifier_config
 from sifaka.utils.logging import get_logger
@@ -71,7 +71,7 @@ class GenreClassifier(Classifier):
 
     def __init__(
         self,
-        implementation: Optional[ClassifierImplementation] = None,
+        implementation: Optional[ClassifierImplementationProtocol] = None,
         config: Optional[ClassifierConfig] = None,
         name: str = "genre_classifier",
         description: str = "Classifies text into different genres",

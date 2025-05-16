@@ -7,10 +7,10 @@ modularity and extensibility.
 
 ## Interface Hierarchy
 
-1. **Retriever**: Base interface for all retrievers
-   - **DocumentStore**: Interface for document stores
-   - **IndexManager**: Interface for index managers
-   - **QueryProcessor**: Interface for query processors
+1. **RetrieverProtocol**: Base interface for all retrievers
+   - **DocumentStoreProtocol**: Interface for document stores
+   - **IndexManagerProtocol**: Interface for index managers
+   - **QueryProcessorProtocol**: Interface for query processors
 
 ## Usage
 
@@ -47,7 +47,12 @@ The interfaces support execution tracking:
 from abc import abstractmethod
 from typing import Any, Dict, Generic, List, Optional, Protocol, TypeVar, runtime_checkable
 
-from sifaka.core.interfaces import Component, Configurable, Identifiable, Stateful
+from sifaka.interfaces.core import (
+    ComponentProtocol,
+    ConfigurableProtocol,
+    IdentifiableProtocol,
+    StatefulProtocol,
+)
 
 # Type variables
 T = TypeVar("T")
@@ -58,7 +63,7 @@ ResultType = TypeVar("ResultType", covariant=True)
 
 
 @runtime_checkable
-class DocumentStore(Protocol[DocumentType]):
+class DocumentStoreProtocol(Protocol[DocumentType]):
     """
     Interface for document stores.
 
@@ -153,7 +158,7 @@ class DocumentStore(Protocol[DocumentType]):
 
 
 @runtime_checkable
-class IndexManager(Protocol):
+class IndexManagerProtocol(Protocol):
     """
     Interface for index managers.
 
@@ -242,7 +247,7 @@ class IndexManager(Protocol):
 
 
 @runtime_checkable
-class QueryProcessor(Protocol[QueryType, ResultType]):
+class QueryProcessorProtocol(Protocol[QueryType, ResultType]):
     """
     Interface for query processors.
 
@@ -283,8 +288,10 @@ class QueryProcessor(Protocol[QueryType, ResultType]):
 
 
 @runtime_checkable
-class Retriever(
-    Identifiable, Configurable[ConfigType], Protocol[ConfigType, QueryType, ResultType]
+class RetrieverProtocol(
+    IdentifiableProtocol,
+    ConfigurableProtocol[ConfigType],
+    Protocol[ConfigType, QueryType, ResultType],
 ):
     """
     Interface for retrievers.

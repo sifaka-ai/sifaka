@@ -2,69 +2,77 @@
 Sifaka: A framework for building reliable and reflective AI systems.
 """
 
-from typing import List, Any
+from typing import List
+import os
 
-
-def __getattr__(name) -> Any:
-    """Lazily import components to avoid circular dependencies."""
-    if name in ("Chain", "ChainResult"):
-        from sifaka.chain import Chain, ChainResult
-
-        globals()[name] = locals()[name]
-        return locals()[name]
-    elif name in ("CriticCore", "create_prompt_critic", "create_reflexion_critic"):
-        from sifaka.critics import CriticCore, create_prompt_critic, create_reflexion_critic
-
-        globals()[name] = locals()[name]
-        return locals()[name]
-    elif name == "Generator":
-        from sifaka.core.generation import Generator
-
-        globals()[name] = Generator
-        return Generator
-    elif name in ("Improver", "ImprovementResult"):
-        from sifaka.core.improvement import Improver, ImprovementResult
-
-        globals()[name] = locals()[name]
-        return locals()[name]
-    elif name in ("AnthropicProvider", "OpenAIProvider"):
-        from sifaka.models import AnthropicProvider, OpenAIProvider
-
-        globals()[name] = locals()[name]
-        return locals()[name]
-    elif name in ("Validator", "ValidationResult", "ValidatorConfig"):
-        from sifaka.core.validation import Validator, ValidationResult, ValidatorConfig
-
-        globals()[name] = locals()[name]
-        return locals()[name]
-    elif name == "Rule":
-        from sifaka.rules.base import Rule
-
-        globals()[name] = Rule
-        return Rule
-    elif name == "create_length_rule":
-        from sifaka.rules.formatting.length import create_length_rule
-
-        globals()[name] = create_length_rule
-        return create_length_rule
-    raise AttributeError(f"module 'sifaka' has no attribute '{name}'")
-
-
-__all__: List[str] = [
-    "Chain",
-    "ChainResult",
-    "Generator",
-    "Improver",
-    "ImprovementResult",
-    "Validator",
-    "ValidationResult",
-    "ValidatorConfig",
-    "Rule",
-    "AnthropicProvider",
-    "OpenAIProvider",
-    "create_length_rule",
-    "CriticCore",
-    "create_prompt_critic",
-    "create_reflexion_critic",
-]
+# Define version
 __version__: str = "0.1.0"
+
+# Core interfaces and base classes
+# These should have minimal dependencies themselves
+from sifaka.interfaces import (
+    ModelProviderProtocol,
+    RuleProtocol,
+    CriticProtocol,
+    ChainPluginProtocol,
+    ImproverProtocol,
+    ValidatorProtocol,
+    ComponentProtocol,
+)
+
+# Base result types with no circular dependencies
+from sifaka.core.results import (
+    BaseResult,
+    ChainResult,
+    ValidationResult,
+    RuleResult,
+    GenerationResult,
+    ModelResult,
+    CriticResult,
+    ErrorResult,
+    RetrievalResult,
+    ClassificationResult,
+)
+
+# Initialize component registry if not disabled
+# This loads all component implementations and registers their factory functions
+# The environment variable SIFAKA_SKIP_REGISTRY_INIT can be set to disable this behavior
+if os.environ.get("SIFAKA_SKIP_REGISTRY_INIT", "").lower() != "true":
+    try:
+        from sifaka.core.initialize_registry import initialize_registry
+
+        initialize_registry()
+    except ImportError:
+        # If the registry module is not available, skip initialization
+        # This can happen during early stages of package installation
+        pass
+
+# Expose the core interfaces in __all__
+__all__: List[str] = [
+    # Protocols
+    "ModelProviderProtocol",
+    "RuleProtocol",
+    "CriticProtocol",
+    "ChainPluginProtocol",
+    "ImproverProtocol",
+    "ValidatorProtocol",
+    "ComponentProtocol",
+    # Result types
+    "BaseResult",
+    "ChainResult",
+    "ValidationResult",
+    "RuleResult",
+    "GenerationResult",
+    "ModelResult",
+    "CriticResult",
+    "ErrorResult",
+    "RetrievalResult",
+    "ClassificationResult",
+]
+
+# Import concrete implementations separately to avoid circular dependencies
+# Users should import these directly from their respective modules
+# Examples:
+# from sifaka.chain import Chain
+# from sifaka.models.providers.openai import OpenAIProvider
+# from sifaka.rules.base import Rule

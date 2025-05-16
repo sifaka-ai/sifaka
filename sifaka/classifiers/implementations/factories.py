@@ -29,6 +29,7 @@ from .adapters import (
     SentimentClassifierAdapter,
     ProfanityClassifierAdapter,
 )
+from sifaka.core.registry import register_classifier_factory
 
 
 def create_toxicity_classifier(
@@ -170,3 +171,9 @@ def create_profanity_classifier(
         cache_size=cache_size,
         min_confidence=min_confidence,
     )
+
+
+# Register factory functions with the registry
+register_classifier_factory("toxicity", create_toxicity_classifier)
+register_classifier_factory("sentiment", create_sentiment_classifier)
+register_classifier_factory("profanity", create_profanity_classifier)

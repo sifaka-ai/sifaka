@@ -143,11 +143,7 @@ class CacheManager(InitializeStateMixin):
         """
         self._cache_enabled = cache_enabled
         self._cache_size = cache_size
-
-        # Support both dependency injection and auto-creation patterns
-        if state_manager is not None:
-            object.__setattr__(self, "_state_manager", state_manager)
-
+        self._state_manager = state_manager if state_manager is not None else create_manager_state()
         self._initialize_state()
 
     def _initialize_state(self) -> None:

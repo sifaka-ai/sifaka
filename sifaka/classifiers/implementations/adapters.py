@@ -37,7 +37,9 @@ from typing import Any, Dict, List, Optional, TypeVar, Generic, cast
 from ...core.results import ClassificationResult
 from ...utils.errors import ClassifierError
 from ...utils.errors import safely_execute_component_operation as safely_execute
-from ..interfaces import ClassifierImplementation
+from sifaka.interfaces.classifier import (
+    ClassifierImplementationProtocol as ClassifierImplementation,
+)
 
 # Define type variable for label type
 L = TypeVar("L")

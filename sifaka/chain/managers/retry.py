@@ -7,47 +7,28 @@ This module provides a retry manager for the Sifaka chain system.
 It handles retry logic for chain execution.
 
 ## Overview
-The retry manager implements a standardized approach to handling retry logic
-in the chain execution flow. It coordinates the generation, validation, and
-improvement steps, automatically retrying when validations fail. This ensures
-that the chain system can recover from temporary failures and improve outputs
-that don't meet validation criteria.
+The retry manager provides a standardized way to handle retry logic in the
+chain execution flow. It coordinates the generation, validation, and improvement
+steps, automatically retrying when validations fail. This ensures that the chain
+system can recover from temporary failures and improve outputs that don't meet
+validation criteria.
 
 ## Components
 1. **RetryManager**: Manages retry logic for chain execution with configurable
-   maximum attempts and state tracking
+   maximum attempts and statistics tracking
 
 ## Usage Examples
 ```python
 from sifaka.chain.managers.retry import RetryManager
-from sifaka.core.results import ChainResult
 
 # Create retry manager
 retry_manager = RetryManager(max_attempts=3)
 
-# Define functions for the retry flow
-def generate():
-    return model.generate(prompt)
-
-def validate(output):
-    return [validator.validate(output) for validator in validators]
-
-def improve(output, results):
-    return improver.improve(output, results)
-
-def create_result(prompt, output, results, attempt):
-    return ChainResult(
-        prompt=prompt,
-        output=output,
-        validation_results=results,
-        attempt_count=attempt
-    )
-
 # Execute with retries
 result = retry_manager.execute_with_retries(
-    generate_func=generate,
-    validate_func=validate,
-    improve_func=improve,
+    generate_func=lambda: model.generate(prompt),
+    validate_func=lambda output: [validator.validate(output) for validator in validators],
+    improve_func=lambda output, results: improver.improve(output, results),
     prompt=prompt,
     create_result_func=create_result
 )
@@ -59,7 +40,7 @@ print(f"All validations passed: {stats['all_passed']}")
 ```
 
 ## Error Handling
-The retry manager handles errors gracefully:
+The retry manager is designed to be robust and handle edge cases gracefully:
 - Raises ChainError if execution fails after maximum attempts
 - Tracks validation results for each attempt
 - Returns the best result even if validations fail on the last attempt
@@ -69,16 +50,14 @@ The retry manager can be configured with the following options:
 - max_attempts: Maximum number of retry attempts (default: 3)
 """
 
-from typing import Callable, Dict, List, Optional, Any, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 import time
-from pydantic import PrivateAttr
 from ...utils.state import StateManager, create_manager_state
 from ...utils.logging import get_logger
+from ...core.results import ChainResult, ValidationResult
 from ...utils.errors import ChainError
 from ...utils.mixins import InitializeStateMixin
-from sifaka.interfaces.chain.models import ValidationResult
 from sifaka.models.result import GenerationResult
-from ...core.results import ChainResult
 
 logger = get_logger(__name__)
 
@@ -127,8 +106,6 @@ class RetryManager(InitializeStateMixin):
     ```
     """
 
-    _state_manager: StateManager = PrivateAttr(default_factory=create_manager_state)
-
     def __init__(self, max_attempts: int = 3, state_manager: Optional[StateManager] = None) -> None:
         """
         Initialize the retry manager.
@@ -153,11 +130,7 @@ class RetryManager(InitializeStateMixin):
             ```
         """
         self._max_attempts = max_attempts
-
-        # Support both dependency injection and auto-creation patterns
-        if state_manager is not None:
-            object.__setattr__(self, "_state_manager", state_manager)
-
+        self._state_manager = state_manager if state_manager is not None else create_manager_state()
         self._initialize_state()
 
     def _initialize_state(self) -> None:

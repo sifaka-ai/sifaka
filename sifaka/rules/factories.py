@@ -73,7 +73,7 @@ from .managers.validation import ValidationManager
 from .managers.validation import ValidationConfig
 from sifaka.utils.config.rules import RuleConfig as UtilsRuleConfig
 from sifaka.utils.logging import get_logger
-from sifaka.interfaces import RuleProtocol
+from sifaka.interfaces import SimpleRuleProtocol
 
 Rule = BaseRule
 RuleConfig = BaseRuleConfig
@@ -214,7 +214,7 @@ def create_rule(
 
 
 def create_validation_manager(
-    rules: Optional[List[RuleProtocol]] = None,
+    rules: Optional[List[SimpleRuleProtocol]] = None,
     prioritize_by_cost: bool = False,
     **kwargs: Any,
 ) -> ValidationManager:

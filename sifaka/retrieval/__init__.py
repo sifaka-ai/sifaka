@@ -15,10 +15,10 @@ and utilities for different retrieval strategies.
    - `RetrievalResult`: Result models for retrieval operations
 
 2. **Interfaces**
-   - `Retriever`: Interface for retrievers
-   - `DocumentStore`: Interface for document stores
-   - `IndexManager`: Interface for index managers
-   - `QueryProcessor`: Interface for query processors
+   - `RetrieverProtocol`: Interface for retrievers
+   - `DocumentStoreProtocol`: Interface for document stores
+   - `IndexManagerProtocol`: Interface for index managers
+   - `QueryProcessorProtocol`: Interface for query processors
 
 3. **Implementations**
    - `SimpleRetriever`: A basic retriever for in-memory document collections
@@ -52,7 +52,12 @@ result = retriever.retrieve("How does quantum computing work?") if retriever els
 print(result.get_formatted_results() if result else "")
 ```
 """
-from sifaka.interfaces import Retriever, DocumentStore, IndexManager, QueryProcessor
+from sifaka.interfaces import (
+    RetrieverProtocol,
+    DocumentStoreProtocol,
+    IndexManagerProtocol,
+    QueryProcessorProtocol,
+)
 from .core import RetrieverCore
 from sifaka.utils.config.retrieval import RetrieverConfig
 from ..core.results import RetrievalResult
@@ -67,10 +72,10 @@ from .strategies.ranking import (
 from .factories import create_simple_retriever, create_threshold_retriever
 
 __all__: List[Any] = [
-    "Retriever",
-    "DocumentStore",
-    "IndexManager",
-    "QueryProcessor",
+    "RetrieverProtocol",
+    "DocumentStoreProtocol",
+    "IndexManagerProtocol",
+    "QueryProcessorProtocol",
     "RetrieverCore",
     "RetrieverConfig",
     "RetrievalResult",

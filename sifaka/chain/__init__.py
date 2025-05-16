@@ -1,4 +1,5 @@
-from typing import Any, List
+from typing import List, Any
+
 """
 Chain Module
 
@@ -20,7 +21,7 @@ implementing a flexible and extensible chain system with a clean architecture.
 ## Usage Examples
 ```python
 from sifaka.chain import Chain
-from sifaka.models import OpenAIProvider
+from sifaka.models.providers.openai import OpenAIProvider
 from sifaka.rules import create_length_rule
 from sifaka.critics import create_prompt_critic
 
@@ -57,13 +58,45 @@ print(f"All validations passed: {result.all_passed}")
 - cache_enabled: Whether to enable result caching
 - trace_enabled: Whether to enable execution tracing
 """
+
+# Core chain components
 from .chain import Chain
 from .engine import Engine
-from ..core.results import ChainResult
-from sifaka.interfaces.chain.components import Model, Validator, Improver
-from sifaka.interfaces.chain.components.formatter import ChainFormatter as Formatter
-from sifaka.interfaces.chain.plugin import ChainPlugin as Plugin
-from ..utils.state import StateManager, create_chain_state
-__all__: List[Any] = ['Chain', 'Engine', 'ChainResult', 'Model',
-    'Validator', 'Improver', 'Formatter', 'Plugin', 'StateManager',
-    'create_chain_state']
+
+# Import base result types from core.results
+from sifaka.core.results import ChainResult
+
+# Import protocol interfaces instead of concrete implementations
+from sifaka.interfaces import (
+    ModelProviderProtocol,
+    ChainValidatorProtocol,
+    ChainImproverProtocol,
+    ComponentProtocol,
+    ValidationResult,
+    ModelProtocol,
+    FormatterProtocol,
+    ChainPluginProtocol,
+)
+
+# Utilities
+from sifaka.utils.state import StateManager, create_chain_state
+
+__all__: List[str] = [
+    # Core components
+    "Chain",
+    "Engine",
+    # Result types
+    "ChainResult",
+    # Protocols
+    "ModelProviderProtocol",
+    "ChainValidatorProtocol",
+    "ChainImproverProtocol",
+    "ComponentProtocol",
+    "ValidationResult",
+    "ModelProtocol",
+    "FormatterProtocol",
+    "ChainPluginProtocol",
+    # Utilities
+    "StateManager",
+    "create_chain_state",
+]

@@ -42,7 +42,7 @@ logger = get_logger(__name__)
 
 from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 
-from sifaka.interfaces import RuleProtocol
+from sifaka.interfaces import SimpleRuleProtocol
 
 
 class ValidationConfig(BaseModel):
@@ -156,7 +156,7 @@ class ValidationManager(InitializeStateMixin):
 
     def __init__(
         self,
-        rules: Optional[List[RuleProtocol]] = None,
+        rules: Optional[List[SimpleRuleProtocol]] = None,
         config: Optional[ValidationConfig] = None,
     ):
         """
@@ -372,7 +372,7 @@ class ValidationManager(InitializeStateMixin):
 
         return results
 
-    def _get_prioritized_rules(self) -> List[RuleProtocol]:
+    def _get_prioritized_rules(self) -> List[SimpleRuleProtocol]:
         """
         Get rules in priority order.
 
@@ -391,7 +391,7 @@ class ValidationManager(InitializeStateMixin):
             reverse=True,
         )
 
-    def add_rule(self, rule: RuleProtocol) -> None:
+    def add_rule(self, rule: SimpleRuleProtocol) -> None:
         """
         Add a rule to the manager.
 
@@ -452,7 +452,7 @@ class ValidationManager(InitializeStateMixin):
         self._state_manager.update("rules", self.rules)
         self._state_manager.set_metadata("rule_count", len(self.rules))
 
-    def get_rule(self, rule_name: str) -> Optional[RuleProtocol]:
+    def get_rule(self, rule_name: str) -> Optional[SimpleRuleProtocol]:
         """
         Get a rule by name.
 

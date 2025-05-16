@@ -13,8 +13,9 @@ and appropriate logging.
 - **create_error_handler**: Create a component-specific error handler
 """
 
+import time
 import traceback
-from typing import Any, Callable, Dict, Optional, Type, TypeVar, cast
+from typing import Any, Callable, Dict, Optional, Type, TypeVar, cast, Union, List
 
 from ..logging import get_logger
 from .base import SifakaError
@@ -40,141 +41,225 @@ logger = get_logger(__name__)
 T = TypeVar("T")
 
 
-def handle_error(
-    error: Exception,
-    component_name: str,
-    log_level: str = "error",
-    include_traceback: bool = True,
-    additional_metadata: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    """Handle an error and return standardized error metadata.
-
-    This function processes an error, logs it with the specified log level,
-    and returns standardized error metadata. It extracts information from
-    the error and formats it in a consistent way, making it easier to handle
-    errors across the codebase.
+def create_actionable_error_message(error: Exception, component_type: Optional[str] = None) -> str:
+    """
+    Create an actionable error message with specific recommendations.
 
     Args:
-        error (Exception): The exception to handle
-        component_name (str): Name of the component where the error occurred
-        log_level (str): Log level to use (default: "error")
-        include_traceback (bool): Whether to include traceback in metadata
-        additional_metadata (Optional[Dict[str, Any]]): Additional metadata to include
+        error: The exception that was raised
+        component_type: Optional type of component (model, validator, etc.)
 
     Returns:
-        Dict[str, Any]: Standardized error metadata dictionary containing:
-            - error_type: The type of the error (class name)
-            - error_message: The error message
-            - component: The name of the component where the error occurred
-            - traceback: The error traceback (if include_traceback is True)
-            - Any additional metadata provided
-
-    Raises:
-        Exception: If an error occurs during error handling (rare)
-
-    Examples:
-        ```python
-        from sifaka.utils.errors.handling import handle_error
-
-        # Handle an error with default settings
-        try:
-            # Some operation
-            result = process_data(input_data)
-        except Exception as e:
-            error_metadata = handle_error(e, "DataProcessor")
-            print(f"Error type: {error_metadata['error_type']}")
-            print(f"Error message: {error_metadata['error_message']}")
-        ```
+        Actionable error message with suggestions
     """
-    # Extract error details
+    from sifaka.utils.errors.base import (
+        ValidationError,
+        ConfigurationError,
+        ProcessingError,
+        ResourceError,
+        TimeoutError,
+        InputError,
+        StateError,
+        DependencyError,
+        InitializationError,
+    )
+
     error_type = type(error).__name__
     error_message = str(error)
+    component_context = f" in {component_type}" if component_type else ""
 
-    # Create metadata
-    metadata = {
-        "error_type": error_type,
-        "error_message": error_message,
-        "component": component_name,
-    }
+    # Base message
+    message = f"Error{component_context}: {error_message}"
+    suggestions = []
 
-    # Add traceback if requested
-    if include_traceback:
-        metadata["traceback"] = traceback.format_exc()
+    # Add specific suggestions based on error type
+    if isinstance(error, ValidationError):
+        suggestions = [
+            "Check your validation rules for conflicting criteria",
+            "Ensure your content meets all required criteria",
+            "Try using fewer or simpler validation rules",
+        ]
+    elif isinstance(error, ConfigurationError):
+        suggestions = [
+            "Verify your configuration parameters",
+            "Check for typos in parameter names",
+            "Ensure all required parameters are provided",
+            "Refer to the documentation for correct parameter formats",
+        ]
+    elif isinstance(error, ProcessingError):
+        suggestions = [
+            "Check the input data for unexpected formats",
+            "Try breaking down your request into smaller steps",
+            "Verify that inputs match the expected types",
+        ]
+    elif isinstance(error, ResourceError):
+        suggestions = [
+            "Check your API keys and permissions",
+            "Verify your network connection",
+            "Ensure you have sufficient quota with your provider",
+        ]
+    elif isinstance(error, TimeoutError):
+        suggestions = [
+            "Try again with a simpler request",
+            "Increase the timeout setting if available",
+            "Break your request into smaller chunks",
+        ]
+    elif isinstance(error, InputError):
+        suggestions = [
+            "Verify your input data format",
+            "Check for special characters that might cause issues",
+            "Ensure your input meets size requirements",
+        ]
+    elif isinstance(error, StateError):
+        suggestions = [
+            "Ensure components are initialized before use",
+            "Check the lifecycle of your components",
+            "Verify the sequence of operations",
+        ]
+    elif isinstance(error, DependencyError):
+        suggestions = [
+            "Check that all required dependencies are registered",
+            "Look for circular dependencies in your component setup",
+            "Ensure dependency providers are properly initialized",
+        ]
+    elif isinstance(error, InitializationError):
+        suggestions = [
+            "Verify your setup code runs before using components",
+            "Check that all required parameters are provided during initialization",
+            "Ensure environment variables are set correctly",
+        ]
+    elif "OpenAI" in error_type or "openai" in error_message.lower():
+        suggestions = [
+            "Check your OpenAI API key",
+            "Verify you have proper permissions for the model you're using",
+            "Ensure you have sufficient quota in your OpenAI account",
+        ]
+    elif "Anthropic" in error_type or "anthropic" in error_message.lower():
+        suggestions = [
+            "Check your Anthropic API key",
+            "Verify you have proper permissions for the model you're using",
+            "Ensure you have sufficient quota in your Anthropic account",
+        ]
+    elif "import" in error_message.lower() or "module" in error_message.lower():
+        suggestions = [
+            "Ensure all required packages are installed",
+            "Check for typos in import statements",
+            "Verify your virtual environment is activated",
+        ]
+    else:
+        # Generic suggestions for unknown errors
+        suggestions = [
+            "Check the input parameters and data format",
+            "Refer to the documentation for correct usage",
+            "Try breaking down complex operations into simpler steps",
+        ]
 
-    # Add metadata from SifakaError
-    if isinstance(error, SifakaError) and error.metadata:
-        metadata.update(error.metadata)
+    # Format suggestions
+    if suggestions:
+        message += "\n\nSuggestions to fix the issue:"
+        for i, suggestion in enumerate(suggestions, 1):
+            message += f"\n{i}. {suggestion}"
 
-    # Add additional metadata
-    if additional_metadata:
-        metadata.update(additional_metadata)
+    # Add documentation reference when appropriate
+    if not isinstance(error, (ResourceError, TimeoutError)):
+        message += "\n\nFor more information, see our documentation at https://docs.sifaka.ai/troubleshooting"
+
+    return message
+
+
+def handle_error(
+    error: Exception,
+    component_type: Optional[str] = None,
+    operation: Optional[str] = None,
+    logger_instance: Any = None,
+) -> None:
+    """
+    Handle an error with standardized logging and context.
+
+    Args:
+        error: The exception that was raised
+        component_type: Optional type of component (model, validator, etc.)
+        operation: Optional operation being performed
+        logger_instance: Optional logger to use
+
+    Raises:
+        Same exception with enhanced message
+    """
+    # Use the default logger if none provided
+    logger_instance = logger_instance or get_logger("error_handler")
+
+    # Create operation context string
+    op_context = f" during {operation}" if operation else ""
+
+    # Get the original error type
+    error_type = type(error)
 
     # Log the error
-    log_message = f"{component_name}: {error_type} - {error_message}"
-    getattr(logger, log_level)(log_message, extra={"metadata": metadata})
+    logger_instance.error(f"Error{op_context}: {str(error)}", exc_info=True)
 
-    return metadata
+    # Create enhanced error message with actionable suggestions
+    enhanced_message = create_actionable_error_message(error, component_type)
+
+    # Raise a new exception of the same type with the enhanced message
+    try:
+        # Try to create a new exception of the same type with the enhanced message
+        new_error = error_type(enhanced_message)
+        # Copy the original exception's traceback
+        new_error.__traceback__ = error.__traceback__
+        raise new_error
+    except TypeError:
+        # If we can't create a new exception of the same type, re-raise the original
+        raise error
 
 
 def try_operation(
     operation: Callable[[], T],
     component_name: str,
-    component_type: Optional[Optional[str]] = None,
-    error_class: Optional[Optional[Type[SifakaError]]] = None,
-    default_value: Optional[Optional[T]] = None,
+    component_type: Optional[str] = None,
+    error_class: Optional[Type[SifakaError]] = None,
+    default_value: Optional[T] = None,
     log_level: str = "error",
     error_handler: Optional[Callable[[Exception], Optional[T]]] = None,
     include_traceback: bool = True,
     additional_metadata: Optional[Dict[str, Any]] = None,
 ) -> T:
-    """Execute an operation with standardized error handling.
-
-    This function executes an operation and handles any errors that occur,
-    providing standardized error handling and logging. It can also wrap generic
-    exceptions in component-specific error classes.
+    """
+    Execute an operation with standardized error handling.
 
     Args:
         operation: The operation to execute
-        component_name: Name of the component executing the operation
-        component_type: Type of the component (e.g., "Chain", "Model")
-        error_class: SifakaError subclass to use for wrapping generic exceptions
-        default_value: Value to return if operation fails
+        component_name: Name of the component where the operation is being executed
+        component_type: Optional type of component (model, validator, etc.)
+        error_class: Optional SifakaError subclass to use for wrapping errors
+        default_value: Optional default value to return if an error occurs
         log_level: Log level to use for errors
-        error_handler: Custom error handler function
+        error_handler: Optional custom error handler function
         include_traceback: Whether to include traceback in error metadata
         additional_metadata: Additional metadata to include in error
 
     Returns:
-        Result of the operation or default value if it fails
+        Result of the operation or default value if an error occurs
 
     Raises:
-        SifakaError: If error_class is provided and a generic exception occurs
-        Exception: If error_handler raises an exception or no default value is provided
+        Exception: If no default value is provided and no error handler is specified
     """
     try:
         return operation()
     except Exception as e:
-        # Handle the error
-        error_metadata = handle_error(
-            e, component_name, log_level, include_traceback, additional_metadata
-        )
+        # Log the error
+        log_error(e, component_name, log_level)
 
-        # Use custom error handler if provided
+        # Call custom error handler if provided
         if error_handler:
-            result = error_handler(e)
-            if result is not None:
-                return result
+            handler_result = error_handler(e)
+            if handler_result is not None:
+                return handler_result
 
         # Return default value if provided
         if default_value is not None:
             return default_value
 
-        # Wrap in component-specific error if requested
-        if component_type and error_class and not isinstance(e, SifakaError):
-            error_message = f"{component_type} error in {component_name}: {str(e)}"
-            raise error_class(error_message, metadata=error_metadata) from e
-
-        # Re-raise the original exception
+        # Re-raise the error if no default value or handler result
         raise
 
 
@@ -182,34 +267,30 @@ def log_error(
     error: Exception,
     component_name: str,
     log_level: str = "error",
-    additional_message: Optional[Optional[str]] = None,
+    additional_message: Optional[str] = None,
 ) -> None:
-    """Log an error with standardized formatting.
-
-    This function logs an error with standardized formatting, including
-    component name, error type, and error message. It provides a consistent
-    way to log errors across the codebase.
+    """
+    Log an error with standardized formatting.
 
     Args:
-        error (Exception): The exception to log
-        component_name (str): Name of the component where the error occurred
-        log_level (str): Log level to use (default: "error")
-        additional_message (Optional[str]): Additional message to include in the log
-
-    Raises:
-        Exception: If an error occurs during logging (rare)
+        error: The exception to log
+        component_name: Name of the component where the error occurred
+        log_level: Log level to use (default: "error")
+        additional_message: Optional additional message to include
     """
-    # Extract error details
-    error_type = type(error).__name__
-    error_message = str(error)
+    # Get the logger for the component
+    component_logger = get_logger(component_name)
 
-    # Create log message
-    log_message = f"{component_name}: {error_type} - {error_message}"
+    # Get the log function based on the log level
+    log_func = getattr(component_logger, log_level, component_logger.error)
+
+    # Format the error message
+    error_message = f"{type(error).__name__}: {str(error)}"
     if additional_message:
-        log_message = f"{log_message} - {additional_message}"
+        error_message = f"{additional_message}: {error_message}"
 
-    # Log the error
-    getattr(logger, log_level)(log_message, exc_info=True)
+    # Log the error with traceback
+    log_func(error_message, exc_info=True)
 
 
 def handle_component_error(
@@ -221,64 +302,67 @@ def handle_component_error(
     include_traceback: bool = True,
     additional_metadata: Optional[Dict[str, Any]] = None,
 ) -> "ErrorResult":
-    """Generic error handler for any component type.
-
-    This function handles errors for any component type, converting
-    generic exceptions to specific SifakaError types and returning
-    standardized error results.
+    """
+    Handle errors from generic components.
 
     Args:
-        error: The exception to handle
+        error: The exception that occurred
         component_name: Name of the component where the error occurred
-        component_type: Type of the component (e.g., "Chain", "Model")
-        error_class: SifakaError subclass to use for conversion
-        log_level: Log level to use (default: "error")
-        include_traceback: Whether to include traceback in metadata
-        additional_metadata: Additional metadata to include
+        component_type: Type of component (model, validator, etc.)
+        error_class: SifakaError subclass to use for wrapping errors
+        log_level: Log level to use for errors
+        include_traceback: Whether to include traceback in error metadata
+        additional_metadata: Additional metadata to include in error
 
     Returns:
-        Standardized error result
+        ErrorResult with standardized error information
     """
-    # Convert to specific error type if not already a SifakaError
-    if not isinstance(error, SifakaError):
-        error = error_class(
-            f"{component_type} error in {component_name}: {str(error)}",
-            metadata=additional_metadata,
-        )
+    # Import locally to avoid circular imports
+    from sifaka.core.results import ErrorResult
 
-    # Handle the error
-    error_metadata = handle_error(
-        error,
-        component_name=f"{component_type}:{component_name}",
-        log_level=log_level,
-        include_traceback=include_traceback,
-        additional_metadata=additional_metadata,
-    )
+    # Get error type and message
+    error_type = type(error).__name__
+    error_message = str(error)
 
-    # Return error result
+    # Log the error
+    log_error(error, component_name, log_level)
+
+    # Create metadata
+    metadata = {
+        "component": component_name,
+        "component_type": component_type,
+        "error_type": error_type,
+        "timestamp": time.time(),
+        **(additional_metadata or {}),
+    }
+
+    # Include traceback if requested
+    if include_traceback:
+        metadata["traceback"] = traceback.format_exc()
+
+    # Create error result
     return ErrorResult(
-        error_type=error_metadata["error_type"],
-        error_message=error_metadata["error_message"],
-        component_name=component_name,
-        metadata=error_metadata,
+        error_type=error_type,
+        error_message=error_message,
+        passed=False,
+        message=f"Error in {component_name}: {error_message}",
+        metadata=metadata,
+        score=0.0,
     )
 
 
 def create_error_handler(
     component_type: str, error_class: Type[SifakaError]
 ) -> Callable[[Exception, str, str, bool, Optional[Dict[str, Any]]], "ErrorResult"]:
-    """Create an error handler for a specific component type.
-
-    This factory function creates an error handler for a specific component type,
-    using the generic handle_component_error function with the appropriate
-    component type and error class.
+    """
+    Create a component-specific error handler.
 
     Args:
-        component_type: Type of the component (e.g., "Chain", "Model")
-        error_class: SifakaError subclass to use for conversion
+        component_type: Type of component (model, validator, etc.)
+        error_class: SifakaError subclass to use for wrapping errors
 
     Returns:
-        An error handler function for the specified component type
+        A component-specific error handler function
     """
 
     def handler(
@@ -297,21 +381,6 @@ def create_error_handler(
             include_traceback=include_traceback,
             additional_metadata=additional_metadata,
         )
-
-    # Set function name and docstring
-    handler.__name__ = f"handle_{component_type.lower()}_error"
-    handler.__doc__ = f"""Handle a {component_type.lower()} error and return a standardized error result.
-
-    Args:
-        error: The exception to handle
-        component_name: Name of the {component_type.lower()} where the error occurred
-        log_level: Log level to use (default: "error")
-        include_traceback: Whether to include traceback in metadata
-        additional_metadata: Additional metadata to include
-
-    Returns:
-        Standardized error result
-    """
 
     return handler
 

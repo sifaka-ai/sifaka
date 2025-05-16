@@ -1,209 +1,100 @@
 """
-Classifier interfaces for Sifaka.
+Classifier Interfaces Module
 
-This module defines the interfaces for classifiers in the Sifaka framework.
-These interfaces establish a common contract for classifier behavior, enabling better
-modularity and extensibility.
+This module defines the core interfaces for classifiers in the Sifaka framework.
+These interfaces establish a common contract for component behavior,
+enabling better modularity, extensibility, and interoperability.
+
+## Overview
+Interfaces are a critical part of the Sifaka architecture, providing clear
+contracts that components must adhere to. This module defines the interfaces
+specific to the classifiers system, ensuring consistent behavior across
+different classifier implementations and plugins.
 
 ## Interface Hierarchy
+1. **ClassifierImplementationProtocol**: Core interface for classifier implementations
+   - Defines the contract for text classification functionality
+   - Ensures consistent error handling and result formatting
 
-1. **ClassifierProtocol**: Base interface for all classifiers
-   - **TextProcessor**: Interface for text processing components
-
-## Usage Examples
-
-```python
-from sifaka.interfaces.classifier import ClassifierProtocol, TextProcessor
-
-# Create a classifier implementation
-class MyClassifier(ClassifierProtocol[str, str]):
-    @property
-    def name(self) -> str:
-        return "my_classifier"
-
-    @property
-    def description(self) -> str:
-        return "A simple classifier implementation"
-
-    @property
-    def min_confidence(self) -> float:
-        return 0.5
-
-    @property
-    def _state_manager(self) -> Any:
-        return self._state_manager_impl
-
-    def initialize(self) -> None:
-        pass
-
-    def warm_up(self) -> None:
-        pass
-
-    def get_statistics(self) -> Dict[str, Any]:
-        return {"execution_count": 0}
-
-    def clear_cache(self) -> None:
-        pass
-
-    def classify(self, text: str) -> ClassificationResult:
-        return ClassificationResult(label="example", confidence=0.8)
-
-    def batch_classify(self, texts: List[str]) -> List[ClassificationResult]:
-        return [self.classify(text) if self else "" for text in texts]
-```
-
-## Error Handling
-
-- ValueError: Raised for invalid inputs
-- RuntimeError: Raised for execution failures
-- TypeError: Raised for type mismatches
+2. **ClassifierPluginProtocol**: Interface for classifier plugins
+   - Extends the core Plugin interface with classifier-specific functionality
+   - Enables discovery and registration of classifier plugins
+   - Ensures consistent plugin behavior across the framework
 """
 
-from typing import Any, Dict, List, Protocol, TypeVar, TYPE_CHECKING
+from abc import abstractmethod
+from typing import Any, Dict, List, Protocol, TypeVar, Union, runtime_checkable
 
-# Type variables for generic protocols
-T = TypeVar("T", contravariant=True)  # Input type
-R = TypeVar("R", covariant=True)  # Result label type
-InputType = TypeVar("InputType")  # Input type for ClassifierProtocol
-OutputType = TypeVar("OutputType")  # Output type for ClassifierProtocol
-
-# Forward reference for ClassificationResult to avoid circular imports
-if TYPE_CHECKING:
-    from sifaka.core.results import ClassificationResult
+from sifaka.core.results import ClassificationResult
+from sifaka.interfaces.core import PluginProtocol as CorePlugin
+from .component import ComponentProtocol
 
 
-class TextProcessor(Protocol):
+@runtime_checkable
+class ClassifierImplementationProtocol(ComponentProtocol, Protocol):
     """
-    Protocol for text processing components.
+    Interface for classifier implementations.
 
-    This protocol defines the interface for components that process text inputs
-    and return structured outputs. It's used as a common interface for various
-    text processing operations in the Sifaka framework.
+    This protocol defines the essential methods that all classifier implementations
+    must provide. It establishes a common contract for classification functionality,
+    ensuring consistent behavior across different implementations.
+
+    ## Architecture
+    The ClassifierImplementationProtocol protocol:
+    - Uses Python's typing.Protocol for structural subtyping
+    - Is runtime checkable for dynamic type verification
+    - Ensures consistent result types and error handling
 
     ## Lifecycle
-
-    1. **Implementation**: Create a class that implements the process() method
-       - Define a method that takes text input and returns a dictionary
-       - Ensure the method signature matches the protocol
-
-    2. **Verification**: Verify protocol compliance
-       - Use isinstance() to check if an object implements the protocol
-       - No explicit registration or inheritance is needed
-
-    3. **Usage**: Use as a type hint or for runtime checks
-       - Use as a type hint for function parameters
-       - Check compliance with isinstance() at runtime
-       - Pass to functions expecting a TextProcessor
-
-    ## Error Handling
-
-    Implementations should handle these error cases:
-    - Invalid input types
-    - Empty text inputs
-    - Processing failures
-    - Resource availability issues
-    """
-
-    def process(self, text: Any) -> Dict[str, Any]:
-        """Process the input text and return a dictionary of results."""
-        ...
-
-
-class ClassifierProtocol(Protocol):
-    """
-    Protocol defining the interface for classifiers.
-
-    This protocol defines the essential methods that all classifiers must implement.
-    It provides a common interface for all classification components in the Sifaka
-    framework, allowing for consistent usage patterns and interchangeability.
-
-    ## Lifecycle
-
     1. **Implementation**: Create a class that implements all required methods
-       - Implement classify() for single text classification
-       - Implement batch_classify() for processing multiple texts
-       - Provide name, description, and min_confidence properties
-       - Implement state management methods
-       - Implement initialization and warm-up methods
-       - Implement error handling and execution tracking
-
-    2. **Verification**: Verify protocol compliance
-       - Use isinstance() to check if an object implements the protocol
-       - No explicit registration or inheritance is needed
-
-    3. **Usage**: Use as a type hint or for runtime checks
-       - Use as a type hint for function parameters
-       - Check compliance with isinstance() at runtime
-       - Pass to functions expecting a ClassifierProtocol
-
-    ## State Management
-
-    Implementations should manage state using these patterns:
-    - Use _state_manager for all mutable state
-    - Initialize state during construction
-    - Provide methods to access and modify state
-    - Track execution statistics in state
-
-    ## Error Handling
-
-    Implementations should handle these error cases:
-    - Invalid input types (non-string inputs)
-    - Empty text inputs
-    - Classification failures
-    - Resource availability issues
-    - Initialization failures
-    - State management errors
-
-    ## Execution Tracking
-
-    Implementations should track execution using these patterns:
-    - Track execution count
-    - Track execution time
-    - Track success/failure counts
-    - Track cache hits/misses
-    - Provide statistics through get_statistics()
+    2. **Verification**: The implementation can be verified at runtime
+    3. **Usage**: The implementation is used by Classifier instances
+    4. **Error Handling**: Implementations should raise ImplementationError for failures
     """
 
-    def classify(self, text: Any) -> "ClassificationResult":
-        """Classify a single text input."""
-        ...
+    @abstractmethod
+    def classify(self, text: str) -> ClassificationResult:
+        """
+        Classify the given text.
 
-    def batch_classify(self, texts: List[Any]) -> List["ClassificationResult"]:
-        """Classify multiple text inputs."""
-        ...
+        This method processes the input text and returns a classification result
+        with a label, confidence score, and optional metadata. It is the primary
+        classification method that all implementations must provide.
 
-    @property
-    def name(self) -> str:
-        """Get the classifier name."""
-        ...
+        Args:
+            text: The text to classify, which can be any string content
+                  that the implementation can process
 
-    @property
-    def description(self) -> str:
-        """Get the classifier description."""
-        ...
+        Returns:
+            The classification result containing:
+            - label: The classification label (e.g., "positive", "toxic")
+            - confidence: A confidence score between 0.0 and 1.0
+            - metadata: Optional additional information about the classification
+            - issues: Any issues encountered during classification
+            - suggestions: Suggestions for improving the input
 
-    @property
-    def min_confidence(self) -> float:
-        """Get the minimum confidence threshold."""
-        ...
+        Raises:
+            ImplementationError: If classification fails due to implementation errors,
+                                 invalid input, or other issues
+        """
+        pass
 
-    @property
-    def _state_manager(self) -> Any:
-        """Get the state manager."""
-        ...
 
-    def initialize(self) -> None:
-        """Initialize the classifier."""
-        ...
+@runtime_checkable
+class ClassifierPluginProtocol(CorePlugin, Protocol):
+    """
+    Interface for classifier plugins.
 
-    def warm_up(self) -> None:
-        """Warm up the classifier."""
-        ...
+    This interface extends the core Plugin interface with classifier-specific
+    functionality. It ensures that classifier plugins can be discovered, registered,
+    and used consistently with other plugins in the Sifaka framework.
 
-    def get_statistics(self) -> Dict[str, Any]:
-        """Get execution statistics."""
-        ...
+    ## Architecture
+    The ClassifierPluginProtocol protocol:
+    - Extends the core Plugin interface from sifaka.core.interfaces
+    - Uses Python's typing.Protocol for structural subtyping
+    - Is runtime checkable for dynamic type verification
+    - Provides a consistent plugin interface across the framework
+    """
 
-    def clear_cache(self) -> None:
-        """Clear the classifier cache."""
-        ...
+    pass

@@ -45,7 +45,7 @@ The interfaces support execution tracking:
 from abc import abstractmethod
 from typing import Any, Protocol, TypeVar, runtime_checkable
 
-from sifaka.core.interfaces import Configurable, Identifiable
+from sifaka.interfaces.core import ConfigurableProtocol, IdentifiableProtocol
 
 # Type variables
 ConfigType = TypeVar("ConfigType")
@@ -53,7 +53,7 @@ ModelConfigType = TypeVar("ModelConfigType")
 
 
 @runtime_checkable
-class ModelProviderProtocol(Identifiable, Configurable[ModelConfigType], Protocol):
+class ModelProviderProtocol(IdentifiableProtocol, ConfigurableProtocol[ModelConfigType], Protocol):
     """
     Protocol interface for model providers.
 
@@ -140,9 +140,9 @@ R = TypeVar("R", covariant=True)
 
 
 @runtime_checkable
-class LanguageModelProtocol(Protocol[R]):
+class LanguageModelProviderProtocol(Protocol[R]):
     """
-    Protocol for language model interfaces.
+    Protocol for language model providers.
 
     Classes implementing this protocol provide a high-level interface
     for generating text using language models.

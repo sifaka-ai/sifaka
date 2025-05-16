@@ -63,16 +63,24 @@ The module handles various error conditions:
 from typing import List, Optional, Union
 import time
 from pydantic import BaseModel, PrivateAttr
-from sifaka.interfaces.chain.components import Model, Validator, Improver
-from sifaka.interfaces.chain.components.formatter import ChainFormatter as Formatter
-from sifaka.interfaces.chain.models import ValidationResult
-from ..utils.state import StateManager, create_engine_state
-from ..utils.logging import get_logger
-from ..core.results import ChainResult
-from ..utils.config import EngineConfig
-from ..utils.errors import ChainError, safely_execute_chain
-from ..utils.errors.component import ModelError
-from ..utils.errors.results import ErrorResult
+
+# Use new interface paths
+from sifaka.interfaces import (
+    ModelProtocol as Model,
+    ChainValidatorProtocol as Validator,
+    ChainImproverProtocol as Improver,
+    FormatterProtocol as Formatter,
+    ValidationResult,
+)
+
+from sifaka.utils.state import StateManager, create_engine_state
+from sifaka.utils.logging import get_logger
+from sifaka.core.results import ChainResult
+from sifaka.utils.config.chain import EngineConfig
+from sifaka.utils.errors import ChainError, safely_execute_chain
+from sifaka.utils.errors.component import ModelError
+from sifaka.utils.errors.results import ErrorResult
+from sifaka.utils.mixins import InitializeStateMixin
 from .managers.cache import CacheManager
 from .managers.retry import RetryManager
 from sifaka.models.result import GenerationResult
@@ -351,11 +359,27 @@ class Engine(InitializeStateMixin, BaseModel):
 
             def validate_operation() -> ValidationResult:
                 validation_result = validator.validate(output)
-                if not isinstance(validation_result, ValidationResult):
+                # Allow both ValidationResult types - from core.results or interfaces
+                if not isinstance(validation_result, ValidationResult) and not hasattr(
+                    validation_result, "passed"
+                ):
                     raise ValueError(
                         f"Validator returned unexpected type: {type(validation_result)}"
                     )
-                return validation_result
+
+                # If it's already our expected ValidationResult type, return it
+                if isinstance(validation_result, ValidationResult):
+                    return validation_result
+
+                # If it's the core.results ValidationResult, convert it
+                return ValidationResult(
+                    passed=validation_result.passed,
+                    message=validation_result.message,
+                    score=getattr(validation_result, "score", 0.0),
+                    issues=getattr(validation_result, "issues", []),
+                    suggestions=getattr(validation_result, "suggestions", []),
+                    metadata=getattr(validation_result, "metadata", {}),
+                )
 
             additional_metadata = {
                 "method": "validate",
@@ -587,5 +611,6 @@ class Engine(InitializeStateMixin, BaseModel):
             cache[prompt] = result
             self._state_manager.update("result_cache", cache)
         return result
+
 
 from ..utils.mixins import InitializeStateMixin

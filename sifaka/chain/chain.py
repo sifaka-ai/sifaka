@@ -19,7 +19,7 @@ and critics, providing a standardized way to generate, validate, and improve tex
 ## Usage Examples
 ```python
 from sifaka.chain import Chain
-from sifaka.models import OpenAIProvider
+from sifaka.models.providers.openai import OpenAIProvider
 from sifaka.rules import create_length_rule
 from sifaka.critics import create_prompt_critic
 
@@ -64,15 +64,23 @@ Chain behavior can be configured with:
 from typing import Any, Dict, List, Optional
 import time
 
-from sifaka.interfaces.chain.components import Model, Validator, Improver
-from sifaka.interfaces.chain.components.formatter import ChainFormatter as Formatter
+# Use protocol interfaces instead of concrete implementations
+from sifaka.interfaces.model import ModelProviderProtocol
+from sifaka.interfaces import (
+    ModelProtocol,
+    ValidationResult,
+    ChainValidatorProtocol,
+    ChainImproverProtocol,
+)
+from sifaka.interfaces.component import ComponentProtocol
+
 from .engine import Engine
-from ..utils.state import create_chain_state
-from ..utils.common import update_statistics
-from ..utils.logging import get_logger
-from ..core.results import ChainResult
-from ..utils.config.chain import ChainConfig
-from ..utils.errors.component import ChainError
+from sifaka.utils.state import create_chain_state
+from sifaka.utils.common import update_statistics
+from sifaka.utils.logging import get_logger
+from sifaka.core.results import ChainResult
+from sifaka.utils.config.chain import ChainConfig
+from sifaka.utils.errors.component import ChainError
 
 # Configure logger
 logger = get_logger(__name__)
@@ -130,12 +138,12 @@ class Chain:
 
     def __init__(
         self,
-        model: Model,
-        validators: Optional[List[Validator]] = None,
-        improver: Optional[Optional[Improver]] = None,
-        formatter: Optional[Optional[Formatter]] = None,
+        model: ModelProviderProtocol,
+        validators: Optional[List[ChainValidatorProtocol]] = None,
+        improver: Optional[ChainImproverProtocol] = None,
+        formatter: Optional[Any] = None,
         max_attempts: int = 3,
-        config: Optional[Optional[ChainConfig]] = None,
+        config: Optional[ChainConfig] = None,
         name: str = "chain",
         description: str = "Sifaka chain for text generation and validation",
     ):

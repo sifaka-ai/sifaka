@@ -136,6 +136,13 @@ __all__ = [
 from sifaka.chain.factories import create_simple_chain, create_backoff_chain
 from sifaka.rules.factories import create_rule as create_rule_base
 from sifaka.adapters.base import create_adapter as create_adapter_base
+from sifaka.core.registry import (
+    get_critic_factory,
+    get_rule_factory,
+    get_classifier_factory,
+    get_model_provider_factory,
+    get_factory,
+)
 
 # Type variables for return types
 T = TypeVar("T")
@@ -361,73 +368,20 @@ def create_critic(
                 # Don't raise here, let the specific factory function handle it
                 pass
 
-    # Import critic factory functions lazily to avoid circular dependencies
-    from sifaka.critics.implementations import (
-        create_prompt_critic,
-        create_reflexion_critic,
-        create_constitutional_critic,
-        create_self_refine_critic,
-        create_self_rag_critic,
-        create_lac_critic,
-    )
+    # Get factory function from registry
+    factory_function = get_critic_factory(critic_type)
+    if factory_function:
+        return factory_function(
+            llm_provider=model_provider,
+            name=name,
+            description=description,
+            session_id=session_id,
+            request_id=request_id,
+            **kwargs,
+        )
 
-    # Create critic based on type
-    if critic_type == "prompt":
-        return create_prompt_critic(
-            llm_provider=model_provider,
-            name=name,
-            description=description,
-            session_id=session_id,
-            request_id=request_id,
-            **kwargs,
-        )
-    elif critic_type == "reflexion":
-        return create_reflexion_critic(
-            llm_provider=model_provider,
-            name=name,
-            description=description,
-            session_id=session_id,
-            request_id=request_id,
-            **kwargs,
-        )
-    elif critic_type == "constitutional":
-        return create_constitutional_critic(
-            llm_provider=model_provider,
-            name=name,
-            description=description,
-            session_id=session_id,
-            request_id=request_id,
-            **kwargs,
-        )
-    elif critic_type == "self_refine":
-        return create_self_refine_critic(
-            llm_provider=model_provider,
-            name=name,
-            description=description,
-            session_id=session_id,
-            request_id=request_id,
-            **kwargs,
-        )
-    elif critic_type == "self_rag":
-        return create_self_rag_critic(
-            llm_provider=model_provider,
-            name=name,
-            description=description,
-            session_id=session_id,
-            request_id=request_id,
-            **kwargs,
-        )
-    elif critic_type == "lac":
-        return create_lac_critic(
-            llm_provider=model_provider,
-            name=name,
-            description=description,
-            session_id=session_id,
-            request_id=request_id,
-            **kwargs,
-        )
-    else:
-        raise ValueError(f"Invalid critic type: {critic_type}")
+    # If not found in registry, raise an error
+    raise ValueError(f"Invalid critic type: {critic_type}")
 
 
 def create_rule(
@@ -458,111 +412,28 @@ def create_rule(
     name = name or f"{rule_type}_rule"
     description = description or f"{rule_type.capitalize() if rule_type else 'Default'} rule"
 
-    # Import rule factory functions lazily to avoid circular dependencies
-    if rule_type == "length":
-        from sifaka.rules.formatting.length import create_length_rule
-
-        return create_length_rule(
+    # Get factory function from registry
+    factory_function = get_rule_factory(rule_type)
+    if factory_function:
+        return factory_function(
             name=name,
             description=description,
             **kwargs,
         )
-    elif rule_type == "prohibited_content":
-        from sifaka.rules.content.prohibited import create_prohibited_content_rule
 
-        return create_prohibited_content_rule(
-            name=name,
-            description=description,
-            **kwargs,
-        )
-    elif rule_type == "toxicity":
-        from sifaka.rules.content.safety import create_toxicity_rule
+    # For custom or unrecognized rule types, try the base factory function
+    from sifaka.rules.validators import FunctionValidator
 
-        return create_toxicity_rule(
-            name=name,
-            description=description,
-            **kwargs,
-        )
-    elif rule_type == "bias":
-        from sifaka.rules.content.safety import create_bias_rule
+    # Create a simple validator that always passes
+    validator = FunctionValidator(func=lambda _: True, validation_type=str)
 
-        return create_bias_rule(
-            name=name,
-            description=description,
-            **kwargs,
-        )
-    elif rule_type == "harmful_content":
-        from sifaka.rules.content.safety import create_harmful_content_rule
-
-        return create_harmful_content_rule(
-            name=name,
-            description=description,
-            **kwargs,
-        )
-    elif rule_type == "sentiment":
-        from sifaka.rules.content.sentiment import create_sentiment_rule
-
-        return create_sentiment_rule(
-            name=name,
-            description=description,
-            **kwargs,
-        )
-    elif rule_type == "structure":
-        from sifaka.rules.formatting.structure import create_structure_rule
-
-        return create_structure_rule(
-            name=name,
-            description=description,
-            **kwargs,
-        )
-    elif rule_type == "markdown":
-        from sifaka.rules.formatting.format.markdown import create_markdown_rule
-
-        return create_markdown_rule(
-            name=name,
-            description=description,
-            **kwargs,
-        )
-    elif rule_type == "json":
-        from sifaka.rules.formatting.format.json import create_json_rule
-
-        return create_json_rule(
-            name=name,
-            description=description,
-            **kwargs,
-        )
-    elif rule_type == "plain_text":
-        from sifaka.rules.formatting.format.plain_text import create_plain_text_rule
-
-        return create_plain_text_rule(
-            name=name,
-            description=description,
-            **kwargs,
-        )
-    elif rule_type == "format":
-        from sifaka.rules.formatting.format import create_format_rule
-
-        return create_format_rule(
-            name=name,
-            description=description,
-            **kwargs,
-        )
-    else:
-        # For custom or unrecognized rule types, use the base factory function
-        # The base factory expects a Rule type, but we have a string
-        # We'll create a validator and pass it to create_rule_base
-        from sifaka.rules.validators import FunctionValidator
-
-        # Create a simple validator that always passes
-        validator = FunctionValidator(func=lambda _: True, validation_type=str)
-
-        return create_rule_base(
-            name=name,
-            validator=validator,
-            description=description,
-            rule_id=rule_type,
-            **kwargs,
-        )
+    return create_rule_base(
+        name=name,
+        validator=validator,
+        description=description,
+        rule_id=rule_type,
+        **kwargs,
+    )
 
 
 def create_classifier(
@@ -596,54 +467,17 @@ def create_classifier(
         or f"{classifier_type.capitalize() if classifier_type else 'Default'} classifier"
     )
 
-    # Import classifier factory functions lazily to avoid circular dependencies
-    from sifaka.classifiers.implementations.factories import (
-        create_toxicity_classifier,
-        create_sentiment_classifier,
-    )
-    from sifaka.classifiers.implementations.content.toxicity import (
-        create_toxicity_classifier as create_bias_detector,
-    )
-    from sifaka.classifiers.implementations.properties.language import create_language_classifier
+    # Get factory function from registry
+    factory_function = get_classifier_factory(classifier_type)
+    if factory_function:
+        return factory_function(
+            name=name,
+            description=description,
+            **kwargs,
+        )
 
-    # Readability classifier import - using toxicity as fallback since it's not found
-    from sifaka.classifiers.implementations.factories import (
-        create_toxicity_classifier as create_readability_classifier,
-    )
-
-    # Create classifier based on type
-    if classifier_type == "toxicity":
-        return create_toxicity_classifier(
-            name=name,
-            description=description,
-            **kwargs,
-        )
-    elif classifier_type == "sentiment":
-        return create_sentiment_classifier(
-            name=name,
-            description=description,
-            **kwargs,
-        )
-    elif classifier_type == "bias":
-        return create_bias_detector(
-            name=name,
-            description=description,
-            **kwargs,
-        )
-    elif classifier_type == "language":
-        return create_language_classifier(
-            name=name,
-            description=description,
-            **kwargs,
-        )
-    elif classifier_type == "readability":
-        return create_readability_classifier(
-            name=name,
-            description=description,
-            **kwargs,
-        )
-    else:
-        raise ValueError(f"Invalid classifier type: {classifier_type}")
+    # If not found in registry, raise error
+    raise ValueError(f"Invalid classifier type: {classifier_type}")
 
 
 def create_retriever(
@@ -679,6 +513,17 @@ def create_retriever(
     description = (
         description or f"{retriever_type.capitalize() if retriever_type else 'Default'} retriever"
     )
+
+    # Get factory function from registry (if available)
+    factory_function = get_factory("retriever", retriever_type)
+    if factory_function:
+        return factory_function(
+            documents=documents,
+            corpus=corpus,
+            name=name,
+            description=description,
+            **kwargs,
+        )
 
     # Import retriever factory functions lazily to avoid circular dependencies
     from sifaka.retrieval.factories import create_simple_retriever, create_threshold_retriever
@@ -835,6 +680,16 @@ def create_model_provider(
     Raises:
         ValueError: If the provider type is invalid or required parameters are missing
     """
+    # Get factory function from registry
+    factory_function = get_model_provider_factory(provider_type)
+    if factory_function:
+        return factory_function(
+            model_name=model_name,
+            api_key=api_key,
+            **kwargs,
+        )
+
+    # If not found in registry, try to import directly (temporary until all providers are registered)
     # Import model provider factory functions lazily to avoid circular dependencies
     from sifaka.models.factories import (
         create_openai_provider,

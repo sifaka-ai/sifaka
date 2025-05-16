@@ -74,10 +74,8 @@ T = TypeVar("T")
 
 def create_generation_result(
     text: str,
-    model_name: str = "",  # Kept for backward compatibility
     prompt_tokens: int = 0,
     completion_tokens: int = 0,
-    total_tokens: int = 0,  # Kept for backward compatibility
     metadata: Optional[Dict[str, Any]] = None,
 ) -> GenerationResult:
     """
@@ -85,25 +83,18 @@ def create_generation_result(
 
     Args:
         text: Generated text
-        model_name: Name of the model (kept for backward compatibility)
         prompt_tokens: Number of tokens in the prompt
         completion_tokens: Number of tokens in the completion
-        total_tokens: Total number of tokens (kept for backward compatibility)
         metadata: Additional metadata
 
     Returns:
         Standardized generation result
     """
-    # Add model_name to metadata if provided
-    final_metadata = metadata or {}
-    if model_name:
-        final_metadata["model_name"] = model_name
-
     return GenerationResult(
         output=text,
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
-        metadata=final_metadata,
+        metadata=metadata or {},
     )
 
 
@@ -179,7 +170,6 @@ def try_generate(
             text = model.generate(prompt)
             return create_generation_result(
                 text=text,
-                model_name="gpt-4",
                 prompt_tokens=len(prompt.split()) if prompt else 0,
                 completion_tokens=len(text.split()) if text else 0,
             )

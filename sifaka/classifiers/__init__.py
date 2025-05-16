@@ -1,4 +1,5 @@
 from typing import Any, List
+
 """
 Classifiers Module
 
@@ -9,7 +10,7 @@ capabilities, implementing a flexible and extensible classification system with 
 
 ## Components
 1. **Classifier**: Main user-facing class for classification
-2. **Engine**: Core classification engine that coordinates the flow
+2. **EngineError**: Base error class for classification engine errors
 3. **ClassifierImplementation**: Interface for classifier implementations
 4. **ClassificationResult**: Result of a classification operation
 5. **Plugin**: Interface for plugins
@@ -56,13 +57,30 @@ print(f"Confidence: {result.confidence:.2f}")
 - min_confidence: Minimum confidence threshold
 """
 from .classifier import Classifier
-from .engine import Engine
+from .engine import EngineError
 from ..core.results import ClassificationResult
-from .interfaces import ClassifierImplementation, Plugin
+from sifaka.interfaces.classifier import (
+    ClassifierImplementationProtocol as ClassifierImplementation,
+)
+from sifaka.interfaces.core import PluginProtocol as Plugin
 from .factories import create_classifier
-from .implementations.factories import create_toxicity_classifier, create_sentiment_classifier, create_profanity_classifier
+from .implementations.factories import (
+    create_toxicity_classifier,
+    create_sentiment_classifier,
+    create_profanity_classifier,
+)
 from ..utils.state import StateManager, create_classifier_state
-__all__: List[Any] = ['Classifier', 'Engine', 'ClassificationResult',
-    'ClassifierImplementation', 'Plugin', 'create_classifier',
-    'create_toxicity_classifier', 'create_sentiment_classifier',
-    'create_profanity_classifier', 'StateManager', 'create_classifier_state']
+
+__all__: List[Any] = [
+    "Classifier",
+    "EngineError",
+    "ClassificationResult",
+    "ClassifierImplementation",
+    "Plugin",
+    "create_classifier",
+    "create_toxicity_classifier",
+    "create_sentiment_classifier",
+    "create_profanity_classifier",
+    "StateManager",
+    "create_classifier_state",
+]

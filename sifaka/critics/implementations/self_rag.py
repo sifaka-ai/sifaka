@@ -115,6 +115,9 @@ from ...utils.config import SelfRAGCriticConfig
 from ...interfaces.critic import TextCritic, TextImprover, TextValidator, CritiqueResult
 from ...retrieval import Retriever
 from ...utils.logging import get_logger
+from sifaka.core.results import CriticResult
+from sifaka.interfaces import RetrieverProtocol
+from sifaka.retrieval import SimpleRetriever
 
 # Configure logging
 logger = get_logger(__name__)
@@ -222,7 +225,7 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
         name: str,
         description: str,
         llm_provider: Any,
-        retriever: Retriever,
+        retriever: RetrieverProtocol,
         config: Optional[BaseConfig] = None,
         **kwargs: Any,
     ) -> None:
@@ -771,7 +774,7 @@ class SelfRAGCritic(BaseComponent[str, BaseResult], TextValidator, TextImprover,
 
 def create_self_rag_critic(
     llm_provider: Any,
-    retriever: Retriever,
+    retriever: RetrieverProtocol,
     name: str = "self_rag_critic",
     description: str = "Improves text through self-reflective retrieval-augmented generation",
     min_confidence: Optional[float] = None,

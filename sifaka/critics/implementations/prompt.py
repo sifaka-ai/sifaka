@@ -92,6 +92,7 @@ from ...utils.common import record_error
 from ...core.base import BaseResult
 from ...utils.config import PromptCriticConfig
 from ...interfaces.critic import TextCritic, TextImprover, TextValidator, CritiqueResult
+from ...core.registry import register_critic_factory
 
 # For improved type checking
 T = TypeVar("T")
@@ -732,3 +733,7 @@ def create_prompt_critic(
         logger = get_logger(__name__)
         logger.error(f"Failed to create prompt critic: {str(e)}")
         raise ValueError(f"Failed to create prompt critic: {str(e)}") from e
+
+
+# Register the factory function with the registry when the module is imported
+register_critic_factory("prompt", create_prompt_critic)

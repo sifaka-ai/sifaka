@@ -1,60 +1,56 @@
 """
 Classifier Factories Module
 
-This module provides factory functions for creating classifier instances.
-These factories handle the creation and configuration of different types
-of classifiers, ensuring consistent initialization and setup.
+This module provides factory functions for creating classifier instances
+with various configurations and implementations.
 
 ## Overview
-The factory functions provide a convenient way to create and configure
-classifiers, handling the details of initialization, configuration,
-and setup. They ensure that classifiers are created with the correct
-settings and dependencies.
+Factory functions simplify the creation of classifier instances by providing
+sensible defaults, validating configurations, and ensuring proper initialization.
+They abstract away the complexity of classifier construction and provide a
+consistent interface for creating different types of classifiers.
 
 ## Factory Functions
-1. **create_classifier**: Creates a classifier with the given configuration
-2. **create_implementation**: Creates a classifier implementation
-3. **create_adapter**: Creates a classifier adapter
+1. **create_classifier**: Create a classifier with a custom implementation
+   - Configures caching, confidence threshold, and other settings
+   - Initializes the classifier with proper state management
+   - Returns a ready-to-use classifier instance
 
 ## Usage Examples
 ```python
 from sifaka.classifiers.factories import create_classifier
-from sifaka.utils.config.classifiers import ClassifierConfig
+from sifaka.classifiers.implementations.content import ToxicityClassifier
 
-# Create classifier with configuration
+# Create a toxicity classifier with default configuration
 classifier = create_classifier(
-    name="sentiment_classifier",
-    description="Detects sentiment in text",
-    labels=["positive", "negative", "neutral"],
-    cache_size=100,
-    min_confidence=0.7
+    name="content_moderation",
+    description="Moderates content for toxicity",
+    implementation=ToxicityClassifier()
 )
 
-# Classify text
+# Use the classifier
 result = classifier.classify("This is a friendly message.")
 print(f"Label: {result.label}")
 print(f"Confidence: {result.confidence:.2f}")
 ```
 
-## Error Handling
-The factory functions provide robust error handling:
-- ClassifierError: Raised when classifier creation fails
-- ConfigurationError: Raised for invalid configuration
-- ImplementationError: Raised when implementation creation fails
-
-## Configuration
-The factory functions support configuration through the ClassifierConfig class:
-- cache_enabled: Whether to enable result caching
-- cache_size: Maximum number of cached results
-- min_confidence: Minimum confidence threshold
+## Configuration Options
+The factory functions support various configuration options:
+- **cache_size**: Maximum number of cached results
+- **min_confidence**: Minimum confidence threshold
+- **name**: Name of the classifier
+- **description**: Description of the classifier
 """
 
-from typing import Any, Dict, List, Optional, Type, TypeVar, cast
-from .interfaces import ClassifierImplementation
+from typing import Any, Dict, Optional, TypeVar, Type
 from .classifier import Classifier
 from .adapters import ImplementationAdapter
 from ..utils.config import ClassifierConfig
+from sifaka.interfaces.classifier import (
+    ClassifierImplementationProtocol as ClassifierImplementation,
+)
 from ..utils.errors import ClassifierError
+from sifaka.core.registry import register_classifier_factory
 
 # Define type variables
 L = TypeVar("L")  # Label type
@@ -104,6 +100,11 @@ def create_classifier(
         implementation=implementation,
         config=config,
     )
+
+
+# This function is registered with the registry in the classifiers implementation module
+# to enable registry-based classifier creation
+register_classifier_factory("base", create_classifier)
 
 
 def create_implementation(

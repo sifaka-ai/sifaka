@@ -250,15 +250,9 @@ class CritiqueService(BaseModel):
         """
         Validate text against quality standards.
 
-        This method validates text using the model provider and handles
-        any errors that occur during validation.
-
-        Lifecycle:
-        1. Input validation
-        2. Prompt creation
-        3. Model invocation
-        4. Response parsing
-        5. Error handling
+        This method checks if text meets quality standards by using
+        a language model to analyze it. It returns a boolean value
+        indicating whether the text passes validation.
 
         Args:
             text: The text to validate
@@ -268,58 +262,49 @@ class CritiqueService(BaseModel):
 
         Raises:
             ValueError: If text is empty
-            RuntimeError: If validation fails
+            RuntimeError: If validation fails for any reason
         """
-        validation_count = self._state_manager.get("validation_count", 0)
-        self._state_manager.update("validation_count", validation_count + 1)
 
         def validation_operation() -> bool:
-            if not isinstance(text, str) or not text.strip() if text else "":
-                raise ValueError("text must be a non-empty string")
-            prompt_manager = self._state_manager.get("prompt_manager")
+            # Ensure model provider is available
             model = self._state_manager.get("model")
+            if not model:
+                raise ValueError("Model provider is not available")
+
+            # Get prompt for validation
+            prompt_manager = self._state_manager.get("prompt_manager")
+            prompt = prompt_manager.create_validation_prompt(text) if prompt_manager else None
+            if not prompt:
+                raise ValueError("Failed to create validation prompt")
+
+            # Generate validation response
+            validation_response = model.generate(prompt)
+            if not validation_response:
+                raise ValueError("Empty validation response")
+
+            # Parse validation result
             response_parser = self._state_manager.get("response_parser")
-            if not prompt_manager or not model or not response_parser:
-                raise RuntimeError("CritiqueService not properly initialized")
-            validation_prompt = (
-                prompt_manager.create_validation_prompt(text) if prompt_manager else ""
-            )
-            response = model.invoke(validation_prompt) if model else ""
-            result = response_parser.parse_validation_response(response) if response_parser else ""
-            stats = self._state_manager.get("stats", {})
-            stats["validation_count"] = stats.get("validation_count", 0) + 1 if stats else 1
-            stats["last_validation_time"] = time.time()
-            self._state_manager.update("stats", stats)
-            return bool(result)
+            if not response_parser:
+                raise ValueError("Response parser is not available")
 
-        try:
-            result = safely_execute_critic(
-                operation=validation_operation,
-                component_name=self.__class__.__name__,
-                component_type="Critic",
-                error_class=CriticError,
-                additional_metadata={"text_length": len(text), "method": "validate"},
-            )
-            return bool(result)
-        except Exception as e:
-            error_count = self._state_manager.get("error_count", 0)
-            self._state_manager.update("error_count", error_count + 1)
-            logger.error(f'Failed to validate text: {str(e) if logger else ""}')
-            return False
+            validation_result = response_parser.parse_validation(validation_response)
+            if validation_result is None:
+                raise ValueError("Failed to parse validation result")
 
-    def validate(self, text: str) -> bool:  # type: ignore
-        """
-        Validate text against quality standards (alias for validate_text).
+            # Increment validation count
+            validation_count = self._state_manager.get("validation_count", 0)
+            self._state_manager.update("validation_count", validation_count + 1)
 
-        This is provided for backwards compatibility.
+            return bool(validation_result)
 
-        Args:
-            text: The text to validate
-
-        Returns:
-            True if the text meets quality standards, False otherwise
-        """
-        return self.validate_text(text)
+        # Execute with error handling
+        return safely_execute_critic(
+            operation=validation_operation,
+            component_name="CritiqueService.validate_text",
+            component_type="critic",
+            error_class=CriticError,
+            default_value=False,
+        )
 
     def critique(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """

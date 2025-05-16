@@ -1,4 +1,5 @@
 from typing import Any, List
+
 """
 Core Module
 
@@ -67,13 +68,53 @@ The core module supports various configuration options:
 - State management patterns
 - Logging and tracing capabilities
 """
-from .interfaces import Component, Configurable, Stateful, Identifiable, Loggable, Traceable, Plugin
+from sifaka.interfaces.core import (
+    ComponentProtocol as Component,
+    ConfigurableProtocol as Configurable,
+    StatefulProtocol as Stateful,
+    IdentifiableProtocol as Identifiable,
+    LoggableProtocol as Loggable,
+    TraceableProtocol as Traceable,
+    PluginProtocol as Plugin,
+)
 from .plugins import PluginRegistry, PluginLoader
-from .results import BaseResult, RuleResult, ClassificationResult, ChainResult, CriticResult, ValidationResult, create_base_result, create_rule_result, create_classification_result, create_critic_result, create_chain_result, create_error_result, merge_metadata
-__all__: List[Any] = ['Component', 'Configurable', 'Stateful',
-    'Identifiable', 'Loggable', 'Traceable', 'Plugin', 'PluginRegistry',
-    'PluginLoader', 'BaseResult', 'RuleResult', 'ClassificationResult',
-    'ChainResult', 'CriticResult', 'ValidationResult', 'create_base_result',
-    'create_rule_result', 'create_classification_result',
-    'create_critic_result', 'create_chain_result', 'create_error_result',
-    'merge_metadata']
+from .results import (
+    BaseResult,
+    RuleResult,
+    ClassificationResult,
+    ChainResult,
+    CriticResult,
+    ValidationResult,
+    create_base_result,
+    create_rule_result,
+    create_classification_result,
+    create_critic_result,
+    create_chain_result,
+    create_error_result,
+    merge_metadata,
+)
+
+__all__: List[Any] = [
+    "Component",
+    "Configurable",
+    "Stateful",
+    "Identifiable",
+    "Loggable",
+    "Traceable",
+    "Plugin",
+    "PluginRegistry",
+    "PluginLoader",
+    "BaseResult",
+    "RuleResult",
+    "ClassificationResult",
+    "ChainResult",
+    "CriticResult",
+    "ValidationResult",
+    "create_base_result",
+    "create_rule_result",
+    "create_classification_result",
+    "create_critic_result",
+    "create_chain_result",
+    "create_error_result",
+    "merge_metadata",
+]

@@ -36,7 +36,7 @@ from typing import Dict, Optional, Type, cast
 
 from sifaka.core.plugins import PluginRegistry as CorePluginRegistry
 from sifaka.core.plugins import PluginLoader as CorePluginLoader
-from sifaka.core.interfaces import Plugin
+from sifaka.interfaces.core import PluginProtocol as Plugin
 from ..utils.logging import get_logger
 
 # Configure logger

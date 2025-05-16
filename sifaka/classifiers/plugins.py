@@ -10,7 +10,7 @@ customizations to ensure consistent plugin behavior across all components.
 ## Usage Examples
 ```python
 from sifaka.classifiers.plugins import PluginRegistry, PluginLoader
-from sifaka.classifiers.interfaces import Plugin
+from sifaka.interfaces import ClassifierPluginProtocol
 
 # Create plugin registry
 registry = PluginRegistry()
@@ -34,10 +34,11 @@ plugin = loader.load_plugin_from_module("my_plugin_module") if loader else ""
 
 from typing import Dict, Optional, Type, cast
 
-from .interfaces import Plugin
+from sifaka.interfaces import ClassifierPluginProtocol
+from sifaka.interfaces.core import PluginProtocol as Plugin
 from sifaka.core.plugins import PluginRegistry as CorePluginRegistry
 from sifaka.core.plugins import PluginLoader as CorePluginLoader
-from ..utils.logging import get_logger
+from sifaka.utils.logging import get_logger
 
 # Configure logger
 logger = get_logger(__name__)
@@ -63,8 +64,8 @@ class PluginRegistry(CorePluginRegistry):
             PluginError: If plugin registration fails
         """
         # Ensure the plugin is a classifier plugin
-        if not isinstance(plugin, Plugin):
-            from ..utils.errors import PluginError
+        if not isinstance(plugin, ClassifierPluginProtocol):
+            from sifaka.utils.errors import PluginError
 
             raise PluginError(f"Plugin '{name}' is not a classifier plugin")
 

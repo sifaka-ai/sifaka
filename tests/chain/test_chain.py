@@ -6,7 +6,11 @@ from typing import Any, Dict, List, Optional
 from pydantic import PrivateAttr
 
 from sifaka.chain import Chain
-from sifaka.interfaces import Validator, Improver, Model
+from sifaka.interfaces import (
+    ChainValidatorProtocol as Validator,
+    ChainImproverProtocol as Improver,
+    ModelProtocol as Model,
+)
 from sifaka.core.results import ChainResult, ValidationResult
 from sifaka.utils.state import StateManager, create_rule_state, create_critic_state
 

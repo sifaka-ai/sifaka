@@ -10,7 +10,7 @@ customizations to ensure consistent plugin behavior across all components.
 ## Usage Examples
 ```python
 from sifaka.chain.plugins import PluginRegistry, PluginLoader
-from sifaka.chain.interfaces import Plugin
+from sifaka.interfaces import ChainPluginProtocol
 
 # Create plugin registry
 registry = PluginRegistry()
@@ -34,11 +34,11 @@ plugin = loader.load_plugin_from_module("my_plugin_module") if loader else ""
 
 from typing import Optional, cast
 
-from sifaka.interfaces.chain.plugin import ChainPlugin
-from sifaka.core.interfaces import Plugin
+from sifaka.interfaces import ChainPluginProtocol
+from sifaka.interfaces.core import PluginProtocol as Plugin
 from sifaka.core.plugins import PluginRegistry as CorePluginRegistry
 from sifaka.core.plugins import PluginLoader as CorePluginLoader
-from ..utils.logging import get_logger
+from sifaka.utils.logging import get_logger
 
 # Configure logger
 logger = get_logger(__name__)
@@ -84,8 +84,8 @@ class PluginRegistry(CorePluginRegistry):
             PluginError: If plugin registration fails
         """
         # Ensure the plugin is a chain plugin
-        if not isinstance(plugin, ChainPlugin):
-            from ..utils.errors import PluginError
+        if not isinstance(plugin, ChainPluginProtocol):
+            from sifaka.utils.errors import PluginError
 
             raise PluginError(f"Plugin '{name}' is not a chain plugin")
 

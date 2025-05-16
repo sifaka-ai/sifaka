@@ -1,259 +1,113 @@
 """
 Classifier Engine Module
 
-This module provides the core classification engine for the Sifaka classifiers system.
-It coordinates the flow between components, handles caching, and manages state.
+This module provides the Engine class for the Sifaka classifiers system.
+The Engine class serves as an orchestrator for classification operations,
+managing the interaction between different components of the system.
 
 ## Overview
-The Engine class is the central component of the classification system, responsible
-for coordinating the classification process, managing caching, and tracking statistics.
-It serves as an intermediary between the user-facing Classifier class and the
-implementation-specific classification logic.
+The Engine class is responsible for coordinating the classification workflow,
+managing caching, error handling, and result formatting. It acts as a mediator
+between the Classifier class (user interface) and the ClassifierImplementation
+(implementation details).
 
-## Components
-1. **Engine**: Core classification engine that coordinates the flow
-2. **StateManager**: Manages engine state and statistics
-3. **ClassifierConfig**: Configuration for the engine
-4. **ClassifierImplementation**: Interface for classifier implementations
+## Core Classes
+1. **Engine**: Core engine for classifier execution
+   - Manages classification workflow
+   - Handles caching and result formatting
+   - Coordinates error handling and recovery
 
 ## Architecture
-The engine follows a layered architecture:
-1. **Interface Layer**: Public methods for classification
-2. **Caching Layer**: Optional caching of classification results
-3. **Execution Layer**: Delegation to classifier implementations
-4. **State Management Layer**: Tracking of statistics and state
-5. **Error Handling Layer**: Standardized error handling and reporting
-
-## Usage Examples
-```python
-from sifaka.classifiers.engine import Engine
-from sifaka.utils.config.classifiers import ClassifierConfig
-
-# Create engine
-engine = Engine(config=ClassifierConfig(cache_enabled=True, cache_size=100))
-
-# Classify text
-result = engine.classify(
-    text="This is a friendly message.",
-    implementation=implementation
-)
-
-# Access result
-print(f"Label: {result.label}")
-print(f"Confidence: {result.confidence:.2f}")
-```
+The Engine follows a workflow orchestration pattern:
+1. **Input Validation**: Validate classification inputs
+2. **Cache Checking**: Check if result is already cached
+3. **Implementation Execution**: Execute classifier implementation
+4. **Result Formatting**: Format and validate results
+5. **Error Handling**: Handle and recover from errors
+6. **Cache Update**: Update cache with new results
+7. **Statistics Tracking**: Track execution statistics
 
 ## Error Handling
-The Engine class provides robust error handling:
-- ClassifierError: Raised when classification fails
-- ImplementationError: Raised when implementation fails
-- Automatic error tracking and statistics
-- Detailed error messages and context
-
-## Configuration
-The Engine class supports configuration through the ClassifierConfig class:
-- cache_enabled: Whether to enable result caching
-- cache_size: Maximum number of cached results
-- min_confidence: Minimum confidence threshold
+The Engine provides robust error handling:
+- EngineError: Base class for engine errors
+- ExecutionError: Raised when classification execution fails
+- CacheError: Raised when cache operations fail
+- FormatError: Raised when result formatting fails
+- Automatic error tracking and recovery
 """
 
-from typing import Any, Optional
+from typing import Any, Dict, Generic, List, Optional, TypeVar, cast
 import time
-from pydantic import PrivateAttr
-from .interfaces import ClassifierImplementation
-from ..utils.state import StateManager, create_classifier_engine_state
-from ..utils.logging import get_logger
+import uuid
+from concurrent.futures import ThreadPoolExecutor, Future
+
+from sifaka.interfaces.classifier import (
+    ClassifierImplementationProtocol as ClassifierImplementation,
+)
 from ..core.results import ClassificationResult
 from ..utils.config import ClassifierConfig
-from ..utils.errors import ClassifierError, safely_execute_component_operation as safely_execute
-from ..utils.mixins import InitializeStateMixin
-from .adapters import ImplementationError
+from ..utils.logging import get_logger
+from ..utils.errors import ClassifierError
+from ..utils.errors import safely_execute_component_operation as safely_execute
+from ..utils.errors.results import ErrorResult
+from ..utils.state import StateManager
 
+# Define type variables for label and metadata types
+L = TypeVar("L")
+M = TypeVar("M")
+
+# Configure logger
 logger = get_logger(__name__)
 
 
-class Engine(InitializeStateMixin):
+class EngineError(ClassifierError):
+    """Base class for engine errors."""
+
+    pass
+
+
+class Engine:
     """
     Core classification engine for the Sifaka classifiers system.
 
     This class provides the central coordination logic for the classification process,
     managing the flow between components, handling caching, tracking statistics,
     and standardizing error handling.
-
-    ## Architecture
-    The Engine class follows a component-based architecture:
-    - Uses StateManager for state tracking and statistics
-    - Implements caching with configurable cache size
-    - Delegates to classifier implementations for actual classification
-    - Handles errors with standardized error classes
-
-    ## Lifecycle
-    1. **Initialization**: Set up engine with state manager and configuration
-    2. **Classification**: Process text through classifier implementations
-    3. **Caching**: Optionally cache results for improved performance
-    4. **Statistics**: Track execution statistics and performance metrics
-    5. **Error Handling**: Handle and track errors with detailed context
-
-    ## Examples
-    ```python
-    # Create engine with configuration
-    from sifaka.utils.config.classifiers import ClassifierConfig
-
-    engine = Engine(config=ClassifierConfig(
-        cache_enabled=True,
-        cache_size=100,
-        min_confidence=0.7
-    ))
-
-    # Classify text
-    result = engine.classify(
-        text="This is a friendly message.",
-        implementation=implementation
-    )
-    ```
     """
-
-    _state_manager: StateManager = PrivateAttr(default_factory=create_classifier_engine_state)
 
     def __init__(
         self,
-        config: Optional[ClassifierConfig] = None,
         state_manager: Optional[StateManager] = None,
+        config: Optional[ClassifierConfig] = None,
     ) -> None:
         """
         Initialize the engine.
 
-        This method sets up the engine with the provided configuration.
-        It initializes the internal state, including execution counters, result cache,
-        and metadata.
-
         Args:
-            config: Engine configuration with settings for caching, confidence thresholds, etc.
-            state_manager: Optional state manager for tracking state and statistics.
-                If None, a new state manager will be created.
+            state_manager: State manager for tracking state and statistics
+            config: Engine configuration
         """
+        self._state_manager = state_manager
         self._config = config or ClassifierConfig()
 
-        # Support both dependency injection and auto-creation patterns
-        if state_manager is not None:
-            object.__setattr__(self, "_state_manager", state_manager)
-
-        self._initialize_state()
-
-    def _initialize_state(self) -> None:
-        """Initialize the engine state."""
-        # Check if super has _initialize_state method before calling it
-        if hasattr(super(), "_initialize_state"):
-            super()._initialize_state()
-        self._state_manager.update("config", self._config)
-        self._state_manager.update("initialized", True)
-        self._state_manager.update("execution_count", 0)
-        self._state_manager.update("result_cache", {})
-        self._state_manager.set_metadata("component_type", "engine")
-        self._state_manager.set_metadata("creation_time", time.time())
-
-    def classify(self, text: str, implementation: ClassifierImplementation) -> Any:
+    def classify(self, text: str, implementation: ClassifierImplementation) -> ClassificationResult:
         """
         Classify the given text.
 
-        This method processes the input text through the provided classifier implementation
-        and returns a standardized classification result. It handles caching, state tracking,
-        error handling, and statistics updates.
-
         Args:
-            text: The text to classify, which can be any string content
-                 that the implementation can process
-            implementation: The classifier implementation to use for classification,
-                           which must implement the ClassifierImplementation interface
+            text: The text to classify
+            implementation: The classifier implementation to use
 
         Returns:
-            The classification result containing:
-            - label: The classification label (e.g., "positive", "toxic")
-            - confidence: A confidence score between 0.0 and 1.0
-            - metadata: Optional additional information about the classification
-            - issues: Any issues encountered during classification
-            - suggestions: Suggestions for improving the input
+            The classification result
 
         Raises:
-            ClassifierError: If classification fails due to engine errors
-            ImplementationError: If the implementation fails to classify the text
+            EngineError: If classification fails
         """
-        execution_count = self._state_manager.get("execution_count", 0)
-        self._state_manager.update("execution_count", execution_count + 1)
-        if self._config.cache_enabled:
-            cache = self._state_manager.get("result_cache", {})
-            cache_key = f"{text}_{implementation.__class__.__name__}"
-            if cache_key in cache:
-                self._state_manager.set_metadata("cache_hit", True)
-                return cache[cache_key]
-        start_time = time.time()
         try:
-            self._state_manager.update("implementation", implementation)
-            self._state_manager.update("text", text)
-            result = self._classify_text(text, implementation)
-            if self._config.cache_enabled:
-                cache = self._state_manager.get("result_cache", {})
-                cache_size = self._config.cache_size
-                cache_key = f"{text}_{implementation.__class__.__name__}"
-                if len(cache) >= cache_size:
-                    oldest_key = next(iter(cache))
-                    del cache[oldest_key]
-                cache[cache_key] = result
-                self._state_manager.update("result_cache", cache)
-            return result
-        except Exception as e:
-            error_count = self._state_manager.get_metadata("error_count", 0)
-            self._state_manager.set_metadata("error_count", error_count + 1)
-            self._state_manager.set_metadata("last_error", str(e))
-            self._state_manager.set_metadata("last_error_time", time.time())
-            logger.error(f"Engine execution error: {str(e)}")
-            raise ClassifierError(f"Engine execution failed: {str(e)}")
-        finally:
-            end_time = time.time()
-            execution_time = end_time - start_time
-            self._state_manager.set_metadata("last_execution_time", execution_time)
-            avg_time = self._state_manager.get_metadata("avg_execution_time", 0)
-            count = execution_count + 1
-            new_avg = (avg_time * (count - 1) + execution_time) / count
-            self._state_manager.set_metadata("avg_execution_time", new_avg)
-            max_time = self._state_manager.get_metadata("max_execution_time", 0)
-            if execution_time > max_time:
-                self._state_manager.set_metadata("max_execution_time", execution_time)
-
-    def _classify_text(self, text: str, implementation: ClassifierImplementation) -> Any:
-        """
-        Classify text using the implementation.
-
-        This internal method delegates the actual classification work to the
-        implementation and handles post-processing of the result, including
-        confidence threshold checking and statistics tracking.
-
-        Args:
-            text: The text to classify, which can be any string content
-                 that the implementation can process
-            implementation: The classifier implementation to use for classification,
-                           which must implement the ClassifierImplementation interface
-
-        Returns:
-            The classification result from the implementation, potentially
-            enhanced with additional issues and suggestions
-
-        Raises:
-            ImplementationError: If the implementation fails to classify the text
-                                or returns an invalid result
-        """
-
-        def classify_operation() -> Any:
+            # Delegate to implementation
             return implementation.classify(text)
-
-        try:
-            result = safely_execute(
-                operation=classify_operation,
-                component_name=implementation.__class__.__name__,
-                component_type="ClassifierImplementation",
-                error_class=ImplementationError,
-            )
-            return result
         except Exception as e:
-            logger.error(f"Implementation error: {str(e)}")
-            raise ImplementationError(f"Implementation failed: {str(e)}") from e
+            error_message = f"Classification failed: {str(e)}"
+            logger.error(error_message)
+            raise EngineError(error_message) from e

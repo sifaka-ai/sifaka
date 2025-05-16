@@ -11,7 +11,7 @@ It enables dynamic discovery, registration, and loading of plugins for extending
 ## Usage Examples
 ```python
 from sifaka.core.plugins import PluginRegistry, PluginLoader
-from sifaka.core.interfaces import Plugin
+from sifaka.interfaces.core import PluginProtocol as Plugin
 
 # Create plugin registry
 registry = PluginRegistry()
@@ -36,7 +36,7 @@ plugin = loader.load_plugin_from_module("my_plugin_module")
 from typing import Any, Dict, List, Optional, Type
 import importlib
 import pkg_resources
-from .interfaces import Plugin
+from sifaka.interfaces.core import PluginProtocol as Plugin
 from ..utils.errors import PluginError
 from ..utils.logging import get_logger
 

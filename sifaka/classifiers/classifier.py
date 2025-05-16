@@ -1,82 +1,65 @@
 """
 Classifier Module
 
-This module provides the main Classifier class for the Sifaka classifiers system.
-It serves as the primary user-facing interface for text classification operations.
+This module provides the main user-facing interface for the Sifaka classifier system.
+It defines the `Classifier` class, which wraps classifier implementations with
+standardized error handling, state management, and result formatting.
 
 ## Overview
-The Classifier class is the main entry point for classification operations in Sifaka.
-It provides a clean, consistent interface for classifying text, managing state, and
-handling errors. The class delegates the actual classification work to implementation
-classes while providing standardized result handling, caching, and statistics tracking.
+The Classifier class is the primary entry point for classification operations,
+providing a consistent interface regardless of the underlying implementation.
+It abstracts away implementation details and provides additional features like
+caching, error handling, and statistics tracking.
 
-## Components
-1. **Classifier**: Main user-facing class for classification
-2. **Engine**: Core classification engine (imported from engine.py)
-3. **StateManager**: Manages classifier state (imported from utils/state.py)
+## Core Classes
+1. **Classifier**: Main class for classification operations
+   - Wraps a classifier implementation
+   - Provides consistent error handling
+   - Tracks statistics and state
+   - Supports result caching
 
 ## Architecture
-The classifier component follows a layered architecture:
-1. **User Interface Layer**: Classifier class with public methods
-2. **Engine Layer**: Engine class that coordinates the classification flow
-3. **Implementation Layer**: ClassifierImplementation interface implementations
-4. **State Management Layer**: StateManager for tracking state and statistics
+The classifier system follows a layered architecture:
+1. **User Interface Layer**: Classifier class
+2. **Engine Layer**: Manages classification workflow
+3. **Implementation Layer**: Provides actual classification logic
+4. **State Management Layer**: Tracks state and statistics
+5. **Error Handling Layer**: Handles and reports errors
 
-## Usage Examples
+## Usage Example
 ```python
-from sifaka.classifiers import Classifier
-from sifaka.classifiers.implementations.content import ToxicityClassifier
+from sifaka.classifiers import create_toxicity_classifier
 
-# Create classifier implementation
-implementation = ToxicityClassifier()
-
-# Create classifier
-classifier = Classifier(
-    implementation=implementation,
-    name="toxicity_classifier",
-    description="Detects toxic content in text"
+# Create a toxicity classifier
+classifier = create_toxicity_classifier(
+    name="content_moderation",
+    description="Checks for toxic content in user inputs",
+    min_confidence=0.7
 )
 
 # Classify text
-result = classifier.classify("This is a friendly message.") if classifier else ""
+result = classifier.classify("This is a friendly message.")
+
+# Check result
 print(f"Label: {result.label}")
 print(f"Confidence: {result.confidence:.2f}")
-
-# Classify batch of texts
-results = classifier.classify_batch([
-    "This is a friendly message.",
-    "This is a toxic message!",
-    "This is another friendly message."
-]) if classifier else ""
-for i, result in enumerate(results):
-    print(f"Text {i+1}: {result.label} ({result.confidence:.2f})")
-
-# Get classifier statistics
-stats = classifier.get_statistics() if classifier else ""
-print(f"Execution count: {stats['execution_count']}")
-print(f"Average execution time: {stats['avg_execution_time']:.2f}s")
-
-# Clear cache
-classifier.clear_cache() if classifier else ""
+print(f"Metadata: {result.metadata}")
 ```
 
 ## Error Handling
 The Classifier class provides robust error handling:
-- ClassifierError: Raised when classification fails
-- Automatic error tracking and statistics
-- Fallback results for batch operations
-
-## Configuration
-The Classifier class supports configuration through the ClassifierConfig class:
-- cache_enabled: Whether to enable result caching
-- cache_size: Maximum number of cached results
-- min_confidence: Minimum confidence threshold
+- ClassifierError: Base class for classifier errors
+- ImplementationError: Raised when classification fails
+- ConfigurationError: Raised for invalid configuration
+- TimeoutError: Raised when classification times out
 """
 
 from typing import Any, Dict, List, Optional, TypeVar, Generic, cast
 import time
 
-from .interfaces import ClassifierImplementation
+from sifaka.interfaces.classifier import (
+    ClassifierImplementationProtocol as ClassifierImplementation,
+)
 from .engine import Engine
 from ..utils.state import StateManager, create_classifier_state
 from ..utils.common import update_statistics, record_error

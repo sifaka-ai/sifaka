@@ -78,7 +78,12 @@ from .base import Rule, RuleConfig, FunctionRule
 from ..core.results import RuleResult
 from sifaka.utils.config.rules import RulePriority
 from .factories import create_rule, create_validation_manager
-from sifaka.interfaces import Rule as RuleInterface, RuleProtocol, RuleResultHandler, Validatable
+from sifaka.interfaces import (
+    RuleProtocol,
+    SimpleRuleProtocol,
+    RuleResultHandlerProtocol,
+    ValidatableProtocol,
+)
 from .validators import BaseValidator, FunctionValidator, RuleValidator
 from .managers.validation import ValidationManager
 from .utils import try_validate
@@ -99,9 +104,9 @@ __all__: List[Any] = [
     "FunctionValidator",
     "RuleValidator",
     "RuleProtocol",
-    "RuleInterface",
-    "RuleResultHandler",
-    "Validatable",
+    "SimpleRuleProtocol",
+    "RuleResultHandlerProtocol",
+    "ValidatableProtocol",
     "ValidationManager",
     "create_rule",
     "create_validation_manager",

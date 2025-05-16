@@ -32,7 +32,7 @@ from sifaka.utils.errors.handling import handle_error
 from sifaka.utils.logging import get_logger
 from sifaka.utils.patterns import PUNCTUATION_PATTERN, replace_pattern
 from sifaka.utils.config.retrieval import QueryProcessingConfig
-from sifaka.interfaces.retrieval import QueryProcessor
+from sifaka.interfaces.retrieval import QueryProcessorProtocol
 
 logger = get_logger(__name__)
 
@@ -601,7 +601,7 @@ class QueryManager(BaseComponent[Any, Any]):
         # Process the query using the process_query method
         return self.process_query(query, **kwargs)
 
-    def as_query_processor(self) -> QueryProcessor[Any, Any]:
+    def as_query_processor(self) -> QueryProcessorProtocol[Any, Any]:
         """
         Get a QueryProcessor-compatible interface for this QueryManager.
 
@@ -642,4 +642,4 @@ class QueryManager(BaseComponent[Any, Any]):
             raise TypeError("QueryManagerAdapter does not implement QueryProcessor protocol")
 
         # Return the adapter as a QueryProcessor
-        return cast(QueryProcessor[Any, Any], adapter)
+        return cast(QueryProcessorProtocol[Any, Any], adapter)

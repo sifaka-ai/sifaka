@@ -59,15 +59,66 @@ class MyCritic(Critic[str, str, dict]):
 """
 
 from abc import abstractmethod
-from typing import Any, List, Optional, Protocol, TypeVar, TypedDict, runtime_checkable
+from typing import Any, Dict, List, Optional, Protocol, TypeVar, TypedDict, runtime_checkable
 
-from sifaka.core.interfaces import Configurable, Identifiable
+from sifaka.interfaces.core import ConfigurableProtocol, IdentifiableProtocol
+from .component import ComponentProtocol
 
 # Type variables
 ConfigType = TypeVar("ConfigType")
 InputType = TypeVar("InputType", contravariant=True)
 OutputType = TypeVar("OutputType", covariant=True)
 ResultType = TypeVar("ResultType", covariant=True)
+
+
+@runtime_checkable
+class CriticProtocol(ComponentProtocol, Protocol):
+    """
+    Protocol for critics in Sifaka.
+
+    This protocol defines the interface for all critic components.
+    Critics are components that can analyze, validate, critique, and improve text.
+    """
+
+    def critique(self, text: str, **kwargs: Any) -> Any:
+        """
+        Critique text and provide feedback.
+
+        Args:
+            text: The text to critique
+            **kwargs: Additional critique parameters
+
+        Returns:
+            Critique results containing feedback, issues, and suggestions
+        """
+        ...
+
+    def validate(self, text: str, **kwargs: Any) -> bool:
+        """
+        Validate text against quality standards.
+
+        Args:
+            text: The text to validate
+            **kwargs: Additional validation parameters
+
+        Returns:
+            Whether the text passes validation
+        """
+        ...
+
+    def improve(self, text: str, feedback: Optional[str] = None, **kwargs: Any) -> Any:
+        """
+        Improve text based on feedback.
+
+        Args:
+            text: The text to improve
+            feedback: Optional feedback to guide improvement
+            **kwargs: Additional improvement parameters
+
+        Returns:
+            Improved text or improvement results
+        """
+        ...
 
 
 @runtime_checkable
@@ -229,7 +280,9 @@ class PromptFactory(Protocol):
 
 @runtime_checkable
 class Critic(
-    Identifiable, Configurable[ConfigType], Protocol[ConfigType, InputType, OutputType, ResultType]
+    IdentifiableProtocol,
+    ConfigurableProtocol[ConfigType],
+    Protocol[ConfigType, InputType, OutputType, ResultType],
 ):
     """
     Interface for critics.

@@ -7,10 +7,10 @@ modularity and extensibility.
 
 ## Interface Hierarchy
 
-1. **Rule**: Base interface for all rules
-   - **Validator**: Interface for validators
-   - **RuleResultHandler**: Interface for rule result handlers
-   - **RuleProtocol**: Simplified protocol for rules
+1. **RuleProtocol**: Base interface for all rules
+   - **ValidatableProtocol**: Interface for validatable objects
+   - **RuleResultHandlerProtocol**: Interface for rule result handlers
+   - **SimpleRuleProtocol**: Simplified protocol for rules
 
 ## Usage
 
@@ -47,7 +47,7 @@ The interfaces support execution tracking:
 from abc import abstractmethod
 from typing import Any, Dict, List, Protocol, TypeVar, runtime_checkable
 
-from sifaka.core.interfaces import Configurable, Identifiable
+from sifaka.interfaces.core import ConfigurableProtocol, IdentifiableProtocol
 
 # Type variables
 T = TypeVar("T")
@@ -58,7 +58,7 @@ HandlerResultType = TypeVar("HandlerResultType", contravariant=True)
 
 
 @runtime_checkable
-class Validatable(Protocol[ResultType]):
+class ValidatableProtocol(Protocol[ResultType]):
     """
     Interface for objects that can be validated.
 
@@ -100,7 +100,7 @@ class Validatable(Protocol[ResultType]):
 
 
 @runtime_checkable
-class RuleResultHandler(Protocol[HandlerResultType]):
+class RuleResultHandlerProtocol(Protocol[HandlerResultType]):
     """
     Interface for rule result handlers.
 
@@ -138,7 +138,11 @@ class RuleResultHandler(Protocol[HandlerResultType]):
 
 
 @runtime_checkable
-class Rule(Identifiable, Configurable[ConfigType], Protocol[ConfigType, InputType, ResultType]):
+class RuleProtocol(
+    IdentifiableProtocol,
+    ConfigurableProtocol[ConfigType],
+    Protocol[ConfigType, InputType, ResultType],
+):
     """
     Interface for rules.
 
@@ -216,9 +220,9 @@ class Rule(Identifiable, Configurable[ConfigType], Protocol[ConfigType, InputTyp
 
 
 @runtime_checkable
-class RuleProtocol(Protocol):
+class SimpleRuleProtocol(Protocol):
     """
-    Protocol defining the interface for rules.
+    Simplified protocol defining the minimal interface for rules.
 
     This protocol is useful for type checking code that works with rules
     without requiring a specific rule implementation. It defines the minimum

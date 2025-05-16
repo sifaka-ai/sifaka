@@ -73,7 +73,9 @@ from ..utils.config import ClassifierConfig
 from ..utils.errors import ClassifierError
 from ..utils.errors import safely_execute_component_operation as safely_execute
 from ..utils.errors.results import ErrorResult
-from .interfaces import ClassifierImplementation
+from sifaka.interfaces.classifier import (
+    ClassifierImplementationProtocol as ClassifierImplementation,
+)
 
 # Define type variables for label and metadata types
 L = TypeVar("L")
