@@ -7,6 +7,14 @@ LLM applications with validation and improvement capabilities.
 
 __version__ = "0.1.0"
 
+# Initialize the registry if available
+try:
+    from sifaka.core.initialize_registry import initialize_registry
+
+    initialize_registry()
+except ImportError:
+    pass
+
 # Import core components to make them available at the top level
 from sifaka.chain import Chain
 

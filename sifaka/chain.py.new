@@ -12,13 +12,14 @@ add improvers to enhance the quality of the generated text, and configure model 
 Example:
     ```python
     from sifaka import Chain
-    from sifaka.validators import length, clarity
+    from sifaka.validators import length
+    from sifaka.critics import create_lac_critic
 
     result = (Chain()
         .with_model("openai:gpt-4")
         .with_prompt("Write a short story about a robot.")
         .validate_with(length(min_words=50, max_words=200))
-        .improve_with(clarity())
+        .improve_with(create_lac_critic("openai:gpt-4"))
         .run())
 
     print(f"Result passed validation: {result.passed}")
@@ -29,9 +30,47 @@ Example:
 from typing import Union, List, Dict, Any, Optional, Callable
 
 from sifaka.interfaces import Model, Validator, Improver
-from sifaka.factories import create_model, create_model_from_string
-from sifaka.results import Result
-from sifaka.errors import ChainError
+from sifaka.factories import (
+    create_model_from_string,
+    parse_model_string,
+    FactoryError,
+)
+
+
+class ChainError(Exception):
+    """Error raised when a chain operation fails."""
+    pass
+
+
+class ChainResult:
+    """Result of a chain execution.
+    
+    Attributes:
+        text: The final text after all validations and improvements.
+        passed: Whether all validations passed.
+        validation_results: Results of all validations.
+        improvement_results: Results of all improvements.
+    """
+    
+    def __init__(
+        self,
+        text: str,
+        passed: bool,
+        validation_results: List[Any],
+        improvement_results: List[Any],
+    ):
+        """Initialize a chain result.
+        
+        Args:
+            text: The final text after all validations and improvements.
+            passed: Whether all validations passed.
+            validation_results: Results of all validations.
+            improvement_results: Results of all improvements.
+        """
+        self.text = text
+        self.passed = passed
+        self.validation_results = validation_results
+        self.improvement_results = improvement_results
 
 
 class Chain:
@@ -51,25 +90,13 @@ class Chain:
         _validators: List of validators to apply to the generated text.
         _improvers: List of improvers to apply to the generated text.
         _options: Options to pass to the model during generation.
-
-    Example:
-        ```python
-        from sifaka import Chain
-
-        chain = Chain()
-        chain.with_model("openai:gpt-4")
-        chain.with_prompt("Write a short story about a robot.")
-        result = chain.run()
-
-        # Or using method chaining:
-        result = (Chain()
-            .with_model("openai:gpt-4")
-            .with_prompt("Write a short story about a robot.")
-            .run())
-        ```
+        _model_factory: Factory function for creating models.
     """
 
-    def __init__(self, model_factory: Optional[Callable[[str, str], Model]] = None):
+    def __init__(
+        self,
+        model_factory: Optional[Callable[[str, str], Model]] = None,
+    ):
         """Initialize a new Chain instance.
 
         Args:
@@ -82,13 +109,9 @@ class Chain:
         self._validators: List[Validator] = []
         self._improvers: List[Improver] = []
         self._options: Dict[str, Any] = {}
-
-        # Use the provided model factory or use the registry
-        if model_factory is not None:
-            self._model_factory = model_factory
-        else:
-            # Use the registry
-            self._model_factory = create_model
+        
+        # Use the provided model factory or the default
+        self._model_factory = model_factory or create_model_from_string
 
     def with_model(self, model: Union[str, Model]) -> "Chain":
         """Set the model to use for generation.
@@ -113,20 +136,19 @@ class Chain:
             from sifaka.models import OpenAIModel
             model = OpenAIModel("gpt-4", api_key="your-api-key")
             chain = Chain().with_model(model)
-
-            # Using dependency injection
-            from sifaka.factories import create_model
-            chain = Chain(model_factory=create_model).with_model("openai:gpt-4")
             ```
 
         Raises:
-            FactoryError: If the provider or model is not found.
-            ValueError: If the model string is not in the correct format.
+            ChainError: If the model string is invalid or the model cannot be created.
         """
         if isinstance(model, str):
-            # Use create_model_from_string to handle the model string
-            self._model = create_model_from_string(model)
+            try:
+                # Create a model from the string
+                self._model = self._model_factory(model)
+            except (ValueError, FactoryError) as e:
+                raise ChainError(f"Error creating model: {str(e)}") from e
         else:
+            # Use the provided model instance
             self._model = model
         return self
 
@@ -178,7 +200,7 @@ class Chain:
         self._options.update(options)
         return self
 
-    def run(self) -> Result:
+    def run(self) -> ChainResult:
         """Execute the chain and return the result.
 
         This method runs the complete chain execution process:
@@ -186,7 +208,7 @@ class Chain:
         2. Generates text using the model and prompt
         3. Validates the generated text using all configured validators
         4. If all validations pass, improves the text using all configured improvers
-        5. Returns a Result object containing the final text and all validation/improvement results
+        5. Returns a ChainResult object containing the final text and all validation/improvement results
 
         The validation process stops at the first validator that fails, returning a failed result.
         Improvers are applied in sequence, with each improver receiving the text from the previous one.
@@ -200,18 +222,18 @@ class Chain:
 
         Raises:
             ChainError: If the chain is not properly configured (missing model or prompt).
-            ModelError: If there is an error with the model during generation.
 
         Example:
             ```python
             from sifaka import Chain
-            from sifaka.validators import length, clarity
+            from sifaka.validators import length
+            from sifaka.critics import create_lac_critic
 
             result = (Chain()
                 .with_model("openai:gpt-4")
                 .with_prompt("Write a short story about a robot.")
                 .validate_with(length(min_words=50, max_words=200))
-                .improve_with(clarity())
+                .improve_with(create_lac_critic("openai:gpt-4"))
                 .run())
 
             if result.passed:
@@ -228,29 +250,38 @@ class Chain:
             raise ChainError("Prompt not specified")
 
         # Generate initial text
-        text = self._model.generate(self._prompt, **self._options)
+        try:
+            text = self._model.generate(self._prompt, **self._options)
+        except Exception as e:
+            raise ChainError(f"Error generating text: {str(e)}") from e
 
         # Validate text
         validation_results = []
         for validator in self._validators:
-            result = validator.validate(text)
-            validation_results.append(result)
-            if not result.passed:
-                return Result(
-                    text=text,
-                    passed=False,
-                    validation_results=validation_results,
-                    improvement_results=[],
-                )
+            try:
+                result = validator.validate(text)
+                validation_results.append(result)
+                if not result.passed:
+                    return ChainResult(
+                        text=text,
+                        passed=False,
+                        validation_results=validation_results,
+                        improvement_results=[],
+                    )
+            except Exception as e:
+                raise ChainError(f"Error validating text: {str(e)}") from e
 
         # Improve text
         improvement_results = []
         for improver in self._improvers:
-            improved_text, result = improver.improve(text)
-            improvement_results.append(result)
-            text = improved_text
+            try:
+                improved_text, result = improver.improve(text)
+                improvement_results.append(result)
+                text = improved_text
+            except Exception as e:
+                raise ChainError(f"Error improving text: {str(e)}") from e
 
-        return Result(
+        return ChainResult(
             text=text,
             passed=True,
             validation_results=validation_results,

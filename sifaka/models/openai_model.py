@@ -1,34 +1,43 @@
 """
 OpenAI model implementation for Sifaka.
 
-This module provides an implementation of the Model protocol for OpenAI models.
-It also provides a factory function for creating OpenAI model instances.
+This module provides an implementation of the Model interface for OpenAI models.
 """
 
 import os
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 try:
     import tiktoken
     from openai import OpenAI, APIError, RateLimitError, APIConnectionError
-
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
 
-from sifaka.errors import ModelError, ModelAPIError, ConfigurationError
+from sifaka.interfaces import Model
 from sifaka.registry import register_model
+
+
+class ModelError(Exception):
+    """Error raised when a model operation fails."""
+    pass
+
+
+class ConfigurationError(Exception):
+    """Error raised when a configuration is invalid."""
+    pass
 
 
 class OpenAIModel:
     """OpenAI model implementation.
 
-    This class implements the Model protocol for OpenAI models.
+    This class implements the Model interface for OpenAI models.
 
     Attributes:
         model_name: The name of the OpenAI model to use.
-        api_key: The OpenAI API key to use. If not provided, it will be read from the
-            OPENAI_API_KEY environment variable.
+        api_key: The OpenAI API key to use.
+        organization: The OpenAI organization ID to use.
+        options: Additional options to pass to the OpenAI client.
         client: The OpenAI client instance.
     """
 
@@ -54,7 +63,7 @@ class OpenAIModel:
         """
         if not OPENAI_AVAILABLE:
             raise ConfigurationError(
-                "OpenAI package not installed. Install it with 'pip install openai'."
+                "OpenAI package not installed. Install it with 'pip install openai tiktoken'."
             )
 
         self.model_name = model_name
@@ -94,7 +103,7 @@ class OpenAIModel:
             The generated text.
 
         Raises:
-            ModelAPIError: If there is an error communicating with the OpenAI API.
+            ModelError: If there is an error communicating with the OpenAI API.
         """
         # Merge default options with provided options
         merged_options = {**self.options, **options}
@@ -112,13 +121,13 @@ class OpenAIModel:
             else:
                 return self._generate_completion(prompt, **merged_options)
         except RateLimitError as e:
-            raise ModelAPIError(f"OpenAI rate limit exceeded: {str(e)}")
+            raise ModelError(f"OpenAI rate limit exceeded: {str(e)}")
         except APIConnectionError as e:
-            raise ModelAPIError(f"Error connecting to OpenAI API: {str(e)}")
+            raise ModelError(f"Error connecting to OpenAI API: {str(e)}")
         except APIError as e:
-            raise ModelAPIError(f"OpenAI API error: {str(e)}")
+            raise ModelError(f"OpenAI API error: {str(e)}")
         except Exception as e:
-            raise ModelAPIError(f"Unexpected error when calling OpenAI API: {str(e)}")
+            raise ModelError(f"Unexpected error when calling OpenAI API: {str(e)}")
 
     def _generate_chat(
         self, prompt: str, system_message: Optional[str] = None, **options: Any
@@ -212,14 +221,9 @@ class OpenAIModel:
                 raise ModelError(f"Error getting encoding: {str(e)}")
 
 
-# Register the factory function with the registry
 @register_model("openai")
-def create_openai_model(model_name: str, **options: Any) -> OpenAIModel:
-    """Create an OpenAI model instance.
-
-    This factory function creates an OpenAI model instance with the specified
-    model name and options. It is used by the registry system to create models
-    without direct imports.
+def create_openai_model(model_name: str, **options: Any) -> Model:
+    """Create an OpenAI model.
 
     Args:
         model_name: The name of the OpenAI model to use.
@@ -232,4 +236,4 @@ def create_openai_model(model_name: str, **options: Any) -> OpenAIModel:
         ConfigurationError: If the OpenAI package is not installed.
         ModelError: If the API key is not provided and not available in the environment.
     """
-    return OpenAIModel(model_name=model_name, **options)
+    return OpenAIModel(model_name, **options)
