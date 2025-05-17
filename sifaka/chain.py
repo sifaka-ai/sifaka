@@ -1,45 +1,62 @@
-"""
-Chain orchestration for Sifaka.
+"""Chain orchestration for Sifaka.
 
 This module defines the Chain class, which is the main entry point for the Sifaka framework.
-It orchestrates the generation, validation, and improvement of text using LLMs.
+It orchestrates the process of generating text using language models, validating the text
+against specified criteria, and improving the text using specialized critics.
 
 The Chain class uses a builder pattern to provide a fluent API for configuring and
 executing LLM operations. It allows you to specify which model to use, set the prompt
 for generation, add validators to check if the generated text meets requirements,
-add improvers to enhance the quality of the generated text, and configure model options.
+add critics to enhance the quality of the generated text, and configure model options.
 
 Example:
     ```python
     from sifaka import Chain
-    from sifaka.validators import length
-    from sifaka.critics import self_refine
+    from sifaka.validators import length, prohibited_content
+    from sifaka.critics.reflexion import create_reflexion_critic
+    from sifaka.models.openai import OpenAIModel
 
-    result = (Chain()
-        .with_model("openai:gpt-4")
+    # Create a model
+    model = OpenAIModel(model_name="gpt-4", api_key="your-api-key")
+
+    # Create a chain with validators and critics
+    chain = (Chain()
+        .with_model(model)
         .with_prompt("Write a short story about a robot.")
-        .validate_with(length(min_words=50, max_words=200))
-        .improve_with(self_refine())
-        .run())
+        .validate_with(length(min_words=50, max_words=500))
+        .validate_with(prohibited_content(prohibited=["violent", "harmful"]))
+        .improve_with(create_reflexion_critic(model=model))
+    )
 
-    print(f"Result passed validation: {result.passed}")
-    print(result.text)
+    # Run the chain
+    result = chain.run()
+
+    if result.passed:
+        print("Chain execution succeeded!")
+        print(result.text)
+    else:
+        print("Chain execution failed validation")
+        print(result.validation_results[0].message)
     ```
 
     Using configuration:
     ```python
     from sifaka import Chain
     from sifaka.config import SifakaConfig, ModelConfig
+    from sifaka.models.openai import OpenAIModel
 
     # Create a custom configuration
     config = SifakaConfig(
-        model=ModelConfig(temperature=0.8, max_tokens=1000),
+        model=ModelConfig(temperature=0.8, max_tokens=500),
         debug=True
     )
 
+    # Create a model
+    model = OpenAIModel(model_name="gpt-4", api_key="your-api-key")
+
     # Use with a chain
-    result = (Chain(config)
-        .with_model("openai:gpt-4")
+    chain = (Chain(config)
+        .with_model(model)
         .with_prompt("Write a short story about a robot.")
         .run())
     ```
@@ -55,35 +72,63 @@ from sifaka.config import SifakaConfig
 
 
 class Chain:
-    """Main orchestrator for the generation, validation, and improvement flow.
+    """Main orchestrator for text generation, validation, and improvement.
 
-    The Chain class is the central component of Sifaka. It coordinates the process of:
-    1. Generating text using a language model
-    2. Validating the generated text against specified criteria
-    3. Improving the text using various improvement strategies
+    The Chain class is the central component of the Sifaka framework, coordinating
+    the process of generating text using language models, validating it against
+    specified criteria, and improving it using specialized critics.
 
-    The class uses a builder pattern to provide a fluent API, allowing method chaining
-    for a more readable and intuitive interface.
+    It follows a fluent interface pattern (builder pattern) for easy configuration,
+    allowing you to chain method calls to set up the desired behavior.
+
+    The typical workflow is:
+    1. Create a Chain instance
+    2. Configure it with a model, prompt, validators, and improvers
+    3. Run the chain to generate, validate, and improve text
+    4. Process the result
 
     Attributes:
-        _model: The model to use for generation.
-        _prompt: The prompt to use for generation.
-        _validators: List of validators to apply to the generated text.
-        _improvers: List of improvers to apply to the generated text.
-        _config: The configuration for the chain and its components.
+        _model (Optional[Model]): The model used for text generation.
+        _prompt (Optional[str]): The prompt used for text generation.
+        _validators (List[Validator]): Validators used to check text quality.
+        _improvers (List[Improver]): Critics used to improve text quality.
+        _config (SifakaConfig): Configuration for the chain and its components.
+        _options (Dict[str, Any]): Additional options for backward compatibility.
+        _model_factory (Callable): Factory function for creating models from strings.
 
     Example:
         ```python
         from sifaka import Chain
+        from sifaka.models.openai import OpenAIModel
+        from sifaka.validators import length, prohibited_content
+        from sifaka.critics.reflexion import create_reflexion_critic
 
-        chain = Chain()
-        chain.with_model("openai:gpt-4")
-        chain.with_prompt("Write a short story about a robot.")
+        # Create a model
+        model = OpenAIModel(model_name="gpt-4", api_key="your-api-key")
+
+        # Create a chain with validators and critics
+        chain = (Chain()
+            .with_model(model)
+            .with_prompt("Write a short story about a robot.")
+            .validate_with(length(min_words=100, max_words=500))
+            .validate_with(prohibited_content(prohibited=["violent", "harmful"]))
+            .improve_with(create_reflexion_critic(model=model))
+        )
+
+        # Run the chain
         result = chain.run()
 
-        # Or using method chaining:
+        # Check the result
+        if result.passed:
+            print("Chain execution succeeded!")
+            print(result.text)
+        else:
+            print("Chain execution failed validation")
+            print(result.validation_results[0].message)
+
+        # Using string-based model specification
         result = (Chain()
-            .with_model("openai:gpt-4")
+            .with_model("openai:gpt-4")  # Will use OPENAI_API_KEY environment variable
             .with_prompt("Write a short story about a robot.")
             .run())
 
@@ -91,7 +136,7 @@ class Chain:
         from sifaka.config import SifakaConfig, ModelConfig
         config = SifakaConfig(model=ModelConfig(temperature=0.8))
         result = (Chain(config)
-            .with_model("openai:gpt-4")
+            .with_model(model)
             .with_prompt("Write a short story about a robot.")
             .run())
         ```
@@ -102,14 +147,41 @@ class Chain:
         config: Optional[SifakaConfig] = None,
         model_factory: Optional[Callable[[str, str], Model]] = None,
     ):
-        """Initialize a new Chain instance.
+        """Initialize a new Chain instance with optional configuration and model factory.
+
+        This constructor creates a new Chain instance that can be configured with a model,
+        prompt, validators, and improvers. The chain is not ready to run until at least
+        a model and prompt have been specified.
 
         Args:
-            config: Optional configuration for the chain and its components.
-                If not provided, a default configuration will be used.
-            model_factory: Optional factory function for creating models.
-                If not provided, the default factory function will be used.
-                The factory function should take a provider and model name and return a Model instance.
+            config (Optional[SifakaConfig]): Optional configuration for the chain and its components.
+                If not provided, a default configuration will be used. The configuration can
+                include settings for the model, validators, and critics.
+            model_factory (Optional[Callable[[str, str], Model]]): Optional factory function for
+                creating models from strings. If not provided, the default factory function from
+                the registry system will be used. The factory function should take a provider
+                and model name and return a Model instance.
+
+        Example:
+            ```python
+            # Create a chain with default configuration
+            chain1 = Chain()
+
+            # Create a chain with custom configuration
+            from sifaka.config import SifakaConfig, ModelConfig
+            config = SifakaConfig(
+                model=ModelConfig(temperature=0.7, max_tokens=500),
+                debug=True
+            )
+            chain2 = Chain(config)
+
+            # Create a chain with custom model factory
+            def my_model_factory(provider: str, model_name: str) -> Model:
+                # Custom logic to create models
+                return MyCustomModel(model_name)
+
+            chain3 = Chain(model_factory=my_model_factory)
+            ```
         """
         self._model: Optional[Model] = None
         self._prompt: Optional[str] = None
@@ -202,13 +274,41 @@ class Chain:
         return self
 
     def with_prompt(self, prompt: str) -> "Chain":
-        """Set the prompt to use for generation.
+        """Set the prompt to use for text generation.
+
+        This method sets the prompt that will be sent to the language model when
+        the chain is run. The prompt is the input text that guides the model's
+        generation process.
 
         Args:
-            prompt: The prompt to use for generation.
+            prompt (str): The prompt text to use for generation. This should be
+                a clear instruction or context for the model to generate from.
 
         Returns:
-            The chain instance for method chaining.
+            Chain: The chain instance for method chaining.
+
+        Example:
+            ```python
+            # Simple prompt
+            chain = Chain().with_prompt("Write a short story about a robot.")
+
+            # More detailed prompt
+            chain = Chain().with_prompt(
+                "Write a short story about a robot who discovers emotions. "
+                "The story should be heartwarming and suitable for children. "
+                "Include themes of friendship and self-discovery."
+            )
+
+            # Prompt with specific formatting
+            chain = Chain().with_prompt(
+                "Generate a JSON object with the following structure:\n"
+                "{\n"
+                "  \"name\": \"string\",\n"
+                "  \"age\": number,\n"
+                "  \"interests\": [\"string\", \"string\"]\n"
+                "}"
+            )
+            ```
         """
         self._prompt = prompt
         return self

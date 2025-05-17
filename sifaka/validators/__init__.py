@@ -1,5 +1,44 @@
-"""
-Validation components for ensuring LLM outputs meet requirements.
+"""Validation components for ensuring LLM outputs meet requirements.
+
+This module provides validators for checking if text meets specific criteria,
+such as length, content, and format requirements. It includes both built-in
+validators and utilities for creating custom validators.
+
+The validators can be used with the Chain class to validate text generated
+by language models before returning it to the user.
+
+Example:
+    ```python
+    from sifaka import Chain
+    from sifaka.validators import length, prohibited_content
+    from sifaka.models.openai import OpenAIModel
+
+    # Create a model
+    model = OpenAIModel(model_name="gpt-4", api_key="your-api-key")
+
+    # Create validators
+    length_validator = length(min_words=100, max_words=500)
+    content_validator = prohibited_content(prohibited=["harmful", "offensive"])
+
+    # Create a chain with validators
+    chain = (Chain()
+        .with_model(model)
+        .with_prompt("Write a short story about a robot.")
+        .validate_with(length_validator)
+        .validate_with(content_validator)
+    )
+
+    # Run the chain
+    result = chain.run()
+
+    # Check if validation passed
+    if result.passed:
+        print("Validation passed!")
+        print(result.text)
+    else:
+        print("Validation failed!")
+        print(result.validation_results[0].message)
+    ```
 """
 
 from sifaka.validators.base import BaseValidator, ValidatorProtocol, safe_validate

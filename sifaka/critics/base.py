@@ -1,8 +1,41 @@
-"""
-Base critic class for Sifaka.
+"""Base critic class for Sifaka.
 
 This module provides the base critic class that all critics should inherit from.
 It includes consistent error handling and improvement patterns for all critics.
+
+The Critic class implements the Improver protocol and provides a standard
+two-step process for improving text:
+1. Critique the text to identify areas for improvement
+2. Improve the text based on the critique
+
+Example:
+    ```python
+    from sifaka.critics.base import Critic
+    from sifaka.models.openai import OpenAIModel
+
+    class MyCritic(Critic):
+        def _critique(self, text: str) -> Dict[str, Any]:
+            # Implement critique logic
+            return {
+                "needs_improvement": True,
+                "message": "Text needs improvement",
+                "issues": ["Issue 1", "Issue 2"],
+                "suggestions": ["Suggestion 1", "Suggestion 2"]
+            }
+
+        def _improve(self, text: str, critique: Dict[str, Any]) -> str:
+            # Implement improvement logic
+            return "Improved text"
+
+    # Create a model
+    model = OpenAIModel(model_name="gpt-4", api_key="your-api-key")
+
+    # Create a critic
+    critic = MyCritic(model=model)
+
+    # Improve text
+    improved_text, result = critic.improve("Text to improve")
+    ```
 """
 
 import time
@@ -117,16 +150,30 @@ class Critic(Improver):
         logger.debug(f"Successfully configured {self.name}")
 
     def improve(self, text: str) -> tuple[str, SifakaImprovementResult]:
-        """Improve text based on specific criteria.
+        """Improve text using this critic.
+
+        This method analyzes the provided text and generates an improved version
+        based on the critic's improvement strategy. It follows a two-step process:
+        1. Critique the text to identify areas for improvement
+        2. Improve the text based on the critique
 
         Args:
-            text: The text to improve.
+            text (str): The text to improve.
 
         Returns:
-            A tuple of (improved_text, improvement_result).
+            tuple[str, SifakaImprovementResult]: A tuple containing the improved text
+                and a result object with details about the improvement process.
 
         Raises:
-            ImproverError: If the text cannot be improved.
+            ImproverError: If the improvement process encounters an error.
+
+        Example:
+            ```python
+            improved_text, result = critic.improve("Text to improve")
+            print(f"Original: {result.original_text}")
+            print(f"Improved: {result.improved_text}")
+            print(f"Changes made: {result.changes_made}")
+            ```
         """
         start_time = time.time()
 
@@ -244,33 +291,46 @@ class Critic(Improver):
                 },
             )
 
-    def _critique(self, text: str) -> Dict[str, Any]:
+    def _critique(self, text: str) -> Dict[str, Any]:  # noqa
         """Critique text based on specific criteria.
 
+        This method analyzes the provided text and identifies areas for improvement.
+        It should be implemented by subclasses to provide specific critique logic.
+
         Args:
-            text: The text to critique.
+            text (str): The text to critique.
 
         Returns:
-            A dictionary with critique information.
+            Dict[str, Any]: A dictionary with critique information, typically including:
+                - needs_improvement (bool): Whether the text needs improvement
+                - message (str): A summary of the critique
+                - issues (List[str]): Specific issues identified
+                - suggestions (List[str]): Suggestions for improvement
 
         Raises:
             ImproverError: If the text cannot be critiqued.
+            NotImplementedError: If the method is not implemented by a subclass.
         """
         # This method should be overridden by subclasses
         raise NotImplementedError("_critique method must be implemented by subclasses")
 
-    def _improve(self, text: str, critique: Dict[str, Any]) -> str:
+    def _improve(self, text: str, critique: Dict[str, Any]) -> str:  # noqa
         """Improve text based on critique.
 
+        This method generates an improved version of the text based on the critique
+        information. It should be implemented by subclasses to provide specific
+        improvement logic.
+
         Args:
-            text: The text to improve.
-            critique: The critique information.
+            text (str): The text to improve.
+            critique (Dict[str, Any]): The critique information from the _critique method.
 
         Returns:
-            The improved text.
+            str: The improved text.
 
         Raises:
             ImproverError: If the text cannot be improved.
+            NotImplementedError: If the method is not implemented by a subclass.
         """
         # This method should be overridden by subclasses
         raise NotImplementedError("_improve method must be implemented by subclasses")

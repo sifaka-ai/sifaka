@@ -1,13 +1,32 @@
-"""
-Reflexion critic for Sifaka.
+"""Reflexion critic for Sifaka.
 
-This module provides a critic that uses self-reflection to improve text.
+This module provides a critic that uses self-reflection to improve text quality.
+The ReflexionCritic implements the Reflexion approach for improving text through
+self-reflection and iterative refinement.
 
-Based on the paper:
-"Reflexion: Language Agents with Verbal Reinforcement Learning"
-Noah Shinn, Federico Cassano, Edward Berman, Ashwin Gopinath, Karthik Narasimhan, Shunyu Yao
-arXiv:2303.11366 [cs.AI]
-https://arxiv.org/abs/2303.11366
+References:
+    Shinn, N., Cassano, F., Labash, B., Gopinath, A., Narasimhan, K., & Yao, S. (2023).
+    Reflexion: Language Agents with Verbal Reinforcement Learning.
+    arXiv preprint arXiv:2303.11366.
+    https://arxiv.org/abs/2303.11366
+
+Example:
+    ```python
+    from sifaka.critics.reflexion import create_reflexion_critic
+    from sifaka.models.openai import OpenAIModel
+
+    # Create a model
+    model = OpenAIModel(model_name="gpt-4", api_key="your-api-key")
+
+    # Create a reflexion critic
+    critic = create_reflexion_critic(
+        model=model,
+        reflection_rounds=2
+    )
+
+    # Improve text
+    improved_text, result = critic.improve("Text to improve")
+    ```
 """
 
 import json
@@ -26,16 +45,44 @@ logger = logging.getLogger(__name__)
 
 
 class ReflexionCritic(Critic):
-    """Critic that uses self-reflection to improve text.
+    """Critic that uses self-reflection to improve text quality.
 
-    This critic uses a multi-step process where the model reflects on its own
-    output and iteratively improves it.
+    This critic implements the Reflexion approach for improving text through
+    self-reflection and iterative refinement. It uses a multi-step process where
+    the model reflects on its own output and iteratively improves it based on
+    those reflections.
+
+    The process involves:
+    1. Generating an initial critique of the text
+    2. Improving the text based on the critique
+    3. Performing additional reflection rounds to further refine the text
 
     Attributes:
-        model: The model to use for critiquing and improving text.
-        reflection_rounds: The number of reflection rounds to perform.
-        system_prompt: The system prompt to use for the model.
-        temperature: The temperature to use for the model.
+        model (Model): The model used for critiquing and improving text.
+        reflection_rounds (int): The number of reflection rounds to perform.
+        system_prompt (str): The system prompt used for the model.
+        temperature (float): The temperature used for the model.
+
+    Example:
+        ```python
+        from sifaka.critics.reflexion import ReflexionCritic
+        from sifaka.models.openai import OpenAIModel
+
+        # Create a model
+        model = OpenAIModel(model_name="gpt-4", api_key="your-api-key")
+
+        # Create a reflexion critic
+        critic = ReflexionCritic(
+            model=model,
+            reflection_rounds=2,
+            temperature=0.7
+        )
+
+        # Improve text
+        improved_text, result = critic.improve("Text to improve")
+        print(f"Original: {result.original_text}")
+        print(f"Improved: {result.improved_text}")
+        ```
     """
 
     def __init__(
@@ -577,24 +624,53 @@ def create_reflexion_critic(
     temperature: float = 0.7,
     **options: Any,
 ) -> ReflexionCritic:
-    """Create a reflexion critic.
+    """Create a reflexion critic for improving text through self-reflection.
 
-    This factory function creates a ReflexionCritic based on the paper
-    "Reflexion: Language Agents with Verbal Reinforcement Learning" (Shinn et al., 2023).
-    It is registered with the registry system for dependency injection.
+    This factory function creates a ReflexionCritic that implements the Reflexion approach
+    for improving text through self-reflection and iterative refinement. The critic
+    analyzes text, identifies areas for improvement, and iteratively refines the text
+    through multiple rounds of reflection.
+
+    The function is registered with the registry system for dependency injection,
+    allowing it to be used with the Chain class.
 
     Args:
-        model: The model to use for critiquing and improving text.
-        reflection_rounds: The number of reflection rounds to perform.
-        system_prompt: The system prompt to use for the model.
-        temperature: The temperature to use for the model.
-        **options: Additional options to pass to the ReflexionCritic.
+        model (Model): The model to use for critiquing and improving text.
+        reflection_rounds (int): The number of reflection rounds to perform.
+        system_prompt (Optional[str]): The system prompt to use for the model.
+        temperature (float): The temperature to use for the model.
+        **options (Any): Additional options to pass to the ReflexionCritic.
 
     Returns:
-        A ReflexionCritic instance.
+        ReflexionCritic: A configured ReflexionCritic instance.
 
     Raises:
-        ImproverError: If the critic cannot be created.
+        ImproverError: If the model is not provided or if initialization fails.
+
+    Example:
+        ```python
+        from sifaka.critics.reflexion import create_reflexion_critic
+        from sifaka.models.openai import OpenAIModel
+
+        # Create a model
+        model = OpenAIModel(model_name="gpt-4", api_key="your-api-key")
+
+        # Create a reflexion critic
+        critic = create_reflexion_critic(
+            model=model,
+            reflection_rounds=2,
+            temperature=0.7
+        )
+
+        # Improve text
+        improved_text, result = critic.improve("Text to improve")
+        ```
+
+    References:
+        Shinn, N., Cassano, F., Labash, B., Gopinath, A., Narasimhan, K., & Yao, S. (2023).
+        Reflexion: Language Agents with Verbal Reinforcement Learning.
+        arXiv preprint arXiv:2303.11366.
+        https://arxiv.org/abs/2303.11366
     """
     start_time = time.time()
 

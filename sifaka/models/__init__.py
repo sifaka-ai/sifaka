@@ -1,8 +1,33 @@
-"""
-Model implementations for different LLM providers.
+"""Model implementations for different LLM providers.
 
-This module provides model implementations for various LLM providers.
-Each model implementation registers itself with the registry.
+This module provides model implementations for various language model providers,
+including OpenAI, Anthropic, and Google Gemini. Each model implementation follows
+the Model protocol and registers itself with the registry system for dependency
+injection.
+
+The models can be created either directly through their constructors or through
+the create_model factory function, which uses the registry to create the appropriate
+model based on the provider prefix.
+
+Example:
+    ```python
+    from sifaka.models import create_model
+    from sifaka.models.openai import OpenAIModel
+
+    # Create a model directly
+    model1 = OpenAIModel(model_name="gpt-4", api_key="your-api-key")
+
+    # Create a model using the factory function
+    model2 = create_model("openai:gpt-4", api_key="your-api-key")
+
+    # Generate text
+    response = model1.generate("Write a short story about a robot.")
+    print(response)
+
+    # Count tokens
+    token_count = model1.count_tokens("This is a test.")
+    print(f"Token count: {token_count}")
+    ```
 """
 
 from typing import Any
@@ -44,7 +69,32 @@ except ImportError:
 # Register mock model factory
 @register_model("mock")
 def create_mock_model(model_name: str, **options: Any) -> Any:
-    """Create a mock model for testing."""
+    """Create a mock model for testing.
+
+    This function creates a simple mock model that can be used for testing
+    without requiring actual API calls to language model providers. The mock
+    model implements the same interface as real models but returns a predefined
+    response.
+
+    Args:
+        model_name (str): The name of the mock model.
+        **options (Any): Additional options to pass to the mock model.
+
+    Returns:
+        Any: A mock model instance that implements the Model protocol.
+
+    Example:
+        ```python
+        from sifaka.models import create_model
+
+        # Create a mock model
+        model = create_model("mock:test-model")
+
+        # Generate text
+        response = model.generate("Write a short story about a robot.")
+        print(response)  # "Mock response from test-model for: Write a short story about a robot."
+        ```
+    """
 
     class MockModel:
         def __init__(self, model_name: str, **kwargs: Any) -> None:
