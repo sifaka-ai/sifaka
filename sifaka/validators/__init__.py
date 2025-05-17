@@ -13,11 +13,8 @@ from sifaka.validators.format import (
     create_markdown_format_validator,
     create_custom_format_validator,
 )
-from sifaka.validators.critics import (
-    Critic,
-    ClarityAndCoherenceCritic,
-    FactualAccuracyCritic,
-)
+
+# Critics have been moved to their own directory
 
 __all__ = [
     # Basic validators
@@ -34,21 +31,4 @@ __all__ = [
     "create_json_format_validator",
     "create_markdown_format_validator",
     "create_custom_format_validator",
-    # Critics
-    "Critic",
-    "ClarityAndCoherenceCritic",
-    "FactualAccuracyCritic",
-    "clarity",
-    "factual_accuracy",
 ]
-
-
-# Convenience functions for creating critics
-def clarity(model: str = "openai:gpt-3.5-turbo", **options):
-    """Create a clarity and coherence critic."""
-    return ClarityAndCoherenceCritic(model, **options)
-
-
-def factual_accuracy(model: str = "openai:gpt-3.5-turbo", **options):
-    """Create a factual accuracy critic."""
-    return FactualAccuracyCritic(model, **options)

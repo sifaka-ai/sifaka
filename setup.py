@@ -30,10 +30,10 @@ setup(
     name="sifaka",
     version="0.1.0",
     description="Sifaka - Simplified AI Text Processing Framework",
-    author="Sifaka Team",
-    author_email="info@sifaka.ai",
+    author="Evan Volgas",
+    author_email="evan.volgas@gmail.com",
     packages=find_packages(),
-    python_requires=">=3.8",
+    python_requires=">=3.11",
     install_requires=requirements,
     extras_require=extras_require,
     classifiers=[
@@ -41,9 +41,6 @@ setup(
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
 )
