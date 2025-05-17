@@ -97,6 +97,14 @@ class Registry:
                 "sifaka.critics.n_critics",
                 "sifaka.critics.self_rag",
                 "sifaka.critics.self_refine",
+                "sifaka.critics.retrieval_enhanced",
+                "sifaka.critics.retrieval_factory",
+            ],
+            "retriever": [
+                "sifaka.retrievers.base",
+                "sifaka.retrievers.elasticsearch_retriever",
+                "sifaka.retrievers.milvus_retriever",
+                "sifaka.retrievers.augmenter",
             ],
         }
 

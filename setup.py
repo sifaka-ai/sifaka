@@ -16,6 +16,9 @@ requirements = [
 extras_require = {
     # Model providers
     "openai": ["tiktoken>=0.9.0"],
+    # Retrievers
+    "elasticsearch": ["elasticsearch>=8.0.0"],
+    "milvus": ["pymilvus>=2.0.0"],
     # Dev tools
     "dev": [
         "pytest>=8.0.0",
@@ -25,6 +28,17 @@ extras_require = {
         "ruff>=0.1.0",
     ],
 }
+
+# Add a retrievers group that includes all retriever dependencies
+extras_require["retrievers"] = [
+    dep
+    for name, deps in extras_require.items()
+    if name in ["elasticsearch", "milvus"]
+    for dep in deps
+]
+
+# Add an 'all' extra that includes everything
+extras_require["all"] = [dep for name, deps in extras_require.items() for dep in deps]
 
 setup(
     name="sifaka",

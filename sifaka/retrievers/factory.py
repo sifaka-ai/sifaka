@@ -1,12 +1,13 @@
 """
-Factory functions for creating retrievers.
+Factory functions for creating retrievers and retrieval augmenters.
 
-This module provides factory functions for creating retrievers.
+This module provides factory functions for creating retrievers and retrieval augmenters.
 """
 
 from typing import List, Dict, Any, Optional, Callable, Union
 import logging
 
+from sifaka.models.base import Model
 from sifaka.retrievers.base import Retriever
 from sifaka.errors import RetrieverError
 
@@ -43,6 +44,7 @@ def create_elasticsearch_retriever(
     """
     try:
         from sifaka.retrievers.elasticsearch_retriever import ElasticsearchRetriever
+
         return ElasticsearchRetriever(
             es_host=es_host,
             es_index=es_index,
@@ -91,6 +93,7 @@ def create_milvus_retriever(
     """
     try:
         from sifaka.retrievers.milvus_retriever import MilvusRetriever
+
         return MilvusRetriever(
             milvus_host=milvus_host,
             milvus_port=milvus_port,
@@ -106,3 +109,42 @@ def create_milvus_retriever(
         raise RetrieverError(
             "Milvus is not available. Please install it with: pip install pymilvus"
         )
+
+
+def create_retrieval_augmenter(
+    retriever: Union[Retriever, Callable[[str], List[str]]],
+    model: Optional[Model] = None,
+    max_passages: int = 5,
+    max_queries: int = 3,
+    query_temperature: float = 0.3,
+    include_query_context: bool = True,
+) -> Any:
+    """Create a retrieval augmenter.
+
+    Args:
+        retriever: The retriever to use for retrieving passages.
+        model: Optional model to use for generating queries.
+        max_passages: Maximum number of passages to retrieve.
+        max_queries: Maximum number of queries to generate.
+        query_temperature: Temperature to use for query generation.
+        include_query_context: Whether to include the query as context with each passage.
+
+    Returns:
+        A retrieval augmenter.
+
+    Raises:
+        RetrieverError: If the retriever is not provided.
+    """
+    try:
+        from sifaka.retrievers.augmenter import RetrievalAugmenter
+
+        return RetrievalAugmenter(
+            retriever=retriever,
+            model=model,
+            max_passages=max_passages,
+            max_queries=max_queries,
+            query_temperature=query_temperature,
+            include_query_context=include_query_context,
+        )
+    except ImportError as e:
+        raise RetrieverError(f"Error creating retrieval augmenter: {str(e)}")
