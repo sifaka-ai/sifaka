@@ -18,6 +18,11 @@ from sifaka.validators.classifier import (
     classifier_validator,
     create_classifier_validator,
 )
+from sifaka.validators.guardrails import (
+    GuardrailsValidator,
+    guardrails_validator,
+    create_guardrails_validator,
+)
 
 # Critics have been moved to their own directory
 
@@ -40,4 +45,8 @@ __all__ = [
     "ClassifierValidator",
     "classifier_validator",
     "create_classifier_validator",
+    # GuardrailsAI validators
+    "GuardrailsValidator",
+    "guardrails_validator",
+    "create_guardrails_validator",
 ]

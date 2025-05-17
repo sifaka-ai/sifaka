@@ -21,11 +21,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from sifaka.chain import Chain
 from sifaka.models.base import create_model
 from sifaka.validators import length, factual_accuracy
-from sifaka.critics.lac import create_lac_critic
 from sifaka.critics.reflexion import create_reflexion_critic
 from sifaka.critics.constitutional import create_constitutional_critic
 from sifaka.critics.self_rag import create_self_rag_critic
 from sifaka.critics.self_refine import create_self_refine_critic
+from sifaka.critics.n_critics import create_n_critics_critic
 
 
 # Set page configuration
@@ -83,14 +83,13 @@ def create_chain(
         provider, model_id = model_name.split(":", 1)
         model = create_model(provider, model_id)
 
-        if improver_type == "lac":
-            lac_critic = create_lac_critic(
+        if improver_type == "n_critics":
+            n_critics_critic = create_n_critics_critic(
                 model=model,
                 temperature=options.get("temperature", 0.7),
-                feedback_weight=improver_config.get("feedback_weight", 0.7),
-                max_improvement_iterations=improver_config.get("max_iterations", 2),
+                max_iterations=improver_config.get("max_iterations", 2),
             )
-            chain.improve_with(lac_critic)
+            chain.improve_with(n_critics_critic)
 
         elif improver_type == "reflexion":
             reflexion_critic = create_reflexion_critic(
@@ -230,21 +229,14 @@ def main():
     st.sidebar.subheader("Improvers")
     improver_type = st.sidebar.selectbox(
         "Improver Type",
-        ["None", "LAC", "Reflexion", "Constitutional", "Self-RAG", "Self-Refine"],
+        ["None", "N-Critics", "Reflexion", "Constitutional", "Self-RAG", "Self-Refine"],
         index=1,
     )
 
     # Additional options based on improver type
     improver_options = {}
 
-    if improver_type == "LAC":
-        improver_options["feedback_weight"] = st.sidebar.slider(
-            "Feedback Weight",
-            min_value=0.0,
-            max_value=1.0,
-            value=0.7,
-            step=0.1,
-        )
+    if improver_type == "N-Critics":
         improver_options["max_iterations"] = st.sidebar.slider(
             "Max Iterations",
             min_value=1,

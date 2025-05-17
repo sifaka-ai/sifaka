@@ -75,3 +75,9 @@ class StreamingError(SifakaError):
     """Raised when there is an error with streaming."""
 
     pass
+
+
+class RetrieverError(SifakaError):
+    """Raised when there is an error with retrieval operations."""
+
+    pass

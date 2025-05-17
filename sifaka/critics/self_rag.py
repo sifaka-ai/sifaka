@@ -11,12 +11,16 @@ https://arxiv.org/abs/2310.11511
 """
 
 import json
-from typing import Dict, Any, Optional, List, Callable
+import logging
+from typing import Dict, Any, Optional, List, Callable, Union
 
 from sifaka.models.base import Model
 from sifaka.critics.base import Critic
-from sifaka.errors import ImproverError
+from sifaka.errors import ImproverError, RetrieverError
 from sifaka.registry import register_improver
+from sifaka.retrievers.base import Retriever
+
+logger = logging.getLogger(__name__)
 
 
 class SelfRAGCritic(Critic):
@@ -27,26 +31,32 @@ class SelfRAGCritic(Critic):
 
     Attributes:
         model: The model to use for critiquing and improving text.
-        retriever: A function that retrieves relevant information.
+        retriever: A retriever object or function that retrieves relevant information.
         system_prompt: The system prompt to use for the model.
         temperature: The temperature to use for the model.
+        reflection_enabled: Whether to enable reflection on retrieved information.
+        max_passages: Maximum number of passages to retrieve.
     """
 
     def __init__(
         self,
         model: Model,
-        retriever: Callable[[str], List[str]],
+        retriever: Union[Retriever, Callable[[str], List[str]]],
         system_prompt: Optional[str] = None,
         temperature: float = 0.7,
+        reflection_enabled: bool = True,
+        max_passages: int = 5,
         **options: Any,
     ):
         """Initialize the Self-RAG critic.
 
         Args:
             model: The model to use for critiquing and improving text.
-            retriever: A function that takes a query and returns a list of relevant passages.
+            retriever: A retriever object or function that retrieves relevant information.
             system_prompt: The system prompt to use for the model.
             temperature: The temperature to use for the model.
+            reflection_enabled: Whether to enable reflection on retrieved information.
+            max_passages: Maximum number of passages to retrieve.
             **options: Additional options to pass to the model.
 
         Raises:
@@ -56,15 +66,18 @@ class SelfRAGCritic(Critic):
         if system_prompt is None:
             system_prompt = (
                 "You are an expert editor who specializes in information retrieval and generation. "
-                "Your goal is to improve text by retrieving and incorporating relevant information."
+                "Your goal is to improve text by retrieving and incorporating relevant information. "
+                "Always provide accurate information based on the retrieved passages."
             )
 
         super().__init__(model, system_prompt, temperature, **options)
 
         if not retriever:
-            raise ImproverError("Retriever function not provided")
+            raise ImproverError("Retriever not provided")
 
         self.retriever = retriever
+        self.reflection_enabled = reflection_enabled
+        self.max_passages = max_passages
 
     def _critique(self, text: str) -> Dict[str, Any]:
         """Critique text using the Self-RAG technique.
@@ -129,20 +142,57 @@ class SelfRAGCritic(Critic):
 
             # Retrieve relevant passages for each query
             retrieved_passages = []
-            for query in critique["queries"]:
-                passages = self.retriever(query)
-                retrieved_passages.extend(passages)
+            for query in critique["queries"][: self.max_passages]:  # Limit number of queries
+                try:
+                    # Handle both function-based retrievers and Retriever objects
+                    if hasattr(self.retriever, "retrieve"):
+                        passages = self.retriever.retrieve(query)
+                    else:
+                        passages = self.retriever(query)
+
+                    # Add the query as context to each passage
+                    passages = [f"Query: {query}\n\nPassage: {passage}" for passage in passages]
+                    retrieved_passages.extend(passages)
+                except Exception as e:
+                    logger.warning(f"Error retrieving passages for query '{query}': {str(e)}")
+                    continue
 
             # Remove duplicates while preserving order
             seen = set()
             unique_passages = []
             for passage in retrieved_passages:
-                if passage not in seen:
-                    seen.add(passage)
+                passage_key = passage.strip()
+                if passage_key not in seen and passage_key:
+                    seen.add(passage_key)
                     unique_passages.append(passage)
+
+            # Limit the number of passages to avoid context length issues
+            unique_passages = unique_passages[: self.max_passages]
 
             # Add retrieved passages to critique
             critique["retrieved_passages"] = unique_passages
+
+            # Generate reflection on retrieved passages if enabled
+            if self.reflection_enabled and unique_passages:
+                reflection_prompt = f"""
+                Please analyze the following retrieved passages in relation to the text:
+
+                Text to improve:
+                ```
+                {text}
+                ```
+
+                Retrieved passages:
+                {self._format_passages(unique_passages)}
+
+                Provide a brief reflection on how these passages can be used to improve the text.
+                Focus on factual accuracy, missing context, and supporting evidence.
+                """
+
+                reflection = self._generate(reflection_prompt, temperature=0.3)
+                critique["reflection"] = reflection
+            else:
+                critique["reflection"] = ""
 
             # Add issues field for compatibility with base Critic
             critique["issues"] = critique.get("areas_for_improvement", [])
@@ -162,9 +212,22 @@ class SelfRAGCritic(Critic):
                 "retrieved_passages": [],
                 "issues": ["General improvement"],
                 "suggestions": ["Incorporate relevant information"],
+                "reflection": "",
             }
         except Exception as e:
+            logger.error(f"Error critiquing text: {str(e)}")
             raise ImproverError(f"Error critiquing text: {str(e)}")
+
+    def _format_passages(self, passages: List[str]) -> str:
+        """Format a list of passages for inclusion in a prompt.
+
+        Args:
+            passages: List of passages to format
+
+        Returns:
+            Formatted passages as a string
+        """
+        return "\n\n".join(f"Passage {i+1}:\n{passage}" for i, passage in enumerate(passages))
 
     def _improve(self, text: str, critique: Dict[str, Any]) -> str:
         """Improve text using the Self-RAG technique.
@@ -184,15 +247,21 @@ class SelfRAGCritic(Critic):
 
         if not retrieved_passages:
             # No passages retrieved, return original text
+            logger.warning("No passages retrieved for improvement, returning original text")
             return text
-
-        passages_str = "\n\n".join(
-            f"Passage {i+1}:\n{passage}" for i, passage in enumerate(retrieved_passages)
-        )
 
         # Format areas for improvement
         areas = critique.get("areas_for_improvement", [])
         areas_str = "\n".join(f"- {area}" for area in areas)
+
+        # Include reflection if available
+        reflection = critique.get("reflection", "")
+        reflection_section = ""
+        if reflection:
+            reflection_section = f"""
+            Reflection on retrieved information:
+            {reflection}
+            """
 
         prompt = f"""
         Please improve the following text by incorporating relevant information from the retrieved passages:
@@ -204,15 +273,17 @@ class SelfRAGCritic(Critic):
 
         Areas for improvement:
         {areas_str}
-
+        {reflection_section}
         Retrieved passages:
-        {passages_str}
+        {self._format_passages(retrieved_passages)}
 
         Instructions:
         1. Incorporate relevant information from the passages to improve the text
         2. Ensure the improved text is coherent and well-structured
         3. Maintain the original style and tone
         4. Do not add information that is not supported by the passages
+        5. Cite the passage number when incorporating information (e.g., [Passage 1])
+        6. Focus on addressing the areas for improvement identified above
 
         Improved text:
         """
@@ -227,17 +298,49 @@ class SelfRAGCritic(Critic):
             if improved_text.startswith("```") and improved_text.endswith("```"):
                 improved_text = improved_text[3:-3].strip()
 
+            # If reflection is enabled, generate a final reflection on the improvement
+            if self.reflection_enabled:
+                final_reflection_prompt = f"""
+                Please analyze the following original text and the improved version:
+
+                Original text:
+                ```
+                {text}
+                ```
+
+                Improved text:
+                ```
+                {improved_text}
+                ```
+
+                Provide a brief reflection on how the text was improved:
+                1. What information was added?
+                2. What issues were addressed?
+                3. Is the improved text more accurate and informative?
+
+                Keep your reflection concise (3-5 sentences).
+                """
+
+                try:
+                    final_reflection = self._generate(final_reflection_prompt, temperature=0.3)
+                    logger.info(f"Final reflection on improvement: {final_reflection}")
+                except Exception as e:
+                    logger.warning(f"Error generating final reflection: {str(e)}")
+
             return improved_text
         except Exception as e:
+            logger.error(f"Error improving text: {str(e)}")
             raise ImproverError(f"Error improving text: {str(e)}")
 
 
 @register_improver("self_rag")
 def create_self_rag_critic(
     model: Model,
-    retriever: Callable[[str], List[str]],
+    retriever: Union[Retriever, Callable[[str], List[str]]],
     system_prompt: Optional[str] = None,
     temperature: float = 0.7,
+    reflection_enabled: bool = True,
+    max_passages: int = 5,
     **options: Any,
 ) -> SelfRAGCritic:
     """Create a Self-RAG critic.
@@ -248,9 +351,11 @@ def create_self_rag_critic(
 
     Args:
         model: The model to use for critiquing and improving text.
-        retriever: A function that takes a query and returns a list of relevant passages.
+        retriever: A retriever object or function that retrieves relevant information.
         system_prompt: The system prompt to use for the model.
         temperature: The temperature to use for the model.
+        reflection_enabled: Whether to enable reflection on retrieved information.
+        max_passages: Maximum number of passages to retrieve.
         **options: Additional options to pass to the SelfRAGCritic.
 
     Returns:
@@ -261,5 +366,7 @@ def create_self_rag_critic(
         retriever=retriever,
         system_prompt=system_prompt,
         temperature=temperature,
+        reflection_enabled=reflection_enabled,
+        max_passages=max_passages,
         **options,
     )
