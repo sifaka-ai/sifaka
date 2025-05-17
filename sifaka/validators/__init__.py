@@ -2,6 +2,7 @@
 Validation components for ensuring LLM outputs meet requirements.
 """
 
+from sifaka.validators.base import BaseValidator, ValidatorProtocol, safe_validate
 from sifaka.validators.length import LengthValidator, length, create_length_validator
 from sifaka.validators.content import ContentValidator, prohibited_content, create_content_validator
 from sifaka.validators.format import (
@@ -27,6 +28,10 @@ from sifaka.validators.guardrails import (
 # Critics have been moved to their own directory
 
 __all__ = [
+    # Base validator
+    "BaseValidator",
+    "ValidatorProtocol",
+    "safe_validate",
     # Basic validators
     "LengthValidator",
     "length",

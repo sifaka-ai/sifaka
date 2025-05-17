@@ -133,17 +133,56 @@ class Registry:
 
         Args:
             component_type: The type of component (e.g., "model", "validator").
+
+        Raises:
+            ImportError: If a critical module cannot be imported.
         """
+        import time
+
+        start_time = time.time()
+
+        # Skip if already initialized
         if component_type in self._initialized_types:
+            logger.debug(f"Component type '{component_type}' already initialized, skipping")
             return
 
+        logger.debug(f"Initializing component type '{component_type}'")
+
+        # Import modules for this component type
         if component_type in self._lazy_imports:
+            import_errors = []
+            modules_imported = 0
+
             for module_name in self._lazy_imports[component_type]:
                 try:
                     importlib.import_module(module_name)
-                except ImportError:
-                    logger.debug(f"Could not import {module_name}")
+                    modules_imported += 1
+                    logger.debug(f"Successfully imported {module_name}")
+                except ImportError as e:
+                    import_errors.append((module_name, str(e)))
+                    logger.debug(f"Could not import {module_name}: {str(e)}")
+                except Exception as e:
+                    import_errors.append((module_name, f"{type(e).__name__}: {str(e)}"))
+                    logger.warning(f"Error importing {module_name}: {type(e).__name__}: {str(e)}")
 
+            # Log summary of imports
+            if import_errors:
+                error_modules = [e[0] for e in import_errors]
+                logger.warning(
+                    f"Failed to import {len(import_errors)} modules for component type '{component_type}': {error_modules}"
+                )
+
+            # Calculate processing time
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+            logger.debug(
+                f"Imported {modules_imported}/{len(self._lazy_imports[component_type])} modules "
+                f"for component type '{component_type}' in {processing_time:.2f}ms"
+            )
+        else:
+            logger.debug(f"No modules to import for component type '{component_type}'")
+
+        # Mark as initialized
         self._initialized_types.add(component_type)
         logger.debug(f"Initialized component type '{component_type}'")
 
@@ -399,8 +438,42 @@ def initialize_all() -> None:
     This function imports all modules for all component types to ensure
     that all components are registered. It is useful for applications
     that want to preload all components.
-    """
-    for component_type in _registry._lazy_imports.keys():
-        _registry._initialize_component_type(component_type)
 
-    logger.debug("All component types initialized")
+    Raises:
+        ImportError: If critical modules cannot be imported.
+    """
+    import time
+
+    start_time = time.time()
+
+    logger.debug("Initializing all component types")
+
+    # Track initialization results
+    component_types = list(_registry._lazy_imports.keys())
+    successful_types = []
+    failed_types = []
+
+    # Initialize each component type
+    for component_type in component_types:
+        try:
+            _registry._initialize_component_type(component_type)
+            successful_types.append(component_type)
+        except Exception as e:
+            failed_types.append((component_type, str(e)))
+            logger.error(f"Failed to initialize component type '{component_type}': {str(e)}")
+
+    # Calculate processing time
+    processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
+
+    # Log summary
+    if failed_types:
+        failed_type_names = [t[0] for t in failed_types]
+        logger.warning(
+            f"Initialized {len(successful_types)}/{len(component_types)} component types "
+            f"in {processing_time:.2f}ms. Failed types: {failed_type_names}"
+        )
+    else:
+        logger.debug(
+            f"Successfully initialized all {len(component_types)} component types "
+            f"in {processing_time:.2f}ms"
+        )

@@ -222,37 +222,210 @@ class Chain:
                 print(result.validation_results[0].message)
             ```
         """
+        import logging
+        import time
+        from sifaka.utils.error_handling import chain_context, log_error
+
+        logger = logging.getLogger(__name__)
+
+        # Check configuration
         if not self._model:
-            raise ChainError("Model not specified")
+            raise ChainError(
+                message="Model not specified",
+                component="Chain",
+                operation="run",
+                suggestions=["Use with_model() to specify a model before running the chain"],
+                metadata={"prompt_specified": self._prompt is not None},
+            )
+
         if not self._prompt:
-            raise ChainError("Prompt not specified")
+            raise ChainError(
+                message="Prompt not specified",
+                component="Chain",
+                operation="run",
+                suggestions=["Use with_prompt() to specify a prompt before running the chain"],
+                metadata={"model_specified": self._model is not None},
+            )
 
-        # Generate initial text
-        text = self._model.generate(self._prompt, **self._options)
+        # Start timing
+        start_time = time.time()
 
-        # Validate text
-        validation_results = []
-        for validator in self._validators:
-            result = validator.validate(text)
-            validation_results.append(result)
-            if not result.passed:
-                return Result(
-                    text=text,
-                    passed=False,
-                    validation_results=validation_results,
-                    improvement_results=[],
-                )
-
-        # Improve text
-        improvement_results = []
-        for improver in self._improvers:
-            improved_text, result = improver.improve(text)
-            improvement_results.append(result)
-            text = improved_text
-
-        return Result(
-            text=text,
-            passed=True,
-            validation_results=validation_results,
-            improvement_results=improvement_results,
+        # Log chain execution start
+        logger.debug(
+            f"Starting chain execution with model={self._model.__class__.__name__}, "
+            f"prompt_length={len(self._prompt)}, "
+            f"validators={len(self._validators)}, "
+            f"improvers={len(self._improvers)}"
         )
+
+        try:
+            # Generate initial text
+            with chain_context(
+                component="Chain",
+                operation="generation",
+                message_prefix="Failed to generate text",
+                suggestions=["Check the model configuration", "Verify the prompt format"],
+                metadata={
+                    "model_type": self._model.__class__.__name__,
+                    "prompt_length": len(self._prompt),
+                    "options": self._options,
+                },
+            ):
+                text = self._model.generate(self._prompt, **self._options)
+                logger.debug(f"Generated text of length {len(text)}")
+
+            # Validate text
+            validation_results = []
+            for i, validator in enumerate(self._validators):
+                try:
+                    with chain_context(
+                        component="Chain",
+                        operation=f"validation_{i}",
+                        message_prefix=f"Failed to validate text with {validator.__class__.__name__}",
+                        suggestions=["Check the validator configuration", "Verify the text format"],
+                        metadata={
+                            "validator_type": validator.__class__.__name__,
+                            "text_length": len(text),
+                            "validator_index": i,
+                        },
+                    ):
+                        result = validator.validate(text)
+                        validation_results.append(result)
+                        logger.debug(
+                            f"Validation {i} with {validator.__class__.__name__}: "
+                            f"passed={result.passed}"
+                        )
+
+                        if not result.passed:
+                            # Log validation failure
+                            logger.info(
+                                f"Chain execution stopped at validator {i} ({validator.__class__.__name__}): "
+                                f"{result.message}"
+                            )
+
+                            # Return early with failed result
+                            execution_time = time.time() - start_time
+                            return Result(
+                                text=text,
+                                passed=False,
+                                validation_results=validation_results,
+                                improvement_results=[],
+                                execution_time_ms=execution_time * 1000,
+                            )
+                except Exception as e:
+                    # Log the error
+                    log_error(e, logger, component="Chain", operation=f"validation_{i}")
+
+                    # Add the error to validation results
+                    from sifaka.results import ValidationResult
+
+                    error_result = ValidationResult(
+                        passed=False,
+                        message=f"Validation error: {str(e)}",
+                        details={"error_type": type(e).__name__},
+                        issues=[
+                            f"Validator {validator.__class__.__name__} failed with error: {str(e)}"
+                        ],
+                        suggestions=["Check the validator configuration", "Verify the text format"],
+                    )
+                    validation_results.append(error_result)
+
+                    # Return early with failed result
+                    execution_time = time.time() - start_time
+                    return Result(
+                        text=text,
+                        passed=False,
+                        validation_results=validation_results,
+                        improvement_results=[],
+                        execution_time_ms=execution_time * 1000,
+                    )
+
+            # Improve text
+            improvement_results = []
+            for i, improver in enumerate(self._improvers):
+                try:
+                    with chain_context(
+                        component="Chain",
+                        operation=f"improvement_{i}",
+                        message_prefix=f"Failed to improve text with {improver.__class__.__name__}",
+                        suggestions=["Check the improver configuration", "Verify the text format"],
+                        metadata={
+                            "improver_type": improver.__class__.__name__,
+                            "text_length": len(text),
+                            "improver_index": i,
+                        },
+                    ):
+                        improved_text, result = improver.improve(text)
+                        improvement_results.append(result)
+                        logger.debug(
+                            f"Improvement {i} with {improver.__class__.__name__}: "
+                            f"changes_made={result.changes_made}, "
+                            f"text_length_before={len(text)}, "
+                            f"text_length_after={len(improved_text)}"
+                        )
+                        text = improved_text
+                except Exception as e:
+                    # Log the error
+                    log_error(e, logger, component="Chain", operation=f"improvement_{i}")
+
+                    # Add the error to improvement results
+                    from sifaka.results import ImprovementResult
+
+                    error_result = ImprovementResult(
+                        original_text=text,
+                        improved_text=text,
+                        changes_made=False,
+                        message=f"Improvement error: {str(e)}",
+                        details={"error_type": type(e).__name__},
+                    )
+                    improvement_results.append(error_result)
+
+                    # Continue with the next improver
+                    continue
+
+            # Calculate execution time
+            execution_time = time.time() - start_time
+
+            # Log successful chain execution
+            logger.info(
+                f"Chain execution completed successfully in {execution_time:.2f}s: "
+                f"validators_passed={len(validation_results)}, "
+                f"improvements_applied={len(improvement_results)}, "
+                f"final_text_length={len(text)}"
+            )
+
+            # Return successful result
+            return Result(
+                text=text,
+                passed=True,
+                validation_results=validation_results,
+                improvement_results=improvement_results,
+                execution_time_ms=execution_time * 1000,
+            )
+
+        except Exception as e:
+            # Log the error
+            log_error(e, logger, component="Chain", operation="run")
+
+            # Calculate execution time
+            execution_time = time.time() - start_time
+
+            # Raise as ChainError with more context
+            raise ChainError(
+                message=f"Chain execution failed: {str(e)}",
+                component="Chain",
+                operation="run",
+                suggestions=[
+                    "Check the model configuration",
+                    "Verify the prompt format",
+                    "Check the validator and improver configurations",
+                ],
+                metadata={
+                    "model_type": self._model.__class__.__name__,
+                    "prompt_length": len(self._prompt),
+                    "validators_count": len(self._validators),
+                    "improvers_count": len(self._improvers),
+                    "execution_time": execution_time,
+                    "error_type": type(e).__name__,
+                },
+            )
