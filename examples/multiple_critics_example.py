@@ -44,7 +44,7 @@ def main():
 
     self_refine_critic = create_self_refine_critic(
         model=model,
-        max_refinement_iterations=2,
+        max_refinement_iterations=1,
     )
 
     constitutional_critic = create_constitutional_critic(
@@ -61,7 +61,7 @@ def main():
         Chain()
         .with_model(model)
         .with_prompt("Explain how machine learning works to someone with no technical background.")
-        .validate_with(length(min_words=100, max_words=300))
+        .validate_with(length(min_words=100, max_words=900))
         .validate_with(prohibited_content(prohibited=["complex", "difficult"]))
         .improve_with(constitutional_critic)  # First apply constitutional principles
         .improve_with(self_refine_critic)  # Then refine the text

@@ -27,6 +27,14 @@ class ToxicityClassifier:
         description: The description of the classifier.
     """
 
+    # Type annotations for instance variables
+    _name: str
+    _description: str
+    _threshold: float
+    _model_name: str
+    _model: Any
+    _initialized: bool
+
     # Toxicity categories and their descriptions
     TOXICITY_CATEGORIES = {
         "toxic": "toxic",
@@ -124,14 +132,12 @@ class ToxicityClassifier:
             # Initialize model if needed
             self._initialize()
 
-            # Get toxicity scores from the model
-            if self._model is None:
-                self._initialize()
-
-            # Check again after initialization
+            # After initialization, model should be available
+            # If not, it's an error
             if self._model is None:
                 raise RuntimeError("Failed to initialize toxicity model")
 
+            # Now we can safely use self._model
             results = self._model.predict(text)
 
             # Convert results to dictionary if needed
@@ -226,14 +232,12 @@ class ToxicityClassifier:
             return results
 
         try:
-            # Get toxicity scores from the model for all non-empty texts
-            if self._model is None:
-                self._initialize()
-
-            # Check again after initialization
+            # After initialization, model should be available
+            # If not, it's an error
             if self._model is None:
                 raise RuntimeError("Failed to initialize toxicity model")
 
+            # Now we can safely use self._model
             batch_results = self._model.predict(non_empty_texts)
 
             # Process each result

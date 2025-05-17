@@ -5,11 +5,12 @@ This module provides an implementation of the Model protocol for Google Gemini m
 """
 
 import os
-from typing import Optional, Any
+from typing import Optional, Any, Dict, Union
 
 try:
     import google.generativeai as genai
     from google.api_core.exceptions import GoogleAPIError, ResourceExhausted, InvalidArgument
+    from google.generativeai.types import GenerationConfig as GenAIGenerationConfig
 
     GEMINI_AVAILABLE = True
 except ImportError:
@@ -17,9 +18,10 @@ except ImportError:
 
 from sifaka.errors import ModelError, ModelAPIError, ConfigurationError
 from sifaka.registry import register_model
+from sifaka.interfaces import Model
 
 
-class GeminiModel:
+class GeminiModel(Model):
     """Google Gemini model implementation.
 
     This class implements the Model protocol for Google Gemini models.
@@ -30,6 +32,12 @@ class GeminiModel:
             GOOGLE_API_KEY environment variable.
         model: The Gemini model instance.
     """
+
+    # Type annotations for instance variables
+    model_name: str
+    api_key: Optional[str]
+    options: Dict[str, Any]
+    model: Any  # genai.GenerativeModel
 
     def __init__(self, model_name: str, api_key: Optional[str] = None, **options: Any):
         """Initialize the Gemini model.
@@ -176,18 +184,25 @@ class GeminiModel:
                     "max_output_tokens": merged_options.get("max_output_tokens"),
                 },
             ):
-                response = self.model.generate_content(prompt, generation_config=merged_options)
+                # Create a proper GenerationConfig object
+                generation_config = GenAIGenerationConfig(**merged_options)
+
+                # Generate content with the proper config
+                response = self.model.generate_content(prompt, generation_config=generation_config)
 
                 # Calculate processing time
                 processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
+                # Extract the response text
+                response_text: str = response.text
+
                 # Log successful generation
                 logger.debug(
                     f"Successfully generated text with Gemini model '{self.model_name}' "
-                    f"in {processing_time:.2f}ms, result length={len(response.text)}"
+                    f"in {processing_time:.2f}ms, result length={len(response_text)}"
                 )
 
-                return response.text
+                return response_text
 
         except ResourceExhausted as e:
             # Log the error
@@ -314,9 +329,11 @@ class GeminiModel:
                 ],
                 metadata={"model_name": self.model_name, "text_length": len(text)},
             ):
-                # Use Gemini's token counting function
-                result = genai.count_tokens(model=self.model_name, prompt=text)
-                token_count = result.total_tokens
+                # Use Gemini's token counting function through the model
+                result = self.model.count_tokens(text)
+
+                # Extract the token count
+                token_count: int = result.total_tokens
 
                 # Calculate processing time
                 processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
@@ -371,9 +388,18 @@ class GeminiModel:
                 },
             )
 
+    def configure(self, **options: Any) -> None:
+        """Configure the model with new options.
+
+        Args:
+            **options: Configuration options to apply to the model.
+        """
+        # Update options
+        self.options.update(options)
+
 
 @register_model("gemini")
-def create_gemini_model(model_name: str, **options: Any) -> GeminiModel:
+def create_gemini_model(model_name: str, **options: Any) -> Model:
     """Create a Google Gemini model instance.
 
     This factory function creates a Google Gemini model instance with the specified

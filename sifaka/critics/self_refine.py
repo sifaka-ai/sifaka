@@ -15,7 +15,7 @@ https://arxiv.org/abs/2303.17651
 import json
 import logging
 import time
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List
 
 from sifaka.models.base import Model
 from sifaka.critics.base import Critic
@@ -256,7 +256,9 @@ class SelfRefineCritic(Critic):
                     f"suggestions_count={len(critique.get('suggestions', []))}"
                 )
 
-                return critique
+                # Explicitly create a Dict[str, Any] to return
+                critique_result: Dict[str, Any] = critique
+                return critique_result
 
         except json.JSONDecodeError as e:
             # Calculate processing time
@@ -267,7 +269,8 @@ class SelfRefineCritic(Critic):
 
             # Failed to parse JSON, create a default response
             logger.warning(f"SelfRefineCritic: Failed to parse JSON in response: {str(e)}")
-            return {
+            # Create a Dict[str, Any] to return
+            json_error_critique: Dict[str, Any] = {
                 "needs_improvement": True,
                 "message": "Unable to parse critique response, but proceeding with improvement",
                 "issues": ["Unable to identify specific issues"],
@@ -277,6 +280,7 @@ class SelfRefineCritic(Critic):
                 "processing_time_ms": processing_time,
                 "error": str(e),
             }
+            return json_error_critique
 
         except Exception as e:
             # Calculate processing time

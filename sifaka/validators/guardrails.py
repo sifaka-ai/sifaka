@@ -43,6 +43,16 @@ class GuardrailsValidator(BaseValidator):
         description: The description of the validator.
     """
 
+    # Type annotations for instance variables
+    _description: str
+    _guard: Any
+    _guardrails: Any
+    _initialized: bool
+    _api_key: Optional[str]
+    _guard_config: Any
+    _validators_config: Optional[List[str]]
+    _validator_args_config: Dict[str, Dict[str, Any]]
+
     def __init__(
         self,
         guard: Any = None,
@@ -51,7 +61,7 @@ class GuardrailsValidator(BaseValidator):
         api_key: Optional[str] = None,
         name: str = "guardrails_validator",
         description: str = "Validates text using GuardrailsAI",
-    ):
+    ) -> None:
         """
         Initialize the GuardrailsAI validator.
 
@@ -169,6 +179,7 @@ class GuardrailsValidator(BaseValidator):
         logger.debug("Loading guardrails-ai library")
 
         try:
+            # Import the module
             guardrails = importlib.import_module("guardrails")
 
             # Calculate processing time
@@ -186,6 +197,7 @@ class GuardrailsValidator(BaseValidator):
                 f"Failed to load guardrails-ai library in {processing_time:.2f}ms: {str(e)}"
             )
 
+            # This will always raise, so mypy knows the function won't return None
             raise ImportError(
                 "guardrails-ai package is required for GuardrailsValidator. "
                 "Install it with: pip install guardrails-ai"
@@ -240,12 +252,10 @@ class GuardrailsValidator(BaseValidator):
                 )
 
                 # Create a new guard
-                if self._guardrails is not None:
-                    self._guard = self._guardrails.Guard()
-                else:
-                    logger.warning(
-                        f"{self.name}: Guardrails module not loaded, cannot create guard"
-                    )
+                # At this point, self._guardrails should be loaded
+                # Type checking doesn't know this, so we need to assert it
+                assert self._guardrails is not None, "Guardrails module not loaded"
+                self._guard = self._guardrails.Guard()
 
                 # Install and add each validator
                 for validator_name in self._validators_config:
@@ -265,22 +275,22 @@ class GuardrailsValidator(BaseValidator):
                         os.environ["GUARDRAILS_API_KEY"] = self._api_key
 
                     try:
-                        if self._guardrails is not None and self._guard is not None:
-                            validator_module = self._guardrails.install(
-                                f"hub://guardrails/{validator_name}"
-                            )
+                        # At this point, self._guardrails and self._guard should be initialized
+                        # Type checking doesn't know this, so we need to assert it
+                        assert self._guardrails is not None, "Guardrails module not loaded"
+                        assert self._guard is not None, "Guard is not initialized"
 
-                            # Get the validator class
-                            validator_class = getattr(
-                                validator_module, self._to_camel_case(validator_name)
-                            )
+                        validator_module = self._guardrails.install(
+                            f"hub://guardrails/{validator_name}"
+                        )
 
-                            # Add the validator to the guard
-                            self._guard = self._guard.use(validator_class, **args)
-                        else:
-                            logger.warning(
-                                f"{self.name}: Guardrails module or guard not initialized, cannot install validator"
-                            )
+                        # Get the validator class
+                        validator_class = getattr(
+                            validator_module, self._to_camel_case(validator_name)
+                        )
+
+                        # Add the validator to the guard
+                        self._guard = self._guard.use(validator_class, **args)
 
                         # Calculate validator processing time
                         validator_time = (time.time() - validator_start_time) * 1000  # ms
@@ -326,12 +336,10 @@ class GuardrailsValidator(BaseValidator):
                 else:
                     # Create an empty guard
                     logger.debug(f"{self.name}: Creating empty guard (no validators specified)")
-                    if self._guardrails is not None:
-                        self._guard = self._guardrails.Guard()
-                    else:
-                        logger.warning(
-                            f"{self.name}: Guardrails module not loaded, cannot create guard"
-                        )
+                    # At this point, self._guardrails should be loaded
+                    # Type checking doesn't know this, so we need to assert it
+                    assert self._guardrails is not None, "Guardrails module not loaded"
+                    self._guard = self._guardrails.Guard()
 
             self._initialized = True
 
@@ -418,6 +426,11 @@ class GuardrailsValidator(BaseValidator):
                         suggestions=["Check if GuardrailsAI is properly installed and configured"],
                     )
 
+                # At this point, we've already checked if self._guard is None earlier
+                # Type checking doesn't know this, so we need to assert it
+                assert self._guard is not None, "Guard is not initialized"
+
+                # Now we can safely use self._guard
                 result = self._guard.parse(text, metadata=metadata)
 
                 # Convert GuardrailsAI result to ValidationResult
@@ -432,8 +445,9 @@ class GuardrailsValidator(BaseValidator):
 
             # Add validation errors if any
             error_messages = []
-            try:
-                if hasattr(result, "validation_errors") and result.validation_errors:
+            # Move this outside the validation_context block to avoid unreachable code
+            if hasattr(result, "validation_errors") and result.validation_errors:
+                try:
                     details["validation_errors"] = result.validation_errors
 
                     # Extract error messages
@@ -444,8 +458,8 @@ class GuardrailsValidator(BaseValidator):
                             error_messages.append(error.message)
                         else:
                             error_messages.append(str(error))
-            except Exception as e:
-                logger.warning(f"{self.name}: Error extracting validation errors: {str(e)}")
+                except Exception as e:
+                    logger.warning(f"{self.name}: Error extracting validation errors: {str(e)}")
 
             # Add fix details if any
             if hasattr(result, "fixed_output") and result.fixed_output:
@@ -532,7 +546,7 @@ def create_guardrails_validator(
     api_key: Optional[str] = None,
     name: str = "guardrails_validator",
     description: str = "Validates text using GuardrailsAI",
-    **_options: Any,  # Unused options
+    **_: Any,  # Unused options
 ) -> GuardrailsValidator:
     """
     Create a GuardrailsAI validator.

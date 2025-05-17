@@ -28,6 +28,15 @@ class SpamClassifier:
         description: The description of the classifier.
     """
 
+    # Type annotations for instance variables
+    _name: str
+    _description: str
+    _model_path: Optional[str]
+    _threshold: float
+    _model: Any
+    _vectorizer: Any
+    _initialized: bool
+
     def __init__(
         self,
         model_path: Optional[str] = None,
@@ -215,11 +224,8 @@ class SpamClassifier:
             # Load numpy
             _, numpy = self._load_scikit_learn()
 
-            # Ensure model and vectorizer are initialized
-            if self._vectorizer is None or self._model is None:
-                self._initialize()
-
-            # Check again after initialization
+            # After initialization, model and vectorizer should be available
+            # If not, it's an error
             if self._vectorizer is None or self._model is None:
                 raise RuntimeError("Failed to initialize spam classifier model")
 
@@ -327,11 +333,8 @@ class SpamClassifier:
             # Load numpy
             _, numpy = self._load_scikit_learn()
 
-            # Ensure model and vectorizer are initialized
-            if self._vectorizer is None or self._model is None:
-                self._initialize()
-
-            # Check again after initialization
+            # After initialization, model and vectorizer should be available
+            # If not, it's an error
             if self._vectorizer is None or self._model is None:
                 raise RuntimeError("Failed to initialize spam classifier model")
 

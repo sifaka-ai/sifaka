@@ -252,38 +252,42 @@ class ConstitutionalCritic(Critic):
                     processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
                     # Create a default response
-                    return {
+                    # Create a Dict[str, Any] to return
+                    default_critique: Dict[str, Any] = {
                         "needs_improvement": True,
                         "message": "Unable to parse critique response, but proceeding with improvement",
                         "violations": ["Unable to identify specific violations"],
                         "suggestions": ["General improvement"],
                         "processing_time_ms": processing_time,
                     }
+                    return default_critique
 
                 # Parse JSON
                 json_str = response[json_start:json_end]
-                critique = json.loads(json_str)
+                critique_data = json.loads(json_str)
 
                 # Ensure all required fields are present
-                critique.setdefault("needs_improvement", True)
-                critique.setdefault("message", "Text needs improvement")
-                critique.setdefault("violations", [])
-                critique.setdefault("suggestions", [])
+                critique_data.setdefault("needs_improvement", True)
+                critique_data.setdefault("message", "Text needs improvement")
+                critique_data.setdefault("violations", [])
+                critique_data.setdefault("suggestions", [])
 
                 # Add issues field for compatibility with base Critic
-                critique["issues"] = critique.get("violations", [])
+                critique_data["issues"] = critique_data.get("violations", [])
 
                 # Calculate processing time
                 processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
-                critique["processing_time_ms"] = processing_time
+                critique_data["processing_time_ms"] = processing_time
 
                 # Log successful critique
                 logger.debug(
                     f"ConstitutionalCritic: Successfully critiqued text in {processing_time:.2f}ms, "
-                    f"found {len(critique['violations'])} violations"
+                    f"found {len(critique_data['violations'])} violations"
                 )
 
-                return critique
+                # Explicitly create a Dict[str, Any] to return
+                critique_result: Dict[str, Any] = critique_data
+                return critique_result
 
         except json.JSONDecodeError as e:
             # Log the error
@@ -296,7 +300,8 @@ class ConstitutionalCritic(Critic):
             logger.warning(
                 f"ConstitutionalCritic: Failed to parse JSON in critique response: {str(e)}"
             )
-            return {
+            # Create a Dict[str, Any] to return
+            json_error_critique: Dict[str, Any] = {
                 "needs_improvement": True,
                 "message": "Unable to parse critique response, but proceeding with improvement",
                 "violations": ["Unable to identify specific violations"],
@@ -305,6 +310,7 @@ class ConstitutionalCritic(Critic):
                 "processing_time_ms": processing_time,
                 "error": str(e),
             }
+            return json_error_critique
 
         except Exception as e:
             # Log the error

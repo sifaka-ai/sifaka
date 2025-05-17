@@ -14,7 +14,7 @@ https://arxiv.org/abs/2310.18679
 import json
 import logging
 import time
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List
 
 from sifaka.models.base import Model
 from sifaka.critics.base import Critic
@@ -408,7 +408,9 @@ class NCriticsCritic(Critic):
                     f"in {processing_time:.2f}ms, score: {critique.get('score', 'N/A')}"
                 )
 
-                return critique
+                # Explicitly create a Dict[str, Any] to return
+                critique_result: Dict[str, Any] = critique
+                return critique_result
 
         except json.JSONDecodeError as e:
             # Calculate processing time
@@ -421,7 +423,8 @@ class NCriticsCritic(Critic):
             logger.warning(
                 f"NCriticsCritic: Failed to parse JSON in response for role: {role[:30]}: {str(e)}"
             )
-            return {
+            # Create a Dict[str, Any] to return
+            json_error_critique: Dict[str, Any] = {
                 "role": role,
                 "needs_improvement": True,
                 "score": 5,
@@ -431,6 +434,7 @@ class NCriticsCritic(Critic):
                 "processing_time_ms": processing_time,
                 "error": str(e),
             }
+            return json_error_critique
 
         except Exception as e:
             # Calculate processing time

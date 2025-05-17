@@ -27,6 +27,14 @@ class ProfanityClassifier:
         description: The description of the classifier.
     """
 
+    # Type annotations for instance variables
+    _name: str
+    _description: str
+    _custom_words: List[str]
+    _censor_char: str
+    _profanity: Any
+    _initialized: bool
+
     def __init__(
         self,
         custom_words: Optional[List[str]] = None,
@@ -114,9 +122,14 @@ class ProfanityClassifier:
         words = text.split()
         profane_words: Set[str] = set()
 
+        # Ensure profanity filter is initialized
         if self._profanity is None:
-            return profane_words
+            self._initialize()
 
+        # After initialization, profanity filter should be available
+        assert self._profanity is not None, "Profanity filter not initialized"
+
+        # Now we can safely use self._profanity
         for word in words:
             if self._profanity.contains_profanity(word):
                 profane_words.add(word)
@@ -155,10 +168,10 @@ class ProfanityClassifier:
             if self._profanity is None:
                 self._initialize()
 
-            # Check again after initialization
-            if self._profanity is None:
-                raise RuntimeError("Failed to initialize profanity filter")
+            # After initialization, profanity filter should be available
+            assert self._profanity is not None, "Failed to initialize profanity filter"
 
+            # Now we can safely use self._profanity
             # Check if text contains profanity
             contains_profanity = self._profanity.contains_profanity(text)
 

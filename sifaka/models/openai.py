@@ -12,6 +12,8 @@ try:
     import tiktoken
     from openai import OpenAI, APIError, RateLimitError, APIConnectionError
 
+    # No need to import specific types for now
+
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
@@ -250,15 +252,19 @@ class OpenAIModel:
             The generated text.
         """
         # Prepare messages
-        messages = [{"role": "user", "content": prompt}]
+        messages = []
 
         # Add system message if provided
         if system_message:
-            messages.insert(0, {"role": "system", "content": system_message})
+            messages.append({"role": "system", "content": system_message})
+
+        # Add user message
+        messages.append({"role": "user", "content": prompt})
 
         # Send request to OpenAI
+        # Type ignore: The OpenAI API expects a specific message format that mypy can't verify
         response = self.client.chat.completions.create(
-            model=self.model_name, messages=messages, **options
+            model=self.model_name, messages=messages, **options  # type: ignore
         )
 
         return response.choices[0].message.content or ""
@@ -276,7 +282,9 @@ class OpenAIModel:
         # Send request to OpenAI
         response = self.client.completions.create(model=self.model_name, prompt=prompt, **options)
 
-        return response.choices[0].text.strip()
+        # Ensure we return a string
+        result = response.choices[0].text
+        return result.strip() if result is not None else ""
 
     def _is_chat_model(self) -> bool:
         """Determine if the model is a chat model.

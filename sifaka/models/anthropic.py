@@ -17,9 +17,10 @@ except ImportError:
 
 from sifaka.errors import ModelError, ModelAPIError, ConfigurationError
 from sifaka.registry import register_model
+from sifaka.interfaces import Model
 
 
-class AnthropicModel:
+class AnthropicModel(Model):
     """Anthropic model implementation.
 
     This class implements the Model protocol for Anthropic models.
@@ -30,6 +31,12 @@ class AnthropicModel:
             ANTHROPIC_API_KEY environment variable.
         client: The Anthropic client instance.
     """
+
+    # Type annotations for instance variables
+    model_name: str
+    api_key: Optional[str]  # Will be set to a non-None value in __init__
+    options: dict[str, Any]
+    client: Any  # Anthropic client
 
     def __init__(self, model_name: str, api_key: Optional[str] = None, **options: Any):
         """Initialize the Anthropic model.
@@ -134,13 +141,16 @@ class AnthropicModel:
                 # Calculate processing time
                 processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
+                # Extract the response text
+                response_text: str = response.content[0].text
+
                 # Log successful generation
                 logger.debug(
                     f"Successfully generated text with Anthropic model '{self.model_name}' "
-                    f"in {processing_time:.2f}ms, result length={len(response.content[0].text)}"
+                    f"in {processing_time:.2f}ms, result length={len(response_text)}"
                 )
 
-                return response.content[0].text
+                return response_text
 
         except RateLimitError as e:
             # Log the error
@@ -268,7 +278,13 @@ class AnthropicModel:
                 metadata={"model_name": self.model_name, "text_length": len(text)},
             ):
                 # Use Anthropic's token counting function
-                token_count = self.client.count_tokens(text)
+                # The count_tokens method is on the messages object in newer versions
+                token_count_response = self.client.messages.count_tokens(
+                    messages=[{"role": "user", "content": text}]
+                )
+
+                # Extract the token count
+                token_count: int = token_count_response.usage.input_tokens
 
                 # Calculate processing time
                 processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
@@ -302,9 +318,18 @@ class AnthropicModel:
                 },
             )
 
+    def configure(self, **options: Any) -> None:
+        """Configure the model with new options.
+
+        Args:
+            **options: Configuration options to apply to the model.
+        """
+        # Update options
+        self.options.update(options)
+
 
 @register_model("anthropic")
-def create_anthropic_model(model_name: str, **options: Any) -> AnthropicModel:
+def create_anthropic_model(model_name: str, **options: Any) -> Model:
     """Create an Anthropic model instance.
 
     This factory function creates an Anthropic model instance with the specified

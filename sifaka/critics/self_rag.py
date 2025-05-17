@@ -391,7 +391,9 @@ class SelfRAGCritic(Critic):
                 f"found {len(critique['issues'])} issues, retrieved {len(unique_passages)} passages"
             )
 
-            return critique
+            # Explicitly create a Dict[str, Any] to return
+            critique_result: Dict[str, Any] = critique
+            return critique_result
 
         except json.JSONDecodeError as e:
             # Log the error
@@ -402,7 +404,8 @@ class SelfRAGCritic(Critic):
 
             # Failed to parse JSON, create a default response
             logger.warning(f"SelfRAGCritic: Failed to parse JSON in critique response: {str(e)}")
-            return {
+            # Create a Dict[str, Any] to return
+            json_error_critique: Dict[str, Any] = {
                 "needs_improvement": True,
                 "message": "Unable to parse critique response, but proceeding with improvement",
                 "queries": ["general information about the topic"],
@@ -414,6 +417,7 @@ class SelfRAGCritic(Critic):
                 "processing_time_ms": processing_time,
                 "error": str(e),
             }
+            return json_error_critique
 
         except RetrieverError as e:
             # Log the error

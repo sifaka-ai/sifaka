@@ -4,15 +4,31 @@ Milvus retriever for Sifaka.
 This module provides a retriever that uses Milvus for document retrieval.
 """
 
-from typing import List, Dict, Any, Optional, Callable, Union
+from typing import List, Dict, Any, Optional, Callable, Union, TYPE_CHECKING
 import logging
 
 # Import Milvus conditionally to avoid hard dependency
 try:
-    from pymilvus import Collection, connections
+    from pymilvus import Collection, connections  # type: ignore
+
     MILVUS_AVAILABLE = True
 except ImportError:
     MILVUS_AVAILABLE = False
+    # Define stub types for type checking when pymilvus is not available
+    if TYPE_CHECKING:
+
+        class Collection:  # type: ignore
+            def __init__(self, name: str) -> None: ...
+            def load(self) -> None: ...
+            def search(
+                self,
+                data: List[List[float]],
+                anns_field: str,
+                param: Dict[str, Any],
+                limit: int,
+                output_fields: List[str],
+            ) -> List[List[Dict[str, Any]]]: ...
+
 
 from sifaka.retrievers.base import Retriever
 from sifaka.errors import RetrieverError
@@ -34,6 +50,14 @@ class MilvusRetriever(Retriever):
         top_k: Number of documents to retrieve.
         metric_type: The metric type to use for similarity search.
     """
+
+    # Type annotations for instance variables
+    collection: Any  # Collection from pymilvus
+    embedding_model: Callable[[str], List[float]]
+    text_field: str
+    embedding_field: str
+    top_k: int
+    metric_type: str
 
     def __init__(
         self,
@@ -97,22 +121,22 @@ class MilvusRetriever(Retriever):
         try:
             # Generate embedding for the query
             query_embedding = self.embedding_model(query)
-            
+
             # Perform vector search in Milvus
             self.collection.load()
             search_params = {
                 "metric_type": self.metric_type,
                 "params": {"nprobe": 10},
             }
-            
+
             results = self.collection.search(
                 data=[query_embedding],
                 anns_field=self.embedding_field,
                 param=search_params,
                 limit=self.top_k,
-                output_fields=[self.text_field]
+                output_fields=[self.text_field],
             )
-            
+
             # Extract document texts from the results
             documents = [hit[self.text_field] for hit in results[0]]
             return documents
