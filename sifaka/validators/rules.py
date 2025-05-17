@@ -51,14 +51,14 @@ def length(
             return ValidationResult(
                 passed=False,
                 message=f"Text is too short ({word_count} words, minimum {min_words})",
-                details=details,
+                _details=details,
             )
 
         if max_words is not None and word_count > max_words:
             return ValidationResult(
                 passed=False,
                 message=f"Text is too long ({word_count} words, maximum {max_words})",
-                details=details,
+                _details=details,
             )
 
         # Check character count constraints
@@ -66,19 +66,19 @@ def length(
             return ValidationResult(
                 passed=False,
                 message=f"Text is too short ({char_count} characters, minimum {min_chars})",
-                details=details,
+                _details=details,
             )
 
         if max_chars is not None and char_count > max_chars:
             return ValidationResult(
                 passed=False,
                 message=f"Text is too long ({char_count} characters, maximum {max_chars})",
-                details=details,
+                _details=details,
             )
 
         # All constraints satisfied
         return ValidationResult(
-            passed=True, message="Text length is within constraints", details=details
+            passed=True, message="Text length is within constraints", _details=details
         )
 
     return validate
@@ -128,7 +128,7 @@ def content(
             return ValidationResult(
                 passed=False,
                 message=f"Text is missing required terms: {', '.join(missing_terms)}",
-                details={"missing_terms": missing_terms},
+                _details={"missing_terms": missing_terms},
             )
 
         # Check for forbidden terms
@@ -138,14 +138,14 @@ def content(
             return ValidationResult(
                 passed=False,
                 message=f"Text contains forbidden terms: {', '.join(found_forbidden_terms)}",
-                details={"forbidden_terms_found": found_forbidden_terms},
+                _details={"forbidden_terms_found": found_forbidden_terms},
             )
 
         # All constraints satisfied
         return ValidationResult(
             passed=True,
             message="Text content meets all requirements",
-            details={
+            _details={
                 "required_terms_found": len(required_terms),
                 "forbidden_terms_avoided": len(forbidden_terms),
             },
@@ -188,13 +188,13 @@ def format(
             return ValidationResult(
                 passed=False,
                 message=f"Text does not match the required format: {format_description}",
-                details={"pattern": compiled_pattern.pattern},
+                _details={"pattern": compiled_pattern.pattern},
             )
 
         return ValidationResult(
             passed=True,
             message=f"Text matches the required format: {format_description}",
-            details={"pattern": compiled_pattern.pattern, "match": match.group(0)},
+            _details={"pattern": compiled_pattern.pattern, "match": match.group(0)},
         )
 
     return validate
@@ -239,7 +239,7 @@ def json_schema(
                 return ValidationResult(
                     passed=False,
                     message=f"Text is not valid JSON: {str(e)}",
-                    details={"error": str(e)},
+                    _details={"error": str(e)},
                 )
 
             # Try to extract JSON from text
@@ -251,7 +251,7 @@ def json_schema(
                     return ValidationResult(
                         passed=False,
                         message="Could not extract JSON from text",
-                        details={"error": str(e)},
+                        _details={"error": str(e)},
                     )
 
                 # Try to parse the extracted JSON
@@ -260,20 +260,20 @@ def json_schema(
                 return ValidationResult(
                     passed=False,
                     message=f"Could not extract valid JSON from text: {str(e2)}",
-                    details={"error": str(e2)},
+                    _details={"error": str(e2)},
                 )
 
         # Validate against schema
         try:
             jsonschema.validate(instance=data, schema=schema)
             return ValidationResult(
-                passed=True, message="JSON is valid and matches the schema", details={"data": data}
+                passed=True, message="JSON is valid and matches the schema", _details={"data": data}
             )
         except jsonschema.exceptions.ValidationError as e:
             return ValidationResult(
                 passed=False,
                 message=f"JSON does not match the schema: {str(e)}",
-                details={"error": str(e), "data": data},
+                _details={"error": str(e), "data": data},
             )
 
     return validate

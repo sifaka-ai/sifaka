@@ -347,7 +347,7 @@ class ClassifierValidator(BaseValidator):
                 return SifakaValidationResult(
                     passed=False,
                     message=f"Classification confidence ({result.confidence:.2f}) below threshold ({self.config.threshold:.2f})",
-                    details=details,
+                    _details=details,
                     score=score,
                     issues=[
                         f"Classification confidence {result.confidence:.2f} is below threshold {self.config.threshold:.2f}"
@@ -370,7 +370,7 @@ class ClassifierValidator(BaseValidator):
                 return SifakaValidationResult(
                     passed=True,
                     message=f"Text classified as '{result.label}' with confidence {result.confidence:.2f}",
-                    details=details,
+                    _details=details,
                     score=score,
                     issues=[],
                     suggestions=[],
@@ -388,7 +388,7 @@ class ClassifierValidator(BaseValidator):
                 return SifakaValidationResult(
                     passed=False,
                     message=f"Text classified as invalid label '{result.label}'",
-                    details=details,
+                    _details=details,
                     score=score,
                     issues=[f"Text classified as '{result.label}', which is not allowed"],
                     suggestions=[
@@ -410,7 +410,7 @@ class ClassifierValidator(BaseValidator):
                 return SifakaValidationResult(
                     passed=False,
                     message=f"Text classified as '{result.label}', which is not in the list of valid labels: {valid_labels_str}",
-                    details=details,
+                    _details=details,
                     score=score,
                     issues=[
                         f"Text classified as '{result.label}', expected one of: {valid_labels_str}"
@@ -433,7 +433,7 @@ class ClassifierValidator(BaseValidator):
                 return SifakaValidationResult(
                     passed=True,
                     message=f"Text classified as '{result.label}', which is not in the list of invalid labels",
-                    details=details,
+                    _details=details,
                     score=score,
                     issues=[],
                     suggestions=[],
@@ -447,7 +447,7 @@ class ClassifierValidator(BaseValidator):
             return SifakaValidationResult(
                 passed=True,
                 message=f"Text classified as '{result.label}' with confidence {result.confidence:.2f}",
-                details=details,
+                _details=details,
                 score=result.confidence,
                 issues=[],
                 suggestions=[],

@@ -184,7 +184,7 @@ class LengthValidator(BaseValidator):
                 return SifakaValidationResult(
                     passed=False,
                     message=f"Text is too short: {word_count} words, minimum {self.min_words} words required",
-                    details={
+                    _details={
                         "word_count": word_count,
                         "min_words": self.min_words,
                         "constraint_violated": "min_words",
@@ -219,7 +219,7 @@ class LengthValidator(BaseValidator):
                 return SifakaValidationResult(
                     passed=False,
                     message=f"Text is too long: {word_count} words, maximum {self.max_words} words allowed",
-                    details={
+                    _details={
                         "word_count": word_count,
                         "max_words": self.max_words,
                         "constraint_violated": "max_words",
@@ -255,7 +255,7 @@ class LengthValidator(BaseValidator):
                 return SifakaValidationResult(
                     passed=False,
                     message=f"Text is too short: {char_count} characters, minimum {self.min_chars} characters required",
-                    details={
+                    _details={
                         "char_count": char_count,
                         "min_chars": self.min_chars,
                         "constraint_violated": "min_chars",
@@ -290,7 +290,7 @@ class LengthValidator(BaseValidator):
                 return SifakaValidationResult(
                     passed=False,
                     message=f"Text is too long: {char_count} characters, maximum {self.max_chars} characters allowed",
-                    details={
+                    _details={
                         "char_count": char_count,
                         "max_chars": self.max_chars,
                         "constraint_violated": "max_chars",
@@ -314,7 +314,7 @@ class LengthValidator(BaseValidator):
             return SifakaValidationResult(
                 passed=True,
                 message="Text meets length requirements",
-                details={
+                _details={
                     "word_count": word_count,
                     "char_count": char_count,
                     "constraints": {

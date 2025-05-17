@@ -112,6 +112,10 @@ class OpenAIModel:
         # Extract system message if provided
         system_message = merged_options.pop("system_message", None)
 
+        # Convert stop_sequences to stop for OpenAI compatibility
+        if "stop_sequences" in merged_options:
+            merged_options["stop"] = merged_options.pop("stop_sequences")
+
         # Log generation attempt
         logger.debug(
             f"Generating text with OpenAI model '{self.model_name}', "
@@ -261,10 +265,37 @@ class OpenAIModel:
         # Add user message
         messages.append({"role": "user", "content": prompt})
 
+        # Convert stop_sequences to stop for OpenAI compatibility
+        if "stop_sequences" in options:
+            options["stop"] = options.pop("stop_sequences")
+
+        # Filter out parameters that are not supported by the OpenAI API
+        openai_params = {
+            k: v
+            for k, v in options.items()
+            if k
+            in [
+                "temperature",
+                "top_p",
+                "n",
+                "stream",
+                "stop",
+                "max_tokens",
+                "presence_penalty",
+                "frequency_penalty",
+                "logit_bias",
+                "user",
+                "response_format",
+                "seed",
+                "tools",
+                "tool_choice",
+            ]
+        }
+
         # Send request to OpenAI
         # Type ignore: The OpenAI API expects a specific message format that mypy can't verify
         response = self.client.chat.completions.create(
-            model=self.model_name, messages=messages, **options  # type: ignore
+            model=self.model_name, messages=messages, **openai_params  # type: ignore
         )
 
         return response.choices[0].message.content or ""
@@ -279,8 +310,37 @@ class OpenAIModel:
         Returns:
             The generated text.
         """
+        # Convert stop_sequences to stop for OpenAI compatibility
+        if "stop_sequences" in options:
+            options["stop"] = options.pop("stop_sequences")
+
+        # Filter out parameters that are not supported by the OpenAI API
+        openai_params = {
+            k: v
+            for k, v in options.items()
+            if k
+            in [
+                "temperature",
+                "top_p",
+                "n",
+                "stream",
+                "stop",
+                "max_tokens",
+                "presence_penalty",
+                "frequency_penalty",
+                "logit_bias",
+                "user",
+                "suffix",
+                "echo",
+                "logprobs",
+                "best_of",
+            ]
+        }
+
         # Send request to OpenAI
-        response = self.client.completions.create(model=self.model_name, prompt=prompt, **options)
+        response = self.client.completions.create(
+            model=self.model_name, prompt=prompt, **openai_params
+        )
 
         # Ensure we return a string
         result = response.choices[0].text

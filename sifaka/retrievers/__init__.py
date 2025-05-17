@@ -7,6 +7,7 @@ The package also provides a generic retrieval augmenter that can be used by mult
 """
 
 from sifaka.retrievers.base import Retriever
+from sifaka.retrievers.simple import SimpleRetriever
 from sifaka.retrievers.factory import (
     create_elasticsearch_retriever,
     create_milvus_retriever,
@@ -37,6 +38,7 @@ except ImportError:
 
 __all__ = [
     "Retriever",
+    "SimpleRetriever",
     "create_elasticsearch_retriever",
     "create_milvus_retriever",
     "create_retrieval_augmenter",

@@ -441,7 +441,7 @@ class Chain:
                         typed_result: ResultsValidationResult = ResultsValidationResult(
                             passed=result.passed,
                             message=result.message if hasattr(result, "message") else "",
-                            details=result.details if hasattr(result, "details") else {},
+                            _details=result.details if hasattr(result, "details") else {},
                             issues=result.issues if hasattr(result, "issues") else None,
                             suggestions=(
                                 result.suggestions if hasattr(result, "suggestions") else None
@@ -479,7 +479,7 @@ class Chain:
                     error_result: ResultsValidationResult = ValidationResult(
                         passed=False,
                         message=f"Validation error: {str(e)}",
-                        details={"error_type": type(e).__name__},
+                        _details={"error_type": type(e).__name__},
                         issues=[
                             f"Validator {validator.__class__.__name__} failed with error: {str(e)}"
                         ],
@@ -517,11 +517,11 @@ class Chain:
                         # Cast the result to the expected type
                         typed_improvement_result: ResultsImprovementResult = (
                             ResultsImprovementResult(
-                                original_text=result.original_text,
-                                improved_text=result.improved_text,
-                                changes_made=result.changes_made,
+                                _original_text=result.original_text,
+                                _improved_text=result.improved_text,
+                                _changes_made=result.changes_made,
                                 message=result.message if hasattr(result, "message") else "",
-                                details=result.details if hasattr(result, "details") else {},
+                                _details=result.details if hasattr(result, "details") else {},
                             )
                         )
                         improvement_results.append(typed_improvement_result)
@@ -537,14 +537,14 @@ class Chain:
                     log_error(e, logger, component="Chain", operation=f"improvement_{i}")
 
                     # Add the error to improvement results
-                    from sifaka.results import ImprovementResult
+                    from sifaka.results import ImprovementResult as SifakaImprovementResult
 
-                    improvement_error_result: ResultsImprovementResult = ImprovementResult(
-                        original_text=text,
-                        improved_text=text,
-                        changes_made=False,
+                    improvement_error_result: ResultsImprovementResult = SifakaImprovementResult(
+                        _original_text=text,
+                        _improved_text=text,
+                        _changes_made=False,
                         message=f"Improvement error: {str(e)}",
-                        details={"error_type": type(e).__name__},
+                        _details={"error_type": type(e).__name__},
                     )
                     improvement_results.append(improvement_error_result)
 

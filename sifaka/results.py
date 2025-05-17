@@ -8,11 +8,10 @@ including validation results, improvement results, and the overall chain result.
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
 from sifaka.interfaces import ImprovementResult as ImprovementResultProtocol
-from sifaka.interfaces import ValidationResult as ValidationResultProtocol
 
 
 @dataclass
-class ValidationResult(ValidationResultProtocol):
+class ValidationResult:
     """Result of a validation operation.
 
     Attributes:
@@ -26,7 +25,7 @@ class ValidationResult(ValidationResultProtocol):
 
     passed: bool
     message: str = ""
-    details: Dict[str, Any] = field(default_factory=dict)
+    _details: Dict[str, Any] = field(default_factory=dict)
     score: Optional[float] = None
     issues: Optional[List[str]] = None
     suggestions: Optional[List[str]] = None
@@ -35,35 +34,60 @@ class ValidationResult(ValidationResultProtocol):
         """Allow using the result in boolean context."""
         return self.passed
 
+    @property
+    def details(self) -> Dict[str, Any]:
+        """Additional details about the validation result."""
+        return self._details
+
 
 @dataclass
 class ImprovementResult(ImprovementResultProtocol):
     """Result of an improvement operation.
 
     Attributes:
-        original_text: The original text before improvement
-        improved_text: The improved text after improvement
-        changes_made: Whether any changes were made
+        _original_text: The original text before improvement
+        _improved_text: The improved text after improvement
+        _changes_made: Whether any changes were made
         message: Human-readable message describing the improvement
-        details: Additional details about the improvement
+        _details: Additional details about the improvement
         processing_time_ms: Processing time in milliseconds (optional)
     """
 
-    original_text: str
-    improved_text: str
-    changes_made: bool
+    _original_text: str
+    _improved_text: str
+    _changes_made: bool
     message: str = ""
-    details: Dict[str, Any] = field(default_factory=dict)
+    _details: Dict[str, Any] = field(default_factory=dict)
     processing_time_ms: Optional[float] = None
 
     def __bool__(self) -> bool:
         """Allow using the result in boolean context."""
-        return self.changes_made
+        return self._changes_made
 
     @property
     def passed(self) -> bool:
         """Whether the operation passed."""
         return True  # Improvement operations always "pass" in the sense that they complete
+
+    @property
+    def details(self) -> Dict[str, Any]:
+        """Additional details about the improvement result."""
+        return self._details
+
+    @property
+    def original_text(self) -> str:
+        """The original text before improvement."""
+        return self._original_text
+
+    @property
+    def improved_text(self) -> str:
+        """The improved text after improvement."""
+        return self._improved_text
+
+    @property
+    def changes_made(self) -> bool:
+        """Whether any changes were made to the text."""
+        return self._changes_made
 
 
 @dataclass

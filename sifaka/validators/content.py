@@ -180,7 +180,7 @@ class ContentValidator(BaseValidator):
             return SifakaValidationResult(
                 passed=True,
                 message="Empty text contains no prohibited content",
-                details={"matches": []},
+                _details={"matches": []},
                 score=1.0,
                 issues=[],
                 suggestions=[],
@@ -236,7 +236,7 @@ class ContentValidator(BaseValidator):
             return SifakaValidationResult(
                 passed=False,
                 message=f"Text contains prohibited content: {', '.join(match_items_str)}",
-                details={
+                _details={
                     "matches": matches,
                     "match_count": len(matches),
                     "validator_name": self.name,
@@ -253,7 +253,7 @@ class ContentValidator(BaseValidator):
         return SifakaValidationResult(
             passed=True,
             message="Text contains no prohibited content",
-            details={
+            _details={
                 "matches": [],
                 "match_count": 0,
                 "validator_name": self.name,

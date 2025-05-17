@@ -187,7 +187,7 @@ class FormatValidator(BaseValidator):
                 return SifakaValidationResult(
                     passed=False,
                     message=f"Unsupported format type: {self.format_type}",
-                    details={
+                    _details={
                         "format_type": self.format_type,
                         "validator_name": self.name,
                         "processing_time_ms": processing_time,
@@ -203,9 +203,9 @@ class FormatValidator(BaseValidator):
             processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
             # Add processing time to result details
-            result.details = result.details or {}
-            result.details["processing_time_ms"] = processing_time
-            result.details["validator_name"] = self.name
+            result._details = result._details or {}
+            result._details["processing_time_ms"] = processing_time
+            result._details["validator_name"] = self.name
 
             # Log validation result
             logger.debug(
@@ -268,7 +268,7 @@ class FormatValidator(BaseValidator):
                     return SifakaValidationResult(
                         passed=False,
                         message=f"JSON does not match schema: {str(e)}",
-                        details={
+                        _details={
                             "format_type": self.FORMAT_JSON,
                             "error": str(e),
                             "schema": self.schema,
@@ -285,7 +285,7 @@ class FormatValidator(BaseValidator):
             return SifakaValidationResult(
                 passed=True,
                 message="Text is valid JSON",
-                details={
+                _details={
                     "format_type": self.FORMAT_JSON,
                     "has_schema": self.schema is not None,
                     "validator_name": self.name,
@@ -313,7 +313,7 @@ class FormatValidator(BaseValidator):
             return SifakaValidationResult(
                 passed=False,
                 message=f"Invalid JSON: {str(e)}",
-                details={
+                _details={
                     "format_type": self.FORMAT_JSON,
                     "error": str(e),
                     "line": e.lineno,
@@ -398,7 +398,7 @@ class FormatValidator(BaseValidator):
                     return SifakaValidationResult(
                         passed=True,
                         message="Text appears to be valid Markdown",
-                        details={
+                        _details={
                             "format_type": self.FORMAT_MARKDOWN,
                             "features": markdown_features,
                             "feature_count": feature_count,
@@ -424,7 +424,7 @@ class FormatValidator(BaseValidator):
                     return SifakaValidationResult(
                         passed=False,
                         message="Text does not appear to contain Markdown features",
-                        details={
+                        _details={
                             "format_type": self.FORMAT_MARKDOWN,
                             "features": markdown_features,
                             "feature_count": 0,
@@ -449,7 +449,7 @@ class FormatValidator(BaseValidator):
             return SifakaValidationResult(
                 passed=False,
                 message=f"Error validating Markdown: {str(e)}",
-                details={
+                _details={
                     "format_type": self.FORMAT_MARKDOWN,
                     "error": str(e),
                     "error_type": type(e).__name__,
@@ -518,7 +518,7 @@ class FormatValidator(BaseValidator):
             return SifakaValidationResult(
                 passed=passed,
                 message=message,
-                details=details,
+                _details=details,
                 score=score,
                 issues=issues,
                 suggestions=suggestions,
@@ -539,7 +539,7 @@ class FormatValidator(BaseValidator):
             return SifakaValidationResult(
                 passed=False,
                 message=f"Custom validator failed: {str(e)}",
-                details={
+                _details={
                     "format_type": self.FORMAT_CUSTOM,
                     "error": str(e),
                     "error_type": type(e).__name__,

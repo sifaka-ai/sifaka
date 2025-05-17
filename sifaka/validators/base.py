@@ -174,7 +174,7 @@ class BaseValidator(Validator):
                 score=0.0,
                 issues=["Text is empty"],
                 suggestions=["Provide non-empty content"],
-                details={
+                _details={
                     "validator_name": self.name,
                     "error_type": "EmptyText",
                 },
@@ -201,7 +201,7 @@ class BaseValidator(Validator):
                 score=0.0,
                 issues=[f"Validation error: {str(error)}"],
                 suggestions=["Check input format or try again"],
-                details={
+                _details={
                     "validator_name": self.name,
                     "error_type": type(error).__name__,
                     "error_message": str(error),
@@ -244,7 +244,7 @@ def safe_validate(validator: ValidatorProtocol, text: str) -> ValidationResult:
                 score=0.0,
                 issues=[f"Validation error: {str(e)}"],
                 suggestions=["Check input format or try again"],
-                details={
+                _details={
                     "validator_name": getattr(validator, "name", validator.__class__.__name__),
                     "error_type": type(e).__name__,
                     "error_message": str(e),

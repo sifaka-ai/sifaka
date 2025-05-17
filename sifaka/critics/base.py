@@ -10,7 +10,7 @@ import logging
 from typing import Optional, Dict, Any
 
 from sifaka.models.base import Model
-from sifaka.results import ImprovementResult
+from sifaka.results import ImprovementResult as SifakaImprovementResult
 from sifaka.errors import ImproverError, ModelError
 from sifaka.interfaces import Improver
 from sifaka.utils.error_handling import improvement_context, log_error
@@ -116,7 +116,7 @@ class Critic(Improver):
 
         logger.debug(f"Successfully configured {self.name}")
 
-    def improve(self, text: str) -> tuple[str, ImprovementResult]:
+    def improve(self, text: str) -> tuple[str, SifakaImprovementResult]:
         """Improve text based on specific criteria.
 
         Args:
@@ -132,12 +132,12 @@ class Critic(Improver):
 
         if not text:
             logger.debug(f"{self.name}: Empty text provided, returning without improvement")
-            return "", ImprovementResult(
-                original_text="",
-                improved_text="",
-                changes_made=False,
+            return "", SifakaImprovementResult(
+                _original_text="",
+                _improved_text="",
+                _changes_made=False,
                 message="Empty text cannot be improved",
-                details={"critic_type": self.name},
+                _details={"critic_type": self.name},
             )
 
         try:
@@ -156,12 +156,12 @@ class Critic(Improver):
             # Check if improvement is needed
             if not critique.get("needs_improvement", True):
                 logger.debug(f"{self.name}: No improvement needed")
-                return text, ImprovementResult(
-                    original_text=text,
-                    improved_text=text,
-                    changes_made=False,
+                return text, SifakaImprovementResult(
+                    _original_text=text,
+                    _improved_text=text,
+                    _changes_made=False,
                     message=critique.get("message", "No improvement needed"),
-                    details={
+                    _details={
                         "critic_type": self.name,
                         "critique": critique,
                         "processing_time_ms": (time.time() - start_time) * 1000,
@@ -183,12 +183,12 @@ class Critic(Improver):
             # Check if text was actually improved
             if improved_text == text:
                 logger.debug(f"{self.name}: No changes were made to the text")
-                return text, ImprovementResult(
-                    original_text=text,
-                    improved_text=text,
-                    changes_made=False,
+                return text, SifakaImprovementResult(
+                    _original_text=text,
+                    _improved_text=text,
+                    _changes_made=False,
                     message="No changes were made",
-                    details={
+                    _details={
                         "critic_type": self.name,
                         "critique": critique,
                         "processing_time_ms": (time.time() - start_time) * 1000,
@@ -198,12 +198,12 @@ class Critic(Improver):
             # Return improved text with result
             processing_time = (time.time() - start_time) * 1000
             logger.debug(f"{self.name}: Successfully improved text in {processing_time:.2f}ms")
-            return improved_text, ImprovementResult(
-                original_text=text,
-                improved_text=improved_text,
-                changes_made=True,
+            return improved_text, SifakaImprovementResult(
+                _original_text=text,
+                _improved_text=improved_text,
+                _changes_made=True,
                 message=critique.get("message", "Text improved"),
-                details={
+                _details={
                     "critic_type": self.name,
                     "critique": critique,
                     "processing_time_ms": processing_time,
@@ -300,6 +300,10 @@ class Critic(Improver):
             # Add system prompt if provided and not already in options
             if self.system_prompt and "system_prompt" not in merged_options:
                 merged_options["system_prompt"] = self.system_prompt
+
+            # Convert stop_sequences to stop for OpenAI compatibility
+            if "stop_sequences" in merged_options:
+                merged_options["stop"] = merged_options.pop("stop_sequences")
 
             # Log generation attempt
             logger.debug(

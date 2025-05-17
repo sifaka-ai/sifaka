@@ -9,10 +9,10 @@ import logging
 import os
 from dotenv import load_dotenv
 from sifaka import Chain
-from sifaka.validators import length, factual_accuracy
+from sifaka.validators import length
 from sifaka.critics.self_rag import create_self_rag_critic
 from sifaka.models.openai import OpenAIModel
-from sifaka.retrievers.base import SimpleRetriever
+from sifaka.retrievers import SimpleRetriever
 
 # Set up logging
 logging.basicConfig(
@@ -68,8 +68,7 @@ def main():
         Chain()
         .with_model(model)
         .with_prompt("Explain the key features and capabilities of the James Webb Space Telescope.")
-        .validate_with(length(min_words=50, max_words=200))
-        .validate_with(factual_accuracy())
+        .validate_with(length(min_words=50, max_words=500))
         .improve_with(self_rag_critic)
     )
 

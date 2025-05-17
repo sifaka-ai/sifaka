@@ -393,7 +393,7 @@ class GuardrailsValidator(BaseValidator):
                 return SifakaValidationResult(
                     passed=False,
                     message="Input text is empty",
-                    details={"input_length": 0},
+                    _details={"input_length": 0},
                     score=0.0,
                     issues=["Input text is empty"],
                     suggestions=["Provide non-empty text for validation"],
@@ -420,7 +420,7 @@ class GuardrailsValidator(BaseValidator):
                     return SifakaValidationResult(
                         passed=False,
                         message="Guard is not initialized",
-                        details={"input_length": len(text)},
+                        _details={"input_length": len(text)},
                         score=0.0,
                         issues=["Guard is not initialized"],
                         suggestions=["Check if GuardrailsAI is properly installed and configured"],
@@ -504,7 +504,7 @@ class GuardrailsValidator(BaseValidator):
             return SifakaValidationResult(
                 passed=passed,
                 message=message,
-                details=details,
+                _details=details,
                 score=score,
                 issues=issues,
                 suggestions=suggestions,

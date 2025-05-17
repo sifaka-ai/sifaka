@@ -33,24 +33,13 @@ def main():
     # Create a model
     model = OpenAIModel(model_name="gpt-3.5-turbo", api_key=api_key)
 
-    # Create a simple prompt critic instead of reflexion critic
-    # This is more likely to work with the current implementation
-    from sifaka.critics.prompt import create_prompt_critic
-
-    critic = create_prompt_critic(
-        model=model,
-        system_prompt="You are an expert editor that improves text for clarity and engagement.",
-        temperature=0.7,
-    )
-
-    # Create a chain with validators and critics
+    # Create a chain with validators only
     chain = (
         Chain()
         .with_model(model)
         .with_prompt("Write a short story about a robot learning to feel emotions.")
-        .validate_with(length(min_words=50, max_words=200))
+        .validate_with(length(min_words=50, max_words=500))
         .validate_with(prohibited_content(prohibited=["violent", "harmful"]))
-        .improve_with(reflexion_critic)
     )
 
     # Run the chain
