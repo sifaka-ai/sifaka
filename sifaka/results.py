@@ -5,12 +5,14 @@ This module defines the result types returned by various Sifaka components,
 including validation results, improvement results, and the overall chain result.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
+from sifaka.interfaces import ImprovementResult as ImprovementResultProtocol
+from sifaka.interfaces import ValidationResult as ValidationResultProtocol
 
 
 @dataclass
-class ValidationResult:
+class ValidationResult(ValidationResultProtocol):
     """Result of a validation operation.
 
     Attributes:
@@ -23,8 +25,8 @@ class ValidationResult:
     """
 
     passed: bool
-    message: Optional[str] = None
-    details: Optional[Dict[str, Any]] = None
+    message: str = ""
+    details: Dict[str, Any] = field(default_factory=dict)
     score: Optional[float] = None
     issues: Optional[List[str]] = None
     suggestions: Optional[List[str]] = None
@@ -35,7 +37,7 @@ class ValidationResult:
 
 
 @dataclass
-class ImprovementResult:
+class ImprovementResult(ImprovementResultProtocol):
     """Result of an improvement operation.
 
     Attributes:
@@ -50,13 +52,18 @@ class ImprovementResult:
     original_text: str
     improved_text: str
     changes_made: bool
-    message: Optional[str] = None
-    details: Optional[Dict[str, Any]] = None
+    message: str = ""
+    details: Dict[str, Any] = field(default_factory=dict)
     processing_time_ms: Optional[float] = None
 
     def __bool__(self) -> bool:
         """Allow using the result in boolean context."""
         return self.changes_made
+
+    @property
+    def passed(self) -> bool:
+        """Whether the operation passed."""
+        return True  # Improvement operations always "pass" in the sense that they complete
 
 
 @dataclass
@@ -76,7 +83,7 @@ class Result:
     passed: bool
     validation_results: List[ValidationResult]
     improvement_results: List[ImprovementResult]
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
     execution_time_ms: Optional[float] = None
 
     def __bool__(self) -> bool:

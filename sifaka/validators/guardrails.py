@@ -16,9 +16,9 @@ import importlib
 import logging
 import os
 import time
-from typing import Any, Dict, List, Optional, Union, Callable
+from typing import Any, Dict, List, Optional
 
-from sifaka.results import ValidationResult
+from sifaka.results import ValidationResult as SifakaValidationResult
 from sifaka.errors import ValidationError
 from sifaka.registry import register_validator
 from sifaka.validators.base import BaseValidator
@@ -45,7 +45,7 @@ class GuardrailsValidator(BaseValidator):
 
     def __init__(
         self,
-        guard=None,
+        guard: Any = None,
         validators: Optional[List[str]] = None,
         validator_args: Optional[Dict[str, Dict[str, Any]]] = None,
         api_key: Optional[str] = None,
@@ -154,7 +154,7 @@ class GuardrailsValidator(BaseValidator):
         """Get the validator description."""
         return self._description
 
-    def _load_guardrails(self):
+    def _load_guardrails(self) -> Any:
         """
         Load the guardrails-ai library.
 
@@ -233,7 +233,6 @@ class GuardrailsValidator(BaseValidator):
             if self._guard_config is not None:
                 logger.debug(f"{self.name}: Using provided guard")
                 self._guard = self._guard_config
-
             # Otherwise, create a new guard with the specified validators
             elif self._validators_config is not None:
                 logger.debug(
@@ -241,7 +240,12 @@ class GuardrailsValidator(BaseValidator):
                 )
 
                 # Create a new guard
-                self._guard = self._guardrails.Guard()
+                if self._guardrails is not None:
+                    self._guard = self._guardrails.Guard()
+                else:
+                    logger.warning(
+                        f"{self.name}: Guardrails module not loaded, cannot create guard"
+                    )
 
                 # Install and add each validator
                 for validator_name in self._validators_config:
@@ -261,17 +265,22 @@ class GuardrailsValidator(BaseValidator):
                         os.environ["GUARDRAILS_API_KEY"] = self._api_key
 
                     try:
-                        validator_module = self._guardrails.install(
-                            f"hub://guardrails/{validator_name}"
-                        )
+                        if self._guardrails is not None and self._guard is not None:
+                            validator_module = self._guardrails.install(
+                                f"hub://guardrails/{validator_name}"
+                            )
 
-                        # Get the validator class
-                        validator_class = getattr(
-                            validator_module, self._to_camel_case(validator_name)
-                        )
+                            # Get the validator class
+                            validator_class = getattr(
+                                validator_module, self._to_camel_case(validator_name)
+                            )
 
-                        # Add the validator to the guard
-                        self._guard = self._guard.use(validator_class, **args)
+                            # Add the validator to the guard
+                            self._guard = self._guard.use(validator_class, **args)
+                        else:
+                            logger.warning(
+                                f"{self.name}: Guardrails module or guard not initialized, cannot install validator"
+                            )
 
                         # Calculate validator processing time
                         validator_time = (time.time() - validator_start_time) * 1000  # ms
@@ -314,10 +323,15 @@ class GuardrailsValidator(BaseValidator):
                                 os.environ["GUARDRAILS_API_KEY"] = old_api_key
                             else:
                                 os.environ.pop("GUARDRAILS_API_KEY", None)
-            else:
-                # Create an empty guard
-                logger.debug(f"{self.name}: Creating empty guard (no validators specified)")
-                self._guard = self._guardrails.Guard()
+                else:
+                    # Create an empty guard
+                    logger.debug(f"{self.name}: Creating empty guard (no validators specified)")
+                    if self._guardrails is not None:
+                        self._guard = self._guardrails.Guard()
+                    else:
+                        logger.warning(
+                            f"{self.name}: Guardrails module not loaded, cannot create guard"
+                        )
 
             self._initialized = True
 
@@ -341,7 +355,9 @@ class GuardrailsValidator(BaseValidator):
         components = snake_str.split("_")
         return "".join(x.title() for x in components)
 
-    def _validate(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> ValidationResult:
+    def _validate(
+        self, text: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> SifakaValidationResult:
         """
         Validate text using GuardrailsAI.
 
@@ -366,7 +382,7 @@ class GuardrailsValidator(BaseValidator):
             # Handle empty text
             if not text:
                 logger.debug(f"{self.name}: Empty text provided, returning fail result")
-                return ValidationResult(
+                return SifakaValidationResult(
                     passed=False,
                     message="Input text is empty",
                     details={"input_length": 0},
@@ -391,31 +407,45 @@ class GuardrailsValidator(BaseValidator):
                     "initialized": self._initialized,
                 },
             ):
+                if self._guard is None:
+                    logger.warning(f"{self.name}: Guard is not initialized, returning failure")
+                    return SifakaValidationResult(
+                        passed=False,
+                        message="Guard is not initialized",
+                        details={"input_length": len(text)},
+                        score=0.0,
+                        issues=["Guard is not initialized"],
+                        suggestions=["Check if GuardrailsAI is properly installed and configured"],
+                    )
+
                 result = self._guard.parse(text, metadata=metadata)
 
-            # Convert GuardrailsAI result to ValidationResult
-            passed = result.validation_passed
+                # Convert GuardrailsAI result to ValidationResult
+                passed = getattr(result, "validation_passed", False)
 
-            # Extract validation details
-            details = {
-                "input_length": len(text),
-                "validation_passed": passed,
-                "validator_name": self.name,
-            }
+                # Extract validation details
+                details = {
+                    "input_length": len(text),
+                    "validation_passed": passed,
+                    "validator_name": self.name,
+                }
 
             # Add validation errors if any
             error_messages = []
-            if hasattr(result, "validation_errors") and result.validation_errors:
-                details["validation_errors"] = result.validation_errors
+            try:
+                if hasattr(result, "validation_errors") and result.validation_errors:
+                    details["validation_errors"] = result.validation_errors
 
-                # Extract error messages
-                for error in result.validation_errors:
-                    if isinstance(error, dict) and "message" in error:
-                        error_messages.append(error["message"])
-                    elif hasattr(error, "message"):
-                        error_messages.append(error.message)
-                    else:
-                        error_messages.append(str(error))
+                    # Extract error messages
+                    for error in result.validation_errors:
+                        if isinstance(error, dict) and "message" in error:
+                            error_messages.append(error["message"])
+                        elif hasattr(error, "message"):
+                            error_messages.append(error.message)
+                        else:
+                            error_messages.append(str(error))
+            except Exception as e:
+                logger.warning(f"{self.name}: Error extracting validation errors: {str(e)}")
 
             # Add fix details if any
             if hasattr(result, "fixed_output") and result.fixed_output:
@@ -457,7 +487,7 @@ class GuardrailsValidator(BaseValidator):
                     f"{self.name}: Validation failed with {len(error_messages)} errors in {processing_time:.2f}ms"
                 )
 
-            return ValidationResult(
+            return SifakaValidationResult(
                 passed=passed,
                 message=message,
                 details=details,
@@ -496,13 +526,13 @@ class GuardrailsValidator(BaseValidator):
 
 @register_validator("guardrails")
 def create_guardrails_validator(
-    guard=None,
+    guard: Any = None,
     validators: Optional[List[str]] = None,
     validator_args: Optional[Dict[str, Dict[str, Any]]] = None,
     api_key: Optional[str] = None,
     name: str = "guardrails_validator",
     description: str = "Validates text using GuardrailsAI",
-    **options: Any,
+    **_options: Any,  # Unused options
 ) -> GuardrailsValidator:
     """
     Create a GuardrailsAI validator.
@@ -518,7 +548,7 @@ def create_guardrails_validator(
                  GUARDRAILS_API_KEY environment variable.
         name: The name of the validator.
         description: The description of the validator.
-        **options: Additional options (ignored).
+        **_options: Additional options (ignored).
 
     Returns:
         A GuardrailsValidator instance.
@@ -608,7 +638,7 @@ def create_guardrails_validator(
 
 
 def guardrails_validator(
-    guard=None,
+    guard: Any = None,
     validators: Optional[List[str]] = None,
     validator_args: Optional[Dict[str, Dict[str, Any]]] = None,
     api_key: Optional[str] = None,

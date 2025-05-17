@@ -9,7 +9,8 @@ __version__ = "0.1.0"
 
 # Initialize the registry if available
 try:
-    from sifaka.core.initialize_registry import initialize_registry
+    # The registry initialization is now in the main registry module
+    from sifaka.registry import initialize_registry
 
     initialize_registry()
 except ImportError:

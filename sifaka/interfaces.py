@@ -6,55 +6,66 @@ These interfaces establish the contract between different parts of the system
 without creating circular dependencies.
 """
 
-from typing import Protocol, Any, Dict, Tuple, TypeVar, Generic, Optional
+from abc import abstractmethod
+from typing import Protocol, Any, Dict, Tuple, TypeVar, Generic, Optional, runtime_checkable
 
 # Type variables for generic protocols
-T = TypeVar("T")
-U = TypeVar("U")
+T = TypeVar("T", covariant=True)
+U = TypeVar("U", covariant=True)
 
 
+@runtime_checkable
 class Result(Protocol):
     """Protocol for result objects."""
 
     @property
+    @abstractmethod
     def passed(self) -> bool:
         """Whether the operation passed."""
         ...
 
     @property
+    @abstractmethod
     def message(self) -> str:
         """Message describing the result."""
         ...
 
 
-class ValidationResult(Result):
+@runtime_checkable
+class ValidationResult(Result, Protocol):
     """Protocol for validation results."""
 
     @property
+    @abstractmethod
     def details(self) -> Dict[str, Any]:
         """Additional details about the validation result."""
         ...
 
 
-class ImprovementResult(Result):
+@runtime_checkable
+class ImprovementResult(Result, Protocol):
     """Protocol for improvement results."""
 
     @property
+    @abstractmethod
     def original_text(self) -> str:
         """The original text before improvement."""
         ...
 
     @property
+    @abstractmethod
     def improved_text(self) -> str:
         """The improved text."""
         ...
 
     @property
+    @abstractmethod
     def changes_made(self) -> bool:
         """Whether changes were made to the text."""
         ...
 
     @property
+    @abstractmethod
     def details(self) -> Dict[str, Any]:
         """Additional details about the improvement result."""
         ...
@@ -86,6 +97,14 @@ class Model(Protocol):
         """
         ...
 
+    def configure(self, **options: Any) -> None:
+        """Configure the model with new options.
+
+        Args:
+            **options: Configuration options to apply to the model.
+        """
+        ...
+
 
 class Validator(Protocol):
     """Protocol defining the interface for validators."""
@@ -98,6 +117,14 @@ class Validator(Protocol):
 
         Returns:
             A validation result.
+        """
+        ...
+
+    def configure(self, **options: Any) -> None:
+        """Configure the validator with new options.
+
+        Args:
+            **options: Configuration options to apply to the validator.
         """
         ...
 
@@ -116,10 +143,20 @@ class Improver(Protocol):
         """
         ...
 
+    def configure(self, **options: Any) -> None:
+        """Configure the improver with new options.
 
+        Args:
+            **options: Configuration options to apply to the improver.
+        """
+        ...
+
+
+@runtime_checkable
 class Factory(Protocol, Generic[T]):
     """Protocol for factory functions."""
 
+    @abstractmethod
     def __call__(self, *args: Any, **kwargs: Any) -> T:
         """Create an instance of the component.
 
@@ -133,14 +170,16 @@ class Factory(Protocol, Generic[T]):
         ...
 
 
-class ModelFactory(Factory[Model]):
+@runtime_checkable
+class ModelFactory(Factory[Model], Protocol):
     """Protocol for model factory functions."""
 
-    def __call__(self, model_name: str, **options: Any) -> Model:
+    @abstractmethod
+    def __call__(self, *args: Any, **options: Any) -> Model:
         """Create a model instance.
 
         Args:
-            model_name: The name of the model to create.
+            *args: Positional arguments to pass to the model constructor.
             **options: Additional options to pass to the model constructor.
 
         Returns:
@@ -149,13 +188,16 @@ class ModelFactory(Factory[Model]):
         ...
 
 
-class ValidatorFactory(Factory[Validator]):
+@runtime_checkable
+class ValidatorFactory(Factory[Validator], Protocol):
     """Protocol for validator factory functions."""
 
-    def __call__(self, **options: Any) -> Validator:
+    @abstractmethod
+    def __call__(self, *args: Any, **options: Any) -> Validator:
         """Create a validator instance.
 
         Args:
+            *args: Positional arguments to pass to the validator constructor.
             **options: Options to pass to the validator constructor.
 
         Returns:
@@ -164,14 +206,16 @@ class ValidatorFactory(Factory[Validator]):
         ...
 
 
-class ImproverFactory(Factory[Improver]):
+@runtime_checkable
+class ImproverFactory(Factory[Improver], Protocol):
     """Protocol for improver factory functions."""
 
-    def __call__(self, model: Model, **options: Any) -> Improver:
+    @abstractmethod
+    def __call__(self, *args: Any, **options: Any) -> Improver:
         """Create an improver instance.
 
         Args:
-            model: The model to use for improvement.
+            *args: Positional arguments to pass to the improver constructor.
             **options: Additional options to pass to the improver constructor.
 
         Returns:

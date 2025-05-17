@@ -5,7 +5,7 @@ This module provides an implementation of the Model protocol for Anthropic model
 """
 
 import os
-from typing import Optional, Dict, Any, List
+from typing import Optional, Any
 
 try:
     import anthropic
@@ -288,7 +288,6 @@ class AnthropicModel:
             # Raise as ModelError with more context
             raise ModelError(
                 message=f"Error counting tokens: {str(e)}",
-                model_name=self.model_name,
                 component="AnthropicModel",
                 operation="token_counting",
                 suggestions=[
@@ -360,7 +359,6 @@ def create_anthropic_model(model_name: str, **options: Any) -> AnthropicModel:
         # Re-raise the error with more context
         raise ModelError(
             message=f"Failed to create Anthropic model: {str(e)}",
-            model_name=model_name,
             component="AnthropicModelFactory",
             operation="create_model",
             suggestions=[
@@ -377,7 +375,6 @@ def create_anthropic_model(model_name: str, **options: Any) -> AnthropicModel:
         # Raise as ModelError with more context
         raise ModelError(
             message=f"Unexpected error creating Anthropic model: {str(e)}",
-            model_name=model_name,
             component="AnthropicModelFactory",
             operation="create_model",
             suggestions=[

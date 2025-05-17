@@ -8,9 +8,9 @@ import json
 import re
 import logging
 import time
-from typing import Optional, Dict, Any, Callable, Union, List
+from typing import Optional, Dict, Any, Callable
 
-from sifaka.results import ValidationResult
+from sifaka.results import ValidationResult as SifakaValidationResult
 from sifaka.errors import ValidationError
 from sifaka.registry import register_validator
 from sifaka.validators.base import BaseValidator
@@ -141,7 +141,7 @@ class FormatValidator(BaseValidator):
                         },
                     )
 
-    def _validate(self, text: str) -> ValidationResult:
+    def _validate(self, text: str) -> SifakaValidationResult:
         """Validate text against the specified format.
 
         Args:
@@ -184,7 +184,7 @@ class FormatValidator(BaseValidator):
                 # Calculate processing time
                 processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
-                return ValidationResult(
+                return SifakaValidationResult(
                     passed=False,
                     message=f"Unsupported format type: {self.format_type}",
                     details={
@@ -214,7 +214,7 @@ class FormatValidator(BaseValidator):
 
             return result
 
-    def _validate_json(self, text: str) -> ValidationResult:
+    def _validate_json(self, text: str) -> SifakaValidationResult:
         """Validate text as JSON.
 
         Args:
@@ -265,7 +265,7 @@ class FormatValidator(BaseValidator):
                     # Calculate score based on severity of schema violation
                     score = 0.5  # Partial score for valid JSON but schema mismatch
 
-                    return ValidationResult(
+                    return SifakaValidationResult(
                         passed=False,
                         message=f"JSON does not match schema: {str(e)}",
                         details={
@@ -282,7 +282,7 @@ class FormatValidator(BaseValidator):
             # JSON is valid
             logger.debug(f"{self.name}: JSON is valid")
 
-            return ValidationResult(
+            return SifakaValidationResult(
                 passed=True,
                 message="Text is valid JSON",
                 details={
@@ -310,7 +310,7 @@ class FormatValidator(BaseValidator):
             # Calculate score based on how much of the text was parsed before error
             score = max(0.0, min(1.0, e.pos / len(text)))
 
-            return ValidationResult(
+            return SifakaValidationResult(
                 passed=False,
                 message=f"Invalid JSON: {str(e)}",
                 details={
@@ -326,7 +326,7 @@ class FormatValidator(BaseValidator):
                 suggestions=suggestions,
             )
 
-    def _validate_markdown(self, text: str) -> ValidationResult:
+    def _validate_markdown(self, text: str) -> SifakaValidationResult:
         """Validate text as Markdown.
 
         Args:
@@ -395,7 +395,7 @@ class FormatValidator(BaseValidator):
                         f"{self.name}: Text appears to be valid Markdown with {feature_count} features"
                     )
 
-                    return ValidationResult(
+                    return SifakaValidationResult(
                         passed=True,
                         message="Text appears to be valid Markdown",
                         details={
@@ -421,7 +421,7 @@ class FormatValidator(BaseValidator):
                         "Add emphasis using *italic* or **bold** syntax",
                     ]
 
-                    return ValidationResult(
+                    return SifakaValidationResult(
                         passed=False,
                         message="Text does not appear to contain Markdown features",
                         details={
@@ -446,7 +446,7 @@ class FormatValidator(BaseValidator):
                 "Verify that the text doesn't contain invalid characters",
             ]
 
-            return ValidationResult(
+            return SifakaValidationResult(
                 passed=False,
                 message=f"Error validating Markdown: {str(e)}",
                 details={
@@ -460,7 +460,7 @@ class FormatValidator(BaseValidator):
                 suggestions=suggestions,
             )
 
-    def _validate_custom(self, text: str) -> ValidationResult:
+    def _validate_custom(self, text: str) -> SifakaValidationResult:
         """Validate text using a custom validator.
 
         Args:
@@ -485,6 +485,16 @@ class FormatValidator(BaseValidator):
                 },
             ):
                 # Call the custom validator
+                if self.custom_validator is None:
+                    raise ValidationError(
+                        message="Custom validator is None",
+                        component="FormatValidator",
+                        operation="custom_validation",
+                        suggestions=[
+                            "Provide a custom validator function when using the custom format type"
+                        ],
+                        metadata={"format_type": self.format_type},
+                    )
                 result = self.custom_validator(text)
                 logger.debug(f"{self.name}: Custom validator executed successfully")
 
@@ -505,7 +515,7 @@ class FormatValidator(BaseValidator):
                 f"{self.name}: Custom validation {'passed' if passed else 'failed'}: {message}"
             )
 
-            return ValidationResult(
+            return SifakaValidationResult(
                 passed=passed,
                 message=message,
                 details=details,
@@ -526,7 +536,7 @@ class FormatValidator(BaseValidator):
                 "Ensure that the custom validator returns the expected format",
             ]
 
-            return ValidationResult(
+            return SifakaValidationResult(
                 passed=False,
                 message=f"Custom validator failed: {str(e)}",
                 details={

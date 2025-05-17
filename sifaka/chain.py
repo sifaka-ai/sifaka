@@ -12,17 +12,36 @@ add improvers to enhance the quality of the generated text, and configure model 
 Example:
     ```python
     from sifaka import Chain
-    from sifaka.validators import length, clarity
+    from sifaka.validators import length
+    from sifaka.critics import self_refine
 
     result = (Chain()
         .with_model("openai:gpt-4")
         .with_prompt("Write a short story about a robot.")
         .validate_with(length(min_words=50, max_words=200))
-        .improve_with(clarity())
+        .improve_with(self_refine())
         .run())
 
     print(f"Result passed validation: {result.passed}")
     print(result.text)
+    ```
+
+    Using configuration:
+    ```python
+    from sifaka import Chain
+    from sifaka.config import SifakaConfig, ModelConfig
+
+    # Create a custom configuration
+    config = SifakaConfig(
+        model=ModelConfig(temperature=0.8, max_tokens=1000),
+        debug=True
+    )
+
+    # Use with a chain
+    result = (Chain(config)
+        .with_model("openai:gpt-4")
+        .with_prompt("Write a short story about a robot.")
+        .run())
     ```
 """
 
@@ -32,6 +51,7 @@ from sifaka.interfaces import Model, Validator, Improver
 from sifaka.factories import create_model, create_model_from_string
 from sifaka.results import Result
 from sifaka.errors import ChainError
+from sifaka.config import SifakaConfig
 
 
 class Chain:
@@ -50,7 +70,7 @@ class Chain:
         _prompt: The prompt to use for generation.
         _validators: List of validators to apply to the generated text.
         _improvers: List of improvers to apply to the generated text.
-        _options: Options to pass to the model during generation.
+        _config: The configuration for the chain and its components.
 
     Example:
         ```python
@@ -66,13 +86,27 @@ class Chain:
             .with_model("openai:gpt-4")
             .with_prompt("Write a short story about a robot.")
             .run())
+
+        # With configuration:
+        from sifaka.config import SifakaConfig, ModelConfig
+        config = SifakaConfig(model=ModelConfig(temperature=0.8))
+        result = (Chain(config)
+            .with_model("openai:gpt-4")
+            .with_prompt("Write a short story about a robot.")
+            .run())
         ```
     """
 
-    def __init__(self, model_factory: Optional[Callable[[str, str], Model]] = None):
+    def __init__(
+        self,
+        config: Optional[SifakaConfig] = None,
+        model_factory: Optional[Callable[[str, str], Model]] = None,
+    ):
         """Initialize a new Chain instance.
 
         Args:
+            config: Optional configuration for the chain and its components.
+                If not provided, a default configuration will be used.
             model_factory: Optional factory function for creating models.
                 If not provided, the default factory function will be used.
                 The factory function should take a provider and model name and return a Model instance.
@@ -81,6 +115,8 @@ class Chain:
         self._prompt: Optional[str] = None
         self._validators: List[Validator] = []
         self._improvers: List[Improver] = []
+        self._config: SifakaConfig = config or SifakaConfig()
+        # For backward compatibility
         self._options: Dict[str, Any] = {}
 
         # Use the provided model factory or use the registry
@@ -89,6 +125,34 @@ class Chain:
         else:
             # Use the registry
             self._model_factory = create_model
+
+    def with_config(self, config: SifakaConfig) -> "Chain":
+        """Set the configuration for the chain.
+
+        This method allows you to update the configuration for the chain and its components.
+
+        Args:
+            config: The configuration to use.
+
+        Returns:
+            The chain instance for method chaining.
+
+        Examples:
+            ```python
+            from sifaka.config import SifakaConfig, ModelConfig
+
+            # Create a custom configuration
+            config = SifakaConfig(
+                model=ModelConfig(temperature=0.8, max_tokens=1000),
+                debug=True
+            )
+
+            # Update the chain configuration
+            chain = Chain().with_config(config)
+            ```
+        """
+        self._config = config
+        return self
 
     def with_model(self, model: Union[str, Model]) -> "Chain":
         """Set the model to use for generation.
@@ -117,6 +181,11 @@ class Chain:
             # Using dependency injection
             from sifaka.factories import create_model
             chain = Chain(model_factory=create_model).with_model("openai:gpt-4")
+
+            # Using configuration
+            from sifaka.config import SifakaConfig, ModelConfig
+            config = SifakaConfig(model=ModelConfig(temperature=0.8))
+            chain = Chain(config).with_model("openai:gpt-4")
             ```
 
         Raises:
@@ -125,7 +194,9 @@ class Chain:
         """
         if isinstance(model, str):
             # Use create_model_from_string to handle the model string
-            self._model = create_model_from_string(model)
+            # Pass model options from configuration
+            model_options = self._config.get_model_options()
+            self._model = create_model_from_string(model, **model_options)
         else:
             self._model = model
         return self
@@ -145,37 +216,111 @@ class Chain:
     def validate_with(self, validator: Validator) -> "Chain":
         """Add a validator to the chain.
 
+        This method adds a validator to the chain, which will be used to validate
+        the generated text. Validators check if the text meets certain criteria,
+        such as length, content, or format requirements.
+
+        If the validator has a `configure` method, it will be called with the
+        validator options from the configuration.
+
         Args:
             validator: The validator to add.
 
         Returns:
             The chain instance for method chaining.
+
+        Examples:
+            ```python
+            from sifaka import Chain
+            from sifaka.validators import length
+            from sifaka.critics import self_refine
+
+            chain = Chain()
+                .with_model("openai:gpt-4")
+                .with_prompt("Write a short story about a robot.")
+                .validate_with(length(min_words=50, max_words=200))
+                .validate_with(self_refine())
+            ```
         """
+        # Configure the validator with options from the configuration
+        validator_options = self._config.get_validator_options()
+        if hasattr(validator, "configure"):
+            validator.configure(**validator_options)
+
         self._validators.append(validator)
         return self
 
     def improve_with(self, improver: Improver) -> "Chain":
         """Add an improver to the chain.
 
+        This method adds an improver to the chain, which will be used to improve
+        the generated text. Improvers enhance the quality of the text by applying
+        various improvement strategies, such as clarity, coherence, or style improvements.
+
+        If the improver has a `configure` method, it will be called with the
+        critic options from the configuration.
+
         Args:
             improver: The improver to add.
 
         Returns:
             The chain instance for method chaining.
+
+        Examples:
+            ```python
+            from sifaka import Chain
+            from sifaka.critics import self_refine
+
+            chain = Chain()
+                .with_model("openai:gpt-4")
+                .with_prompt("Write a short story about a robot.")
+                .improve_with(self_refine())
+                .improve_with(self_refine(refinement_rounds=3))
+            ```
         """
+        # Configure the improver with options from the configuration
+        critic_options = self._config.get_critic_options()
+        if hasattr(improver, "configure"):
+            improver.configure(**critic_options)
+
         self._improvers.append(improver)
         return self
 
     def with_options(self, **options: Any) -> "Chain":
-        """Set options for the model.
+        """Set options to pass to the model during generation.
+
+        This method allows you to configure options that will be passed to the model
+        during text generation. These options can include parameters like temperature,
+        max_tokens, and top_p, which control the behavior of the model.
+
+        Note: These options will override any options set in the configuration.
 
         Args:
-            **options: Options to pass to the model.
+            **options: Keyword arguments to pass to the model during generation.
 
         Returns:
             The chain instance for method chaining.
+
+        Examples:
+            ```python
+            chain = Chain()
+                .with_model("openai:gpt-4")
+                .with_prompt("Write a short story about a robot.")
+                .with_options(
+                    temperature=0.7,
+                    max_tokens=500,
+                    top_p=0.9
+                )
+            ```
         """
-        self._options.update(options)
+        # Update the model configuration with the provided options
+        for key, value in options.items():
+            if hasattr(self._config.model, key):
+                setattr(self._config.model, key, value)
+            else:
+                # Store in custom options
+                self._config.model.custom[key] = value
+
         return self
 
     def run(self) -> Result:
@@ -261,25 +406,27 @@ class Chain:
         try:
             # Generate initial text
             with chain_context(
-                component="Chain",
                 operation="generation",
                 message_prefix="Failed to generate text",
                 suggestions=["Check the model configuration", "Verify the prompt format"],
                 metadata={
                     "model_type": self._model.__class__.__name__,
                     "prompt_length": len(self._prompt),
-                    "options": self._options,
+                    "options": self._config.get_model_options(),
                 },
             ):
-                text = self._model.generate(self._prompt, **self._options)
+                # Get model options from configuration
+                model_options = self._config.get_model_options()
+                text = self._model.generate(self._prompt, **model_options)
                 logger.debug(f"Generated text of length {len(text)}")
 
             # Validate text
-            validation_results = []
+            from sifaka.results import ValidationResult as ResultsValidationResult
+
+            validation_results: List[ResultsValidationResult] = []
             for i, validator in enumerate(self._validators):
                 try:
                     with chain_context(
-                        component="Chain",
                         operation=f"validation_{i}",
                         message_prefix=f"Failed to validate text with {validator.__class__.__name__}",
                         suggestions=["Check the validator configuration", "Verify the text format"],
@@ -290,7 +437,17 @@ class Chain:
                         },
                     ):
                         result = validator.validate(text)
-                        validation_results.append(result)
+                        # Cast the result to the expected type
+                        typed_result: ResultsValidationResult = ResultsValidationResult(
+                            passed=result.passed,
+                            message=result.message if hasattr(result, "message") else "",
+                            details=result.details if hasattr(result, "details") else {},
+                            issues=result.issues if hasattr(result, "issues") else None,
+                            suggestions=(
+                                result.suggestions if hasattr(result, "suggestions") else None
+                            ),
+                        )
+                        validation_results.append(typed_result)
                         logger.debug(
                             f"Validation {i} with {validator.__class__.__name__}: "
                             f"passed={result.passed}"
@@ -319,7 +476,7 @@ class Chain:
                     # Add the error to validation results
                     from sifaka.results import ValidationResult
 
-                    error_result = ValidationResult(
+                    error_result: ResultsValidationResult = ValidationResult(
                         passed=False,
                         message=f"Validation error: {str(e)}",
                         details={"error_type": type(e).__name__},
@@ -341,11 +498,12 @@ class Chain:
                     )
 
             # Improve text
-            improvement_results = []
+            from sifaka.results import ImprovementResult as ResultsImprovementResult
+
+            improvement_results: List[ResultsImprovementResult] = []
             for i, improver in enumerate(self._improvers):
                 try:
                     with chain_context(
-                        component="Chain",
                         operation=f"improvement_{i}",
                         message_prefix=f"Failed to improve text with {improver.__class__.__name__}",
                         suggestions=["Check the improver configuration", "Verify the text format"],
@@ -356,7 +514,17 @@ class Chain:
                         },
                     ):
                         improved_text, result = improver.improve(text)
-                        improvement_results.append(result)
+                        # Cast the result to the expected type
+                        typed_improvement_result: ResultsImprovementResult = (
+                            ResultsImprovementResult(
+                                original_text=result.original_text,
+                                improved_text=result.improved_text,
+                                changes_made=result.changes_made,
+                                message=result.message if hasattr(result, "message") else "",
+                                details=result.details if hasattr(result, "details") else {},
+                            )
+                        )
+                        improvement_results.append(typed_improvement_result)
                         logger.debug(
                             f"Improvement {i} with {improver.__class__.__name__}: "
                             f"changes_made={result.changes_made}, "
@@ -371,14 +539,14 @@ class Chain:
                     # Add the error to improvement results
                     from sifaka.results import ImprovementResult
 
-                    error_result = ImprovementResult(
+                    improvement_error_result: ResultsImprovementResult = ImprovementResult(
                         original_text=text,
                         improved_text=text,
                         changes_made=False,
                         message=f"Improvement error: {str(e)}",
                         details={"error_type": type(e).__name__},
                     )
-                    improvement_results.append(error_result)
+                    improvement_results.append(improvement_error_result)
 
                     # Continue with the next improver
                     continue
@@ -427,5 +595,7 @@ class Chain:
                     "improvers_count": len(self._improvers),
                     "execution_time": execution_time,
                     "error_type": type(e).__name__,
+                    "debug_mode": self._config.debug,
+                    "model_options": self._config.get_model_options(),
                 },
             )

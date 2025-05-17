@@ -4,14 +4,11 @@ Retrieval-enhanced critics for Sifaka.
 This module provides base classes and utilities for enhancing critics with retrieval capabilities.
 """
 
-import json
 import logging
-from typing import Dict, Any, Optional, List, Callable, Union, Type, TypeVar
+from typing import Dict, Any, Optional, TypeVar
 
-from sifaka.models.base import Model
 from sifaka.critics.base import Critic
 from sifaka.errors import ImproverError, RetrieverError
-from sifaka.retrievers.base import Retriever
 from sifaka.retrievers.augmenter import RetrievalAugmenter
 
 logger = logging.getLogger(__name__)
@@ -141,7 +138,13 @@ class RetrievalEnhancedCritic(Critic):
         Returns:
             True if the text is valid, False otherwise.
         """
-        return self.base_critic.validate(text)
+        # Check if the base critic has a validate method
+        if hasattr(self.base_critic, "validate") and callable(
+            getattr(self.base_critic, "validate")
+        ):
+            return bool(self.base_critic.validate(text))
+        # Default to True if the base critic doesn't have a validate method
+        return True
 
     def _critique(self, text: str) -> Dict[str, Any]:
         """Critique text using the base critic enhanced with retrieval.
@@ -503,6 +506,13 @@ class RetrievalEnhancedCritic(Critic):
             )
 
         # Create the prompt
+        retrieved_info = ""
+        if self._retrieval_context and "formatted_passages" in self._retrieval_context:
+            retrieved_info = f"""
+        Retrieved information:
+        {self._retrieval_context["formatted_passages"]}
+        """
+
         prompt = f"""
         Please improve the following text based on the critique and retrieved information:
 
@@ -515,8 +525,7 @@ class RetrievalEnhancedCritic(Critic):
 
         {suggestions_str}
 
-        Retrieved information:
-        {self._retrieval_context["formatted_passages"]}
+        {retrieved_info}
 
         Instructions:
         1. Address all issues mentioned in the critique
@@ -532,7 +541,7 @@ class RetrievalEnhancedCritic(Critic):
 
 
 def enhance_critic_with_retrieval(
-    critic: T,
+    critic: Critic,
     retrieval_augmenter: RetrievalAugmenter,
     include_passages_in_critique: bool = True,
     include_passages_in_improve: bool = True,

@@ -22,7 +22,7 @@ Example:
 
 import importlib
 import logging
-from typing import Dict, Optional, Any, Type, TypeVar, cast, Callable, List, Set
+from typing import Dict, Optional, Any, TypeVar, Callable, List, Set
 
 from sifaka.interfaces import (
     Model,
@@ -61,16 +61,16 @@ class Registry:
     # Singleton instance
     _instance = None
 
-    def __new__(cls):
+    def __new__(cls) -> "Registry":
         """Create a new Registry instance or return the existing one."""
         if cls._instance is None:
             cls._instance = super(Registry, cls).__new__(cls)
             cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the registry."""
-        if self._initialized:
+        if getattr(self, "_initialized", False):
             return
 
         self._model_factories: Dict[str, ModelFactory] = {}
@@ -430,6 +430,20 @@ def get_improver_factory(name: str) -> Optional[ImproverFactory]:
         The factory function, or None if not found.
     """
     return _registry.get_improver_factory(name)
+
+
+def initialize_registry() -> None:
+    """Initialize the registry with default components.
+
+    This function is called automatically when the package is imported.
+    It ensures that the basic components are registered and available.
+
+    Raises:
+        ImportError: If critical modules cannot be imported.
+    """
+    # Initialize only the essential component types
+    _registry._initialize_component_type("model")
+    logger.debug("Registry initialized with default components")
 
 
 def initialize_all() -> None:

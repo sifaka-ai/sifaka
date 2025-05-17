@@ -38,3 +38,8 @@ ruff>=0.3.0
 pytest-cov>=4.1.0
 flake8>=5.0.0
 typer>=0.9.0  # Updated to latest version to fix is_flag deprecation
+
+# Type stubs
+types-jsonschema>=4.21.0
+types-PyYAML>=6.0.0
+types-requests>=2.31.0

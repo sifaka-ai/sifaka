@@ -5,9 +5,9 @@ This module provides a validator that checks if text meets length requirements.
 """
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Any
 
-from sifaka.results import ValidationResult
+from sifaka.results import ValidationResult as SifakaValidationResult
 from sifaka.errors import ValidationError
 from sifaka.registry import register_validator
 from sifaka.validators.base import BaseValidator
@@ -124,7 +124,7 @@ class LengthValidator(BaseValidator):
                     metadata={"min_chars": min_chars, "max_chars": max_chars},
                 )
 
-    def _validate(self, text: str) -> ValidationResult:
+    def _validate(self, text: str) -> SifakaValidationResult:
         """Validate text against length requirements.
 
         Args:
@@ -181,7 +181,7 @@ class LengthValidator(BaseValidator):
                 # Calculate processing time
                 processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
-                return ValidationResult(
+                return SifakaValidationResult(
                     passed=False,
                     message=f"Text is too short: {word_count} words, minimum {self.min_words} words required",
                     details={
@@ -216,7 +216,7 @@ class LengthValidator(BaseValidator):
                 # Calculate processing time
                 processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
-                return ValidationResult(
+                return SifakaValidationResult(
                     passed=False,
                     message=f"Text is too long: {word_count} words, maximum {self.max_words} words allowed",
                     details={
@@ -252,7 +252,7 @@ class LengthValidator(BaseValidator):
                 # Calculate processing time
                 processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
-                return ValidationResult(
+                return SifakaValidationResult(
                     passed=False,
                     message=f"Text is too short: {char_count} characters, minimum {self.min_chars} characters required",
                     details={
@@ -287,7 +287,7 @@ class LengthValidator(BaseValidator):
                 # Calculate processing time
                 processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
-                return ValidationResult(
+                return SifakaValidationResult(
                     passed=False,
                     message=f"Text is too long: {char_count} characters, maximum {self.max_chars} characters allowed",
                     details={
@@ -311,7 +311,7 @@ class LengthValidator(BaseValidator):
             # Calculate score based on how close to ideal length
             score = 1.0  # Perfect score for passing
 
-            return ValidationResult(
+            return SifakaValidationResult(
                 passed=True,
                 message="Text meets length requirements",
                 details={

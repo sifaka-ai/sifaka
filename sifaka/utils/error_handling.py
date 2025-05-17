@@ -8,7 +8,7 @@ error handling across the Sifaka framework.
 import logging
 import functools
 import traceback
-from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union, cast
+from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union
 from contextlib import contextmanager
 
 from sifaka.errors import (
@@ -36,28 +36,28 @@ def format_error_message(
 ) -> str:
     """
     Format an error message with component, operation, and suggestions.
-    
+
     Args:
         message: The base error message
         component: Optional component name
         operation: Optional operation name
         suggestions: Optional list of suggestions
-        
+
     Returns:
         A formatted error message
     """
     formatted_message = message
-    
+
     if component:
         formatted_message = f"[{component}] {formatted_message}"
-    
+
     if operation:
         formatted_message = f"{formatted_message} (during {operation})"
-    
+
     if suggestions:
         suggestion_text = "; ".join(suggestions)
         formatted_message = f"{formatted_message}. Suggestions: {suggestion_text}"
-    
+
     return formatted_message
 
 
@@ -71,7 +71,7 @@ def log_error(
 ) -> None:
     """
     Log an error with consistent formatting.
-    
+
     Args:
         error: The exception to log
         logger_instance: Optional logger instance to use
@@ -81,12 +81,12 @@ def log_error(
         operation: Optional operation name
     """
     logger_to_use = logger_instance or logger
-    
+
     # Format the error message
     error_message = str(error)
     if component or operation:
         error_message = format_error_message(error_message, component, operation)
-    
+
     # Log the error
     if include_traceback:
         logger_to_use.log(level, error_message, exc_info=True)
@@ -105,7 +105,7 @@ def convert_exception(
 ) -> Exception:
     """
     Convert an exception to a different type with additional context.
-    
+
     Args:
         exception: The original exception
         target_exception_class: The target exception class
@@ -114,22 +114,22 @@ def convert_exception(
         operation: Optional operation name
         suggestions: Optional list of suggestions
         metadata: Optional metadata to include
-        
+
     Returns:
         A new exception of the target type
     """
     # Get the original error message
     original_message = str(exception)
-    
+
     # Create the new message
     new_message = original_message
     if message_prefix:
         new_message = f"{message_prefix}: {new_message}"
-    
+
     # Create the new exception
     if issubclass(target_exception_class, SifakaError):
         # If the target is a SifakaError, use its constructor with all parameters
-        new_exception = target_exception_class(
+        new_exception: Exception = target_exception_class(
             message=new_message,
             component=component,
             operation=operation,
@@ -139,12 +139,24 @@ def convert_exception(
     else:
         # Otherwise, use the standard constructor
         new_exception = target_exception_class(new_message)
-    
+
     # Preserve the traceback
     if hasattr(exception, "__traceback__"):
         new_exception.__traceback__ = exception.__traceback__
-    
+
     return new_exception
+
+
+class ErrorContext:
+    """A context object for error handling."""
+
+    def __init__(self, metadata: Optional[Dict[str, Any]] = None):
+        """Initialize the context object.
+
+        Args:
+            metadata: Optional metadata to include
+        """
+        self.metadata = metadata or {}
 
 
 @contextmanager
@@ -158,10 +170,10 @@ def error_context(
     logger_instance: Optional[logging.Logger] = None,
     log_level: int = logging.ERROR,
     include_traceback: bool = True,
-):
+) -> Any:
     """
     Context manager for consistent error handling.
-    
+
     Args:
         component: Optional component name
         operation: Optional operation name
@@ -172,15 +184,18 @@ def error_context(
         logger_instance: Optional logger instance to use
         log_level: Logging level
         include_traceback: Whether to include the traceback
-        
+
     Yields:
-        None
-        
+        ErrorContext: A context object that can be used to store additional metadata
+
     Raises:
         The specified error_class with additional context
     """
+    # Create a context object with the metadata
+    context = ErrorContext(metadata)
+
     try:
-        yield
+        yield context
     except Exception as e:
         # Log the error
         log_error(
@@ -191,7 +206,7 @@ def error_context(
             component=component,
             operation=operation,
         )
-        
+
         # Convert the exception
         new_exception = convert_exception(
             e,
@@ -200,9 +215,9 @@ def error_context(
             component=component,
             operation=operation,
             suggestions=suggestions,
-            metadata=metadata,
+            metadata=context.metadata,  # Use the potentially updated metadata
         )
-        
+
         # Raise the new exception
         raise new_exception from e
 
@@ -220,7 +235,7 @@ def with_error_handling(
 ) -> Callable[[Callable[..., R]], Callable[..., R]]:
     """
     Decorator for consistent error handling.
-    
+
     Args:
         component: Optional component name
         operation: Optional operation name
@@ -231,10 +246,11 @@ def with_error_handling(
         logger_instance: Optional logger instance to use
         log_level: Logging level
         include_traceback: Whether to include the traceback
-        
+
     Returns:
         A decorator function
     """
+
     def decorator(func: Callable[..., R]) -> Callable[..., R]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> R:
@@ -250,11 +266,14 @@ def with_error_handling(
                 include_traceback=include_traceback,
             ):
                 return func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
 # Specialized context managers for common operations
+
 
 @contextmanager
 def validation_context(
@@ -263,20 +282,20 @@ def validation_context(
     message_prefix: Optional[str] = None,
     suggestions: Optional[List[str]] = None,
     metadata: Optional[Dict[str, Any]] = None,
-):
+) -> Any:
     """
     Context manager for validation operations.
-    
+
     Args:
         validator_name: Optional validator name
         operation: Optional operation name
         message_prefix: Optional prefix for the error message
         suggestions: Optional list of suggestions
         metadata: Optional metadata to include
-        
+
     Yields:
         None
-        
+
     Raises:
         ValidationError with additional context
     """
@@ -290,7 +309,6 @@ def validation_context(
     ) as context:
         # Add validator name to the context if provided
         if validator_name:
-            context.metadata = context.metadata or {}
             context.metadata["validator_name"] = validator_name
         yield
 
@@ -302,20 +320,20 @@ def improvement_context(
     message_prefix: Optional[str] = None,
     suggestions: Optional[List[str]] = None,
     metadata: Optional[Dict[str, Any]] = None,
-):
+) -> Any:
     """
     Context manager for improvement operations.
-    
+
     Args:
         improver_name: Optional improver name
         operation: Optional operation name
         message_prefix: Optional prefix for the error message
         suggestions: Optional list of suggestions
         metadata: Optional metadata to include
-        
+
     Yields:
         None
-        
+
     Raises:
         ImproverError with additional context
     """
@@ -329,7 +347,6 @@ def improvement_context(
     ) as context:
         # Add improver name to the context if provided
         if improver_name:
-            context.metadata = context.metadata or {}
             context.metadata["improver_name"] = improver_name
         yield
 
@@ -341,20 +358,20 @@ def model_context(
     message_prefix: Optional[str] = None,
     suggestions: Optional[List[str]] = None,
     metadata: Optional[Dict[str, Any]] = None,
-):
+) -> Any:
     """
     Context manager for model operations.
-    
+
     Args:
         model_name: Optional model name
         operation: Optional operation name
         message_prefix: Optional prefix for the error message
         suggestions: Optional list of suggestions
         metadata: Optional metadata to include
-        
+
     Yields:
         None
-        
+
     Raises:
         ModelError with additional context
     """
@@ -368,7 +385,6 @@ def model_context(
     ) as context:
         # Add model name to the context if provided
         if model_name:
-            context.metadata = context.metadata or {}
             context.metadata["model_name"] = model_name
         yield
 
@@ -380,20 +396,20 @@ def retrieval_context(
     message_prefix: Optional[str] = None,
     suggestions: Optional[List[str]] = None,
     metadata: Optional[Dict[str, Any]] = None,
-):
+) -> Any:
     """
     Context manager for retrieval operations.
-    
+
     Args:
         retriever_name: Optional retriever name
         operation: Optional operation name
         message_prefix: Optional prefix for the error message
         suggestions: Optional list of suggestions
         metadata: Optional metadata to include
-        
+
     Yields:
         None
-        
+
     Raises:
         RetrieverError with additional context
     """
@@ -407,6 +423,76 @@ def retrieval_context(
     ) as context:
         # Add retriever name to the context if provided
         if retriever_name:
-            context.metadata = context.metadata or {}
             context.metadata["retriever_name"] = retriever_name
+        yield
+
+
+@contextmanager
+def critic_context(
+    critic_name: Optional[str] = None,
+    operation: Optional[str] = "critique",
+    message_prefix: Optional[str] = None,
+    suggestions: Optional[List[str]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Any:
+    """
+    Context manager for critic operations.
+
+    Args:
+        critic_name: Optional critic name
+        operation: Optional operation name
+        message_prefix: Optional prefix for the error message
+        suggestions: Optional list of suggestions
+        metadata: Optional metadata to include
+
+    Yields:
+        None
+
+    Raises:
+        ImproverError with additional context
+    """
+    with error_context(
+        component="Critic",
+        operation=operation,
+        error_class=ImproverError,
+        message_prefix=message_prefix,
+        suggestions=suggestions,
+        metadata=metadata,
+    ) as context:
+        # Add critic name to the context if provided
+        if critic_name:
+            context.metadata["critic_name"] = critic_name
+        yield
+
+
+@contextmanager
+def chain_context(
+    operation: Optional[str] = "execution",
+    message_prefix: Optional[str] = None,
+    suggestions: Optional[List[str]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Any:
+    """
+    Context manager for chain operations.
+
+    Args:
+        operation: Optional operation name
+        message_prefix: Optional prefix for the error message
+        suggestions: Optional list of suggestions
+        metadata: Optional metadata to include
+
+    Yields:
+        None
+
+    Raises:
+        ChainError with additional context
+    """
+    with error_context(
+        component="Chain",
+        operation=operation,
+        error_class=ChainError,
+        message_prefix=message_prefix,
+        suggestions=suggestions,
+        metadata=metadata,
+    ) as context:
         yield

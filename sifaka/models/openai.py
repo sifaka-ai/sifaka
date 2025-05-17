@@ -6,7 +6,7 @@ It also provides a factory function for creating OpenAI model instances.
 """
 
 import os
-from typing import Optional, Dict, Any, List
+from typing import Optional, Any
 
 try:
     import tiktoken
@@ -287,6 +287,58 @@ class OpenAIModel:
         # Most OpenAI models starting with "gpt" are chat models
         return "gpt" in self.model_name.lower()
 
+    def configure(self, **options: Any) -> None:
+        """Configure the model with new options.
+
+        Args:
+            **options: Configuration options to apply to the model.
+                Supported options include:
+                - api_key: The OpenAI API key to use.
+                - organization: The OpenAI organization ID to use.
+                - temperature: Controls randomness in generation.
+                - max_tokens: Maximum number of tokens to generate.
+                - top_p: Controls diversity via nucleus sampling.
+                - frequency_penalty: Reduces repetition of token sequences.
+                - presence_penalty: Reduces repetition of topics.
+
+        Raises:
+            ModelError: If there is an error configuring the model.
+        """
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        # Log configuration attempt
+        logger.debug(f"Configuring OpenAI model '{self.model_name}'")
+
+        # Update API key if provided
+        if "api_key" in options:
+            self.api_key = options["api_key"]
+            # Recreate client with new API key
+            self.client = OpenAI(
+                api_key=self.api_key,
+                organization=self.organization,
+            )
+            logger.debug("Updated API key")
+
+        # Update organization if provided
+        if "organization" in options:
+            self.organization = options["organization"]
+            # Recreate client with new organization
+            self.client = OpenAI(
+                api_key=self.api_key,
+                organization=self.organization,
+            )
+            logger.debug("Updated organization")
+
+        # Update other options
+        for key, value in options.items():
+            if key not in ["api_key", "organization"]:
+                self.options[key] = value
+                logger.debug(f"Updated option '{key}'")
+
+        logger.debug(f"Successfully configured OpenAI model '{self.model_name}'")
+
     def count_tokens(self, text: str) -> int:
         """Count tokens in text.
 
@@ -341,7 +393,6 @@ class OpenAIModel:
             # Raise as ModelError with more context
             raise ModelError(
                 message=f"Error counting tokens: {str(e)}",
-                model_name=self.model_name,
                 component="OpenAIModel",
                 operation="token_counting",
                 suggestions=[
@@ -356,7 +407,7 @@ class OpenAIModel:
                 },
             )
 
-    def _get_encoding(self):
+    def _get_encoding(self) -> Any:
         """Get the encoding for the model.
 
         Returns:
@@ -408,7 +459,6 @@ class OpenAIModel:
             # Raise as ModelError with more context
             raise ModelError(
                 message=f"Error getting encoding: {str(e)}",
-                model_name=self.model_name,
                 component="OpenAIModel",
                 operation="get_encoding",
                 suggestions=[
@@ -480,7 +530,6 @@ def create_openai_model(model_name: str, **options: Any) -> OpenAIModel:
         # Re-raise the error with more context
         raise ModelError(
             message=f"Failed to create OpenAI model: {str(e)}",
-            model_name=model_name,
             component="OpenAIModelFactory",
             operation="create_model",
             suggestions=[
@@ -497,7 +546,6 @@ def create_openai_model(model_name: str, **options: Any) -> OpenAIModel:
         # Raise as ModelError with more context
         raise ModelError(
             message=f"Unexpected error creating OpenAI model: {str(e)}",
-            model_name=model_name,
             component="OpenAIModelFactory",
             operation="create_model",
             suggestions=[

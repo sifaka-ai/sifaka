@@ -8,7 +8,7 @@ using scikit-learn's Naive Bayes classifier with TF-IDF vectorization.
 import importlib
 import os
 import pickle
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from sifaka.classifiers import ClassificationResult
 
@@ -62,7 +62,7 @@ class SpamClassifier:
         """Get the classifier description."""
         return self._description
 
-    def _load_scikit_learn(self):
+    def _load_scikit_learn(self) -> tuple[Any, Any]:
         """
         Load scikit-learn and related modules.
 
@@ -85,7 +85,7 @@ class SpamClassifier:
         except Exception as e:
             raise RuntimeError(f"Failed to load scikit-learn: {e}")
 
-    def _create_default_model(self):
+    def _create_default_model(self) -> tuple[Any, Any]:
         """
         Create a default spam detection model.
 
@@ -151,7 +151,7 @@ class SpamClassifier:
         except Exception as e:
             raise RuntimeError(f"Failed to create default model: {e}")
 
-    def _load_model(self):
+    def _load_model(self) -> tuple[Any, Any]:
         """
         Load a pre-trained model from file.
 
@@ -214,6 +214,14 @@ class SpamClassifier:
 
             # Load numpy
             _, numpy = self._load_scikit_learn()
+
+            # Ensure model and vectorizer are initialized
+            if self._vectorizer is None or self._model is None:
+                self._initialize()
+
+            # Check again after initialization
+            if self._vectorizer is None or self._model is None:
+                raise RuntimeError("Failed to initialize spam classifier model")
 
             # Vectorize the text
             X = self._vectorizer.transform([text])
@@ -318,6 +326,14 @@ class SpamClassifier:
         try:
             # Load numpy
             _, numpy = self._load_scikit_learn()
+
+            # Ensure model and vectorizer are initialized
+            if self._vectorizer is None or self._model is None:
+                self._initialize()
+
+            # Check again after initialization
+            if self._vectorizer is None or self._model is None:
+                raise RuntimeError("Failed to initialize spam classifier model")
 
             # Vectorize the texts
             X = self._vectorizer.transform(non_empty_texts)

@@ -275,7 +275,7 @@ class SelfRAGCritic(Critic):
                 )
 
             # Retrieve relevant passages for each query
-            retrieved_passages = []
+            retrieved_passages: List[str] = []
             with critic_context(
                 critic_name="SelfRAGCritic",
                 operation="retrieval",

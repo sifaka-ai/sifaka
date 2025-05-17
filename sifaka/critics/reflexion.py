@@ -550,7 +550,7 @@ class ReflexionCritic(Critic):
                 },
             )
 
-    def _format_list(self, items: list) -> str:
+    def _format_list(self, items: List[str]) -> str:
         """Format a list of items as a numbered list.
 
         Args:

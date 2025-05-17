@@ -6,7 +6,8 @@ These validators follow the Validator protocol defined in the chain module.
 """
 
 import re
-from typing import Optional, List, Dict, Any, Callable, Union, Pattern
+from typing import Optional, List, Dict, Any, Callable, Union
+from re import Pattern
 
 from sifaka.results import ValidationResult
 
@@ -154,7 +155,7 @@ def content(
 
 
 def format(
-    pattern: Union[str, Pattern],
+    pattern: Union[str, Pattern[str]],
     description: Optional[str] = None,
 ) -> Callable[[str], ValidationResult]:
     """Create a validator that checks if text matches a regex pattern.

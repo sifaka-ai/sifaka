@@ -253,6 +253,14 @@ class LanguageClassifier:
             )
 
         try:
+            # Ensure detector is initialized
+            if self._detector is None:
+                self._initialize()
+
+            # Check again after initialization
+            if self._detector is None:
+                raise RuntimeError("Failed to initialize language detector")
+
             # Detect language
             lang_probs = self._detector.detect_langs(text)
 

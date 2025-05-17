@@ -21,11 +21,15 @@ extras_require = {
     "milvus": ["pymilvus>=2.0.0"],
     # Dev tools
     "dev": [
-        "pytest>=8.0.0",
-        "black>=24.0.0",
-        "isort>=5.12.0",
-        "mypy>=1.5.0",
-        "ruff>=0.1.0",
+        "pytest>=8.0.2",
+        "black>=24.2.0",
+        "isort>=5.13.2",
+        "mypy>=1.9.0",
+        "ruff>=0.3.0",
+        "pytest-cov>=4.1.0",
+        "flake8>=5.0.0",
+        "types-jsonschema>=4.21.0",
+        "types-PyYAML>=6.0.0",
     ],
 }
 

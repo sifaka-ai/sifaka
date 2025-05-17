@@ -5,7 +5,7 @@ This module provides factory functions for creating retrieval-enhanced versions 
 """
 
 import logging
-from typing import Dict, Any, Optional, List, Callable, Union
+from typing import Any, Optional, List, cast
 
 from sifaka.models.base import Model
 from sifaka.critics.base import Critic
@@ -16,7 +16,6 @@ from sifaka.critics.self_refine import create_self_refine_critic
 from sifaka.critics.prompt import create_prompt_critic
 from sifaka.critics.retrieval_enhanced import enhance_critic_with_retrieval
 from sifaka.retrievers.augmenter import RetrievalAugmenter
-from sifaka.retrievers.base import Retriever
 from sifaka.errors import ImproverError
 
 logger = logging.getLogger(__name__)
@@ -63,7 +62,7 @@ def create_retrieval_enhanced_constitutional_critic(
 
     # Enhance it with retrieval
     return enhance_critic_with_retrieval(
-        critic=base_critic,
+        critic=cast(Critic, base_critic),
         retrieval_augmenter=retrieval_augmenter,
         include_passages_in_critique=include_passages_in_critique,
         include_passages_in_improve=include_passages_in_improve,
@@ -115,7 +114,7 @@ def create_retrieval_enhanced_n_critics_critic(
 
     # Enhance it with retrieval
     return enhance_critic_with_retrieval(
-        critic=base_critic,
+        critic=cast(Critic, base_critic),
         retrieval_augmenter=retrieval_augmenter,
         include_passages_in_critique=include_passages_in_critique,
         include_passages_in_improve=include_passages_in_improve,
@@ -164,7 +163,7 @@ def create_retrieval_enhanced_reflexion_critic(
 
     # Enhance it with retrieval
     return enhance_critic_with_retrieval(
-        critic=base_critic,
+        critic=cast(Critic, base_critic),
         retrieval_augmenter=retrieval_augmenter,
         include_passages_in_critique=include_passages_in_critique,
         include_passages_in_improve=include_passages_in_improve,
@@ -213,7 +212,7 @@ def create_retrieval_enhanced_self_refine_critic(
 
     # Enhance it with retrieval
     return enhance_critic_with_retrieval(
-        critic=base_critic,
+        critic=cast(Critic, base_critic),
         retrieval_augmenter=retrieval_augmenter,
         include_passages_in_critique=include_passages_in_critique,
         include_passages_in_improve=include_passages_in_improve,
@@ -265,7 +264,7 @@ def create_retrieval_enhanced_prompt_critic(
 
     # Enhance it with retrieval
     return enhance_critic_with_retrieval(
-        critic=base_critic,
+        critic=cast(Critic, base_critic),
         retrieval_augmenter=retrieval_augmenter,
         include_passages_in_critique=include_passages_in_critique,
         include_passages_in_improve=include_passages_in_improve,

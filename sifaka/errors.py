@@ -4,7 +4,7 @@ Error types for Sifaka operations.
 This module defines the custom exceptions used throughout the Sifaka framework.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 
 class SifakaError(Exception):
@@ -27,7 +27,7 @@ class SifakaError(Exception):
         message: str,
         component: Optional[str] = None,
         operation: Optional[str] = None,
-        suggestions: Optional[list] = None,
+        suggestions: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
         self.message = message
@@ -61,7 +61,7 @@ class ConfigurationError(SifakaError):
         message: str,
         component: Optional[str] = None,
         operation: Optional[str] = "configuration",
-        suggestions: Optional[list] = None,
+        suggestions: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(message, component, operation, suggestions, metadata)
@@ -80,7 +80,7 @@ class ModelError(SifakaError):
         message: str,
         component: Optional[str] = "Model",
         operation: Optional[str] = None,
-        suggestions: Optional[list] = None,
+        suggestions: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(message, component, operation, suggestions, metadata)
@@ -99,7 +99,7 @@ class ModelNotFoundError(ModelError):
         model_name: Optional[str] = None,
         component: Optional[str] = "Model",
         operation: Optional[str] = "model lookup",
-        suggestions: Optional[list] = None,
+        suggestions: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
         if model_name:
@@ -127,7 +127,7 @@ class ModelAPIError(ModelError):
         model_name: Optional[str] = None,
         component: Optional[str] = "Model",
         operation: Optional[str] = "API call",
-        suggestions: Optional[list] = None,
+        suggestions: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
         if model_name:
@@ -161,7 +161,7 @@ class ValidationError(SifakaError):
         validator_name: Optional[str] = None,
         component: Optional[str] = "Validator",
         operation: Optional[str] = "validation",
-        suggestions: Optional[list] = None,
+        suggestions: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
         if validator_name:
@@ -187,7 +187,7 @@ class ImproverError(SifakaError):
         improver_name: Optional[str] = None,
         component: Optional[str] = "Improver",
         operation: Optional[str] = "improvement",
-        suggestions: Optional[list] = None,
+        suggestions: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
         if improver_name:
@@ -213,7 +213,7 @@ class ChainError(SifakaError):
         chain_name: Optional[str] = None,
         component: Optional[str] = "Chain",
         operation: Optional[str] = "execution",
-        suggestions: Optional[list] = None,
+        suggestions: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
         if chain_name:
@@ -238,7 +238,7 @@ class CacheError(SifakaError):
         message: str,
         component: Optional[str] = "Cache",
         operation: Optional[str] = None,
-        suggestions: Optional[list] = None,
+        suggestions: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(message, component, operation, suggestions, metadata)
@@ -257,7 +257,7 @@ class RetryError(SifakaError):
         attempts: int = 0,
         component: Optional[str] = None,
         operation: Optional[str] = "retry",
-        suggestions: Optional[list] = None,
+        suggestions: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
         if attempts > 0:
@@ -282,7 +282,7 @@ class FallbackError(SifakaError):
         message: str,
         component: Optional[str] = None,
         operation: Optional[str] = "fallback",
-        suggestions: Optional[list] = None,
+        suggestions: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(message, component, operation, suggestions, metadata)
@@ -300,7 +300,7 @@ class StreamingError(SifakaError):
         message: str,
         component: Optional[str] = None,
         operation: Optional[str] = "streaming",
-        suggestions: Optional[list] = None,
+        suggestions: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(message, component, operation, suggestions, metadata)
@@ -319,7 +319,7 @@ class RetrieverError(SifakaError):
         retriever_name: Optional[str] = None,
         component: Optional[str] = "Retriever",
         operation: Optional[str] = "retrieval",
-        suggestions: Optional[list] = None,
+        suggestions: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ):
         if retriever_name:

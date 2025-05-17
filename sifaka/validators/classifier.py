@@ -8,13 +8,13 @@ in validation chains.
 
 import logging
 import time
-from typing import List, Optional, Dict, Any, Callable, Union
-from dataclasses import dataclass
+from typing import List, Optional, Any, Callable
+from dataclasses import dataclass, field
 
-from sifaka.results import ValidationResult
+from sifaka.results import ValidationResult as SifakaValidationResult
 from sifaka.errors import ValidationError
 from sifaka.registry import register_validator
-from sifaka.classifiers import Classifier, ClassificationResult
+from sifaka.classifiers import Classifier
 from sifaka.validators.base import BaseValidator
 from sifaka.utils.error_handling import validation_context, log_error
 
@@ -35,11 +35,11 @@ class ClassifierValidatorConfig:
     """
 
     threshold: float = 0.5
-    valid_labels: List[str] = None
+    valid_labels: List[str] = field(default_factory=list)
     invalid_labels: Optional[List[str]] = None
     extraction_function: Optional[Callable[[str], str]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration after initialization."""
         try:
             # Validate threshold
@@ -59,11 +59,6 @@ class ClassifierValidatorConfig:
                         "invalid_labels": self.invalid_labels,
                     },
                 )
-
-            # Initialize valid_labels if None
-            if self.valid_labels is None:
-                self.valid_labels = []
-                logger.debug("Initialized valid_labels to empty list")
 
             # Validate that at least one label list is provided
             if not self.valid_labels and not self.invalid_labels:
@@ -213,9 +208,10 @@ class ClassifierValidator(BaseValidator):
                     "invalid_labels": invalid_labels,
                 },
             ):
+                # Ensure valid_labels is not None before passing to ClassifierValidatorConfig
                 self.config = ClassifierValidatorConfig(
                     threshold=threshold,
-                    valid_labels=valid_labels,
+                    valid_labels=valid_labels if valid_labels is not None else [],
                     invalid_labels=invalid_labels,
                     extraction_function=extraction_function,
                 )
@@ -254,7 +250,7 @@ class ClassifierValidator(BaseValidator):
                 )
             raise
 
-    def _validate(self, text: str) -> ValidationResult:
+    def _validate(self, text: str) -> SifakaValidationResult:
         """
         Validate text using the classifier.
 
@@ -348,7 +344,7 @@ class ClassifierValidator(BaseValidator):
                 # Calculate score as a ratio of confidence to threshold
                 score = max(0.0, min(1.0, result.confidence / self.config.threshold))
 
-                return ValidationResult(
+                return SifakaValidationResult(
                     passed=False,
                     message=f"Classification confidence ({result.confidence:.2f}) below threshold ({self.config.threshold:.2f})",
                     details=details,
@@ -371,7 +367,7 @@ class ClassifierValidator(BaseValidator):
                 # Calculate score based on confidence
                 score = max(0.5, min(1.0, result.confidence))
 
-                return ValidationResult(
+                return SifakaValidationResult(
                     passed=True,
                     message=f"Text classified as '{result.label}' with confidence {result.confidence:.2f}",
                     details=details,
@@ -389,7 +385,7 @@ class ClassifierValidator(BaseValidator):
                 # Calculate score inversely proportional to confidence
                 score = max(0.0, min(0.5, 1.0 - result.confidence))
 
-                return ValidationResult(
+                return SifakaValidationResult(
                     passed=False,
                     message=f"Text classified as invalid label '{result.label}'",
                     details=details,
@@ -411,7 +407,7 @@ class ClassifierValidator(BaseValidator):
                 # Calculate score based on similarity to valid labels (placeholder logic)
                 score = 0.0
 
-                return ValidationResult(
+                return SifakaValidationResult(
                     passed=False,
                     message=f"Text classified as '{result.label}', which is not in the list of valid labels: {valid_labels_str}",
                     details=details,
@@ -434,7 +430,7 @@ class ClassifierValidator(BaseValidator):
                 # Calculate score based on confidence and distance from invalid labels
                 score = max(0.5, min(1.0, result.confidence))
 
-                return ValidationResult(
+                return SifakaValidationResult(
                     passed=True,
                     message=f"Text classified as '{result.label}', which is not in the list of invalid labels",
                     details=details,
@@ -448,7 +444,7 @@ class ClassifierValidator(BaseValidator):
                 f"{self.name}: Reached default case in validation logic, which should not happen with valid config"
             )
 
-            return ValidationResult(
+            return SifakaValidationResult(
                 passed=True,
                 message=f"Text classified as '{result.label}' with confidence {result.confidence:.2f}",
                 details=details,

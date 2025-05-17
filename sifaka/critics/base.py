@@ -7,22 +7,23 @@ It includes consistent error handling and improvement patterns for all critics.
 
 import time
 import logging
-import json
-from typing import Optional, Dict, Any, List, Union, Tuple
+from typing import Optional, Dict, Any
 
 from sifaka.models.base import Model
 from sifaka.results import ImprovementResult
 from sifaka.errors import ImproverError, ModelError
+from sifaka.interfaces import Improver
 from sifaka.utils.error_handling import improvement_context, log_error
 
 # Configure logger
 logger = logging.getLogger(__name__)
 
 
-class Critic:
+class Critic(Improver):
     """Base class for critics that improve text.
 
     Critics use LLMs to critique and improve text based on specific criteria.
+    This class implements the Improver protocol.
 
     Attributes:
         model: The model to use for critiquing and improving text.
@@ -75,7 +76,45 @@ class Critic:
         Returns:
             The name of the critic
         """
-        return self._name
+        return str(self._name)
+
+    def configure(self, **options: Any) -> None:
+        """Configure the critic with new options.
+
+        Args:
+            **options: Configuration options to apply to the critic.
+                Supported options include:
+                - system_prompt: The system prompt to use for the model.
+                - temperature: The temperature to use for the model.
+                - refinement_rounds: Number of refinement rounds (for self-refine critics).
+                - num_critics: Number of critics (for n-critics).
+                - principles: List of principles (for constitutional critics).
+                - max_passages: Maximum number of passages (for retrieval-enhanced critics).
+                - include_passages_in_critique: Whether to include passages in critique.
+                - include_passages_in_improve: Whether to include passages in improve.
+
+        Raises:
+            ImproverError: If there is an error configuring the critic.
+        """
+        logger.debug(f"Configuring {self.name} with options: {options}")
+
+        # Update system prompt if provided
+        if "system_prompt" in options:
+            self.system_prompt = options["system_prompt"]
+            logger.debug(f"Updated system prompt for {self.name}")
+
+        # Update temperature if provided
+        if "temperature" in options:
+            self.temperature = options["temperature"]
+            logger.debug(f"Updated temperature for {self.name} to {self.temperature}")
+
+        # Update other options
+        for key, value in options.items():
+            if key not in ["system_prompt", "temperature"]:
+                self.options[key] = value
+                logger.debug(f"Updated option '{key}' for {self.name}")
+
+        logger.debug(f"Successfully configured {self.name}")
 
     def improve(self, text: str) -> tuple[str, ImprovementResult]:
         """Improve text based on specific criteria.

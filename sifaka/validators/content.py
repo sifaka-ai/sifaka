@@ -6,9 +6,10 @@ This module provides a validator that checks if text contains prohibited content
 
 import re
 import logging
-from typing import List, Optional, Dict, Any, Union, Pattern
+from typing import List, Optional, Any
+from re import Pattern
 
-from sifaka.results import ValidationResult
+from sifaka.results import ValidationResult as SifakaValidationResult
 from sifaka.errors import ValidationError
 from sifaka.registry import register_validator
 from sifaka.validators.base import BaseValidator
@@ -95,7 +96,7 @@ class ContentValidator(BaseValidator):
                 },
             )
 
-    def _compile_patterns(self) -> List[Pattern]:
+    def _compile_patterns(self) -> List[Pattern[str]]:
         """Compile the prohibited items into regular expression patterns.
 
         Returns:
@@ -160,7 +161,7 @@ class ContentValidator(BaseValidator):
 
         return patterns
 
-    def _validate(self, text: str) -> ValidationResult:
+    def _validate(self, text: str) -> SifakaValidationResult:
         """Validate text against prohibited content.
 
         Args:
@@ -176,7 +177,7 @@ class ContentValidator(BaseValidator):
         # Handle empty text
         if not text:
             logger.debug(f"{self.name}: Empty text provided, returning pass result")
-            return ValidationResult(
+            return SifakaValidationResult(
                 passed=True,
                 message="Empty text contains no prohibited content",
                 details={"matches": []},
@@ -217,10 +218,12 @@ class ContentValidator(BaseValidator):
             prohibited_items = [m["prohibited_item"] for m in matches]
 
             # Create issues and suggestions
-            issues = [f"Text contains prohibited content: {', '.join(match_items)}"]
+            match_items_str = [str(item) for item in match_items]
+            prohibited_items_str = [str(item) for item in prohibited_items]
+            issues = [f"Text contains prohibited content: {', '.join(match_items_str)}"]
             suggestions = [
-                f"Remove or rephrase the following prohibited content: {', '.join(match_items)}",
-                f"Avoid using terms like: {', '.join(prohibited_items)}",
+                f"Remove or rephrase the following prohibited content: {', '.join(match_items_str)}",
+                f"Avoid using terms like: {', '.join(prohibited_items_str)}",
             ]
 
             # Calculate score based on number of matches
@@ -230,9 +233,9 @@ class ContentValidator(BaseValidator):
                 f"{self.name}: Validation failed with {len(matches)} matches in {processing_time:.2f}ms"
             )
 
-            return ValidationResult(
+            return SifakaValidationResult(
                 passed=False,
-                message=f"Text contains prohibited content: {', '.join(match_items)}",
+                message=f"Text contains prohibited content: {', '.join(match_items_str)}",
                 details={
                     "matches": matches,
                     "match_count": len(matches),
@@ -247,7 +250,7 @@ class ContentValidator(BaseValidator):
         # No prohibited content found
         logger.debug(f"{self.name}: Validation passed with no matches in {processing_time:.2f}ms")
 
-        return ValidationResult(
+        return SifakaValidationResult(
             passed=True,
             message="Text contains no prohibited content",
             details={

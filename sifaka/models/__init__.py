@@ -5,6 +5,7 @@ This module provides model implementations for various LLM providers.
 Each model implementation registers itself with the registry.
 """
 
+from typing import Any
 from sifaka.models.base import Model, create_model
 from sifaka.registry import register_model
 
@@ -42,15 +43,15 @@ except ImportError:
 
 # Register mock model factory
 @register_model("mock")
-def create_mock_model(model_name: str, **options):
+def create_mock_model(model_name: str, **options: Any) -> Any:
     """Create a mock model for testing."""
 
     class MockModel:
-        def __init__(self, model_name: str, **kwargs):
+        def __init__(self, model_name: str, **kwargs: Any) -> None:
             self.model_name = model_name
             self.kwargs = kwargs
 
-        def generate(self, prompt: str, **_) -> str:
+        def generate(self, prompt: str, **_: Any) -> str:
             return f"Mock response from {self.model_name} for: {prompt}"
 
         def count_tokens(self, text: str) -> int:

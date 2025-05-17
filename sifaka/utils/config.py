@@ -37,7 +37,7 @@ def load_config(path: Optional[str] = None) -> Dict[str, Any]:
         if config_path and os.path.exists(config_path):
             try:
                 with open(config_path, "r") as f:
-                    return json.load(f)
+                    return dict(json.load(f))
             except (json.JSONDecodeError, IOError) as e:
                 raise ConfigurationError(f"Failed to load config from {config_path}: {e}")
 

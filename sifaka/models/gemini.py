@@ -5,7 +5,7 @@ This module provides an implementation of the Model protocol for Google Gemini m
 """
 
 import os
-from typing import Optional, Dict, Any, List
+from typing import Optional, Any
 
 try:
     import google.generativeai as genai
@@ -77,7 +77,6 @@ class GeminiModel:
             logger.error(error_msg)
             raise ModelError(
                 message=error_msg,
-                model_name=self.model_name,
                 component="GeminiModel",
                 operation="initialization",
                 suggestions=[
@@ -104,7 +103,6 @@ class GeminiModel:
             # Raise as ModelError with more context
             raise ModelError(
                 message=f"Error initializing Gemini model: {str(e)}",
-                model_name=self.model_name,
                 component="GeminiModel",
                 operation="initialization",
                 suggestions=[
@@ -338,7 +336,6 @@ class GeminiModel:
             # Raise as ModelError with more context
             raise ModelError(
                 message=f"Gemini API error counting tokens: {str(e)}",
-                model_name=self.model_name,
                 component="GeminiModel",
                 operation="token_counting",
                 suggestions=[
@@ -360,7 +357,6 @@ class GeminiModel:
             # Raise as ModelError with more context
             raise ModelError(
                 message=f"Error counting tokens: {str(e)}",
-                model_name=self.model_name,
                 component="GeminiModel",
                 operation="token_counting",
                 suggestions=[
@@ -434,7 +430,6 @@ def create_gemini_model(model_name: str, **options: Any) -> GeminiModel:
         # Re-raise the error with more context
         raise ModelError(
             message=f"Failed to create Gemini model: {str(e)}",
-            model_name=model_name,
             component="GeminiModelFactory",
             operation="create_model",
             suggestions=[
@@ -451,7 +446,6 @@ def create_gemini_model(model_name: str, **options: Any) -> GeminiModel:
         # Raise as ModelError with more context
         raise ModelError(
             message=f"Unexpected error creating Gemini model: {str(e)}",
-            model_name=model_name,
             component="GeminiModelFactory",
             operation="create_model",
             suggestions=[

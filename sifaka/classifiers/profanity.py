@@ -7,7 +7,7 @@ filter with good accuracy.
 """
 
 import importlib
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Any
 
 from sifaka.classifiers import ClassificationResult
 
@@ -60,7 +60,7 @@ class ProfanityClassifier:
         """Get the classifier description."""
         return self._description
 
-    def _load_profanity(self):
+    def _load_profanity(self) -> Any:
         """
         Load the better_profanity library and configure it.
 
@@ -112,7 +112,10 @@ class ProfanityClassifier:
         # This is a workaround since better_profanity doesn't expose the matched words directly
         # We'll check each word in the text against the profanity filter
         words = text.split()
-        profane_words = set()
+        profane_words: Set[str] = set()
+
+        if self._profanity is None:
+            return profane_words
 
         for word in words:
             if self._profanity.contains_profanity(word):
@@ -148,6 +151,14 @@ class ProfanityClassifier:
             )
 
         try:
+            # Ensure profanity filter is initialized
+            if self._profanity is None:
+                self._initialize()
+
+            # Check again after initialization
+            if self._profanity is None:
+                raise RuntimeError("Failed to initialize profanity filter")
+
             # Check if text contains profanity
             contains_profanity = self._profanity.contains_profanity(text)
 

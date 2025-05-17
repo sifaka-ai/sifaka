@@ -7,7 +7,7 @@ on toxic content datasets.
 """
 
 import importlib
-from typing import List
+from typing import List, Any
 
 from sifaka.classifiers import ClassificationResult
 
@@ -73,7 +73,7 @@ class ToxicityClassifier:
         """Get the classifier description."""
         return self._description
 
-    def _load_detoxify(self):
+    def _load_detoxify(self) -> Any:
         """
         Load the Detoxify library and create a model.
 
@@ -125,6 +125,13 @@ class ToxicityClassifier:
             self._initialize()
 
             # Get toxicity scores from the model
+            if self._model is None:
+                self._initialize()
+
+            # Check again after initialization
+            if self._model is None:
+                raise RuntimeError("Failed to initialize toxicity model")
+
             results = self._model.predict(text)
 
             # Convert results to dictionary if needed
@@ -220,6 +227,13 @@ class ToxicityClassifier:
 
         try:
             # Get toxicity scores from the model for all non-empty texts
+            if self._model is None:
+                self._initialize()
+
+            # Check again after initialization
+            if self._model is None:
+                raise RuntimeError("Failed to initialize toxicity model")
+
             batch_results = self._model.predict(non_empty_texts)
 
             # Process each result
