@@ -13,6 +13,11 @@ from sifaka.validators.format import (
     create_markdown_format_validator,
     create_custom_format_validator,
 )
+from sifaka.validators.classifier import (
+    ClassifierValidator,
+    classifier_validator,
+    create_classifier_validator,
+)
 
 # Critics have been moved to their own directory
 
@@ -31,4 +36,8 @@ __all__ = [
     "create_json_format_validator",
     "create_markdown_format_validator",
     "create_custom_format_validator",
+    # Classifier validators
+    "ClassifierValidator",
+    "classifier_validator",
+    "create_classifier_validator",
 ]
