@@ -226,24 +226,6 @@ class ChainError(SifakaError):
         super().__init__(message, component, operation, suggestions, metadata)
 
 
-class CacheError(SifakaError):
-    """Raised when there is an error with the cache.
-
-    This error is raised when there is an issue with the cache,
-    such as when the cache is corrupted or cannot be accessed.
-    """
-
-    def __init__(
-        self,
-        message: str,
-        component: Optional[str] = "Cache",
-        operation: Optional[str] = None,
-        suggestions: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(message, component, operation, suggestions, metadata)
-
-
 class RetryError(SifakaError):
     """Raised when retry attempts are exhausted.
 

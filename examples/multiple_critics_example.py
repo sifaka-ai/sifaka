@@ -2,7 +2,7 @@
 An example of using Sifaka with multiple critics.
 
 This example demonstrates how to create a chain with multiple critics for comprehensive
-text improvement.
+text improvement, using the ReflexionCritic and N-Critics approach.
 """
 
 import logging
@@ -10,8 +10,9 @@ import os
 from dotenv import load_dotenv
 from sifaka import Chain
 from sifaka.validators import length, prohibited_content
+from sifaka.validators.guardrails import guardrails_validator
 from sifaka.critics.reflexion import create_reflexion_critic
-from sifaka.critics.self_refine import create_self_refine_critic
+from sifaka.critics.n_critics import create_n_critics_critic
 from sifaka.critics.constitutional import create_constitutional_critic
 from sifaka.models.openai import OpenAIModel
 
@@ -23,15 +24,22 @@ logger = logging.getLogger(__name__)
 
 
 def main():
-    """Run an example with multiple critics."""
+    """Run an example with multiple critics and Guardrails validators."""
     # Load environment variables from .env file if it exists
     load_dotenv()
 
-    # Get API key from environment variable
+    # Get API keys from environment variables
     api_key = os.environ.get("OPENAI_API_KEY")
+    guardrails_api_key = os.environ.get("GUARDRAILS_API_KEY")
+
     if not api_key:
         logger.error("OPENAI_API_KEY environment variable not set")
         return
+
+    if not guardrails_api_key:
+        logger.warning(
+            "GUARDRAILS_API_KEY environment variable not set. Some validators may not work properly."
+        )
 
     # Create a model
     model = OpenAIModel(model_name="gpt-3.5-turbo", api_key=api_key)
@@ -39,11 +47,12 @@ def main():
     # Create critics
     reflexion_critic = create_reflexion_critic(
         model=model,
-        reflection_rounds=1,
+        reflection_rounds=2,
     )
 
-    self_refine_critic = create_self_refine_critic(
+    n_critics_critic = create_n_critics_critic(
         model=model,
+        num_critics=3,
         max_refinement_iterations=1,
     )
 
@@ -56,15 +65,37 @@ def main():
         ],
     )
 
-    # Create a chain with multiple critics
+    # Create Guardrails validators
+    regex_match_validator = guardrails_validator(
+        validators=["regex_match"],
+        validator_args={
+            "regex_match": {
+                "regex": r"machine\s+learning",  # Ensure "machine learning" is mentioned
+                "match_type": "search",
+                "on_fail": "exception",
+            }
+        },
+        api_key=guardrails_api_key,
+        name="regex_match_validator",
+    )
+
+    profanity_free_validator = guardrails_validator(
+        validators=["profanity_free"],
+        validator_args={"profanity_free": {"on_fail": "exception"}},
+        api_key=guardrails_api_key,
+        name="profanity_free_validator",
+    )
+
+    # Create a chain with multiple critics and Guardrails validators
     chain = (
         Chain()
         .with_model(model)
         .with_prompt("Explain how machine learning works to someone with no technical background.")
         .validate_with(length(min_words=100, max_words=900))
-        .validate_with(prohibited_content(prohibited=["complex", "difficult"]))
+        .validate_with(regex_match_validator)
+        .validate_with(profanity_free_validator)
         .improve_with(constitutional_critic)  # First apply constitutional principles
-        .improve_with(self_refine_critic)  # Then refine the text
+        .improve_with(n_critics_critic)  # Then use n-critics for comprehensive feedback
         .improve_with(reflexion_critic)  # Finally reflect on improvements
     )
 

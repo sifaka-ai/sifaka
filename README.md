@@ -90,7 +90,7 @@ model = OpenAIModel(model_name="gpt-4", api_key=api_key)
 chain = (Chain()
     .with_model(model)
     .with_prompt("Write a short story about a robot.")
-    .validate_with(length(min_words=50, max_words=200))
+    .validate_with(length(min_words=50, max_words=500))
     .validate_with(prohibited_content(prohibited=["violent", "harmful"]))
     .improve_with(create_reflexion_critic(model=model))
 )
@@ -164,7 +164,7 @@ from dotenv import load_dotenv
 from sifaka import Chain
 from sifaka.config import SifakaConfig, ModelConfig, ValidatorConfig, CriticConfig
 from sifaka.validators import length, prohibited_content
-from sifaka.critics import self_refine
+from sifaka.critics.self_refine import create_self_refine_critic
 
 # Load environment variables from .env file if it exists
 load_dotenv()
@@ -183,8 +183,8 @@ config = SifakaConfig(
         api_key=api_key,  # Use environment variable for API key
     ),
     validator=ValidatorConfig(
-        min_length=100,
-        max_length=500,
+        min_words=100,
+        max_words=500,
         prohibited_content=["violence", "hate speech"]
     ),
     critic=CriticConfig(
@@ -196,14 +196,18 @@ config = SifakaConfig(
     log_level="DEBUG",
 )
 
+# Create a model
+from sifaka.models.openai import OpenAIModel
+model = OpenAIModel(model_name="gpt-4", api_key=api_key)
+
 # Use the configuration with a chain
 chain = (
     Chain(config)
-    .with_model("openai:gpt-4")
+    .with_model(model)
     .with_prompt("Write a short story about a robot.")
-    .validate_with(length())  # Will use min_length and max_length from config
-    .validate_with(prohibited_content())  # Will use prohibited_content from config
-    .improve_with(self_refine())  # Will use refinement_rounds from config
+    .validate_with(length(min_words=config.validator.min_words, max_words=config.validator.max_words))
+    .validate_with(prohibited_content(prohibited=config.validator.prohibited_content))
+    .improve_with(create_self_refine_critic(model=model, max_refinement_iterations=config.critic.refinement_rounds))
 )
 
 # Run the chain
